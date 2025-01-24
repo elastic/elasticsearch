@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.bulk;
@@ -26,6 +27,8 @@ import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.DataStreamFailureStoreSettings;
+import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -34,11 +37,11 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.TriConsumer;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.features.FeatureService;
-import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexingPressure;
@@ -150,13 +153,13 @@ public class TransportBulkActionIngestTests extends ESTestCase {
                 transportService,
                 TransportBulkActionIngestTests.this.clusterService,
                 ingestService,
-                mockFeatureService,
                 new NodeClient(Settings.EMPTY, TransportBulkActionIngestTests.this.threadPool),
                 new ActionFilters(Collections.emptySet()),
                 TestIndexNameExpressionResolver.newInstance(),
                 new IndexingPressure(SETTINGS),
                 EmptySystemIndices.INSTANCE,
-                FailureStoreMetrics.NOOP
+                FailureStoreMetrics.NOOP,
+                DataStreamFailureStoreSettings.create(ClusterSettings.createBuiltInClusterSettings())
             );
         }
 
@@ -167,8 +170,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
             long startTimeNanos,
             ActionListener<BulkResponse> listener,
             Executor executor,
-            AtomicArray<BulkItemResponse> responses,
-            Map<String, IndexNotFoundException> indicesThatCannotBeCreated
+            AtomicArray<BulkItemResponse> responses
         ) {
             assertTrue(indexCreated);
             isExecuted = true;
@@ -323,7 +325,8 @@ public class TransportBulkActionIngestTests extends ESTestCase {
                     WITH_FAILURE_STORE_ENABLED,
                     ComposableIndexTemplate.builder()
                         .indexPatterns(List.of(WITH_FAILURE_STORE_ENABLED + "*"))
-                        .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false, true))
+                        .template(Template.builder().dataStreamOptions(DataStreamTestHelper.createDataStreamOptionsTemplate(true)))
+                        .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
                         .build()
                 )
             )

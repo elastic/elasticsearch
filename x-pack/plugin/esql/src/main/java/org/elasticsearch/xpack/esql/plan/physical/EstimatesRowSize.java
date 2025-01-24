@@ -103,9 +103,6 @@ public interface EstimatesRowSize {
 
     static int estimateSize(DataType dataType) {
         ElementType elementType = PlannerUtils.toElementType(dataType);
-        if (elementType == ElementType.DOC) {
-            throw new EsqlIllegalArgumentException("can't load a [doc] with field extraction");
-        }
         if (elementType == ElementType.UNKNOWN) {
             throw new EsqlIllegalArgumentException("[unknown] can't be the result of field extraction");
         }

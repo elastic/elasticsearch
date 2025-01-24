@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.inference.services.googlevertexai.embeddings;
 
 import org.apache.http.client.utils.URIBuilder;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.ChunkingSettings;
+import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
@@ -27,7 +29,17 @@ import static org.elasticsearch.core.Strings.format;
 
 public class GoogleVertexAiEmbeddingsModel extends GoogleVertexAiModel {
 
-    private URI uri;
+    public static GoogleVertexAiEmbeddingsModel of(
+        GoogleVertexAiEmbeddingsModel model,
+        Map<String, Object> taskSettings,
+        InputType inputType
+    ) {
+        var requestTaskSettings = GoogleVertexAiEmbeddingsRequestTaskSettings.fromMap(taskSettings);
+        return new GoogleVertexAiEmbeddingsModel(
+            model,
+            GoogleVertexAiEmbeddingsTaskSettings.of(model.getTaskSettings(), requestTaskSettings, inputType)
+        );
+    }
 
     public GoogleVertexAiEmbeddingsModel(
         String inferenceEntityId,
@@ -35,6 +47,7 @@ public class GoogleVertexAiEmbeddingsModel extends GoogleVertexAiModel {
         String service,
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
+        ChunkingSettings chunkingSettings,
         Map<String, Object> secrets,
         ConfigurationParseContext context
     ) {
@@ -44,12 +57,17 @@ public class GoogleVertexAiEmbeddingsModel extends GoogleVertexAiModel {
             service,
             GoogleVertexAiEmbeddingsServiceSettings.fromMap(serviceSettings, context),
             GoogleVertexAiEmbeddingsTaskSettings.fromMap(taskSettings),
+            chunkingSettings,
             GoogleVertexAiSecretSettings.fromMap(secrets)
         );
     }
 
     public GoogleVertexAiEmbeddingsModel(GoogleVertexAiEmbeddingsModel model, GoogleVertexAiEmbeddingsServiceSettings serviceSettings) {
         super(model, serviceSettings);
+    }
+
+    public GoogleVertexAiEmbeddingsModel(GoogleVertexAiEmbeddingsModel model, GoogleVertexAiEmbeddingsTaskSettings taskSettings) {
+        super(model, taskSettings);
     }
 
     // Should only be used directly for testing
@@ -59,10 +77,11 @@ public class GoogleVertexAiEmbeddingsModel extends GoogleVertexAiModel {
         String service,
         GoogleVertexAiEmbeddingsServiceSettings serviceSettings,
         GoogleVertexAiEmbeddingsTaskSettings taskSettings,
+        ChunkingSettings chunkingSettings,
         @Nullable GoogleVertexAiSecretSettings secrets
     ) {
         super(
-            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings),
+            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings, chunkingSettings),
             new ModelSecrets(secrets),
             serviceSettings
         );
@@ -115,13 +134,9 @@ public class GoogleVertexAiEmbeddingsModel extends GoogleVertexAiModel {
         return (GoogleVertexAiEmbeddingsRateLimitServiceSettings) super.rateLimitServiceSettings();
     }
 
-    public URI uri() {
-        return uri;
-    }
-
     @Override
-    public ExecutableAction accept(GoogleVertexAiActionVisitor visitor, Map<String, Object> taskSettings) {
-        return visitor.create(this, taskSettings);
+    public ExecutableAction accept(GoogleVertexAiActionVisitor visitor, Map<String, Object> taskSettings, InputType inputType) {
+        return visitor.create(this, taskSettings, inputType);
     }
 
     public static URI buildUri(String location, String projectId, String modelId) throws URISyntaxException {

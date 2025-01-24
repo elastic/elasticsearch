@@ -14,16 +14,16 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.expression.function.Warnings;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Add}.
  * This class is generated. Do not edit it.
  */
 public final class AddIntsEvaluator implements EvalOperator.ExpressionEvaluator {
-  private final Warnings warnings;
+  private final Source source;
 
   private final EvalOperator.ExpressionEvaluator lhs;
 
@@ -31,12 +31,14 @@ public final class AddIntsEvaluator implements EvalOperator.ExpressionEvaluator 
 
   private final DriverContext driverContext;
 
+  private Warnings warnings;
+
   public AddIntsEvaluator(Source source, EvalOperator.ExpressionEvaluator lhs,
       EvalOperator.ExpressionEvaluator rhs, DriverContext driverContext) {
+    this.source = source;
     this.lhs = lhs;
     this.rhs = rhs;
     this.driverContext = driverContext;
-    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override
@@ -65,7 +67,7 @@ public final class AddIntsEvaluator implements EvalOperator.ExpressionEvaluator 
         }
         if (lhsBlock.getValueCount(p) != 1) {
           if (lhsBlock.getValueCount(p) > 1) {
-            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
           }
           result.appendNull();
           continue position;
@@ -76,7 +78,7 @@ public final class AddIntsEvaluator implements EvalOperator.ExpressionEvaluator 
         }
         if (rhsBlock.getValueCount(p) != 1) {
           if (rhsBlock.getValueCount(p) > 1) {
-            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
           }
           result.appendNull();
           continue position;
@@ -84,7 +86,7 @@ public final class AddIntsEvaluator implements EvalOperator.ExpressionEvaluator 
         try {
           result.appendInt(Add.processInts(lhsBlock.getInt(lhsBlock.getFirstValueIndex(p)), rhsBlock.getInt(rhsBlock.getFirstValueIndex(p))));
         } catch (ArithmeticException e) {
-          warnings.registerException(e);
+          warnings().registerException(e);
           result.appendNull();
         }
       }
@@ -98,7 +100,7 @@ public final class AddIntsEvaluator implements EvalOperator.ExpressionEvaluator 
         try {
           result.appendInt(Add.processInts(lhsVector.getInt(p), rhsVector.getInt(p)));
         } catch (ArithmeticException e) {
-          warnings.registerException(e);
+          warnings().registerException(e);
           result.appendNull();
         }
       }
@@ -114,6 +116,18 @@ public final class AddIntsEvaluator implements EvalOperator.ExpressionEvaluator 
   @Override
   public void close() {
     Releasables.closeExpectNoException(lhs, rhs);
+  }
+
+  private Warnings warnings() {
+    if (warnings == null) {
+      this.warnings = Warnings.createWarnings(
+              driverContext.warningsMode(),
+              source.source().getLineNumber(),
+              source.source().getColumnNumber(),
+              source.text()
+          );
+    }
+    return warnings;
   }
 
   static class Factory implements EvalOperator.ExpressionEvaluator.Factory {

@@ -13,7 +13,6 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.FieldAttributeTests;
-import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -56,9 +55,9 @@ public abstract class AbstractNodeSerializationTests<T extends Node<? super T>> 
         return copyInstance(
             instance,
             getNamedWriteableRegistry(),
-            (out, v) -> new PlanStreamOutput(out, new PlanNameRegistry(), configuration()).writeNamedWriteable(v),
+            (out, v) -> new PlanStreamOutput(out, configuration()).writeNamedWriteable(v),
             in -> {
-                PlanStreamInput pin = new PlanStreamInput(in, new PlanNameRegistry(), in.namedWriteableRegistry(), configuration());
+                PlanStreamInput pin = new PlanStreamInput(in, in.namedWriteableRegistry(), configuration());
                 @SuppressWarnings("unchecked")
                 T deser = (T) pin.readNamedWriteable(categoryClass());
                 if (alwaysEmptySource()) {

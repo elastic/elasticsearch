@@ -9,6 +9,7 @@ boolean | boolean
 cartesian_point | cartesian_point
 cartesian_shape | cartesian_shape
 date | date
+date_nanos | date_nanos
 double | double
 geo_point | geo_point
 geo_shape | geo_shape
@@ -16,7 +17,7 @@ integer | integer
 ip | ip
 keyword | keyword
 long | long
-text | text
+text | keyword
 unsigned_long | unsigned_long
 version | version
 |===

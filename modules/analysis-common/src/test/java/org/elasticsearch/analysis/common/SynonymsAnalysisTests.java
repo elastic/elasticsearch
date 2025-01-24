@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.analysis.common;
@@ -117,7 +118,7 @@ public class SynonymsAnalysisTests extends ESTestCase {
         // Test with an index version where lenient should always be false by default
         IndexVersion randomNonLenientIndexVersion = IndexVersionUtils.randomVersionBetween(
             random(),
-            IndexVersions.MINIMUM_COMPATIBLE,
+            IndexVersions.MINIMUM_READONLY_COMPATIBLE,
             IndexVersions.INDEX_SORTING_ON_NESTED
         );
         assertIsNotLenient.accept(randomNonLenientIndexVersion, false);
@@ -176,7 +177,7 @@ public class SynonymsAnalysisTests extends ESTestCase {
         // Test with an index version where lenient should always be false by default
         IndexVersion randomNonLenientIndexVersion = IndexVersionUtils.randomVersionBetween(
             random(),
-            IndexVersions.MINIMUM_COMPATIBLE,
+            IndexVersions.MINIMUM_READONLY_COMPATIBLE,
             IndexVersions.INDEX_SORTING_ON_NESTED
         );
         assertIsNotLenient.accept(randomNonLenientIndexVersion, false);
@@ -230,7 +231,7 @@ public class SynonymsAnalysisTests extends ESTestCase {
         // Test with an index version where lenient should always be false by default
         IndexVersion randomNonLenientIndexVersion = IndexVersionUtils.randomVersionBetween(
             random(),
-            IndexVersions.MINIMUM_COMPATIBLE,
+            IndexVersions.MINIMUM_READONLY_COMPATIBLE,
             IndexVersions.INDEX_SORTING_ON_NESTED
         );
         assertIsNotLenient.accept(randomNonLenientIndexVersion, false);
@@ -337,7 +338,7 @@ public class SynonymsAnalysisTests extends ESTestCase {
         Settings settings = Settings.builder()
             .put(
                 IndexMetadata.SETTING_VERSION_CREATED,
-                IndexVersionUtils.randomVersionBetween(random(), IndexVersions.MINIMUM_COMPATIBLE, IndexVersion.current())
+                IndexVersionUtils.randomVersionBetween(random(), IndexVersions.MINIMUM_READONLY_COMPATIBLE, IndexVersion.current())
             )
             .put("path.home", createTempDir().toString())
             .put("index.analysis.filter.synonyms.type", "synonym")
@@ -391,7 +392,7 @@ public class SynonymsAnalysisTests extends ESTestCase {
         Settings settings = Settings.builder()
             .put(
                 IndexMetadata.SETTING_VERSION_CREATED,
-                IndexVersionUtils.randomVersionBetween(random(), IndexVersions.MINIMUM_COMPATIBLE, IndexVersion.current())
+                IndexVersionUtils.randomVersionBetween(random(), IndexVersions.MINIMUM_READONLY_COMPATIBLE, IndexVersion.current())
             )
             .put("path.home", createTempDir().toString())
             .build();
@@ -423,7 +424,7 @@ public class SynonymsAnalysisTests extends ESTestCase {
         Settings settings = Settings.builder()
             .put(
                 IndexMetadata.SETTING_VERSION_CREATED,
-                IndexVersionUtils.randomVersionBetween(random(), IndexVersions.MINIMUM_COMPATIBLE, IndexVersion.current())
+                IndexVersionUtils.randomVersionBetween(random(), IndexVersions.MINIMUM_READONLY_COMPATIBLE, IndexVersion.current())
             )
             .put("path.home", createTempDir().toString())
             .putList("common_words", "a", "b")

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search;
@@ -13,6 +14,7 @@ import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Map;
 import java.util.Set;
@@ -81,6 +83,35 @@ public class CollapseSearchResultsIT extends ESIntegTestCase {
             searchResponse -> {
                 assertEquals(collapseField, searchResponse.getHits().getCollapseField());
                 assertEquals(Set.of(new BytesRef("value1"), new BytesRef("value2")), Set.of(searchResponse.getHits().getCollapseValues()));
+            }
+        );
+    }
+
+    public void testCollapseWithStoredFields() {
+        final String indexName = "test_collapse";
+        createIndex(indexName);
+        final String collapseField = "collapse_field";
+        assertAcked(indicesAdmin().preparePutMapping(indexName).setSource("""
+                     {
+                       "dynamic": "strict",
+                       "properties": {
+                         "collapse_field":  { "type": "keyword", "store": true },
+                         "ts":  { "type": "date", "store": true }
+                       }
+                     }
+            """, XContentType.JSON));
+        index(indexName, "id_1_0", Map.of(collapseField, "value1", "ts", 0));
+        index(indexName, "id_1_1", Map.of(collapseField, "value1", "ts", 1));
+        index(indexName, "id_2_0", Map.of(collapseField, "value2", "ts", 2));
+        refresh(indexName);
+
+        assertNoFailuresAndResponse(
+            prepareSearch(indexName).setQuery(new MatchAllQueryBuilder())
+                .setFetchSource(false)
+                .storedFields("*")
+                .setCollapse(new CollapseBuilder(collapseField)),
+            searchResponse -> {
+                assertEquals(collapseField, searchResponse.getHits().getCollapseField());
             }
         );
     }

@@ -10,8 +10,11 @@ package org.elasticsearch.xpack.esql.stats;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
+import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -36,10 +39,17 @@ public class Metrics {
     private final Map<QueryMetric, Map<OperationType, CounterMetric>> opsByTypeMetrics;
     // map that holds one counter per esql query "feature" (eval, sort, limit, where....)
     private final Map<FeatureMetric, CounterMetric> featuresMetrics;
+    private final Map<String, CounterMetric> functionMetrics;
     protected static String QPREFIX = "queries.";
     protected static String FPREFIX = "features.";
+    protected static String FUNC_PREFIX = "functions.";
 
-    public Metrics() {
+    private final EsqlFunctionRegistry functionRegistry;
+    private final Map<Class<?>, String> classToFunctionName;
+
+    public Metrics(EsqlFunctionRegistry functionRegistry) {
+        this.functionRegistry = functionRegistry.snapshotRegistry();
+        this.classToFunctionName = initClassToFunctionType();
         Map<QueryMetric, Map<OperationType, CounterMetric>> qMap = new LinkedHashMap<>();
         for (QueryMetric metric : QueryMetric.values()) {
             Map<OperationType, CounterMetric> metricsMap = Maps.newLinkedHashMapWithExpectedSize(OperationType.values().length);
@@ -56,6 +66,26 @@ public class Metrics {
             fMap.put(featureMetric, new CounterMetric());
         }
         featuresMetrics = Collections.unmodifiableMap(fMap);
+
+        functionMetrics = initFunctionMetrics();
+    }
+
+    private Map<String, CounterMetric> initFunctionMetrics() {
+        Map<String, CounterMetric> result = new LinkedHashMap<>();
+        for (var entry : classToFunctionName.entrySet()) {
+            result.put(entry.getValue(), new CounterMetric());
+        }
+        return Collections.unmodifiableMap(result);
+    }
+
+    private Map<Class<?>, String> initClassToFunctionType() {
+        Map<Class<?>, String> tmp = new HashMap<>();
+        for (FunctionDefinition func : functionRegistry.listFunctions()) {
+            if (tmp.containsKey(func.clazz()) == false) {
+                tmp.put(func.clazz(), func.name());
+            }
+        }
+        return Collections.unmodifiableMap(tmp);
     }
 
     /**
@@ -81,6 +111,13 @@ public class Metrics {
         this.featuresMetrics.get(metric).inc();
     }
 
+    public void incFunctionMetric(Class<?> functionType) {
+        String functionName = classToFunctionName.get(functionType);
+        if (functionName != null) {
+            functionMetrics.get(functionName).inc();
+        }
+    }
+
     public Counters stats() {
         Counters counters = new Counters();
 
@@ -100,6 +137,11 @@ public class Metrics {
         // features metrics
         for (Entry<FeatureMetric, CounterMetric> entry : featuresMetrics.entrySet()) {
             counters.inc(FPREFIX + entry.getKey().toString(), entry.getValue().count());
+        }
+
+        // function metrics
+        for (Entry<String, CounterMetric> entry : functionMetrics.entrySet()) {
+            counters.inc(FUNC_PREFIX + entry.getKey(), entry.getValue().count());
         }
 
         return counters;

@@ -449,14 +449,18 @@ public abstract class CcrIntegTestCase extends ESTestCase {
     }
 
     protected final Index resolveLeaderIndex(String index) {
-        GetIndexResponse getIndexResponse = leaderClient().admin().indices().prepareGetIndex().setIndices(index).get();
+        GetIndexResponse getIndexResponse = leaderClient().admin().indices().prepareGetIndex(TEST_REQUEST_TIMEOUT).setIndices(index).get();
         assertTrue("index " + index + " not found", getIndexResponse.getSettings().containsKey(index));
         String uuid = getIndexResponse.getSettings().get(index).get(IndexMetadata.SETTING_INDEX_UUID);
         return new Index(index, uuid);
     }
 
     protected final Index resolveFollowerIndex(String index) {
-        GetIndexResponse getIndexResponse = followerClient().admin().indices().prepareGetIndex().setIndices(index).get();
+        GetIndexResponse getIndexResponse = followerClient().admin()
+            .indices()
+            .prepareGetIndex(TEST_REQUEST_TIMEOUT)
+            .setIndices(index)
+            .get();
         assertTrue("index " + index + " not found", getIndexResponse.getSettings().containsKey(index));
         String uuid = getIndexResponse.getSettings().get(index).get(IndexMetadata.SETTING_INDEX_UUID);
         return new Index(index, uuid);
@@ -703,7 +707,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
             request.source(new SearchSourceBuilder().size(0));
             assertResponse(client.search(request), response -> {
                 assertNotNull(response.getHits().getTotalHits());
-                assertThat(response.getHits().getTotalHits().value, greaterThanOrEqualTo(numDocsReplicated));
+                assertThat(response.getHits().getTotalHits().value(), greaterThanOrEqualTo(numDocsReplicated));
             });
         }, 60, TimeUnit.SECONDS);
     }

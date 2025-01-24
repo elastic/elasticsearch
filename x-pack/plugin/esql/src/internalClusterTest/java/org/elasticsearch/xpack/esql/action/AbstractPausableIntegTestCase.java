@@ -10,26 +10,15 @@ package org.elasticsearch.xpack.esql.action;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.engine.SegmentsStats;
-import org.elasticsearch.index.mapper.OnScriptError;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.ScriptPlugin;
-import org.elasticsearch.script.LongFieldScript;
-import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.script.ScriptEngine;
-import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Collection;
-import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 
@@ -39,8 +28,6 @@ import java.util.concurrent.TimeUnit;
  * with a custom script language "pause", and semaphore "scriptPermits", to block execution.
  */
 public abstract class AbstractPausableIntegTestCase extends AbstractEsqlIntegTestCase {
-
-    private static final Logger LOGGER = LogManager.getLogger(AbstractPausableIntegTestCase.class);
 
     protected static final Semaphore scriptPermits = new Semaphore(0);
 
@@ -108,53 +95,10 @@ public abstract class AbstractPausableIntegTestCase extends AbstractEsqlIntegTes
         }
     }
 
-    public static class PausableFieldPlugin extends Plugin implements ScriptPlugin {
-
+    public static class PausableFieldPlugin extends AbstractPauseFieldPlugin {
         @Override
-        public ScriptEngine getScriptEngine(Settings settings, Collection<ScriptContext<?>> contexts) {
-            return new ScriptEngine() {
-                @Override
-                public String getType() {
-                    return "pause";
-                }
-
-                @Override
-                @SuppressWarnings("unchecked")
-                public <FactoryType> FactoryType compile(
-                    String name,
-                    String code,
-                    ScriptContext<FactoryType> context,
-                    Map<String, String> params
-                ) {
-                    return (FactoryType) new LongFieldScript.Factory() {
-                        @Override
-                        public LongFieldScript.LeafFactory newFactory(
-                            String fieldName,
-                            Map<String, Object> params,
-                            SearchLookup searchLookup,
-                            OnScriptError onScriptError
-                        ) {
-                            return ctx -> new LongFieldScript(fieldName, params, searchLookup, onScriptError, ctx) {
-                                @Override
-                                public void execute() {
-                                    try {
-                                        assertTrue(scriptPermits.tryAcquire(1, TimeUnit.MINUTES));
-                                    } catch (Exception e) {
-                                        throw new AssertionError(e);
-                                    }
-                                    LOGGER.debug("--> emitting value");
-                                    emit(1);
-                                }
-                            };
-                        }
-                    };
-                }
-
-                @Override
-                public Set<ScriptContext<?>> getSupportedContexts() {
-                    return Set.of(LongFieldScript.CONTEXT);
-                }
-            };
+        protected boolean onWait() throws InterruptedException {
+            return scriptPermits.tryAcquire(1, TimeUnit.MINUTES);
         }
     }
 }

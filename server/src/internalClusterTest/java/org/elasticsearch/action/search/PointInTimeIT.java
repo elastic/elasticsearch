@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.search;
@@ -611,7 +612,7 @@ public class PointInTimeIT extends ESIntegTestCase {
                 assertThat(resp.getSuccessfulShards(), equalTo(numShards - shardsRemoved));
                 assertThat(resp.getFailedShards(), equalTo(shardsRemoved));
                 assertNotNull(resp.getHits().getTotalHits());
-                assertThat(resp.getHits().getTotalHits().value, lessThan((long) numDocs));
+                assertThat(resp.getHits().getTotalHits().value(), lessThan((long) numDocs));
             });
 
             // create a PIT when some shards are missing
@@ -636,7 +637,7 @@ public class PointInTimeIT extends ESIntegTestCase {
                         assertThat(resp.getFailedShards(), equalTo(shardsRemoved));
                         assertThat(resp.pointInTimeId(), equalTo(pointInTimeResponseOneNodeDown.getPointInTimeId()));
                         assertNotNull(resp.getHits().getTotalHits());
-                        assertThat(resp.getHits().getTotalHits().value, lessThan((long) numDocs));
+                        assertThat(resp.getHits().getTotalHits().value(), lessThan((long) numDocs));
                     }
                 );
 
@@ -660,7 +661,7 @@ public class PointInTimeIT extends ESIntegTestCase {
                         assertThat(resp.getSuccessfulShards(), equalTo(numShards));
                         assertThat(resp.getFailedShards(), equalTo(0));
                         assertNotNull(resp.getHits().getTotalHits());
-                        assertThat(resp.getHits().getTotalHits().value, greaterThan((long) numDocs));
+                        assertThat(resp.getHits().getTotalHits().value(), greaterThan((long) numDocs));
                     });
 
                     // ensure that when using the previously created PIT, we'd see the same number of documents as before regardless of the
@@ -680,7 +681,7 @@ public class PointInTimeIT extends ESIntegTestCase {
                             }
                             assertNotNull(resp.getHits().getTotalHits());
                             // we expect less documents as the newly indexed ones should not be part of the PIT
-                            assertThat(resp.getHits().getTotalHits().value, lessThan((long) numDocs));
+                            assertThat(resp.getHits().getTotalHits().value(), lessThan((long) numDocs));
                         }
                     );
 

@@ -53,6 +53,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
     private final boolean isRunning;
     // True if this response is as a result of an async query request
     private final boolean isAsync;
+    private final EsqlExecutionInfo executionInfo;
 
     public EsqlQueryResponse(
         List<ColumnInfoImpl> columns,
@@ -61,7 +62,8 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         boolean columnar,
         @Nullable String asyncExecutionId,
         boolean isRunning,
-        boolean isAsync
+        boolean isAsync,
+        EsqlExecutionInfo executionInfo
     ) {
         this.columns = columns;
         this.pages = pages;
@@ -70,10 +72,18 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         this.asyncExecutionId = asyncExecutionId;
         this.isRunning = isRunning;
         this.isAsync = isAsync;
+        this.executionInfo = executionInfo;
     }
 
-    public EsqlQueryResponse(List<ColumnInfoImpl> columns, List<Page> pages, @Nullable Profile profile, boolean columnar, boolean isAsync) {
-        this(columns, pages, profile, columnar, null, false, isAsync);
+    public EsqlQueryResponse(
+        List<ColumnInfoImpl> columns,
+        List<Page> pages,
+        @Nullable Profile profile,
+        boolean columnar,
+        boolean isAsync,
+        EsqlExecutionInfo executionInfo
+    ) {
+        this(columns, pages, profile, columnar, null, false, isAsync, executionInfo);
     }
 
     /**
@@ -103,7 +113,11 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
             profile = in.readOptionalWriteable(Profile::new);
         }
         boolean columnar = in.readBoolean();
-        return new EsqlQueryResponse(columns, pages, profile, columnar, asyncExecutionId, isRunning, isAsync);
+        EsqlExecutionInfo executionInfo = null;
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
+            executionInfo = in.readOptionalWriteable(EsqlExecutionInfo::new);
+        }
+        return new EsqlQueryResponse(columns, pages, profile, columnar, asyncExecutionId, isRunning, isAsync, executionInfo);
     }
 
     @Override
@@ -119,6 +133,9 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
             out.writeOptionalWriteable(profile);
         }
         out.writeBoolean(columnar);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
+            out.writeOptionalWriteable(executionInfo);
+        }
     }
 
     public List<ColumnInfoImpl> columns() {
@@ -164,9 +181,13 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         return isRunning;
     }
 
+    public EsqlExecutionInfo getExecutionInfo() {
+        return executionInfo;
+    }
+
     private Iterator<? extends ToXContent> asyncPropertiesOrEmpty() {
         if (isAsync) {
-            return ChunkedToXContentHelper.singleChunk((builder, params) -> {
+            return ChunkedToXContentHelper.chunk((builder, params) -> {
                 if (asyncExecutionId != null) {
                     builder.field("id", asyncExecutionId);
                 }
@@ -182,6 +203,18 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
         boolean dropNullColumns = params.paramAsBoolean(DROP_NULL_COLUMNS_OPTION, false);
         boolean[] nullColumns = dropNullColumns ? nullColumns() : null;
+
+        Iterator<ToXContent> tookTime;
+        if (executionInfo != null && executionInfo.overallTook() != null) {
+            tookTime = ChunkedToXContentHelper.chunk((builder, p) -> {
+                builder.field("took", executionInfo.overallTook().millis());
+                builder.field(EsqlExecutionInfo.IS_PARTIAL_FIELD.getPreferredName(), executionInfo.isPartial());
+                return builder;
+            });
+        } else {
+            tookTime = Collections.emptyIterator();
+        }
+
         Iterator<? extends ToXContent> columnHeadings = dropNullColumns
             ? Iterators.concat(
                 ResponseXContentUtils.allColumns(columns, "all_columns"),
@@ -190,19 +223,26 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
             : ResponseXContentUtils.allColumns(columns, "columns");
         Iterator<? extends ToXContent> valuesIt = ResponseXContentUtils.columnValues(this.columns, this.pages, columnar, nullColumns);
         Iterator<ToXContent> profileRender = profile == null
-            ? List.<ToXContent>of().iterator()
+            ? Collections.emptyIterator()
             : ChunkedToXContentHelper.field("profile", profile, params);
+        Iterator<ToXContent> executionInfoRender = executionInfo != null
+            && executionInfo.isCrossClusterSearch()
+            && executionInfo.includeCCSMetadata()
+                ? ChunkedToXContentHelper.field("_clusters", executionInfo, params)
+                : Collections.emptyIterator();
         return Iterators.concat(
             ChunkedToXContentHelper.startObject(),
             asyncPropertiesOrEmpty(),
+            tookTime,
             columnHeadings,
             ChunkedToXContentHelper.array("values", valuesIt),
+            executionInfoRender,
             profileRender,
             ChunkedToXContentHelper.endObject()
         );
     }
 
-    private boolean[] nullColumns() {
+    public boolean[] nullColumns() {
         boolean[] nullColumns = new boolean[columns.size()];
         for (int c = 0; c < nullColumns.length; c++) {
             nullColumns[c] = allColumnsAreNull(c);
@@ -234,7 +274,8 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
             && Objects.equals(isRunning, that.isRunning)
             && columnar == that.columnar
             && Iterators.equals(values(), that.values(), (row1, row2) -> Iterators.equals(row1, row2, Objects::equals))
-            && Objects.equals(profile, that.profile);
+            && Objects.equals(profile, that.profile)
+            && Objects.equals(executionInfo, that.executionInfo);
     }
 
     @Override
@@ -244,7 +285,8 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
             isRunning,
             columns,
             Iterators.hashCode(values(), row -> Iterators.hashCode(row, Objects::hashCode)),
-            columnar
+            columnar,
+            executionInfo
         );
     }
 

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action;
@@ -149,10 +150,26 @@ public class ResolvedIndices {
         RemoteClusterService remoteClusterService,
         long startTimeInMillis
     ) {
-        final Map<String, OriginalIndices> remoteClusterIndices = remoteClusterService.groupIndices(
+        return resolveWithIndexNamesAndOptions(
+            request.indices(),
             request.indicesOptions(),
-            request.indices()
+            clusterState,
+            indexNameExpressionResolver,
+            remoteClusterService,
+            startTimeInMillis
         );
+    }
+
+    public static ResolvedIndices resolveWithIndexNamesAndOptions(
+        String[] indexNames,
+        IndicesOptions indicesOptions,
+        ClusterState clusterState,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        RemoteClusterService remoteClusterService,
+        long startTimeInMillis
+    ) {
+        final Map<String, OriginalIndices> remoteClusterIndices = remoteClusterService.groupIndices(indicesOptions, indexNames);
+
         final OriginalIndices localIndices = remoteClusterIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
 
         Index[] concreteLocalIndices = localIndices == null

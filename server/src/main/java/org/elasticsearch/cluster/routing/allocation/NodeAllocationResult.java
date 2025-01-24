@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing.allocation;
@@ -210,18 +211,7 @@ public class NodeAllocationResult implements ToXContentObject, Writeable, Compar
         }
 
         /**
-         * Returns {@code true} if the shard copy has a matching sync id with the primary shard.
-         * Returns {@code false} if the shard copy does not have a matching sync id with the primary
-         * shard, or this explanation pertains to the allocation of a primary shard, in which case
-         * matching sync ids are irrelevant.
-         */
-        public boolean hasMatchingSyncId() {
-            return matchingBytes == Long.MAX_VALUE;
-        }
-
-        /**
          * Gets the number of matching bytes the shard copy has with the primary shard.
-         * Returns {@code Long.MAX_VALUE} if {@link #hasMatchingSyncId()} returns {@code true}.
          * Returns -1 if not applicable (this value only applies to assigning replica shards).
          */
         public long getMatchingBytes() {
@@ -262,11 +252,7 @@ public class NodeAllocationResult implements ToXContentObject, Writeable, Compar
                     builder.field("allocation_id", allocationId);
                 }
                 if (matchingBytes >= 0) {
-                    if (hasMatchingSyncId()) {
-                        builder.field("matching_sync_id", true);
-                    } else {
-                        builder.humanReadableField("matching_size_in_bytes", "matching_size", ByteSizeValue.ofBytes(matchingBytes));
-                    }
+                    builder.humanReadableField("matching_size_in_bytes", "matching_size", ByteSizeValue.ofBytes(matchingBytes));
                 }
                 if (storeException != null) {
                     builder.startObject("store_exception");

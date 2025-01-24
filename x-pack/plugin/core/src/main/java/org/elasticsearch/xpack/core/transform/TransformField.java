@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.transform;
 
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.xcontent.ParseField;
 
 /*
@@ -99,7 +100,16 @@ public final class TransformField {
     public static final String EXCLUDE_GENERATED = "exclude_generated";
 
     // internal document id
-    public static String DOCUMENT_ID_FIELD = "_id";
+    public static final String DOCUMENT_ID_FIELD = "_id";
+
+    public static final PersistentTasksCustomMetadata.Assignment AWAITING_UPGRADE = new PersistentTasksCustomMetadata.Assignment(
+        null,
+        "Transform task will not be assigned while upgrade mode is enabled."
+    );
+    public static final PersistentTasksCustomMetadata.Assignment RESET_IN_PROGRESS = new PersistentTasksCustomMetadata.Assignment(
+        null,
+        "Transform task will not be assigned as a feature reset is in progress."
+    );
 
     private TransformField() {}
 }

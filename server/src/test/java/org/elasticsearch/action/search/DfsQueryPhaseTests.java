@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.action.search;
 
@@ -133,14 +134,14 @@ public class DfsQueryPhaseTests extends ESTestCase {
                 new NoopCircuitBreaker(CircuitBreaker.REQUEST),
                 () -> false,
                 SearchProgressListener.NOOP,
-                mockSearchPhaseContext.searchRequest,
+                mockSearchPhaseContext.getRequest(),
                 results.length(),
                 exc -> {}
             )
         ) {
             DfsQueryPhase phase = new DfsQueryPhase(results.asList(), null, null, consumer, (response) -> new SearchPhase("test") {
                 @Override
-                public void run() throws IOException {
+                protected void run() {
                     responseRef.set(((QueryPhaseResultConsumer) response).results);
                 }
             }, mockSearchPhaseContext);
@@ -150,14 +151,15 @@ public class DfsQueryPhaseTests extends ESTestCase {
             assertNotNull(responseRef.get());
             assertNotNull(responseRef.get().get(0));
             assertNull(responseRef.get().get(0).fetchResult());
-            assertEquals(1, responseRef.get().get(0).queryResult().topDocs().topDocs.totalHits.value);
+            assertEquals(1, responseRef.get().get(0).queryResult().topDocs().topDocs.totalHits.value());
             assertEquals(42, responseRef.get().get(0).queryResult().topDocs().topDocs.scoreDocs[0].doc);
             assertNotNull(responseRef.get().get(1));
             assertNull(responseRef.get().get(1).fetchResult());
-            assertEquals(1, responseRef.get().get(1).queryResult().topDocs().topDocs.totalHits.value);
+            assertEquals(1, responseRef.get().get(1).queryResult().topDocs().topDocs.totalHits.value());
             assertEquals(84, responseRef.get().get(1).queryResult().topDocs().topDocs.scoreDocs[0].doc);
             assertTrue(mockSearchPhaseContext.releasedSearchContexts.isEmpty());
             assertEquals(2, mockSearchPhaseContext.numSuccess.get());
+            mockSearchPhaseContext.results.close();
         }
     }
 
@@ -218,14 +220,14 @@ public class DfsQueryPhaseTests extends ESTestCase {
                 new NoopCircuitBreaker(CircuitBreaker.REQUEST),
                 () -> false,
                 SearchProgressListener.NOOP,
-                mockSearchPhaseContext.searchRequest,
+                mockSearchPhaseContext.getRequest(),
                 results.length(),
                 exc -> {}
             )
         ) {
             DfsQueryPhase phase = new DfsQueryPhase(results.asList(), null, null, consumer, (response) -> new SearchPhase("test") {
                 @Override
-                public void run() throws IOException {
+                protected void run() {
                     responseRef.set(((QueryPhaseResultConsumer) response).results);
                 }
             }, mockSearchPhaseContext);
@@ -235,7 +237,7 @@ public class DfsQueryPhaseTests extends ESTestCase {
             assertNotNull(responseRef.get());
             assertNotNull(responseRef.get().get(0));
             assertNull(responseRef.get().get(0).fetchResult());
-            assertEquals(1, responseRef.get().get(0).queryResult().topDocs().topDocs.totalHits.value);
+            assertEquals(1, responseRef.get().get(0).queryResult().topDocs().topDocs.totalHits.value());
             assertEquals(42, responseRef.get().get(0).queryResult().topDocs().topDocs.scoreDocs[0].doc);
             assertNull(responseRef.get().get(1));
 
@@ -245,6 +247,7 @@ public class DfsQueryPhaseTests extends ESTestCase {
             assertEquals(1, mockSearchPhaseContext.releasedSearchContexts.size());
             assertTrue(mockSearchPhaseContext.releasedSearchContexts.contains(new ShardSearchContextId("", 2L)));
             assertNull(responseRef.get().get(1));
+            mockSearchPhaseContext.results.close();
         }
     }
 
@@ -305,14 +308,14 @@ public class DfsQueryPhaseTests extends ESTestCase {
                 new NoopCircuitBreaker(CircuitBreaker.REQUEST),
                 () -> false,
                 SearchProgressListener.NOOP,
-                mockSearchPhaseContext.searchRequest,
+                mockSearchPhaseContext.getRequest(),
                 results.length(),
                 exc -> {}
             )
         ) {
             DfsQueryPhase phase = new DfsQueryPhase(results.asList(), null, null, consumer, (response) -> new SearchPhase("test") {
                 @Override
-                public void run() throws IOException {
+                protected void run() {
                     responseRef.set(((QueryPhaseResultConsumer) response).results);
                 }
             }, mockSearchPhaseContext);
@@ -321,6 +324,7 @@ public class DfsQueryPhaseTests extends ESTestCase {
             assertThat(mockSearchPhaseContext.failures, hasSize(1));
             assertThat(mockSearchPhaseContext.failures.get(0).getCause(), instanceOf(UncheckedIOException.class));
             assertThat(mockSearchPhaseContext.releasedSearchContexts, hasSize(1)); // phase execution will clean up on the contexts
+            mockSearchPhaseContext.results.close();
         }
     }
 
@@ -340,8 +344,8 @@ public class DfsQueryPhaseTests extends ESTestCase {
         SearchSourceBuilder ssb = new SearchSourceBuilder().query(bm25)
             .knnSearch(
                 List.of(
-                    new KnnSearchBuilder("vector", new float[] { 0.0f }, 10, 100, null),
-                    new KnnSearchBuilder("vector2", new float[] { 0.0f }, 10, 100, null)
+                    new KnnSearchBuilder("vector", new float[] { 0.0f }, 10, 100, null, null),
+                    new KnnSearchBuilder("vector2", new float[] { 0.0f }, 10, 100, null, null)
                 )
             )
             .rankBuilder(new TestRankBuilder(100));
@@ -370,6 +374,7 @@ public class DfsQueryPhaseTests extends ESTestCase {
                 ssr.source().subSearches().get(2).getQueryBuilder()
             )
         );
+        mspc.results.close();
     }
 
     private SearchPhaseController searchPhaseController() {

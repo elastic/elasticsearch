@@ -476,3 +476,53 @@ setup:
   - match: { hits.hits.0._id:  "6" }
   - match: { hits.hits.1._id:  "5" }
 
+---
+"Test regexp":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_search
+          capabilities: [ range_regexp_interval_queries ]
+      test_runner_features: capabilities
+      reason: "Support for range and regexp interval queries capability required"
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              text:
+                all_of:
+                  intervals:
+                    - match:
+                        query: cold
+                    - regexp:
+                        pattern: ou.*ide
+  - match: { hits.total.value: 3 }
+
+
+---
+"Test range":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_search
+          capabilities: [ range_regexp_interval_queries ]
+      test_runner_features: capabilities
+      reason: "Support for range and regexp interval queries capability required"
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              text:
+                all_of:
+                  intervals:
+                    - match:
+                        query: cold
+                    - range:
+                        gte: out
+                        lte: ouu
+  - match: { hits.total.value: 3 }
+

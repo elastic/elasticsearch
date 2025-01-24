@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
@@ -22,14 +23,16 @@ import static java.util.Collections.emptyList;
 public class PreAnalyzer {
 
     public static class PreAnalysis {
-        public static final PreAnalysis EMPTY = new PreAnalysis(emptyList(), emptyList());
+        public static final PreAnalysis EMPTY = new PreAnalysis(emptyList(), emptyList(), emptyList());
 
         public final List<TableInfo> indices;
         public final List<Enrich> enriches;
+        public final List<TableInfo> lookupIndices;
 
-        public PreAnalysis(List<TableInfo> indices, List<Enrich> enriches) {
+        public PreAnalysis(List<TableInfo> indices, List<Enrich> enriches, List<TableInfo> lookupIndices) {
             this.indices = indices;
             this.enriches = enriches;
+            this.lookupIndices = lookupIndices;
         }
     }
 
@@ -44,13 +47,17 @@ public class PreAnalyzer {
     protected PreAnalysis doPreAnalyze(LogicalPlan plan) {
         List<TableInfo> indices = new ArrayList<>();
         List<Enrich> unresolvedEnriches = new ArrayList<>();
+        List<TableInfo> lookupIndices = new ArrayList<>();
 
-        plan.forEachUp(UnresolvedRelation.class, p -> indices.add(new TableInfo(p.table())));
+        plan.forEachUp(UnresolvedRelation.class, p -> {
+            List<TableInfo> list = p.indexMode() == IndexMode.LOOKUP ? lookupIndices : indices;
+            list.add(new TableInfo(p.table()));
+        });
         plan.forEachUp(Enrich.class, unresolvedEnriches::add);
 
         // mark plan as preAnalyzed (if it were marked, there would be no analysis)
         plan.forEachUp(LogicalPlan::setPreAnalyzed);
 
-        return new PreAnalysis(indices, unresolvedEnriches);
+        return new PreAnalysis(indices, unresolvedEnriches, lookupIndices);
     }
 }

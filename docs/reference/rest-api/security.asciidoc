@@ -1,6 +1,13 @@
 [role="xpack"]
 [[security-api]]
 == Security APIs
+
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-security[Security APIs].
+--
+
 To use the security APIs, you must set `xpack.security.enabled` to `true` in
 the `elasticsearch.yml` file.
 

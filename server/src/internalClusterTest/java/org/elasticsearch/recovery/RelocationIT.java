@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.recovery;
@@ -239,7 +240,7 @@ public class RelocationIT extends ESIntegTestCase {
                     prepareSearch("test").setQuery(matchAllQuery()).setSize((int) indexer.totalIndexedDocs()).storedFields(),
                     response -> {
                         var hits = response.getHits();
-                        if (hits.getTotalHits().value != indexer.totalIndexedDocs()) {
+                        if (hits.getTotalHits().value() != indexer.totalIndexedDocs()) {
                             int[] hitIds = new int[(int) indexer.totalIndexedDocs()];
                             for (int hit = 0; hit < indexer.totalIndexedDocs(); hit++) {
                                 hitIds[hit] = hit + 1;
@@ -253,7 +254,7 @@ public class RelocationIT extends ESIntegTestCase {
                             }
                             set.forEach(value -> logger.error("Missing id [{}]", value));
                         }
-                        assertThat(hits.getTotalHits().value, equalTo(indexer.totalIndexedDocs()));
+                        assertThat(hits.getTotalHits().value(), equalTo(indexer.totalIndexedDocs()));
                         logger.info("--> DONE search test round {}", idx + 1);
                     }
                 );
@@ -363,9 +364,9 @@ public class RelocationIT extends ESIntegTestCase {
             for (Client client : clients()) {
                 assertNoFailuresAndResponse(client.prepareSearch("test").setPreference("_local").setSize(0), response -> {
                     if (expectedCount[0] < 0) {
-                        expectedCount[0] = response.getHits().getTotalHits().value;
+                        expectedCount[0] = response.getHits().getTotalHits().value();
                     } else {
-                        assertEquals(expectedCount[0], response.getHits().getTotalHits().value);
+                        assertEquals(expectedCount[0], response.getHits().getTotalHits().value());
                     }
                 });
             }

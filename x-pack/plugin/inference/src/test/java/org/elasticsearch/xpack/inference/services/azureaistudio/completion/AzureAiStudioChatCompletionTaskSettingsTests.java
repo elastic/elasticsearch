@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -31,6 +32,36 @@ import static org.hamcrest.Matchers.is;
 
 public class AzureAiStudioChatCompletionTaskSettingsTests extends AbstractBWCWireSerializationTestCase<
     AzureAiStudioChatCompletionTaskSettings> {
+
+    public void testIsEmpty() {
+        var randomSettings = createRandom();
+        var stringRep = Strings.toString(randomSettings);
+        assertEquals(stringRep, randomSettings.isEmpty(), stringRep.equals("{}"));
+    }
+
+    public void testUpdatedTaskSettings() {
+        var initialSettings = createRandom();
+        var newSettings = createRandom();
+        var settingsMap = new HashMap<String, Object>();
+        if (newSettings.doSample() != null) settingsMap.put(DO_SAMPLE_FIELD, newSettings.doSample());
+        if (newSettings.temperature() != null) settingsMap.put(TEMPERATURE_FIELD, newSettings.temperature());
+        if (newSettings.topP() != null) settingsMap.put(TOP_P_FIELD, newSettings.topP());
+        if (newSettings.maxNewTokens() != null) settingsMap.put(MAX_NEW_TOKENS_FIELD, newSettings.maxNewTokens());
+
+        AzureAiStudioChatCompletionTaskSettings updatedSettings = (AzureAiStudioChatCompletionTaskSettings) initialSettings
+            .updatedTaskSettings(Collections.unmodifiableMap(settingsMap));
+
+        assertEquals(
+            newSettings.temperature() == null ? initialSettings.temperature() : newSettings.temperature(),
+            updatedSettings.temperature()
+        );
+        assertEquals(newSettings.topP() == null ? initialSettings.topP() : newSettings.topP(), updatedSettings.topP());
+        assertEquals(newSettings.doSample() == null ? initialSettings.doSample() : newSettings.doSample(), updatedSettings.doSample());
+        assertEquals(
+            newSettings.maxNewTokens() == null ? initialSettings.maxNewTokens() : newSettings.maxNewTokens(),
+            updatedSettings.maxNewTokens()
+        );
+    }
 
     public void testFromMap_AllValues() {
         var taskMap = getTaskSettingsMap(1.0, 2.0, true, 512);

@@ -372,7 +372,7 @@ abstract class MlNativeAutodetectIntegTestCase extends MlNativeIntegTestCase {
                         .filter(QueryBuilders.termQuery(Job.ID.getPreferredName(), jobId))
                         .filter(QueryBuilders.termQuery(Forecast.FORECAST_ID.getPreferredName(), forecastId))
                 ),
-            searchResponse -> count.set(searchResponse.getHits().getTotalHits().value)
+            searchResponse -> count.set(searchResponse.getHits().getTotalHits().value())
         );
         return count.get();
     }

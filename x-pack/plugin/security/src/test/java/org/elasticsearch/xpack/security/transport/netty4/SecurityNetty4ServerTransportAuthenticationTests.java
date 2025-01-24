@@ -158,7 +158,7 @@ public class SecurityNetty4ServerTransportAuthenticationTests extends ESTestCase
                 }
             }
         );
-        DiscoveryNode remoteNode = remoteTransportService.getLocalDiscoNode();
+        DiscoveryNode remoteNode = remoteTransportService.getLocalNode();
         remoteTransportService.registerRequestHandler(
             RemoteClusterNodesAction.TYPE.name(),
             EsExecutors.DIRECT_EXECUTOR_SERVICE,

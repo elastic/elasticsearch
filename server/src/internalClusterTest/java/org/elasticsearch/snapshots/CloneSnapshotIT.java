@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.snapshots;
 
@@ -564,9 +565,7 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertSuccessful(sn1);
         assertSuccessful(sn2);
         assertSuccessful(sn3);
-        assertAcked(clone1.get());
-        assertAcked(clone2.get());
-        assertAcked(clone3.get());
+        assertAcked(clone1, clone2, clone3);
     }
 
     public void testStartSnapshotWithSuccessfulShardClonePendingFinalization() throws Exception {
@@ -623,8 +622,7 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         unblockNode(repoName, masterName);
         awaitNoMoreRunningOperations(masterName);
         awaitMasterFinishRepoOperations();
-        assertAcked(blockedClone.get());
-        assertAcked(otherClone.get());
+        assertAcked(blockedClone, otherClone);
         assertEquals(getSnapshot(repoName, cloneName).state(), SnapshotState.SUCCESS);
         assertEquals(getSnapshot(repoName, otherCloneName).state(), SnapshotState.SUCCESS);
     }
@@ -731,8 +729,7 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         awaitClusterState(state -> SnapshotsInProgress.get(state).forRepo(repoName).stream().anyMatch(entry -> entry.state().completed()));
         repo.unblock();
 
-        assertAcked(clone1.get());
-        assertAcked(clone2.get());
+        assertAcked(clone1, clone2);
     }
 
     public void testRemoveFailedCloneFromCSWithoutIO() throws Exception {

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.ingest;
@@ -47,6 +48,7 @@ public class SimulateIndexResponseTests extends ESTestCase {
             sourceBytes,
             XContentType.JSON,
             pipelines,
+            List.of(),
             null
         );
 
@@ -78,6 +80,7 @@ public class SimulateIndexResponseTests extends ESTestCase {
             sourceBytes,
             XContentType.JSON,
             pipelines,
+            List.of(),
             new ElasticsearchException("Some failure")
         );
 
@@ -101,6 +104,39 @@ public class SimulateIndexResponseTests extends ESTestCase {
                 )
             ),
             Strings.toString(indexResponseWithException)
+        );
+
+        SimulateIndexResponse indexResponseWithIgnoredFields = new SimulateIndexResponse(
+            id,
+            index,
+            version,
+            sourceBytes,
+            XContentType.JSON,
+            pipelines,
+            List.of("abc", "def"),
+            null
+        );
+
+        assertEquals(
+            XContentHelper.stripWhitespace(
+                Strings.format(
+                    """
+                        {
+                          "_id": "%s",
+                          "_index": "%s",
+                          "_version": %d,
+                          "_source": %s,
+                          "executed_pipelines": [%s],
+                          "ignored_fields": [{"field": "abc"}, {"field": "def"}]
+                        }""",
+                    id,
+                    index,
+                    version,
+                    source,
+                    pipelines.stream().map(pipeline -> "\"" + pipeline + "\"").collect(Collectors.joining(","))
+                )
+            ),
+            Strings.toString(indexResponseWithIgnoredFields)
         );
     }
 
@@ -134,6 +170,7 @@ public class SimulateIndexResponseTests extends ESTestCase {
             sourceBytes,
             xContentType,
             pipelines,
+            randomList(0, 20, () -> randomAlphaOfLength(15)),
             randomBoolean() ? null : new ElasticsearchException("failed")
         );
     }

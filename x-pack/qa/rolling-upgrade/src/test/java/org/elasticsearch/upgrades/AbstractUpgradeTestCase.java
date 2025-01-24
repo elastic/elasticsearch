@@ -7,15 +7,15 @@
 package org.elasticsearch.upgrades;
 
 import org.elasticsearch.Build;
-import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Booleans;
-import org.elasticsearch.core.UpdateForV9;
+import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.test.SecuritySettingsSourceField;
 import org.junit.Before;
@@ -23,6 +23,7 @@ import org.junit.Before;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 public abstract class AbstractUpgradeTestCase extends ESRestTestCase {
@@ -47,16 +48,6 @@ public abstract class AbstractUpgradeTestCase extends ESRestTestCase {
      */
     protected static boolean isOriginalClusterCurrent() {
         return UPGRADE_FROM_VERSION.equals(Build.current().version());
-    }
-
-    @Deprecated(forRemoval = true)
-    @UpdateForV9
-    // Tests should be reworked to rely on features from the current cluster (old, mixed or upgraded).
-    // Version test against the original cluster will be removed
-    protected static boolean isOriginalClusterVersionAtLeast(Version supportedVersion) {
-        // Always assume non-semantic versions are OK: this method will be removed in V9, we are testing the pre-upgrade cluster version,
-        // and non-semantic versions are always V8+
-        return parseLegacyVersion(UPGRADE_FROM_VERSION).map(x -> x.onOrAfter(supportedVersion)).orElse(true);
     }
 
     @Override
@@ -159,6 +150,24 @@ public abstract class AbstractUpgradeTestCase extends ESRestTestCase {
             if (missingTemplates.isEmpty() == false) {
                 fail("Some expected templates are missing: " + missingTemplates + ". The templates that exist are: " + templates + "");
             }
+        });
+    }
+
+    protected static void waitForSecurityMigrationCompletion(RestClient adminClient, int version) throws Exception {
+        final Request request = new Request("GET", "_cluster/state/metadata/.security-7");
+        assertBusy(() -> {
+            Map<String, Object> indices = new XContentTestUtils.JsonMapView(entityAsMap(adminClient.performRequest(request))).get(
+                "metadata.indices"
+            );
+            assertNotNull(indices);
+            assertTrue(indices.containsKey(".security-7"));
+            // JsonMapView doesn't support . prefixed indices (splits on .)
+            @SuppressWarnings("unchecked")
+            String responseVersion = new XContentTestUtils.JsonMapView((Map<String, Object>) indices.get(".security-7")).get(
+                "migration_version.version"
+            );
+            assertNotNull(responseVersion);
+            assertTrue(Integer.parseInt(responseVersion) >= version);
         });
     }
 }

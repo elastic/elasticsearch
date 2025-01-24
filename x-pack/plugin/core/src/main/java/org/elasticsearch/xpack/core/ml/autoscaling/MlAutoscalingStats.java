@@ -29,21 +29,30 @@ import java.io.IOException;
  * <p>
  * The word "total" in an attribute name indicates that the attribute is a sum across all nodes.
  *
- * @param currentTotalNodes                 the count of nodes that are currently in the cluster
- * @param currentPerNodeMemoryBytes         the minimum size (memory) of all nodes in the cluster
- * @param currentTotalModelMemoryBytes      the sum of model memory over every assignment/deployment
- * @param currentTotalProcessorsInUse       the sum of processors used over every assignment/deployment
- * @param currentPerNodeMemoryOverheadBytes always equal to MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD
- * @param wantedMinNodes                    the minimum number of nodes that must be provided by the autoscaler
- * @param wantedExtraPerNodeMemoryBytes     the amount of additional memory that must be provided on every node
- *                                          (this value must be >0 to trigger a scale up based on memory)
- * @param wantedExtraPerNodeNodeProcessors  the number of additional processors that must be provided on every node
- *                                          (this value must be >0 to trigger a scale up based on processors)
- * @param wantedExtraModelMemoryBytes       the amount of additional model memory that is newly required
- *                                          (due to a new assignment/deployment)
- * @param wantedExtraProcessors             the number of additional processors that are required to be added to the cluster
- * @param unwantedNodeMemoryBytesToRemove   the amount of memory that should be removed from the cluster. If this is equal to the amount of
- *                                          memory provided by a node, a node will be removed.
+ * @param currentTotalNodes                 The count of nodes that are currently in the cluster,
+ *                                          used to confirm that both sides have same view of current state
+ * @param currentPerNodeMemoryBytes         The minimum size (memory) of all nodes in the cluster
+ *                                          used to confirm that both sides have same view of current state.
+ * @param currentTotalModelMemoryBytes      The sum of model memory over every assignment/deployment, used to calculate requirements
+ * @param currentTotalProcessorsInUse       The sum of processors used over every assignment/deployment, not used by autoscaler
+ * @param currentPerNodeMemoryOverheadBytes Always equal to MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD,
+ * @param wantedMinNodes                    The minimum number of nodes that must be provided by the autoscaler
+ * @param wantedExtraPerNodeMemoryBytes     If there are jobs or trained models that have been started but cannot be allocated on the
+ *                                          ML nodes currently within the cluster then this will be the *max* of the ML native memory
+ *                                          requirements of those jobs/trained models. The metric is in terms of ML native memory,
+ *                                          not container memory.
+ * @param wantedExtraPerNodeNodeProcessors  If there are trained model allocations that have been started but cannot be allocated on the
+ *                                          ML nodes currently within the cluster then this will be the *max* of the vCPU requirements of
+ *                                          those allocations. Zero otherwise.
+ * @param wantedExtraModelMemoryBytes       If there are jobs or trained models that have been started but cannot be allocated on the ML
+ *                                          nodes currently within the cluster then this will be the *sum* of the ML native memory
+ *                                          requirements of those jobs/trained models. The metric is in terms of ML native memory,
+ *                                          not container memory.
+ * @param wantedExtraProcessors             If there are trained model allocations that have been started but cannot be allocated on the
+ *                                          ML nodes currently within the cluster then this will be the *sum* of the vCPU requirements
+ *                                          of those allocations. Zero otherwise.
+ * @param unwantedNodeMemoryBytesToRemove   The size of the ML node to be removed, in GB rounded to the nearest GB,
+ *                                          or zero if no nodes could be removed.
  */
 
 public record MlAutoscalingStats(

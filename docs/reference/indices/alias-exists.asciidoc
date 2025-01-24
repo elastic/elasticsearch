@@ -4,6 +4,12 @@
 <titleabbrev>Alias exists</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-indices[Index APIs].
+--
+
 Checks if an <<aliases,alias>> exists.
 
 [source,console]
@@ -52,7 +58,7 @@ Defaults to `all`.
 (Optional, Boolean) If `false`, requests that include a missing data stream or
 index in the `<target>` return an error. Defaults to `false`.
 
-include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=local]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
 [[alias-exists-api-response-codes]]
 ==== {api-response-codes-title}

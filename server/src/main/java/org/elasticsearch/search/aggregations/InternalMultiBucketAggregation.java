@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations;
@@ -219,7 +220,7 @@ public abstract class InternalMultiBucketAggregation<
         return reducedBuckets;
     }
 
-    public abstract static class InternalBucket implements Bucket, Writeable {
+    public abstract static class InternalBucket implements Bucket {
 
         public Object getProperty(String containingAggName, List<String> path) {
             if (path.isEmpty()) {
@@ -247,4 +248,8 @@ public abstract class InternalMultiBucketAggregation<
             return aggregation.getProperty(path.subList(1, path.size()));
         }
     }
+
+    /** A {@link InternalBucket} that implements the {@link Writeable} interface. Most implementation might want
+     * to use this one except when specific logic is need to write into the stream. */
+    public abstract static class InternalBucketWritable extends InternalBucket implements Writeable {}
 }

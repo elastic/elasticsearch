@@ -1,15 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.migration;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusAction;
 import org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusRequest;
@@ -218,7 +218,7 @@ public class MultiFeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
         // Finally, verify that all the indices exist and have the properties we expect.
         assertIndexHasCorrectProperties(
             finalMetadata,
-            ".int-man-old-reindexed-for-8",
+            ".int-man-old-reindexed-for-" + UPGRADED_TO_VERSION,
             INTERNAL_MANAGED_FLAG_VALUE,
             true,
             true,
@@ -226,7 +226,7 @@ public class MultiFeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
         );
         assertIndexHasCorrectProperties(
             finalMetadata,
-            ".int-unman-old-reindexed-for-8",
+            ".int-unman-old-reindexed-for-" + UPGRADED_TO_VERSION,
             INTERNAL_UNMANAGED_FLAG_VALUE,
             false,
             true,
@@ -234,7 +234,7 @@ public class MultiFeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
         );
         assertIndexHasCorrectProperties(
             finalMetadata,
-            ".ext-man-old-reindexed-for-8",
+            ".ext-man-old-reindexed-for-" + UPGRADED_TO_VERSION,
             EXTERNAL_MANAGED_FLAG_VALUE,
             true,
             false,
@@ -242,7 +242,7 @@ public class MultiFeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
         );
         assertIndexHasCorrectProperties(
             finalMetadata,
-            ".ext-unman-old-reindexed-for-8",
+            ".ext-unman-old-reindexed-for-" + UPGRADED_TO_VERSION,
             EXTERNAL_UNMANAGED_FLAG_VALUE,
             false,
             false,
@@ -251,7 +251,7 @@ public class MultiFeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
 
         assertIndexHasCorrectProperties(
             finalMetadata,
-            ".second-int-man-old-reindexed-for-8",
+            ".second-int-man-old-reindexed-for-" + UPGRADED_TO_VERSION,
             SECOND_FEATURE_IDX_FLAG_VALUE,
             true,
             true,
@@ -267,9 +267,7 @@ public class MultiFeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
         .setSettings(createSettings(IndexVersions.MINIMUM_COMPATIBLE, 0))
         .setMappings(createMapping(true, true))
         .setOrigin(ORIGIN)
-        .setVersionMetaKey(VERSION_META_KEY)
         .setAllowedElasticProductOrigins(Collections.emptyList())
-        .setMinimumNodeVersion(Version.CURRENT.minimumCompatibilityVersion())
         .setPriorSystemIndexDescriptors(Collections.emptyList())
         .build();
 

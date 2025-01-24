@@ -18,6 +18,7 @@ dependencies {
   javaRestTestImplementation project(path: xpackModule('esql-core'))
   javaRestTestImplementation project(path: xpackModule('esql'))
   javaRestTestImplementation project(path: xpackModule('snapshot-repo-test-kit'))
+  javaRestTestImplementation project(path: xpackModule('ent-search'))
 }
 
 // location for keys and certificates
@@ -59,6 +60,7 @@ testClusters.configureEach {
   setting 'stack.templates.enabled', 'false'
   setting 'xpack.ent_search.enabled', 'false'
   setting 'xpack.apm_data.enabled', 'false'
+  setting 'xpack.otel_data.registry.enabled', 'false'
   // To spice things up a bit, one of the nodes is not an ML node
   nodes.'javaRestTest-0'.setting 'node.roles', '["master","data","ingest"]'
   nodes.'javaRestTest-1'.setting 'node.roles', '["master","data","ingest","ml"]'

@@ -47,7 +47,8 @@ public class TransportSearchableSnapshotsNodeCachesStatsAction extends Transport
     TransportSearchableSnapshotsNodeCachesStatsAction.NodesRequest,
     TransportSearchableSnapshotsNodeCachesStatsAction.NodesCachesStatsResponse,
     TransportSearchableSnapshotsNodeCachesStatsAction.NodeRequest,
-    TransportSearchableSnapshotsNodeCachesStatsAction.NodeCachesStatsResponse> {
+    TransportSearchableSnapshotsNodeCachesStatsAction.NodeCachesStatsResponse,
+    Void> {
 
     public static final String ACTION_NAME = "cluster:admin/xpack/searchable_snapshots/cache/stats";
 
@@ -148,7 +149,7 @@ public class TransportSearchableSnapshotsNodeCachesStatsAction extends Transport
         }
     }
 
-    public static final class NodesRequest extends BaseNodesRequest<NodesRequest> {
+    public static final class NodesRequest extends BaseNodesRequest {
         public NodesRequest(String[] nodes) {
             super(nodes);
         }

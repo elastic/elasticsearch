@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.cluster.routing.allocation.decider;
 
@@ -38,8 +39,10 @@ public class UpdateShardAllocationSettingsIT extends ESIntegTestCase {
         // we test with 2 shards since otherwise it's pretty fragile if there are difference in the num or shards such that
         // all shards are relocated to the second node which is not what we want here. It's solely a test for the settings to take effect
         final int numShards = 2;
-        assertAcked(prepareCreate("test").setSettings(indexSettings(numShards, 0)));
-        assertAcked(prepareCreate("test_1").setSettings(indexSettings(numShards, 0)));
+        assertAcked(
+            prepareCreate("test").setSettings(indexSettings(numShards, 0)),
+            prepareCreate("test_1").setSettings(indexSettings(numShards, 0))
+        );
         ensureGreen();
         assertAllShardsOnNodes("test", firstNode);
         assertAllShardsOnNodes("test_1", firstNode);

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.xcontent.provider;
@@ -18,6 +19,8 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.provider.filtering.FilterPathBasedFilter;
 import org.elasticsearch.xcontent.support.filtering.FilterPath;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Set;
 
 public class XContentParserConfigurationImpl implements XContentParserConfiguration {
@@ -105,12 +108,41 @@ public class XContentParserConfigurationImpl implements XContentParserConfigurat
         Set<String> excludeStrings,
         boolean filtersMatchFieldNamesWithDots
     ) {
+        return withFiltering(null, includeStrings, excludeStrings, filtersMatchFieldNamesWithDots);
+    }
+
+    public XContentParserConfiguration withFiltering(
+        String prefixPath,
+        Set<String> includeStrings,
+        Set<String> excludeStrings,
+        boolean filtersMatchFieldNamesWithDots
+    ) {
+        FilterPath[] includePaths = FilterPath.compile(includeStrings);
+        FilterPath[] excludePaths = FilterPath.compile(excludeStrings);
+
+        if (prefixPath != null) {
+            if (includePaths != null) {
+                List<FilterPath> includeFilters = new ArrayList<>();
+                for (var incl : includePaths) {
+                    incl.matches(prefixPath, includeFilters, true);
+                }
+                includePaths = includeFilters.isEmpty() ? null : includeFilters.toArray(FilterPath[]::new);
+            }
+
+            if (excludePaths != null) {
+                List<FilterPath> excludeFilters = new ArrayList<>();
+                for (var excl : excludePaths) {
+                    excl.matches(prefixPath, excludeFilters, true);
+                }
+                excludePaths = excludeFilters.isEmpty() ? null : excludeFilters.toArray(FilterPath[]::new);
+            }
+        }
         return new XContentParserConfigurationImpl(
             registry,
             deprecationHandler,
             restApiVersion,
-            FilterPath.compile(includeStrings),
-            FilterPath.compile(excludeStrings),
+            includePaths,
+            excludePaths,
             filtersMatchFieldNamesWithDots
         );
     }

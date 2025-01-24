@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.rest;
@@ -15,6 +16,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Booleans;
@@ -23,8 +25,11 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.http.HttpBody;
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.HttpRequest;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.telemetry.tracing.Traceable;
 import org.elasticsearch.xcontent.ParsedMediaType;
 import org.elasticsearch.xcontent.ToXContent;
@@ -48,6 +53,8 @@ import static org.elasticsearch.common.unit.ByteSizeValue.parseBytesSizeValue;
 import static org.elasticsearch.core.TimeValue.parseTimeValue;
 
 public class RestRequest implements ToXContent.Params, Traceable {
+
+    private static final Logger logger = LogManager.getLogger(RestRequest.class);
 
     /**
      * Internal marker request parameter to indicate that a request was made in serverless mode. Use this parameter, together with
@@ -103,19 +110,19 @@ public class RestRequest implements ToXContent.Params, Traceable {
     protected RestRequest(
         XContentParserConfiguration parserConfig,
         Map<String, String> params,
-        String path,
+        String rawPath,
         Map<String, List<String>> headers,
         HttpRequest httpRequest,
         HttpChannel httpChannel
     ) {
-        this(parserConfig, params, path, headers, httpRequest, httpChannel, requestIdGenerator.incrementAndGet());
+        this(parserConfig, params, rawPath, headers, httpRequest, httpChannel, requestIdGenerator.incrementAndGet());
     }
 
     @SuppressWarnings("this-escape")
     private RestRequest(
         XContentParserConfiguration parserConfig,
         Map<String, String> params,
-        String path,
+        String rawPath,
         Map<String, List<String>> headers,
         HttpRequest httpRequest,
         HttpChannel httpChannel,
@@ -147,7 +154,7 @@ public class RestRequest implements ToXContent.Params, Traceable {
             : parserConfig.withRestApiVersion(effectiveApiVersion);
         this.httpChannel = httpChannel;
         this.params = params;
-        this.rawPath = path;
+        this.rawPath = rawPath;
         this.headers = Collections.unmodifiableMap(headers);
         this.requestId = requestId;
     }
@@ -186,15 +193,6 @@ public class RestRequest implements ToXContent.Params, Traceable {
     }
 
     /**
-     * Invoke {@link HttpRequest#releaseAndCopy()} on the http request in this instance and replace a pooled http request
-     * with an unpooled copy. This is supposed to be used before passing requests to {@link RestHandler} instances that can not safely
-     * handle http requests that use pooled buffers as determined by {@link RestHandler#allowsUnsafeBuffers()}.
-     */
-    void ensureSafeBuffers() {
-        httpRequest = httpRequest.releaseAndCopy();
-    }
-
-    /**
      * Creates a new REST request.
      *
      * @throws BadParameterException if the parameters can not be decoded
@@ -202,11 +200,10 @@ public class RestRequest implements ToXContent.Params, Traceable {
      */
     public static RestRequest request(XContentParserConfiguration parserConfig, HttpRequest httpRequest, HttpChannel httpChannel) {
         Map<String, String> params = params(httpRequest.uri());
-        String path = path(httpRequest.uri());
         return new RestRequest(
             parserConfig,
             params,
-            path,
+            httpRequest.rawPath(),
             httpRequest.getHeaders(),
             httpRequest,
             httpChannel,
@@ -225,15 +222,6 @@ public class RestRequest implements ToXContent.Params, Traceable {
             }
         }
         return params;
-    }
-
-    private static String path(final String uri) {
-        final int index = uri.indexOf('?');
-        if (index >= 0) {
-            return uri.substring(0, index);
-        } else {
-            return uri;
-        }
     }
 
     /**
@@ -303,22 +291,48 @@ public class RestRequest implements ToXContent.Params, Traceable {
     }
 
     public boolean hasContent() {
-        return contentLength() > 0;
+        return isStreamedContent() || contentLength() > 0;
     }
 
     public int contentLength() {
-        return httpRequest.content().length();
+        return httpRequest.body().asFull().bytes().length();
     }
 
-    public BytesReference content() {
-        this.contentConsumed = true;
-        return httpRequest.content();
+    public boolean isFullContent() {
+        return httpRequest.body().isFull();
     }
 
     /**
-     * @return content of the request body or throw an exception if the body or content type is missing
+     * Returns a direct reference to the network buffer containing the request body. The HTTP layers will release their references to this
+     * buffer as soon as they have finished the synchronous steps of processing the request on the network thread, which will by default
+     * release the buffer back to the pool where it may be re-used for another request. If you need to keep the buffer alive past the end of
+     * these synchronous steps, acquire your own reference to this buffer and release it once it's no longer needed.
      */
-    public final BytesReference requiredContent() {
+    public ReleasableBytesReference content() {
+        this.contentConsumed = true;
+        var bytes = httpRequest.body().asFull().bytes();
+        if (bytes.hasReferences() == false) {
+            var e = new IllegalStateException("http releasable content accessed after release");
+            logger.error(e.getMessage(), e);
+            assert false : e;
+            throw e;
+        }
+        return bytes;
+    }
+
+    public boolean isStreamedContent() {
+        return httpRequest.body().isStream();
+    }
+
+    public HttpBody.Stream contentStream() {
+        return httpRequest.body().asStream();
+    }
+
+    /**
+     * Returns reference to the network buffer of HTTP content or throw an exception if the body or content type is missing.
+     * See {@link #content()}.
+     */
+    public ReleasableBytesReference requiredContent() {
         if (hasContent() == false) {
             throw new ElasticsearchParseException("request body is required");
         } else if (xContentType.get() == null) {
@@ -559,7 +573,7 @@ public class RestRequest implements ToXContent.Params, Traceable {
      * if you need to handle the absence request content gracefully.
      */
     public final XContentParser contentOrSourceParamParser() throws IOException {
-        Tuple<XContentType, BytesReference> tuple = contentOrSourceParam();
+        Tuple<XContentType, ReleasableBytesReference> tuple = contentOrSourceParam();
         return XContentHelper.createParserNotCompressed(parserConfig, tuple.v2(), tuple.v1().xContent().type());
     }
 
@@ -570,7 +584,7 @@ public class RestRequest implements ToXContent.Params, Traceable {
      */
     public final void withContentOrSourceParamParserOrNull(CheckedConsumer<XContentParser, IOException> withParser) throws IOException {
         if (hasContentOrSourceParam()) {
-            Tuple<XContentType, BytesReference> tuple = contentOrSourceParam();
+            Tuple<XContentType, ReleasableBytesReference> tuple = contentOrSourceParam();
             try (XContentParser parser = XContentHelper.createParserNotCompressed(parserConfig, tuple.v2(), tuple.v1())) {
                 withParser.accept(parser);
             }
@@ -583,7 +597,7 @@ public class RestRequest implements ToXContent.Params, Traceable {
      * Get the content of the request or the contents of the {@code source} param or throw an exception if both are missing.
      * Prefer {@link #contentOrSourceParamParser()} or {@link #withContentOrSourceParamParserOrNull(CheckedConsumer)} if you need a parser.
      */
-    public final Tuple<XContentType, BytesReference> contentOrSourceParam() {
+    public final Tuple<XContentType, ReleasableBytesReference> contentOrSourceParam() {
         if (hasContentOrSourceParam() == false) {
             throw new ElasticsearchParseException("request body or source parameter is required");
         } else if (hasContent()) {
@@ -599,7 +613,7 @@ public class RestRequest implements ToXContent.Params, Traceable {
         if (xContentType == null) {
             throwValidationException("Unknown value for source_content_type [" + typeParam + "]");
         }
-        return new Tuple<>(xContentType, bytes);
+        return new Tuple<>(xContentType, ReleasableBytesReference.wrap(bytes));
     }
 
     public ParsedMediaType getParsedAccept() {

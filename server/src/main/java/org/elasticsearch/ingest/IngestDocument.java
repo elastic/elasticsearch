@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest;
@@ -12,6 +13,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
@@ -81,6 +83,7 @@ public final class IngestDocument {
 
     private boolean doNoSelfReferencesCheck = false;
     private boolean reroute = false;
+    private boolean terminate = false;
 
     public IngestDocument(String index, String id, long version, String routing, VersionType versionType, Map<String, Object> source) {
         this.ctxMap = new IngestCtxMap(index, id, version, routing, versionType, ZonedDateTime.now(ZoneOffset.UTC), source);
@@ -934,6 +937,29 @@ public final class IngestDocument {
         reroute = false;
     }
 
+    /**
+     * Sets the terminate flag to true, to indicate that no further processors in the current pipeline should be run for this document.
+     */
+    public void terminate() {
+        terminate = true;
+    }
+
+    /**
+     * Returns whether the {@link #terminate()} flag was set.
+     */
+    boolean isTerminate() {
+        return terminate;
+    }
+
+    /**
+     * Resets the {@link #terminate()} flag.
+     */
+    void resetTerminate() {
+        terminate = false;
+    }
+
+    // Unconditionally deprecate the _type field once V7 BWC support is removed
+    @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
     public enum Metadata {
         INDEX(IndexFieldMapper.NAME),
         TYPE("_type"),

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.health;
@@ -52,6 +53,7 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
     public static final ActionType<ClusterHealthResponse> TYPE = new ActionType<ClusterHealthResponse>(NAME);
     private static final Logger logger = LogManager.getLogger(TransportClusterHealthAction.class);
 
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final AllocationService allocationService;
 
     @Inject
@@ -71,11 +73,11 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
             threadPool,
             actionFilters,
             ClusterHealthRequest::new,
-            indexNameExpressionResolver,
             ClusterHealthResponse::new,
             // fork to management since the health computation can become expensive for large cluster states.
             threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.allocationService = allocationService;
     }
 

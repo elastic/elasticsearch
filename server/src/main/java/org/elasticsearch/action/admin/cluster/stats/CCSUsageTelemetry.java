@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.stats;
@@ -46,6 +47,7 @@ public class CCSUsageTelemetry {
         TIMEOUT("timeout"),
         CORRUPTION("corruption"),
         SECURITY("security"),
+        LICENSE("license"),
         // May be helpful if there's a lot of other reasons, and it may be hard to calculate the unknowns for some clients.
         UNKNOWN("other");
 
@@ -64,6 +66,7 @@ public class CCSUsageTelemetry {
     public static final String MRT_FEATURE = "mrt_on";
     public static final String ASYNC_FEATURE = "async";
     public static final String WILDCARD_FEATURE = "wildcards";
+    public static final String PIT_FEATURE = "pit";
 
     // The list of known Elastic clients. May be incomplete.
     public static final Set<String> KNOWN_CLIENTS = Set.of(
@@ -104,8 +107,14 @@ public class CCSUsageTelemetry {
 
     private final Map<String, LongAdder> clientCounts;
     private final Map<String, PerClusterCCSTelemetry> byRemoteCluster;
+    // Should we calculate separate metrics per MRT?
+    private final boolean useMRT;
 
     public CCSUsageTelemetry() {
+        this(true);
+    }
+
+    public CCSUsageTelemetry(boolean useMRT) {
         this.byRemoteCluster = new ConcurrentHashMap<>();
         totalCount = new LongAdder();
         successCount = new LongAdder();
@@ -117,6 +126,7 @@ public class CCSUsageTelemetry {
         skippedRemotes = new LongAdder();
         featureCounts = new ConcurrentHashMap<>();
         clientCounts = new ConcurrentHashMap<>();
+        this.useMRT = useMRT;
     }
 
     public void updateUsage(CCSUsage ccsUsage) {
@@ -132,10 +142,12 @@ public class CCSUsageTelemetry {
         if (isSuccess(ccsUsage)) {
             successCount.increment();
             took.record(searchTook);
-            if (isMRT(ccsUsage)) {
-                tookMrtTrue.record(searchTook);
-            } else {
-                tookMrtFalse.record(searchTook);
+            if (useMRT) {
+                if (isMRT(ccsUsage)) {
+                    tookMrtTrue.record(searchTook);
+                } else {
+                    tookMrtFalse.record(searchTook);
+                }
             }
             ccsUsage.getPerClusterUsage().forEach((r, u) -> byRemoteCluster.computeIfAbsent(r, PerClusterCCSTelemetry::new).update(u));
         } else {
@@ -241,6 +253,6 @@ public class CCSUsageTelemetry {
             Collections.unmodifiableMap(Maps.transformValues(featureCounts, LongAdder::longValue)),
             Collections.unmodifiableMap(Maps.transformValues(clientCounts, LongAdder::longValue)),
             Collections.unmodifiableMap(Maps.transformValues(byRemoteCluster, PerClusterCCSTelemetry::getSnapshot))
-        );
+        ).setUseMRT(useMRT);
     }
 }

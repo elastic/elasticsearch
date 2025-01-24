@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.transport;
 
@@ -11,6 +12,7 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
@@ -113,7 +115,6 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     protected final NetworkService networkService;
     protected final Set<ProfileSettings> profileSettingsSet;
     protected final boolean rstOnClose;
-    private final TransportVersion version;
     private final CircuitBreakerService circuitBreakerService;
 
     private final ConcurrentMap<String, BoundTransportAddress> profileBoundAddresses = newConcurrentMap();
@@ -147,7 +148,6 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     ) {
         this.settings = settings;
         this.profileSettingsSet = getProfileSettings(settings);
-        this.version = version;
         this.threadPool = threadPool;
         this.circuitBreakerService = circuitBreakerService;
         this.networkService = networkService;
@@ -176,7 +176,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                 channel,
                 requestId,
                 TransportHandshaker.HANDSHAKE_ACTION_NAME,
-                new TransportHandshaker.HandshakeRequest(version),
+                new TransportHandshaker.HandshakeRequest(version, Build.current().version()),
                 TransportRequestOptions.EMPTY,
                 v,
                 null,
@@ -196,11 +196,6 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             networkService.getHandlingTimeTracker(),
             ignoreDeserializationErrors
         );
-    }
-
-    @Override
-    public TransportVersion getVersion() {
-        return version;
     }
 
     public StatsTracker getStatsTracker() {

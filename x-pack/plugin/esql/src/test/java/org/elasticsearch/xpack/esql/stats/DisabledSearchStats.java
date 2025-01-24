@@ -10,12 +10,26 @@ package org.elasticsearch.xpack.esql.stats;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
-import static java.util.Collections.emptyList;
+public class DisabledSearchStats implements SearchStats {
 
-public class DisabledSearchStats extends SearchStats {
+    @Override
+    public boolean exists(String field) {
+        return true;
+    }
 
-    public DisabledSearchStats() {
-        super(emptyList());
+    @Override
+    public boolean isIndexed(String field) {
+        return true;
+    }
+
+    @Override
+    public boolean hasDocValues(String field) {
+        return true;
+    }
+
+    @Override
+    public boolean hasExactSubfield(String field) {
+        return true;
     }
 
     @Override
@@ -31,11 +45,6 @@ public class DisabledSearchStats extends SearchStats {
     @Override
     public long count(String field, BytesRef value) {
         return -1;
-    }
-
-    @Override
-    public boolean exists(String field) {
-        return true;
     }
 
     @Override

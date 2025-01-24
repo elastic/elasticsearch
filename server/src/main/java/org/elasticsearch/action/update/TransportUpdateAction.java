@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.update;
@@ -43,6 +44,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.mapper.InferenceFieldMapper;
+import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.shard.IndexShard;
@@ -186,11 +188,12 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
         final ShardId shardId = request.getShardId();
         final IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         final IndexShard indexShard = indexService.getShard(shardId.getId());
+        final MappingLookup mappingLookup = indexShard.mapperService().mappingLookup();
         final UpdateHelper.Result result = deleteInferenceResults(
             request,
             updateHelper.prepare(request, indexShard, threadPool::absoluteTimeInMillis),
             indexService.getMetadata(),
-            indexShard.mapperService().mappingLookup()
+            mappingLookup
         );
 
         switch (result.getResponseResult()) {
@@ -220,6 +223,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                                 UpdateHelper.extractGetResult(
                                     request,
                                     request.concreteIndex(),
+                                    mappingLookup,
                                     response.getSeqNo(),
                                     response.getPrimaryTerm(),
                                     response.getVersion(),
@@ -256,6 +260,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                             UpdateHelper.extractGetResult(
                                 request,
                                 request.concreteIndex(),
+                                mappingLookup,
                                 response.getSeqNo(),
                                 response.getPrimaryTerm(),
                                 response.getVersion(),
@@ -287,6 +292,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                             UpdateHelper.extractGetResult(
                                 request,
                                 request.concreteIndex(),
+                                mappingLookup,
                                 response.getSeqNo(),
                                 response.getPrimaryTerm(),
                                 response.getVersion(),
@@ -369,7 +375,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
         IndexMetadata indexMetadata,
         MappingLookup mappingLookup
     ) {
-        if (result.getResponseResult() != DocWriteResponse.Result.UPDATED) {
+        if (result.getResponseResult() != DocWriteResponse.Result.UPDATED || InferenceMetadataFieldsMapper.isEnabled(mappingLookup)) {
             return result;
         }
 
@@ -398,7 +404,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
             String inferenceFieldName = entry.getKey();
             Mapper mapper = mappingLookup.getMapper(inferenceFieldName);
 
-            if (mapper instanceof InferenceFieldMapper inferenceFieldMapper) {
+            if (mapper instanceof InferenceFieldMapper) {
                 String[] sourceFields = entry.getValue().getSourceFields();
                 for (String sourceField : sourceFields) {
                     if (sourceField.equals(inferenceFieldName) == false
@@ -407,7 +413,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                         // This has two important side effects:
                         // - The inference field value will remain parsable by its mapper
                         // - The inference results will be removed, forcing them to be re-generated downstream
-                        updatedSource.put(inferenceFieldName, inferenceFieldMapper.getOriginalValue(updatedSource));
+                        updatedSource.put(inferenceFieldName, getOriginalValueLegacy(inferenceFieldName, updatedSource));
                         updatedSourceModified = true;
                         break;
                     }
@@ -429,5 +435,25 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
         }
 
         return returnedResult;
+    }
+
+    /**
+     * Get the field's original value (i.e. the value the user specified) from the provided source.
+     *
+     * @param sourceAsMap The source as a map
+     * @return The field's original value, or {@code null} if none was provided
+     */
+    private static Object getOriginalValueLegacy(String fullPath, Map<String, Object> sourceAsMap) {
+        // TODO: Fix bug here when semantic text field is in an object
+        Object fieldValue = sourceAsMap.get(fullPath);
+        if (fieldValue == null) {
+            return null;
+        } else if (fieldValue instanceof Map<?, ?> == false) {
+            // Don't try to further validate the non-map value, that will be handled when the source is fully parsed
+            return fieldValue;
+        }
+
+        Map<String, Object> fieldValueMap = XContentMapValues.nodeMapValue(fieldValue, "Field [" + fullPath + "]");
+        return XContentMapValues.extractValue("text", fieldValueMap);
     }
 }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.allocation;
@@ -121,7 +122,8 @@ public class TransportDeleteDesiredBalanceActionTests extends ESAllocationTestCa
             clusterService,
             computer,
             (state, action) -> state,
-            TelemetryProvider.NOOP
+            TelemetryProvider.NOOP,
+            EMPTY_NODE_ALLOCATION_STATS
         );
         var allocationService = new MockAllocationService(
             randomAllocationDeciders(settings, clusterSettings),
@@ -134,7 +136,7 @@ public class TransportDeleteDesiredBalanceActionTests extends ESAllocationTestCa
         safeAwait((ActionListener<Void> listener) -> allocationService.reroute(clusterState, "inital-allocate", listener));
 
         var balanceBeforeReset = allocator.getDesiredBalance();
-        assertThat(balanceBeforeReset.lastConvergedIndex(), greaterThan(DesiredBalance.INITIAL.lastConvergedIndex()));
+        assertThat(balanceBeforeReset.lastConvergedIndex(), greaterThan(DesiredBalance.BECOME_MASTER_INITIAL.lastConvergedIndex()));
         assertThat(balanceBeforeReset.assignments(), not(anEmptyMap()));
 
         var listener = new PlainActionFuture<ActionResponse.Empty>();

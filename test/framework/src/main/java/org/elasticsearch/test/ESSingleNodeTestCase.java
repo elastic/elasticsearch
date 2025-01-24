@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.test;
 
@@ -20,6 +21,9 @@ import org.elasticsearch.action.admin.indices.template.delete.TransportDeleteCom
 import org.elasticsearch.action.admin.indices.template.delete.TransportDeleteComposableIndexTemplateAction;
 import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.ingest.DeletePipelineRequest;
+import org.elasticsearch.action.ingest.DeletePipelineTransportAction;
+import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.AdminClient;
@@ -45,6 +49,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
+import org.elasticsearch.ingest.IngestPipelineTestUtils;
 import org.elasticsearch.node.MockNode;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeValidationException;
@@ -56,6 +61,7 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -72,7 +78,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.action.search.SearchTransportService.FREE_CONTEXT_ACTION_NAME;
+import static org.elasticsearch.action.search.SearchTransportService.FREE_CONTEXT_SCROLL_ACTION_NAME;
 import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING;
 import static org.elasticsearch.discovery.SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
 import static org.elasticsearch.test.NodeRoles.dataNode;
@@ -165,7 +171,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
             metadata.transientSettings().size(),
             equalTo(0)
         );
-        GetIndexResponse indices = indicesAdmin().prepareGetIndex()
+        GetIndexResponse indices = indicesAdmin().prepareGetIndex(TEST_REQUEST_TIMEOUT)
             .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN)
             .addIndices("*")
             .get();
@@ -395,7 +401,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
     }
 
     public Index resolveIndex(String index) {
-        GetIndexResponse getIndexResponse = indicesAdmin().prepareGetIndex().setIndices(index).get();
+        GetIndexResponse getIndexResponse = indicesAdmin().prepareGetIndex(TEST_REQUEST_TIMEOUT).setIndices(index).get();
         assertTrue("index " + index + " not found", getIndexResponse.getSettings().containsKey(index));
         String uuid = getIndexResponse.getSettings().get(index).get(IndexMetadata.SETTING_INDEX_UUID);
         return new Index(index, uuid);
@@ -476,7 +482,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
      */
     protected void ensureAllFreeContextActionsAreConsumed() throws Exception {
         logger.info("--> waiting for all free_context tasks to complete within a reasonable time");
-        safeGet(clusterAdmin().prepareListTasks().setActions(FREE_CONTEXT_ACTION_NAME + "*").setWaitForCompletion(true).execute());
+        safeGet(clusterAdmin().prepareListTasks().setActions(FREE_CONTEXT_SCROLL_ACTION_NAME + "*").setWaitForCompletion(true).execute());
     }
 
     /**
@@ -492,5 +498,39 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         final var latch = new CountDownLatch(1);
         getInstanceFromNode(IndicesClusterStateService.class).onClusterStateShardsClosed(latch::countDown);
         safeAwait(latch);
+    }
+
+    /**
+     * Create an ingest pipeline with the given ID and body, using the default {@link ESSingleNodeTestCase#client()}.
+     *
+     * @param id         The pipeline id.
+     * @param jsonString The body of the {@link PutPipelineRequest} as a JSON-formatted {@link String}.
+     */
+    protected final void putJsonPipeline(String id, String jsonString) {
+        IngestPipelineTestUtils.putJsonPipeline(client(), id, jsonString);
+    }
+
+    /**
+     * Create an ingest pipeline with the given ID and body, using the default {@link ESSingleNodeTestCase#client()}.
+     *
+     * @param id         The pipeline id.
+     * @param toXContent The body of the {@link PutPipelineRequest} as a {@link ToXContentFragment}.
+     */
+    protected final void putJsonPipeline(String id, ToXContentFragment toXContent) throws IOException {
+        IngestPipelineTestUtils.putJsonPipeline(client(), id, toXContent);
+    }
+
+    /**
+     * Delete the ingest pipeline with the given {@code id}, the default {@link ESSingleNodeTestCase#client()}.
+     */
+    protected final void deletePipeline(String id) {
+        assertAcked(
+            safeGet(
+                client().execute(
+                    DeletePipelineTransportAction.TYPE,
+                    new DeletePipelineRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, id)
+                )
+            )
+        );
     }
 }

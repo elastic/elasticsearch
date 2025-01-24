@@ -1,0 +1,222 @@
+---
+setup:
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [method, path, parameters, capabilities]
+          capabilities: [enrich_strict_range_types]
+      reason: "Strict range type checking was added"
+      test_runner_features: [capabilities, allowed_warnings_regex, warnings_regex]
+
+  - do:
+      indices.create:
+        index: decades
+        body:
+          settings:
+            index.number_of_shards: 1
+            index.routing.rebalance.enable: "none"
+          mappings:
+            properties:
+              decade:
+                type: "integer"
+              description:
+                type: "keyword"
+
+  - do:
+      bulk:
+        index: decades
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "decade": 1900, "description": "Gay Nineties" }
+          - { "index": { } }
+          - { "decade": 1910, "description": "Teens" }
+          - { "index": { } }
+          - { "decade": 1920, "description": "Roaring Twenties" }
+          - { "index": { } }
+          - { "decade": 1930, "description": "Dirty Thirties" }
+          - { "index": { } }
+          - { "decade": 1940, "description": "War Years" }
+          - { "index": { } }
+          - { "decade": 1950, "description": "Fabulous Fifties" }
+          - { "index": { } }
+          - { "decade": 1960, "description": "Swinging Sixties" }
+          - { "index": { } }
+          - { "decade": 1970, "description": "Me Decade" }
+          - { "index": { } }
+          - { "decade": 1980, "description": "Decade of Greed" }
+          - { "index": { } }
+          - { "decade": 1990, "description": "Nineties" }
+          - { "index": { } }
+          - { "decade": 2000, "description": "Aughts" }
+          - { "index": { } }
+          - { "decade": 2010, "description": "Digital Age" }
+          - { "index": { } }
+          - { "decade": 2020, "description": "Roaring Twenties 2.0" }
+  - do:
+      cluster.health:
+        wait_for_no_initializing_shards: true
+        wait_for_events: languid
+
+  - do:
+      enrich.put_policy:
+        name: decades-policy
+        body:
+          match:
+            indices: [ "decades" ]
+            match_field: "decade"
+            enrich_fields: [ "description" ]
+
+  - do:
+      enrich.execute_policy:
+        name: decades-policy
+
+  - do:
+      indices.create:
+        index: songs
+        body:
+          mappings:
+            properties:
+              title:
+                type: keyword
+              year:
+                type: integer
+              singer:
+                type: keyword
+
+  - do:
+      bulk:
+        index: songs
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "singer": "Louis Armstrong", "title": "What a Wonderful World", "year": 1967 }
+          - { "index": { } }
+          - { "singer": "The Beatles", "title": "Hey Jude", "year": 1968 }
+          - { "index": { } }
+          - { "singer": "Elvis Presley", "title": "Jailhouse Rock", "year": 1957 }
+          - { "index": { } }
+          - { "singer": "Billie Holiday", "title": "Strange Fruit", "year": 1939 }
+          - { "index": { } }
+          - { "singer": "Frank Sinatra", "title": "Fly Me to the Moon", "year": 1964 }
+          - { "index": { } }
+          - { "singer": "Bob Dylan", "title": "Blowin' in the Wind", "year": 1963 }
+          - { "index": { } }
+          - { "singer": "Queen", "title": "Bohemian Rhapsody", "year": 1975 }
+          - { "index": { } }
+          - { "singer": "ABBA", "title": "Dancing Queen", "year": 1976 }
+          - { "index": { } }
+          - { "singer": "Michael Jackson", "title": "Thriller", "year": 1982 }
+          - { "index": { } }
+          - { "singer": "Nirvana", "title": "Smells Like Teen Spirit", "year": 1991 }
+          - { "index": { } }
+          - { "singer": "Whitney Houston", "title": "I Will Always Love You", "year": 1992 }
+          - { "index": { } }
+          - { "singer": "Aretha Franklin", "title": "Respect", "year": 1967 }
+          - { "index": { } }
+          - { "singer": "Chuck Berry", "title": "Johnny B. Goode", "year": 1958 }
+          - { "index": { } }
+          - { "singer": "Madonna", "title": "Like a Prayer", "year": 1989 }
+          - { "index": { } }
+          - { "singer": "The Rolling Stones", "title": "(I Can't Get No) Satisfaction", "year": 1965 }
+          - { "index": { } }
+          - { "singer": "Beyoncé", "title": "Single Ladies (Put a Ring on It)", "year": 2008 }
+          - { "index": { } }
+          - { "singer": "Adele", "title": "Rolling in the Deep", "year": 2010 }
+          - { "index": { } }
+          - { "singer": "Lady Gaga", "title": "Bad Romance", "year": 2009 }
+          - { "index": { } }
+          - { "singer": "Billie Eilish", "title": "Bad Guy", "year": 2019 }
+          - { "index": { } }
+          - { "singer": "Taylor Swift", "title": "Anti-Hero", "year": 2022 }
+
+---
+teardown:
+  - do:
+      enrich.delete_policy:
+        name: decades-policy
+
+---
+"decades":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM songs | EVAL decade = (10*FLOOR(year/10))::integer | ENRICH decades-policy ON decade | STATS count=COUNT(*) BY description | SORT count DESC, description ASC'
+
+  - match: { columns.0.name: "count" }
+  - match: { columns.0.type: "long" }
+  - match: { columns.1.name: "description" }
+  - match: { columns.1.type: "keyword" }
+
+  - length: { values: 9 }
+  - match: { values.0: [ 6, "Swinging Sixties" ] }
+  - match: { values.1: [ 2, "Aughts" ] }
+  - match: { values.2: [ 2, "Decade of Greed" ] }
+  - match: { values.3: [ 2, "Digital Age" ] }
+  - match: { values.4: [ 2, "Fabulous Fifties" ] }
+  - match: { values.5: [ 2, "Me Decade" ] }
+  - match: { values.6: [ 2, "Nineties" ] }
+  - match: { values.7: [ 1, "Dirty Thirties" ] }
+  - match: { values.8: [ 1, "Roaring Twenties 2.0" ] }
+
+---
+"decades as typecast keywords":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM songs | EVAL decade = (10*FLOOR(year/10))::keyword | ENRICH decades-policy ON decade | STATS count=COUNT(*) BY description | SORT count DESC, description ASC'
+
+  - match: { columns.0.name: "count" }
+  - match: { columns.0.type: "long" }
+  - match: { columns.1.name: "description" }
+  - match: { columns.1.type: "keyword" }
+
+  - length: { values: 9 }
+  - match: { values.0: [ 6, "Swinging Sixties" ] }
+  - match: { values.1: [ 2, "Aughts" ] }
+  - match: { values.2: [ 2, "Decade of Greed" ] }
+  - match: { values.3: [ 2, "Digital Age" ] }
+  - match: { values.4: [ 2, "Fabulous Fifties" ] }
+  - match: { values.5: [ 2, "Me Decade" ] }
+  - match: { values.6: [ 2, "Nineties" ] }
+  - match: { values.7: [ 1, "Dirty Thirties" ] }
+  - match: { values.8: [ 1, "Roaring Twenties 2.0" ] }
+
+---
+"Invalid decade as keyword":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM songs | ENRICH decades-policy ON singer | STATS count=COUNT(*) BY description | SORT count DESC, description ASC'
+
+  - match: { columns.0.name: "count" }
+  - match: { columns.0.type: "long" }
+  - match: { columns.1.name: "description" }
+  - match: { columns.1.type: "keyword" }
+
+  - length: { values: 1 }
+  - match: { values.0: [ 20, null ] }
+
+---
+"Invalid decade as double":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM songs | EVAL decade = 10.0*FLOOR(year/10) | ENRICH decades-policy ON decade | STATS count=COUNT(*) BY description | SORT count DESC, description ASC'
+
+  - match: { columns.0.name: "count" }
+  - match: { columns.0.type: "long" }
+  - match: { columns.1.name: "description" }
+  - match: { columns.1.type: "keyword" }
+
+  - length: { values: 1 }
+  - match: { values.0: [ 20, null ] }

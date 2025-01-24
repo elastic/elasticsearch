@@ -6,19 +6,43 @@
  */
 package org.elasticsearch.xpack.esql.index;
 
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
 import org.elasticsearch.core.Nullable;
 
+import java.util.Collections;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 public final class IndexResolution {
-    public static IndexResolution valid(EsIndex index) {
+
+    /**
+     * @param index EsIndex encapsulating requested index expression, resolved mappings and index modes from field-caps.
+     * @param resolvedIndices Set of concrete indices resolved by field-caps. (This information is not always present in the EsIndex).
+     * @param unavailableClusters Remote clusters that could not be contacted during planning
+     * @return valid IndexResolution
+     */
+    public static IndexResolution valid(
+        EsIndex index,
+        Set<String> resolvedIndices,
+        Map<String, FieldCapabilitiesFailure> unavailableClusters
+    ) {
         Objects.requireNonNull(index, "index must not be null if it was found");
-        return new IndexResolution(index, null);
+        Objects.requireNonNull(resolvedIndices, "resolvedIndices must not be null");
+        Objects.requireNonNull(unavailableClusters, "unavailableClusters must not be null");
+        return new IndexResolution(index, null, resolvedIndices, unavailableClusters);
+    }
+
+    /**
+     * Use this method only if the set of concrete resolved indices is the same as EsIndex#concreteIndices().
+     */
+    public static IndexResolution valid(EsIndex index) {
+        return valid(index, index.concreteIndices(), Collections.emptyMap());
     }
 
     public static IndexResolution invalid(String invalid) {
         Objects.requireNonNull(invalid, "invalid must not be null to signal that the index is invalid");
-        return new IndexResolution(null, invalid);
+        return new IndexResolution(null, invalid, Collections.emptySet(), Collections.emptyMap());
     }
 
     public static IndexResolution notFound(String name) {
@@ -30,9 +54,21 @@ public final class IndexResolution {
     @Nullable
     private final String invalid;
 
-    private IndexResolution(EsIndex index, @Nullable String invalid) {
+    // all indices found by field-caps
+    private final Set<String> resolvedIndices;
+    // remote clusters included in the user's index expression that could not be connected to
+    private final Map<String, FieldCapabilitiesFailure> unavailableClusters;
+
+    private IndexResolution(
+        EsIndex index,
+        @Nullable String invalid,
+        Set<String> resolvedIndices,
+        Map<String, FieldCapabilitiesFailure> unavailableClusters
+    ) {
         this.index = index;
         this.invalid = invalid;
+        this.resolvedIndices = resolvedIndices;
+        this.unavailableClusters = unavailableClusters;
     }
 
     public boolean matches(String indexName) {
@@ -51,11 +87,26 @@ public final class IndexResolution {
     }
 
     /**
-     * Is the index valid for use with ql? Returns {@code false} if the
-     * index wasn't found.
+     * Is the index valid for use with ql?
+     * @return {@code false} if the index wasn't found.
      */
     public boolean isValid() {
         return invalid == null;
+    }
+
+    /**
+     * @return Map of unavailable clusters (could not be connected to during field-caps query). Key of map is cluster alias,
+     * value is the {@link FieldCapabilitiesFailure} describing the issue.
+     */
+    public Map<String, FieldCapabilitiesFailure> unavailableClusters() {
+        return unavailableClusters;
+    }
+
+    /**
+     * @return all indices found by field-caps (regardless of whether they had any mappings)
+     */
+    public Set<String> resolvedIndices() {
+        return resolvedIndices;
     }
 
     @Override
@@ -64,16 +115,31 @@ public final class IndexResolution {
             return false;
         }
         IndexResolution other = (IndexResolution) obj;
-        return Objects.equals(index, other.index) && Objects.equals(invalid, other.invalid);
+        return Objects.equals(index, other.index)
+            && Objects.equals(invalid, other.invalid)
+            && Objects.equals(resolvedIndices, other.resolvedIndices)
+            && Objects.equals(unavailableClusters, other.unavailableClusters);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(index, invalid);
+        return Objects.hash(index, invalid, resolvedIndices, unavailableClusters);
     }
 
     @Override
     public String toString() {
-        return invalid != null ? invalid : index.name();
+        return invalid != null
+            ? invalid
+            : "IndexResolution{"
+                + "index="
+                + index
+                + ", invalid='"
+                + invalid
+                + '\''
+                + ", resolvedIndices="
+                + resolvedIndices
+                + ", unavailableClusters="
+                + unavailableClusters
+                + '}';
     }
 }

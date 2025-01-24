@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.kibana;
@@ -11,8 +12,12 @@ package org.elasticsearch.kibana;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
@@ -20,8 +25,8 @@ import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.threadpool.ThreadPoolStats;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -35,6 +40,7 @@ import java.util.stream.Stream;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.startsWith;
 
 /**
@@ -44,10 +50,6 @@ import static org.hamcrest.Matchers.startsWith;
  * threads that wait on a phaser. This lets us verify that operations on system indices
  * are being directed to other thread pools.</p>
  */
-@TestLogging(
-    reason = "investigate",
-    value = "org.elasticsearch.kibana.KibanaThreadPoolIT:DEBUG,org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor:TRACE"
-)
 public class KibanaThreadPoolIT extends ESIntegTestCase {
     private static final Logger logger = LogManager.getLogger(KibanaThreadPoolIT.class);
 
@@ -55,13 +57,16 @@ public class KibanaThreadPoolIT extends ESIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
-            .put(IndexingPressure.MAX_INDEXING_BYTES.getKey(), "1KB")
+            .put(IndexingPressure.MAX_PRIMARY_BYTES.getKey(), "1KB")
+            .put(IndexingPressure.MAX_COORDINATING_BYTES.getKey(), "1KB")
             .put("thread_pool.search.size", 1)
             .put("thread_pool.search.queue_size", 1)
             .put("thread_pool.write.size", 1)
             .put("thread_pool.write.queue_size", 1)
             .put("thread_pool.get.size", 1)
             .put("thread_pool.get.queue_size", 1)
+            // a rejected GET may retry on an INITIALIZING shard (the target of a relocation) and unexpectedly succeed, so block rebalancing
+            .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)
             .build();
     }
 
@@ -106,7 +111,12 @@ public class KibanaThreadPoolIT extends ESIntegTestCase {
     }
 
     public void testBlockedThreadPoolsRejectUserRequests() throws Exception {
-        assertAcked(client().admin().indices().prepareCreate(USER_INDEX));
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate(USER_INDEX)
+                .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)) // avoid retrying rejected actions
+        );
 
         runWithBlockedThreadPools(this::assertThreadPoolsBlocked);
 
@@ -120,18 +130,42 @@ public class KibanaThreadPoolIT extends ESIntegTestCase {
             () -> client().prepareIndex(USER_INDEX).setSource(Map.of("foo", "bar")).get()
         );
         assertThat(e1.getMessage(), startsWith("rejected execution of TimedRunnable"));
-        var e2 = expectThrows(EsRejectedExecutionException.class, () -> client().prepareGet(USER_INDEX, "id").get());
-        assertThat(e2.getMessage(), startsWith("rejected execution of ActionRunnable"));
+
+        final var getFuture = client().prepareGet(USER_INDEX, "id").execute();
+        // response handling is force-executed on GET pool, so we must
+        // (a) wait for that task to be enqueued, expanding the queue beyond its configured limit, and
+        // (b) check for the exception in the background
+
+        try {
+            assertTrue(waitUntil(() -> {
+                if (getFuture.isDone()) {
+                    return true;
+                }
+                for (ThreadPool threadPool : internalCluster().getInstances(ThreadPool.class)) {
+                    for (ThreadPoolStats.Stats stats : threadPool.stats().stats()) {
+                        if (stats.name().equals(ThreadPool.Names.GET) && stats.queue() > 1) {
+                            return true;
+                        }
+                    }
+                }
+                return false;
+            }));
+        } catch (Exception e) {
+            fail(e);
+        }
+
+        new Thread(() -> expectThrows(EsRejectedExecutionException.class, () -> getFuture.actionGet(SAFE_AWAIT_TIMEOUT))).start();
+
         // intentionally commented out this test until https://github.com/elastic/elasticsearch/issues/97916 is fixed
-        // var e3 = expectThrows(
-        // SearchPhaseExecutionException.class,
-        // () -> client().prepareSearch(USER_INDEX)
-        // .setQuery(QueryBuilders.matchAllQuery())
-        // // Request times out if max concurrent shard requests is set to 1
-        // .setMaxConcurrentShardRequests(usually() ? SearchRequest.DEFAULT_MAX_CONCURRENT_SHARD_REQUESTS : randomIntBetween(2, 10))
-        // .get()
-        // );
-        // assertThat(e3.getMessage(), containsString("all shards failed"));
+        var e3 = expectThrows(
+            SearchPhaseExecutionException.class,
+            () -> client().prepareSearch(USER_INDEX)
+                .setQuery(QueryBuilders.matchAllQuery())
+                // Request times out if max concurrent shard requests is set to 1
+                .setMaxConcurrentShardRequests(usually() ? SearchRequest.DEFAULT_MAX_CONCURRENT_SHARD_REQUESTS : randomIntBetween(2, 10))
+                .get()
+        );
+        assertThat(e3.getMessage(), containsString("all shards failed"));
     }
 
     protected void runWithBlockedThreadPools(Runnable runnable) throws Exception {

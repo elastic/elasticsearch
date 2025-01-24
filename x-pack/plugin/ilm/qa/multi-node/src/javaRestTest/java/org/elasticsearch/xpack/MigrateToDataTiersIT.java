@@ -46,7 +46,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static java.util.Collections.singletonMap;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createIndexWithSettings;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createNewSingletonPolicy;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createPolicy;
@@ -101,11 +100,11 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
         Map<String, LifecycleAction> warmActions = new HashMap<>();
         warmActions.put(SetPriorityAction.NAME, new SetPriorityAction(50));
         warmActions.put(ForceMergeAction.NAME, new ForceMergeAction(1, null));
-        warmActions.put(AllocateAction.NAME, new AllocateAction(null, null, singletonMap("data", "warm"), null, null));
+        warmActions.put(AllocateAction.NAME, new AllocateAction(null, null, Map.of("data", "warm"), null, null));
         warmActions.put(ShrinkAction.NAME, new ShrinkAction(1, null, false));
         Map<String, LifecycleAction> coldActions = new HashMap<>();
         coldActions.put(SetPriorityAction.NAME, new SetPriorityAction(0));
-        coldActions.put(AllocateAction.NAME, new AllocateAction(0, null, null, null, singletonMap("data", "cold")));
+        coldActions.put(AllocateAction.NAME, new AllocateAction(0, null, null, null, Map.of("data", "cold")));
 
         createPolicy(
             client(),
@@ -114,7 +113,7 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
             new Phase("warm", TimeValue.ZERO, warmActions),
             new Phase("cold", TimeValue.timeValueDays(100), coldActions),
             null,
-            new Phase("delete", TimeValue.ZERO, singletonMap(DeleteAction.NAME, DeleteAction.WITH_SNAPSHOT_DELETE))
+            new Phase("delete", TimeValue.ZERO, Map.of(DeleteAction.NAME, DeleteAction.WITH_SNAPSHOT_DELETE))
         );
 
         createIndexWithSettings(
@@ -377,11 +376,11 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
         Map<String, LifecycleAction> warmActions = new HashMap<>();
         warmActions.put(SetPriorityAction.NAME, new SetPriorityAction(50));
         warmActions.put(ForceMergeAction.NAME, new ForceMergeAction(1, null));
-        warmActions.put(AllocateAction.NAME, new AllocateAction(null, null, singletonMap("data", "warm"), null, null));
+        warmActions.put(AllocateAction.NAME, new AllocateAction(null, null, Map.of("data", "warm"), null, null));
         warmActions.put(ShrinkAction.NAME, new ShrinkAction(1, null, false));
         Map<String, LifecycleAction> coldActions = new HashMap<>();
         coldActions.put(SetPriorityAction.NAME, new SetPriorityAction(0));
-        coldActions.put(AllocateAction.NAME, new AllocateAction(0, null, null, null, singletonMap("data", "cold")));
+        coldActions.put(AllocateAction.NAME, new AllocateAction(0, null, null, null, Map.of("data", "cold")));
 
         createPolicy(
             client(),
@@ -390,7 +389,7 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
             new Phase("warm", TimeValue.ZERO, warmActions),
             new Phase("cold", TimeValue.timeValueDays(100), coldActions),
             null,
-            new Phase("delete", TimeValue.ZERO, singletonMap(DeleteAction.NAME, DeleteAction.WITH_SNAPSHOT_DELETE))
+            new Phase("delete", TimeValue.ZERO, Map.of(DeleteAction.NAME, DeleteAction.WITH_SNAPSHOT_DELETE))
         );
 
         createIndexWithSettings(

@@ -19,6 +19,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.license.License;
+import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -28,6 +30,7 @@ import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.application.analytics.AnalyticsTemplateRegistry;
 import org.elasticsearch.xpack.application.analytics.action.DeleteAnalyticsCollectionAction;
 import org.elasticsearch.xpack.application.analytics.action.GetAnalyticsCollectionAction;
@@ -43,6 +46,7 @@ import org.elasticsearch.xpack.application.analytics.action.TransportPostAnalyti
 import org.elasticsearch.xpack.application.analytics.action.TransportPutAnalyticsCollectionAction;
 import org.elasticsearch.xpack.application.analytics.ingest.AnalyticsEventIngestConfig;
 import org.elasticsearch.xpack.application.connector.ConnectorAPIFeature;
+import org.elasticsearch.xpack.application.connector.ConnectorIndexService;
 import org.elasticsearch.xpack.application.connector.ConnectorTemplateRegistry;
 import org.elasticsearch.xpack.application.connector.action.DeleteConnectorAction;
 import org.elasticsearch.xpack.application.connector.action.GetConnectorAction;
@@ -121,6 +125,7 @@ import org.elasticsearch.xpack.application.connector.secrets.action.TransportDel
 import org.elasticsearch.xpack.application.connector.secrets.action.TransportGetConnectorSecretAction;
 import org.elasticsearch.xpack.application.connector.secrets.action.TransportPostConnectorSecretAction;
 import org.elasticsearch.xpack.application.connector.secrets.action.TransportPutConnectorSecretAction;
+import org.elasticsearch.xpack.application.connector.syncjob.ConnectorSyncJobIndexService;
 import org.elasticsearch.xpack.application.connector.syncjob.action.CancelConnectorSyncJobAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.CheckInConnectorSyncJobAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.ClaimConnectorSyncJobAction;
@@ -165,6 +170,8 @@ import org.elasticsearch.xpack.application.rules.action.RestGetQueryRulesetActio
 import org.elasticsearch.xpack.application.rules.action.RestListQueryRulesetsAction;
 import org.elasticsearch.xpack.application.rules.action.RestPutQueryRuleAction;
 import org.elasticsearch.xpack.application.rules.action.RestPutQueryRulesetAction;
+import org.elasticsearch.xpack.application.rules.action.RestTestQueryRulesetAction;
+import org.elasticsearch.xpack.application.rules.action.TestQueryRulesetAction;
 import org.elasticsearch.xpack.application.rules.action.TransportDeleteQueryRuleAction;
 import org.elasticsearch.xpack.application.rules.action.TransportDeleteQueryRulesetAction;
 import org.elasticsearch.xpack.application.rules.action.TransportGetQueryRuleAction;
@@ -172,6 +179,8 @@ import org.elasticsearch.xpack.application.rules.action.TransportGetQueryRuleset
 import org.elasticsearch.xpack.application.rules.action.TransportListQueryRulesetsAction;
 import org.elasticsearch.xpack.application.rules.action.TransportPutQueryRuleAction;
 import org.elasticsearch.xpack.application.rules.action.TransportPutQueryRulesetAction;
+import org.elasticsearch.xpack.application.rules.action.TransportTestQueryRulesetAction;
+import org.elasticsearch.xpack.application.rules.retriever.QueryRuleRetrieverBuilder;
 import org.elasticsearch.xpack.application.search.SearchApplicationIndexService;
 import org.elasticsearch.xpack.application.search.action.DeleteSearchApplicationAction;
 import org.elasticsearch.xpack.application.search.action.GetSearchApplicationAction;
@@ -234,6 +243,12 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
         return XPackPlugin.getSharedLicenseState();
     }
 
+    public static final LicensedFeature.Momentary QUERY_RULES_RETRIEVER_FEATURE = LicensedFeature.momentary(
+        null,
+        "rule-retriever",
+        License.OperationMode.ENTERPRISE
+    );
+
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         var usageAction = new ActionHandler<>(XPackUsageFeatureAction.ENTERPRISE_SEARCH, EnterpriseSearchUsageTransportAction.class);
@@ -266,6 +281,7 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
                 new ActionHandler<>(DeleteQueryRuleAction.INSTANCE, TransportDeleteQueryRuleAction.class),
                 new ActionHandler<>(GetQueryRuleAction.INSTANCE, TransportGetQueryRuleAction.class),
                 new ActionHandler<>(PutQueryRuleAction.INSTANCE, TransportPutQueryRuleAction.class),
+                new ActionHandler<>(TestQueryRulesetAction.INSTANCE, TransportTestQueryRulesetAction.class),
 
                 usageAction,
                 infoAction
@@ -373,7 +389,8 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
                 new RestPutQueryRulesetAction(getLicenseState()),
                 new RestDeleteQueryRuleAction(getLicenseState()),
                 new RestGetQueryRuleAction(getLicenseState()),
-                new RestPutQueryRuleAction(getLicenseState())
+                new RestPutQueryRuleAction(getLicenseState()),
+                new RestTestQueryRulesetAction(getLicenseState())
             )
         );
 
@@ -441,7 +458,6 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
         // Behavioral analytics components
         final AnalyticsTemplateRegistry analyticsTemplateRegistry = new AnalyticsTemplateRegistry(
             services.clusterService(),
-            services.featureService(),
             services.threadPool(),
             services.client(),
             services.xContentRegistry()
@@ -451,7 +467,6 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
         // Connector components
         final ConnectorTemplateRegistry connectorTemplateRegistry = new ConnectorTemplateRegistry(
             services.clusterService(),
-            services.featureService(),
             services.threadPool(),
             services.client(),
             services.xContentRegistry()
@@ -464,7 +479,12 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
     @Override
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
         Collection<SystemIndexDescriptor> systemIndices = new ArrayList<>(
-            List.of(SearchApplicationIndexService.getSystemIndexDescriptor(), QueryRulesIndexService.getSystemIndexDescriptor())
+            List.of(
+                SearchApplicationIndexService.getSystemIndexDescriptor(),
+                QueryRulesIndexService.getSystemIndexDescriptor(),
+                ConnectorSyncJobIndexService.getSystemIndexDescriptor(),
+                ConnectorIndexService.getSystemIndexDescriptor()
+            )
         );
 
         if (ConnectorSecretsFeature.isEnabled()) {
@@ -500,5 +520,10 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
         return singletonList(
             new QuerySpec<>(RuleQueryBuilder.NAME, RuleQueryBuilder::new, p -> RuleQueryBuilder.fromXContent(p, getLicenseState()))
         );
+    }
+
+    @Override
+    public List<RetrieverSpec<?>> getRetrievers() {
+        return List.of(new RetrieverSpec<>(new ParseField(QueryRuleRetrieverBuilder.NAME), QueryRuleRetrieverBuilder::fromXContent));
     }
 }

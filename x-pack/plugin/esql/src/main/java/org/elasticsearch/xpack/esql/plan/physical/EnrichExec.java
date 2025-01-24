@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 
 import java.io.IOException;
@@ -76,7 +75,7 @@ public class EnrichExec extends UnaryExec implements EstimatesRowSize {
 
     private static EnrichExec readFrom(StreamInput in) throws IOException {
         final Source source = Source.readFrom((PlanStreamInput) in);
-        final PhysicalPlan child = ((PlanStreamInput) in).readPhysicalPlanNode();
+        final PhysicalPlan child = in.readNamedWriteable(PhysicalPlan.class);
         final NamedExpression matchField = in.readNamedWriteable(NamedExpression.class);
         final String policyName = in.readString();
         final String matchType = (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) ? in.readString() : "match";
@@ -88,7 +87,7 @@ public class EnrichExec extends UnaryExec implements EstimatesRowSize {
             concreteIndices = in.readMap(StreamInput::readString, StreamInput::readString);
         } else {
             mode = Enrich.Mode.ANY;
-            EsIndex esIndex = new EsIndex(in);
+            EsIndex esIndex = EsIndex.readFrom(in);
             if (esIndex.concreteIndices().size() != 1) {
                 throw new IllegalStateException("expected a single concrete enrich index; got " + esIndex.concreteIndices());
             }
@@ -110,7 +109,7 @@ public class EnrichExec extends UnaryExec implements EstimatesRowSize {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         Source.EMPTY.writeTo(out);
-        ((PlanStreamOutput) out).writePhysicalPlanNode(child());
+        out.writeNamedWriteable(child());
         out.writeNamedWriteable(matchField());
         out.writeString(policyName());
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {

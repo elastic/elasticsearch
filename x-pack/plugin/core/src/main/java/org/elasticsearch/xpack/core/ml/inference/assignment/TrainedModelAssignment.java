@@ -178,7 +178,7 @@ public final class TrainedModelAssignment implements SimpleDiffable<TrainedModel
         } else {
             this.maxAssignedAllocations = totalCurrentAllocations();
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_ADAPTIVE_ALLOCATIONS)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             this.adaptiveAllocationsSettings = in.readOptionalWriteable(AdaptiveAllocationsSettings::new);
         } else {
             this.adaptiveAllocationsSettings = null;
@@ -224,15 +224,12 @@ public final class TrainedModelAssignment implements SimpleDiffable<TrainedModel
         return nodeRoutingTable.values().stream().anyMatch(routeInfo -> routeInfo.getState() == RoutingState.STARTED);
     }
 
-    public List<Tuple<String, Integer>> selectRandomStartedNodesWeighedOnAllocationsForNRequests(
-        int numberOfRequests,
-        RoutingState requiredState
-    ) {
+    public List<Tuple<String, Integer>> selectRandomNodesWeighedOnAllocations(int numberOfRequests, RoutingState... acceptableStates) {
         List<String> nodeIds = new ArrayList<>(nodeRoutingTable.size());
         List<Integer> cumulativeAllocations = new ArrayList<>(nodeRoutingTable.size());
         int allocationSum = 0;
         for (Map.Entry<String, RoutingInfo> routingEntry : nodeRoutingTable.entrySet()) {
-            if (routingEntry.getValue().getState() == requiredState) {
+            if (routingEntry.getValue().getState().isAnyOf(acceptableStates)) {
                 nodeIds.add(routingEntry.getKey());
                 allocationSum += routingEntry.getValue().getCurrentAllocations();
                 cumulativeAllocations.add(allocationSum);
@@ -368,7 +365,7 @@ public final class TrainedModelAssignment implements SimpleDiffable<TrainedModel
         if (reason != null) {
             builder.field(REASON.getPreferredName(), reason);
         }
-        builder.timeField(START_TIME.getPreferredName(), startTime);
+        builder.timestampField(START_TIME.getPreferredName(), startTime);
         builder.field(MAX_ASSIGNED_ALLOCATIONS.getPreferredName(), maxAssignedAllocations);
         builder.field(ADAPTIVE_ALLOCATIONS.getPreferredName(), adaptiveAllocationsSettings);
         builder.endObject();
@@ -385,7 +382,7 @@ public final class TrainedModelAssignment implements SimpleDiffable<TrainedModel
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
             out.writeVInt(maxAssignedAllocations);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_ADAPTIVE_ALLOCATIONS)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             out.writeOptionalWriteable(adaptiveAllocationsSettings);
         }
     }
@@ -535,6 +532,9 @@ public final class TrainedModelAssignment implements SimpleDiffable<TrainedModel
         public AssignmentState calculateAssignmentState() {
             if (assignmentState.equals(AssignmentState.STOPPING)) {
                 return assignmentState;
+            }
+            if (taskParams.getNumberOfAllocations() == 0) {
+                return AssignmentState.STARTED;
             }
             if (nodeRoutingTable.values().stream().anyMatch(r -> r.getState().equals(RoutingState.STARTED))) {
                 return AssignmentState.STARTED;

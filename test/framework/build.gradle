@@ -1,11 +1,11 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
-import org.elasticsearch.gradle.internal.info.BuildParams;
 
 apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.publish'
@@ -13,9 +13,9 @@ apply plugin: 'elasticsearch.publish'
 dependencies {
   api project(":client:rest")
   api project(':modules:transport-netty4')
-  api project(':libs:elasticsearch-ssl-config')
+  api project(':libs:ssl-config')
   api project(":server")
-  api project(":libs:elasticsearch-cli")
+  api project(":libs:cli")
   api "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
   api "junit:junit:${versions.junit}"
   api "org.hamcrest:hamcrest:${versions.hamcrest}"
@@ -84,9 +84,8 @@ tasks.named("thirdPartyAudit").configure {
 }
 
 tasks.named("test").configure {
-  systemProperty 'tests.gradle_index_compat_versions', BuildParams.bwcVersions.indexCompatible.join(',')
-  systemProperty 'tests.gradle_wire_compat_versions', BuildParams.bwcVersions.wireCompatible.join(',')
-  systemProperty 'tests.gradle_unreleased_versions', BuildParams.bwcVersions.unreleased.join(',')
+  systemProperty 'tests.gradle_index_compat_versions', buildParams.bwcVersions.indexCompatible.join(',')
+  systemProperty 'tests.gradle_wire_compat_versions', buildParams.bwcVersions.wireCompatible.join(',')
 }
 
 tasks.register("integTest", Test) {

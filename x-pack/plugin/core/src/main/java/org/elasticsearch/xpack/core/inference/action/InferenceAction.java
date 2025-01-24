@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.core.inference.action;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
@@ -54,7 +53,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
         super(NAME);
     }
 
-    public static class Request extends ActionRequest {
+    public static class Request extends BaseInferenceActionRequest {
 
         public static final TimeValue DEFAULT_TIMEOUT = TimeValue.timeValueSeconds(30);
         public static final ParseField INPUT = new ParseField("input");
@@ -92,6 +91,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
         private final Map<String, Object> taskSettings;
         private final InputType inputType;
         private final TimeValue inferenceTimeout;
+        private final boolean stream;
 
         public Request(
             TaskType taskType,
@@ -100,7 +100,8 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             List<String> input,
             Map<String, Object> taskSettings,
             InputType inputType,
-            TimeValue inferenceTimeout
+            TimeValue inferenceTimeout,
+            boolean stream
         ) {
             this.taskType = taskType;
             this.inferenceEntityId = inferenceEntityId;
@@ -109,6 +110,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             this.taskSettings = taskSettings;
             this.inputType = inputType;
             this.inferenceTimeout = inferenceTimeout;
+            this.stream = stream;
         }
 
         public Request(StreamInput in) throws IOException {
@@ -134,6 +136,9 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
                 this.query = null;
                 this.inferenceTimeout = DEFAULT_TIMEOUT;
             }
+
+            // streaming is not supported yet for transport traffic
+            this.stream = false;
         }
 
         public TaskType getTaskType() {
@@ -165,7 +170,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
         }
 
         public boolean isStreaming() {
-            return false;
+            return stream;
         }
 
         @Override
@@ -261,6 +266,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             private Map<String, Object> taskSettings = Map.of();
             private String query;
             private TimeValue timeout = DEFAULT_TIMEOUT;
+            private boolean stream = false;
 
             private Builder() {}
 
@@ -303,8 +309,13 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
                 return setInferenceTimeout(TimeValue.parseTimeValue(inferenceTimeout, TIMEOUT.getPreferredName()));
             }
 
+            public Builder setStream(boolean stream) {
+                this.stream = stream;
+                return this;
+            }
+
             public Request build() {
-                return new Request(taskType, inferenceEntityId, query, input, taskSettings, inputType, timeout);
+                return new Request(taskType, inferenceEntityId, query, input, taskSettings, inputType, timeout, stream);
             }
         }
 

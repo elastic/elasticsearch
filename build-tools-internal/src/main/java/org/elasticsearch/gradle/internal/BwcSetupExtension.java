@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal;
@@ -12,10 +13,10 @@ import org.apache.commons.io.FileUtils;
 import org.elasticsearch.gradle.LoggedExec;
 import org.elasticsearch.gradle.OS;
 import org.elasticsearch.gradle.Version;
-import org.elasticsearch.gradle.internal.info.BuildParams;
 import org.gradle.api.Action;
 import org.gradle.api.GradleException;
 import org.gradle.api.Project;
+import org.gradle.api.Task;
 import org.gradle.api.logging.LogLevel;
 import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.provider.Property;
@@ -46,6 +47,7 @@ public class BwcSetupExtension {
     private final ProviderFactory providerFactory;
     private final JavaToolchainService toolChainService;
     private final Provider<BwcVersions.UnreleasedVersionInfo> unreleasedVersionInfo;
+    private final Boolean isCi;
 
     private Provider<File> checkoutDir;
 
@@ -55,7 +57,8 @@ public class BwcSetupExtension {
         ProviderFactory providerFactory,
         JavaToolchainService toolChainService,
         Provider<BwcVersions.UnreleasedVersionInfo> unreleasedVersionInfo,
-        Provider<File> checkoutDir
+        Provider<File> checkoutDir,
+        Boolean isCi
     ) {
         this.project = project;
         this.objectFactory = objectFactory;
@@ -63,6 +66,7 @@ public class BwcSetupExtension {
         this.toolChainService = toolChainService;
         this.unreleasedVersionInfo = unreleasedVersionInfo;
         this.checkoutDir = checkoutDir;
+        this.isCi = isCi;
     }
 
     TaskProvider<LoggedExec> bwcTask(String name, Action<LoggedExec> configuration) {
@@ -79,7 +83,8 @@ public class BwcSetupExtension {
             toolChainService,
             name,
             configuration,
-            useUniqueUserHome
+            useUniqueUserHome,
+            isCi
         );
     }
 
@@ -92,27 +97,34 @@ public class BwcSetupExtension {
         JavaToolchainService toolChainService,
         String name,
         Action<LoggedExec> configAction,
-        boolean useUniqueUserHome
+        boolean useUniqueUserHome,
+        boolean isCi
     ) {
         return project.getTasks().register(name, LoggedExec.class, loggedExec -> {
             loggedExec.dependsOn("checkoutBwcBranch");
             loggedExec.getWorkingDir().set(checkoutDir.get());
 
-            loggedExec.getNonTrackedEnvironment().put("JAVA_HOME", providerFactory.of(JavaHomeValueSource.class, spec -> {
-                spec.getParameters().getVersion().set(unreleasedVersionInfo.map(it -> it.version()));
-                spec.getParameters().getCheckoutDir().set(checkoutDir);
-            }).flatMap(s -> getJavaHome(objectFactory, toolChainService, Integer.parseInt(s))));
+            loggedExec.doFirst(new Action<Task>() {
+                @Override
+                public void execute(Task task) {
+                    Provider<String> minimumCompilerVersionValueSource = providerFactory.of(JavaHomeValueSource.class, spec -> {
+                        spec.getParameters().getVersion().set(unreleasedVersionInfo.map(it -> it.version()));
+                        spec.getParameters().getCheckoutDir().set(checkoutDir);
+                    }).flatMap(s -> getJavaHome(objectFactory, toolChainService, Integer.parseInt(s)));
+                    loggedExec.getNonTrackedEnvironment().put("JAVA_HOME", minimumCompilerVersionValueSource.get());
+                }
+            });
 
-            if (BuildParams.isCi() && OS.current() != OS.WINDOWS) {
+            if (isCi && OS.current() != OS.WINDOWS) {
                 // TODO: Disabled for now until we can figure out why files are getting corrupted
                 // loggedExec.getEnvironment().put("GRADLE_RO_DEP_CACHE", System.getProperty("user.home") + "/gradle_ro_cache");
             }
 
             if (OS.current() == OS.WINDOWS) {
                 loggedExec.getExecutable().set("cmd");
-                loggedExec.args("/C", "call", new File(checkoutDir.get(), "gradlew").toString());
+                loggedExec.args("/C", "call", "gradlew");
             } else {
-                loggedExec.getExecutable().set(new File(checkoutDir.get(), "gradlew").toString());
+                loggedExec.getExecutable().set("./gradlew");
             }
 
             if (useUniqueUserHome) {
@@ -164,20 +176,20 @@ public class BwcSetupExtension {
             .map(launcher -> launcher.getMetadata().getInstallationPath().getAsFile().getAbsolutePath());
     }
 
-    private static String readFromFile(File file) {
-        try {
-            return FileUtils.readFileToString(file).trim();
-        } catch (IOException ioException) {
-            throw new GradleException("Cannot read java properties file.", ioException);
-        }
-    }
-
-    public static abstract class JavaHomeValueSource implements ValueSource<String, JavaHomeValueSource.Params> {
+    public abstract static class JavaHomeValueSource implements ValueSource<String, JavaHomeValueSource.Params> {
 
         private String minimumCompilerVersionPath(Version bwcVersion) {
             return (bwcVersion.onOrAfter(BUILD_TOOL_MINIMUM_VERSION))
                 ? "build-tools-internal/" + MINIMUM_COMPILER_VERSION_PATH
                 : "buildSrc/" + MINIMUM_COMPILER_VERSION_PATH;
+        }
+
+        private static String readFromFile(File file) {
+            try {
+                return FileUtils.readFileToString(file).trim();
+            } catch (IOException ioException) {
+                throw new GradleException("Cannot read java properties file.", ioException);
+            }
         }
 
         @Override

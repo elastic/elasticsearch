@@ -43,6 +43,7 @@ public class XPackRestIT extends AbstractXPackRestTest {
         .setting("xpack.searchable.snapshot.shared_cache.region_size", "256KB")
         .user("x_pack_rest_user", "x-pack-test-password")
         .feature(FeatureFlag.TIME_SERIES_MODE)
+        .feature(FeatureFlag.SUB_OBJECTS_AUTO_ENABLED)
         .configFile("testnode.pem", Resource.fromClasspath("org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem"))
         .configFile("testnode.crt", Resource.fromClasspath("org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"))
         .configFile("service_tokens", Resource.fromClasspath("service_tokens"))

@@ -1,6 +1,0 @@
-pr: 112610
-summary: Support widening of numeric types in union-types
-area: ES|QL
-type: bug
-issues:
- - 111277

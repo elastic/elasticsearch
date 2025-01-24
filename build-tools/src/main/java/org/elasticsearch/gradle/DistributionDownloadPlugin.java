@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle;
@@ -88,7 +89,9 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
     private void setupDistributionContainer(Project project) {
         distributionsContainer = project.container(ElasticsearchDistribution.class, name -> {
             var fileConfiguration = project.getConfigurations().create(DISTRO_CONFIG_PREFIX + name);
+            fileConfiguration.setCanBeConsumed(false);
             var extractedConfiguration = project.getConfigurations().create(DISTRO_EXTRACTED_CONFIG_PREFIX + name);
+            extractedConfiguration.setCanBeConsumed(false);
             extractedConfiguration.getAttributes()
                 .attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE);
             var distribution = new ElasticsearchDistribution(

@@ -26,7 +26,7 @@ import java.util.Objects;
 public final class AuthenticationResult<T> {
     private static final AuthenticationResult<?> NOT_HANDLED = new AuthenticationResult<>(Status.CONTINUE, null, null, null, null);
 
-    public static String THREAD_CONTEXT_KEY = "_xpack_security_auth_result";
+    public static final String THREAD_CONTEXT_KEY = "_xpack_security_auth_result";
 
     public enum Status {
         /**

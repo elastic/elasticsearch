@@ -20,7 +20,7 @@ import org.elasticsearch.search.rank.rerank.AbstractRerankerIT;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
-import org.elasticsearch.xpack.inference.InferencePlugin;
+import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
 import org.junit.Before;
 
 import java.util.Collection;
@@ -92,7 +92,8 @@ public class TextSimilarityRankTests extends ESSingleNodeTestCase {
                         docFeatures,
                         Map.of("inferenceResultCount", inferenceResultCount),
                         InputType.SEARCH,
-                        InferenceAction.Request.DEFAULT_TIMEOUT
+                        InferenceAction.Request.DEFAULT_TIMEOUT,
+                        false
                     );
                 }
             };
@@ -107,7 +108,7 @@ public class TextSimilarityRankTests extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return List.of(InferencePlugin.class, TextSimilarityTestPlugin.class);
+        return List.of(LocalStateInferencePlugin.class, TextSimilarityTestPlugin.class);
     }
 
     @Before

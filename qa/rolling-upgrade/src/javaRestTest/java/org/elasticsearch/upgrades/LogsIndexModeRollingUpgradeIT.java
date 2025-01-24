@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.upgrades;
@@ -16,7 +17,6 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.FormatNames;
-import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.hamcrest.Matcher;
@@ -28,9 +28,6 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
-
-import static org.elasticsearch.test.MapMatcher.assertMap;
-import static org.elasticsearch.test.MapMatcher.matchesMap;
 
 public class LogsIndexModeRollingUpgradeIT extends AbstractRollingUpgradeTestCase {
 
@@ -44,7 +41,9 @@ public class LogsIndexModeRollingUpgradeIT extends AbstractRollingUpgradeTestCas
         .module("x-pack-stack")
         .setting("xpack.security.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
-        .setting("cluster.logsdb.enabled", "true")
+        // We upgrade from standard to logsdb, so we need to start with logsdb disabled,
+        // then later cluster.logsdb.enabled gets set to true and next rollover data stream is in logsdb mode.
+        .setting("cluster.logsdb.enabled", "false")
         .setting("stack.templates.enabled", "false")
         .build();
 
@@ -68,39 +67,6 @@ public class LogsIndexModeRollingUpgradeIT extends AbstractRollingUpgradeTestCas
           "data_stream": {},
           "priority": 500,
           "template": {
-            "mappings": {
-              "properties": {
-                "@timestamp" : {
-                  "type": "date"
-                },
-                "host.name": {
-                  "type": "keyword"
-                },
-                "method": {
-                  "type": "keyword"
-                },
-                "message": {
-                  "type": "text"
-                },
-                "ip.address": {
-                  "type": "ip"
-                }
-              }
-            }
-          }
-        }""";
-
-    private static final String LOGS_TEMPLATE = """
-        {
-          "index_patterns": [ "logs-*-*" ],
-          "data_stream": {},
-          "priority": 500,
-          "template": {
-            "settings": {
-              "index": {
-                "mode": "logsdb"
-              }
-            },
             "mappings": {
               "properties": {
                 "@timestamp" : {
@@ -168,7 +134,7 @@ public class LogsIndexModeRollingUpgradeIT extends AbstractRollingUpgradeTestCas
             assertOK(bulkIndexResponse);
             assertThat(entityAsMap(bulkIndexResponse).get("errors"), Matchers.is(false));
         } else if (isUpgradedCluster()) {
-            assertOK(client().performRequest(putTemplate(client(), "logs-template", LOGS_TEMPLATE)));
+            enableLogsdbByDefault();
             assertOK(client().performRequest(rolloverDataStream(client(), "logs-apache-production")));
             final Response bulkIndexResponse = client().performRequest(bulkIndex("logs-apache-production", () -> {
                 final StringBuilder sb = new StringBuilder();
@@ -190,24 +156,30 @@ public class LogsIndexModeRollingUpgradeIT extends AbstractRollingUpgradeTestCas
             assertOK(bulkIndexResponse);
             assertThat(entityAsMap(bulkIndexResponse).get("errors"), Matchers.is(false));
 
-            assertIndexMappingsAndSettings(0, Matchers.nullValue(), matchesMap().extraOk());
-            assertIndexMappingsAndSettings(1, Matchers.nullValue(), matchesMap().extraOk());
-            assertIndexMappingsAndSettings(2, Matchers.nullValue(), matchesMap().extraOk());
-            assertIndexMappingsAndSettings(
-                3,
-                Matchers.equalTo("logsdb"),
-                matchesMap().extraOk().entry("_source", Map.of("mode", "synthetic"))
-            );
+            assertIndexSettings(0, Matchers.nullValue());
+            assertIndexSettings(1, Matchers.nullValue());
+            assertIndexSettings(2, Matchers.nullValue());
+            assertIndexSettings(3, Matchers.equalTo("logsdb"));
         }
     }
 
-    private void assertIndexMappingsAndSettings(int backingIndex, final Matcher<Object> indexModeMatcher, final MapMatcher mappingsMatcher)
-        throws IOException {
+    static void enableLogsdbByDefault() throws IOException {
+        var request = new Request("PUT", "/_cluster/settings");
+        request.setJsonEntity("""
+            {
+                "persistent": {
+                    "cluster.logsdb.enabled": true
+                }
+            }
+            """);
+        assertOK(client().performRequest(request));
+    }
+
+    private void assertIndexSettings(int backingIndex, final Matcher<Object> indexModeMatcher) throws IOException {
         assertThat(
             getSettings(client(), getWriteBackingIndex(client(), "logs-apache-production", backingIndex)).get("index.mode"),
             indexModeMatcher
         );
-        assertMap(getIndexMappingAsMap(getWriteBackingIndex(client(), "logs-apache-production", backingIndex)), mappingsMatcher);
     }
 
     private static Request createDataStream(final String dataStreamName) {
@@ -232,7 +204,7 @@ public class LogsIndexModeRollingUpgradeIT extends AbstractRollingUpgradeTestCas
     }
 
     @SuppressWarnings("unchecked")
-    private static String getWriteBackingIndex(final RestClient client, final String dataStreamName, int backingIndex) throws IOException {
+    static String getWriteBackingIndex(final RestClient client, final String dataStreamName, int backingIndex) throws IOException {
         final Request request = new Request("GET", "_data_stream/" + dataStreamName);
         final List<Object> dataStreams = (List<Object>) entityAsMap(client.performRequest(request)).get("data_streams");
         final Map<String, Object> dataStream = (Map<String, Object>) dataStreams.get(0);

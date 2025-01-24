@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.snapshots;
@@ -20,6 +21,8 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress.ShardSnapshotStatus;
 import org.elasticsearch.cluster.SnapshotsInProgress.ShardState;
+import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
+import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -58,6 +61,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.core.Strings.format;
@@ -81,6 +85,8 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
 
     private final ThreadPool threadPool;
 
+    private final SnapshotShutdownProgressTracker snapshotShutdownProgressTracker;
+
     private final Map<Snapshot, Map<ShardId, IndexShardSnapshotStatus>> shardSnapshots = new HashMap<>();
 
     // A map of snapshots to the shardIds that we already reported to the master as failed
@@ -101,6 +107,12 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
         this.transportService = transportService;
         this.clusterService = clusterService;
         this.threadPool = transportService.getThreadPool();
+        this.snapshotShutdownProgressTracker = new SnapshotShutdownProgressTracker(
+            () -> clusterService.state().nodes().getLocalNodeId(),
+            (callerLogger) -> logIndexShardSnapshotStatuses(callerLogger),
+            clusterService.getClusterSettings(),
+            threadPool
+        );
         this.remoteFailedRequestDeduplicator = new ResultDeduplicator<>(threadPool.getThreadContext());
         if (DiscoveryNode.canContainData(settings)) {
             // this is only useful on the nodes that can hold data
@@ -129,11 +141,38 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
         try {
+            final var localNodeId = clusterService.localNode().getId();
+
+            // Track when this node enters and leaves shutdown mode because we pause shard snapshots for shutdown.
+            // The snapshotShutdownProgressTracker will report (via logging) on the progress shard snapshots make
+            // towards either completing (successfully or otherwise) or pausing.
+            NodesShutdownMetadata currentShutdownMetadata = event.state().metadata().custom(NodesShutdownMetadata.TYPE);
+            NodesShutdownMetadata previousShutdownMetadata = event.previousState().metadata().custom(NodesShutdownMetadata.TYPE);
+            SingleNodeShutdownMetadata currentLocalNodeShutdownMetadata = currentShutdownMetadata != null
+                ? currentShutdownMetadata.get(localNodeId)
+                : null;
+            SingleNodeShutdownMetadata previousLocalNodeShutdownMetadata = previousShutdownMetadata != null
+                ? previousShutdownMetadata.get(localNodeId)
+                : null;
+
+            boolean isLocalNodeAddingShutdown = false;
+            if (isPausingProgressTrackedShutdown(previousLocalNodeShutdownMetadata) == false
+                && isPausingProgressTrackedShutdown(currentLocalNodeShutdownMetadata)) {
+                snapshotShutdownProgressTracker.onClusterStateAddShutdown();
+                isLocalNodeAddingShutdown = true;
+            } else if (isPausingProgressTrackedShutdown(previousLocalNodeShutdownMetadata)
+                && isPausingProgressTrackedShutdown(currentLocalNodeShutdownMetadata) == false) {
+                    snapshotShutdownProgressTracker.onClusterStateRemoveShutdown();
+                }
+
             final var currentSnapshots = SnapshotsInProgress.get(event.state());
+
             if (SnapshotsInProgress.get(event.previousState()).equals(currentSnapshots) == false) {
-                final var localNodeId = clusterService.localNode().getId();
                 synchronized (shardSnapshots) {
+                    // Cancel any snapshots that have been removed from the cluster state.
                     cancelRemoved(currentSnapshots);
+
+                    // Update running snapshots or start any snapshots that are set to run.
                     for (final var oneRepoSnapshotsInProgress : currentSnapshots.entriesByRepo()) {
                         for (final var snapshotsInProgressEntry : oneRepoSnapshotsInProgress) {
                             handleUpdatedSnapshotsInProgressEntry(
@@ -144,6 +183,11 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
                         }
                     }
                 }
+            }
+
+            if (isLocalNodeAddingShutdown) {
+                // Any active snapshots would have been signalled to pause in the previous code block.
+                snapshotShutdownProgressTracker.onClusterStatePausingSetForAllShardSnapshots();
             }
 
             String previousMasterNodeId = event.previousState().nodes().getMasterNodeId();
@@ -163,6 +207,17 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
         }
     }
 
+    /**
+     * Determines whether we want to track this kind of shutdown for snapshot pausing progress.
+     * We want tracking is shutdown metadata is set, and not type RESTART.
+     * Note that the Shutdown API is idempotent and the type of shutdown may change to / from RESTART to / from some other type of interest.
+     *
+     * @return true if snapshots will be paused during this type of local node shutdown.
+     */
+    private static boolean isPausingProgressTrackedShutdown(@Nullable SingleNodeShutdownMetadata localNodeShutdownMetadata) {
+        return localNodeShutdownMetadata != null && localNodeShutdownMetadata.getType() != SingleNodeShutdownMetadata.Type.RESTART;
+    }
+
     @Override
     public void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard, Settings indexSettings) {
         // abort any snapshots occurring on the soon-to-be closed shard
@@ -177,6 +232,14 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
                     );
                     indexShardSnapshotStatus.abortIfNotCompleted("shard is closing, aborting", notifyOnAbortTaskRunner::enqueueTask);
                 }
+            }
+        }
+    }
+
+    private void logIndexShardSnapshotStatuses(Logger callerLogger) {
+        for (var snapshotStatuses : shardSnapshots.values()) {
+            for (var shardSnapshot : snapshotStatuses.entrySet()) {
+                callerLogger.info(Strings.format("ShardId %s, %s", shardSnapshot.getKey(), shardSnapshot.getValue()));
             }
         }
     }
@@ -230,6 +293,9 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
         }
     }
 
+    /**
+     * Starts new snapshots and pauses or aborts active shard snapshot based on the updated {@link SnapshotsInProgress} entry.
+     */
     private void handleUpdatedSnapshotsInProgressEntry(String localNodeId, boolean removingLocalNode, SnapshotsInProgress.Entry entry) {
         if (entry.isClone()) {
             // This is a snapshot clone, it will be executed on the current master
@@ -265,7 +331,8 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
                                 sid,
                                 ShardState.FAILED,
                                 shard.getValue().reason(),
-                                shard.getValue().generation()
+                                shard.getValue().generation(),
+                                () -> null
                             );
                         }
                     } else {
@@ -316,6 +383,7 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
                     + snapshotStatus.generation()
                     + "] for snapshot with old-format compatibility";
             shardSnapshotTasks.add(newShardSnapshotTask(shardId, snapshot, indexId, snapshotStatus, entry.version(), entry.startTime()));
+            snapshotStatus.updateStatusDescription("shard snapshot scheduled to start");
         }
 
         threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(() -> shardSnapshotTasks.forEach(Runnable::run));
@@ -327,6 +395,7 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
         for (final Map.Entry<ShardId, ShardSnapshotStatus> shardEntry : entry.shards().entrySet()) {
             final ShardId shardId = shardEntry.getKey();
             final ShardSnapshotStatus masterShardSnapshotStatus = shardEntry.getValue();
+            IndexShardSnapshotStatus indexShardSnapshotStatus = localShardSnapshots.get(shardId);
 
             if (masterShardSnapshotStatus.state() != ShardState.INIT) {
                 // shard snapshot not currently scheduled by master
@@ -346,7 +415,11 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
                     shardId,
                     ShardState.PAUSED_FOR_NODE_REMOVAL,
                     "paused",
-                    masterShardSnapshotStatus.generation()
+                    masterShardSnapshotStatus.generation(),
+                    () -> {
+                        indexShardSnapshotStatus.updateStatusDescription("finished: master notification attempt complete");
+                        return null;
+                    }
                 );
             } else {
                 // shard snapshot currently running, mark for pause
@@ -363,16 +436,22 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
         final IndexVersion entryVersion,
         final long entryStartTime
     ) {
-        // separate method to make sure this lambda doesn't capture any heavy local objects like a SnapshotsInProgress.Entry
-        return () -> snapshot(shardId, snapshot, indexId, snapshotStatus, entryVersion, entryStartTime, new ActionListener<>() {
+        Supplier<Void> postMasterNotificationAction = () -> {
+            snapshotStatus.updateStatusDescription("finished: master notification attempt complete");
+            return null;
+        };
+
+        // Listener that runs on completion of the shard snapshot: it will notify the master node of success or failure.
+        ActionListener<ShardSnapshotResult> snapshotResultListener = new ActionListener<>() {
             @Override
             public void onResponse(ShardSnapshotResult shardSnapshotResult) {
+                snapshotStatus.updateStatusDescription("snapshot succeeded: proceeding to notify master of success");
                 final ShardGeneration newGeneration = shardSnapshotResult.getGeneration();
                 assert newGeneration != null;
                 assert newGeneration.equals(snapshotStatus.generation());
-                if (logger.isDebugEnabled()) {
+                if (logger.isTraceEnabled()) {
                     final IndexShardSnapshotStatus.Copy lastSnapshotStatus = snapshotStatus.asCopy();
-                    logger.debug(
+                    logger.trace(
                         "[{}][{}] completed snapshot to [{}] with status [{}] at generation [{}]",
                         shardId,
                         snapshot,
@@ -381,11 +460,13 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
                         snapshotStatus.generation()
                     );
                 }
-                notifySuccessfulSnapshotShard(snapshot, shardId, shardSnapshotResult);
+
+                notifySuccessfulSnapshotShard(snapshot, shardId, shardSnapshotResult, postMasterNotificationAction);
             }
 
             @Override
             public void onFailure(Exception e) {
+                snapshotStatus.updateStatusDescription("failed with exception '" + e + ": proceeding to notify master of failure");
                 final String failure;
                 final Stage nextStage;
                 if (e instanceof AbortedSnapshotException) {
@@ -402,9 +483,24 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
                     logger.warn(() -> format("[%s][%s] failed to snapshot shard", shardId, snapshot), e);
                 }
                 final var shardState = snapshotStatus.moveToUnsuccessful(nextStage, failure, threadPool.absoluteTimeInMillis());
-                notifyUnsuccessfulSnapshotShard(snapshot, shardId, shardState, failure, snapshotStatus.generation());
+                notifyUnsuccessfulSnapshotShard(
+                    snapshot,
+                    shardId,
+                    shardState,
+                    failure,
+                    snapshotStatus.generation(),
+                    postMasterNotificationAction
+                );
             }
+        };
+
+        snapshotShutdownProgressTracker.incNumberOfShardSnapshotsInProgress(shardId, snapshot);
+        var decTrackerRunsBeforeResultListener = ActionListener.runAfter(snapshotResultListener, () -> {
+            snapshotShutdownProgressTracker.decNumberOfShardSnapshotsInProgress(shardId, snapshot, snapshotStatus);
         });
+
+        // separate method to make sure this lambda doesn't capture any heavy local objects like a SnapshotsInProgress.Entry
+        return () -> snapshot(shardId, snapshot, indexId, snapshotStatus, entryVersion, entryStartTime, decTrackerRunsBeforeResultListener);
     }
 
     // package private for testing
@@ -445,6 +541,7 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
         ActionListener<ShardSnapshotResult> resultListener
     ) {
         ActionListener.run(resultListener, listener -> {
+            snapshotStatus.updateStatusDescription("has started");
             snapshotStatus.ensureNotAborted();
             final IndexShard indexShard = indicesService.indexServiceSafe(shardId.getIndex()).getShard(shardId.id());
             if (indexShard.routingEntry().primary() == false) {
@@ -464,7 +561,9 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
             final Repository repository = repositoriesService.repository(snapshot.getRepository());
             SnapshotIndexCommit snapshotIndexCommit = null;
             try {
+                snapshotStatus.updateStatusDescription("acquiring commit reference from IndexShard: triggers a shard flush");
                 snapshotIndexCommit = new SnapshotIndexCommit(indexShard.acquireIndexCommitForSnapshot());
+                snapshotStatus.updateStatusDescription("commit reference acquired, proceeding with snapshot");
                 final var shardStateId = getShardStateId(indexShard, snapshotIndexCommit.indexCommit()); // not aborted so indexCommit() ok
                 snapshotStatus.addAbortListener(makeAbortListener(indexShard.shardId(), snapshot, snapshotIndexCommit));
                 snapshotStatus.ensureNotAborted();
@@ -589,8 +688,12 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
                                 snapshot.snapshot(),
                                 shardId
                             );
-                            notifySuccessfulSnapshotShard(snapshot.snapshot(), shardId, localShard.getValue().getShardSnapshotResult());
-
+                            notifySuccessfulSnapshotShard(
+                                snapshot.snapshot(),
+                                shardId,
+                                localShard.getValue().getShardSnapshotResult(),
+                                () -> null
+                            );
                         } else if (stage == Stage.FAILURE) {
                             // but we think the shard failed - we need to make new master know that the shard failed
                             logger.debug(
@@ -604,7 +707,8 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
                                 shardId,
                                 ShardState.FAILED,
                                 indexShardSnapshotStatus.getFailure(),
-                                localShard.getValue().generation()
+                                localShard.getValue().generation(),
+                                () -> null
                             );
                         } else if (stage == Stage.PAUSED) {
                             // but we think the shard has paused - we need to make new master know that
@@ -617,7 +721,8 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
                                 shardId,
                                 ShardState.PAUSED_FOR_NODE_REMOVAL,
                                 indexShardSnapshotStatus.getFailure(),
-                                localShard.getValue().generation()
+                                localShard.getValue().generation(),
+                                () -> null
                             );
                         }
                     }
@@ -630,10 +735,20 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
     /**
      * Notify the master node that the given shard snapshot completed successfully.
      */
-    private void notifySuccessfulSnapshotShard(final Snapshot snapshot, final ShardId shardId, ShardSnapshotResult shardSnapshotResult) {
+    private void notifySuccessfulSnapshotShard(
+        final Snapshot snapshot,
+        final ShardId shardId,
+        ShardSnapshotResult shardSnapshotResult,
+        Supplier<Void> postMasterNotificationAction
+    ) {
         assert shardSnapshotResult != null;
         assert shardSnapshotResult.getGeneration() != null;
-        sendSnapshotShardUpdate(snapshot, shardId, ShardSnapshotStatus.success(clusterService.localNode().getId(), shardSnapshotResult));
+        sendSnapshotShardUpdate(
+            snapshot,
+            shardId,
+            ShardSnapshotStatus.success(clusterService.localNode().getId(), shardSnapshotResult),
+            postMasterNotificationAction
+        );
     }
 
     /**
@@ -644,13 +759,15 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
         final ShardId shardId,
         final ShardState shardState,
         final String failure,
-        final ShardGeneration generation
+        final ShardGeneration generation,
+        Supplier<Void> postMasterNotificationAction
     ) {
         assert shardState == ShardState.FAILED || shardState == ShardState.PAUSED_FOR_NODE_REMOVAL : shardState;
         sendSnapshotShardUpdate(
             snapshot,
             shardId,
-            new ShardSnapshotStatus(clusterService.localNode().getId(), shardState, generation, failure)
+            new ShardSnapshotStatus(clusterService.localNode().getId(), shardState, generation, failure),
+            postMasterNotificationAction
         );
         if (shardState == ShardState.PAUSED_FOR_NODE_REMOVAL) {
             logger.debug(
@@ -663,20 +780,33 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
     }
 
     /** Updates the shard snapshot status by sending a {@link UpdateIndexShardSnapshotStatusRequest} to the master node */
-    private void sendSnapshotShardUpdate(final Snapshot snapshot, final ShardId shardId, final ShardSnapshotStatus status) {
+    private void sendSnapshotShardUpdate(
+        final Snapshot snapshot,
+        final ShardId shardId,
+        final ShardSnapshotStatus status,
+        Supplier<Void> postMasterNotificationAction
+    ) {
+        ActionListener<Void> updateResultListener = new ActionListener<>() {
+            @Override
+            public void onResponse(Void aVoid) {
+                logger.trace("[{}][{}] updated snapshot state to [{}]", shardId, snapshot, status);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                logger.warn(() -> format("[%s][%s] failed to update snapshot state to [%s]", shardId, snapshot, status), e);
+            }
+        };
+
+        snapshotShutdownProgressTracker.trackRequestSentToMaster(snapshot, shardId);
+        var releaseTrackerRequestRunsBeforeResultListener = ActionListener.runBefore(updateResultListener, () -> {
+            snapshotShutdownProgressTracker.releaseRequestSentToMaster(snapshot, shardId);
+            postMasterNotificationAction.get();
+        });
+
         remoteFailedRequestDeduplicator.executeOnce(
             new UpdateIndexShardSnapshotStatusRequest(snapshot, shardId, status),
-            new ActionListener<>() {
-                @Override
-                public void onResponse(Void aVoid) {
-                    logger.trace("[{}][{}] updated snapshot state to [{}]", shardId, snapshot, status);
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    logger.warn(() -> format("[%s][%s] failed to update snapshot state to [%s]", shardId, snapshot, status), e);
-                }
-            },
+            releaseTrackerRequestRunsBeforeResultListener,
             (req, reqListener) -> transportService.sendRequest(
                 transportService.getLocalNode(),
                 SnapshotsService.UPDATE_SNAPSHOT_STATUS_ACTION_NAME,

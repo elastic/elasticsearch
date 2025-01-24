@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.repositories.blobstore;
@@ -35,7 +36,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.Collection;
-import java.util.Iterator;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
@@ -136,11 +136,6 @@ public class BlobStoreRepositoryOperationPurposeIT extends AbstractSnapshotInteg
         }
 
         @Override
-        public void deleteBlobsIgnoringIfNotExists(OperationPurpose purpose, Iterator<String> blobNames) throws IOException {
-            delegateBlobStore.deleteBlobsIgnoringIfNotExists(purpose, blobNames);
-        }
-
-        @Override
         public void close() throws IOException {
             delegateBlobStore.close();
         }
@@ -187,6 +182,19 @@ public class BlobStoreRepositoryOperationPurposeIT extends AbstractSnapshotInteg
             assertEquals(blobName, OperationPurpose.SNAPSHOT_METADATA, purpose);
             assertPurposeConsistency(purpose, blobName);
             super.writeMetadataBlob(purpose, blobName, failIfAlreadyExists, atomic, writer);
+        }
+
+        @Override
+        public void writeBlobAtomic(
+            OperationPurpose purpose,
+            String blobName,
+            InputStream inputStream,
+            long blobSize,
+            boolean failIfAlreadyExists
+        ) throws IOException {
+            assertEquals(blobName, OperationPurpose.SNAPSHOT_METADATA, purpose);
+            assertPurposeConsistency(purpose, blobName);
+            super.writeBlobAtomic(purpose, blobName, inputStream, blobSize, failIfAlreadyExists);
         }
 
         @Override

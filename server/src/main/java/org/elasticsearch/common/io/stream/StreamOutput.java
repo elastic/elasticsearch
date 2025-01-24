@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.io.stream;
@@ -767,13 +768,8 @@ public abstract class StreamOutput extends OutputStream {
             final ZonedDateTime zonedDateTime = (ZonedDateTime) v;
             o.writeString(zonedDateTime.getZone().getId());
             Instant instant = zonedDateTime.toInstant();
-            if (o.getTransportVersion().onOrAfter(TransportVersions.ZDT_NANOS_SUPPORT_BROKEN)) {
-                // epoch seconds can be negative, but it was incorrectly first written as vlong
-                if (o.getTransportVersion().onOrAfter(TransportVersions.ZDT_NANOS_SUPPORT)) {
-                    o.writeZLong(instant.getEpochSecond());
-                } else {
-                    o.writeVLong(instant.getEpochSecond());
-                }
+            if (o.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
+                o.writeZLong(instant.getEpochSecond());
                 o.writeInt(instant.getNano());
             } else {
                 o.writeLong(instant.toEpochMilli());
@@ -1232,5 +1228,12 @@ public abstract class StreamOutput extends OutputStream {
      */
     public void writeMissingString() throws IOException {
         writeBoolean(false);
+    }
+
+    /**
+     * Write a {@link BigInteger} to the stream
+     */
+    public void writeBigInteger(BigInteger bigInteger) throws IOException {
+        writeString(bigInteger.toString());
     }
 }

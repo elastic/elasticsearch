@@ -45,5 +45,7 @@
   "examples" : [
     "FROM employees\n| STATS MEDIAN(salary), PERCENTILE(salary, 50)",
     "FROM employees\n| STATS median_max_salary_change = MEDIAN(MV_MAX(salary_change))"
-  ]
+  ],
+  "preview" : false,
+  "snapshot_only" : false
 }

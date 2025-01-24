@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.store;
@@ -32,10 +33,12 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.Lock;
 import org.apache.lucene.store.NIOFSDirectory;
+import org.apache.lucene.store.ReadAdvice;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -146,7 +149,15 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      * Specific {@link IOContext} indicating that we will read only the Lucene file footer (containing the file checksum)
      * See {@link MetadataSnapshot#checksumFromLuceneFile}.
      */
-    public static final IOContext READONCE_CHECKSUM = new IOContext(IOContext.READONCE, true);
+    public static final IOContext READONCE_CHECKSUM = createReadOnceContext();
+
+    // while equivalent, these different read once contexts are checked by identity in directory implementations
+    private static IOContext createReadOnceContext() {
+        var context = IOContext.READONCE.withReadAdvice(ReadAdvice.SEQUENTIAL);
+        assert context != IOContext.READONCE;
+        assert context.equals(IOContext.READONCE);
+        return context;
+    }
 
     private final AtomicBoolean isClosed = new AtomicBoolean(false);
     private final StoreDirectory directory;
@@ -631,7 +642,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         List<CorruptIndexException> ex = new ArrayList<>();
         for (String file : files) {
             if (file.startsWith(CORRUPTED_MARKER_NAME_PREFIX)) {
-                try (ChecksumIndexInput input = directory.openChecksumInput(file, IOContext.READONCE)) {
+                try (ChecksumIndexInput input = directory.openChecksumInput(file)) {
                     CodecUtil.checkHeader(input, CODEC, CORRUPTED_MARKER_CODEC_VERSION, CORRUPTED_MARKER_CODEC_VERSION);
                     final int size = input.readVInt();
                     final byte[] buffer = new byte[size];
@@ -686,7 +697,12 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                 }
             }
             directory.syncMetaData();
-            final Store.MetadataSnapshot metadataOrEmpty = getMetadata(null);
+            Store.MetadataSnapshot metadataOrEmpty;
+            try {
+                metadataOrEmpty = getMetadata(null);
+            } catch (IndexNotFoundException e) {
+                metadataOrEmpty = MetadataSnapshot.EMPTY;
+            }
             verifyAfterCleanup(sourceMetadata, metadataOrEmpty);
         } finally {
             metadataLock.writeLock().unlock();
@@ -804,12 +820,12 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
 
         public static final MetadataSnapshot EMPTY = new MetadataSnapshot(emptyMap(), emptyMap(), 0L);
 
-        static MetadataSnapshot loadFromIndexCommit(IndexCommit commit, Directory directory, Logger logger) throws IOException {
+        static MetadataSnapshot loadFromIndexCommit(@Nullable IndexCommit commit, Directory directory, Logger logger) throws IOException {
             final long numDocs;
             final Map<String, StoreFileMetadata> metadataByFile = new HashMap<>();
             final Map<String, String> commitUserData;
             try {
-                final SegmentInfos segmentCommitInfos = Store.readSegmentsInfo(commit, directory);
+                final SegmentInfos segmentCommitInfos = readSegmentsInfo(commit, directory);
                 numDocs = Lucene.getNumDocs(segmentCommitInfos);
                 commitUserData = Map.copyOf(segmentCommitInfos.getUserData());
                 // we don't know which version was used to write so we take the max version.
@@ -918,7 +934,10 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             boolean readFileAsHash,
             BytesRef writerUuid
         ) throws IOException {
-            try (IndexInput in = directory.openInput(file, READONCE_CHECKSUM)) {
+            // We select the read once context carefully here since these constants, while equivalent are
+            // checked by identity in the different directory implementations.
+            var context = file.startsWith(IndexFileNames.SEGMENTS) ? IOContext.READONCE : READONCE_CHECKSUM;
+            try (IndexInput in = directory.openInput(file, context)) {
                 final long length = in.length();
                 if (length < CodecUtil.footerLength()) {
                     // If the file isn't long enough to contain the footer then verifying it triggers an IAE, but really it's corrupted
@@ -1137,14 +1156,6 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             return count;
         }
 
-        /**
-         * Returns the sync id of the commit point that this MetadataSnapshot represents.
-         *
-         * @return sync id if exists, else null
-         */
-        public String getSyncId() {
-            return commitUserData.get(Engine.SYNC_COMMIT_ID);
-        }
     }
 
     /**
@@ -1207,14 +1218,14 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      * mechanism that is used in some repository plugins (S3 for example). However, the checksum is only calculated on
      * the first read. All consecutive reads of the same data are not used to calculate the checksum.
      */
-    static class VerifyingIndexInput extends ChecksumIndexInput {
+    public static class VerifyingIndexInput extends ChecksumIndexInput {
         private final IndexInput input;
         private final Checksum digest;
         private final long checksumPosition;
         private final byte[] checksum = new byte[8];
         private long verifiedPosition = 0;
 
-        VerifyingIndexInput(IndexInput input) {
+        public VerifyingIndexInput(IndexInput input) {
             this(input, new BufferedChecksum(new CRC32()));
         }
 
@@ -1562,6 +1573,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     }
 
     private IndexWriterConfig newTemporaryIndexWriterConfig() {
+        assert assertIndexWriter(indexSettings);
         // this config is only used for temporary IndexWriter instances, used to initialize the index or update the commit data,
         // so we don't want any merges to happen
         var iwc = indexWriterConfigWithNoMerging(null).setSoftDeletesField(Lucene.SOFT_DELETES_FIELD).setCommitOnClose(false);
@@ -1570,5 +1582,18 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             iwc.setParentField(Engine.ROOT_DOC_FIELD_NAME);
         }
         return iwc;
+    }
+
+    private static boolean assertIndexWriter(IndexSettings indexSettings) {
+        final var version = IndexMetadata.SETTING_INDEX_VERSION_COMPATIBILITY.get(indexSettings.getSettings());
+        assert version.onOrAfter(IndexVersions.MINIMUM_COMPATIBLE)
+            : "index created on version ["
+                + indexSettings.getIndexVersionCreated()
+                + "] with compatibility version ["
+                + version
+                + "] cannot be written by current version ["
+                + IndexVersion.current()
+                + ']';
+        return true;
     }
 }

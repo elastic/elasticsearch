@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.datastreams;
 
@@ -19,14 +20,13 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.FailureStoreMetrics;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.ingest.PutPipelineRequest;
-import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Template;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -195,11 +195,9 @@ public class IngestFailureStoreMetricsIT extends ESIntegTestCase {
         createDataStream();
 
         // Initialize failure store.
-        var rolloverRequest = new RolloverRequest(dataStream, null);
-        rolloverRequest.setIndicesOptions(
-            IndicesOptions.builder(rolloverRequest.indicesOptions())
-                .failureStoreOptions(opts -> opts.includeFailureIndices(true).includeRegularIndices(false))
-                .build()
+        var rolloverRequest = new RolloverRequest(
+            IndexNameExpressionResolver.combineSelector(dataStream, IndexComponentSelector.FAILURES),
+            null
         );
         var rolloverResponse = client().execute(RolloverAction.INSTANCE, rolloverRequest).actionGet();
         var failureStoreIndex = rolloverResponse.getNewIndex();
@@ -287,8 +285,8 @@ public class IngestFailureStoreMetricsIT extends ESIntegTestCase {
         request.indexTemplate(
             ComposableIndexTemplate.builder()
                 .indexPatterns(List.of(dataStream + "*"))
-                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false, failureStore))
-                .template(new Template(null, new CompressedXContent("""
+                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                .template(Template.builder().mappings(new CompressedXContent("""
                     {
                       "dynamic": false,
                       "properties": {
@@ -299,7 +297,7 @@ public class IngestFailureStoreMetricsIT extends ESIntegTestCase {
                             "type": "long"
                         }
                       }
-                    }"""), null))
+                    }""")).dataStreamOptions(DataStreamTestHelper.createDataStreamOptionsTemplate(failureStore)))
                 .build()
         );
         client().execute(TransportPutComposableIndexTemplateAction.TYPE, request).actionGet();
@@ -319,9 +317,7 @@ public class IngestFailureStoreMetricsIT extends ESIntegTestCase {
     }
 
     private void createPipeline(String processor) {
-        String pipelineDefinition = Strings.format("{\"processors\": [{%s}]}", processor);
-        BytesReference bytes = new BytesArray(pipelineDefinition);
-        clusterAdmin().putPipeline(new PutPipelineRequest(pipeline, bytes, XContentType.JSON)).actionGet();
+        putJsonPipeline(pipeline, Strings.format("{\"processors\": [{%s}]}", processor));
     }
 
     private void indexDocs(String dataStream, int numDocs, String pipeline) {

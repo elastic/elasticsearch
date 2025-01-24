@@ -13,7 +13,6 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.test.AbstractWireTestCase;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -66,9 +65,9 @@ public class SingleValueQuerySerializationTests extends AbstractWireTestCase<Sin
         return copyInstance(
             instance,
             getNamedWriteableRegistry(),
-            (out, v) -> new PlanStreamOutput(out, new PlanNameRegistry(), config).writeNamedWriteable(v),
+            (out, v) -> new PlanStreamOutput(out, config).writeNamedWriteable(v),
             in -> {
-                PlanStreamInput pin = new PlanStreamInput(in, new PlanNameRegistry(), in.namedWriteableRegistry(), config);
+                PlanStreamInput pin = new PlanStreamInput(in, in.namedWriteableRegistry(), config);
                 return (SingleValueQuery.Builder) pin.readNamedWriteable(QueryBuilder.class);
             },
             version

@@ -1,20 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index;
 
-import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.util.StringBuilders;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.ESLogMessage;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -91,9 +90,6 @@ public final class IndexingSlowLog implements IndexingOperationListener {
     );
 
     private static final Logger indexLogger = LogManager.getLogger(INDEX_INDEXING_SLOWLOG_PREFIX + ".index");
-    static {
-        Loggers.setLevel(indexLogger, Level.TRACE);
-    }
 
     private final Index index;
 
@@ -107,7 +103,7 @@ public final class IndexingSlowLog implements IndexingOperationListener {
      * <em>characters</em> of the source.
      */
     private int maxSourceCharsToLog;
-    private final SlowLogFieldProvider slowLogFieldProvider;
+    private final SlowLogFields slowLogFields;
 
     /**
      * Reads how much of the source to log. The user can specify any value they
@@ -129,8 +125,8 @@ public final class IndexingSlowLog implements IndexingOperationListener {
         Property.IndexScope
     );
 
-    IndexingSlowLog(IndexSettings indexSettings, SlowLogFieldProvider slowLogFieldProvider) {
-        this.slowLogFieldProvider = slowLogFieldProvider;
+    IndexingSlowLog(IndexSettings indexSettings, SlowLogFields slowLogFields) {
+        this.slowLogFields = slowLogFields;
         this.index = indexSettings.getIndex();
 
         indexSettings.getScopedSettings().addSettingsUpdateConsumer(INDEX_INDEXING_SLOWLOG_REFORMAT_SETTING, this::setReformat);
@@ -183,47 +179,19 @@ public final class IndexingSlowLog implements IndexingOperationListener {
             final long tookInNanos = result.getTook();
             if (indexWarnThreshold >= 0 && tookInNanos > indexWarnThreshold) {
                 indexLogger.warn(
-                    IndexingSlowLogMessage.of(
-                        this.slowLogFieldProvider.indexSlowLogFields(),
-                        index,
-                        doc,
-                        tookInNanos,
-                        reformat,
-                        maxSourceCharsToLog
-                    )
+                    IndexingSlowLogMessage.of(this.slowLogFields.indexFields(), index, doc, tookInNanos, reformat, maxSourceCharsToLog)
                 );
             } else if (indexInfoThreshold >= 0 && tookInNanos > indexInfoThreshold) {
                 indexLogger.info(
-                    IndexingSlowLogMessage.of(
-                        this.slowLogFieldProvider.indexSlowLogFields(),
-                        index,
-                        doc,
-                        tookInNanos,
-                        reformat,
-                        maxSourceCharsToLog
-                    )
+                    IndexingSlowLogMessage.of(this.slowLogFields.indexFields(), index, doc, tookInNanos, reformat, maxSourceCharsToLog)
                 );
             } else if (indexDebugThreshold >= 0 && tookInNanos > indexDebugThreshold) {
                 indexLogger.debug(
-                    IndexingSlowLogMessage.of(
-                        this.slowLogFieldProvider.indexSlowLogFields(),
-                        index,
-                        doc,
-                        tookInNanos,
-                        reformat,
-                        maxSourceCharsToLog
-                    )
+                    IndexingSlowLogMessage.of(this.slowLogFields.indexFields(), index, doc, tookInNanos, reformat, maxSourceCharsToLog)
                 );
             } else if (indexTraceThreshold >= 0 && tookInNanos > indexTraceThreshold) {
                 indexLogger.trace(
-                    IndexingSlowLogMessage.of(
-                        this.slowLogFieldProvider.indexSlowLogFields(),
-                        index,
-                        doc,
-                        tookInNanos,
-                        reformat,
-                        maxSourceCharsToLog
-                    )
+                    IndexingSlowLogMessage.of(this.slowLogFields.indexFields(), index, doc, tookInNanos, reformat, maxSourceCharsToLog)
                 );
             }
         }

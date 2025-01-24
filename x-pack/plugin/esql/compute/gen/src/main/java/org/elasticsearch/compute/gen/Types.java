@@ -129,12 +129,7 @@ public class Types {
         "AbstractEvaluator"
     );
 
-    static final ClassName WARNINGS = ClassName.get("org.elasticsearch.xpack.esql.expression.function", "Warnings");
-    /**
-     * Warnings class used in compute module.
-     * It uses no external dependencies (Like Warnings and Source).
-     */
-    static final ClassName COMPUTE_WARNINGS = ClassName.get("org.elasticsearch.compute.aggregation", "Warnings");
+    static final ClassName WARNINGS = ClassName.get("org.elasticsearch.compute.operator", "Warnings");
 
     static final ClassName SOURCE = ClassName.get("org.elasticsearch.xpack.esql.core.tree", "Source");
 

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.snapshots;
@@ -75,7 +76,7 @@ public class RestoreServiceTests extends ESTestCase {
 
         assertEquals(dataStreamName, updateDataStream.getName());
         assertEquals(List.of(updatedBackingIndex), updateDataStream.getIndices());
-        assertEquals(List.of(updatedFailureIndex), updateDataStream.getFailureIndices().getIndices());
+        assertEquals(List.of(updatedFailureIndex), updateDataStream.getFailureIndices());
     }
 
     public void testUpdateDataStreamRename() {
@@ -111,7 +112,7 @@ public class RestoreServiceTests extends ESTestCase {
 
         assertEquals(renamedDataStreamName, renamedDataStream.getName());
         assertEquals(List.of(renamedBackingIndex), renamedDataStream.getIndices());
-        assertEquals(List.of(renamedFailureIndex), renamedDataStream.getFailureIndices().getIndices());
+        assertEquals(List.of(renamedFailureIndex), renamedDataStream.getFailureIndices());
     }
 
     public void testPrefixNotChanged() {
@@ -146,7 +147,7 @@ public class RestoreServiceTests extends ESTestCase {
 
         assertEquals(renamedDataStreamName, renamedDataStream.getName());
         assertEquals(List.of(renamedIndex), renamedDataStream.getIndices());
-        assertEquals(List.of(renamedFailureIndex), renamedDataStream.getFailureIndices().getIndices());
+        assertEquals(List.of(renamedFailureIndex), renamedDataStream.getFailureIndices());
 
         request = new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT).renamePattern("ds-000001").renameReplacement("ds2-000001");
 
@@ -154,7 +155,7 @@ public class RestoreServiceTests extends ESTestCase {
 
         assertEquals(renamedDataStreamName, renamedDataStream.getName());
         assertEquals(List.of(renamedIndex), renamedDataStream.getIndices());
-        assertEquals(List.of(renamedFailureIndex), renamedDataStream.getFailureIndices().getIndices());
+        assertEquals(List.of(renamedFailureIndex), renamedDataStream.getFailureIndices());
     }
 
     public void testRefreshRepositoryUuidsDoesNothingIfDisabled() {

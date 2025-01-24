@@ -89,7 +89,7 @@ public class CircuitBreakerTests extends ESTestCase {
 
             @Override
             public void fetchHits(Iterable<List<HitReference>> refs, ActionListener<List<List<SearchHit>>> listener) {}
-        }, mockCriteria(), randomIntBetween(10, 500), new Limit(1000, 0), CIRCUIT_BREAKER, 1);
+        }, mockCriteria(), randomIntBetween(10, 500), new Limit(1000, 0), CIRCUIT_BREAKER, 1, randomBoolean());
 
         CIRCUIT_BREAKER.startBreaking();
         iterator.pushToStack(new SampleIterator.Page(CB_STACK_SIZE_PRECISION - 1));
@@ -101,15 +101,13 @@ public class CircuitBreakerTests extends ESTestCase {
     }
 
     private void testMemoryCleared(boolean fail) {
-        try (
-            CircuitBreakerService service = new HierarchyCircuitBreakerService(
-                CircuitBreakerMetrics.NOOP,
-                Settings.EMPTY,
-                Collections.singletonList(EqlTestUtils.circuitBreakerSettings(Settings.EMPTY)),
-                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
-            );
-            var threadPool = createThreadPool()
-        ) {
+        CircuitBreakerService service = new HierarchyCircuitBreakerService(
+            CircuitBreakerMetrics.NOOP,
+            Settings.EMPTY,
+            Collections.singletonList(EqlTestUtils.circuitBreakerSettings(Settings.EMPTY)),
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
+        try (var threadPool = createThreadPool()) {
             final var esClient = new ESMockClient(threadPool, service.getBreaker(CIRCUIT_BREAKER_NAME));
             CircuitBreaker eqlCircuitBreaker = service.getBreaker(CIRCUIT_BREAKER_NAME);
             IndexResolver indexResolver = new IndexResolver(esClient, "cluster", DefaultDataTypeRegistry.INSTANCE, () -> emptySet());
@@ -144,7 +142,8 @@ public class CircuitBreakerTests extends ESTestCase {
                 randomIntBetween(10, 500),
                 new Limit(1000, 0),
                 eqlCircuitBreaker,
-                1
+                1,
+                randomBoolean()
             );
 
             // unfortunately, mocking an actual result set it extremely complicated

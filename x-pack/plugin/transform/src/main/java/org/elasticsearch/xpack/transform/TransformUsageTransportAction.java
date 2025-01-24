@@ -81,14 +81,7 @@ public class TransformUsageTransportAction extends XPackUsageFeatureTransportAct
         IndexNameExpressionResolver indexNameExpressionResolver,
         Client client
     ) {
-        super(
-            XPackUsageFeatureAction.TRANSFORM.name(),
-            transportService,
-            clusterService,
-            threadPool,
-            actionFilters,
-            indexNameExpressionResolver
-        );
+        super(XPackUsageFeatureAction.TRANSFORM.name(), transportService, clusterService, threadPool, actionFilters);
         this.client = client;
     }
 
@@ -123,7 +116,7 @@ public class TransformUsageTransportAction extends XPackUsageFeatureTransportAct
                     Arrays.toString(transformCountSuccess.getShardFailures())
                 );
             }
-            long totalTransforms = transformCountSuccess.getHits().getTotalHits().value;
+            long totalTransforms = transformCountSuccess.getHits().getTotalHits().value();
             if (totalTransforms == 0) {
                 var usage = new TransformFeatureSetUsage(transformsCountByState, Collections.emptyMap(), new TransformIndexerStats());
                 listener.onResponse(new XPackUsageFeatureResponse(usage));

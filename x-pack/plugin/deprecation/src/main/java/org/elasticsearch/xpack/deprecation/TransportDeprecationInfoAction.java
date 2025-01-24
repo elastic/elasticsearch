@@ -36,6 +36,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.deprecation.DeprecationChecks.CLUSTER_SETTINGS_CHECKS;
+import static org.elasticsearch.xpack.deprecation.DeprecationChecks.DATA_STREAM_CHECKS;
 import static org.elasticsearch.xpack.deprecation.DeprecationChecks.INDEX_SETTINGS_CHECKS;
 
 public class TransportDeprecationInfoAction extends TransportMasterNodeReadAction<
@@ -68,7 +69,6 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
             threadPool,
             actionFilters,
             DeprecationInfoAction.Request::new,
-            indexNameExpressionResolver,
             DeprecationInfoAction.Response::new,
             threadPool.executor(ThreadPool.Names.GENERIC)
         );
@@ -134,6 +134,7 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
                                 request,
                                 response,
                                 INDEX_SETTINGS_CHECKS,
+                                DATA_STREAM_CHECKS,
                                 CLUSTER_SETTINGS_CHECKS,
                                 deprecationIssues,
                                 skipTheseDeprecations

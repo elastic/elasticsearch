@@ -41,12 +41,12 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
         return new InferenceAction.Request(
             randomFrom(TaskType.values()),
             randomAlphaOfLength(6),
-            // null,
-            randomNullOrAlphaOfLength(10),
+            randomAlphaOfLengthOrNull(10),
             randomList(1, 5, () -> randomAlphaOfLength(8)),
             randomMap(0, 3, () -> new Tuple<>(randomAlphaOfLength(4), randomAlphaOfLength(4))),
             randomFrom(InputType.values()),
-            TimeValue.timeValueMillis(randomLongBetween(1, 2048))
+            TimeValue.timeValueMillis(randomLongBetween(1, 2048)),
+            false
         );
     }
 
@@ -80,7 +80,8 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
             List.of("input"),
             null,
             null,
-            null
+            null,
+            false
         );
         ActionRequestValidationException e = request.validate();
         assertNull(e);
@@ -94,7 +95,8 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
             List.of("input"),
             null,
             null,
-            null
+            null,
+            false
         );
         ActionRequestValidationException e = request.validate();
         assertNull(e);
@@ -108,7 +110,8 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
             null,
             null,
             null,
-            null
+            null,
+            false
         );
         ActionRequestValidationException inputNullError = inputNullRequest.validate();
         assertNotNull(inputNullError);
@@ -123,7 +126,8 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
             List.of(),
             null,
             null,
-            null
+            null,
+            false
         );
         ActionRequestValidationException inputEmptyError = inputEmptyRequest.validate();
         assertNotNull(inputEmptyError);
@@ -138,7 +142,8 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
             List.of("input"),
             null,
             null,
-            null
+            null,
+            false
         );
         ActionRequestValidationException queryNullError = queryNullRequest.validate();
         assertNotNull(queryNullError);
@@ -153,7 +158,8 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
             List.of("input"),
             null,
             null,
-            null
+            null,
+            false
         );
         ActionRequestValidationException queryEmptyError = queryEmptyRequest.validate();
         assertNotNull(queryEmptyError);
@@ -185,7 +191,8 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
                     instance.getInput(),
                     instance.getTaskSettings(),
                     instance.getInputType(),
-                    instance.getInferenceTimeout()
+                    instance.getInferenceTimeout(),
+                    false
                 );
             }
             case 1 -> new InferenceAction.Request(
@@ -195,7 +202,8 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
                 instance.getInput(),
                 instance.getTaskSettings(),
                 instance.getInputType(),
-                instance.getInferenceTimeout()
+                instance.getInferenceTimeout(),
+                false
             );
             case 2 -> {
                 var changedInputs = new ArrayList<String>(instance.getInput());
@@ -207,7 +215,8 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
                     changedInputs,
                     instance.getTaskSettings(),
                     instance.getInputType(),
-                    instance.getInferenceTimeout()
+                    instance.getInferenceTimeout(),
+                    false
                 );
             }
             case 3 -> {
@@ -225,7 +234,8 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
                     instance.getInput(),
                     taskSettings,
                     instance.getInputType(),
-                    instance.getInferenceTimeout()
+                    instance.getInferenceTimeout(),
+                    false
                 );
             }
             case 4 -> {
@@ -237,7 +247,8 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
                     instance.getInput(),
                     instance.getTaskSettings(),
                     nextInputType,
-                    instance.getInferenceTimeout()
+                    instance.getInferenceTimeout(),
+                    false
                 );
             }
             case 5 -> new InferenceAction.Request(
@@ -247,7 +258,8 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
                 instance.getInput(),
                 instance.getTaskSettings(),
                 instance.getInputType(),
-                instance.getInferenceTimeout()
+                instance.getInferenceTimeout(),
+                false
             );
             case 6 -> {
                 var newDuration = Duration.of(
@@ -262,7 +274,8 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
                     instance.getInput(),
                     instance.getTaskSettings(),
                     instance.getInputType(),
-                    TimeValue.timeValueMillis(newDuration.plus(additionalTime).toMillis())
+                    TimeValue.timeValueMillis(newDuration.plus(additionalTime).toMillis()),
+                    false
                 );
             }
             default -> throw new UnsupportedOperationException();
@@ -279,7 +292,8 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
                 instance.getInput().subList(0, 1),
                 instance.getTaskSettings(),
                 InputType.UNSPECIFIED,
-                InferenceAction.Request.DEFAULT_TIMEOUT
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                false
             );
         } else if (version.before(TransportVersions.V_8_13_0)) {
             return new InferenceAction.Request(
@@ -289,7 +303,8 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
                 instance.getInput(),
                 instance.getTaskSettings(),
                 InputType.UNSPECIFIED,
-                InferenceAction.Request.DEFAULT_TIMEOUT
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                false
             );
         } else if (version.before(TransportVersions.V_8_13_0)
             && (instance.getInputType() == InputType.UNSPECIFIED
@@ -302,7 +317,8 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
                         instance.getInput(),
                         instance.getTaskSettings(),
                         InputType.INGEST,
-                        InferenceAction.Request.DEFAULT_TIMEOUT
+                        InferenceAction.Request.DEFAULT_TIMEOUT,
+                        false
                     );
                 } else if (version.before(TransportVersions.V_8_13_0)
                     && (instance.getInputType() == InputType.CLUSTERING || instance.getInputType() == InputType.CLASSIFICATION)) {
@@ -313,7 +329,8 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
                             instance.getInput(),
                             instance.getTaskSettings(),
                             InputType.UNSPECIFIED,
-                            InferenceAction.Request.DEFAULT_TIMEOUT
+                            InferenceAction.Request.DEFAULT_TIMEOUT,
+                            false
                         );
                     } else if (version.before(TransportVersions.V_8_14_0)) {
                         return new InferenceAction.Request(
@@ -323,7 +340,8 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
                             instance.getInput(),
                             instance.getTaskSettings(),
                             instance.getInputType(),
-                            InferenceAction.Request.DEFAULT_TIMEOUT
+                            InferenceAction.Request.DEFAULT_TIMEOUT,
+                            false
                         );
                     }
 
@@ -339,7 +357,8 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
                 List.of(),
                 Map.of(),
                 InputType.UNSPECIFIED,
-                InferenceAction.Request.DEFAULT_TIMEOUT
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                false
             ),
             TransportVersions.V_8_13_0
         );
@@ -353,7 +372,8 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
             List.of(),
             Map.of(),
             InputType.INGEST,
-            InferenceAction.Request.DEFAULT_TIMEOUT
+            InferenceAction.Request.DEFAULT_TIMEOUT,
+            false
         );
 
         InferenceAction.Request deserializedInstance = copyWriteable(

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.test;
@@ -115,11 +116,15 @@ public abstract class TestCluster {
 
     private void deleteTemplates(Set<String> excludeTemplates, ActionListener<Void> listener) {
         final SubscribableListener<GetComposableIndexTemplateAction.Response> getComposableTemplates = SubscribableListener.newForked(
-            l -> client().execute(GetComposableIndexTemplateAction.INSTANCE, new GetComposableIndexTemplateAction.Request("*"), l)
+            l -> client().execute(
+                GetComposableIndexTemplateAction.INSTANCE,
+                new GetComposableIndexTemplateAction.Request(TEST_REQUEST_TIMEOUT, "*"),
+                l
+            )
         );
 
         final SubscribableListener<GetComponentTemplateAction.Response> getComponentTemplates = SubscribableListener.newForked(
-            l -> client().execute(GetComponentTemplateAction.INSTANCE, new GetComponentTemplateAction.Request("*"), l)
+            l -> client().execute(GetComponentTemplateAction.INSTANCE, new GetComponentTemplateAction.Request(TEST_REQUEST_TIMEOUT, "*"), l)
         );
 
         SubscribableListener
@@ -287,7 +292,7 @@ public abstract class TestCluster {
     private void wipeAllTemplates(Set<String> exclude, RefCountingListener listeners) {
         SubscribableListener
 
-            .<GetIndexTemplatesResponse>newForked(l -> client().admin().indices().prepareGetTemplates().execute(l))
+            .<GetIndexTemplatesResponse>newForked(l -> client().admin().indices().prepareGetTemplates(TEST_REQUEST_TIMEOUT).execute(l))
             .andThenAccept(response -> {
                 for (IndexTemplateMetadata indexTemplate : response.getIndexTemplates()) {
                     if (exclude.contains(indexTemplate.getName())) {

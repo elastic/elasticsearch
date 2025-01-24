@@ -126,10 +126,7 @@ public class TransportMonitoringBulkActionTests extends ESTestCase {
         final MonitoringBulkRequest request = randomRequest();
 
         assertThat(
-            asInstanceOf(
-                ClusterBlockException.class,
-                safeAwaitFailure(MonitoringBulkResponse.class, l -> action.execute(null, request, l))
-            ),
+            safeAwaitFailure(ClusterBlockException.class, MonitoringBulkResponse.class, l -> action.execute(null, request, l)),
             hasToString(containsString("ClusterBlockException: blocked by: [SERVICE_UNAVAILABLE/2/no master]"))
         );
     }
@@ -175,9 +172,10 @@ public class TransportMonitoringBulkActionTests extends ESTestCase {
         );
 
         assertThat(
-            asInstanceOf(
+            safeAwaitFailure(
                 ActionRequestValidationException.class,
-                safeAwaitFailure(MonitoringBulkResponse.class, l -> action.execute(null, new MonitoringBulkRequest(), l))
+                MonitoringBulkResponse.class,
+                l -> action.execute(null, new MonitoringBulkRequest(), l)
             ),
             hasToString(containsString("no monitoring documents added"))
         );

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices;
@@ -165,11 +166,13 @@ public class TimestampFieldMapperService extends AbstractLifecycleComponent impl
         DateFieldMapper.DateFieldType eventIngestedFieldType = null;
 
         MappedFieldType mappedFieldType = mapperService.fieldType(DataStream.TIMESTAMP_FIELD_NAME);
-        if (mappedFieldType instanceof DateFieldMapper.DateFieldType dateFieldType) {
+        if (mappedFieldType instanceof DateFieldMapper.DateFieldType dateFieldType
+            && dateFieldType.name().equals(DataStream.TIMESTAMP_FIELD_NAME)) {
             timestampFieldType = dateFieldType;
         }
         mappedFieldType = mapperService.fieldType(IndexMetadata.EVENT_INGESTED_FIELD_NAME);
-        if (mappedFieldType instanceof DateFieldMapper.DateFieldType dateFieldType) {
+        if (mappedFieldType instanceof DateFieldMapper.DateFieldType dateFieldType
+            && dateFieldType.name().equals(IndexMetadata.EVENT_INGESTED_FIELD_NAME)) {
             eventIngestedFieldType = dateFieldType;
         }
         if (timestampFieldType == null && eventIngestedFieldType == null) {

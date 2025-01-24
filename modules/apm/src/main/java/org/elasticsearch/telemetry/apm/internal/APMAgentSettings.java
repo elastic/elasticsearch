@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.telemetry.apm.internal;
@@ -26,7 +27,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 
-import static org.elasticsearch.common.settings.Setting.Property.DeprecatedWarning;
+import static org.elasticsearch.common.settings.Setting.Property.Deprecated;
 import static org.elasticsearch.common.settings.Setting.Property.NodeScope;
 import static org.elasticsearch.common.settings.Setting.Property.OperatorDynamic;
 
@@ -80,6 +81,10 @@ public class APMAgentSettings {
     /**
      * Copies a setting to the APM agent's system properties under <code>elastic.apm</code>, either
      * by setting the property if {@code value} has a value, or by deleting the property if it doesn't.
+     *
+     * All permitted agent properties must be covered by the <code>write_system_properties</code> entitlement,
+     * see the entitlement policy of this module!
+     *
      * @param key the config key to set, without any prefix
      * @param value the value to set, or <code>null</code>
      */
@@ -110,9 +115,11 @@ public class APMAgentSettings {
 
     /**
      * Allow-list of APM agent config keys users are permitted to configure.
+     * <p><b>WARNING</b>: Make sure to update the module entitlements if permitting additional agent keys
+     * </p>
      * @see <a href="https://www.elastic.co/guide/en/apm/agent/java/current/configuration.html">APM Java Agent Configuration</a>
      */
-    private static final Set<String> PERMITTED_AGENT_KEYS = Set.of(
+    public static final Set<String> PERMITTED_AGENT_KEYS = Set.of(
         // Circuit-Breaker:
         "circuit_breaker_enabled",
         "stress_monitoring_interval",
@@ -254,7 +261,7 @@ public class APMAgentSettings {
         TELEMETRY_SETTING_PREFIX + "agent.",
         LEGACY_TRACING_APM_SETTING_PREFIX + "agent.",
         (namespace, qualifiedKey) -> qualifiedKey.startsWith(LEGACY_TRACING_APM_SETTING_PREFIX)
-            ? concreteAgentSetting(namespace, qualifiedKey, NodeScope, OperatorDynamic, DeprecatedWarning)
+            ? concreteAgentSetting(namespace, qualifiedKey, NodeScope, OperatorDynamic, Deprecated)
             : concreteAgentSetting(namespace, qualifiedKey, NodeScope, OperatorDynamic)
     );
 
@@ -266,7 +273,7 @@ public class APMAgentSettings {
         LEGACY_TRACING_APM_SETTING_PREFIX + "names.include",
         OperatorDynamic,
         NodeScope,
-        DeprecatedWarning
+        Deprecated
     );
 
     public static final Setting<List<String>> TELEMETRY_TRACING_NAMES_INCLUDE_SETTING = Setting.listSetting(
@@ -285,7 +292,7 @@ public class APMAgentSettings {
         LEGACY_TRACING_APM_SETTING_PREFIX + "names.exclude",
         OperatorDynamic,
         NodeScope,
-        DeprecatedWarning
+        Deprecated
     );
 
     public static final Setting<List<String>> TELEMETRY_TRACING_NAMES_EXCLUDE_SETTING = Setting.listSetting(
@@ -318,7 +325,7 @@ public class APMAgentSettings {
         ),
         OperatorDynamic,
         NodeScope,
-        DeprecatedWarning
+        Deprecated
     );
 
     public static final Setting<List<String>> TELEMETRY_TRACING_SANITIZE_FIELD_NAMES = Setting.listSetting(
@@ -338,7 +345,7 @@ public class APMAgentSettings {
         false,
         OperatorDynamic,
         NodeScope,
-        DeprecatedWarning
+        Deprecated
     );
 
     public static final Setting<Boolean> TELEMETRY_TRACING_ENABLED_SETTING = Setting.boolSetting(
@@ -362,7 +369,7 @@ public class APMAgentSettings {
     public static final Setting<SecureString> TRACING_APM_SECRET_TOKEN_SETTING = SecureSetting.secureString(
         LEGACY_TRACING_APM_SETTING_PREFIX + "secret_token",
         null,
-        DeprecatedWarning
+        Deprecated
     );
 
     public static final Setting<SecureString> TELEMETRY_SECRET_TOKEN_SETTING = SecureSetting.secureString(
@@ -377,7 +384,7 @@ public class APMAgentSettings {
     public static final Setting<SecureString> TRACING_APM_API_KEY_SETTING = SecureSetting.secureString(
         LEGACY_TRACING_APM_SETTING_PREFIX + "api_key",
         null,
-        DeprecatedWarning
+        Deprecated
     );
 
     public static final Setting<SecureString> TELEMETRY_API_KEY_SETTING = SecureSetting.secureString(

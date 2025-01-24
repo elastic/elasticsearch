@@ -97,6 +97,11 @@ public class EnrichPolicyRunner {
 
     static final String ENRICH_INDEX_README_TEXT = "This index is managed by Elasticsearch and should not be modified in any way.";
 
+    /**
+     * Timeout for enrich-related requests that interact with the master node. Possibly this should be longer and/or configurable.
+     */
+    static final TimeValue ENRICH_MASTER_REQUEST_TIMEOUT = TimeValue.THIRTY_SECONDS;
+
     private final String policyName;
     private final EnrichPolicy policy;
     private final ExecuteEnrichPolicyTask task;
@@ -142,7 +147,7 @@ public class EnrichPolicyRunner {
                 // Collect the source index information
                 final String[] sourceIndices = policy.getIndices().toArray(new String[0]);
                 logger.debug("Policy [{}]: Checking source indices [{}]", policyName, sourceIndices);
-                GetIndexRequest getIndexRequest = new GetIndexRequest().indices(sourceIndices);
+                GetIndexRequest getIndexRequest = new GetIndexRequest(ENRICH_MASTER_REQUEST_TIMEOUT).indices(sourceIndices);
                 // This call does not set the origin to ensure that the user executing the policy has permission to access the source index
                 client.admin().indices().getIndex(getIndexRequest, l);
             })
@@ -172,7 +177,7 @@ public class EnrichPolicyRunner {
     private Map<String, Object> getMappings(final GetIndexResponse getIndexResponse, final String sourceIndexName) {
         Map<String, MappingMetadata> mappings = getIndexResponse.mappings();
         MappingMetadata indexMapping = mappings.get(sourceIndexName);
-        if (indexMapping == MappingMetadata.EMPTY_MAPPINGS) {
+        if (MappingMetadata.EMPTY_MAPPINGS.equals(indexMapping)) {
             throw new ElasticsearchException(
                 "Enrich policy execution for [{}] failed. No mapping available on source [{}] included in [{}]",
                 policyName,
@@ -685,10 +690,7 @@ public class EnrichPolicyRunner {
     }
 
     private void waitForIndexGreen(ActionListener<ClusterHealthResponse> listener) {
-        ClusterHealthRequest request = new ClusterHealthRequest(
-            TimeValue.THIRTY_SECONDS /* TODO should this be longer/configurable? */ ,
-            enrichIndexName
-        ).waitForGreenStatus();
+        ClusterHealthRequest request = new ClusterHealthRequest(ENRICH_MASTER_REQUEST_TIMEOUT, enrichIndexName).waitForGreenStatus();
         enrichOriginClient().admin().cluster().health(request, listener);
     }
 
@@ -746,7 +748,7 @@ public class EnrichPolicyRunner {
     private void updateEnrichPolicyAlias(ActionListener<IndicesAliasesResponse> listener) {
         String enrichIndexBase = EnrichPolicy.getBaseName(policyName);
         logger.debug("Policy [{}]: Promoting new enrich index [{}] to alias [{}]", policyName, enrichIndexName, enrichIndexBase);
-        GetAliasesRequest aliasRequest = new GetAliasesRequest(enrichIndexBase);
+        GetAliasesRequest aliasRequest = new GetAliasesRequest(ENRICH_MASTER_REQUEST_TIMEOUT, enrichIndexBase);
         ClusterState clusterState = clusterService.state();
         validateIndexBeforePromotion(enrichIndexName, clusterState);
         String[] concreteIndices = indexNameExpressionResolver.concreteIndexNamesWithSystemIndexAccess(clusterState, aliasRequest);

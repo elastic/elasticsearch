@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.coordination;
@@ -12,7 +13,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.cluster.ClusterState;
@@ -21,6 +21,8 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -30,7 +32,6 @@ import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -45,7 +46,6 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -108,6 +108,7 @@ public class JoinValidationService {
     public JoinValidationService(
         Settings settings,
         TransportService transportService,
+        NamedWriteableRegistry namedWriteableRegistry,
         Supplier<ClusterState> clusterStateSupplier,
         Supplier<Metadata> metadataSupplier,
         Collection<BiConsumer<DiscoveryNode, ClusterState>> joinValidators
@@ -122,9 +123,9 @@ public class JoinValidationService {
         transportService.registerRequestHandler(
             JoinValidationService.JOIN_VALIDATE_ACTION_NAME,
             this.responseExecutor,
-            ValidateJoinRequest::new,
+            BytesTransportRequest::new,
             (request, channel, task) -> {
-                final var remoteState = request.getOrReadState();
+                final var remoteState = readClusterState(namedWriteableRegistry, request);
                 final var remoteMetadata = remoteState.metadata();
                 final var localMetadata = metadataSupplier.get();
                 if (localMetadata.clusterUUIDCommitted() && localMetadata.clusterUUID().equals(remoteMetadata.clusterUUID()) == false) {
@@ -147,6 +148,20 @@ public class JoinValidationService {
         );
     }
 
+    private static ClusterState readClusterState(NamedWriteableRegistry namedWriteableRegistry, BytesTransportRequest request)
+        throws IOException {
+        try (
+            var bytesStreamInput = request.bytes().streamInput();
+            var in = new NamedWriteableAwareStreamInput(
+                CompressorFactory.COMPRESSOR.threadLocalStreamInput(bytesStreamInput),
+                namedWriteableRegistry
+            )
+        ) {
+            in.setTransportVersion(request.version());
+            return ClusterState.readFrom(in, null);
+        }
+    }
+
     public void validateJoin(DiscoveryNode discoveryNode, ActionListener<Void> listener) {
         // This node isn't in the cluster yet so ClusterState#getMinTransportVersion() doesn't apply, we must obtain a specific connection
         // so we can check its transport version to decide how to proceed.
@@ -161,55 +176,14 @@ public class JoinValidationService {
             return;
         }
 
-        if (connection.getTransportVersion().onOrAfter(TransportVersions.V_8_3_0)) {
-            if (executeRefs.tryIncRef()) {
-                try {
-                    execute(new JoinValidation(discoveryNode, connection, listener));
-                } finally {
-                    executeRefs.decRef();
-                }
-            } else {
-                listener.onFailure(new NodeClosedException(transportService.getLocalNode()));
+        if (executeRefs.tryIncRef()) {
+            try {
+                execute(new JoinValidation(discoveryNode, connection, listener));
+            } finally {
+                executeRefs.decRef();
             }
         } else {
-            legacyValidateJoin(discoveryNode, listener, connection);
-        }
-    }
-
-    @UpdateForV9
-    private void legacyValidateJoin(DiscoveryNode discoveryNode, ActionListener<Void> listener, Transport.Connection connection) {
-        final var responseHandler = TransportResponseHandler.empty(responseExecutor, listener.delegateResponse((l, e) -> {
-            logger.warn(() -> "failed to validate incoming join request from node [" + discoveryNode + "]", e);
-            listener.onFailure(
-                new IllegalStateException(
-                    String.format(
-                        Locale.ROOT,
-                        "failure when sending a join validation request from [%s] to [%s]",
-                        transportService.getLocalNode().descriptionWithoutAttributes(),
-                        discoveryNode.descriptionWithoutAttributes()
-                    ),
-                    e
-                )
-            );
-        }));
-        final var clusterState = clusterStateSupplier.get();
-        if (clusterState != null) {
-            assert clusterState.nodes().isLocalNodeElectedMaster();
-            transportService.sendRequest(
-                connection,
-                JOIN_VALIDATE_ACTION_NAME,
-                new ValidateJoinRequest(clusterState),
-                REQUEST_OPTIONS,
-                responseHandler
-            );
-        } else {
-            transportService.sendRequest(
-                connection,
-                JoinHelper.JOIN_PING_ACTION_NAME,
-                new JoinHelper.JoinPingRequest(),
-                REQUEST_OPTIONS,
-                responseHandler
-            );
+            listener.onFailure(new NodeClosedException(transportService.getLocalNode()));
         }
     }
 
@@ -340,7 +314,6 @@ public class JoinValidationService {
 
         @Override
         protected void doRun() {
-            assert connection.getTransportVersion().onOrAfter(TransportVersions.V_8_3_0) : discoveryNode.getVersion();
             // NB these things never run concurrently to each other, or to the cache cleaner (see IMPLEMENTATION NOTES above) so it is safe
             // to do these (non-atomic) things to the (unsynchronized) statesByVersion map.
             var transportVersion = connection.getTransportVersion();

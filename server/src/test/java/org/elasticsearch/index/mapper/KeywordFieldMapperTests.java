@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -383,8 +384,11 @@ public class KeywordFieldMapperTests extends MapperTestCase {
             b.field("time_series_dimension", true);
         }), IndexMode.TIME_SERIES);
 
-        Exception e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> b.array("field", "1234", "45678"))));
-        assertThat(e.getCause().getMessage(), containsString("Dimension field [field] cannot be a multi-valued field"));
+        ParsedDocument doc = mapper.parse(source(null, b -> {
+            b.array("field", "1234", "45678");
+            b.field("@timestamp", Instant.now());
+        }, TimeSeriesRoutingHashFieldMapper.encode(randomInt())));
+        assertThat(doc.docs().get(0).getFields("field"), hasSize(greaterThan(1)));
     }
 
     public void testDimensionMultiValuedFieldNonTSDB() throws IOException {
@@ -659,10 +663,8 @@ public class KeywordFieldMapperTests extends MapperTestCase {
      * Test that we track the synthetic source if field is neither indexed nor has doc values nor stored
      */
     public void testSyntheticSourceForDisabledField() throws Exception {
-        MapperService mapper = createMapperService(
-            syntheticSourceFieldMapping(
-                b -> b.field("type", "keyword").field("index", false).field("doc_values", false).field("store", false)
-            )
+        MapperService mapper = createSytheticSourceMapperService(
+            fieldMapping(b -> b.field("type", "keyword").field("index", false).field("doc_values", false).field("store", false))
         );
         String value = randomAlphaOfLengthBetween(1, 20);
         assertEquals("{\"field\":\"" + value + "\"}", syntheticSource(mapper.documentMapper(), b -> b.field("field", value)));
@@ -763,8 +765,8 @@ public class KeywordFieldMapperTests extends MapperTestCase {
     }
 
     public void testDocValuesLoadedFromStoredSynthetic() throws IOException {
-        MapperService mapper = createMapperService(
-            syntheticSourceFieldMapping(b -> b.field("type", "keyword").field("doc_values", false).field("store", true))
+        MapperService mapper = createSytheticSourceMapperService(
+            fieldMapping(b -> b.field("type", "keyword").field("doc_values", false).field("store", true))
         );
         assertScriptDocValues(mapper, "foo", equalTo(List.of("foo")));
     }

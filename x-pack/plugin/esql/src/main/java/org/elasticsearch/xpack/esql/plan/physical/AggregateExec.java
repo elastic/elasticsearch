@@ -18,11 +18,13 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 
@@ -71,7 +73,7 @@ public class AggregateExec extends UnaryExec implements EstimatesRowSize {
         // So, we do not have to consider previous transport versions here, because old nodes will not send AggregateExecs to new nodes.
         this(
             Source.readFrom((PlanStreamInput) in),
-            ((PlanStreamInput) in).readPhysicalPlanNode(),
+            in.readNamedWriteable(PhysicalPlan.class),
             in.readNamedWriteableCollectionAsList(Expression.class),
             in.readNamedWriteableCollectionAsList(NamedExpression.class),
             in.readEnum(AggregatorMode.class),
@@ -83,10 +85,10 @@ public class AggregateExec extends UnaryExec implements EstimatesRowSize {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         Source.EMPTY.writeTo(out);
-        ((PlanStreamOutput) out).writePhysicalPlanNode(child());
+        out.writeNamedWriteable(child());
         out.writeNamedWriteableCollection(groupings());
         out.writeNamedWriteableCollection(aggregates());
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_AGGREGATE_EXEC_TRACKS_INTERMEDIATE_ATTRS)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             out.writeEnum(getMode());
             out.writeNamedWriteableCollection(intermediateAttributes());
         } else {
@@ -182,7 +184,27 @@ public class AggregateExec extends UnaryExec implements EstimatesRowSize {
 
     @Override
     protected AttributeSet computeReferences() {
-        return mode.isInputPartial() ? new AttributeSet(intermediateAttributes) : Aggregate.computeReferences(aggregates, groupings);
+        return mode.isInputPartial()
+            ? new AttributeSet(intermediateAttributes)
+            : Aggregate.computeReferences(aggregates, groupings).subtract(new AttributeSet(ordinalAttributes()));
+    }
+
+    /** Returns the attributes that can be loaded from ordinals -- no explicit extraction is needed */
+    public List<Attribute> ordinalAttributes() {
+        List<Attribute> orginalAttributs = new ArrayList<>(groupings.size());
+        // Ordinals can be leveraged just for a single grouping. If there are multiple groupings, fields need to be laoded for the
+        // hash aggregator.
+        // CATEGORIZE requires the standard hash aggregator as well.
+        if (groupings().size() == 1 && groupings.get(0).anyMatch(e -> e instanceof Categorize) == false) {
+            var leaves = new HashSet<>();
+            aggregates.stream().filter(a -> groupings.contains(a) == false).forEach(a -> leaves.addAll(a.collectLeaves()));
+            groupings.forEach(g -> {
+                if (leaves.contains(g) == false) {
+                    orginalAttributs.add((Attribute) g);
+                }
+            });
+        }
+        return orginalAttributs;
     }
 
     @Override

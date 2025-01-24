@@ -202,7 +202,7 @@ public class OpenAiEmbeddingsServiceSettings extends FilteredXContentObject impl
             modelId = "unset";
         }
 
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_RATE_LIMIT_SETTINGS_ADDED)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
             rateLimitSettings = new RateLimitSettings(in);
         } else {
             rateLimitSettings = DEFAULT_RATE_LIMIT_SETTINGS;
@@ -247,6 +247,7 @@ public class OpenAiEmbeddingsServiceSettings extends FilteredXContentObject impl
         return dimensions;
     }
 
+    @Override
     public Boolean dimensionsSetByUser() {
         return dimensionsSetByUser;
     }
@@ -329,7 +330,7 @@ public class OpenAiEmbeddingsServiceSettings extends FilteredXContentObject impl
             out.writeString(modelId);
         }
 
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_RATE_LIMIT_SETTINGS_ADDED)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
             rateLimitSettings.writeTo(out);
         }
     }

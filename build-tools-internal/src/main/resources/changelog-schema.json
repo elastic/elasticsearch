@@ -32,6 +32,7 @@
             "CRUD",
             "Client",
             "Cluster Coordination",
+            "Codec",
             "Data streams",
             "DLM",
             "Discovery-Plugins",
@@ -278,11 +279,13 @@
     "compatibilityChangeArea": {
       "type": "string",
       "enum": [
+        "Aggregations",
         "Analysis",
         "Authorization",
         "Cluster and node setting",
         "Command line tool",
         "CRUD",
+        "ES|QL",
         "Index setting",
         "Ingest",
         "JVM option",
@@ -293,6 +296,7 @@
         "Painless",
         "REST API",
         "Rollup",
+        "Search",
         "System requirement",
         "Transform"
       ]

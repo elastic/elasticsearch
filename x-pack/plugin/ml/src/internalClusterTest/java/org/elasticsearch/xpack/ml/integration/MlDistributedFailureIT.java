@@ -308,6 +308,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         }
 
         UpdatePersistentTaskStatusAction.Request updatePersistentTaskStatusRequest = new UpdatePersistentTaskStatusAction.Request(
+            TEST_REQUEST_TIMEOUT,
             task.getId(),
             task.getAllocationId(),
             DatafeedState.STOPPING
@@ -767,7 +768,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
             prepareSearch().setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN)
                 .setQuery(QueryBuilders.idsQuery().addIds(DataCounts.documentId(jobId))),
             searchResponse -> {
-                if (searchResponse.getHits().getTotalHits().value != 1) {
+                if (searchResponse.getHits().getTotalHits().value() != 1) {
                     setOnce.set(new DataCounts(jobId));
                     return;
                 }

@@ -10,6 +10,10 @@ provided text is analyzed before matching.
 The `match` query is the standard query for performing a full-text search,
 including options for fuzzy matching.
 
+`Match` will also work against <<semantic-text, semantic_text>> fields,
+however when performing `match` queries against `semantic_text` fields options
+that specifically target lexical search such as `fuzziness` or `analyzer` will be ignored.
+
 
 [[match-query-ex-request]]
 ==== Example request
@@ -296,4 +300,3 @@ The example above creates a boolean query:
 
 that matches documents with the term `ny` or the conjunction `new AND york`.
 By default the parameter `auto_generate_synonyms_phrase_query` is set to `true`.
-

@@ -18,7 +18,7 @@ import java.io.IOException;
  * Request for retrieving service account credentials that are local to each node.
  * Currently, this means file-backed service tokens.
  */
-public class GetServiceAccountCredentialsNodesRequest extends BaseNodesRequest<GetServiceAccountCredentialsNodesRequest> {
+public class GetServiceAccountCredentialsNodesRequest extends BaseNodesRequest {
 
     private final String namespace;
     private final String serviceName;

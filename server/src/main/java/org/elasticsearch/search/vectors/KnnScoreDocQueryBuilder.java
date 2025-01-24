@@ -1,14 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.vectors;
 
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.TransportVersion;
@@ -24,7 +24,6 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Objects;
 
 /**
@@ -70,8 +69,7 @@ public class KnnScoreDocQueryBuilder extends AbstractQueryBuilder<KnnScoreDocQue
             this.fieldName = null;
             this.queryVector = null;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.FIX_VECTOR_SIMILARITY_INNER_HITS)
-            || in.getTransportVersion().isPatchFrom(TransportVersions.FIX_VECTOR_SIMILARITY_INNER_HITS_BACKPORT_8_15)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
             this.vectorSimilarity = in.readOptionalFloat();
         } else {
             this.vectorSimilarity = null;
@@ -115,8 +113,7 @@ public class KnnScoreDocQueryBuilder extends AbstractQueryBuilder<KnnScoreDocQue
                 out.writeBoolean(false);
             }
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.FIX_VECTOR_SIMILARITY_INNER_HITS)
-            || out.getTransportVersion().isPatchFrom(TransportVersions.FIX_VECTOR_SIMILARITY_INNER_HITS_BACKPORT_8_15)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
             out.writeOptionalFloat(vectorSimilarity);
         }
     }
@@ -152,9 +149,7 @@ public class KnnScoreDocQueryBuilder extends AbstractQueryBuilder<KnnScoreDocQue
             scores[i] = scoreDocs[i].score;
         }
 
-        IndexReader reader = context.getIndexReader();
-        int[] segmentStarts = findSegmentStarts(reader, docs);
-        return new KnnScoreDocQuery(docs, scores, segmentStarts, reader.getContext().id());
+        return new KnnScoreDocQuery(docs, scores, context.getIndexReader());
     }
 
     @Override
@@ -166,24 +161,6 @@ public class KnnScoreDocQueryBuilder extends AbstractQueryBuilder<KnnScoreDocQue
             return new ExactKnnQueryBuilder(queryVector, fieldName, vectorSimilarity);
         }
         return super.doRewrite(queryRewriteContext);
-    }
-
-    private static int[] findSegmentStarts(IndexReader reader, int[] docs) {
-        int[] starts = new int[reader.leaves().size() + 1];
-        starts[starts.length - 1] = docs.length;
-        if (starts.length == 2) {
-            return starts;
-        }
-        int resultIndex = 0;
-        for (int i = 1; i < starts.length - 1; i++) {
-            int upper = reader.leaves().get(i).docBase;
-            resultIndex = Arrays.binarySearch(docs, resultIndex, docs.length, upper);
-            if (resultIndex < 0) {
-                resultIndex = -1 - resultIndex;
-            }
-            starts[i] = resultIndex;
-        }
-        return starts;
     }
 
     @Override

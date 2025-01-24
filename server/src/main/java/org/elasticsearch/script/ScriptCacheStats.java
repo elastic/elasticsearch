@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.script;
@@ -12,27 +13,16 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.common.xcontent.ChunkedToXContent;
-import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.common.collect.Iterators.concat;
-import static org.elasticsearch.common.collect.Iterators.flatMap;
-import static org.elasticsearch.common.collect.Iterators.single;
-import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.endArray;
-import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.endObject;
-import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.field;
-import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.startArray;
-import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.startObject;
-import static org.elasticsearch.script.ScriptCacheStats.Fields.SCRIPT_CACHE_STATS;
-
 // This class is deprecated in favor of ScriptStats and ScriptContextStats
-public record ScriptCacheStats(Map<String, ScriptStats> context, ScriptStats general) implements Writeable, ChunkedToXContent {
+public record ScriptCacheStats(Map<String, ScriptStats> context, ScriptStats general) implements Writeable, ToXContentFragment {
 
     public ScriptCacheStats(Map<String, ScriptStats> context) {
         this(Collections.unmodifiableMap(context), null);
@@ -74,36 +64,37 @@ public record ScriptCacheStats(Map<String, ScriptStats> context, ScriptStats gen
     }
 
     @Override
-    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params outerParams) {
-        return concat(
-            startObject(SCRIPT_CACHE_STATS),
-            startObject(Fields.SUM),
-            general != null
-                ? concat(
-                    field(ScriptStats.Fields.COMPILATIONS, general.getCompilations()),
-                    field(ScriptStats.Fields.CACHE_EVICTIONS, general.getCacheEvictions()),
-                    field(ScriptStats.Fields.COMPILATION_LIMIT_TRIGGERED, general.getCompilationLimitTriggered()),
-                    endObject(),
-                    endObject()
-                )
-                : concat(single((builder, params) -> {
-                    var sum = sum();
-                    return builder.field(ScriptStats.Fields.COMPILATIONS, sum.getCompilations())
-                        .field(ScriptStats.Fields.CACHE_EVICTIONS, sum.getCacheEvictions())
-                        .field(ScriptStats.Fields.COMPILATION_LIMIT_TRIGGERED, sum.getCompilationLimitTriggered())
-                        .endObject();
-                }), startArray(Fields.CONTEXTS), flatMap(context.keySet().stream().sorted().iterator(), ctx -> {
-                    var stats = context.get(ctx);
-                    return concat(
-                        startObject(),
-                        field(Fields.CONTEXT, ctx),
-                        field(ScriptStats.Fields.COMPILATIONS, stats.getCompilations()),
-                        field(ScriptStats.Fields.CACHE_EVICTIONS, stats.getCacheEvictions()),
-                        field(ScriptStats.Fields.COMPILATION_LIMIT_TRIGGERED, stats.getCompilationLimitTriggered()),
-                        endObject()
-                    );
-                }), endArray(), endObject())
-        );
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject(Fields.SCRIPT_CACHE_STATS);
+        builder.startObject(Fields.SUM);
+        if (general != null) {
+            builder.field(ScriptStats.Fields.COMPILATIONS, general.getCompilations());
+            builder.field(ScriptStats.Fields.CACHE_EVICTIONS, general.getCacheEvictions());
+            builder.field(ScriptStats.Fields.COMPILATION_LIMIT_TRIGGERED, general.getCompilationLimitTriggered());
+            builder.endObject().endObject();
+            return builder;
+        }
+
+        ScriptStats sum = sum();
+        builder.field(ScriptStats.Fields.COMPILATIONS, sum.getCompilations());
+        builder.field(ScriptStats.Fields.CACHE_EVICTIONS, sum.getCacheEvictions());
+        builder.field(ScriptStats.Fields.COMPILATION_LIMIT_TRIGGERED, sum.getCompilationLimitTriggered());
+        builder.endObject();
+
+        builder.startArray(Fields.CONTEXTS);
+        for (String name : context.keySet().stream().sorted().toList()) {
+            ScriptStats stats = context.get(name);
+            builder.startObject();
+            builder.field(Fields.CONTEXT, name);
+            builder.field(ScriptStats.Fields.COMPILATIONS, stats.getCompilations());
+            builder.field(ScriptStats.Fields.CACHE_EVICTIONS, stats.getCacheEvictions());
+            builder.field(ScriptStats.Fields.COMPILATION_LIMIT_TRIGGERED, stats.getCompilationLimitTriggered());
+            builder.endObject();
+        }
+        builder.endArray();
+        builder.endObject();
+
+        return builder;
     }
 
     /**

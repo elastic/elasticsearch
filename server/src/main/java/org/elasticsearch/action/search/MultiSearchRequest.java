@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.search;
@@ -17,11 +18,7 @@ import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.core.RestApiVersion;
-import org.elasticsearch.rest.action.search.RestMultiSearchAction;
-import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -50,10 +47,6 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeSt
  * A multi search API request.
  */
 public class MultiSearchRequest extends ActionRequest implements CompositeIndicesRequest {
-    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestSearchAction.class);
-    public static final String FIRST_LINE_EMPTY_DEPRECATION_MESSAGE =
-        "support for empty first line before any action metadata in msearch API is deprecated "
-            + "and will be removed in the next major version";
     public static final int MAX_CONCURRENT_SEARCH_REQUESTS_DEFAULT = 0;
 
     private int maxConcurrentSearchRequests = 0;
@@ -212,12 +205,6 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
             if (nextMarker == -1) {
                 break;
             }
-            // support first line with \n
-            if (parserConfig.restApiVersion() == RestApiVersion.V_7 && nextMarker == 0) {
-                deprecationLogger.compatibleCritical("msearch_first_line_empty", FIRST_LINE_EMPTY_DEPRECATION_MESSAGE);
-                from = nextMarker + 1;
-                continue;
-            }
 
             SearchRequest searchRequest = new SearchRequest();
             if (indices != null) {
@@ -280,14 +267,11 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
                             allowNoIndices = value;
                         } else if ("ignore_throttled".equals(entry.getKey()) || "ignoreThrottled".equals(entry.getKey())) {
                             ignoreThrottled = value;
-                        } else if (parserConfig.restApiVersion() == RestApiVersion.V_7
-                            && ("type".equals(entry.getKey()) || "types".equals(entry.getKey()))) {
-                                deprecationLogger.compatibleCritical("msearch_with_types", RestMultiSearchAction.TYPES_DEPRECATION_MESSAGE);
-                            } else if (extraParamParser.apply(entry.getKey(), value, searchRequest)) {
-                                // Skip, the parser handled the key/value
-                            } else {
-                                throw new IllegalArgumentException("key [" + entry.getKey() + "] is not supported in the metadata section");
-                            }
+                        } else if (extraParamParser.apply(entry.getKey(), value, searchRequest)) {
+                            // Skip, the parser handled the key/value
+                        } else {
+                            throw new IllegalArgumentException("key [" + entry.getKey() + "] is not supported in the metadata section");
+                        }
                     }
                     defaultOptions = IndicesOptions.fromParameters(
                         expandWildcards,

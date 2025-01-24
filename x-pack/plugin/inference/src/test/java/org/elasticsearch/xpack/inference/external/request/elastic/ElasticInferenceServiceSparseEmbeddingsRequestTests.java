@@ -9,11 +9,13 @@ package org.elasticsearch.xpack.inference.external.request.elastic;
 
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.common.TruncatorTests;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSparseEmbeddingsModelTests;
+import org.elasticsearch.xpack.inference.telemetry.TraceContext;
 
 import java.io.IOException;
 import java.util.List;
@@ -40,6 +42,23 @@ public class ElasticInferenceServiceSparseEmbeddingsRequestTests extends ESTestC
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
         assertThat(requestMap.size(), equalTo(1));
         assertThat(requestMap.get("input"), is(List.of(input)));
+    }
+
+    public void testTraceContextPropagatedThroughHTTPHeaders() {
+        var url = "http://eis-gateway.com";
+        var input = "input";
+
+        var request = createRequest(url, input);
+        var httpRequest = request.createHttpRequest();
+
+        assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
+        var httpPost = (HttpPost) httpRequest.httpRequestBase();
+
+        var traceParent = request.getTraceContext().traceParent();
+        var traceState = request.getTraceContext().traceState();
+
+        assertThat(httpPost.getLastHeader(Task.TRACE_PARENT_HTTP_HEADER).getValue(), is(traceParent));
+        assertThat(httpPost.getLastHeader(Task.TRACE_STATE).getValue(), is(traceState));
     }
 
     public void testTruncate_ReducesInputTextSizeByHalf() throws IOException {
@@ -75,7 +94,8 @@ public class ElasticInferenceServiceSparseEmbeddingsRequestTests extends ESTestC
         return new ElasticInferenceServiceSparseEmbeddingsRequest(
             TruncatorTests.createTruncator(),
             new Truncator.TruncationResult(List.of(input), new boolean[] { false }),
-            embeddingsModel
+            embeddingsModel,
+            new TraceContext(randomAlphaOfLength(10), randomAlphaOfLength(10))
         );
     }
 }

@@ -4,6 +4,11 @@
 <titleabbrev>Vector tile search</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-search[Search APIs].
+--
 
 Searches a vector tile for geospatial values. Returns results as a binary
 https://docs.mapbox.com/vector-tiles/specification[Mapbox vector tile].

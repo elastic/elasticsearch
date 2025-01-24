@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockWritables;
 import org.elasticsearch.compute.operator.AbstractPageMappingOperator;
 import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.DriverSleeps;
@@ -39,7 +39,7 @@ public class EsqlQueryResponseProfileTests extends AbstractWireSerializingTestCa
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         return new NamedWriteableRegistry(
-            Stream.concat(Stream.of(AbstractPageMappingOperator.Status.ENTRY), Block.getNamedWriteables().stream()).toList()
+            Stream.concat(Stream.of(AbstractPageMappingOperator.Status.ENTRY), BlockWritables.getNamedWriteables().stream()).toList()
         );
     }
 
@@ -63,7 +63,12 @@ public class EsqlQueryResponseProfileTests extends AbstractWireSerializingTestCa
         String name = randomAlphaOfLength(4);
         Operator.Status status = randomBoolean()
             ? null
-            : new AbstractPageMappingOperator.Status(randomNonNegativeLong(), between(0, Integer.MAX_VALUE));
+            : new AbstractPageMappingOperator.Status(
+                randomNonNegativeLong(),
+                randomNonNegativeInt(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong()
+            );
         return new DriverStatus.OperatorStatus(name, status);
     }
 }

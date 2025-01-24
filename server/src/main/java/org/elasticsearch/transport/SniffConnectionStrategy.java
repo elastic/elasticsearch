@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.transport;
@@ -327,10 +328,8 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
                     sniffResponseHandler = new ClusterStateSniffResponseHandler(connection, listener, seedNodesSuppliers);
                 }
 
-                try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
-                    // we stash any context here since this is an internal execution and should not leak any
-                    // existing context information.
-                    threadContext.markAsSystemContext();
+                try (var ignored = threadContext.newEmptySystemContext()) {
+                    // we stash any context here since this is an internal execution and should not leak any existing context information.
                     transportService.sendRequest(
                         connection,
                         action,
@@ -506,6 +505,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
         var seedVersion = new VersionInformation(
             Version.CURRENT.minimumCompatibilityVersion(),
             IndexVersions.MINIMUM_COMPATIBLE,
+            IndexVersions.MINIMUM_READONLY_COMPATIBLE,
             IndexVersion.current()
         );
         if (proxyAddress == null || proxyAddress.isEmpty()) {

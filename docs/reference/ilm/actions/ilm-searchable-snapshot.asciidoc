@@ -19,7 +19,7 @@ index>> prefixed with `partial-` to the frozen tier. In other phases, the action
 
 In the frozen tier, the action will ignore the setting
 <<total-shards-per-node,`index.routing.allocation.total_shards_per_node`>>, if it was present in the original index,
-to account for the difference in the number of nodes between the frozen and the other tiers.
+to account for the difference in the number of nodes between the frozen and the other tiers. To set <<total-shards-per-node,`index.routing.allocation.total_shards_per_node`>> for searchable snapshots, set the `total_shards_per_node` option in the frozen phase's `searchable_snapshot` action within the ILM policy.
 
 
 WARNING: Don't include the `searchable_snapshot` action in both the hot and cold
@@ -73,6 +73,9 @@ action. For example, if using a `searchable_snapshot` action in the `hot` phase,
 will be performed on the hot nodes. If using a `searchable_snapshot` action in the `cold` phase, the
 force merge will be performed on whatever tier the index is *prior* to the `cold` phase (either
 `hot` or `warm`).
+
+`total_shards_per_node`::
+The maximum number of shards (replicas and primaries) that will be allocated to a single node for the searchable snapshot index. Defaults to unbounded.
 
 [[ilm-searchable-snapshot-ex]]
 ==== Examples

@@ -1,12 +1,11 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
-
-import org.elasticsearch.gradle.internal.info.BuildParams
 
 apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.publish'
@@ -16,7 +15,7 @@ apply plugin: 'elasticsearch.internal-test-artifact'
 publishing {
   publications {
     elastic {
-      artifactId 'elasticsearch'
+      artifactId = 'elasticsearch'
     }
   }
 }
@@ -27,24 +26,24 @@ base {
 
 dependencies {
 
-  api project(':libs:elasticsearch-core')
-  api project(':libs:elasticsearch-logging')
-  api project(':libs:elasticsearch-secure-sm')
-  api project(':libs:elasticsearch-x-content')
-  api project(":libs:elasticsearch-geo")
-  api project(":libs:elasticsearch-lz4")
-  api project(":libs:elasticsearch-plugin-api")
-  api project(":libs:elasticsearch-plugin-analysis-api")
-  api project(':libs:elasticsearch-grok')
-  api project(":libs:elasticsearch-tdigest")
-  implementation project(":libs:elasticsearch-simdvec")
-
-  implementation project(':libs:elasticsearch-plugin-classloader')
+  api project(':libs:core')
+  api project(':libs:logging')
+  api project(':libs:secure-sm')
+  api project(':libs:x-content')
+  api project(":libs:geo")
+  api project(":libs:lz4")
+  api project(":libs:plugin-api")
+  api project(":libs:plugin-analysis-api")
+  api project(':libs:grok')
+  api project(":libs:tdigest")
+  implementation project(":libs:simdvec")
+  implementation project(":libs:entitlement")
 
   // lucene
   api "org.apache.lucene:lucene-core:${versions.lucene}"
   api "org.apache.lucene:lucene-analysis-common:${versions.lucene}"
   api "org.apache.lucene:lucene-backward-codecs:${versions.lucene}"
+  api "org.apache.lucene:lucene-facet:${versions.lucene}"
   api "org.apache.lucene:lucene-grouping:${versions.lucene}"
   api "org.apache.lucene:lucene-highlighter:${versions.lucene}"
   api "org.apache.lucene:lucene-join:${versions.lucene}"
@@ -56,7 +55,7 @@ dependencies {
   api "org.apache.lucene:lucene-suggest:${versions.lucene}"
 
   // utilities
-  api project(":libs:elasticsearch-cli")
+  api project(":libs:cli")
   implementation 'com.carrotsearch:hppc:0.8.1'
 
   // precentil ranks aggregation
@@ -67,7 +66,7 @@ dependencies {
   api "org.apache.logging.log4j:log4j-core:${versions.log4j}"
 
   // access to native functions
-  implementation project(':libs:elasticsearch-native')
+  implementation project(':libs:native')
 
   api "co.elastic.logging:log4j2-ecs-layout:${versions.ecsLogging}"
   api "co.elastic.logging:ecs-logging-core:${versions.ecsLogging}"
@@ -132,7 +131,7 @@ def generatePluginsList = tasks.register("generatePluginsList") {
 sourceSets.main.output.dir(generatedResourcesDir)
 sourceSets.main.compiledBy(generateModulesList, generatePluginsList)
 
-if (BuildParams.isSnapshotBuild() == false) {
+if (buildParams.isSnapshotBuild() == false) {
     tasks.named("test").configure {
         systemProperty 'es.index_mode_feature_flag_registered', 'true'
         systemProperty 'es.failure_store_feature_flag_enabled', 'true'

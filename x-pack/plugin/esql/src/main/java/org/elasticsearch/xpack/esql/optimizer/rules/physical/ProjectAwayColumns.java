@@ -12,7 +12,6 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.rule.Rule;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
@@ -21,7 +20,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
-import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
+import org.elasticsearch.xpack.esql.rule.Rule;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -45,7 +44,7 @@ public class ProjectAwayColumns extends Rule<PhysicalPlan, PhysicalPlan> {
         Holder<AttributeSet> requiredAttributes = new Holder<>(plan.outputSet());
 
         // This will require updating should we choose to have non-unary execution plans in the future.
-        return plan.transformDown(UnaryExec.class, currentPlanNode -> {
+        return plan.transformDown(currentPlanNode -> {
             if (keepTraversing.get() == false) {
                 return currentPlanNode;
             }
@@ -74,8 +73,7 @@ public class ProjectAwayColumns extends Rule<PhysicalPlan, PhysicalPlan> {
                             Source.EMPTY,
                             new Project(logicalFragment.source(), logicalFragment, output),
                             fragmentExec.esFilter(),
-                            fragmentExec.estimatedRowSize(),
-                            fragmentExec.reducer()
+                            fragmentExec.estimatedRowSize()
                         );
                         return new ExchangeExec(exec.source(), output, exec.inBetweenAggs(), newChild);
                     }

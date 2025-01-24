@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.store;
 
@@ -32,9 +33,15 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.BiPredicate;
 
 public class FsDirectoryFactoryTests extends ESTestCase {
+
+    final PreLoadExposingFsDirectoryFactory fsDirectoryFactory = new PreLoadExposingFsDirectoryFactory();
 
     public void testPreload() throws IOException {
         doTestPreload();
@@ -59,10 +66,11 @@ public class FsDirectoryFactoryTests extends ESTestCase {
             assertTrue(FsDirectoryFactory.HybridDirectory.useDelegate("foo.tmp", newIOContext(random())));
             assertTrue(FsDirectoryFactory.HybridDirectory.useDelegate("foo.fdt__0.tmp", newIOContext(random())));
             MMapDirectory delegate = hybridDirectory.getDelegate();
-            assertThat(delegate, Matchers.instanceOf(FsDirectoryFactory.PreLoadMMapDirectory.class));
-            FsDirectoryFactory.PreLoadMMapDirectory preLoadMMapDirectory = (FsDirectoryFactory.PreLoadMMapDirectory) delegate;
-            assertTrue(preLoadMMapDirectory.useDelegate("foo.dvd"));
-            assertTrue(preLoadMMapDirectory.useDelegate("foo.tmp"));
+            assertThat(delegate, Matchers.instanceOf(MMapDirectory.class));
+            var func = fsDirectoryFactory.preLoadFuncMap.get(delegate);
+            assertTrue(func.test("foo.dvd", newIOContext(random())));
+            assertTrue(func.test("foo.tmp", newIOContext(random())));
+            fsDirectoryFactory.preLoadFuncMap.clear();
         }
     }
 
@@ -71,7 +79,21 @@ public class FsDirectoryFactoryTests extends ESTestCase {
         Path tempDir = createTempDir().resolve(idxSettings.getUUID()).resolve("0");
         Files.createDirectories(tempDir);
         ShardPath path = new ShardPath(false, tempDir, tempDir, new ShardId(idxSettings.getIndex(), 0));
-        return new FsDirectoryFactory().newDirectory(idxSettings, path);
+        return fsDirectoryFactory.newDirectory(idxSettings, path);
+    }
+
+    static class PreLoadExposingFsDirectoryFactory extends FsDirectoryFactory {
+
+        // expose for testing
+        final Map<MMapDirectory, BiPredicate<String, IOContext>> preLoadFuncMap = new HashMap<>();
+
+        @Override
+        public MMapDirectory setPreload(MMapDirectory mMapDirectory, Set<String> preLoadExtensions) {
+            var preLoadFunc = FsDirectoryFactory.getPreloadFunc(preLoadExtensions);
+            mMapDirectory.setPreload(preLoadFunc);
+            preLoadFuncMap.put(mMapDirectory, preLoadFunc);
+            return mMapDirectory;
+        }
     }
 
     private void doTestPreload(String... preload) throws IOException {
@@ -84,26 +106,21 @@ public class FsDirectoryFactoryTests extends ESTestCase {
             assertSame(dir, directory); // prevent warnings
             assertFalse(directory instanceof SleepingLockWrapper);
             var mmapDirectory = FilterDirectory.unwrap(directory);
+            assertTrue(directory.toString(), mmapDirectory instanceof MMapDirectory);
             if (preload.length == 0) {
-                assertTrue(directory.toString(), mmapDirectory instanceof MMapDirectory);
-                assertFalse(((MMapDirectory) mmapDirectory).getPreload());
+                assertEquals(fsDirectoryFactory.preLoadFuncMap.get(mmapDirectory), MMapDirectory.NO_FILES);
             } else if (Arrays.asList(preload).contains("*")) {
-                assertTrue(directory.toString(), mmapDirectory instanceof MMapDirectory);
-                assertTrue(((MMapDirectory) mmapDirectory).getPreload());
+                assertEquals(fsDirectoryFactory.preLoadFuncMap.get(mmapDirectory), MMapDirectory.ALL_FILES);
             } else {
-                assertTrue(directory.toString(), mmapDirectory instanceof FsDirectoryFactory.PreLoadMMapDirectory);
-                FsDirectoryFactory.PreLoadMMapDirectory preLoadMMapDirectory = (FsDirectoryFactory.PreLoadMMapDirectory) mmapDirectory;
+                var func = fsDirectoryFactory.preLoadFuncMap.get(mmapDirectory);
+                assertNotEquals(fsDirectoryFactory.preLoadFuncMap.get(mmapDirectory), MMapDirectory.ALL_FILES);
+                assertNotEquals(fsDirectoryFactory.preLoadFuncMap.get(mmapDirectory), MMapDirectory.NO_FILES);
                 for (String ext : preload) {
-                    assertTrue("ext: " + ext, preLoadMMapDirectory.useDelegate("foo." + ext));
-                    assertTrue("ext: " + ext, preLoadMMapDirectory.getDelegate().getPreload());
+                    assertTrue("ext: " + ext, func.test("foo." + ext, newIOContext(random())));
                 }
-                assertFalse(preLoadMMapDirectory.useDelegate("XXX"));
-                assertFalse(preLoadMMapDirectory.getPreload());
-                preLoadMMapDirectory.close();
-                expectThrows(
-                    AlreadyClosedException.class,
-                    () -> preLoadMMapDirectory.getDelegate().openInput("foo.tmp", IOContext.DEFAULT)
-                );
+                assertFalse(func.test("XXX", newIOContext(random())));
+                mmapDirectory.close();
+                expectThrows(AlreadyClosedException.class, () -> mmapDirectory.openInput("foo.tmp", IOContext.DEFAULT));
             }
         }
         expectThrows(
@@ -147,7 +164,7 @@ public class FsDirectoryFactoryTests extends ESTestCase {
                     );
                     break;
                 case FS:
-                    if (Constants.JRE_IS_64BIT && MMapDirectory.UNMAP_SUPPORTED) {
+                    if (Constants.JRE_IS_64BIT) {
                         assertTrue(FsDirectoryFactory.isHybridFs(directory));
                     } else {
                         assertTrue(directory.toString(), directory instanceof NIOFSDirectory);

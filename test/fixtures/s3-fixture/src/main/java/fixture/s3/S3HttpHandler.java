@@ -1,17 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package fixture.s3;
 
-import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -26,6 +27,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.RestUtils;
+import org.elasticsearch.test.fixture.HttpHeaderParser;
 
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -167,7 +169,21 @@ public class S3HttpHandler implements HttpHandler {
                 RestUtils.decodeQueryString(request, request.indexOf('?') + 1, params);
                 final var upload = uploads.remove(params.get("uploadId"));
                 if (upload == null) {
-                    exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
+                    if (Randomness.get().nextBoolean()) {
+                        exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
+                    } else {
+                        byte[] response = ("""
+                            <?xml version="1.0" encoding="UTF-8"?>
+                            <Error>
+                            <Code>NoSuchUpload</Code>
+                            <Message>No such upload</Message>
+                            <RequestId>test-request-id</RequestId>
+                            <HostId>test-host-id</HostId>
+                            </Error>""").getBytes(StandardCharsets.UTF_8);
+                        exchange.getResponseHeaders().add("Content-Type", "application/xml");
+                        exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);
+                        exchange.getResponseBody().write(response);
+                    }
                 } else {
                     final var blobContents = upload.complete(extractPartEtags(Streams.readFully(exchange.getRequestBody())));
                     blobs.put(requestComponents.path, blobContents);
@@ -253,8 +269,8 @@ public class S3HttpHandler implements HttpHandler {
                     exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
                     return;
                 }
-                final String range = exchange.getRequestHeaders().getFirst("Range");
-                if (range == null) {
+                final String rangeHeader = exchange.getRequestHeaders().getFirst("Range");
+                if (rangeHeader == null) {
                     exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
                     exchange.sendResponseHeaders(RestStatus.OK.getStatus(), blob.length());
                     blob.writeTo(exchange.getResponseBody());
@@ -265,17 +281,12 @@ public class S3HttpHandler implements HttpHandler {
                 // requests with a header value like "Range: bytes=start-end" where both {@code start} and {@code end} are always defined
                 // (sometimes to very high value for {@code end}). It would be too tedious to fully support the RFC so S3HttpHandler only
                 // supports when both {@code start} and {@code end} are defined to match the SDK behavior.
-                final Matcher matcher = Pattern.compile("^bytes=([0-9]+)-([0-9]+)$").matcher(range);
-                if (matcher.matches() == false) {
-                    throw new AssertionError("Bytes range does not match expected pattern: " + range);
+                final HttpHeaderParser.Range range = HttpHeaderParser.parseRangeHeader(rangeHeader);
+                if (range == null) {
+                    throw new AssertionError("Bytes range does not match expected pattern: " + rangeHeader);
                 }
-                var groupStart = matcher.group(1);
-                var groupEnd = matcher.group(2);
-                if (groupStart == null || groupEnd == null) {
-                    throw new AssertionError("Bytes range does not match expected pattern: " + range);
-                }
-                long start = Long.parseLong(groupStart);
-                long end = Long.parseLong(groupEnd);
+                long start = range.start();
+                long end = range.end();
                 if (end < start) {
                     exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
                     exchange.sendResponseHeaders(RestStatus.OK.getStatus(), blob.length());
@@ -505,37 +516,6 @@ public class S3HttpHandler implements HttpHandler {
             return result;
         } catch (Exception e) {
             throw ExceptionsHelper.convertToRuntime(e);
-        }
-    }
-
-    public static void sendError(final HttpExchange exchange, final RestStatus status, final String errorCode, final String message)
-        throws IOException {
-        final Headers headers = exchange.getResponseHeaders();
-        headers.add("Content-Type", "application/xml");
-
-        final String requestId = exchange.getRequestHeaders().getFirst("x-amz-request-id");
-        if (requestId != null) {
-            headers.add("x-amz-request-id", requestId);
-        }
-
-        if (errorCode == null || "HEAD".equals(exchange.getRequestMethod())) {
-            exchange.sendResponseHeaders(status.getStatus(), -1L);
-            exchange.close();
-        } else {
-            final byte[] response = ("<?xml version=\"1.0\" encoding=\"UTF-8\"?><Error>"
-                + "<Code>"
-                + errorCode
-                + "</Code>"
-                + "<Message>"
-                + message
-                + "</Message>"
-                + "<RequestId>"
-                + requestId
-                + "</RequestId>"
-                + "</Error>").getBytes(StandardCharsets.UTF_8);
-            exchange.sendResponseHeaders(status.getStatus(), response.length);
-            exchange.getResponseBody().write(response);
-            exchange.close();
         }
     }
 

@@ -259,23 +259,27 @@ public class TransportStopDataFrameAnalyticsAction extends TransportTasksAction<
         for (String analyticsId : nonStoppedAnalytics) {
             PersistentTasksCustomMetadata.PersistentTask<?> analyticsTask = MlTasks.getDataFrameAnalyticsTask(analyticsId, tasks);
             if (analyticsTask != null) {
-                persistentTasksService.sendRemoveRequest(analyticsTask.getId(), null, ActionListener.wrap(removedTask -> {
-                    auditor.info(analyticsId, Messages.DATA_FRAME_ANALYTICS_AUDIT_FORCE_STOPPED);
-                    if (counter.incrementAndGet() == nonStoppedAnalytics.size()) {
-                        sendResponseOrFailure(request.getId(), listener, failures);
-                    }
-                }, e -> {
-                    final int slot = counter.incrementAndGet();
-                    // We validated that the analytics ids supplied in the request existed when we started processing the action.
-                    // If the related tasks don't exist at this point then they must have been stopped by a simultaneous stop request.
-                    // This is not an error.
-                    if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException == false) {
-                        failures.set(slot - 1, e);
-                    }
-                    if (slot == nonStoppedAnalytics.size()) {
-                        sendResponseOrFailure(request.getId(), listener, failures);
-                    }
-                }));
+                persistentTasksService.sendRemoveRequest(
+                    analyticsTask.getId(),
+                    MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT,
+                    ActionListener.wrap(removedTask -> {
+                        auditor.info(analyticsId, Messages.DATA_FRAME_ANALYTICS_AUDIT_FORCE_STOPPED);
+                        if (counter.incrementAndGet() == nonStoppedAnalytics.size()) {
+                            sendResponseOrFailure(request.getId(), listener, failures);
+                        }
+                    }, e -> {
+                        final int slot = counter.incrementAndGet();
+                        // We validated that the analytics ids supplied in the request existed when we started processing the action.
+                        // If the related tasks don't exist at this point then they must have been stopped by a simultaneous stop request.
+                        // This is not an error.
+                        if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException == false) {
+                            failures.set(slot - 1, e);
+                        }
+                        if (slot == nonStoppedAnalytics.size()) {
+                            sendResponseOrFailure(request.getId(), listener, failures);
+                        }
+                    })
+                );
             } else {
                 // This should not happen, because nonStoppedAnalytics
                 // were derived from the same tasks that were passed to this method
@@ -328,7 +332,11 @@ public class TransportStopDataFrameAnalyticsAction extends TransportTasksAction<
                 // This means the task has not been assigned to a node yet so
                 // we can stop it by removing its persistent task.
                 // The listener is a no-op as we're already going to wait for the task to be removed.
-                persistentTasksService.sendRemoveRequest(task.getId(), null, ActionListener.noop());
+                persistentTasksService.sendRemoveRequest(
+                    task.getId(),
+                    MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT,
+                    ActionListener.noop()
+                );
             }
         }
         return nodes.toArray(new String[0]);

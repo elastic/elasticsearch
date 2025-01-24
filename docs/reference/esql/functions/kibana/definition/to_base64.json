@@ -31,5 +31,7 @@
   ],
   "examples" : [
     "row a = \"elastic\" \n| eval e = to_base64(a)"
-  ]
+  ],
+  "preview" : false,
+  "snapshot_only" : false
 }

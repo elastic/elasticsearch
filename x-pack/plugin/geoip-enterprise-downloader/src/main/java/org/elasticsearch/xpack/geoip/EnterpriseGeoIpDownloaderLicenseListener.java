@@ -13,13 +13,12 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.ingest.EnterpriseGeoIpTask.EnterpriseGeoIpTaskParams;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseStateListener;
@@ -62,8 +61,6 @@ public class EnterpriseGeoIpDownloaderLicenseListener implements LicenseStateLis
         this.licenseState = licenseState;
     }
 
-    @UpdateForV9 // use MINUS_ONE once that means no timeout
-    private static final TimeValue MASTER_TIMEOUT = TimeValue.MAX_VALUE;
     private volatile boolean licenseStateListenerRegistered;
 
     public void init() {
@@ -120,7 +117,7 @@ public class EnterpriseGeoIpDownloaderLicenseListener implements LicenseStateLis
             ENTERPRISE_GEOIP_DOWNLOADER,
             ENTERPRISE_GEOIP_DOWNLOADER,
             new EnterpriseGeoIpTaskParams(),
-            MASTER_TIMEOUT,
+            MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT,
             ActionListener.wrap(r -> logger.debug("Started enterprise geoip downloader task"), e -> {
                 Throwable t = e instanceof RemoteTransportException ? ExceptionsHelper.unwrapCause(e) : e;
                 if (t instanceof ResourceAlreadyExistsException == false) {
@@ -140,6 +137,6 @@ public class EnterpriseGeoIpDownloaderLicenseListener implements LicenseStateLis
                 }
             }
         );
-        persistentTasksService.sendRemoveRequest(ENTERPRISE_GEOIP_DOWNLOADER, MASTER_TIMEOUT, listener);
+        persistentTasksService.sendRemoveRequest(ENTERPRISE_GEOIP_DOWNLOADER, MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT, listener);
     }
 }

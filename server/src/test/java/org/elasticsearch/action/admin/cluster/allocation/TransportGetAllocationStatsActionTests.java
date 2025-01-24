@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.allocation;
@@ -16,7 +17,6 @@ import org.elasticsearch.cluster.routing.allocation.AllocationStatsService;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationStatsTests;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -34,8 +34,6 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.not;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -47,7 +45,6 @@ public class TransportGetAllocationStatsActionTests extends ESTestCase {
     private ClusterService clusterService;
     private TransportService transportService;
     private AllocationStatsService allocationStatsService;
-    private FeatureService featureService;
 
     private TransportGetAllocationStatsAction action;
 
@@ -66,15 +63,13 @@ public class TransportGetAllocationStatsActionTests extends ESTestCase {
             Set.of()
         );
         allocationStatsService = mock(AllocationStatsService.class);
-        featureService = mock(FeatureService.class);
         action = new TransportGetAllocationStatsAction(
             transportService,
             clusterService,
             threadPool,
             new ActionFilters(Set.of()),
             null,
-            allocationStatsService,
-            featureService
+            allocationStatsService
         );
     }
 
@@ -98,8 +93,6 @@ public class TransportGetAllocationStatsActionTests extends ESTestCase {
         );
 
         when(allocationStatsService.stats()).thenReturn(Map.of(randomIdentifier(), NodeAllocationStatsTests.randomNodeAllocationStats()));
-        when(featureService.clusterHasFeature(any(ClusterState.class), eq(AllocationStatsFeatures.INCLUDE_DISK_THRESHOLD_SETTINGS)))
-            .thenReturn(true);
 
         var future = new PlainActionFuture<TransportGetAllocationStatsAction.Response>();
         action.masterOperation(mock(Task.class), request, ClusterState.EMPTY_STATE, future);

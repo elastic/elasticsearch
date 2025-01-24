@@ -668,6 +668,16 @@ node only. Defaults to `false`, which means information is retrieved from
 the master node.
 end::local[]
 
+tag::local-deprecated-9.0.0[]
+`local`::
+(Optional, Boolean) If `true`, the request retrieves information from the local
+node only. Defaults to `false`, which means information is retrieved from
+the master node.
++
+deprecated::[9.0.0, "The `?local` query parameter to this API has no effect, is now deprecated, and will be removed in a future version."]
+
+end::local-deprecated-9.0.0[]
+
 tag::mappings[]
 `mappings`::
 +
@@ -865,7 +875,7 @@ end::search-q[]
 
 tag::query[]
 `query`::
-(Optional, <<query-dsl,query object>>) Defines the search definition using the
+(Optional, <<query-dsl,query object>>) Defines the search query using
 <<query-dsl,Query DSL>>.
 end::query[]
 
@@ -1298,10 +1308,11 @@ tag::wait_for_active_shards[]
 `wait_for_active_shards`::
 +
 --
-(Optional, string) The number of shard copies that must be active before
-proceeding with the operation. Set to `all` or any positive integer up
-to the total number of shards in the index (`number_of_replicas+1`).
-Default: 1, the primary shard.
+(Optional, string) The number of copies of each shard that must be active
+before proceeding with the operation. Set to `all` or any non-negative integer
+up to the total number of copies of each shard in the index
+(`number_of_replicas+1`). Defaults to `1`, meaning to wait just for each
+primary shard to be active.
 
 See <<index-wait-for-active-shards>>.
 --
@@ -1345,3 +1356,27 @@ tag::rrf-filter[]
 Applies the specified <<query-dsl-bool-query, boolean query filter>> to all of the specified sub-retrievers,
 according to each retriever's specifications.
 end::rrf-filter[]
+
+tag::knn-rescore-vector[]
+
+`rescore_vector`::
++
+--
+(Optional, object) Functionality in preview:[]. Apply oversampling and rescoring to quantized vectors.
+
+NOTE: Rescoring only makes sense for quantized vectors; when <<dense-vector-quantization,quantization>> is not used, the original vectors are used for scoring.
+Rescore option will be ignored for non-quantized `dense_vector` fields.
+
+`oversample`::
+(Required, float)
++
+Applies the specified oversample factor to `k` on the approximate kNN search.
+The approximate kNN search will:
+
+* Retrieve `num_candidates` candidates per shard.
+* From these candidates, the top `k * oversample` candidates per shard will be rescored using the original vectors.
+* The top `k` rescored candidates will be returned.
+
+See <<dense-vector-knn-search-rescoring,oversampling and rescoring quantized vectors>> for details.
+--
+end::knn-rescore-vector[]

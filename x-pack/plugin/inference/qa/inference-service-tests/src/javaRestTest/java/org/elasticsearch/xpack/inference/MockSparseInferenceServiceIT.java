@@ -30,15 +30,12 @@ public class MockSparseInferenceServiceIT extends InferenceBaseRestTest {
         }
 
         List<String> input = List.of(randomAlphaOfLength(10));
-        var inference = inferOnMockService(inferenceEntityId, input);
+        var inference = infer(inferenceEntityId, input);
         assertNonEmptyInferenceResults(inference, 1, TaskType.SPARSE_EMBEDDING);
         // Same input should return the same result
-        assertEquals(inference, inferOnMockService(inferenceEntityId, input));
+        assertEquals(inference, infer(inferenceEntityId, input));
         // Different input values should not
-        assertNotEquals(
-            inference,
-            inferOnMockService(inferenceEntityId, randomValueOtherThan(input, () -> List.of(randomAlphaOfLength(10))))
-        );
+        assertNotEquals(inference, infer(inferenceEntityId, randomValueOtherThan(input, () -> List.of(randomAlphaOfLength(10)))));
     }
 
     public void testMockServiceWithMultipleInputs() throws IOException {
@@ -46,7 +43,7 @@ public class MockSparseInferenceServiceIT extends InferenceBaseRestTest {
         putModel(inferenceEntityId, mockSparseServiceModelConfig(), TaskType.SPARSE_EMBEDDING);
 
         // The response is randomly generated, the input can be anything
-        var inference = inferOnMockService(
+        var inference = infer(
             inferenceEntityId,
             TaskType.SPARSE_EMBEDDING,
             List.of(randomAlphaOfLength(5), randomAlphaOfLength(10), randomAlphaOfLength(15))
@@ -84,7 +81,7 @@ public class MockSparseInferenceServiceIT extends InferenceBaseRestTest {
         }
 
         // The response is randomly generated, the input can be anything
-        var inference = inferOnMockService(inferenceEntityId, List.of(randomAlphaOfLength(10)));
+        var inference = infer(inferenceEntityId, List.of(randomAlphaOfLength(10)));
         assertNonEmptyInferenceResults(inference, 1, TaskType.SPARSE_EMBEDDING);
     }
 
@@ -102,7 +99,7 @@ public class MockSparseInferenceServiceIT extends InferenceBaseRestTest {
         }
 
         // The response is randomly generated, the input can be anything
-        var inference = inferOnMockService(inferenceEntityId, List.of(randomAlphaOfLength(10)));
+        var inference = infer(inferenceEntityId, List.of(randomAlphaOfLength(10)));
         assertNonEmptyInferenceResults(inference, 1, TaskType.SPARSE_EMBEDDING);
     }
 }

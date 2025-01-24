@@ -23,6 +23,7 @@ import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.logging.LogManager;
@@ -30,24 +31,26 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.xpack.esql.TestBlockFactory;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
-import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.IsNotNull;
-import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
+import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchOperator;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Greatest;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.RLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.WildcardLike;
+import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
+import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mod;
@@ -67,6 +70,7 @@ import org.elasticsearch.xpack.esql.planner.Layout;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.hamcrest.Matcher;
+import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.AfterClass;
 
@@ -95,12 +99,18 @@ import java.util.stream.Stream;
 import static java.util.Map.entry;
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomLiteral;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
 import static org.elasticsearch.xpack.esql.SerializationTestUtils.assertSerialization;
+import static org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry.mapParam;
+import static org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry.param;
+import static org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry.paramWithoutAnnotation;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 /**
@@ -127,8 +137,12 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         entry("mod", Mod.class),
         entry("neg", Neg.class),
         entry("is_null", IsNull.class),
-        entry("is_not_null", IsNotNull.class)
+        entry("is_not_null", IsNotNull.class),
+        // Match operator is both a function and an operator
+        entry("match_operator", MatchOperator.class)
     );
+
+    private static EsqlFunctionRegistry functionRegistry = new EsqlFunctionRegistry().snapshotRegistry();
 
     protected TestCaseSupplier.TestCase testCase;
 
@@ -166,7 +180,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             (nullPosition, nullValueDataType, original) -> entirelyNullPreservesType == false
                 && nullValueDataType == DataType.NULL
                 && original.getData().size() == 1 ? DataType.NULL : original.expectedType(),
-            (nullPosition, nullData, original) -> original
+            (nullPosition, nullData, original) -> nullData.isForceLiteral() ? Matchers.equalTo("LiteralsEvaluator[lit=null]") : original
         );
     }
 
@@ -183,7 +197,6 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         ExpectedType expectedType,
         ExpectedEvaluatorToString evaluatorToString
     ) {
-        typesRequired(testCaseSuppliers);
         List<TestCaseSupplier> suppliers = new ArrayList<>(testCaseSuppliers.size());
         suppliers.addAll(testCaseSuppliers);
 
@@ -221,7 +234,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                         oc.getExpectedTypeError(),
                         null,
                         null,
-                        null
+                        null,
+                        oc.canBuildEvaluator()
                     );
                 }));
 
@@ -252,7 +266,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                                 oc.getExpectedTypeError(),
                                 null,
                                 null,
-                                null
+                                null,
+                                oc.canBuildEvaluator()
                             );
                         }));
                     }
@@ -264,7 +279,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     @FunctionalInterface
-    protected interface PositionalErrorMessageSupplier {
+    public interface PositionalErrorMessageSupplier {
         /**
          * This interface defines functions to supply error messages for incorrect types in specific positions. Functions which have
          * the same type requirements for all positions can simplify this with a lambda returning a string constant.
@@ -281,7 +296,9 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     /**
      * Adds test cases containing unsupported parameter types that assert
      * that they throw type errors.
+     * @deprecated make a subclass of {@link ErrorsForCasesWithoutExamplesTestCase} instead
      */
+    @Deprecated
     protected static List<TestCaseSupplier> errorsForCasesWithoutExamples(
         List<TestCaseSupplier> testCaseSuppliers,
         PositionalErrorMessageSupplier positionalErrorMessageSupplier
@@ -321,11 +338,14 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         String apply(boolean includeOrdinal, List<Set<DataType>> validPerPosition, List<DataType> types);
     }
 
+    /**
+     * @deprecated make a subclass of {@link ErrorsForCasesWithoutExamplesTestCase} instead
+     */
+    @Deprecated
     protected static List<TestCaseSupplier> errorsForCasesWithoutExamples(
         List<TestCaseSupplier> testCaseSuppliers,
         TypeErrorMessageSupplier typeErrorMessageSupplier
     ) {
-        typesRequired(testCaseSuppliers);
         List<TestCaseSupplier> suppliers = new ArrayList<>(testCaseSuppliers.size());
         suppliers.addAll(testCaseSuppliers);
 
@@ -336,7 +356,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             .map(s -> s.types().size())
             .collect(Collectors.toSet())
             .stream()
-            .flatMap(count -> allPermutations(count))
+            .flatMap(AbstractFunctionTestCase::allPermutations)
             .filter(types -> valid.contains(types) == false)
             /*
              * Skip any cases with more than one null. Our tests don't generate
@@ -356,10 +376,6 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         return longer;
     }
 
-    protected static Stream<DataType> representable() {
-        return DataType.types().stream().filter(DataType::isRepresentable);
-    }
-
     protected static TestCaseSupplier typeErrorSupplier(
         boolean includeOrdinal,
         List<Set<DataType>> validPerPosition,
@@ -371,7 +387,9 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
 
     /**
      * Build a test case that asserts that the combination of parameter types is an error.
+     * @deprecated use an extension of {@link ErrorsForCasesWithoutExamplesTestCase}
      */
+    @Deprecated
     protected static TestCaseSupplier typeErrorSupplier(
         boolean includeOrdinal,
         List<Set<DataType>> validPerPosition,
@@ -388,7 +406,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         );
     }
 
-    private static List<Set<DataType>> validPerPosition(Set<List<DataType>> valid) {
+    static List<Set<DataType>> validPerPosition(Set<List<DataType>> valid) {
         int max = valid.stream().mapToInt(List::size).max().getAsInt();
         List<Set<DataType>> result = new ArrayList<>(max);
         for (int i = 0; i < max; i++) {
@@ -520,14 +538,28 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         return build(testCase.getSource(), testCase.getDataAsLiterals());
     }
 
+    public static EvaluatorMapper.ToEvaluator toEvaluator() {
+        return new EvaluatorMapper.ToEvaluator() {
+            @Override
+            public ExpressionEvaluator.Factory apply(Expression expression) {
+                return evaluator(expression);
+            }
+
+            @Override
+            public FoldContext foldCtx() {
+                return FoldContext.small();
+            }
+        };
+    }
+
     /**
      * Convert an {@link Expression} tree into a {@link ExpressionEvaluator.Factory}
      * for {@link ExpressionEvaluator}s in the same way as our planner.
      */
     public static ExpressionEvaluator.Factory evaluator(Expression e) {
-        e = new FoldNull().rule(e);
+        e = new FoldNull().rule(e, unboundLogicalOptimizerContext());
         if (e.foldable()) {
-            e = new Literal(e.source(), e.fold(), e.dataType());
+            e = new Literal(e.source(), e.fold(FoldContext.small()), e.dataType());
         }
         Layout.Builder builder = new Layout.Builder();
         buildLayout(builder, e);
@@ -535,7 +567,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         if (resolution.unresolved()) {
             throw new AssertionError("expected resolved " + resolution.message());
         }
-        return EvalMapper.toEvaluator(e, builder.build());
+        return EvalMapper.toEvaluator(FoldContext.small(), e, builder.build());
     }
 
     protected final Page row(List<Object> values) {
@@ -616,11 +648,17 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     protected Object toJavaObjectUnsignedLongAware(Block block, int position) {
         Object result;
         result = toJavaObject(block, position);
-        if (result != null && testCase.expectedType() == DataType.UNSIGNED_LONG) {
-            assertThat(result, instanceOf(Long.class));
-            result = NumericUtils.unsignedLongAsBigInteger((Long) result);
+        if (result == null || testCase.expectedType() != DataType.UNSIGNED_LONG) {
+            return result;
         }
-        return result;
+        if (result instanceof List<?> l) {
+            return l.stream().map(v -> {
+                assertThat(v, instanceOf(Long.class));
+                return NumericUtils.unsignedLongAsBigInteger((Long) v);
+            }).toList();
+        }
+        assertThat(result, instanceOf(Long.class));
+        return NumericUtils.unsignedLongAsBigInteger((Long) result);
     }
 
     /**
@@ -640,18 +678,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                 return typedData.withData(tryRandomizeBytesRefOffset(typedData.data()));
             }).toList();
 
-            return new TestCaseSupplier.TestCase(
-                newData,
-                testCase.evaluatorToString(),
-                testCase.expectedType(),
-                testCase.getMatcher(),
-                testCase.getExpectedWarnings(),
-                testCase.getExpectedBuildEvaluatorWarnings(),
-                testCase.getExpectedTypeError(),
-                testCase.foldingExceptionClass(),
-                testCase.foldingExceptionMessage(),
-                testCase.extra()
-            );
+            return testCase.withData(newData);
         })).toList();
     }
 
@@ -720,32 +747,70 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             for (int i = 0; i < args.size() && i < types.size(); i++) {
                 typesFromSignature.get(i).add(types.get(i).esNameIfPossible());
             }
-            returnFromSignature.add(entry.getValue().esNameIfPossible());
+            if (DataType.UNDER_CONSTRUCTION.containsKey(entry.getValue()) == false) {
+                returnFromSignature.add(entry.getValue().esNameIfPossible());
+            }
         }
 
         for (int i = 0; i < args.size(); i++) {
             EsqlFunctionRegistry.ArgSignature arg = args.get(i);
             Set<String> annotationTypes = Arrays.stream(arg.type())
-                .filter(DataType.UNDER_CONSTRUCTION::containsKey)
+                .filter(t -> DataType.UNDER_CONSTRUCTION.containsKey(DataType.fromNameOrAlias(t)) == false)
                 .collect(Collectors.toCollection(TreeSet::new));
             Set<String> signatureTypes = typesFromSignature.get(i)
                 .stream()
-                .filter(DataType.UNDER_CONSTRUCTION::containsKey)
+                .filter(t -> DataType.UNDER_CONSTRUCTION.containsKey(DataType.fromNameOrAlias(t)) == false)
                 .collect(Collectors.toCollection(TreeSet::new));
             if (signatureTypes.isEmpty()) {
                 log.info("{}: skipping", arg.name());
                 continue;
             }
             log.info("{}: tested {} vs annotated {}", arg.name(), signatureTypes, annotationTypes);
+            if (annotationTypes.size() == 1 && annotationTypes.iterator().next().equalsIgnoreCase("map")) { // map is not a DataType
+                continue;
+            }
             assertEquals(
-                "Missmatch between actual and declared parameter types. You probably need to update your @params annotations.",
+                "Mismatch between actual and declared param type for ["
+                    + arg.name()
+                    + "]. "
+                    + "You probably need to update your @params annotations or add test cases to your test.",
                 signatureTypes,
                 annotationTypes
             );
         }
 
-        Set<String> returnTypes = Arrays.stream(description.returnType()).collect(Collectors.toCollection(TreeSet::new));
+        Set<String> returnTypes = Arrays.stream(description.returnType())
+            .filter(t -> DataType.UNDER_CONSTRUCTION.containsKey(DataType.fromNameOrAlias(t)) == false)
+            .collect(Collectors.toCollection(TreeSet::new));
         assertEquals(returnFromSignature, returnTypes);
+    }
+
+    /**
+     * Asserts the result of a test case matches the expected result and warnings.
+     * <p>
+     * The {@code result} parameter should be an object as returned by {@link #toJavaObjectUnsignedLongAware}.
+     * </p>
+     */
+    @SuppressWarnings("unchecked")
+    protected final void assertTestCaseResultAndWarnings(Object result) {
+        if (result instanceof Iterable<?>) {
+            var collectionResult = (Iterable<Object>) result;
+            assertThat(collectionResult, not(hasItem(Double.NaN)));
+            assertThat(collectionResult, not(hasItem(Double.POSITIVE_INFINITY)));
+            assertThat(collectionResult, not(hasItem(Double.NEGATIVE_INFINITY)));
+        }
+
+        assert testCase.getMatcher().matches(Double.NaN) == false;
+        assertThat(result, not(equalTo(Double.NaN)));
+        assert testCase.getMatcher().matches(Double.POSITIVE_INFINITY) == false;
+        assertThat(result, not(equalTo(Double.POSITIVE_INFINITY)));
+        assert testCase.getMatcher().matches(Double.NEGATIVE_INFINITY) == false;
+        assertThat(result, not(equalTo(Double.NEGATIVE_INFINITY)));
+        assertThat(result, testCase.getMatcher());
+
+        if (testCase.getExpectedWarnings() != null) {
+            assertWarnings(testCase.getExpectedWarnings());
+        }
     }
 
     protected final void assertTypeResolutionFailure(Expression expression) {
@@ -758,12 +823,13 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         if (System.getProperty("generateDocs") == null) {
             return;
         }
-        String rendered = buildSignatureSvg(functionName());
+        String name = functionName();
+        String rendered = buildSignatureSvg(name);
         if (rendered == null) {
             LogManager.getLogger(getTestClass()).info("Skipping rendering signature because the function isn't registered");
         } else {
             LogManager.getLogger(getTestClass()).info("Writing function signature");
-            writeToTempDir("signature", rendered, "svg");
+            writeToTempDir("signature", name, "svg", rendered);
         }
     }
 
@@ -775,6 +841,10 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         String unaryOperator = unaryOperator(name);
         if (unaryOperator != null) {
             return RailRoadDiagram.unaryOperator(unaryOperator);
+        }
+        String searchOperator = searchOperator(name);
+        if (searchOperator != null) {
+            return RailRoadDiagram.searchOperator(searchOperator);
         }
         FunctionDefinition definition = definition(name);
         if (definition != null) {
@@ -821,11 +891,14 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
 
     @AfterClass
     public static void renderDocs() throws IOException {
+        renderDocs(functionName());
+    }
+
+    protected static void renderDocs(String name) throws IOException {
         if (System.getProperty("generateDocs") == null) {
             return;
         }
-        String name = functionName();
-        if (binaryOperator(name) != null || unaryOperator(name) != null || likeOrInOperator(name)) {
+        if (binaryOperator(name) != null || unaryOperator(name) != null || searchOperator(name) != null || likeOrInOperator(name)) {
             renderDocsForOperators(name);
             return;
         }
@@ -842,8 +915,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                     "elseValue",
                     trueValue.type(),
                     "The value that's returned when no condition evaluates to `true`.",
-                    true,
-                    EsqlFunctionRegistry.getTargetType(trueValue.type())
+                    true
                 );
                 description = new EsqlFunctionRegistry.FunctionDescription(
                     description.name(),
@@ -854,12 +926,12 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                     description.isAggregation()
                 );
             }
-            renderTypes(description.argNames());
-            renderParametersList(description.argNames(), description.argDescriptions());
+            renderTypes(name, description.args());
+            renderParametersList(name, description.argNames(), description.argDescriptions());
             FunctionInfo info = EsqlFunctionRegistry.functionInfo(definition);
-            renderDescription(description.description(), info.detailedDescription(), info.note());
-            boolean hasExamples = renderExamples(info);
-            boolean hasAppendix = renderAppendix(info.appendix());
+            renderDescription(name, description.description(), info.detailedDescription(), info.note());
+            boolean hasExamples = renderExamples(name, info);
+            boolean hasAppendix = renderAppendix(name, info.appendix());
             renderFullLayout(name, info.preview(), hasExamples, hasAppendix);
             renderKibanaInlineDocs(name, info);
             renderKibanaFunctionDefinition(name, info, description.args(), description.variadic());
@@ -872,12 +944,13 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         "// This is generated by ESQL's AbstractFunctionTestCase. Do no edit it. See ../README.md for how to regenerate it.\n\n";
 
     private static final String PREVIEW_CALLOUT =
-        "\npreview::[\"Do not use `VALUES` on production environments. This functionality is in technical preview and "
+        "\npreview::[\"Do not use on production environments. This functionality is in technical preview and "
             + "may be changed or removed in a future release. Elastic will work to fix any issues, but features in technical preview "
             + "are not subject to the support SLA of official GA features.\"]\n";
 
-    private static void renderTypes(List<String> argNames) throws IOException {
+    private static void renderTypes(String name, List<EsqlFunctionRegistry.ArgSignature> args) throws IOException {
         StringBuilder header = new StringBuilder();
+        List<String> argNames = args.stream().map(EsqlFunctionRegistry.ArgSignature::name).toList();
         for (String arg : argNames) {
             header.append(arg).append(" | ");
         }
@@ -892,8 +965,13 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                 continue;
             }
             StringBuilder b = new StringBuilder();
-            for (DataType arg : sig.getKey()) {
-                b.append(arg.esNameIfPossible()).append(" | ");
+            for (int i = 0; i < sig.getKey().size(); i++) {
+                DataType argType = sig.getKey().get(i);
+                if (args.get(i).mapArg()) {
+                    b.append("map | ");
+                } else {
+                    b.append(argType.esNameIfPossible()).append(" | ");
+                }
             }
             b.append("| ".repeat(argNames.size() - sig.getKey().size()));
             b.append(sig.getValue().esNameIfPossible());
@@ -910,11 +988,11 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             [%header.monospaced.styled,format=dsv,separator=|]
             |===
             """ + header + "\n" + table.stream().collect(Collectors.joining("\n")) + "\n|===\n";
-        LogManager.getLogger(getTestClass()).info("Writing function types for [{}]:\n{}", functionName(), rendered);
-        writeToTempDir("types", rendered, "asciidoc");
+        LogManager.getLogger(getTestClass()).info("Writing function types for [{}]:\n{}", name, rendered);
+        writeToTempDir("types", name, "asciidoc", rendered);
     }
 
-    private static void renderParametersList(List<String> argNames, List<String> argDescriptions) throws IOException {
+    private static void renderParametersList(String name, List<String> argNames, List<String> argDescriptions) throws IOException {
         StringBuilder builder = new StringBuilder();
         builder.append(DOCS_WARNING);
         builder.append("*Parameters*\n");
@@ -922,11 +1000,11 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             builder.append("\n`").append(argNames.get(a)).append("`::\n").append(argDescriptions.get(a)).append('\n');
         }
         String rendered = builder.toString();
-        LogManager.getLogger(getTestClass()).info("Writing parameters for [{}]:\n{}", functionName(), rendered);
-        writeToTempDir("parameters", rendered, "asciidoc");
+        LogManager.getLogger(getTestClass()).info("Writing parameters for [{}]:\n{}", name, rendered);
+        writeToTempDir("parameters", name, "asciidoc", rendered);
     }
 
-    private static void renderDescription(String description, String detailedDescription, String note) throws IOException {
+    private static void renderDescription(String name, String description, String detailedDescription, String note) throws IOException {
         String rendered = DOCS_WARNING + """
             *Description*
 
@@ -939,11 +1017,11 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         if (Strings.isNullOrEmpty(note) == false) {
             rendered += "\nNOTE: " + note + "\n";
         }
-        LogManager.getLogger(getTestClass()).info("Writing description for [{}]:\n{}", functionName(), rendered);
-        writeToTempDir("description", rendered, "asciidoc");
+        LogManager.getLogger(getTestClass()).info("Writing description for [{}]:\n{}", name, rendered);
+        writeToTempDir("description", name, "asciidoc", rendered);
     }
 
-    private static boolean renderExamples(FunctionInfo info) throws IOException {
+    private static boolean renderExamples(String name, FunctionInfo info) throws IOException {
         if (info == null || info.examples().length == 0) {
             return false;
         }
@@ -977,20 +1055,20 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         }
         builder.append('\n');
         String rendered = builder.toString();
-        LogManager.getLogger(getTestClass()).info("Writing examples for [{}]:\n{}", functionName(), rendered);
-        writeToTempDir("examples", rendered, "asciidoc");
+        LogManager.getLogger(getTestClass()).info("Writing examples for [{}]:\n{}", name, rendered);
+        writeToTempDir("examples", name, "asciidoc", rendered);
         return true;
     }
 
-    private static boolean renderAppendix(String appendix) throws IOException {
+    private static boolean renderAppendix(String name, String appendix) throws IOException {
         if (appendix.isEmpty()) {
             return false;
         }
 
         String rendered = DOCS_WARNING + appendix + "\n";
 
-        LogManager.getLogger(getTestClass()).info("Writing appendix for [{}]:\n{}", functionName(), rendered);
-        writeToTempDir("appendix", rendered, "asciidoc");
+        LogManager.getLogger(getTestClass()).info("Writing appendix for [{}]:\n{}", name, rendered);
+        writeToTempDir("appendix", name, "asciidoc", rendered);
         return true;
     }
 
@@ -1017,11 +1095,11 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         if (hasAppendix) {
             rendered += "include::../appendix/" + name + ".asciidoc[]\n";
         }
-        LogManager.getLogger(getTestClass()).info("Writing layout for [{}]:\n{}", functionName(), rendered);
-        writeToTempDir("layout", rendered, "asciidoc");
+        LogManager.getLogger(getTestClass()).info("Writing layout for [{}]:\n{}", name, rendered);
+        writeToTempDir("layout", name, "asciidoc", rendered);
     }
 
-    private static Constructor<?> constructorWithFunctionInfo(Class<?> clazz) {
+    protected static Constructor<?> constructorWithFunctionInfo(Class<?> clazz) {
         for (Constructor<?> ctor : clazz.getConstructors()) {
             FunctionInfo functionInfo = ctor.getAnnotation(FunctionInfo.class);
             if (functionInfo != null) {
@@ -1036,6 +1114,10 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         assert ctor != null;
         FunctionInfo functionInfo = ctor.getAnnotation(FunctionInfo.class);
         assert functionInfo != null;
+        renderDocsForOperators(name, ctor, functionInfo);
+    }
+
+    protected static void renderDocsForOperators(String name, Constructor<?> ctor, FunctionInfo functionInfo) throws IOException {
         renderKibanaInlineDocs(name, functionInfo);
 
         var params = ctor.getParameters();
@@ -1043,17 +1125,17 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         List<EsqlFunctionRegistry.ArgSignature> args = new ArrayList<>(params.length);
         for (int i = 1; i < params.length; i++) { // skipping 1st argument, the source
             if (Configuration.class.isAssignableFrom(params[i].getType()) == false) {
-                Param paramInfo = params[i].getAnnotation(Param.class);
-                String paramName = paramInfo == null ? params[i].getName() : paramInfo.name();
-                String[] type = paramInfo == null ? new String[] { "?" } : paramInfo.type();
-                String desc = paramInfo == null ? "" : paramInfo.description().replace('\n', ' ');
-                boolean optional = paramInfo == null ? false : paramInfo.optional();
-                DataType targetDataType = EsqlFunctionRegistry.getTargetType(type);
-                args.add(new EsqlFunctionRegistry.ArgSignature(paramName, type, desc, optional, targetDataType));
+                MapParam mapParamInfo = params[i].getAnnotation(MapParam.class);
+                if (mapParamInfo != null) {
+                    args.add(mapParam(mapParamInfo));
+                } else {
+                    Param paramInfo = params[i].getAnnotation(Param.class);
+                    args.add(paramInfo != null ? param(paramInfo) : paramWithoutAnnotation(params[i].getName()));
+                }
             }
         }
         renderKibanaFunctionDefinition(name, functionInfo, args, likeOrInOperator(name));
-        renderTypes(args.stream().map(EsqlFunctionRegistry.ArgSignature::name).toList());
+        renderTypes(name, args);
     }
 
     private static void renderKibanaInlineDocs(String name, FunctionInfo info) throws IOException {
@@ -1077,8 +1159,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             builder.append("Note: ").append(removeAsciidocLinks(info.note())).append("\n");
         }
         String rendered = builder.toString();
-        LogManager.getLogger(getTestClass()).info("Writing kibana inline docs for [{}]:\n{}", functionName(), rendered);
-        writeToTempDir("kibana/docs", rendered, "md");
+        LogManager.getLogger(getTestClass()).info("Writing kibana inline docs for [{}]:\n{}", name, rendered);
+        writeToTempDir("kibana/docs", name, "md", rendered);
     }
 
     private static void renderKibanaFunctionDefinition(
@@ -1093,7 +1175,13 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             "comment",
             "This is generated by ESQL's AbstractFunctionTestCase. Do no edit it. See ../README.md for how to regenerate it."
         );
-        builder.field("type", isAggregation() ? "agg" : OPERATORS.get(name) != null ? "operator" : "eval");
+        if (false == info.operator().isEmpty()) {
+            builder.field("type", "operator");
+            builder.field("operator", info.operator());
+            assertThat(isAggregation(), equalTo(false));
+        } else {
+            builder.field("type", isAggregation() ? "agg" : "eval");
+        }
         builder.field("name", name);
         builder.field("description", removeAsciidocLinks(info.description()));
         if (Strings.isNullOrEmpty(info.note()) == false) {
@@ -1128,7 +1216,19 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                     EsqlFunctionRegistry.ArgSignature arg = args.get(i);
                     builder.startObject();
                     builder.field("name", arg.name());
-                    builder.field("type", sig.getKey().get(i).esNameIfPossible());
+                    if (arg.mapArg()) {
+                        builder.field("type", "map");
+                        builder.field(
+                            "mapParams",
+                            arg.mapParams()
+                                .values()
+                                .stream()
+                                .map(mapArgSignature -> "{" + mapArgSignature + "}")
+                                .collect(Collectors.joining(", "))
+                        );
+                    } else {
+                        builder.field("type", sig.getKey().get(i).esNameIfPossible());
+                    }
                     builder.field("optional", arg.optional());
                     builder.field("description", arg.description());
                     builder.endObject();
@@ -1148,10 +1248,12 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             }
             builder.endArray();
         }
+        builder.field("preview", info.preview());
+        builder.field("snapshot_only", EsqlFunctionRegistry.isSnapshotOnly(name));
 
         String rendered = Strings.toString(builder.endObject());
-        LogManager.getLogger(getTestClass()).info("Writing kibana function definition for [{}]:\n{}", functionName(), rendered);
-        writeToTempDir("kibana/definition", rendered, "json");
+        LogManager.getLogger(getTestClass()).info("Writing kibana function definition for [{}]:\n{}", name, rendered);
+        writeToTempDir("kibana/definition", name, "json", rendered);
     }
 
     private static String removeAsciidocLinks(String asciidoc) {
@@ -1193,9 +1295,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     private static FunctionDefinition definition(String name) {
-        EsqlFunctionRegistry registry = new EsqlFunctionRegistry();
-        if (registry.functionExists(name)) {
-            return registry.resolveFunction(name);
+        if (functionRegistry.functionExists(name)) {
+            return functionRegistry.resolveFunction(name);
         }
         return null;
     }
@@ -1223,6 +1324,16 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     /**
+     * If this test is a for a search operator return its symbol, otherwise return {@code null}.
+     */
+    private static String searchOperator(String name) {
+        return switch (name) {
+            case "match_operator" -> ":";
+            default -> null;
+        };
+    }
+
+    /**
      * If this tests is for a unary operator return its symbol, otherwise return {@code null}.
      * This is functionally the reverse of {@link ExpressionBuilder#visitArithmeticUnary}.
      */
@@ -1237,7 +1348,10 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
      * If this tests is for a like or rlike operator return true, otherwise return {@code null}.
      */
     private static boolean likeOrInOperator(String name) {
-        return name.equalsIgnoreCase("rlike") || name.equalsIgnoreCase("like") || name.equalsIgnoreCase("in");
+        return switch (name.toLowerCase(Locale.ENGLISH)) {
+            case "rlike", "like", "in", "not_rlike", "not_like", "not_in" -> true;
+            default -> false;
+        };
     }
 
     /**
@@ -1247,11 +1361,11 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
      * don't have write permission to the docs.
      * </p>
      */
-    private static void writeToTempDir(String subdir, String str, String extension) throws IOException {
+    private static void writeToTempDir(String subdir, String name, String extension, String str) throws IOException {
         // We have to write to a tempdir because it's all test are allowed to write to. Gradle can move them.
         Path dir = PathUtils.get(System.getProperty("java.io.tmpdir")).resolve("esql").resolve("functions").resolve(subdir);
         Files.createDirectories(dir);
-        Path file = dir.resolve(functionName() + "." + extension);
+        Path file = dir.resolve(name + "." + extension);
         Files.writeString(file, str);
         LogManager.getLogger(getTestClass()).info("Wrote to file: {}", file);
     }
@@ -1281,24 +1395,6 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     /**
-     * All string types (keyword, text, match_only_text, etc).
-     */
-    protected static DataType[] strings() {
-        return DataType.types().stream().filter(DataType::isString).toArray(DataType[]::new);
-    }
-
-    /**
-     * Validate that we know the types for all the test cases already created
-     * @param suppliers - list of suppliers before adding in the illegal type combinations
-     */
-    protected static void typesRequired(List<TestCaseSupplier> suppliers) {
-        String bad = suppliers.stream().filter(s -> s.types() == null).map(s -> s.name()).collect(Collectors.joining("\n"));
-        if (bad.equals("") == false) {
-            throw new IllegalArgumentException("types required but not found for these tests:\n" + bad);
-        }
-    }
-
-    /**
      * Returns true if the current test case is for an aggregation function.
      * <p>
      *     This method requires reflection, as it's called from a static context (@AfterClass documentation rendering).
@@ -1313,10 +1409,9 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
      */
     private static boolean shouldHideSignature(List<DataType> argTypes, DataType returnType) {
         for (DataType dt : DataType.UNDER_CONSTRUCTION.keySet()) {
-            if (returnType == dt) {
+            if (returnType == dt || argTypes.contains(dt)) {
                 return true;
             }
-            return argTypes.contains(dt);
         }
         return false;
     }

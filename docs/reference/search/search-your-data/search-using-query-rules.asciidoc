@@ -10,7 +10,7 @@ _Query rules_ allow customization of search results for queries that match speci
 This allows for more control over results, for example ensuring that promoted documents that match defined criteria are returned at the top of the result list.
 Metadata is defined in the query rule, and is matched against the query criteria.
 Query rules use metadata to match a query.
-Metadata is provided as part of the <<query-dsl-rule-query, rule query>> as an object and can be anything that helps differentiate the query, for example:
+Metadata is provided as part of the search request as an object and can be anything that helps differentiate the query, for example:
 
 * A user-entered query string
 * Personalized metadata about users (e.g. country, language, etc)
@@ -18,13 +18,13 @@ Metadata is provided as part of the <<query-dsl-rule-query, rule query>> as an o
 * A referring site
 * etc.
 
-Query rules define a metadata key that will be used to match the metadata provided in the <<query-dsl-rule-query, rule query>> with the criteria specified in the rule.
+Query rules define a metadata key that will be used to match the metadata provided in the <<rule-retriever, rule retriever>> with the criteria specified in the rule.
 
-When a query rule matches the <<query-dsl-rule-query, rule query>> metadata according to its defined criteria, the query rule action is applied to the underlying `organic` query.
+When a query rule matches the rule metadata according to its defined criteria, the query rule action is applied to the underlying `organic` query.
 
 For example, a query rule could be defined to match a user-entered query string of `pugs` and a country `us` and promote adoptable shelter dogs if the rule query met both criteria.
 
-Rules are defined using the <<query-rules-apis, query rules API>> and searched using the <<query-dsl-rule-query,rule query>>.
+Rules are defined using the <<query-rules-apis, query rules API>> and searched using the <<rule-retriever, rule retriever>> or the <<query-dsl-rule-query,rule query>>.
 
 [discrete]
 [[query-rule-definition]]
@@ -189,9 +189,11 @@ You can use the <<get-query-ruleset>> call to retrieve the ruleset you just crea
 
 [discrete]
 [[rule-query-search]]
-==== Perform a rule query
+==== Search using query rules
 
-Once you have defined one or more query rulesets, you can search these rulesets using the <<query-dsl-rule-query>> query.
+Once you have defined one or more query rulesets, you can search using these rulesets using the <<rule-retriever, rule retriever>> or the <<query-dsl-rule-query, rule query>>.
+Retrievers are the recommended way to use rule queries, as they will work out of the box with other reranking retrievers such as <<rrf>>.
+
 Rulesets are evaluated in order, so rules in the first ruleset you specify will be applied before any subsequent rulesets.
 
 An example query for the `my-ruleset` defined above is:
@@ -200,18 +202,22 @@ An example query for the `my-ruleset` defined above is:
 ----
 GET /my-index-000001/_search
 {
-  "query": {
+  "retriever": {
     "rule": {
-      "organic": {
-        "query_string": {
-          "query": "puggles"
+      "retriever": {
+        "standard": {
+          "query": {
+            "query_string": {
+              "query": "puggles"
+            }
+          }
         }
       },
       "match_criteria": {
         "query_string": "puggles",
         "user_country": "us"
       },
-      "ruleset_ids": ["my-ruleset"]
+      "ruleset_ids": [ "my-ruleset" ]
     }
   }
 }
@@ -227,3 +233,51 @@ In this case, the rules are applied in the following order:
 - Where the matching rule appears in the ruleset
 - If multiple documents are specified in a single rule, in the order they are specified
 - If a document is matched by both a `pinned` rule and an `exclude` rule, the `exclude` rule will take precedence
+
+You can specify reranking retrievers such as <<rrf-retriever, rrf>> or <<text-similarity-reranker-retriever, text_similarity_reranker>> in the rule query to apply query rules on already-reranked results.
+Here is an example:
+
+[source,console]
+----
+GET my-index-000001/_search
+{
+  "retriever": {
+    "rule": {
+      "match_criteria": {
+        "query_string": "puggles",
+        "user_country": "us"
+      },
+      "ruleset_ids": [
+        "my-ruleset"
+      ],
+      "retriever": {
+        "rrf": {
+          "retrievers": [
+            {
+              "standard": {
+                "query": {
+                  "query_string": {
+                    "query": "pugs"
+                  }
+                }
+              }
+            },
+            {
+              "standard": {
+                "query": {
+                  "query_string": {
+                    "query": "puggles"
+                  }
+                }
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+}
+----
+// TEST[continued]
+
+This will apply pinned and excluded query rules on top of the content that was reranked by RRF.

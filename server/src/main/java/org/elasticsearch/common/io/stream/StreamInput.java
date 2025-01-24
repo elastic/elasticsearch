@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.io.stream;
@@ -907,11 +908,8 @@ public abstract class StreamInput extends InputStream {
     private ZonedDateTime readZonedDateTime() throws IOException {
         final String timeZoneId = readString();
         final Instant instant;
-        if (getTransportVersion().onOrAfter(TransportVersions.ZDT_NANOS_SUPPORT_BROKEN)) {
-            // epoch seconds can be negative, but it was incorrectly first written as vlong
-            boolean zlong = getTransportVersion().onOrAfter(TransportVersions.ZDT_NANOS_SUPPORT);
-            long seconds = zlong ? readZLong() : readVLong();
-            instant = Instant.ofEpochSecond(seconds, readInt());
+        if (getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
+            instant = Instant.ofEpochSecond(readZLong(), readInt());
         } else {
             instant = Instant.ofEpochMilli(readLong());
         }

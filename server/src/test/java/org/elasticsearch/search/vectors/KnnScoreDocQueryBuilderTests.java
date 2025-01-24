@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.vectors;
@@ -281,8 +282,8 @@ public class KnnScoreDocQueryBuilderTests extends AbstractQueryTestCase<KnnScore
                 final Weight w = query.createWeight(searcher, ScoreMode.TOP_SCORES, 1.0f);
 
                 TopDocs topDocs = searcher.search(query, 100);
-                assertEquals(scoreDocs.length, topDocs.totalHits.value);
-                assertEquals(TotalHits.Relation.EQUAL_TO, topDocs.totalHits.relation);
+                assertEquals(scoreDocs.length, topDocs.totalHits.value());
+                assertEquals(TotalHits.Relation.EQUAL_TO, topDocs.totalHits.relation());
 
                 Arrays.sort(topDocs.scoreDocs, Comparator.comparingInt(scoreDoc -> scoreDoc.doc));
                 assertEquals(scoreDocs.length, topDocs.scoreDocs.length);

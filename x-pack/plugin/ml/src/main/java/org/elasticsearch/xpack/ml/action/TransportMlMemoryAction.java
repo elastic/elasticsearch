@@ -72,7 +72,6 @@ public class TransportMlMemoryAction extends TransportMasterNodeAction<MlMemoryA
             threadPool,
             actionFilters,
             MlMemoryAction.Request::new,
-            indexNameExpressionResolver,
             MlMemoryAction.Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
@@ -107,7 +106,8 @@ public class TransportMlMemoryAction extends TransportMasterNodeAction<MlMemoryA
                 .execute(delegate.delegateFailureAndWrap((delegate2, nodesStatsResponse) -> {
                     TrainedModelCacheInfoAction.Request trainedModelCacheInfoRequest = new TrainedModelCacheInfoAction.Request(
                         nodesStatsResponse.getNodes().stream().map(NodeStats::getNode).toArray(DiscoveryNode[]::new)
-                    ).timeout(request.ackTimeout());
+                    );
+                    trainedModelCacheInfoRequest.setTimeout(request.ackTimeout());
 
                     parentTaskClient.execute(
                         TrainedModelCacheInfoAction.INSTANCE,

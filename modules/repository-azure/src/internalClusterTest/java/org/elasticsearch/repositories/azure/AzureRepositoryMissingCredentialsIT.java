@@ -1,14 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.repositories.azure;
 
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.put.TransportPutRepositoryAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -40,17 +40,13 @@ public class AzureRepositoryMissingCredentialsIT extends ESIntegTestCase {
 
     public void testMissingCredentialsException() {
         assertThat(
-            asInstanceOf(
+            safeAwaitAndUnwrapFailure(
                 RepositoryVerificationException.class,
-                ExceptionsHelper.unwrapCause(
-                    safeAwaitFailure(
-                        AcknowledgedResponse.class,
-                        l -> client().execute(
-                            TransportPutRepositoryAction.TYPE,
-                            new PutRepositoryRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "test-repo").type("azure"),
-                            l
-                        )
-                    )
+                AcknowledgedResponse.class,
+                l -> client().execute(
+                    TransportPutRepositoryAction.TYPE,
+                    new PutRepositoryRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "test-repo").type("azure"),
+                    l
                 )
             ).getCause().getMessage(),
             allOf(

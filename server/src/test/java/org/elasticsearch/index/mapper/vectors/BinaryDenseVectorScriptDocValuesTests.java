@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper.vectors;
@@ -235,15 +236,19 @@ public class BinaryDenseVectorScriptDocValuesTests extends ESTestCase {
     }
 
     public static BytesRef mockEncodeDenseVector(float[] values, ElementType elementType, IndexVersion indexVersion) {
+        int dims = values.length;
+        if (elementType == ElementType.BIT) {
+            dims *= Byte.SIZE;
+        }
         int numBytes = indexVersion.onOrAfter(DenseVectorFieldMapper.MAGNITUDE_STORED_INDEX_VERSION)
-            ? elementType.getNumBytes(values.length) + DenseVectorFieldMapper.MAGNITUDE_BYTES
-            : elementType.getNumBytes(values.length);
+            ? elementType.getNumBytes(dims) + DenseVectorFieldMapper.MAGNITUDE_BYTES
+            : elementType.getNumBytes(dims);
         double dotProduct = 0f;
         ByteBuffer byteBuffer = elementType.createByteBuffer(indexVersion, numBytes);
         for (float value : values) {
             if (elementType == ElementType.FLOAT) {
                 byteBuffer.putFloat(value);
-            } else if (elementType == ElementType.BYTE) {
+            } else if (elementType == ElementType.BYTE || elementType == ElementType.BIT) {
                 byteBuffer.put((byte) value);
             } else {
                 throw new IllegalStateException("unknown element_type [" + elementType + "]");

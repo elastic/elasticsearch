@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.stats;
@@ -40,7 +41,6 @@ import java.util.Objects;
  * <br>
  */
 public final class CCSTelemetrySnapshot implements Writeable, ToXContentFragment {
-    public static final String CCS_TELEMETRY_FIELD_NAME = "_search";
     private long totalCount;
     private long successCount;
     private final Map<String, Long> failureReasons;
@@ -65,6 +65,9 @@ public final class CCSTelemetrySnapshot implements Writeable, ToXContentFragment
 
     private final Map<String, Long> clientCounts;
     private final Map<String, PerClusterCCSTelemetry> byRemoteCluster;
+    // Whether we should use per-MRT (minimize roundtrips) metrics.
+    // ES|QL does not have "minimize_roundtrips" option, so we don't collect those metrics for ES|QL usage.
+    private boolean useMRT = true;
 
     /**
     * Creates a new stats instance with the provided info.
@@ -190,6 +193,11 @@ public final class CCSTelemetrySnapshot implements Writeable, ToXContentFragment
         return Collections.unmodifiableMap(byRemoteCluster);
     }
 
+    public CCSTelemetrySnapshot setUseMRT(boolean useMRT) {
+        this.useMRT = useMRT;
+        return this;
+    }
+
     public static class PerClusterCCSTelemetry implements Writeable, ToXContentFragment {
         private long count;
         private long skippedCount;
@@ -269,6 +277,11 @@ public final class CCSTelemetrySnapshot implements Writeable, ToXContentFragment
         public int hashCode() {
             return Objects.hash(count, skippedCount, took);
         }
+
+        @Override
+        public String toString() {
+            return Strings.toString(this, true, true);
+        }
     }
 
     /**
@@ -290,8 +303,10 @@ public final class CCSTelemetrySnapshot implements Writeable, ToXContentFragment
         stats.featureCounts.forEach((k, v) -> featureCounts.merge(k, v, Long::sum));
         stats.clientCounts.forEach((k, v) -> clientCounts.merge(k, v, Long::sum));
         took.add(stats.took);
-        tookMrtTrue.add(stats.tookMrtTrue);
-        tookMrtFalse.add(stats.tookMrtFalse);
+        if (useMRT) {
+            tookMrtTrue.add(stats.tookMrtTrue);
+            tookMrtFalse.add(stats.tookMrtFalse);
+        }
         remotesPerSearchMax = Math.max(remotesPerSearchMax, stats.remotesPerSearchMax);
         if (totalCount > 0 && oldCount > 0) {
             // Weighted average
@@ -327,30 +342,28 @@ public final class CCSTelemetrySnapshot implements Writeable, ToXContentFragment
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(CCS_TELEMETRY_FIELD_NAME);
-        {
-            builder.field("total", totalCount);
-            builder.field("success", successCount);
-            builder.field("skipped", skippedRemotes);
-            publishLatency(builder, "took", took);
+        builder.field("total", totalCount);
+        builder.field("success", successCount);
+        builder.field("skipped", skippedRemotes);
+        publishLatency(builder, "took", took);
+        if (useMRT) {
             publishLatency(builder, "took_mrt_true", tookMrtTrue);
             publishLatency(builder, "took_mrt_false", tookMrtFalse);
-            builder.field("remotes_per_search_max", remotesPerSearchMax);
-            builder.field("remotes_per_search_avg", remotesPerSearchAvg);
-            builder.field("failure_reasons", failureReasons);
-            builder.field("features", featureCounts);
-            builder.field("clients", clientCounts);
-            builder.startObject("clusters");
-            {
-                for (var entry : byRemoteCluster.entrySet()) {
-                    String remoteName = entry.getKey();
-                    if (RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.equals(remoteName)) {
-                        remoteName = SearchResponse.LOCAL_CLUSTER_NAME_REPRESENTATION;
-                    }
-                    builder.field(remoteName, entry.getValue());
+        }
+        builder.field("remotes_per_search_max", remotesPerSearchMax);
+        builder.field("remotes_per_search_avg", remotesPerSearchAvg);
+        builder.field("failure_reasons", failureReasons);
+        builder.field("features", featureCounts);
+        builder.field("clients", clientCounts);
+        builder.startObject("clusters");
+        {
+            for (var entry : byRemoteCluster.entrySet()) {
+                String remoteName = entry.getKey();
+                if (RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.equals(remoteName)) {
+                    remoteName = SearchResponse.LOCAL_CLUSTER_NAME_REPRESENTATION;
                 }
+                builder.field(remoteName, entry.getValue());
             }
-            builder.endObject();
         }
         builder.endObject();
         return builder;

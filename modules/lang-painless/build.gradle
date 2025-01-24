@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 import org.elasticsearch.gradle.testclusters.DefaultTestClustersTask;
@@ -14,8 +15,8 @@ apply plugin: 'elasticsearch.yaml-rest-compat-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
-    description 'An easy, safe and fast scripting language for Elasticsearch'
-    classname 'org.elasticsearch.painless.PainlessPlugin'
+    description = 'An easy, safe and fast scripting language for Elasticsearch'
+    classname ='org.elasticsearch.painless.PainlessPlugin'
 }
 
 testClusters.configureEach {
@@ -49,10 +50,14 @@ tasks.named("dependencyLicenses").configure {
     mapping from: /asm-.*/, to: 'asm'
 }
 
+tasks.named("yamlRestCompatTestTransform").configure({ task ->
+  task.skipTest("painless/146_dense_vector_bit_basic/Dot Product is not supported", "inner product is now supported")
+})
+
 restResources {
     restApi {
         include '_common', 'cluster', 'nodes', 'indices', 'index', 'search', 'get', 'bulk', 'update',
-                'scripts_painless_execute', 'put_script', 'delete_script'
+                'scripts_painless_execute', 'put_script', 'delete_script', 'capabilities'
     }
 }
 

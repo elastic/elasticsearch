@@ -13,10 +13,11 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.inference.ChunkedInferenceServiceResults;
-import org.elasticsearch.inference.ChunkingOptions;
+import org.elasticsearch.inference.ChunkedInference;
+import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
@@ -24,7 +25,10 @@ import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.ServiceSettings;
+import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -32,9 +36,10 @@ import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 public class TestRerankingServiceExtension implements InferenceServiceExtension {
     @Override
@@ -54,6 +59,8 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
     public static class TestInferenceService extends AbstractTestInferenceService {
         public static final String NAME = "test_reranking_service";
 
+        private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(TaskType.RERANK);
+
         public TestInferenceService(InferenceServiceFactoryContext context) {}
 
         @Override
@@ -67,7 +74,6 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
             String modelId,
             TaskType taskType,
             Map<String, Object> config,
-            Set<String> platformArchitectures,
             ActionListener<Model> parsedModelListener
         ) {
             var serviceSettingsMap = (Map<String, Object>) config.remove(ModelConfigurations.SERVICE_SETTINGS);
@@ -81,10 +87,21 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
         }
 
         @Override
+        public InferenceServiceConfiguration getConfiguration() {
+            return Configuration.get();
+        }
+
+        @Override
+        public EnumSet<TaskType> supportedTaskTypes() {
+            return supportedTaskTypes;
+        }
+
+        @Override
         public void infer(
             Model model,
             @Nullable String query,
             List<String> input,
+            boolean stream,
             Map<String, Object> taskSettings,
             InputType inputType,
             TimeValue timeout,
@@ -102,15 +119,24 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
         }
 
         @Override
+        public void unifiedCompletionInfer(
+            Model model,
+            UnifiedCompletionRequest request,
+            TimeValue timeout,
+            ActionListener<InferenceServiceResults> listener
+        ) {
+            listener.onFailure(new UnsupportedOperationException("unifiedCompletionInfer not supported"));
+        }
+
+        @Override
         public void chunkedInfer(
             Model model,
             @Nullable String query,
             List<String> input,
             Map<String, Object> taskSettings,
             InputType inputType,
-            ChunkingOptions chunkingOptions,
             TimeValue timeout,
-            ActionListener<List<ChunkedInferenceServiceResults>> listener
+            ActionListener<List<ChunkedInference>> listener
         ) {
             listener.onFailure(
                 new ElasticsearchStatusException(
@@ -132,6 +158,33 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
 
         protected ServiceSettings getServiceSettingsFromMap(Map<String, Object> serviceSettingsMap) {
             return TestServiceSettings.fromMap(serviceSettingsMap);
+        }
+
+        public static class Configuration {
+            public static InferenceServiceConfiguration get() {
+                return configuration.getOrCompute();
+            }
+
+            private static final LazyInitializable<InferenceServiceConfiguration, RuntimeException> configuration = new LazyInitializable<>(
+                () -> {
+                    var configurationMap = new HashMap<String, SettingsConfiguration>();
+
+                    configurationMap.put(
+                        "model",
+                        new SettingsConfiguration.Builder(EnumSet.of(TaskType.RERANK)).setDescription("")
+                            .setLabel("Model")
+                            .setRequired(true)
+                            .setSensitive(true)
+                            .setType(SettingsConfigurationFieldType.STRING)
+                            .build()
+                    );
+
+                    return new InferenceServiceConfiguration.Builder().setService(NAME)
+                        .setTaskTypes(supportedTaskTypes)
+                        .setConfigurations(configurationMap)
+                        .build();
+                }
+            );
         }
     }
 

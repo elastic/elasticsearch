@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.query;
@@ -201,7 +202,11 @@ public final class QueryPhaseCollector implements TwoPhaseCollector {
                 }
             };
         }
-        return new CompositeLeafCollector(postFilterBits, topDocsLeafCollector, aggsLeafCollector);
+        LeafCollector leafCollector = new CompositeLeafCollector(postFilterBits, topDocsLeafCollector, aggsLeafCollector);
+        if (cacheScores && topDocsLeafCollector != null && aggsLeafCollector != null) {
+            leafCollector = ScoreCachingWrappingScorer.wrap(leafCollector);
+        }
+        return leafCollector;
     }
 
     private static FilterScorable wrapToIgnoreMinCompetitiveScore(Scorable scorer) {
@@ -262,9 +267,6 @@ public final class QueryPhaseCollector implements TwoPhaseCollector {
 
         @Override
         public void setScorer(Scorable scorer) throws IOException {
-            if (cacheScores && topDocsLeafCollector != null && aggsLeafCollector != null) {
-                scorer = ScoreCachingWrappingScorer.wrap(scorer);
-            }
             // Ignore calls to setMinCompetitiveScore so that if the top docs collector
             // wants to skip low-scoring hits, the aggs collector still sees all hits.
             // this is important also for terminate_after in case used when total hits tracking is early terminated.

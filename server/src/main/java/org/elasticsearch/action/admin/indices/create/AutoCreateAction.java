@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.action.admin.indices.create;
 
@@ -101,7 +102,6 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                 threadPool,
                 actionFilters,
                 CreateIndexRequest::new,
-                indexNameExpressionResolver,
                 CreateIndexResponse::new,
                 EsExecutors.DIRECT_EXECUTOR_SERVICE
             );
@@ -267,9 +267,9 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
 
                     final var dataStream = clusterState.metadata().dataStreams().get(request.index());
                     final var backingIndexName = dataStream.getIndices().get(0).getName();
-                    final var indexNames = dataStream.getFailureIndices().getIndices().isEmpty()
+                    final var indexNames = dataStream.getFailureIndices().isEmpty()
                         ? List.of(backingIndexName)
-                        : List.of(backingIndexName, dataStream.getFailureIndices().getIndices().get(0).getName());
+                        : List.of(backingIndexName, dataStream.getFailureIndices().get(0).getName());
                     taskContext.success(getAckListener(indexNames, allocationActionMultiListener));
                     successfulRequests.put(request, indexNames);
                     return clusterState;
@@ -304,11 +304,14 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                     final CreateIndexClusterStateUpdateRequest updateRequest;
 
                     if (isManagedSystemIndex) {
-                        final SystemIndexDescriptor descriptor = mainDescriptor.getDescriptorCompatibleWith(
-                            currentState.getMinSystemIndexMappingVersions().get(mainDescriptor.getPrimaryIndex())
-                        );
+                        final var requiredMinimumMappingVersion = currentState.getMinSystemIndexMappingVersions()
+                            .get(mainDescriptor.getPrimaryIndex());
+                        final SystemIndexDescriptor descriptor = mainDescriptor.getDescriptorCompatibleWith(requiredMinimumMappingVersion);
                         if (descriptor == null) {
-                            final String message = mainDescriptor.getMinimumMappingsVersionMessage("auto-create index");
+                            final String message = mainDescriptor.getMinimumMappingsVersionMessage(
+                                "auto-create index",
+                                requiredMinimumMappingVersion
+                            );
                             logger.warn(message);
                             throw new IllegalStateException(message);
                         }
@@ -349,7 +352,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                     request.cause(),
                     indexName,
                     request.index()
-                ).ackTimeout(request.ackTimeout()).performReroute(false).masterNodeTimeout(request.masterNodeTimeout());
+                ).performReroute(false);
                 logger.debug("Auto-creating index {}", indexName);
                 return updateRequest;
             }
@@ -366,7 +369,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                     request.cause(),
                     concreteIndexName,
                     request.index()
-                ).ackTimeout(request.ackTimeout()).masterNodeTimeout(request.masterNodeTimeout()).performReroute(false);
+                ).performReroute(false);
 
                 updateRequest.waitForActiveShards(ActiveShardCount.ALL);
 

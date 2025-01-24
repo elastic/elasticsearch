@@ -206,7 +206,7 @@ public class TransportCloseJobAction extends TransportTasksAction<
                                                 // these persistent tasks to disappear.
                                                 persistentTasksService.sendRemoveRequest(
                                                     jobTask.getId(),
-                                                    null,
+                                                    MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT,
                                                     ActionListener.wrap(
                                                         r -> logger.trace(
                                                             () -> format("[%s] removed task to close unassigned job", resolvedJobId)
@@ -517,48 +517,52 @@ public class TransportCloseJobAction extends TransportTasksAction<
             PersistentTasksCustomMetadata.PersistentTask<?> jobTask = MlTasks.getJobTask(jobId, tasks);
             if (jobTask != null) {
                 auditor.info(jobId, Messages.JOB_AUDIT_FORCE_CLOSING);
-                persistentTasksService.sendRemoveRequest(jobTask.getId(), null, new ActionListener<>() {
-                    @Override
-                    public void onResponse(PersistentTasksCustomMetadata.PersistentTask<?> task) {
-                        if (counter.incrementAndGet() == numberOfJobs) {
-                            sendResponseOrFailure(request.getJobId(), listener, failures);
+                persistentTasksService.sendRemoveRequest(
+                    jobTask.getId(),
+                    MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT,
+                    new ActionListener<>() {
+                        @Override
+                        public void onResponse(PersistentTasksCustomMetadata.PersistentTask<?> task) {
+                            if (counter.incrementAndGet() == numberOfJobs) {
+                                sendResponseOrFailure(request.getJobId(), listener, failures);
+                            }
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            final int slot = counter.incrementAndGet();
+                            if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException == false) {
+                                failures.set(slot - 1, e);
+                            }
+                            if (slot == numberOfJobs) {
+                                sendResponseOrFailure(request.getJobId(), listener, failures);
+                            }
+                        }
+
+                        private static void sendResponseOrFailure(
+                            String jobId,
+                            ActionListener<CloseJobAction.Response> listener,
+                            AtomicArray<Exception> failures
+                        ) {
+                            List<Exception> caughtExceptions = failures.asList();
+                            if (caughtExceptions.isEmpty()) {
+                                listener.onResponse(new CloseJobAction.Response(true));
+                                return;
+                            }
+
+                            String msg = "Failed to force close job ["
+                                + jobId
+                                + "] with ["
+                                + caughtExceptions.size()
+                                + "] failures, rethrowing first. All Exceptions: ["
+                                + caughtExceptions.stream().map(Exception::getMessage).collect(Collectors.joining(", "))
+                                + "]";
+
+                            ElasticsearchStatusException e = exceptionArrayToStatusException(failures, msg);
+                            listener.onFailure(e);
                         }
                     }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        final int slot = counter.incrementAndGet();
-                        if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException == false) {
-                            failures.set(slot - 1, e);
-                        }
-                        if (slot == numberOfJobs) {
-                            sendResponseOrFailure(request.getJobId(), listener, failures);
-                        }
-                    }
-
-                    private static void sendResponseOrFailure(
-                        String jobId,
-                        ActionListener<CloseJobAction.Response> listener,
-                        AtomicArray<Exception> failures
-                    ) {
-                        List<Exception> caughtExceptions = failures.asList();
-                        if (caughtExceptions.isEmpty()) {
-                            listener.onResponse(new CloseJobAction.Response(true));
-                            return;
-                        }
-
-                        String msg = "Failed to force close job ["
-                            + jobId
-                            + "] with ["
-                            + caughtExceptions.size()
-                            + "] failures, rethrowing first. All Exceptions: ["
-                            + caughtExceptions.stream().map(Exception::getMessage).collect(Collectors.joining(", "))
-                            + "]";
-
-                        ElasticsearchStatusException e = exceptionArrayToStatusException(failures, msg);
-                        listener.onFailure(e);
-                    }
-                });
+                );
             }
         }
     }
@@ -588,7 +592,7 @@ public class TransportCloseJobAction extends TransportTasksAction<
                 PersistentTasksCustomMetadata.PersistentTask<?> jobTask = MlTasks.getJobTask(jobId, tasks);
                 persistentTasksService.sendRemoveRequest(
                     jobTask.getId(),
-                    null,
+                    MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT,
                     ActionListener.wrap(r -> logger.trace("[{}] removed persistent task for relocated job", jobId), e -> {
                         if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
                             logger.debug("[{}] relocated job task already removed", jobId);

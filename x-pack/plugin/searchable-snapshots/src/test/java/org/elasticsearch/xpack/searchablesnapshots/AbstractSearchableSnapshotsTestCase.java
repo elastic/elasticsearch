@@ -224,7 +224,7 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
     }
 
     protected static ByteSizeValue randomFrozenCacheRangeSize() {
-        return pageAlignedBetween(new ByteSizeValue(4, ByteSizeUnit.KB), ByteSizeValue.ofBytes(Integer.MAX_VALUE));
+        return pageAlignedBetween(ByteSizeValue.of(4, ByteSizeUnit.KB), ByteSizeValue.ofBytes(Integer.MAX_VALUE));
     }
 
     private static ByteSizeValue pageAlignedBetween(ByteSizeValue min, ByteSizeValue max) {
@@ -348,8 +348,8 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
      * uses a different buffer size for them.
      */
     public static IOContext randomIOContext() {
-        final IOContext ioContext = randomFrom(IOContext.DEFAULT, IOContext.READ, IOContext.READONCE);
-        assert ioContext.context != IOContext.Context.MERGE;
+        final IOContext ioContext = randomFrom(IOContext.DEFAULT, IOContext.READONCE);
+        assert ioContext.context() != IOContext.Context.MERGE;
         return ioContext;
     }
 }

@@ -1350,8 +1350,8 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
 
         indexSimpleDocumentWithBooleanValues("1", true, randomLongDate, randomLongDateNanos);
         index("test", "2", builder -> {
-            builder.timeField("test_date", null);
-            builder.timeField("test_date_nanos", null);
+            builder.timestampField("test_date", null);
+            builder.timestampField("test_date_nanos", null);
         });
     }
 

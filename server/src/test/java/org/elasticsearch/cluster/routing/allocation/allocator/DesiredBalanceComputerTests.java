@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
@@ -41,6 +42,8 @@ import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocation
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.TimeProvider;
+import org.elasticsearch.common.time.TimeProviderUtils;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.IndexVersion;
@@ -52,7 +55,6 @@ import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.test.MockLog;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -84,8 +86,6 @@ import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class DesiredBalanceComputerTests extends ESAllocationTestCase {
 
@@ -96,7 +96,12 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
         var clusterState = createInitialClusterState(3);
         var index = clusterState.metadata().index(TEST_INDEX).getIndex();
 
-        var desiredBalance = desiredBalanceComputer.compute(DesiredBalance.INITIAL, createInput(clusterState), queue(), input -> true);
+        var desiredBalance = desiredBalanceComputer.compute(
+            DesiredBalance.BECOME_MASTER_INITIAL,
+            createInput(clusterState),
+            queue(),
+            input -> true
+        );
 
         assertDesiredAssignments(
             desiredBalance,
@@ -115,7 +120,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
         var index = clusterState.metadata().index(TEST_INDEX).getIndex();
 
         // if the isFresh flag is false then we only do one iteration, allocating the primaries but not the replicas
-        var desiredBalance0 = DesiredBalance.INITIAL;
+        var desiredBalance0 = DesiredBalance.BECOME_MASTER_INITIAL;
         var desiredBalance1 = desiredBalanceComputer.compute(desiredBalance0, createInput(clusterState), queue(), input -> false);
         assertDesiredAssignments(
             desiredBalance1,
@@ -147,7 +152,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
         var primaryShard = mutateAllocationStatus(clusterState.routingTable().index(TEST_INDEX).shard(0).primaryShard());
 
         var desiredBalance = desiredBalanceComputer.compute(
-            DesiredBalance.INITIAL,
+            DesiredBalance.BECOME_MASTER_INITIAL,
             createInput(clusterState, primaryShard),
             queue(),
             input -> true
@@ -184,7 +189,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
         var replicaShard = mutateAllocationStatus(originalReplicaShard);
 
         var desiredBalance = desiredBalanceComputer.compute(
-            DesiredBalance.INITIAL,
+            DesiredBalance.BECOME_MASTER_INITIAL,
             createInput(clusterState, replicaShard),
             queue(),
             input -> true
@@ -234,16 +239,14 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                 );
             }
         }
-        clusterState = ClusterState.builder(clusterState)
-            .routingTable(RoutingTable.of(clusterState.routingTable().version(), routingNodes))
-            .build();
+        clusterState = ClusterState.builder(clusterState).routingTable(RoutingTable.of(routingNodes)).build();
 
         var ignored = randomBoolean()
             ? new ShardRouting[0]
             : new ShardRouting[] { clusterState.routingTable().index(TEST_INDEX).shard(0).primaryShard() };
 
         var desiredBalance = desiredBalanceComputer.compute(
-            DesiredBalance.INITIAL,
+            DesiredBalance.BECOME_MASTER_INITIAL,
             createInput(clusterState, ignored),
             queue(),
             input -> true
@@ -284,11 +287,14 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                 break;
             }
         }
-        clusterState = ClusterState.builder(clusterState)
-            .routingTable(RoutingTable.of(clusterState.routingTable().version(), routingNodes))
-            .build();
+        clusterState = ClusterState.builder(clusterState).routingTable(RoutingTable.of(routingNodes)).build();
 
-        var desiredBalance = desiredBalanceComputer.compute(DesiredBalance.INITIAL, createInput(clusterState), queue(), input -> true);
+        var desiredBalance = desiredBalanceComputer.compute(
+            DesiredBalance.BECOME_MASTER_INITIAL,
+            createInput(clusterState),
+            queue(),
+            input -> true
+        );
 
         assertDesiredAssignments(
             desiredBalance,
@@ -333,11 +339,14 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                 break;
             }
         }
-        clusterState = ClusterState.builder(clusterState)
-            .routingTable(RoutingTable.of(clusterState.routingTable().version(), routingNodes))
-            .build();
+        clusterState = ClusterState.builder(clusterState).routingTable(RoutingTable.of(routingNodes)).build();
 
-        var desiredBalance = desiredBalanceComputer.compute(DesiredBalance.INITIAL, createInput(clusterState), queue(), input -> true);
+        var desiredBalance = desiredBalanceComputer.compute(
+            DesiredBalance.BECOME_MASTER_INITIAL,
+            createInput(clusterState),
+            queue(),
+            input -> true
+        );
 
         assertDesiredAssignments(
             desiredBalance,
@@ -373,7 +382,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
         }
 
         var desiredBalance = desiredBalanceComputer.compute(
-            DesiredBalance.INITIAL,
+            DesiredBalance.BECOME_MASTER_INITIAL,
             DesiredBalanceInput.create(randomNonNegativeLong(), routingAllocation),
             queue(),
             input -> true
@@ -431,11 +440,14 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                 0L
             );
         }
-        clusterState = ClusterState.builder(clusterState)
-            .routingTable(RoutingTable.of(clusterState.routingTable().version(), desiredRoutingNodes))
-            .build();
+        clusterState = ClusterState.builder(clusterState).routingTable(RoutingTable.of(desiredRoutingNodes)).build();
 
-        var desiredBalance1 = desiredBalanceComputer.compute(DesiredBalance.INITIAL, createInput(clusterState), queue(), input -> true);
+        var desiredBalance1 = desiredBalanceComputer.compute(
+            DesiredBalance.BECOME_MASTER_INITIAL,
+            createInput(clusterState),
+            queue(),
+            input -> true
+        );
         assertDesiredAssignments(
             desiredBalance1,
             Map.of(
@@ -500,9 +512,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                 }
             }
         }
-        clusterState = ClusterState.builder(clusterState)
-            .routingTable(RoutingTable.of(clusterState.routingTable().version(), randomRoutingNodes))
-            .build();
+        clusterState = ClusterState.builder(clusterState).routingTable(RoutingTable.of(randomRoutingNodes)).build();
 
         allocateCalled.set(false);
 
@@ -523,7 +533,12 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
         var desiredBalanceComputer = createDesiredBalanceComputer();
         var clusterState = createInitialClusterState(0);
 
-        var desiredBalance = desiredBalanceComputer.compute(DesiredBalance.INITIAL, createInput(clusterState), queue(), input -> true);
+        var desiredBalance = desiredBalanceComputer.compute(
+            DesiredBalance.BECOME_MASTER_INITIAL,
+            createInput(clusterState),
+            queue(),
+            input -> true
+        );
 
         assertDesiredAssignments(desiredBalance, Map.of());
     }
@@ -539,12 +554,10 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
             var shardRouting = iterator.next();
             routingNodes.startShard(iterator.initialize(shardRouting.primary() ? "node-0" : "node-1", null, 0L, changes), changes, 0L);
         }
-        clusterState = ClusterState.builder(clusterState)
-            .routingTable(RoutingTable.of(clusterState.routingTable().version(), routingNodes))
-            .build();
+        clusterState = ClusterState.builder(clusterState).routingTable(RoutingTable.of(routingNodes)).build();
 
         var desiredBalance = desiredBalanceComputer.compute(
-            DesiredBalance.INITIAL,
+            DesiredBalance.BECOME_MASTER_INITIAL,
             createInput(clusterState),
             queue(
                 new MoveAllocationCommand(index.getName(), 0, "node-1", "node-2"),
@@ -674,7 +687,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
 
         var input = new DesiredBalanceInput(randomInt(), routingAllocationWithDecidersOf(clusterState, clusterInfo, settings), List.of());
         var desiredBalance = createDesiredBalanceComputer(new BalancedShardsAllocator(settings)).compute(
-            DesiredBalance.INITIAL,
+            DesiredBalance.BECOME_MASTER_INITIAL,
             input,
             queue(),
             ignored -> iteration.incrementAndGet() < 1000
@@ -1216,12 +1229,15 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
     }
 
     private void checkIterationLogging(int iterations, long eachIterationDuration, MockLog.AbstractEventExpectation expectation) {
-
-        var mockThreadPool = mock(ThreadPool.class);
         var currentTime = new AtomicLong(0L);
-        when(mockThreadPool.relativeTimeInMillis()).thenAnswer(invocation -> currentTime.addAndGet(eachIterationDuration));
+        TimeProvider timeProvider = TimeProviderUtils.create(() -> currentTime.addAndGet(eachIterationDuration));
 
-        var desiredBalanceComputer = new DesiredBalanceComputer(createBuiltInClusterSettings(), mockThreadPool, new ShardsAllocator() {
+        // Some runs of this test try to simulate a long desired balance computation. Setting a high value on the following setting
+        // prevents interrupting a long computation.
+        var clusterSettings = createBuiltInClusterSettings(
+            Settings.builder().put(DesiredBalanceComputer.MAX_BALANCE_COMPUTATION_TIME_DURING_INDEX_CREATION_SETTING.getKey(), "2m").build()
+        );
+        var desiredBalanceComputer = new DesiredBalanceComputer(clusterSettings, timeProvider, new ShardsAllocator() {
             @Override
             public void allocate(RoutingAllocation allocation) {
                 final var unassignedIterator = allocation.routingNodes().unassigned().iterator();
@@ -1252,7 +1268,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
         assertThatLogger(() -> {
             var iteration = new AtomicInteger(0);
             desiredBalanceComputer.compute(
-                DesiredBalance.INITIAL,
+                DesiredBalance.BECOME_MASTER_INITIAL,
                 createInput(createInitialClusterState(3)),
                 queue(),
                 input -> iteration.incrementAndGet() < iterations
@@ -1355,7 +1371,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
     }
 
     private static DesiredBalanceComputer createDesiredBalanceComputer(ShardsAllocator allocator) {
-        return new DesiredBalanceComputer(createBuiltInClusterSettings(), mock(ThreadPool.class), allocator);
+        return new DesiredBalanceComputer(createBuiltInClusterSettings(), TimeProviderUtils.create(() -> 0L), allocator);
     }
 
     private static void assertDesiredAssignments(DesiredBalance desiredBalance, Map<ShardId, ShardAssignment> expected) {

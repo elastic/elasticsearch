@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -11,6 +12,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.collect.Iterators;
@@ -21,12 +23,15 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -52,19 +57,21 @@ import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.core.Strings.format;
 
 public abstract class FieldMapper extends Mapper {
     private static final Logger logger = LogManager.getLogger(FieldMapper.class);
 
-    public static final Setting<Boolean> IGNORE_MALFORMED_SETTING = Setting.boolSetting(
-        "index.mapping.ignore_malformed",
-        false,
-        Property.IndexScope,
-        Property.ServerlessPublic
-    );
+    public static final Setting<Boolean> IGNORE_MALFORMED_SETTING = Setting.boolSetting("index.mapping.ignore_malformed", settings -> {
+        if (IndexSettings.MODE.get(settings) == IndexMode.LOGSDB
+            && IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings).onOrAfter(IndexVersions.ENABLE_IGNORE_MALFORMED_LOGSDB)) {
+            return "true";
+        } else {
+            return "false";
+        }
+    }, Property.IndexScope, Property.ServerlessPublic);
+
     public static final Setting<Boolean> COERCE_SETTING = Setting.boolSetting(
         "index.mapping.coerce",
         false,
@@ -436,7 +443,11 @@ public abstract class FieldMapper extends Mapper {
 
     @Override
     public int getTotalFieldsCount() {
-        return 1 + Stream.of(builderParams.multiFields.mappers).mapToInt(FieldMapper::getTotalFieldsCount).sum();
+        int sum = 1;
+        for (FieldMapper mapper : builderParams.multiFields.mappers) {
+            sum += mapper.getTotalFieldsCount();
+        }
+        return sum;
     }
 
     public Map<String, NamedAnalyzer> indexAnalyzers() {
@@ -477,7 +488,7 @@ public abstract class FieldMapper extends Mapper {
     /**
      * Returns synthetic field loader for the mapper.
      * If mapper does not support synthetic source, it is handled using generic implementation
-     * in {@link DocumentParser#parseObjectOrField} and {@link ObjectMapper#syntheticFieldLoader()}.
+     * in {@link DocumentParser#parseObjectOrField} and {@link ObjectMapper#syntheticFieldLoader(SourceFilter)}.
      * <br>
      *
      * This method is final in order to support common use cases like fallback synthetic source.
@@ -485,7 +496,6 @@ public abstract class FieldMapper extends Mapper {
      *
      * @return implementation of {@link SourceLoader.SyntheticFieldLoader}
      */
-    @Override
     public final SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
         if (hasScript()) {
             return SourceLoader.SyntheticFieldLoader.NOTHING;
@@ -1376,6 +1386,11 @@ public abstract class FieldMapper extends Mapper {
             return this;
         }
 
+        public Builder addMultiField(FieldMapper.Builder builder) {
+            this.multiFieldsBuilder.add(builder);
+            return this;
+        }
+
         protected BuilderParams builderParams(Mapper.Builder mainFieldBuilder, MapperBuilderContext context) {
             return new BuilderParams(multiFieldsBuilder.build(mainFieldBuilder, context), copyTo, sourceKeepMode, hasScript, onScriptError);
         }
@@ -1611,6 +1626,12 @@ public abstract class FieldMapper extends Mapper {
         };
     }
 
+    private static final IndexVersion MINIMUM_LEGACY_COMPATIBILITY_VERSION = IndexVersion.fromId(5000099);
+
+    public static TypeParser createTypeParserWithLegacySupport(BiFunction<String, MappingParserContext, Builder> builderFunction) {
+        return new TypeParser(builderFunction, MINIMUM_LEGACY_COMPATIBILITY_VERSION);
+    }
+
     /**
      * TypeParser implementation that automatically handles parsing
      */
@@ -1625,14 +1646,14 @@ public abstract class FieldMapper extends Mapper {
          * @param builderFunction a function that produces a Builder from a name and parsercontext
          */
         public TypeParser(BiFunction<String, MappingParserContext, Builder> builderFunction) {
-            this(builderFunction, (n, c) -> {}, IndexVersions.MINIMUM_COMPATIBLE);
+            this(builderFunction, (n, c) -> {}, IndexVersions.MINIMUM_READONLY_COMPATIBLE);
         }
 
         /**
-         * Variant of {@link #TypeParser(BiFunction)} that allows to defining a minimumCompatibilityVersion to
+         * Variant of {@link #TypeParser(BiFunction)} that allows to define a minimumCompatibilityVersion to
          * allow parsing mapping definitions of legacy indices (see {@link Mapper.TypeParser#supportsVersion(IndexVersion)}).
          */
-        public TypeParser(BiFunction<String, MappingParserContext, Builder> builderFunction, IndexVersion minimumCompatibilityVersion) {
+        private TypeParser(BiFunction<String, MappingParserContext, Builder> builderFunction, IndexVersion minimumCompatibilityVersion) {
             this(builderFunction, (n, c) -> {}, minimumCompatibilityVersion);
         }
 
@@ -1640,14 +1661,14 @@ public abstract class FieldMapper extends Mapper {
             BiFunction<String, MappingParserContext, Builder> builderFunction,
             BiConsumer<String, MappingParserContext> contextValidator
         ) {
-            this(builderFunction, contextValidator, IndexVersions.MINIMUM_COMPATIBLE);
+            this(builderFunction, contextValidator, IndexVersions.MINIMUM_READONLY_COMPATIBLE);
         }
 
         public TypeParser(
             BiFunction<String, MappingParserContext, Builder> builderFunction,
             List<BiConsumer<String, MappingParserContext>> contextValidator
         ) {
-            this(builderFunction, (n, c) -> contextValidator.forEach(v -> v.accept(n, c)), IndexVersions.MINIMUM_COMPATIBLE);
+            this(builderFunction, (n, c) -> contextValidator.forEach(v -> v.accept(n, c)), IndexVersions.MINIMUM_READONLY_COMPATIBLE);
         }
 
         private TypeParser(

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.refresh;
@@ -22,7 +23,6 @@ import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.injection.guice.Inject;
@@ -119,27 +119,18 @@ public class TransportShardRefreshAction extends TransportReplicationAction<
             ActionListener<Void> listener
         ) {
             assert replicaRequest.primaryRefreshResult.refreshed() : "primary has not refreshed";
-            boolean fastRefresh = IndexSettings.INDEX_FAST_REFRESH_SETTING.get(
-                clusterService.state().metadata().index(indexShardRoutingTable.shardId().getIndex()).getSettings()
+            UnpromotableShardRefreshRequest unpromotableReplicaRequest = new UnpromotableShardRefreshRequest(
+                indexShardRoutingTable,
+                replicaRequest.primaryRefreshResult.primaryTerm(),
+                replicaRequest.primaryRefreshResult.generation(),
+                false
             );
-
-            // Indices marked with fast refresh do not rely on refreshing the unpromotables
-            if (fastRefresh) {
-                listener.onResponse(null);
-            } else {
-                UnpromotableShardRefreshRequest unpromotableReplicaRequest = new UnpromotableShardRefreshRequest(
-                    indexShardRoutingTable,
-                    replicaRequest.primaryRefreshResult.primaryTerm(),
-                    replicaRequest.primaryRefreshResult.generation(),
-                    false
-                );
-                transportService.sendRequest(
-                    transportService.getLocalNode(),
-                    TransportUnpromotableShardRefreshAction.NAME,
-                    unpromotableReplicaRequest,
-                    new ActionListenerResponseHandler<>(listener.safeMap(r -> null), in -> ActionResponse.Empty.INSTANCE, refreshExecutor)
-                );
-            }
+            transportService.sendRequest(
+                transportService.getLocalNode(),
+                TransportUnpromotableShardRefreshAction.NAME,
+                unpromotableReplicaRequest,
+                new ActionListenerResponseHandler<>(listener.safeMap(r -> null), in -> ActionResponse.Empty.INSTANCE, refreshExecutor)
+            );
         }
     }
 }

@@ -133,7 +133,7 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
         client().admin().indices().prepareCreate(".ml-state-000007").addAlias(new Alias(".ml-state-write").isHidden(true)).get();
         refresh();
 
-        GetIndexResponse getIndexResponse = client().admin().indices().prepareGetIndex().setIndices(".ml-state*").get();
+        GetIndexResponse getIndexResponse = client().admin().indices().prepareGetIndex(TEST_REQUEST_TIMEOUT).setIndices(".ml-state*").get();
         assertThat(
             Strings.toString(getIndexResponse),
             getIndexResponse.getIndices(),
@@ -143,7 +143,7 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
         client().execute(DeleteExpiredDataAction.INSTANCE, new DeleteExpiredDataAction.Request()).get();
         refresh();
 
-        getIndexResponse = client().admin().indices().prepareGetIndex().setIndices(".ml-state*").get();
+        getIndexResponse = client().admin().indices().prepareGetIndex(TEST_REQUEST_TIMEOUT).setIndices(".ml-state*").get();
         assertThat(
             Strings.toString(getIndexResponse),
             getIndexResponse.getIndices(),
@@ -345,7 +345,7 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
         assertResponse(
             prepareSearch(AnomalyDetectorsIndex.jobStateIndexPattern()).setFetchSource(false).setTrackTotalHits(true).setSize(10000),
             stateDocsResponse -> {
-                assertThat(stateDocsResponse.getHits().getTotalHits().value, greaterThanOrEqualTo(5L));
+                assertThat(stateDocsResponse.getHits().getTotalHits().value(), greaterThanOrEqualTo(5L));
 
                 int nonExistingJobDocsCount = 0;
                 List<String> nonExistingJobExampleIds = new ArrayList<>();

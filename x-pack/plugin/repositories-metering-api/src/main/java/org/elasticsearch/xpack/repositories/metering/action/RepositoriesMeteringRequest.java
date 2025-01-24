@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.repositories.metering.action;
 
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 
-public final class RepositoriesMeteringRequest extends BaseNodesRequest<RepositoriesMeteringRequest> {
+public final class RepositoriesMeteringRequest extends BaseNodesRequest {
     public RepositoriesMeteringRequest(String... nodesIds) {
         super(nodesIds);
     }

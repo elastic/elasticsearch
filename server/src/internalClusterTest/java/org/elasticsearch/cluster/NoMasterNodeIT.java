@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster;
@@ -260,10 +261,11 @@ public class NoMasterNodeIT extends ESIntegTestCase {
         GetResponse getResponse = clientToMasterlessNode.prepareGet("test1", "1").get();
         assertExists(getResponse);
 
-        assertHitCount(clientToMasterlessNode.prepareSearch("test1").setAllowPartialSearchResults(true).setSize(0), 1L);
-
-        logger.info("--> here 3");
-        assertHitCount(clientToMasterlessNode.prepareSearch("test1").setAllowPartialSearchResults(true), 1L);
+        assertHitCount(
+            1L,
+            clientToMasterlessNode.prepareSearch("test1").setAllowPartialSearchResults(true).setSize(0),
+            clientToMasterlessNode.prepareSearch("test1").setAllowPartialSearchResults(true)
+        );
 
         assertResponse(clientToMasterlessNode.prepareSearch("test2").setAllowPartialSearchResults(true).setSize(0), countResponse -> {
             assertThat(countResponse.getTotalShards(), equalTo(3));

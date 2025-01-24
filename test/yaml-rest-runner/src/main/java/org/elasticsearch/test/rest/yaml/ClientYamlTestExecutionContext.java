@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.test.rest.yaml;
 
@@ -20,7 +21,6 @@ import org.elasticsearch.client.NodeSelector;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.rest.action.admin.cluster.RestNodesCapabilitiesAction;
 import org.elasticsearch.test.rest.Stash;
 import org.elasticsearch.test.rest.TestFeatureService;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestApi;
@@ -299,41 +299,24 @@ public class ClientYamlTestExecutionContext {
             params.put("capabilities", capabilitiesString);
         }
         params.put("error_trace", "false"); // disable error trace
+        params.put("local_only", "true");   // we're calling each node individually
 
-        if (clusterHasFeature(RestNodesCapabilitiesAction.LOCAL_ONLY_CAPABILITIES.id(), false) == false) {
-            // can only check the whole cluster
-            if (any) {
-                logger.warn(
-                    "Cluster does not support checking individual nodes for capabilities,"
-                        + "check for [{} {}?{} {}] may be incorrect in mixed-version clusters",
-                    method,
-                    path,
-                    parametersString,
-                    capabilitiesString
-                );
+        // individually call each node, so we can control whether we do an 'any' or 'all' check
+        List<Node> nodes = clientYamlTestClient.getRestClient(NodeSelector.ANY).getNodes();
+
+        for (Node n : nodes) {
+            Optional<Boolean> nodeResult = checkCapability(new SpecificNodeSelector(n), params);
+            if (nodeResult.isEmpty()) {
+                return Optional.empty();
+            } else if (any == nodeResult.get()) {
+                // either any == true and node has cap,
+                // or any == false (ie all) and this node does not have cap
+                return nodeResult;
             }
-            return checkCapability(NodeSelector.ANY, params);
-        } else {
-            // check each node individually - we can actually check any here
-            params.put("local_only", "true");   // we're calling each node individually
-
-            // individually call each node, so we can control whether we do an 'any' or 'all' check
-            List<Node> nodes = clientYamlTestClient.getRestClient(NodeSelector.ANY).getNodes();
-
-            for (Node n : nodes) {
-                Optional<Boolean> nodeResult = checkCapability(new SpecificNodeSelector(n), params);
-                if (nodeResult.isEmpty()) {
-                    return Optional.empty();
-                } else if (any == nodeResult.get()) {
-                    // either any == true and node has cap,
-                    // or any == false (ie all) and this node does not have cap
-                    return nodeResult;
-                }
-            }
-
-            // if we got here, either any is true and no node has it, or any == false and all nodes have it
-            return Optional.of(any == false);
         }
+
+        // if we got here, either any is true and no node has it, or any == false and all nodes have it
+        return Optional.of(any == false);
     }
 
     private Optional<Boolean> checkCapability(NodeSelector nodeSelector, Map<String, String> params) {

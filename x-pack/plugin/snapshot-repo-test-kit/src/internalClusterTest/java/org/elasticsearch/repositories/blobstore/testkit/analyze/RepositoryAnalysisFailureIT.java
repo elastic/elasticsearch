@@ -480,9 +480,10 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
     }
 
     private RepositoryVerificationException analyseRepositoryExpectFailure(RepositoryAnalyzeAction.Request request) {
-        return asInstanceOf(
+        return safeAwaitAndUnwrapFailure(
             RepositoryVerificationException.class,
-            ExceptionsHelper.unwrapCause(safeAwaitFailure(RepositoryAnalyzeAction.Response.class, l -> analyseRepository(request, l)))
+            RepositoryAnalyzeAction.Response.class,
+            l -> analyseRepository(request, l)
         );
     }
 
@@ -566,11 +567,6 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
                 }
                 return blobContainer;
             }
-        }
-
-        @Override
-        public void deleteBlobsIgnoringIfNotExists(OperationPurpose purpose, Iterator<String> blobNames) {
-            assertPurpose(purpose);
         }
 
         private void deleteContainer(DisruptableBlobContainer container) {
@@ -699,10 +695,26 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
             final BytesStreamOutput out = new BytesStreamOutput();
             writer.accept(out);
             if (atomic) {
-                writeBlobAtomic(purpose, blobName, out.bytes(), failIfAlreadyExists);
+                if (randomBoolean()) {
+                    writeBlobAtomic(purpose, blobName, out.bytes(), failIfAlreadyExists);
+                } else {
+                    writeBlobAtomic(purpose, blobName, out.bytes().streamInput(), out.bytes().length(), failIfAlreadyExists);
+                }
             } else {
                 writeBlob(purpose, blobName, out.bytes(), failIfAlreadyExists);
             }
+        }
+
+        @Override
+        public void writeBlobAtomic(
+            OperationPurpose purpose,
+            String blobName,
+            InputStream inputStream,
+            long blobSize,
+            boolean failIfAlreadyExists
+        ) throws IOException {
+            assertPurpose(purpose);
+            writeBlobAtomic(blobName, inputStream, failIfAlreadyExists);
         }
 
         @Override

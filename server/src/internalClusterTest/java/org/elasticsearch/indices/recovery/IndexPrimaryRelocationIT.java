@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices.recovery;
@@ -97,11 +98,11 @@ public class IndexPrimaryRelocationIT extends ESIntegTestCase {
         finished.set(true);
         indexingThread.join();
         refresh("test");
-        ElasticsearchAssertions.assertHitCount(prepareSearch("test").setTrackTotalHits(true), numAutoGenDocs.get());
         ElasticsearchAssertions.assertHitCount(
+            numAutoGenDocs.get(),
+            prepareSearch("test").setTrackTotalHits(true),
             prepareSearch("test").setTrackTotalHits(true)// extra paranoia ;)
-                .setQuery(QueryBuilders.termQuery("auto", true)),
-            numAutoGenDocs.get()
+                .setQuery(QueryBuilders.termQuery("auto", true))
         );
     }
 

@@ -11,10 +11,12 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
+import org.elasticsearch.search.sort.GeoDistanceSortBuilder;
+import org.elasticsearch.search.sort.ScoreSortBuilder;
+import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -34,21 +36,25 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.TransportVersions.ESQL_SKIP_ES_INDEX_SERIALIZATION;
+
 public class EsQueryExec extends LeafExec implements EstimatesRowSize {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         PhysicalPlan.class,
         "EsQueryExec",
-        EsQueryExec::new
+        EsQueryExec::readFrom
     );
 
     public static final EsField DOC_ID_FIELD = new EsField("_doc", DataType.DOC_DATA_TYPE, Map.of(), false);
+    public static final List<Sort> NO_SORTS = List.of();  // only exists to mimic older serialization, but we no longer serialize sorts
 
-    private final EsIndex index;
+    private final String indexPattern;
     private final IndexMode indexMode;
+    private final Map<String, IndexMode> indexNameWithModes;
+    private final List<Attribute> attrs;
     private final QueryBuilder query;
     private final Expression limit;
-    private final List<FieldSort> sorts;
-    private final List<Attribute> attrs;
+    private final List<Sort> sorts;
 
     /**
      * Estimate of the number of bytes that'll be loaded per position before
@@ -56,8 +62,17 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
      */
     private final Integer estimatedRowSize;
 
-    public record FieldSort(FieldAttribute field, Order.OrderDirection direction, Order.NullsPosition nulls) implements Writeable {
-        public FieldSortBuilder fieldSortBuilder() {
+    public interface Sort {
+        SortBuilder<?> sortBuilder();
+
+        Order.OrderDirection direction();
+
+        FieldAttribute field();
+    }
+
+    public record FieldSort(FieldAttribute field, Order.OrderDirection direction, Order.NullsPosition nulls) implements Sort {
+        @Override
+        public SortBuilder<?> sortBuilder() {
             FieldSortBuilder builder = new FieldSortBuilder(field.name());
             builder.order(Direction.from(direction).asOrder());
             builder.missing(Missing.from(nulls).searchOrder());
@@ -72,61 +87,111 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
                 in.readEnum(Order.NullsPosition.class)
             );
         }
+    }
 
+    public record GeoDistanceSort(FieldAttribute field, Order.OrderDirection direction, double lat, double lon) implements Sort {
         @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            field().writeTo(out);
-            out.writeEnum(direction());
-            out.writeEnum(nulls());
+        public SortBuilder<?> sortBuilder() {
+            GeoDistanceSortBuilder builder = new GeoDistanceSortBuilder(field.name(), lat, lon);
+            builder.order(Direction.from(direction).asOrder());
+            return builder;
         }
     }
 
-    public EsQueryExec(Source source, EsIndex index, IndexMode indexMode, List<Attribute> attributes, QueryBuilder query) {
-        this(source, index, indexMode, attributes, query, null, null, null);
+    public record ScoreSort(Order.OrderDirection direction) implements Sort {
+        @Override
+        public SortBuilder<?> sortBuilder() {
+            return new ScoreSortBuilder();
+        }
+
+        @Override
+        public FieldAttribute field() {
+            // TODO: refactor this: not all Sorts are backed by FieldAttributes
+            return null;
+        }
     }
 
     public EsQueryExec(
         Source source,
-        EsIndex index,
+        String indexPattern,
         IndexMode indexMode,
+        Map<String, IndexMode> indexNameWithModes,
+        List<Attribute> attributes,
+        QueryBuilder query
+    ) {
+        this(source, indexPattern, indexMode, indexNameWithModes, attributes, query, null, null, null);
+    }
+
+    public EsQueryExec(
+        Source source,
+        String indexPattern,
+        IndexMode indexMode,
+        Map<String, IndexMode> indexNameWithModes,
         List<Attribute> attrs,
         QueryBuilder query,
         Expression limit,
-        List<FieldSort> sorts,
+        List<Sort> sorts,
         Integer estimatedRowSize
     ) {
         super(source);
-        this.index = index;
+        this.indexPattern = indexPattern;
         this.indexMode = indexMode;
-        this.query = query;
+        this.indexNameWithModes = indexNameWithModes;
         this.attrs = attrs;
+        this.query = query;
         this.limit = limit;
         this.sorts = sorts;
         this.estimatedRowSize = estimatedRowSize;
     }
 
-    private EsQueryExec(StreamInput in) throws IOException {
-        this(
-            Source.readFrom((PlanStreamInput) in),
-            new EsIndex(in),
-            EsRelation.readIndexMode(in),
-            in.readNamedWriteableCollectionAsList(Attribute.class),
-            in.readOptionalNamedWriteable(QueryBuilder.class),
-            in.readOptionalNamedWriteable(Expression.class),
-            in.readOptionalCollectionAsList(FieldSort::readFrom),
-            in.readOptionalVInt()
-        );
+    /**
+     * The matching constructor is used during physical plan optimization and needs valid sorts. But we no longer serialize sorts.
+     * If this cluster node is talking to an older instance it might receive a plan with sorts, but it will ignore them.
+     */
+    private static EsQueryExec readFrom(StreamInput in) throws IOException {
+        var source = Source.readFrom((PlanStreamInput) in);
+        String indexPattern;
+        Map<String, IndexMode> indexNameWithModes;
+        if (in.getTransportVersion().onOrAfter(ESQL_SKIP_ES_INDEX_SERIALIZATION)) {
+            indexPattern = in.readString();
+            indexNameWithModes = in.readMap(IndexMode::readFrom);
+        } else {
+            var index = EsIndex.readFrom(in);
+            indexPattern = index.name();
+            indexNameWithModes = index.indexNameWithModes();
+        }
+        var indexMode = EsRelation.readIndexMode(in);
+        var attrs = in.readNamedWriteableCollectionAsList(Attribute.class);
+        var query = in.readOptionalNamedWriteable(QueryBuilder.class);
+        var limit = in.readOptionalNamedWriteable(Expression.class);
+        in.readOptionalCollectionAsList(EsQueryExec::readSort);
+        var rowSize = in.readOptionalVInt();
+        // Ignore sorts from the old serialization format
+        return new EsQueryExec(source, indexPattern, indexMode, indexNameWithModes, attrs, query, limit, NO_SORTS, rowSize);
+    }
+
+    private static Sort readSort(StreamInput in) throws IOException {
+        return FieldSort.readFrom(in);
+    }
+
+    private static void writeSort(StreamOutput out, Sort sort) {
+        throw new IllegalStateException("sorts are no longer serialized");
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         Source.EMPTY.writeTo(out);
-        index().writeTo(out);
+        if (out.getTransportVersion().onOrAfter(ESQL_SKIP_ES_INDEX_SERIALIZATION)) {
+            out.writeString(indexPattern);
+            out.writeMap(indexNameWithModes, (o, v) -> IndexMode.writeTo(v, out));
+        } else {
+            new EsIndex(indexPattern, Map.of(), indexNameWithModes).writeTo(out);
+        }
         EsRelation.writeIndexMode(out, indexMode());
         out.writeNamedWriteableCollection(output());
         out.writeOptionalNamedWriteable(query());
         out.writeOptionalNamedWriteable(limit());
-        out.writeOptionalCollection(sorts());
+        out.writeOptionalCollection(NO_SORTS, EsQueryExec::writeSort);
         out.writeOptionalVInt(estimatedRowSize());
     }
 
@@ -141,15 +206,30 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
 
     @Override
     protected NodeInfo<EsQueryExec> info() {
-        return NodeInfo.create(this, EsQueryExec::new, index, indexMode, attrs, query, limit, sorts, estimatedRowSize);
+        return NodeInfo.create(
+            this,
+            EsQueryExec::new,
+            indexPattern,
+            indexMode,
+            indexNameWithModes,
+            attrs,
+            query,
+            limit,
+            sorts,
+            estimatedRowSize
+        );
     }
 
-    public EsIndex index() {
-        return index;
+    public String indexPattern() {
+        return indexPattern;
     }
 
     public IndexMode indexMode() {
         return indexMode;
+    }
+
+    public Map<String, IndexMode> indexNameWithModes() {
+        return indexNameWithModes;
     }
 
     public QueryBuilder query() {
@@ -165,7 +245,7 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
         return limit;
     }
 
-    public List<FieldSort> sorts() {
+    public List<Sort> sorts() {
         return sorts;
     }
 
@@ -195,32 +275,32 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
         }
         return Objects.equals(this.estimatedRowSize, size)
             ? this
-            : new EsQueryExec(source(), index, indexMode, attrs, query, limit, sorts, size);
+            : new EsQueryExec(source(), indexPattern, indexMode, indexNameWithModes, attrs, query, limit, sorts, size);
     }
 
     public EsQueryExec withLimit(Expression limit) {
         return Objects.equals(this.limit, limit)
             ? this
-            : new EsQueryExec(source(), index, indexMode, attrs, query, limit, sorts, estimatedRowSize);
+            : new EsQueryExec(source(), indexPattern, indexMode, indexNameWithModes, attrs, query, limit, sorts, estimatedRowSize);
     }
 
     public boolean canPushSorts() {
         return indexMode != IndexMode.TIME_SERIES;
     }
 
-    public EsQueryExec withSorts(List<FieldSort> sorts) {
+    public EsQueryExec withSorts(List<Sort> sorts) {
         if (indexMode == IndexMode.TIME_SERIES) {
             assert false : "time-series index mode doesn't support sorts";
             throw new UnsupportedOperationException("time-series index mode doesn't support sorts");
         }
         return Objects.equals(this.sorts, sorts)
             ? this
-            : new EsQueryExec(source(), index, indexMode, attrs, query, limit, sorts, estimatedRowSize);
+            : new EsQueryExec(source(), indexPattern, indexMode, indexNameWithModes, attrs, query, limit, sorts, estimatedRowSize);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(index, indexMode, attrs, query, limit, sorts);
+        return Objects.hash(indexPattern, indexMode, indexNameWithModes, attrs, query, limit, sorts);
     }
 
     @Override
@@ -234,8 +314,9 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
         }
 
         EsQueryExec other = (EsQueryExec) obj;
-        return Objects.equals(index, other.index)
+        return Objects.equals(indexPattern, other.indexPattern)
             && Objects.equals(indexMode, other.indexMode)
+            && Objects.equals(indexNameWithModes, other.indexNameWithModes)
             && Objects.equals(attrs, other.attrs)
             && Objects.equals(query, other.query)
             && Objects.equals(limit, other.limit)
@@ -247,7 +328,7 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
     public String nodeString() {
         return nodeName()
             + "["
-            + index
+            + indexPattern
             + "], "
             + "indexMode["
             + indexMode

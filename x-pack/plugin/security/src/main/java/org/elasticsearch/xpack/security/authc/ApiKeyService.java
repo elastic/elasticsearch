@@ -14,6 +14,7 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.DocWriteRequest;
@@ -138,8 +139,6 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.TransportVersions.ADD_MANAGE_ROLES_PRIVILEGE;
-import static org.elasticsearch.TransportVersions.ROLE_REMOTE_CLUSTER_PRIVS;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
 import static org.elasticsearch.transport.RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY;
@@ -148,6 +147,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptor.WORKFLOWS_RESTRICTION_VERSION;
+import static org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions.ROLE_REMOTE_CLUSTER_PRIVS;
 import static org.elasticsearch.xpack.security.Security.SECURITY_CRYPTO_THREAD_POOL_NAME;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.Availability.PRIMARY_SHARDS;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.Availability.SEARCH_SHARDS;
@@ -430,17 +430,17 @@ public class ApiKeyService implements Closeable {
             listener.onFailure(
                 new IllegalArgumentException(
                     "all nodes must have version ["
-                        + ROLE_REMOTE_CLUSTER_PRIVS
+                        + ROLE_REMOTE_CLUSTER_PRIVS.toReleaseVersion()
                         + "] or higher to support remote cluster privileges for API keys"
                 )
             );
             return false;
         }
-        if (transportVersion.before(ADD_MANAGE_ROLES_PRIVILEGE) && hasGlobalManageRolesPrivilege(roleDescriptors)) {
+        if (transportVersion.before(TransportVersions.V_8_16_0) && hasGlobalManageRolesPrivilege(roleDescriptors)) {
             listener.onFailure(
                 new IllegalArgumentException(
                     "all nodes must have version ["
-                        + ADD_MANAGE_ROLES_PRIVILEGE
+                        + TransportVersions.V_8_16_0.toReleaseVersion()
                         + "] or higher to support the manage roles privilege for API keys"
                 )
             );
@@ -2254,7 +2254,7 @@ public class ApiKeyService implements Closeable {
                     TransportSearchAction.TYPE,
                     searchRequest,
                     ActionListener.wrap(searchResponse -> {
-                        long total = searchResponse.getHits().getTotalHits().value;
+                        long total = searchResponse.getHits().getTotalHits().value();
                         if (total == 0) {
                             logger.debug("No api keys found for query [{}]", searchRequest.source().query());
                             listener.onResponse(QueryApiKeysResult.EMPTY);

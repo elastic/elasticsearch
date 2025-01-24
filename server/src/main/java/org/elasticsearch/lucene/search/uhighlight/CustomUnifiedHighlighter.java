@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.lucene.search.uhighlight;
@@ -65,7 +66,7 @@ public final class CustomUnifiedHighlighter extends UnifiedHighlighter {
     private final int noMatchSize;
     private final CustomFieldHighlighter fieldHighlighter;
     private final int maxAnalyzedOffset;
-    private final Integer queryMaxAnalyzedOffset;
+    private final QueryMaxAnalyzedOffset queryMaxAnalyzedOffset;
 
     /**
      * Creates a new instance of {@link CustomUnifiedHighlighter}
@@ -93,7 +94,7 @@ public final class CustomUnifiedHighlighter extends UnifiedHighlighter {
         int noMatchSize,
         int maxPassages,
         int maxAnalyzedOffset,
-        Integer queryMaxAnalyzedOffset,
+        QueryMaxAnalyzedOffset queryMaxAnalyzedOffset,
         boolean requireFieldMatch,
         boolean weightMatchesEnabled
     ) {
@@ -124,9 +125,9 @@ public final class CustomUnifiedHighlighter extends UnifiedHighlighter {
             return null;
         }
         int fieldValueLength = fieldValue.length();
-        if (((queryMaxAnalyzedOffset == null || queryMaxAnalyzedOffset > maxAnalyzedOffset)
+        if ((queryMaxAnalyzedOffset == null || queryMaxAnalyzedOffset.getNotNull() > maxAnalyzedOffset)
             && (getOffsetSource(field) == OffsetSource.ANALYSIS)
-            && (fieldValueLength > maxAnalyzedOffset))) {
+            && (fieldValueLength > maxAnalyzedOffset)) {
             throw new IllegalArgumentException(
                 "The length ["
                     + fieldValueLength
@@ -259,7 +260,7 @@ public final class CustomUnifiedHighlighter extends UnifiedHighlighter {
                  * KnnScoreDocQuery and RankDocsQuery requires the same reader that built the docs
                  * When using {@link HighlightFlag#WEIGHT_MATCHES} different readers are used and isn't supported by this query
                  */
-                if (leafQuery instanceof KnnScoreDocQuery || leafQuery instanceof RankDocsQuery) {
+                if (leafQuery instanceof KnnScoreDocQuery || leafQuery instanceof RankDocsQuery.TopQuery) {
                     hasUnknownLeaf[0] = true;
                 }
                 super.visitLeaf(query);

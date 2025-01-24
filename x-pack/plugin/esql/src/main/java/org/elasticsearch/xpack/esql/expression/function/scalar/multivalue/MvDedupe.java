@@ -38,6 +38,7 @@ public class MvDedupe extends AbstractMultivalueFunction {
             "cartesian_point",
             "cartesian_shape",
             "date",
+            "date_nanos",
             "double",
             "geo_point",
             "geo_shape",
@@ -45,7 +46,7 @@ public class MvDedupe extends AbstractMultivalueFunction {
             "ip",
             "keyword",
             "long",
-            "text",
+            "unsigned_long",
             "version" },
         description = "Remove duplicate values from a multivalued field.",
         note = "`MV_DEDUPE` may, but won't always, sort the values in the column.",
@@ -60,6 +61,7 @@ public class MvDedupe extends AbstractMultivalueFunction {
                 "cartesian_point",
                 "cartesian_shape",
                 "date",
+                "date_nanos",
                 "double",
                 "geo_point",
                 "geo_shape",
@@ -68,6 +70,7 @@ public class MvDedupe extends AbstractMultivalueFunction {
                 "keyword",
                 "long",
                 "text",
+                "unsigned_long",
                 "version" },
             description = "Multivalue expression."
         ) Expression field

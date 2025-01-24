@@ -123,8 +123,8 @@ class TrainedModelAssignmentRebalancer {
         nodesByZone.values().forEach(allNodes::addAll);
 
         final List<AssignmentPlan.Deployment> allDeployments = new ArrayList<>();
-        allDeployments.addAll(planForNormalPriorityModels.models());
-        allDeployments.addAll(planForLowPriorityModels.models());
+        allDeployments.addAll(planForNormalPriorityModels.deployments());
+        allDeployments.addAll(planForLowPriorityModels.deployments());
 
         final Map<String, AssignmentPlan.Node> originalNodeById = allNodes.stream()
             .collect(Collectors.toMap(AssignmentPlan.Node::id, Function.identity()));
@@ -139,7 +139,7 @@ class TrainedModelAssignmentRebalancer {
         AssignmentPlan.Builder dest,
         Map<String, AssignmentPlan.Node> originalNodeById
     ) {
-        for (AssignmentPlan.Deployment m : source.models()) {
+        for (AssignmentPlan.Deployment m : source.deployments()) {
             Map<AssignmentPlan.Node, Integer> nodeAssignments = source.assignments(m).orElse(Map.of());
             for (Map.Entry<AssignmentPlan.Node, Integer> assignment : nodeAssignments.entrySet()) {
                 AssignmentPlan.Node originalNode = originalNodeById.get(assignment.getKey().id());
@@ -328,14 +328,14 @@ class TrainedModelAssignmentRebalancer {
 
     private TrainedModelAssignmentMetadata.Builder buildAssignmentsFromPlan(AssignmentPlan assignmentPlan) {
         TrainedModelAssignmentMetadata.Builder builder = TrainedModelAssignmentMetadata.Builder.empty();
-        for (AssignmentPlan.Deployment deployment : assignmentPlan.models()) {
-            TrainedModelAssignment existingAssignment = currentMetadata.getDeploymentAssignment(deployment.id());
+        for (AssignmentPlan.Deployment deployment : assignmentPlan.deployments()) {
+            TrainedModelAssignment existingAssignment = currentMetadata.getDeploymentAssignment(deployment.deploymentId());
 
             TrainedModelAssignment.Builder assignmentBuilder = existingAssignment == null && createAssignmentRequest.isPresent()
                 ? TrainedModelAssignment.Builder.empty(createAssignmentRequest.get())
                 : TrainedModelAssignment.Builder.empty(
-                    currentMetadata.getDeploymentAssignment(deployment.id()).getTaskParams(),
-                    currentMetadata.getDeploymentAssignment(deployment.id()).getAdaptiveAllocationsSettings()
+                    currentMetadata.getDeploymentAssignment(deployment.deploymentId()).getTaskParams(),
+                    currentMetadata.getDeploymentAssignment(deployment.deploymentId()).getAdaptiveAllocationsSettings()
                 );
             if (existingAssignment != null) {
                 assignmentBuilder.setStartTime(existingAssignment.getStartTime());
@@ -366,7 +366,7 @@ class TrainedModelAssignmentRebalancer {
             assignmentBuilder.calculateAndSetAssignmentState();
 
             explainAssignments(assignmentPlan, nodeLoads, deployment).ifPresent(assignmentBuilder::setReason);
-            builder.addNewAssignment(deployment.id(), assignmentBuilder);
+            builder.addNewAssignment(deployment.deploymentId(), assignmentBuilder);
         }
         return builder;
     }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.analysis.common;
@@ -12,8 +13,6 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.synonym.SynonymFilter;
 import org.apache.lucene.analysis.synonym.SynonymMap;
-import org.elasticsearch.common.logging.DeprecationCategory;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexService.IndexCreationContext;
@@ -130,8 +129,6 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
         }
     }
 
-    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(SynonymTokenFilterFactory.class);
-
     private final String format;
     private final boolean expand;
     private final boolean lenient;
@@ -148,17 +145,8 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
         Settings settings,
         SynonymsManagementAPIService synonymsManagementAPIService
     ) {
-        super(name, settings);
+        super(name);
         this.settings = settings;
-
-        if (settings.get("ignore_case") != null) {
-            DEPRECATION_LOGGER.warn(
-                DeprecationCategory.ANALYSIS,
-                "synonym_ignore_case_option",
-                "The ignore_case option on the synonym_graph filter is deprecated. "
-                    + "Instead, insert a lowercase filter in the filter chain before the synonym_graph filter."
-            );
-        }
 
         this.synonymsSource = SynonymsSource.fromSettings(settings);
         this.expand = settings.getAsBoolean("expand", true);

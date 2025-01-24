@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.fieldcaps;
@@ -61,7 +62,7 @@ public final class FieldCapabilitiesIndexResponse implements Writeable {
         } else {
             this.indexMappingHash = null;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.FIELD_CAPS_RESPONSE_INDEX_MODE)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             this.indexMode = IndexMode.readFrom(in);
         } else {
             this.indexMode = IndexMode.STANDARD;
@@ -76,7 +77,7 @@ public final class FieldCapabilitiesIndexResponse implements Writeable {
         if (out.getTransportVersion().onOrAfter(MAPPING_HASH_VERSION)) {
             out.writeOptionalString(indexMappingHash);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.FIELD_CAPS_RESPONSE_INDEX_MODE)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             IndexMode.writeTo(indexMode, out);
         }
     }
@@ -104,7 +105,7 @@ public final class FieldCapabilitiesIndexResponse implements Writeable {
     private static void collectCompressedResponses(StreamInput input, int groups, ArrayList<FieldCapabilitiesIndexResponse> responses)
         throws IOException {
         final CompressedGroup[] compressedGroups = new CompressedGroup[groups];
-        final boolean readIndexMode = input.getTransportVersion().onOrAfter(TransportVersions.FIELD_CAPS_RESPONSE_INDEX_MODE);
+        final boolean readIndexMode = input.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0);
         for (int i = 0; i < groups; i++) {
             final String[] indices = input.readStringArray();
             final IndexMode indexMode = readIndexMode ? IndexMode.readFrom(input) : IndexMode.STANDARD;
@@ -178,7 +179,7 @@ public final class FieldCapabilitiesIndexResponse implements Writeable {
         output.writeCollection(groupedResponsesMap.values(), (o, fieldCapabilitiesIndexResponses) -> {
             o.writeCollection(fieldCapabilitiesIndexResponses, (oo, r) -> oo.writeString(r.indexName));
             var first = fieldCapabilitiesIndexResponses.get(0);
-            if (output.getTransportVersion().onOrAfter(TransportVersions.FIELD_CAPS_RESPONSE_INDEX_MODE)) {
+            if (output.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
                 IndexMode.writeTo(first.indexMode, o);
             }
             o.writeString(first.indexMappingHash);

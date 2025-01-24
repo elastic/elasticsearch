@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.delete;
@@ -41,6 +42,7 @@ public class TransportDeleteIndexAction extends AcknowledgedTransportMasterNodeA
     private static final Logger logger = LogManager.getLogger(TransportDeleteIndexAction.class);
 
     private final MetadataDeleteIndexService deleteIndexService;
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final DestructiveOperations destructiveOperations;
 
     @Inject
@@ -60,10 +62,10 @@ public class TransportDeleteIndexAction extends AcknowledgedTransportMasterNodeA
             threadPool,
             actionFilters,
             DeleteIndexRequest::new,
-            indexNameExpressionResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.deleteIndexService = deleteIndexService;
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.destructiveOperations = destructiveOperations;
     }
 
@@ -91,11 +93,14 @@ public class TransportDeleteIndexAction extends AcknowledgedTransportMasterNodeA
             return;
         }
 
-        DeleteIndexClusterStateUpdateRequest deleteRequest = new DeleteIndexClusterStateUpdateRequest(listener.delegateResponse((l, e) -> {
-            logger.debug(() -> "failed to delete indices [" + concreteIndices + "]", e);
-            listener.onFailure(e);
-        })).ackTimeout(request.ackTimeout()).masterNodeTimeout(request.masterNodeTimeout()).indices(concreteIndices.toArray(new Index[0]));
-
-        deleteIndexService.deleteIndices(deleteRequest);
+        deleteIndexService.deleteIndices(
+            request.masterNodeTimeout(),
+            request.ackTimeout(),
+            concreteIndices,
+            listener.delegateResponse((l, e) -> {
+                logger.debug(() -> "failed to delete indices [" + concreteIndices + "]", e);
+                listener.onFailure(e);
+            })
+        );
     }
 }

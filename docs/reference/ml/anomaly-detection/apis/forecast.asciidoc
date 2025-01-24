@@ -5,6 +5,12 @@
 <titleabbrev>Forecast jobs</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-ml-anomaly[{ml-cap}  {anomaly-detect} APIs].
+--
+
 Predicts the future behavior of a time series by using its historical behavior. 
 
 [[ml-forecast-request]]

@@ -20,7 +20,7 @@ public class DownsampleRestIT extends ESClientYamlSuiteTestCase {
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
-        .setting("xpack.license.self_generated.type", "basic")
+        .setting("xpack.license.self_generated.type", "trial")
         .setting("xpack.security.enabled", "false")
         .build();
 

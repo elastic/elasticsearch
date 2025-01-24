@@ -1,18 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.time;
 
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.core.Predicates;
-import org.elasticsearch.core.UpdateForV9;
-import org.elasticsearch.logging.LogManager;
 
 import java.time.Clock;
 import java.time.Duration;
@@ -22,8 +20,6 @@ import java.time.ZonedDateTime;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.function.Predicate;
-import java.util.regex.Pattern;
 
 import static java.util.Map.entry;
 import static org.elasticsearch.common.time.DateUtilsRounding.getMonthOfYear;
@@ -298,6 +294,37 @@ public class DateUtils {
     }
 
     /**
+     * Compare an epoch nanosecond date (such as returned by {@link DateUtils#toLong}
+     * to an epoch millisecond date (such as returned by {@link Instant#toEpochMilli()}}.
+     * <p>
+     * NB: This function does not implement {@link java.util.Comparator} in
+     * order to avoid performance costs of autoboxing the input longs.
+     *
+     * @param nanos Epoch date represented as a long number of nanoseconds.
+     *              Note that Elasticsearch does not support nanosecond dates
+     *              before Epoch, so this number should never be negative.
+     * @param millis Epoch date represented as a long number of milliseconds.
+     *               This parameter does not have to be constrained to the
+     *               range of long nanosecond dates.
+     * @return -1 if the nanosecond date is before the millisecond date,
+     *         0  if the two dates represent the same instant,
+     *         1  if the nanosecond date is after the millisecond date
+     */
+    public static int compareNanosToMillis(long nanos, long millis) {
+        assert nanos >= 0;
+        if (millis < 0) {
+            return 1;
+        }
+        if (millis > MAX_NANOSECOND_IN_MILLIS) {
+            return -1;
+        }
+        // This can't overflow, because we know millis is between 0 and MAX_NANOSECOND_IN_MILLIS,
+        // and MAX_NANOSECOND_IN_MILLIS * 1_000_000 doesn't overflow.
+        long diff = nanos - (millis * 1_000_000);
+        return diff == 0 ? 0 : diff < 0 ? -1 : 1;
+    }
+
+    /**
      * Rounds the given utc milliseconds sicne the epoch down to the next unit millis
      *
      * Note: This does not check for correctness of the result, as this only works with units smaller or equal than a day
@@ -386,17 +413,5 @@ public class DateUtils {
     public static ZonedDateTime nowWithMillisResolution(Clock clock) {
         Clock millisResolutionClock = Clock.tick(clock, Duration.ofMillis(1));
         return ZonedDateTime.now(millisResolutionClock);
-    }
-
-    // check for all textual fields, and localized zone offset
-    private static final Predicate<String> CONTAINS_CHANGING_TEXT_SPECIFIERS = System.getProperty("java.locale.providers", "")
-        .contains("COMPAT") ? Pattern.compile("[EcGaO]|MMM|LLL|eee|ccc|QQQ|ZZZZ").asPredicate() : Predicates.never();
-
-    @UpdateForV9    // this can be removed, we will only use CLDR on v9
-    static void checkTextualDateFormats(String format) {
-        if (CONTAINS_CHANGING_TEXT_SPECIFIERS.test(format)) {
-            LogManager.getLogger(DateFormatter.class)
-                .warn("Date format [{}] contains textual field specifiers that could change in JDK 23", format);
-        }
     }
 }

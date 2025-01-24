@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest.geoip;
@@ -69,7 +70,7 @@ public final class IngestGeoIpMetadata implements Metadata.Custom {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ENTERPRISE_GEOIP_DOWNLOADER;
+        return TransportVersions.V_8_16_0;
     }
 
     public Map<String, DatabaseConfigurationMetadata> getDatabases() {
@@ -91,7 +92,7 @@ public final class IngestGeoIpMetadata implements Metadata.Custom {
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
-        return Iterators.concat(ChunkedToXContentHelper.xContentValuesMap(DATABASES_FIELD.getPreferredName(), databases));
+        return Iterators.concat(ChunkedToXContentHelper.xContentObjectFields(DATABASES_FIELD.getPreferredName(), databases));
     }
 
     @Override
@@ -138,7 +139,7 @@ public final class IngestGeoIpMetadata implements Metadata.Custom {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.ENTERPRISE_GEOIP_DOWNLOADER;
+            return TransportVersions.V_8_16_0;
         }
     }
 

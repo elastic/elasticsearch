@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.termvectors;
@@ -530,8 +531,10 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
     public void testDuelWithAndWithoutTermVectors() throws IOException, ExecutionException, InterruptedException {
         // setup indices
         String[] indexNames = new String[] { "with_tv", "without_tv" };
-        assertAcked(prepareCreate(indexNames[0]).setMapping("field1", "type=text,term_vector=with_positions_offsets,analyzer=keyword"));
-        assertAcked(prepareCreate(indexNames[1]).setMapping("field1", "type=text,term_vector=no,analyzer=keyword"));
+        assertAcked(
+            prepareCreate(indexNames[1]).setMapping("field1", "type=text,term_vector=no,analyzer=keyword"),
+            prepareCreate(indexNames[0]).setMapping("field1", "type=text,term_vector=with_positions_offsets,analyzer=keyword")
+        );
         ensureGreen();
 
         // index documents with and without term vectors
@@ -1073,9 +1076,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
                     "type=text,term_vector=with_positions_offsets,analyzer=my_analyzer",
                     "field2",
                     "type=text,term_vector=with_positions_offsets,analyzer=keyword"
-                )
-        );
-        assertAcked(
+                ),
             prepareCreate(indexNames[1]).setSettings(builder.build())
                 .setMapping("field1", "type=keyword,normalizer=my_normalizer", "field2", "type=keyword")
         );

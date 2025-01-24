@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.bulk;
@@ -23,6 +24,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.ComponentTemplate;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -38,6 +41,9 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
@@ -111,7 +117,12 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
             clusterService.state().metadata().getIndicesLookup(),
             systemIndices
         );
-        final Releasable releasable = indexingPressure.markCoordinatingOperationStarted(indexingOps, indexingBytes, isOnlySystem);
+        final Releasable releasable;
+        if (bulkRequest.incrementalState().indexingPressureAccounted()) {
+            releasable = () -> {};
+        } else {
+            releasable = indexingPressure.markCoordinatingOperationStarted(indexingOps, indexingBytes, isOnlySystem);
+        }
         final ActionListener<BulkResponse> releasingListener = ActionListener.runBefore(listener, releasable::close);
         final Executor executor = isOnlySystem ? systemWriteExecutor : writeExecutor;
         ensureClusterStateThenForkAndExecute(task, bulkRequest, executor, releasingListener);
@@ -162,19 +173,73 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
     private void forkAndExecute(Task task, BulkRequest bulkRequest, Executor executor, ActionListener<BulkResponse> releasingListener) {
         executor.execute(new ActionRunnable<>(releasingListener) {
             @Override
-            protected void doRun() {
+            protected void doRun() throws IOException {
                 applyPipelinesAndDoInternalExecute(task, bulkRequest, executor, releasingListener);
             }
         });
     }
 
-    private boolean applyPipelines(Task task, BulkRequest bulkRequest, Executor executor, ActionListener<BulkResponse> listener) {
+    private boolean applyPipelines(Task task, BulkRequest bulkRequest, Executor executor, ActionListener<BulkResponse> listener)
+        throws IOException {
         boolean hasIndexRequestsWithPipelines = false;
-        final Metadata metadata = clusterService.state().getMetadata();
+        final Metadata metadata;
+        Map<String, ComponentTemplate> componentTemplateSubstitutions = bulkRequest.getComponentTemplateSubstitutions();
+        Map<String, ComposableIndexTemplate> indexTemplateSubstitutions = bulkRequest.getIndexTemplateSubstitutions();
+        if (bulkRequest.isSimulated()
+            && (componentTemplateSubstitutions.isEmpty() == false || indexTemplateSubstitutions.isEmpty() == false)) {
+            /*
+             * If this is a simulated request, and there are template substitutions, then we want to create and use a new metadata that has
+             * those templates. That is, we want to add the new templates (which will replace any that already existed with the same name),
+             * and remove the indices and data streams that are referred to from the bulkRequest so that we get settings from the templates
+             * rather than from the indices/data streams.
+             */
+            Metadata.Builder simulatedMetadataBuilder = Metadata.builder(clusterService.state().getMetadata());
+            if (componentTemplateSubstitutions.isEmpty() == false) {
+                Map<String, ComponentTemplate> updatedComponentTemplates = new HashMap<>();
+                updatedComponentTemplates.putAll(clusterService.state().metadata().componentTemplates());
+                updatedComponentTemplates.putAll(componentTemplateSubstitutions);
+                simulatedMetadataBuilder.componentTemplates(updatedComponentTemplates);
+            }
+            if (indexTemplateSubstitutions.isEmpty() == false) {
+                Map<String, ComposableIndexTemplate> updatedIndexTemplates = new HashMap<>();
+                updatedIndexTemplates.putAll(clusterService.state().metadata().templatesV2());
+                updatedIndexTemplates.putAll(indexTemplateSubstitutions);
+                simulatedMetadataBuilder.indexTemplates(updatedIndexTemplates);
+            }
+            /*
+             * We now remove the index from the simulated metadata to force the templates to be used. Note that simulated requests are
+             * always index requests -- no other type of request is supported.
+             */
+            for (DocWriteRequest<?> actionRequest : bulkRequest.requests) {
+                assert actionRequest != null : "Requests cannot be null in simulate mode";
+                assert actionRequest instanceof IndexRequest
+                    : "Only IndexRequests are supported in simulate mode, but got " + actionRequest.getClass();
+                if (actionRequest != null) {
+                    IndexRequest indexRequest = (IndexRequest) actionRequest;
+                    String indexName = indexRequest.index();
+                    if (indexName != null) {
+                        simulatedMetadataBuilder.remove(indexName);
+                        simulatedMetadataBuilder.removeDataStream(indexName);
+                    }
+                }
+            }
+            metadata = simulatedMetadataBuilder.build();
+        } else {
+            metadata = clusterService.state().getMetadata();
+        }
+
+        Map<String, IngestService.Pipelines> resolvedPipelineCache = new HashMap<>();
         for (DocWriteRequest<?> actionRequest : bulkRequest.requests) {
             IndexRequest indexRequest = getIndexWriteRequest(actionRequest);
             if (indexRequest != null) {
-                IngestService.resolvePipelinesAndUpdateIndexRequest(actionRequest, indexRequest, metadata);
+                if (indexRequest.isPipelineResolved() == false) {
+                    var pipeline = resolvedPipelineCache.computeIfAbsent(
+                        indexRequest.index(),
+                        // TODO perhaps this should use `threadPool.absoluteTimeInMillis()`, but leaving as is for now.
+                        (index) -> IngestService.resolvePipelines(actionRequest, indexRequest, metadata, System.currentTimeMillis())
+                    );
+                    IngestService.setPipelineOnRequest(indexRequest, pipeline);
+                }
                 hasIndexRequestsWithPipelines |= IngestService.hasPipeline(indexRequest);
             }
 
@@ -244,7 +309,7 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
                     } else {
                         ActionRunnable<BulkResponse> runnable = new ActionRunnable<>(actionListener) {
                             @Override
-                            protected void doRun() {
+                            protected void doRun() throws IOException {
                                 applyPipelinesAndDoInternalExecute(task, bulkRequest, executor, actionListener);
                             }
 
@@ -278,9 +343,11 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
      * @param indexName The index name to check.
      * @param metadata Cluster state metadata.
      * @param epochMillis A timestamp to use when resolving date math in the index name.
-     * @return true if this is not a simulation, and the given index name corresponds to a data stream with a failure store
-     * or if it matches a template that has a data stream failure store enabled. Returns false if the index name corresponds to a
-     * data stream, but it doesn't have the failure store enabled. Returns null when it doesn't correspond to a data stream.
+     * @return true if this is not a simulation, and the given index name corresponds to a data stream with a failure store, or if it
+     *     matches a template that has a data stream failure store enabled, or if it matches a data stream template with no failure store
+     *     option specified and the name matches the cluster setting to enable the failure store. Returns false if the index name
+     *     corresponds to a data stream, but it doesn't have the failure store enabled by one of those conditions. Returns null when it
+     *     doesn't correspond to a data stream.
      */
     protected abstract Boolean resolveFailureStore(String indexName, Metadata metadata, long epochMillis);
 
@@ -322,7 +389,7 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
         BulkRequest bulkRequest,
         Executor executor,
         ActionListener<BulkResponse> listener
-    ) {
+    ) throws IOException {
         final long relativeStartTimeNanos = relativeTimeNanos();
         if (applyPipelines(task, bulkRequest, executor, listener) == false) {
             doInternalExecute(task, bulkRequest, executor, listener, relativeStartTimeNanos);
@@ -343,6 +410,6 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
         Executor executor,
         ActionListener<BulkResponse> listener,
         long relativeStartTimeNanos
-    );
+    ) throws IOException;
 
 }

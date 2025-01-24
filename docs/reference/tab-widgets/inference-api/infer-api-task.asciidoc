@@ -36,7 +36,7 @@ the `cosine` measures are equivalent.
 ------------------------------------------------------------
 PUT _inference/sparse_embedding/elser_embeddings <1>
 {
-  "service": "elser",
+  "service": "elasticsearch",
   "service_settings": {
     "num_allocations": 1,
     "num_threads": 1
@@ -49,6 +49,14 @@ is the unique identifier of the {infer} endpoint is `elser_embeddings`.
 
 You don't need to download and deploy the ELSER model upfront, the API request
 above will download the model if it's not downloaded yet and then deploy it.
+
+[NOTE]
+====
+You might see a 502 bad gateway error in the response when using the {kib} Console.
+This error usually just reflects a timeout, while the model downloads in the background.
+You can check the download progress in the {ml-app} UI.
+If using the Python client, you can set the `timeout` parameter to a higher value.
+====
 
 // end::elser[]
 
@@ -198,7 +206,7 @@ PUT _inference/text_embedding/google_vertex_ai_embeddings <1>
 <2> A valid service account in JSON format for the Google Vertex AI API.
 <3> For the list of the available models, refer to the https://cloud.google.com/vertex-ai/generative-ai/docs/model-reference/text-embeddings-api[Text embeddings API] page.
 <4> The name of the location to use for the {infer} task. Refer to https://cloud.google.com/vertex-ai/generative-ai/docs/learn/locations[Generative AI on Vertex AI locations] for available locations.
-<5> The name of the project to use for the {infer} task. 
+<5> The name of the project to use for the {infer} task.
 
 // end::google-vertex-ai[]
 

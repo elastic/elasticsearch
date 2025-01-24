@@ -22,36 +22,52 @@
  */
 package org.elasticsearch.h3;
 
+import java.util.Arrays;
+import java.util.Objects;
+
 /**
  * cell boundary points as {@link LatLng}
  */
 public final class CellBoundary {
-
     /** Maximum number of cell boundary vertices; worst case is pentagon:
      *  5 original verts + 5 edge crossings
      */
-    private static final int MAX_CELL_BNDRY_VERTS = 10;
+    static final int MAX_CELL_BNDRY_VERTS = 10;
     /** How many points it holds */
-    private int numVertext;
+    private final int numPoints;
     /** The actual points */
-    private final LatLng[] points = new LatLng[MAX_CELL_BNDRY_VERTS];
+    private final LatLng[] points;
 
-    CellBoundary() {}
-
-    void add(LatLng point) {
-        points[numVertext++] = point;
+    CellBoundary(LatLng[] points, int numPoints) {
+        this.points = points;
+        this.numPoints = numPoints;
     }
 
     /** Number of points in this boundary */
     public int numPoints() {
-        return numVertext;
+        return numPoints;
     }
 
     /** Return the point at the given position*/
     public LatLng getLatLon(int i) {
-        if (i >= numVertext) {
-            throw new IndexOutOfBoundsException();
-        }
+        assert i >= 0 && i < numPoints;
         return points[i];
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        final CellBoundary that = (CellBoundary) o;
+        return numPoints == that.numPoints && Arrays.equals(points, that.points);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(numPoints, Arrays.hashCode(points));
     }
 }

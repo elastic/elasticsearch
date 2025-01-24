@@ -10,14 +10,13 @@ package org.elasticsearch.xpack.esql.type;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.test.AbstractWireTestCase;
-import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
-import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
+import org.elasticsearch.xpack.esql.expression.ExpressionWritables;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToBoolean;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCartesianPoint;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCartesianShape;
@@ -30,7 +29,6 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToVersion;
-import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -93,24 +91,17 @@ public class MultiTypeEsFieldTests extends AbstractWireTestCase<MultiTypeEsField
 
     @Override
     protected final NamedWriteableRegistry getNamedWriteableRegistry() {
-        List<NamedWriteableRegistry.Entry> entries = new ArrayList<>(UnaryScalarFunction.getNamedWriteables());
-        entries.addAll(Attribute.getNamedWriteables());
-        entries.addAll(Expression.getNamedWriteables());
+        List<NamedWriteableRegistry.Entry> entries = new ArrayList<>(ExpressionWritables.allExpressions());
+        entries.addAll(ExpressionWritables.unaryScalars());
         return new NamedWriteableRegistry(entries);
     }
 
     @Override
     protected final MultiTypeEsField copyInstance(MultiTypeEsField instance, TransportVersion version) throws IOException {
-        return copyInstance(
-            instance,
-            getNamedWriteableRegistry(),
-            (out, v) -> v.writeTo(new PlanStreamOutput(out, new PlanNameRegistry(), config)),
-            in -> {
-                PlanStreamInput pin = new PlanStreamInput(in, new PlanNameRegistry(), in.namedWriteableRegistry(), config);
-                return EsField.readFrom(pin);
-            },
-            version
-        );
+        return copyInstance(instance, getNamedWriteableRegistry(), (out, v) -> v.writeTo(new PlanStreamOutput(out, config)), in -> {
+            PlanStreamInput pin = new PlanStreamInput(in, in.namedWriteableRegistry(), config);
+            return EsField.readFrom(pin);
+        }, version);
     }
 
     private static Map<String, Expression> randomConvertExpressions(String name, boolean toString, DataType dataType) {

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.stats;
@@ -11,6 +12,7 @@ package org.elasticsearch.action.admin.cluster.stats;
 import org.elasticsearch.action.admin.cluster.stats.CCSTelemetrySnapshot.PerClusterCCSTelemetry;
 import org.elasticsearch.action.admin.cluster.stats.LongMetric.LongMetricValue;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Tuple;
@@ -31,9 +33,13 @@ import static org.hamcrest.Matchers.equalTo;
 public class CCSTelemetrySnapshotTests extends AbstractWireSerializingTestCase<CCSTelemetrySnapshot> {
 
     private LongMetricValue randomLongMetricValue() {
+        return randomLongMetricValueBetween(0, 1_000_000);
+    }
+
+    private LongMetricValue randomLongMetricValueBetween(int low, int high) {
         LongMetric v = new LongMetric();
-        for (int i = 0; i < randomIntBetween(1, 10); i++) {
-            v.record(randomIntBetween(0, 1_000_000));
+        for (int i = 0; i < randomIntBetween(5, 10); i++) {
+            v.record(randomIntBetween(low, high));
         }
         return v.getValue();
     }
@@ -109,13 +115,13 @@ public class CCSTelemetrySnapshotTests extends AbstractWireSerializingTestCase<C
                 }
                 break;
             case 3:
-                took = randomLongMetricValue();
+                took = randomValueOtherThan(took, this::randomLongMetricValue);
                 break;
             case 4:
-                tookMrtTrue = randomLongMetricValue();
+                tookMrtTrue = randomValueOtherThan(tookMrtTrue, this::randomLongMetricValue);
                 break;
             case 5:
-                tookMrtFalse = randomLongMetricValue();
+                tookMrtFalse = randomValueOtherThan(tookMrtFalse, this::randomLongMetricValue);
                 break;
             case 6:
                 skippedRemotes += randomNonNegativeLong();
@@ -328,5 +334,38 @@ public class CCSTelemetrySnapshotTests extends AbstractWireSerializingTestCase<C
             }
             return new String(inputStream.readAllBytes(), StandardCharsets.UTF_8);
         }
+    }
+
+    public void testRanges() throws IOException {
+        var value1 = randomLongMetricValueBetween(1_000_000, 10_000_000);
+        var count1 = value1.count();
+        var max1 = value1.max();
+        var output = new BytesStreamOutput();
+        value1.writeTo(output);
+        var value1Read = LongMetricValue.fromStream(output.bytes().streamInput());
+        var value2 = randomLongMetricValueBetween(0, 100);
+        var count2 = value2.count();
+        output = new BytesStreamOutput();
+        value2.writeTo(output);
+        var value2Read = LongMetricValue.fromStream(output.bytes().streamInput());
+        value2Read.add(value1Read);
+        assertThat(value2Read.count(), equalTo(count1 + count2));
+        assertThat(value2Read.max(), equalTo(max1));
+    }
+
+    public void testUseMRTFalse() {
+        CCSTelemetrySnapshot empty = new CCSTelemetrySnapshot();
+        // Ignore MRT data
+        empty.setUseMRT(false);
+
+        var randomWithMRT = randomValueOtherThanMany(
+            v -> v.getTookMrtTrue().count() == 0 || v.getTookMrtFalse().count() == 0,
+            this::randomCCSTelemetrySnapshot
+        );
+
+        empty.add(randomWithMRT);
+        assertThat(empty.getTook().count(), equalTo(randomWithMRT.getTook().count()));
+        assertThat(empty.getTookMrtFalse().count(), equalTo(0L));
+        assertThat(empty.getTookMrtTrue().count(), equalTo(0L));
     }
 }

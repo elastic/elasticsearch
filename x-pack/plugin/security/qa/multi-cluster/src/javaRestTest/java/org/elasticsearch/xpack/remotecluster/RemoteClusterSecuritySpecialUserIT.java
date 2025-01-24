@@ -230,7 +230,7 @@ public class RemoteClusterSecuritySpecialUserIT extends AbstractRemoteClusterSec
                     Arrays.stream(searchResponse5.getHits().getHits()).map(SearchHit::getIndex).collect(Collectors.toList()),
                     containsInAnyOrder(".security-7")
                 );
-                assertThat(searchResponse5.getHits().getTotalHits().value, greaterThanOrEqualTo(1L));
+                assertThat(searchResponse5.getHits().getTotalHits().value(), greaterThanOrEqualTo(1L));
             } finally {
                 searchResponse5.decRef();
             }

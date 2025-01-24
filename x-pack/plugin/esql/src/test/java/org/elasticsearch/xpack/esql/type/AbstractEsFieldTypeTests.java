@@ -15,7 +15,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.AbstractWireTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.type.EsField;
-import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 
@@ -45,15 +44,12 @@ public abstract class AbstractEsFieldTypeTests<T extends EsField> extends Abstra
     @Override
     protected EsField copyInstance(EsField instance, TransportVersion version) throws IOException {
         NamedWriteableRegistry namedWriteableRegistry = getNamedWriteableRegistry();
-        try (
-            BytesStreamOutput output = new BytesStreamOutput();
-            var pso = new PlanStreamOutput(output, new PlanNameRegistry(), EsqlTestUtils.TEST_CFG)
-        ) {
+        try (BytesStreamOutput output = new BytesStreamOutput(); var pso = new PlanStreamOutput(output, EsqlTestUtils.TEST_CFG)) {
             pso.setTransportVersion(version);
             instance.writeTo(pso);
             try (
-                StreamInput in1 = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry);
-                var psi = new PlanStreamInput(in1, new PlanNameRegistry(), in1.namedWriteableRegistry(), EsqlTestUtils.TEST_CFG)
+                StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry);
+                var psi = new PlanStreamInput(in, in.namedWriteableRegistry(), EsqlTestUtils.TEST_CFG)
             ) {
                 psi.setTransportVersion(version);
                 return EsField.readFrom(psi);

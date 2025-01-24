@@ -119,6 +119,33 @@ $if(int)$
         }
         return max;
     }
+
+$elseif(boolean)$
+    /**
+     * Are all values {@code true}? This will scan all values to check and always answer accurately.
+     */
+    @Override
+    public boolean allTrue() {
+        for (int i = 0; i < getPositionCount(); i++) {
+            if (values.get(i) == false) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Are all values {@code false}? This will scan all values to check and always answer accurately.
+     */
+    @Override
+    public boolean allFalse() {
+        for (int i = 0; i < getPositionCount(); i++) {
+            if (values.get(i)) {
+                return false;
+            }
+        }
+        return true;
+    }
 $endif$
 
     @Override

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.test;
 
@@ -129,6 +130,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -572,12 +574,12 @@ public final class InternalTestCluster extends TestCluster {
             if (random.nextInt(10) == 0) { // do something crazy slow here
                 builder.put(
                     RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(),
-                    new ByteSizeValue(RandomNumbers.randomIntBetween(random, 1, 10), ByteSizeUnit.MB)
+                    ByteSizeValue.of(RandomNumbers.randomIntBetween(random, 1, 10), ByteSizeUnit.MB)
                 );
             } else {
                 builder.put(
                     RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(),
-                    new ByteSizeValue(RandomNumbers.randomIntBetween(random, 10, 200), ByteSizeUnit.MB)
+                    ByteSizeValue.of(RandomNumbers.randomIntBetween(random, 10, 200), ByteSizeUnit.MB)
                 );
             }
         }
@@ -1248,27 +1250,29 @@ public final class InternalTestCluster extends TestCluster {
                 .isTimedOut()
         );
         try {
+            final Object[] previousStates = new Object[1];
             assertBusy(() -> {
                 final List<ClusterState> states = nodes.values()
                     .stream()
                     .map(node -> getInstanceFromNode(ClusterService.class, node.node()))
                     .map(ClusterService::state)
                     .toList();
-                final String debugString = ", expected nodes: " + expectedNodes + " and actual cluster states " + states;
+                if (previousStates[0] != null && previousStates[0].equals(states)) {
+                    throw new AssertionError("unchanged");
+                }
+                previousStates[0] = states;
+                final Supplier<String> debugString = () -> ", expected nodes: " + expectedNodes + " and actual cluster states " + states;
                 // all nodes have a master
-                assertTrue("Missing master" + debugString, states.stream().allMatch(cs -> cs.nodes().getMasterNodeId() != null));
+                assert states.stream().allMatch(cs -> cs.nodes().getMasterNodeId() != null) : "Missing master" + debugString.get();
                 // all nodes have the same master (in same term)
-                assertEquals(
-                    "Not all masters in same term" + debugString,
-                    1,
-                    states.stream().mapToLong(ClusterState::term).distinct().count()
-                );
+                assert 1L == states.stream().mapToLong(ClusterState::term).distinct().count()
+                    : "Not all masters in same term" + debugString.get();
                 // all nodes know about all other nodes
                 states.forEach(cs -> {
                     DiscoveryNodes discoveryNodes = cs.nodes();
-                    assertEquals("Node size mismatch" + debugString, expectedNodes.size(), discoveryNodes.getSize());
+                    assert expectedNodes.size() == discoveryNodes.getSize() : "Node size mismatch" + debugString.get();
                     for (DiscoveryNode expectedNode : expectedNodes) {
-                        assertTrue("Expected node to exist: " + expectedNode + debugString, discoveryNodes.nodeExists(expectedNode));
+                        assert discoveryNodes.nodeExists(expectedNode) : "Expected node to exist: " + expectedNode + debugString.get();
                     }
                 });
             }, 30, TimeUnit.SECONDS);
@@ -1532,7 +1536,9 @@ public final class InternalTestCluster extends TestCluster {
         // only reset the clients on nightly tests, it causes heavy load...
         if (RandomizedTest.isNightly() && rarely(random)) {
             final Collection<NodeAndClient> nodesAndClients = nodes.values();
+            logger.info("Resetting [{}] node clients on internal test cluster", nodesAndClients.size());
             for (NodeAndClient nodeAndClient : nodesAndClients) {
+                logger.info("Resetting [{}] node client on internal test cluster", nodeAndClient.name);
                 nodeAndClient.resetClient();
             }
         }
@@ -1643,7 +1649,7 @@ public final class InternalTestCluster extends TestCluster {
         return getInstance(clazz, MASTER_NODE_PREDICATE);
     }
 
-    private synchronized <T> T getInstance(Class<T> clazz, Predicate<NodeAndClient> predicate) {
+    private <T> T getInstance(Class<T> clazz, Predicate<NodeAndClient> predicate) {
         NodeAndClient randomNodeAndClient = getRandomNodeAndClient(predicate);
         if (randomNodeAndClient == null) {
             throw new AssertionError("no node matches [" + predicate + "]");
@@ -2344,7 +2350,7 @@ public final class InternalTestCluster extends TestCluster {
                 IndexRouting indexRouting = IndexRouting.fromIndexMetadata(clusterState.metadata().getIndexSafe(index));
                 while (true) {
                     String routing = RandomStrings.randomAsciiLettersOfLength(random, 10);
-                    if (shard == indexRouting.indexShard("id", routing, null, null, null)) {
+                    if (shard == indexRouting.indexShard("id", routing, null, null)) {
                         return routing;
                     }
                 }

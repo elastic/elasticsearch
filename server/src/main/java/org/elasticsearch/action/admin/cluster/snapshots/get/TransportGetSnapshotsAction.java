@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.snapshots.get;
@@ -122,7 +123,6 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             threadPool,
             actionFilters,
             GetSnapshotsRequest::new,
-            indexNameExpressionResolver,
             GetSnapshotsResponse::new,
             threadPool.executor(ThreadPool.Names.MANAGEMENT) // see [NOTE ON THREADING]
         );
@@ -321,7 +321,6 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                                 })
                             ),
                             getSnapshotInfoExecutor.getMaxRunningTasks(),
-                            () -> {},
                             () -> {}
                         );
                     }));
@@ -722,7 +721,9 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         void getSnapshotInfo(Repository repository, SnapshotId snapshotId, ActionListener<SnapshotInfo> listener) {
             enqueueTask(listener.delegateFailure((l, ref) -> {
                 if (isCancelledSupplier.getAsBoolean()) {
-                    l.onFailure(new TaskCancelledException("task cancelled"));
+                    try (ref) {
+                        l.onFailure(new TaskCancelledException("task cancelled"));
+                    }
                 } else {
                     repository.getSnapshotInfo(snapshotId, ActionListener.releaseAfter(l, ref));
                 }

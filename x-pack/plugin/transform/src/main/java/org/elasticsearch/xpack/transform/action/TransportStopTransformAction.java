@@ -40,11 +40,13 @@ import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
+import org.elasticsearch.xpack.core.transform.TransformMetadata;
 import org.elasticsearch.xpack.core.transform.action.StopTransformAction;
 import org.elasticsearch.xpack.core.transform.action.StopTransformAction.Request;
 import org.elasticsearch.xpack.core.transform.action.StopTransformAction.Response;
 import org.elasticsearch.xpack.core.transform.transforms.TransformState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
+import org.elasticsearch.xpack.transform.Transform;
 import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 import org.elasticsearch.xpack.transform.transforms.TransformNodeAssignments;
@@ -124,6 +126,13 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
     @Override
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
         final ClusterState state = clusterService.state();
+        if (TransformMetadata.upgradeMode(state)) {
+            listener.onFailure(
+                new ElasticsearchStatusException("Cannot stop any Transform while the Transform feature is upgrading.", RestStatus.CONFLICT)
+            );
+            return;
+        }
+
         final DiscoveryNodes nodes = state.nodes();
 
         if (nodes.isLocalNodeElectedMaster() == false) {
@@ -509,14 +518,18 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
             );
 
             for (String taskId : transformTasks) {
-                persistentTasksService.sendRemoveRequest(taskId, null, ActionListener.wrap(groupedListener::onResponse, e -> {
-                    // If we are about to remove a persistent task which does not exist, treat it as success.
-                    if (e instanceof ResourceNotFoundException) {
-                        groupedListener.onResponse(null);
-                        return;
-                    }
-                    groupedListener.onFailure(e);
-                }));
+                persistentTasksService.sendRemoveRequest(
+                    taskId,
+                    Transform.HARD_CODED_TRANSFORM_MASTER_NODE_TIMEOUT,
+                    ActionListener.wrap(groupedListener::onResponse, e -> {
+                        // If we are about to remove a persistent task which does not exist, treat it as success.
+                        if (e instanceof ResourceNotFoundException) {
+                            groupedListener.onResponse(null);
+                            return;
+                        }
+                        groupedListener.onFailure(e);
+                    })
+                );
             }
         }, e -> {
             GroupedActionListener<PersistentTask<?>> groupedListener = new GroupedActionListener<>(
@@ -525,7 +538,7 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
             );
 
             for (String taskId : transformTasks) {
-                persistentTasksService.sendRemoveRequest(taskId, null, groupedListener);
+                persistentTasksService.sendRemoveRequest(taskId, Transform.HARD_CODED_TRANSFORM_MASTER_NODE_TIMEOUT, groupedListener);
             }
         });
     }

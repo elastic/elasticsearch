@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -878,7 +879,7 @@ public class TextFieldMapperTests extends MapperTestCase {
             IndexSearcher searcher = newSearcher(ir);
             MatchPhraseQueryBuilder queryBuilder = new MatchPhraseQueryBuilder("field", "Prio 1");
             TopDocs td = searcher.search(queryBuilder.toQuery(searchExecutionContext), 1);
-            assertEquals(1, td.totalHits.value);
+            assertEquals(1, td.totalHits.value());
         });
 
         Exception e = expectThrows(
@@ -1248,7 +1249,7 @@ public class TextFieldMapperTests extends MapperTestCase {
     }
 
     public void testDocValuesLoadedFromStoredSynthetic() throws IOException {
-        MapperService mapper = createMapperService(syntheticSourceFieldMapping(b -> b.field("type", "text").field("store", true)));
+        MapperService mapper = createSytheticSourceMapperService(fieldMapping(b -> b.field("type", "text").field("store", true)));
         for (String input : new String[] {
             "foo",       // Won't be tokenized
             "foo bar",   // Will be tokenized. But script doc values still returns the whole field.
@@ -1258,7 +1259,7 @@ public class TextFieldMapperTests extends MapperTestCase {
     }
 
     public void testDocValuesLoadedFromSubKeywordSynthetic() throws IOException {
-        MapperService mapper = createMapperService(syntheticSourceFieldMapping(b -> {
+        MapperService mapper = createSytheticSourceMapperService(fieldMapping(b -> {
             b.field("type", "text");
             b.startObject("fields");
             {
@@ -1275,7 +1276,7 @@ public class TextFieldMapperTests extends MapperTestCase {
     }
 
     public void testDocValuesLoadedFromSubStoredKeywordSynthetic() throws IOException {
-        MapperService mapper = createMapperService(syntheticSourceFieldMapping(b -> {
+        MapperService mapper = createSytheticSourceMapperService(fieldMapping(b -> {
             b.field("type", "text");
             b.startObject("fields");
             {
@@ -1350,8 +1351,10 @@ public class TextFieldMapperTests extends MapperTestCase {
             }
             b.endObject();
         };
-        MapperService mapper = createMapperService(syntheticSource ? syntheticSourceMapping(buildFields) : mapping(buildFields));
+        XContentBuilder mapping = mapping(buildFields);
+        MapperService mapper = syntheticSource ? createSytheticSourceMapperService(mapping) : createMapperService(mapping);
         BlockReaderSupport blockReaderSupport = getSupportedReaders(mapper, "field.sub");
-        testBlockLoader(columnReader, example, blockReaderSupport);
+        var sourceLoader = mapper.mappingLookup().newSourceLoader(null, SourceFieldMetrics.NOOP);
+        testBlockLoader(columnReader, example, blockReaderSupport, sourceLoader);
     }
 }

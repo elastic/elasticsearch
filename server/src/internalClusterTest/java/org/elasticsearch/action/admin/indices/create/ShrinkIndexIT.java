@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.create;
@@ -112,8 +113,11 @@ public class ShrinkIndexIT extends ESIntegTestCase {
                 .get();
         }
         flushAndRefresh();
-        assertHitCount(prepareSearch("first_shrink").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")), 20);
-        assertHitCount(prepareSearch("source").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")), 20);
+        assertHitCount(
+            20,
+            prepareSearch("first_shrink").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")),
+            prepareSearch("source").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar"))
+        );
 
         // relocate all shards to one node such that we can merge it.
         updateIndexSettings(
@@ -144,9 +148,12 @@ public class ShrinkIndexIT extends ESIntegTestCase {
                 .get();
         }
         flushAndRefresh();
-        assertHitCount(prepareSearch("second_shrink").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")), 20);
-        assertHitCount(prepareSearch("first_shrink").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")), 20);
-        assertHitCount(prepareSearch("source").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")), 20);
+        assertHitCount(
+            20,
+            prepareSearch("second_shrink").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")),
+            prepareSearch("first_shrink").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")),
+            prepareSearch("source").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar"))
+        );
 
         assertNoResizeSourceIndexSettings("first_shrink");
         assertNoResizeSourceIndexSettings("second_shrink");
@@ -235,7 +242,7 @@ public class ShrinkIndexIT extends ESIntegTestCase {
 
     public void testCreateShrinkIndex() {
         internalCluster().ensureAtLeastNumDataNodes(2);
-        IndexVersion version = IndexVersionUtils.randomVersion(random());
+        IndexVersion version = IndexVersionUtils.randomWriteVersion();
         prepareCreate("source").setSettings(
             Settings.builder().put(indexSettings()).put("number_of_shards", randomIntBetween(2, 7)).put("index.version.created", version)
         ).get();

@@ -1,5 +1,0 @@
-pr: 112713
-summary: Fix encoding of dynamic arrays in ignored source
-area: Logs
-type: bug
-issues: []

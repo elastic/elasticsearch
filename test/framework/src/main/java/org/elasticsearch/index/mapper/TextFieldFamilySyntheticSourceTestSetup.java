@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -38,7 +39,7 @@ public final class TextFieldFamilySyntheticSourceTestSetup {
             TextFieldMapper.TextFieldType text = (TextFieldMapper.TextFieldType) ft;
             boolean supportsColumnAtATimeReader = text.syntheticSourceDelegate() != null
                 && text.syntheticSourceDelegate().hasDocValues()
-                && text.canUseSyntheticSourceDelegateForQuerying();
+                && text.canUseSyntheticSourceDelegateForLoading();
             return new MapperTestCase.BlockReaderSupport(supportsColumnAtATimeReader, mapper, loaderFieldName);
         }
         MappedFieldType parent = mapper.fieldType(parentName);
@@ -50,22 +51,7 @@ public final class TextFieldFamilySyntheticSourceTestSetup {
     }
 
     public static Function<Object, Object> loadBlockExpected(MapperTestCase.BlockReaderSupport blockReaderSupport, boolean columnReader) {
-        if (nullLoaderExpected(blockReaderSupport.mapper(), blockReaderSupport.loaderFieldName())) {
-            return null;
-        }
         return v -> ((BytesRef) v).utf8ToString();
-    }
-
-    private static boolean nullLoaderExpected(MapperService mapper, String fieldName) {
-        MappedFieldType type = mapper.fieldType(fieldName);
-        if (type instanceof TextFieldMapper.TextFieldType t) {
-            if (t.isSyntheticSource() == false || t.canUseSyntheticSourceDelegateForQuerying() || t.isStored()) {
-                return false;
-            }
-            String parentField = mapper.mappingLookup().parentField(fieldName);
-            return parentField == null || nullLoaderExpected(mapper, parentField);
-        }
-        return false;
     }
 
     public static void validateRoundTripReader(String syntheticSource, DirectoryReader reader, DirectoryReader roundTripReader) {
@@ -95,6 +81,11 @@ public final class TextFieldFamilySyntheticSourceTestSetup {
                 null,
                 false
             );
+        }
+
+        @Override
+        public boolean ignoreAbove() {
+            return keywordMultiFieldSyntheticSourceSupport.ignoreAbove();
         }
 
         @Override

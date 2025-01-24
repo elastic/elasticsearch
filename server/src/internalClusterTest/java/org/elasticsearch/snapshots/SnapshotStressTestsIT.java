@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.snapshots;
@@ -1234,15 +1235,16 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
                                             Strings.toString(currentState),
                                             currentState.metadata().nodeShutdowns().getAll().isEmpty()
                                         );
-                                        final var nodeId = currentState.nodes().resolveNode(node.nodeName).getId();
+                                        final var discoveryNode = currentState.nodes().resolveNode(node.nodeName);
                                         return currentState.copyAndUpdateMetadata(
                                             mdb -> mdb.putCustom(
                                                 NodesShutdownMetadata.TYPE,
                                                 new NodesShutdownMetadata(
                                                     Map.of(
-                                                        nodeId,
+                                                        discoveryNode.getId(),
                                                         SingleNodeShutdownMetadata.builder()
-                                                            .setNodeId(nodeId)
+                                                            .setNodeId(discoveryNode.getId())
+                                                            .setNodeEphemeralId(discoveryNode.getEphemeralId())
                                                             .setType(SingleNodeShutdownMetadata.Type.REMOVE)
                                                             .setStartedAtMillis(clusterService.threadPool().absoluteTimeInMillis())
                                                             .setReason("test")

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.metadata;
@@ -23,16 +24,25 @@ public class DataStreamOptionsTests extends AbstractXContentSerializingTestCase<
 
     @Override
     protected DataStreamOptions createTestInstance() {
-        return new DataStreamOptions(randomBoolean() ? null : DataStreamFailureStoreTests.randomFailureStore());
+        return randomDataStreamOptions();
+    }
+
+    public static DataStreamOptions randomDataStreamOptions() {
+        return switch (randomIntBetween(0, 2)) {
+            case 0 -> DataStreamOptions.EMPTY;
+            case 1 -> DataStreamOptions.FAILURE_STORE_DISABLED;
+            case 2 -> DataStreamOptions.FAILURE_STORE_ENABLED;
+            default -> throw new IllegalArgumentException("Illegal randomisation branch");
+        };
     }
 
     @Override
     protected DataStreamOptions mutateInstance(DataStreamOptions instance) throws IOException {
-        var failureStore = instance.getFailureStore();
+        var failureStore = instance.failureStore();
         if (failureStore == null) {
             failureStore = DataStreamFailureStoreTests.randomFailureStore();
         } else {
-            failureStore = randomBoolean() ? null : new DataStreamFailureStore(failureStore.enabled() == false);
+            failureStore = randomBoolean() ? null : randomValueOtherThan(failureStore, DataStreamFailureStoreTests::randomFailureStore);
         }
         return new DataStreamOptions(failureStore);
     }

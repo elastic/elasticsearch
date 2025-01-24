@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.security.rest.action.role;
 
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -42,10 +41,7 @@ public class RestPutRoleAction extends NativeRoleBaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            Route.builder(POST, "/_security/role/{name}").replaces(POST, "/_xpack/security/role/{name}", RestApiVersion.V_7).build(),
-            Route.builder(PUT, "/_security/role/{name}").replaces(PUT, "/_xpack/security/role/{name}", RestApiVersion.V_7).build()
-        );
+        return List.of(new Route(POST, "/_security/role/{name}"), new Route(PUT, "/_security/role/{name}"));
     }
 
     @Override

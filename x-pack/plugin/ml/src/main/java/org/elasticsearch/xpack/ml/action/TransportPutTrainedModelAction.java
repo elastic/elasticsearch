@@ -113,7 +113,6 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
             threadPool,
             actionFilters,
             Request::new,
-            indexNameExpressionResolver,
             Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
@@ -415,7 +414,7 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
             ML_ORIGIN,
             searchRequest,
             ActionListener.<SearchResponse>wrap(response -> {
-                if (response.getHits().getTotalHits().value > 0) {
+                if (response.getHits().getTotalHits().value() > 0) {
                     listener.onFailure(
                         ExceptionsHelper.badRequestException(Messages.getMessage(Messages.INFERENCE_MODEL_ID_AND_TAGS_UNIQUE, modelId))
                     );
@@ -443,7 +442,7 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
             ML_ORIGIN,
             searchRequest,
             ActionListener.<SearchResponse>wrap(response -> {
-                if (response.getHits().getTotalHits().value > 0) {
+                if (response.getHits().getTotalHits().value() > 0) {
                     listener.onFailure(
                         ExceptionsHelper.badRequestException(Messages.getMessage(Messages.INFERENCE_TAGS_AND_MODEL_IDS_UNIQUE, tags))
                     );

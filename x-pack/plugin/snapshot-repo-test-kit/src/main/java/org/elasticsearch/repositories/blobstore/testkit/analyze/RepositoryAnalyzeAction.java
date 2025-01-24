@@ -538,13 +538,7 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
                 queue.add(ref -> runBlobAnalysis(ref, blobAnalyzeRequest, node));
             }
 
-            ThrottledIterator.run(
-                getQueueIterator(),
-                (ref, task) -> task.accept(ref),
-                request.getConcurrency(),
-                () -> {},
-                requestRefs::close
-            );
+            ThrottledIterator.run(getQueueIterator(), (ref, task) -> task.accept(ref), request.getConcurrency(), requestRefs::close);
         }
 
         private boolean rarely(Random random) {

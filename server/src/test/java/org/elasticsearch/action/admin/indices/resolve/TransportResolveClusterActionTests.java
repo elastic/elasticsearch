@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.resolve;
@@ -65,12 +66,8 @@ public class TransportResolveClusterActionTests extends ESTestCase {
             ResolveClusterActionRequest request = new ResolveClusterActionRequest(new String[] { "test" }) {
                 @Override
                 public void writeTo(StreamOutput out) throws IOException {
-                    throw new UnsupportedOperationException(
-                        "ResolveClusterAction requires at least version "
-                            + TransportVersions.V_8_13_0.toReleaseVersion()
-                            + " but was "
-                            + out.getTransportVersion().toReleaseVersion()
-                    );
+                    String versionErrorMessage = ResolveClusterActionRequest.createVersionErrorMessage(out.getTransportVersion());
+                    throw new UnsupportedOperationException(versionErrorMessage);
                 }
             };
             ClusterService clusterService = new ClusterService(
@@ -87,9 +84,10 @@ public class TransportResolveClusterActionTests extends ESTestCase {
                 null
             );
 
-            final var ex = asInstanceOf(
+            final var ex = safeAwaitFailure(
                 IllegalArgumentException.class,
-                safeAwaitFailure(ResolveClusterActionResponse.class, listener -> action.doExecute(null, request, listener))
+                ResolveClusterActionResponse.class,
+                listener -> action.doExecute(null, request, listener)
             );
 
             assertThat(ex.getMessage(), containsString("not compatible with version"));

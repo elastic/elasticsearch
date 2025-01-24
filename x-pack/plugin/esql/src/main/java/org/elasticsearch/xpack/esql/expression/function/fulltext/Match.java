@@ -287,7 +287,7 @@ public class Match extends AbstractMatchFullTextFunction implements OptionalArgu
         return matchOptions;
     }
 
-    private Expression options() {
+    public Expression options() {
         return options;
     }
 

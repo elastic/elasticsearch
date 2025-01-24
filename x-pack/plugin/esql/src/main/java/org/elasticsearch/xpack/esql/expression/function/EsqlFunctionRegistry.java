@@ -70,7 +70,6 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.Now;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.CIDRMatch;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.IpPrefix;
-import org.elasticsearch.xpack.esql.expression.function.scalar.map.LogWithBaseInMap;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Abs;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Acos;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Asin;
@@ -438,9 +437,6 @@ public class EsqlFunctionRegistry {
                 // The delay() function is for debug/snapshot environments only and should never be enabled in a non-snapshot build.
                 // This is an experimental function and can be removed without notice.
                 def(Delay.class, Delay::new, "delay"),
-                // log_with_base_in_map is for debug/snapshot environments only
-                // and should never be enabled in a non-snapshot build. They are for the purpose of testing MapExpression only.
-                def(LogWithBaseInMap.class, LogWithBaseInMap::new, "log_with_base_in_map"),
                 def(Rate.class, Rate::withUnresolvedTimestamp, "rate"),
                 def(Term.class, bi(Term::new), "term") } };
     }

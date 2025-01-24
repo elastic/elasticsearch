@@ -189,6 +189,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         private final IndexAnalyzers indexAnalyzers;
         private final ScriptCompiler scriptCompiler;
         private final IndexVersion indexCreatedVersion;
+        private final SourceKeepMode indexSourceKeepMode;
 
         public Builder(final String name, final MappingParserContext mappingParserContext) {
             this(
@@ -196,7 +197,8 @@ public final class KeywordFieldMapper extends FieldMapper {
                 mappingParserContext.getIndexAnalyzers(),
                 mappingParserContext.scriptCompiler(),
                 IGNORE_ABOVE_SETTING.get(mappingParserContext.getSettings()),
-                mappingParserContext.getIndexSettings().getIndexVersionCreated()
+                mappingParserContext.getIndexSettings().getIndexVersionCreated(),
+                mappingParserContext.getIndexSettings().sourceKeepMode()
             );
         }
 
@@ -205,7 +207,8 @@ public final class KeywordFieldMapper extends FieldMapper {
             IndexAnalyzers indexAnalyzers,
             ScriptCompiler scriptCompiler,
             int ignoreAboveDefault,
-            IndexVersion indexCreatedVersion
+            IndexVersion indexCreatedVersion,
+            SourceKeepMode indexSourceKeepMode
         ) {
             super(name);
             this.indexAnalyzers = indexAnalyzers;
@@ -240,10 +243,11 @@ public final class KeywordFieldMapper extends FieldMapper {
                         throw new IllegalArgumentException("[ignore_above] must be positive, got [" + v + "]");
                     }
                 });
+            this.indexSourceKeepMode = indexSourceKeepMode;
         }
 
         public Builder(String name, IndexVersion indexCreatedVersion) {
-            this(name, null, ScriptCompiler.NONE, Integer.MAX_VALUE, indexCreatedVersion);
+            this(name, null, ScriptCompiler.NONE, Integer.MAX_VALUE, indexCreatedVersion, SourceKeepMode.NONE);
         }
 
         public Builder ignoreAbove(int ignoreAbove) {
@@ -378,8 +382,12 @@ public final class KeywordFieldMapper extends FieldMapper {
             super.hasScript = script.get() != null;
             super.onScriptError = onScriptError.getValue();
 
+            var sourceKeepMode = this.sourceKeepMode.orElse(indexSourceKeepMode);
             BinaryFieldMapper offsetsFieldMapper;
-            if (context.isSourceSynthetic() && fieldtype.stored() == false && copyTo.copyToFields().isEmpty()) {
+            if (context.isSourceSynthetic()
+                && fieldtype.stored() == false
+                && copyTo.copyToFields().isEmpty()
+                && sourceKeepMode == SourceKeepMode.ARRAYS) {
                 // Skip stored, we will be synthesizing from stored fields, no point to keep track of the offsets
                 // Skip copy_to, supporting that requires more work. However, copy_to usage is rare in metrics and logging use cases
 
@@ -400,7 +408,8 @@ public final class KeywordFieldMapper extends FieldMapper {
                 builderParams(this, context),
                 context.isSourceSynthetic(),
                 this,
-                offsetsFieldMapper
+                offsetsFieldMapper,
+                indexSourceKeepMode
             );
         }
     }
@@ -892,6 +901,7 @@ public final class KeywordFieldMapper extends FieldMapper {
     private final int ignoreAboveDefault;
     private final int ignoreAbove;
     private final BinaryFieldMapper offsetsFieldMapper;
+    private final SourceKeepMode indexSourceKeepMode;
 
     private KeywordFieldMapper(
         String simpleName,
@@ -900,7 +910,8 @@ public final class KeywordFieldMapper extends FieldMapper {
         BuilderParams builderParams,
         boolean isSyntheticSource,
         Builder builder,
-        BinaryFieldMapper offsetsFieldMapper
+        BinaryFieldMapper offsetsFieldMapper,
+        SourceKeepMode indexSourceKeepMode
     ) {
         super(simpleName, mappedFieldType, builderParams);
         assert fieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS) <= 0;
@@ -918,6 +929,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         this.ignoreAboveDefault = builder.ignoreAboveDefault;
         this.ignoreAbove = builder.ignoreAbove.getValue();
         this.offsetsFieldMapper = offsetsFieldMapper;
+        this.indexSourceKeepMode = indexSourceKeepMode;
     }
 
     @Override
@@ -1133,9 +1145,9 @@ public final class KeywordFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), indexAnalyzers, scriptCompiler, ignoreAboveDefault, indexCreatedVersion).dimension(
-            fieldType().isDimension()
-        ).init(this);
+        return new Builder(leafName(), indexAnalyzers, scriptCompiler, ignoreAboveDefault, indexCreatedVersion, indexSourceKeepMode)
+            .dimension(fieldType().isDimension())
+            .init(this);
     }
 
     @Override

@@ -48,6 +48,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_REFRESH_BLO
 import static org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class ShardStartedClusterStateTaskExecutorTests extends ESAllocationTestCase {
@@ -541,7 +542,13 @@ public class ShardStartedClusterStateTaskExecutorTests extends ESAllocationTestC
             clusterState = resultingState;
         }
 
-        assertThat(clusterState.routingTable().index(indexName).readyForSearch(clusterState), is(true));
+        var indexRoutingTable = clusterState.routingTable().index(indexName);
+        assertThat(indexRoutingTable.readyForSearch(clusterState), is(true));
+        for (int i = 0; i < numberOfShards; i++) {
+            var shardRoutingTable = indexRoutingTable.shard(i);
+            assertThat(shardRoutingTable, is(notNullValue()));
+            assertThat(shardRoutingTable.unpromotableShards().isEmpty(), is(false));
+        }
         assertThat(clusterState.blocks().hasIndexBlock(indexName, INDEX_REFRESH_BLOCK), is(false));
     }
 

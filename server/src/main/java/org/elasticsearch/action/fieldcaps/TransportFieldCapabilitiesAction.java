@@ -55,14 +55,13 @@ import org.elasticsearch.transport.TransportService;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.NavigableMap;
 import java.util.Set;
-import java.util.TreeMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
@@ -163,13 +162,13 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         }
 
         if (concreteIndices.length == 0 && remoteClusterIndices.isEmpty()) {
-            listener.onResponse(FieldCapabilitiesResponse.EMPTY);
+            listener.onResponse(new FieldCapabilitiesResponse(new String[0], Collections.emptyMap()));
             return;
         }
 
         checkIndexBlocks(clusterState, concreteIndices);
         final FailureCollector indexFailures = new FailureCollector();
-        final NavigableMap<String, FieldCapabilitiesIndexResponse> indexResponses = new TreeMap<>();
+        final Map<String, FieldCapabilitiesIndexResponse> indexResponses = new HashMap<>();
         // This map is used to share the index response for indices which have the same index mapping hash to reduce the memory usage.
         final Map<String, FieldCapabilitiesIndexResponse> indexMappingHashToResponses = new HashMap<>();
         final Runnable releaseResourcesOnCancel = () -> {
@@ -355,12 +354,12 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
     private static void mergeIndexResponses(
         FieldCapabilitiesRequest request,
         CancellableTask task,
-        NavigableMap<String, FieldCapabilitiesIndexResponse> indexResponses,
+        Map<String, FieldCapabilitiesIndexResponse> indexResponses,
         FailureCollector indexFailures,
         ActionListener<FieldCapabilitiesResponse> listener
     ) {
         List<FieldCapabilitiesFailure> failures = indexFailures.build(indexResponses.keySet());
-        if (indexResponses.isEmpty() == false) {
+        if (indexResponses.size() > 0) {
             if (request.isMergeResults()) {
                 ActionListener.completeWith(listener, () -> merge(indexResponses, task, request, failures));
             } else {
@@ -403,7 +402,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
     }
 
     private static FieldCapabilitiesResponse merge(
-        NavigableMap<String, FieldCapabilitiesIndexResponse> indexResponsesMap,
+        Map<String, FieldCapabilitiesIndexResponse> indexResponsesMap,
         CancellableTask task,
         FieldCapabilitiesRequest request,
         List<FieldCapabilitiesFailure> failures
@@ -411,6 +410,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH_COORDINATION); // too expensive to run this on a transport worker
         task.ensureNotCancelled();
         final FieldCapabilitiesIndexResponse[] indexResponses = indexResponsesMap.values().toArray(new FieldCapabilitiesIndexResponse[0]);
+        Arrays.sort(indexResponses, Comparator.comparing(FieldCapabilitiesIndexResponse::getIndexName));
         final String[] indices = Arrays.stream(indexResponses).map(FieldCapabilitiesIndexResponse::getIndexName).toArray(String[]::new);
         final Map<String, Map<String, FieldCapabilities.Builder>> responseMapBuilder = new HashMap<>();
         int lastPendingIndex = 0;

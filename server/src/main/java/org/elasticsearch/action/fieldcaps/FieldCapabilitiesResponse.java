@@ -30,10 +30,13 @@ import java.util.Objects;
  * Response for {@link FieldCapabilitiesRequest} requests.
  */
 public class FieldCapabilitiesResponse extends ActionResponse implements ChunkedToXContentObject {
+
     public static final ParseField INDICES_FIELD = new ParseField("indices");
     public static final ParseField FIELDS_FIELD = new ParseField("fields");
     private static final ParseField FAILED_INDICES_FIELD = new ParseField("failed_indices");
     public static final ParseField FAILURES_FIELD = new ParseField("failures");
+
+    public static final FieldCapabilitiesResponse EMPTY = new FieldCapabilitiesResponse(Strings.EMPTY_ARRAY, Collections.emptyMap());
 
     private final String[] indices;
     private final Map<String, Map<String, FieldCapabilities>> responseMap;

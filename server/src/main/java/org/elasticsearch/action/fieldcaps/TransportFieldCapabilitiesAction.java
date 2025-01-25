@@ -31,8 +31,11 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
@@ -52,13 +55,14 @@ import org.elasticsearch.transport.TransportService;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.NavigableMap;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
@@ -141,6 +145,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         if (ccsCheckCompatibility) {
             checkCCSVersionCompatibility(request);
         }
+        final Executor singleThreadedExecutor = buildSingleThreadedExecutor();
         assert task instanceof CancellableTask;
         final CancellableTask fieldCapTask = (CancellableTask) task;
         // retrieve the initial timestamp in case the action is a cross cluster search
@@ -158,15 +163,15 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         }
 
         if (concreteIndices.length == 0 && remoteClusterIndices.isEmpty()) {
-            listener.onResponse(new FieldCapabilitiesResponse(new String[0], Collections.emptyMap()));
+            listener.onResponse(FieldCapabilitiesResponse.EMPTY);
             return;
         }
 
         checkIndexBlocks(clusterState, concreteIndices);
         final FailureCollector indexFailures = new FailureCollector();
-        final Map<String, FieldCapabilitiesIndexResponse> indexResponses = Collections.synchronizedMap(new HashMap<>());
+        final NavigableMap<String, FieldCapabilitiesIndexResponse> indexResponses = new TreeMap<>();
         // This map is used to share the index response for indices which have the same index mapping hash to reduce the memory usage.
-        final Map<String, FieldCapabilitiesIndexResponse> indexMappingHashToResponses = Collections.synchronizedMap(new HashMap<>());
+        final Map<String, FieldCapabilitiesIndexResponse> indexMappingHashToResponses = new HashMap<>();
         final Runnable releaseResourcesOnCancel = () -> {
             LOGGER.trace("clear index responses on cancellation");
             indexFailures.clear();
@@ -225,7 +230,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         final var finishedOrCancelled = new AtomicBoolean();
         fieldCapTask.addListener(() -> {
             if (finishedOrCancelled.compareAndSet(false, true)) {
-                releaseResourcesOnCancel.run();
+                singleThreadedExecutor.execute(releaseResourcesOnCancel);
             }
         });
         try (RefCountingRunnable refs = new RefCountingRunnable(() -> {
@@ -245,7 +250,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                 localIndices,
                 nowInMillis,
                 concreteIndices,
-                searchCoordinationExecutor,
+                singleThreadedExecutor,
                 handleIndexResponse,
                 handleIndexFailure,
                 refs.acquire()::close
@@ -260,7 +265,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                 var remoteClusterClient = transportService.getRemoteClusterService()
                     .getRemoteClusterClient(
                         clusterAlias,
-                        searchCoordinationExecutor,
+                        singleThreadedExecutor,
                         RemoteClusterService.DisconnectedStrategy.RECONNECT_UNLESS_SKIP_UNAVAILABLE
                     );
                 FieldCapabilitiesRequest remoteRequest = prepareRemoteRequest(request, originalIndices, nowInMillis);
@@ -295,13 +300,36 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                     // This fork is a workaround to ensure that the merging of field-caps always occurs on the search_coordinator.
                     // TODO: remove this workaround after we fixed https://github.com/elastic/elasticsearch/issues/107439
                     new ForkingOnFailureActionListener<>(
-                        searchCoordinationExecutor,
+                        singleThreadedExecutor,
                         true,
                         ActionListener.releaseAfter(remoteListener, refs.acquire())
                     )
                 );
             }
         }
+    }
+
+    private Executor buildSingleThreadedExecutor() {
+        final ThrottledTaskRunner throttledTaskRunner = new ThrottledTaskRunner("field_caps", 1, searchCoordinationExecutor);
+        return r -> throttledTaskRunner.enqueueTask(new ActionListener<>() {
+            @Override
+            public void onResponse(Releasable releasable) {
+                try (releasable) {
+                    r.run();
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                if (r instanceof AbstractRunnable abstractRunnable) {
+                    abstractRunnable.onFailure(e);
+                } else {
+                    // should be impossible, we should always submit an AbstractRunnable
+                    logger.error("unexpected failure running " + r, e);
+                    assert false : new AssertionError("unexpected failure running " + r, e);
+                }
+            }
+        });
     }
 
     public interface RemoteRequestExecutor {
@@ -327,12 +355,12 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
     private static void mergeIndexResponses(
         FieldCapabilitiesRequest request,
         CancellableTask task,
-        Map<String, FieldCapabilitiesIndexResponse> indexResponses,
+        NavigableMap<String, FieldCapabilitiesIndexResponse> indexResponses,
         FailureCollector indexFailures,
         ActionListener<FieldCapabilitiesResponse> listener
     ) {
         List<FieldCapabilitiesFailure> failures = indexFailures.build(indexResponses.keySet());
-        if (indexResponses.size() > 0) {
+        if (indexResponses.isEmpty() == false) {
             if (request.isMergeResults()) {
                 ActionListener.completeWith(listener, () -> merge(indexResponses, task, request, failures));
             } else {
@@ -375,7 +403,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
     }
 
     private static FieldCapabilitiesResponse merge(
-        Map<String, FieldCapabilitiesIndexResponse> indexResponsesMap,
+        NavigableMap<String, FieldCapabilitiesIndexResponse> indexResponsesMap,
         CancellableTask task,
         FieldCapabilitiesRequest request,
         List<FieldCapabilitiesFailure> failures
@@ -383,7 +411,6 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH_COORDINATION); // too expensive to run this on a transport worker
         task.ensureNotCancelled();
         final FieldCapabilitiesIndexResponse[] indexResponses = indexResponsesMap.values().toArray(new FieldCapabilitiesIndexResponse[0]);
-        Arrays.sort(indexResponses, Comparator.comparing(FieldCapabilitiesIndexResponse::getIndexName));
         final String[] indices = Arrays.stream(indexResponses).map(FieldCapabilitiesIndexResponse::getIndexName).toArray(String[]::new);
         final Map<String, Map<String, FieldCapabilities.Builder>> responseMapBuilder = new HashMap<>();
         int lastPendingIndex = 0;
@@ -541,7 +568,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
      * list, these failures will be skipped because they have no affect on the final response.
      */
     private static final class FailureCollector {
-        private final Map<String, Exception> failuresByIndex = Collections.synchronizedMap(new HashMap<>());
+        private final Map<String, Exception> failuresByIndex = new HashMap<>();
 
         List<FieldCapabilitiesFailure> build(Set<String> successfulIndices) {
             Map<Tuple<String, String>, FieldCapabilitiesFailure> indexFailures = new HashMap<>();

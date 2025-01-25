@@ -23,6 +23,7 @@ import org.junit.runners.model.Statement;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 
 class EntitlementsTestRule implements TestRule {
@@ -61,7 +62,14 @@ class EntitlementsTestRule implements TestRule {
                         builder.startObject();
                         builder.field(moduleName);
                         builder.startArray();
-                        policyBuilder.build(builder, testDir.getRoot().toPath());
+
+                        Path testPath = testDir.getRoot().toPath();
+                        Files.createDirectory(testPath.resolve("read_dir"));
+                        Files.createDirectory(testPath.resolve("read_write_dir"));
+                        Files.writeString(testPath.resolve("read_file"), "");
+                        Files.writeString(testPath.resolve("read_write_file"), "");
+
+                        policyBuilder.build(builder, testPath);
                         builder.endArray();
                         builder.endObject();
 

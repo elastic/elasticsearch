@@ -197,10 +197,15 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
         entry("runtime_load_library", forPlugins(LoadNativeLibrariesCheckActions::runtimeLoadLibrary)),
         entry("system_load", forPlugins(LoadNativeLibrariesCheckActions::systemLoad)),
         entry("system_load_library", forPlugins(LoadNativeLibrariesCheckActions::systemLoadLibrary)),
-        entry("create_scanner", forPlugins(FileCheckActions::createScanner)),
-        entry("create_scanner_with_charset", forPlugins(FileCheckActions::createScannerWithCharset)),
-        entry("create_scanner_with_charset_name", forPlugins(FileCheckActions::createScannerWithCharsetName))
-    )
+        entry("create_scanner", forPlugins(FileCheckActions::createScannerFile)),
+        entry("create_scanner_with_charset", forPlugins(FileCheckActions::createScannerFileWithCharset)),
+        entry("create_scanner_with_charset_name", forPlugins(FileCheckActions::createScannerFileWithCharsetName)),
+        entry("create_file_output_stream_string", forPlugins(FileCheckActions::createFileOutputStreamString)),
+        entry("create_file_output_stream_string_with_append", forPlugins(FileCheckActions::createFileOutputStreamStringWithAppend)),
+        entry("create_file_output_stream_file", forPlugins(FileCheckActions::createFileOutputStreamFile)),
+        entry("create_file_output_stream_file_with_append", forPlugins(FileCheckActions::createFileOutputStreamFileWithAppend)),
+        entry("files_probe_content_type", forPlugins(FileCheckActions::filesProbeContentType))
+        )
         .filter(entry -> entry.getValue().fromJavaVersion() == null || Runtime.version().feature() >= entry.getValue().fromJavaVersion())
         .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
 

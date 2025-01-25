@@ -13,23 +13,73 @@ import org.elasticsearch.core.SuppressForbidden;
 
 import java.io.File;
 import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.nio.charset.CharsetDecoder;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.OpenOption;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
+import java.nio.file.attribute.UserPrincipal;
 import java.util.Scanner;
 
 @SuppressForbidden(reason = "Explicitly checking APIs that are forbidden")
 class FileCheckActions {
 
-    static void createScanner() throws FileNotFoundException {
-        new Scanner(new File(""));
+    private static Path testRootDir = Paths.get(System.getProperty("es.entitlements.testdir"));
+
+    private static Path readDir() {
+        return testRootDir.resolve("read_dir");
     }
 
-    static void createScannerWithCharset() throws IOException {
-        new Scanner(new File(""), StandardCharsets.UTF_8);
+    private static Path readWriteDir() {
+        return testRootDir.resolve("read_write_dir");
     }
 
-    static void createScannerWithCharsetName() throws FileNotFoundException {
-        new Scanner(new File(""), "UTF-8");
+    private static Path readFile() {
+        return testRootDir.resolve("read_file");
+    }
+
+    private static Path readWriteFile() {
+        return testRootDir.resolve("read_write_file");
+    }
+
+    static void createScannerFile() throws FileNotFoundException {
+        new Scanner(readFile().toFile());
+    }
+
+    static void createScannerFileWithCharset() throws IOException {
+        new Scanner(readFile().toFile(), StandardCharsets.UTF_8);
+    }
+
+    static void createScannerFileWithCharsetName() throws FileNotFoundException {
+        new Scanner(readFile().toFile(), "UTF-8");
+    }
+
+    static void createFileOutputStreamString() throws IOException{
+        new FileOutputStream(readWriteFile().toString()).close();
+    }
+
+    static void createFileOutputStreamStringWithAppend() throws IOException{
+        new FileOutputStream(readWriteFile().toString(), false).close();
+    }
+
+    static void createFileOutputStreamFile() throws IOException{
+        new FileOutputStream(readWriteFile().toFile()).close();
+    }
+
+    static void createFileOutputStreamFileWithAppend() throws IOException {
+        new FileOutputStream(readWriteFile().toFile(), false).close();
+    }
+
+    static void filesProbeContentType() throws IOException {
+        Files.probeContentType(readFile());
+    }
+
+    static void filesSetOwner() throws IOException {
+        Files.setOwner(readWriteFile(), UserPrincipal)
     }
 
     private FileCheckActions() {}

@@ -51,6 +51,7 @@ import java.nio.charset.Charset;
 import java.nio.charset.CharsetDecoder;
 import java.nio.file.OpenOption;
 import java.nio.file.Path;
+import java.nio.file.attribute.UserPrincipal;
 import java.security.cert.CertStoreParameters;
 import java.util.List;
 import java.util.Properties;
@@ -777,11 +778,6 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     }
 
     @Override
-    public void check$java_util_Scanner$(Class<?> callerClass, File source, CharsetDecoder charsetDecoder) {
-        policyManager.checkFileRead(callerClass, source);
-    }
-
-    @Override
     public void check$java_io_FileOutputStream$(Class<?> callerClass, String name) {
         policyManager.checkFileWrite(callerClass, new File(name));
     }
@@ -802,17 +798,12 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     }
 
     @Override
-    public void check$java_io_FileOutputStream$(Class<?> callerClass, FileDescriptor fdObj) {
-        // TODO: not entitled
-    }
-
-    @Override
-    public void check$java_nio_file_Files$newInputStream(Class<?> callerClass, Path path, OpenOption... options) {
+    public void check$java_nio_file_Files$$probeContentType(Class<?> callerClass, Path path) {
         policyManager.checkFileRead(callerClass, path);
     }
 
     @Override
-    public void check$java_nio_file_Files$newOutputStream(Class<?> callerClass, Path path, OpenOption... options) {
+    public void check$java_nio_file_Files$$setOwner(Class<?> callerClass, Path path, UserPrincipal principal) {
         policyManager.checkFileWrite(callerClass, path);
     }
 }

@@ -46,6 +46,7 @@ import java.nio.charset.Charset;
 import java.nio.charset.CharsetDecoder;
 import java.nio.file.OpenOption;
 import java.nio.file.Path;
+import java.nio.file.attribute.UserPrincipal;
 import java.security.cert.CertStoreParameters;
 import java.util.List;
 import java.util.Properties;
@@ -423,24 +424,14 @@ public interface EntitlementChecker {
     //
 
     void check$java_util_Scanner$(Class<?> callerClass, File source);
-
     void check$java_util_Scanner$(Class<?> callerClass, File source, String charsetName);
-
     void check$java_util_Scanner$(Class<?> callerClass, File source, Charset charset);
 
-    void check$java_util_Scanner$(Class<?> callerClass, File source, CharsetDecoder charsetDecoder);
-
     void check$java_io_FileOutputStream$(Class<?> callerClass, String name);
-
     void check$java_io_FileOutputStream$(Class<?> callerClass, String name, boolean append);
-
     void check$java_io_FileOutputStream$(Class<?> callerClass, File file);
-
     void check$java_io_FileOutputStream$(Class<?> callerClass, File file, boolean append);
 
-    void check$java_io_FileOutputStream$(Class<?> callerClass, FileDescriptor fdObj);
-
-    void check$java_nio_file_Files$newInputStream(Class<?> callerClass, Path path, OpenOption... options);
-
-    void check$java_nio_file_Files$newOutputStream(Class<?> callerClass, Path path, OpenOption... options);
+    void check$java_nio_file_Files$$probeContentType(Class<?> callerClass, Path path);
+    void check$java_nio_file_Files$$setOwner(Class<?> callerClass, Path path, UserPrincipal principal);
 }

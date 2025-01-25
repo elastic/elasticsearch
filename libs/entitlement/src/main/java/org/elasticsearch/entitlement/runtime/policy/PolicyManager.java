@@ -210,10 +210,9 @@ public class PolicyManager {
         if (entitlements.fileAccess().canRead(file) == false) {
             throw new NotEntitledException(
                 Strings.format(
-                    "Not entitled: caller [%s], module [%s], operation [%s], path [%s]",
+                    "Not entitled: caller [%s], module [%s], entitlement [file], operation [read], path [%s]",
                     callerClass,
                     requestingClass.getModule(),
-                    "file read",
                     file
                 )
             );
@@ -230,10 +229,9 @@ public class PolicyManager {
         if (entitlements.fileAccess().canRead(path) == false) {
             throw new NotEntitledException(
                 Strings.format(
-                    "Not entitled: caller [%s], module [%s], operation [%s], path [%s]",
+                    "Not entitled: caller [%s], module [%s], entitlement [file], operation [read], path [%s]",
                     callerClass,
                     requestingClass.getModule(),
-                    "file read",
                     path
                 )
             );
@@ -251,10 +249,10 @@ public class PolicyManager {
         if (entitlements.fileAccess().canWrite(file) == false) {
             throw new NotEntitledException(
                 Strings.format(
-                    "Not entitled: caller [%s], module [%s], operation [%s]",
+                    "Not entitled: caller [%s], module [%s], entitlement [file], operation [write], path [%s]",
                     callerClass,
                     requestingClass.getModule(),
-                    "file write"
+                    file
                 )
             );
         }
@@ -270,10 +268,10 @@ public class PolicyManager {
         if (entitlements.fileAccess().canWrite(path) == false) {
             throw new NotEntitledException(
                 Strings.format(
-                    "Not entitled: caller [%s], module [%s], operation [%s]",
+                    "Not entitled: caller [%s], module [%s], entitlement [file], operation [write], path [%s]",
                     callerClass,
                     requestingClass.getModule(),
-                    "file write"
+                    path
                 )
             );
         }

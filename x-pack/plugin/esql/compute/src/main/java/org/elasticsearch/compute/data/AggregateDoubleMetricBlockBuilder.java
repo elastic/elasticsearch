@@ -59,11 +59,35 @@ public class AggregateDoubleMetricBlockBuilder extends AbstractBlockBuilder impl
 
     @Override
     public Block.Builder copyFrom(Block block, int beginInclusive, int endExclusive) {
-        CompositeBlock composite = (CompositeBlock) block;
-        minBuilder.copyFrom(composite.getBlock(Metric.MIN.getIndex()), beginInclusive, endExclusive);
-        maxBuilder.copyFrom(composite.getBlock(Metric.MAX.getIndex()), beginInclusive, endExclusive);
-        sumBuilder.copyFrom(composite.getBlock(Metric.SUM.getIndex()), beginInclusive, endExclusive);
-        countBuilder.copyFrom(composite.getBlock(Metric.COUNT.getIndex()), beginInclusive, endExclusive);
+        Block minBlock;
+        Block maxBlock;
+        Block sumBlock;
+        Block countBlock;
+        if (block.areAllValuesNull()) {
+            minBlock = block;
+            maxBlock = block;
+            sumBlock = block;
+            countBlock = block;
+        } else {
+            CompositeBlock composite = (CompositeBlock) block;
+            minBlock = composite.getBlock(Metric.MIN.getIndex());
+            maxBlock = composite.getBlock(Metric.MAX.getIndex());
+            sumBlock = composite.getBlock(Metric.SUM.getIndex());
+            countBlock = composite.getBlock(Metric.COUNT.getIndex());
+        }
+        minBuilder.copyFrom(minBlock, beginInclusive, endExclusive);
+        maxBuilder.copyFrom(maxBlock, beginInclusive, endExclusive);
+        sumBuilder.copyFrom(sumBlock, beginInclusive, endExclusive);
+        countBuilder.copyFrom(countBlock, beginInclusive, endExclusive);
+        return this;
+    }
+
+    @Override
+    public AbstractBlockBuilder appendNull() {
+        minBuilder.appendNull();
+        maxBuilder.appendNull();
+        sumBuilder.appendNull();
+        countBuilder.appendNull();
         return this;
     }
 
@@ -88,17 +112,34 @@ public class AggregateDoubleMetricBlockBuilder extends AbstractBlockBuilder impl
             return new CompositeBlock(blocks);
         } catch (CircuitBreakingException e) {
             for (Block block : blocks) {
-                block.close();
+                Releasables.closeExpectNoException(block);
             }
             throw e;
         }
     }
 
     @Override
-    public BlockLoader.AggregateDoubleMetricBuilder append(double min, double max, double sum, int valueCount) {
-        minBuilder.appendDouble(min);
-        maxBuilder.appendDouble(max);
-        sumBuilder.appendDouble(sum);
+    protected void extraClose() {
+        Releasables.closeExpectNoException(minBuilder, maxBuilder, sumBuilder, countBuilder);
+    }
+
+    @Override
+    public BlockLoader.AggregateDoubleMetricBuilder append(Double min, Double max, Double sum, int valueCount) {
+        if (min == null) {
+            minBuilder.appendNull();
+        } else {
+            minBuilder.appendDouble(min);
+        }
+        if (max == null) {
+            maxBuilder.appendNull();
+        } else {
+            maxBuilder.appendDouble(max);
+        }
+        if (sum == null) {
+            sumBuilder.appendNull();
+        } else {
+            sumBuilder.appendDouble(sum);
+        }
         countBuilder.appendInt(valueCount);
         return this;
     }

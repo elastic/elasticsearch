@@ -153,7 +153,7 @@ public class Max extends AggregateFunction implements ToAggregator, SurrogateExp
     @Override
     public Expression surrogate() {
         if (field().dataType() == DataType.AGGREGATE_METRIC_DOUBLE) {
-            return new Max(source(), new FromAggregateDoubleMetric(source(), field(), AggregateDoubleMetricBlockBuilder.Metric.MAX));
+            return new Max(source(), FromAggregateDoubleMetric.withMetric(source(), field(), AggregateDoubleMetricBlockBuilder.Metric.MAX));
         }
         return field().foldable() ? new MvMax(source(), field()) : null;
     }

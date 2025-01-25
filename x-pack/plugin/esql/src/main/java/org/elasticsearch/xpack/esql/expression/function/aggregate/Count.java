@@ -145,7 +145,7 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
         var s = source();
         var field = field();
         if (field.dataType() == DataType.AGGREGATE_METRIC_DOUBLE) {
-            return new Sum(s, new FromAggregateDoubleMetric(source(), field, AggregateDoubleMetricBlockBuilder.Metric.COUNT));
+            return new Sum(s, FromAggregateDoubleMetric.withMetric(source(), field, AggregateDoubleMetricBlockBuilder.Metric.COUNT));
         }
 
         if (field.foldable()) {

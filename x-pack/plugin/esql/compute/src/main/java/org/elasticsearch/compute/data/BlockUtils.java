@@ -233,6 +233,17 @@ public final class BlockUtils {
             case BYTES_REF -> blockFactory.newConstantBytesRefBlockWith(toBytesRef(val), size);
             case DOUBLE -> blockFactory.newConstantDoubleBlockWith((double) val, size);
             case BOOLEAN -> blockFactory.newConstantBooleanBlockWith((boolean) val, size);
+            case COMPOSITE -> {
+                var builder = blockFactory.newAggregatedDoubleMetricBlockBuilder(size);
+                var aggregate_metric_double = (AggregateMetricDoubleLiteral) val;
+                builder.append(
+                    aggregate_metric_double.getMin(),
+                    aggregate_metric_double.getMax(),
+                    aggregate_metric_double.getSum(),
+                    aggregate_metric_double.getCount()
+                );
+                yield builder.build();
+            }
             default -> throw new UnsupportedOperationException("unsupported element type [" + type + "]");
         };
     }

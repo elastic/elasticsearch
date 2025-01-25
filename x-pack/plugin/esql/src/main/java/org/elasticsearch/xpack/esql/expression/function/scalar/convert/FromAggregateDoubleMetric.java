@@ -14,6 +14,7 @@ import org.elasticsearch.compute.data.AggregateDoubleMetricBlockBuilder;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.CompositeBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
@@ -36,6 +37,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 
 public class FromAggregateDoubleMetric extends EsqlScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -62,8 +64,8 @@ public class FromAggregateDoubleMetric extends EsqlScalarFunction {
         this.subfieldIndex = subfieldIndex;
     }
 
-    public FromAggregateDoubleMetric(Source source, Expression field, AggregateDoubleMetricBlockBuilder.Metric metric) {
-        this(source, field, new Literal(source, metric.getIndex(), INTEGER));
+    public static FromAggregateDoubleMetric withMetric(Source source, Expression field, AggregateDoubleMetricBlockBuilder.Metric metric) {
+        return new FromAggregateDoubleMetric(source, field, new Literal(source, metric.getIndex(), INTEGER));
     }
 
     private FromAggregateDoubleMetric(StreamInput in) throws IOException {
@@ -87,8 +89,11 @@ public class FromAggregateDoubleMetric extends EsqlScalarFunction {
         if (subfieldIndex.foldable() == false) {
             throw new EsqlIllegalArgumentException("Received a non-foldable value for subfield index");
         }
-
-        var subfield = ((Number) subfieldIndex.fold(FoldContext.small())).intValue();
+        var folded = subfieldIndex.fold(FoldContext.small());
+        if (folded == null) {
+            return NULL;
+        }
+        var subfield = ((Number) folded).intValue();
         if (subfield == AggregateDoubleMetricBlockBuilder.Metric.COUNT.getIndex()) {
             return INTEGER;
         }
@@ -121,23 +126,43 @@ public class FromAggregateDoubleMetric extends EsqlScalarFunction {
     @Override
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         var fieldEvaluator = toEvaluator.apply(field);
-        return driverContext -> {
-            final EvalOperator.ExpressionEvaluator eval = fieldEvaluator.get(driverContext);
-            return new EvalOperator.ExpressionEvaluator() {
-                @Override
-                public Block eval(Page page) {
-                    try (CompositeBlock compositeBlock = (CompositeBlock) eval.eval(page)) {
-                        Block block = compositeBlock.getBlock(((Number) subfieldIndex.fold(FoldContext.small())).intValue());
-                        block.incRef();
-                        return block;
-                    }
-                }
+        return new EvalOperator.ExpressionEvaluator.Factory() {
 
-                @Override
-                public void close() {
-                    Releasables.closeExpectNoException(eval);
-                }
-            };
+            @Override
+            public String toString() {
+                return "FromAggregateDoubleMetricEvaluator[" + "field=" + fieldEvaluator + ",subfieldIndex=" + subfieldIndex + "]";
+            }
+
+            @Override
+            public EvalOperator.ExpressionEvaluator get(DriverContext context) {
+                final EvalOperator.ExpressionEvaluator eval = fieldEvaluator.get(context);
+
+                return new EvalOperator.ExpressionEvaluator() {
+                    @Override
+                    public Block eval(Page page) {
+                        Block block = eval.eval(page);
+                        if (block.areAllValuesNull()) {
+                            return block;
+                        }
+                        try (CompositeBlock compositeBlock = (CompositeBlock) block) {
+                            Block resultBlock = compositeBlock.getBlock(((Number) subfieldIndex.fold(FoldContext.small())).intValue());
+                            resultBlock.incRef();
+                            return resultBlock;
+                        }
+                    }
+
+                    @Override
+                    public void close() {
+                        Releasables.closeExpectNoException(eval);
+                    }
+
+                    @Override
+                    public String toString() {
+                        return "FromAggregateDoubleMetricEvaluator[field=" + eval + ",subfieldIndex=" + subfieldIndex + "]";
+                    }
+                };
+
+            }
         };
     }
 }

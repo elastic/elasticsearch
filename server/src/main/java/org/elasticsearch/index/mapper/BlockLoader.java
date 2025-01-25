@@ -506,7 +506,7 @@ public interface BlockLoader {
 
     interface AggregateDoubleMetricBuilder extends Builder {
 
-        AggregateDoubleMetricBuilder append(double min, double max, double sum, int valueCount);
+        AggregateDoubleMetricBuilder append(Double min, Double max, Double sum, int valueCount);
 
     }
 }

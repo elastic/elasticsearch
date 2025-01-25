@@ -138,7 +138,7 @@ public class Sum extends NumericAggregate implements SurrogateExpression {
         var s = source();
         var field = field();
         if (field.dataType() == AGGREGATE_METRIC_DOUBLE) {
-            return new Sum(s, new FromAggregateDoubleMetric(source(), field, AggregateDoubleMetricBlockBuilder.Metric.SUM));
+            return new Sum(s, FromAggregateDoubleMetric.withMetric(source(), field, AggregateDoubleMetricBlockBuilder.Metric.SUM));
         }
 
         // SUM(const) is equivalent to MV_SUM(const)*COUNT(*).

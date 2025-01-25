@@ -9,4 +9,4 @@ Multivalue expression.
 Multivalue expression.
 
 `delim`::
-(Optional) Delimiter. Optional; if omitted, `,` is used as a default delimiter.
+Delimiter. Optional; if omitted, `,` is used as a default delimiter.

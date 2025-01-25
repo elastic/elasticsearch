@@ -9,4 +9,4 @@ An input string
 A substring to locate in the input string
 
 `start`::
-(Optional) The start index
+The start index

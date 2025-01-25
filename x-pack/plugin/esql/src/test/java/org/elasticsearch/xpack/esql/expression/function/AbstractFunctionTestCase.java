@@ -928,7 +928,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                 );
             }
             renderTypes(name, description.args());
-            renderParametersList(name, description.argNames(), description.argDescriptions(), description.argOptionals());
+            renderParametersList(name, description.argNames(), description.argDescriptions());
             FunctionInfo info = EsqlFunctionRegistry.functionInfo(definition);
             renderDescription(name, description.description(), info.detailedDescription(), info.note());
             Optional<EsqlFunctionRegistry.ArgSignature> mapArgSignature = description.args()
@@ -975,7 +975,6 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             }
             StringBuilder b = new StringBuilder();
             for (int i = 0; i < sig.getKey().size(); i++) {
-
                 DataType argType = sig.getKey().get(i);
                 EsqlFunctionRegistry.ArgSignature argSignature = args.get(i);
                 if (argSignature.mapArg()) {
@@ -1004,17 +1003,12 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         writeToTempDir("types", name, "asciidoc", rendered);
     }
 
-    private static void renderParametersList(String name, List<String> argNames, List<String> argDescriptions, List<Boolean> argsOptional)
-        throws IOException {
+    private static void renderParametersList(String name, List<String> argNames, List<String> argDescriptions) throws IOException {
         StringBuilder builder = new StringBuilder();
         builder.append(DOCS_WARNING);
         builder.append("*Parameters*\n");
         for (int a = 0; a < argNames.size(); a++) {
-            builder.append("\n`").append(argNames.get(a)).append("`::\n");
-            if (argsOptional.get(a)) {
-                builder.append("(Optional) ");
-            }
-            builder.append(argDescriptions.get(a)).append('\n');
+            builder.append("\n`").append(argNames.get(a)).append("`::\n").append(argDescriptions.get(a)).append('\n');
         }
         String rendered = builder.toString();
         LogManager.getLogger(getTestClass()).info("Writing parameters for [{}]:\n{}", name, rendered);

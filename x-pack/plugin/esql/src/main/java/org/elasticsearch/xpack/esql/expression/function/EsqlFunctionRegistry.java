@@ -591,10 +591,6 @@ public class EsqlFunctionRegistry {
         public List<String> argDescriptions() {
             return args.stream().map(ArgSignature::description).toList();
         }
-
-        public List<Boolean> argOptionals() {
-            return args.stream().map(ArgSignature::optional).toList();
-        }
     }
 
     /**

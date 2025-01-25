@@ -447,3 +447,6 @@ tests:
 - class: org.elasticsearch.xpack.logsdb.qa.StoredSourceLogsDbVersusReindexedLogsDbChallengeRestIT
   method: testTermsQuery
   issue: https://github.com/elastic/elasticsearch/issues/120853
+- class: org.elasticsearch.xpack.logsdb.qa.StoredSourceLogsDbVersusReindexedLogsDbChallengeRestIT
+  method: testMatchAllQuery
+  issue: https://github.com/elastic/elasticsearch/issues/120854

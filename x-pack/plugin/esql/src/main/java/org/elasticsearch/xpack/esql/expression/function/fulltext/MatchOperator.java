@@ -19,6 +19,8 @@ import java.util.List;
 
 /**
  * This class performs a {@link org.elasticsearch.xpack.esql.querydsl.query.MatchQuery} using an operator.
+ * This is used as a convenience for generating documentation and for error message purposes - it's not really
+ * a new named writeable type but a way to represent the match operator in the function syntax.
  */
 public class MatchOperator extends Match {
 

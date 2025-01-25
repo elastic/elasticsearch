@@ -187,7 +187,7 @@ public abstract class FullTextFunction extends Function implements TranslationAw
             checkCommandsBeforeExpression(
                 plan,
                 condition,
-                AbstractMatchFullTextFunction.class,
+                Match.class,
                 lp -> (lp instanceof Limit == false) && (lp instanceof Aggregate == false),
                 m -> "[" + m.functionName() + "] " + m.functionType(),
                 failures

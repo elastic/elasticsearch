@@ -6,4 +6,4 @@
 Expression to evaluate.
 
 `rest`::
-Other expression to evaluate.
+(Optional) Other expression to evaluate.

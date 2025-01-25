@@ -4,7 +4,7 @@
 
 [%header.monospaced.styled,format=dsv,separator=|]
 |===
-field | buckets | (optional) from | (optional) to | result
+field | buckets | from | to | result
 date | date_period | | | date
 date | integer | date | date | date
 date | integer | date | keyword | date

@@ -6,4 +6,4 @@
 The numeric value to round. If `null`, the function returns `null`.
 
 `decimals`::
-The number of decimal places to round to. Defaults to 0. If `null`, the function returns `null`.
+(Optional) The number of decimal places to round to. Defaults to 0. If `null`, the function returns `null`.

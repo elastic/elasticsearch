@@ -3,4 +3,4 @@
 *Parameters*
 
 `field`::
-Expression that outputs values to be counted. If omitted, equivalent to `COUNT(*)` (the number of rows).
+(Optional) Expression that outputs values to be counted. If omitted, equivalent to `COUNT(*)` (the number of rows).

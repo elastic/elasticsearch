@@ -9,4 +9,4 @@ String expression. If `null`, the function returns `null`.
 Start position.
 
 `length`::
-Length of the substring from the start position. Optional; if omitted, all positions after `start` are returned.
+(Optional) Length of the substring from the start position. Optional; if omitted, all positions after `start` are returned.

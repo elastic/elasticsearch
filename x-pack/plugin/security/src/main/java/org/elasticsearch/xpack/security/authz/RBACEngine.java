@@ -882,9 +882,15 @@ public class RBACEngine implements AuthorizationEngine {
                             for (Index index : indexAbstraction.getIndices()) {
                                 indicesAndAliases.add(index.getName());
                             }
+                            // TODO: [Jake] since we don't store the ::failure in the index meta data for which lookup values is based on
+                            // we are only testing if the data stream's name as defined in the metadata passes any of the role's defined
+                            // index patterns. Can we just append the ::failures to the indexAbstraction and check the predicate again ?
+                            // ... i think so.
                             // TODO: We need to limit if a data stream's failure indices should return here.
-                            for (Index index : ((DataStream) indexAbstraction).getFailureIndices()) {
-                                indicesAndAliases.add(index.getName());
+                            if (predicate.testDataStreamForFailureAccess(indexAbstraction)) {
+                                for (Index index : ((DataStream) indexAbstraction).getFailureIndices()) {
+                                    indicesAndAliases.add(index.getName());
+                                }
                             }
                         }
                     }

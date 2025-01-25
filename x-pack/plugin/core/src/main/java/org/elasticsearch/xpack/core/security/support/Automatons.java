@@ -335,8 +335,17 @@ public final class Automatons {
         } else if (automaton == EMPTY) {
             return Predicates.never();
         }
+
         automaton = Operations.determinize(automaton, maxDeterminizedStates);
         CharacterRunAutomaton runAutomaton = new CharacterRunAutomaton(automaton);
+        // TODO: [Jake] Don't rewrite the name* into a regex to express "and not name*::failures" ... instead keep the artifically added
+        // and not name*::failures as an an artifical pattern, so we end up building 2 automata and run both with an effective negate
+        // or actual negate method on the predicate here... or use an intersect the two automata for name* and (not name*::failures)
+        // likely using Operations.complement to express the negation of name*::failures...that probably cleaner and less error prone
+        // then converting what is in the role to a regex that has the negation built into it.
+        // the problem with ^ approach is that this predicate is used for the final auth check but by the IsResourceAuthorizedPredicate
+        // built from org.elasticsearch.xpack.core.security.authz.permission.IndicesPermission.buildIndexMatcherPredicateForAction
+        // so we would need to duplicate similar logic there...where re-writing to a regex covers both cases with shared logic/code.
         return new Predicate<String>() {
             @Override
             public boolean test(String s) {

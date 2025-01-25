@@ -50,6 +50,7 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import static java.util.Collections.unmodifiableMap;
+import static org.elasticsearch.xpack.core.security.authz.permission.IndicesPermission.Group.maybeAddFailureExclusions;
 
 /**
  * A permission that is based on privileges for index related actions executed
@@ -156,7 +157,7 @@ public final class IndicesPermission {
                 if (group.allowRestrictedIndices) {
                     restrictedIndices.addAll(Arrays.asList(group.indices()));
                 } else {
-                    ordinaryIndices.addAll(Arrays.asList(group.indices()));
+                    ordinaryIndices.addAll(Arrays.asList(maybeAddFailureExclusions(group.indices())));
                 }
             } else if (isMappingUpdateAction && containsPrivilegeThatGrantsMappingUpdatesForBwc(group)) {
                 // special BWC case for certain privileges: allow put mapping on indices and aliases (but not on data streams), even if
@@ -180,6 +181,7 @@ public final class IndicesPermission {
     public static class IsResourceAuthorizedPredicate implements BiPredicate<String, IndexAbstraction> {
 
         private final BiPredicate<String, IndexAbstraction> biPredicate;
+        private final StringMatcher resourceNameMatcher;
 
         // public for tests
         public IsResourceAuthorizedPredicate(StringMatcher resourceNameMatcher, StringMatcher additionalNonDatastreamNameMatcher) {
@@ -187,11 +189,13 @@ public final class IndicesPermission {
                 assert indexAbstraction == null || name.equals(indexAbstraction.getName());
                 return resourceNameMatcher.test(name)
                     || (isPartOfDatastream(indexAbstraction) == false && additionalNonDatastreamNameMatcher.test(name));
-            });
+            }, resourceNameMatcher);
+
         }
 
-        private IsResourceAuthorizedPredicate(BiPredicate<String, IndexAbstraction> biPredicate) {
+        private IsResourceAuthorizedPredicate(BiPredicate<String, IndexAbstraction> biPredicate, StringMatcher resourceNameMatcher) {
             this.biPredicate = biPredicate;
+            this.resourceNameMatcher = resourceNameMatcher;
         }
 
         /**
@@ -201,7 +205,7 @@ public final class IndicesPermission {
         */
         @Override
         public final IsResourceAuthorizedPredicate and(BiPredicate<? super String, ? super IndexAbstraction> other) {
-            return new IsResourceAuthorizedPredicate(this.biPredicate.and(other));
+            return new IsResourceAuthorizedPredicate(this.biPredicate.and(other), this.resourceNameMatcher);
         }
 
         /**
@@ -211,6 +215,12 @@ public final class IndicesPermission {
          */
         public final boolean test(IndexAbstraction indexAbstraction) {
             return test(indexAbstraction.getName(), indexAbstraction);
+        }
+
+        // TODO: [Jake] is this right ? and use combine, not string concat
+        public final boolean testDataStreamForFailureAccess(IndexAbstraction indexAbstraction) {
+            assert indexAbstraction != null && indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM;
+            return resourceNameMatcher.test(indexAbstraction.getName() + "::failures");
         }
 
         /**

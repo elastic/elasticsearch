@@ -23,7 +23,6 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParser;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionParser;
-import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
 import org.elasticsearch.search.SearchExtBuilder;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -126,14 +125,6 @@ public interface SearchPlugin {
      * The new {@link Query}s defined by this plugin.
      */
     default List<QuerySpec<?>> getQueries() {
-        return emptyList();
-    }
-
-    /**
-     * @return Applicable {@link QueryRewriteInterceptor}s configured for this plugin.
-     * Note: This is internal to Elasticsearch's API and not extensible by external plugins.
-     */
-    default List<QueryRewriteInterceptor> getQueryRewriteInterceptors() {
         return emptyList();
     }
 

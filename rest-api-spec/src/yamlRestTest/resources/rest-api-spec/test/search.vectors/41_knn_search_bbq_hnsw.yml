@@ -1,7 +1,4 @@
 setup:
-  - requires:
-      cluster_features: "mapper.vectors.bbq"
-      reason: 'kNN float to better-binary quantization is required'
   - do:
       indices.create:
         index: bbq_hnsw
@@ -115,7 +112,7 @@ setup:
       capabilities:
         - method: GET
           path: /_search
-          capabilities: [knn_quantized_vector_rescore]
+          capabilities: [knn_quantized_vector_rescore_oversample]
   - skip:
       features: "headers"
 
@@ -140,7 +137,7 @@ setup:
             k: 3
             num_candidates: 3
             rescore_vector:
-              num_candidates_factor: 1.5
+              oversample: 1.5
 
   # Get rescoring scores - hit ordering may change depending on how things are distributed
   - match: { hits.total: 3 }

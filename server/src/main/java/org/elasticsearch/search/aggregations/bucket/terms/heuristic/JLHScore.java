@@ -90,10 +90,7 @@ public class JLHScore extends SignificanceHeuristic {
 
     @Override
     public boolean equals(Object obj) {
-        if (obj == null || obj.getClass() != getClass()) {
-            return false;
-        }
-        return true;
+        return obj != null && obj.getClass() == getClass();
     }
 
     @Override
@@ -101,12 +98,4 @@ public class JLHScore extends SignificanceHeuristic {
         return getClass().hashCode();
     }
 
-    public static class JLHScoreBuilder implements SignificanceHeuristicBuilder {
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject(NAME).endObject();
-            return builder;
-        }
-    }
 }

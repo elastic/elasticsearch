@@ -43,7 +43,6 @@ public class ResamplerTests extends ESTestCase {
             null,
             null,
             null,
-            null,
             null
         );
         request.setAdjustSampleCount(false);
@@ -73,7 +72,6 @@ public class ResamplerTests extends ESTestCase {
             null,
             null,
             null,
-            null,
             null
         );
         request.setAdjustSampleCount(true);
@@ -95,7 +93,6 @@ public class ResamplerTests extends ESTestCase {
             1.0d,
             1.0d,
             1.0d,
-            null,
             null,
             null,
             null,
@@ -136,7 +133,6 @@ public class ResamplerTests extends ESTestCase {
             null,
             null,
             null,
-            null,
             null
         );
 
@@ -158,7 +154,6 @@ public class ResamplerTests extends ESTestCase {
             1.0d,
             1.0d,
             1.0d,
-            null,
             null,
             null,
             null,

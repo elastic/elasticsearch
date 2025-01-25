@@ -23,7 +23,6 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.AbstractSearchTestCase;
-import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.builder.SubSearchSourceBuilder;
@@ -219,16 +218,13 @@ public class SearchRequestTests extends AbstractSearchTestCase {
 
         e = expectThrows(NullPointerException.class, () -> searchRequest.source(null));
         assertEquals("source must not be null", e.getMessage());
-
-        e = expectThrows(NullPointerException.class, () -> searchRequest.scroll((TimeValue) null));
-        assertEquals("keepAlive must not be null", e.getMessage());
     }
 
     public void testValidate() throws IOException {
         {
             // if scroll isn't set, validate should never add errors
             SearchRequest searchRequest = createSearchRequest().source(new SearchSourceBuilder());
-            searchRequest.scroll((Scroll) null);
+            searchRequest.scroll(null);
             ActionRequestValidationException validationErrors = searchRequest.validate();
             assertNull(validationErrors);
         }
@@ -294,7 +290,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
                 new SearchSourceBuilder().retriever(new TestCompoundRetrieverBuilder(randomIntBetween(1, 10)))
             );
             searchRequest.allowPartialSearchResults(true);
-            searchRequest.scroll((Scroll) null);
+            searchRequest.scroll(null);
             ActionRequestValidationException validationErrors = searchRequest.validate();
             assertNotNull(validationErrors);
             assertEquals(1, validationErrors.validationErrors().size());
@@ -348,7 +344,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
                 }
             }));
             searchRequest.allowPartialSearchResults(true);
-            searchRequest.scroll((Scroll) null);
+            searchRequest.scroll(null);
             ActionRequestValidationException validationErrors = searchRequest.validate();
             assertNull(validationErrors);
         }
@@ -388,14 +384,14 @@ public class SearchRequestTests extends AbstractSearchTestCase {
                     return null;
                 }
             }));
-            searchRequest.scroll((Scroll) null);
+            searchRequest.scroll(null);
             ActionRequestValidationException validationErrors = searchRequest.validate();
             assertNull(validationErrors);
         }
         {
             // search_after and `from` isn't valid
             SearchRequest searchRequest = createSearchRequest().source(new SearchSourceBuilder());
-            searchRequest.scroll((Scroll) null);
+            searchRequest.scroll(null);
             searchRequest.source().searchAfter(new String[] { "value" });
             searchRequest.source().from(10);
             ActionRequestValidationException validationErrors = searchRequest.validate();
@@ -406,7 +402,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         {
             // slice without scroll or pit
             SearchRequest searchRequest = createSearchRequest().source(new SearchSourceBuilder());
-            searchRequest.scroll((Scroll) null);
+            searchRequest.scroll(null);
             searchRequest.source().pointInTimeBuilder(null);
             searchRequest.source().slice(new SliceBuilder(1, 10));
             ActionRequestValidationException validationErrors = searchRequest.validate();
@@ -417,7 +413,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         {
             // stored fields disabled with _source requested
             SearchRequest searchRequest = createSearchRequest().source(new SearchSourceBuilder());
-            searchRequest.scroll((Scroll) null);
+            searchRequest.scroll(null);
             searchRequest.source().storedField("_none_");
             searchRequest.source().fetchSource(true);
             ActionRequestValidationException validationErrors = searchRequest.validate();
@@ -428,7 +424,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         {
             // stored fields disabled with fetch fields requested
             SearchRequest searchRequest = createSearchRequest().source(new SearchSourceBuilder());
-            searchRequest.scroll((Scroll) null);
+            searchRequest.scroll(null);
             searchRequest.source().storedField("_none_");
             searchRequest.source().fetchSource(false);
             searchRequest.source().fetchField("field");
@@ -643,9 +639,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         mutators.add(() -> mutation.routing(randomValueOtherThan(searchRequest.routing(), () -> randomAlphaOfLengthBetween(3, 10))));
         mutators.add(() -> mutation.requestCache((randomValueOtherThan(searchRequest.requestCache(), ESTestCase::randomBoolean))));
         mutators.add(
-            () -> mutation.scroll(
-                randomValueOtherThan(searchRequest.scroll(), () -> new Scroll(new TimeValue(randomNonNegativeLong() % 100000)))
-            )
+            () -> mutation.scroll(randomValueOtherThan(searchRequest.scroll(), () -> new TimeValue(randomNonNegativeLong() % 100000)))
         );
         mutators.add(
             () -> mutation.searchType(

@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.info.ClusterInfoRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.TimeValue;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -27,8 +28,8 @@ public class ExplainLifecycleRequest extends ClusterInfoRequest<ExplainLifecycle
     private boolean onlyErrors = false;
     private boolean onlyManaged = false;
 
-    public ExplainLifecycleRequest() {
-        super();
+    public ExplainLifecycleRequest(TimeValue masterTimeout) {
+        super(masterTimeout);
     }
 
     public ExplainLifecycleRequest(StreamInput in) throws IOException {

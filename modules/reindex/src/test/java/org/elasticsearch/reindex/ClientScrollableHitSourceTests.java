@@ -155,10 +155,7 @@ public class ClientScrollableHitSourceTests extends ESTestCase {
         );
 
         hitSource.startNextScroll(timeValueSeconds(100));
-        client.validateRequest(
-            TransportSearchScrollAction.TYPE,
-            (SearchScrollRequest r) -> assertEquals(r.scroll().keepAlive().seconds(), 110)
-        );
+        client.validateRequest(TransportSearchScrollAction.TYPE, (SearchScrollRequest r) -> assertEquals(r.scroll().seconds(), 110));
     }
 
     private SearchResponse createSearchResponse() {

@@ -73,7 +73,6 @@ public class RollingUpgradeSearchableSnapshotIndexCompatibilityIT extends Rollin
         try {
             logger.debug("--> mounting index [{}] as [{}]", index, mountedIndex);
             mountIndex(repository, snapshot, index, randomBoolean(), mountedIndex);
-
             ensureGreen(mountedIndex);
 
             updateRandomIndexSettings(mountedIndex);
@@ -81,6 +80,14 @@ public class RollingUpgradeSearchableSnapshotIndexCompatibilityIT extends Rollin
 
             assertThat(indexVersion(mountedIndex), equalTo(VERSION_MINUS_2));
             assertDocCount(client(), mountedIndex, numDocs);
+
+            logger.debug("--> closing mounted index [{}]", mountedIndex);
+            closeIndex(mountedIndex);
+            ensureGreen(mountedIndex);
+
+            logger.debug("--> re-opening index [{}]", mountedIndex);
+            openIndex(mountedIndex);
+            ensureGreen(mountedIndex);
 
             logger.debug("--> deleting mounted index [{}]", mountedIndex);
             deleteIndex(mountedIndex);
@@ -137,10 +144,22 @@ public class RollingUpgradeSearchableSnapshotIndexCompatibilityIT extends Rollin
 
         ensureGreen(mountedIndex);
 
+        if (isIndexClosed(mountedIndex)) {
+            logger.debug("--> re-opening index [{}] after upgrade", mountedIndex);
+            openIndex(mountedIndex);
+            ensureGreen(mountedIndex);
+        }
+
         updateRandomIndexSettings(mountedIndex);
         updateRandomMappings(mountedIndex);
 
         assertThat(indexVersion(mountedIndex), equalTo(VERSION_MINUS_2));
         assertDocCount(client(), mountedIndex, numDocs);
+
+        if (randomBoolean()) {
+            logger.debug("--> random closing of index [{}] before upgrade", mountedIndex);
+            closeIndex(mountedIndex);
+            ensureGreen(mountedIndex);
+        }
     }
 }

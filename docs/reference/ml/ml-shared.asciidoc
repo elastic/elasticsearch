@@ -1167,6 +1167,12 @@ tag::inference-config-text-embedding-size[]
 The number of dimensions in the embedding vector produced by the model.
 end::inference-config-text-embedding-size[]
 
+tag::inference-config-text-expansion[]
+The text expansion task works with sparse embedding models to transform an input sequence
+into a vector of weighted tokens. These embeddings capture semantic meanings and
+context and can be used in a <<sparse-vector,sparse vector>> field for powerful insights.
+end::inference-config-text-expansion[]
+
 tag::inference-config-text-similarity[]
 Text similarity takes an input sequence and compares it with another input sequence. This is commonly referred to
 as cross-encoding. This task is useful for ranking document text when comparing it to another provided text input.

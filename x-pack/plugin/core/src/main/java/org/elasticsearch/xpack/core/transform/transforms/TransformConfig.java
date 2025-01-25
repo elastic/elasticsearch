@@ -579,32 +579,7 @@ public final class TransformConfig implements SimpleDiffable<TransformConfig>, W
 
     private static TransformConfig applyRewriteForUpdate(Builder builder) {
         // 1. Move pivot.max_page_size_search to settings.max_page_size_search
-        if (builder.getPivotConfig() != null && builder.getPivotConfig().getMaxPageSearchSize() != null) {
-
-            // find maxPageSearchSize value
-            Integer maxPageSearchSizeDeprecated = builder.getPivotConfig().getMaxPageSearchSize();
-            Integer maxPageSearchSize = builder.getSettings().getMaxPageSearchSize() != null
-                ? builder.getSettings().getMaxPageSearchSize()
-                : maxPageSearchSizeDeprecated;
-
-            // create a new pivot config but set maxPageSearchSize to null
-            builder.setPivotConfig(
-                new PivotConfig(builder.getPivotConfig().getGroupConfig(), builder.getPivotConfig().getAggregationConfig(), null)
-            );
-            // create new settings with maxPageSearchSize
-            builder.setSettings(
-                new SettingsConfig(
-                    maxPageSearchSize,
-                    builder.getSettings().getDocsPerSecond(),
-                    builder.getSettings().getDatesAsEpochMillis(),
-                    builder.getSettings().getAlignCheckpoints(),
-                    builder.getSettings().getUsePit(),
-                    builder.getSettings().getDeduceMappings(),
-                    builder.getSettings().getNumFailureRetries(),
-                    builder.getSettings().getUnattended()
-                )
-            );
-        }
+        migrateMaxPageSearchSize(builder);
 
         // 2. set dates_as_epoch_millis to true for transforms < 7.11 to keep BWC
         if (builder.getVersion() != null && builder.getVersion().before(TransformConfigVersion.V_7_11_0)) {
@@ -639,6 +614,40 @@ public final class TransformConfig implements SimpleDiffable<TransformConfig>, W
         }
 
         return builder.setVersion(TransformConfigVersion.CURRENT).build();
+    }
+
+    public boolean shouldAutoMigrateMaxPageSearchSize() {
+        return getPivotConfig() != null && getPivotConfig().getMaxPageSearchSize() != null;
+    }
+
+    public static Builder migrateMaxPageSearchSize(Builder builder) {
+        if (builder.getPivotConfig() != null && builder.getPivotConfig().getMaxPageSearchSize() != null) {
+
+            // find maxPageSearchSize value
+            Integer maxPageSearchSizeDeprecated = builder.getPivotConfig().getMaxPageSearchSize();
+            Integer maxPageSearchSize = builder.getSettings().getMaxPageSearchSize() != null
+                ? builder.getSettings().getMaxPageSearchSize()
+                : maxPageSearchSizeDeprecated;
+
+            // create a new pivot config but set maxPageSearchSize to null
+            builder.setPivotConfig(
+                new PivotConfig(builder.getPivotConfig().getGroupConfig(), builder.getPivotConfig().getAggregationConfig(), null)
+            );
+            // create new settings with maxPageSearchSize
+            builder.setSettings(
+                new SettingsConfig(
+                    maxPageSearchSize,
+                    builder.getSettings().getDocsPerSecond(),
+                    builder.getSettings().getDatesAsEpochMillis(),
+                    builder.getSettings().getAlignCheckpoints(),
+                    builder.getSettings().getUsePit(),
+                    builder.getSettings().getDeduceMappings(),
+                    builder.getSettings().getNumFailureRetries(),
+                    builder.getSettings().getUnattended()
+                )
+            );
+        }
+        return builder;
     }
 
     public static Builder builder() {

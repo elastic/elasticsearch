@@ -1,8 +1,4 @@
 setup:
-  - requires:
-      cluster_features: 'unified_highlighter_matched_fields'
-      reason: 'test requires unified highlighter to support matched_fields'
-
   - do:
       indices.create:
           index: index1

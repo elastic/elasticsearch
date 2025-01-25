@@ -178,8 +178,9 @@ testClusters.matching { it.name == "yamlRestTest"}.configureEach {
 }
 
 tasks.named("yamlRestTest").configure {
+  def repoFolder = "${layout.buildDirectory.asFile.get()}/cluster/shared/repo"
   doFirst {
-    delete("${buildDir}/cluster/shared/repo")
+    delete(repoFolder)
   }
 }
 

@@ -66,7 +66,7 @@ public class InstrumentationServiceImpl implements InstrumentationService {
 
     private static final Type CLASS_TYPE = Type.getType(Class.class);
 
-    static MethodKey parseCheckerMethodSignature(String checkerMethodName, Type[] checkerMethodArgumentTypes) {
+    static ParsedCheckerMethod parseCheckerMethodName(String checkerMethodName) {
         boolean targetMethodIsStatic;
         int classNameEndIndex = checkerMethodName.lastIndexOf("$$");
         int methodNameStartIndex;
@@ -100,9 +100,14 @@ public class InstrumentationServiceImpl implements InstrumentationService {
         if (targetClassName.isBlank()) {
             throw new IllegalArgumentException(String.format(Locale.ROOT, "Checker method %s has no class name", checkerMethodName));
         }
+        return new ParsedCheckerMethod(targetClassName, targetMethodName, targetMethodIsStatic, targetMethodIsCtor);
+    }
+
+    static MethodKey parseCheckerMethodSignature(String checkerMethodName, Type[] checkerMethodArgumentTypes) {
+        ParsedCheckerMethod checkerMethod = parseCheckerMethodName(checkerMethodName);
 
         final List<String> targetParameterTypes;
-        if (targetMethodIsStatic || targetMethodIsCtor) {
+        if (checkerMethod.targetMethodIsStatic() || checkerMethod.targetMethodIsCtor()) {
             if (checkerMethodArgumentTypes.length < 1 || CLASS_TYPE.equals(checkerMethodArgumentTypes[0]) == false) {
                 throw new IllegalArgumentException(
                     String.format(
@@ -130,7 +135,13 @@ public class InstrumentationServiceImpl implements InstrumentationService {
             }
             targetParameterTypes = Arrays.stream(checkerMethodArgumentTypes).skip(2).map(Type::getInternalName).toList();
         }
-        boolean hasReceiver = (targetMethodIsStatic || targetMethodIsCtor) == false;
-        return new MethodKey(targetClassName, targetMethodName, targetParameterTypes);
+        return new MethodKey(checkerMethod.targetClassName(), checkerMethod.targetMethodName(), targetParameterTypes);
     }
+
+    private record ParsedCheckerMethod(
+        String targetClassName,
+        String targetMethodName,
+        boolean targetMethodIsStatic,
+        boolean targetMethodIsCtor
+    ) {}
 }

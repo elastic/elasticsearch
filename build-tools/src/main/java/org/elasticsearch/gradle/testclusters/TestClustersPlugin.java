@@ -249,7 +249,7 @@ public class TestClustersPlugin implements Plugin<Project> {
                     .forEach(awareTask -> {
                         awareTask.doFirst(task -> {
                             awareTask.beforeStart();
-                            awareTask.getClusters().forEach(awareTask.getRegistery().get()::maybeStartCluster);
+                            awareTask.getClusters().forEach(awareTask.getRegistry().get()::maybeStartCluster);
                         });
                     });
             });

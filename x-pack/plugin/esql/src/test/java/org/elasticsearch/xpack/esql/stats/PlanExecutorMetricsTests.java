@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsAction;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
 import org.elasticsearch.xpack.esql.session.EsqlSession;
@@ -119,6 +120,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             request,
             randomAlphaOfLength(10),
             EsqlTestUtils.TEST_CFG,
+            FoldContext.small(),
             enrichResolver,
             new EsqlExecutionInfo(randomBoolean()),
             groupIndicesByCluster,
@@ -149,6 +151,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             request,
             randomAlphaOfLength(10),
             EsqlTestUtils.TEST_CFG,
+            FoldContext.small(),
             enrichResolver,
             new EsqlExecutionInfo(randomBoolean()),
             groupIndicesByCluster,

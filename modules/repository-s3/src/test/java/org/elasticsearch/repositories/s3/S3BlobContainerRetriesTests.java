@@ -335,7 +335,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
     public void testWriteLargeBlob() throws Exception {
         final boolean useTimeout = rarely();
         final TimeValue readTimeout = useTimeout ? TimeValue.timeValueMillis(randomIntBetween(100, 500)) : null;
-        final ByteSizeValue bufferSize = new ByteSizeValue(5, ByteSizeUnit.MB);
+        final ByteSizeValue bufferSize = ByteSizeValue.of(5, ByteSizeUnit.MB);
         final BlobContainer blobContainer = createBlobContainer(null, readTimeout, true, bufferSize);
 
         final int parts = randomIntBetween(1, 5);
@@ -436,7 +436,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
     public void testWriteLargeBlobStreaming() throws Exception {
         final boolean useTimeout = rarely();
         final TimeValue readTimeout = useTimeout ? TimeValue.timeValueMillis(randomIntBetween(100, 500)) : null;
-        final ByteSizeValue bufferSize = new ByteSizeValue(5, ByteSizeUnit.MB);
+        final ByteSizeValue bufferSize = ByteSizeValue.of(5, ByteSizeUnit.MB);
         final BlobContainer blobContainer = createBlobContainer(null, readTimeout, true, bufferSize);
 
         final int parts = randomIntBetween(1, 5);

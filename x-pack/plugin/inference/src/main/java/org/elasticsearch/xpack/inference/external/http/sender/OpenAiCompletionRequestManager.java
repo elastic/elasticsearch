@@ -26,7 +26,7 @@ public class OpenAiCompletionRequestManager extends OpenAiRequestManager {
 
     private static final Logger logger = LogManager.getLogger(OpenAiCompletionRequestManager.class);
     private static final ResponseHandler HANDLER = createCompletionHandler();
-    static final String USER_ROLE = "user";
+    public static final String USER_ROLE = "user";
 
     public static OpenAiCompletionRequestManager of(OpenAiChatCompletionModel model, ThreadPool threadPool) {
         return new OpenAiCompletionRequestManager(Objects.requireNonNull(model), Objects.requireNonNull(threadPool));

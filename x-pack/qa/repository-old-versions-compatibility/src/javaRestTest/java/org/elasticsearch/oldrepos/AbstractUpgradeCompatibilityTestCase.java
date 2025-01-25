@@ -36,7 +36,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Comparator;
+import java.util.List;
 import java.util.Objects;
+import java.util.function.Consumer;
 import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
@@ -73,9 +75,17 @@ public abstract class AbstractUpgradeCompatibilityTestCase extends ESRestTestCas
     private static boolean upgradeFailed = false;
 
     private final Version clusterVersion;
+    private final String indexCreatedVersion;
+    private final Consumer<List<String>> warningsConsumer;
 
-    public AbstractUpgradeCompatibilityTestCase(@Name("cluster") Version clusterVersion) {
+    public AbstractUpgradeCompatibilityTestCase(
+        @Name("cluster") Version clusterVersion,
+        String indexCreatedVersion,
+        Consumer<List<String>> warningsConsumer
+    ) {
         this.clusterVersion = clusterVersion;
+        this.indexCreatedVersion = indexCreatedVersion;
+        this.warningsConsumer = warningsConsumer;
     }
 
     @ParametersFactory
@@ -141,7 +151,7 @@ public abstract class AbstractUpgradeCompatibilityTestCase extends ESRestTestCas
         }
     }
 
-    public final void verifyCompatibility(String version) throws Exception {
+    protected final void verifyCompatibility(String version, Consumer<List<String>> warningsConsumer) throws Exception {
         final String repository = "repository";
         final String snapshot = "snapshot";
         final String index = "index";
@@ -156,7 +166,7 @@ public abstract class AbstractUpgradeCompatibilityTestCase extends ESRestTestCas
             // Copy a snapshot of an index with 5 documents
             copySnapshotFromResources(repositoryPath, version);
             registerRepository(client(), repository, FsRepository.TYPE, true, Settings.builder().put("location", repositoryPath).build());
-            recover(client(), repository, snapshot, index);
+            recover(client(), repository, snapshot, index, warningsConsumer);
 
             assertTrue(getIndices(client()).contains(index));
             assertDocCount(client(), index, numDocs);
@@ -171,7 +181,13 @@ public abstract class AbstractUpgradeCompatibilityTestCase extends ESRestTestCas
         }
     }
 
-    public abstract void recover(RestClient restClient, String repository, String snapshot, String index) throws Exception;
+    protected abstract void recover(
+        RestClient restClient,
+        String repository,
+        String snapshot,
+        String index,
+        Consumer<List<String>> warningsConsumer
+    ) throws Exception;
 
     private static String getIndices(RestClient client) throws IOException {
         final Request request = new Request("GET", "_cat/indices");
@@ -207,5 +223,9 @@ public abstract class AbstractUpgradeCompatibilityTestCase extends ESRestTestCas
                 zipIn.closeEntry();
             }
         }
+    }
+
+    public final void testArchiveIndex() throws Exception {
+        verifyCompatibility(indexCreatedVersion, warningsConsumer);
     }
 }

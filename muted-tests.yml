@@ -52,24 +52,9 @@ tests:
 - class: org.elasticsearch.xpack.transform.integration.TransformIT
   method: testStopWaitForCheckpoint
   issue: https://github.com/elastic/elasticsearch/issues/106113
-- class: org.elasticsearch.kibana.KibanaThreadPoolIT
-  method: testBlockedThreadPoolsRejectUserRequests
-  issue: https://github.com/elastic/elasticsearch/issues/113939
-- class: org.elasticsearch.xpack.inference.TextEmbeddingCrudIT
-  method: testPutE5Small_withPlatformAgnosticVariant
-  issue: https://github.com/elastic/elasticsearch/issues/113983
-- class: org.elasticsearch.xpack.inference.TextEmbeddingCrudIT
-  method: testPutE5WithTrainedModelAndInference
-  issue: https://github.com/elastic/elasticsearch/issues/114023
-- class: org.elasticsearch.xpack.inference.TextEmbeddingCrudIT
-  method: testPutE5Small_withPlatformSpecificVariant
-  issue: https://github.com/elastic/elasticsearch/issues/113950
 - class: org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityWithApmTracingRestIT
   method: testTracingCrossCluster
   issue: https://github.com/elastic/elasticsearch/issues/112731
-- class: org.elasticsearch.xpack.inference.DefaultEndPointsIT
-  method: testInferDeploysDefaultE5
-  issue: https://github.com/elastic/elasticsearch/issues/115361
 - class: org.elasticsearch.xpack.restart.MLModelDeploymentFullClusterRestartIT
   method: testDeploymentSurvivesRestart {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/115528
@@ -84,9 +69,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/115816
 - class: org.elasticsearch.xpack.application.connector.ConnectorIndexServiceTests
   issue: https://github.com/elastic/elasticsearch/issues/116087
-- class: org.elasticsearch.xpack.ml.integration.DatafeedJobsRestIT
-  method: testLookbackWithIndicesOptions
-  issue: https://github.com/elastic/elasticsearch/issues/116127
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=transform/transforms_start_stop/Test start already started transform}
   issue: https://github.com/elastic/elasticsearch/issues/98802
@@ -102,9 +84,6 @@ tests:
 - class: org.elasticsearch.xpack.shutdown.NodeShutdownIT
   method: testAllocationPreventedForRemoval
   issue: https://github.com/elastic/elasticsearch/issues/116363
-- class: org.elasticsearch.xpack.downsample.ILMDownsampleDisruptionIT
-  method: testILMDownsampleRollingRestart
-  issue: https://github.com/elastic/elasticsearch/issues/114233
 - class: org.elasticsearch.reservedstate.service.RepositoriesFileSettingsIT
   method: testSettingsApplied
   issue: https://github.com/elastic/elasticsearch/issues/116694
@@ -119,9 +98,6 @@ tests:
 - class: org.elasticsearch.xpack.apmdata.APMYamlTestSuiteIT
   method: test {yaml=/10_apm/Test template reinstallation}
   issue: https://github.com/elastic/elasticsearch/issues/116445
-- class: org.elasticsearch.xpack.inference.DefaultEndPointsIT
-  method: testMultipleInferencesTriggeringDownloadAndDeploy
-  issue: https://github.com/elastic/elasticsearch/issues/117208
 - class: org.elasticsearch.ingest.geoip.EnterpriseGeoIpDownloaderIT
   method: testEnterpriseDownloaderTask
   issue: https://github.com/elastic/elasticsearch/issues/115163
@@ -134,9 +110,6 @@ tests:
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=snapshot/10_basic/Create a source only snapshot and then restore it}
   issue: https://github.com/elastic/elasticsearch/issues/117295
-- class: org.elasticsearch.xpack.inference.DefaultEndPointsIT
-  method: testInferDeploysDefaultElser
-  issue: https://github.com/elastic/elasticsearch/issues/114913
 - class: org.elasticsearch.xpack.inference.InferenceRestIT
   method: test {p0=inference/40_semantic_text_query/Query a field that uses the default ELSER 2 endpoint}
   issue: https://github.com/elastic/elasticsearch/issues/117027
@@ -149,32 +122,15 @@ tests:
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=transform/transforms_reset/Test reset running transform}
   issue: https://github.com/elastic/elasticsearch/issues/117473
-- class: org.elasticsearch.search.ccs.CrossClusterIT
-  method: testCancel
-  issue: https://github.com/elastic/elasticsearch/issues/108061
 - class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
   method: test {p0=search.highlight/50_synthetic_source/text multi unified from vectors}
   issue: https://github.com/elastic/elasticsearch/issues/117815
-- class: org.elasticsearch.xpack.ml.integration.DatafeedJobsRestIT
-  issue: https://github.com/elastic/elasticsearch/issues/111319
 - class: org.elasticsearch.xpack.esql.plugin.ClusterRequestTests
   method: testFallbackIndicesOptions
   issue: https://github.com/elastic/elasticsearch/issues/117937
 - class: org.elasticsearch.xpack.ml.integration.RegressionIT
   method: testTwoJobsWithSameRandomizeSeedUseSameTrainingSet
   issue: https://github.com/elastic/elasticsearch/issues/117805
-- class: org.elasticsearch.upgrades.QueryBuilderBWCIT
-  method: testQueryBuilderBWC {cluster=UPGRADED}
-  issue: https://github.com/elastic/elasticsearch/issues/116990
-- class: org.elasticsearch.xpack.restart.QueryBuilderBWCIT
-  method: testQueryBuilderBWC {p0=UPGRADED}
-  issue: https://github.com/elastic/elasticsearch/issues/116989
-- class: org.elasticsearch.xpack.remotecluster.CrossClusterEsqlRCS2UnavailableRemotesIT
-  method: testEsqlRcs2UnavailableRemoteScenarios
-  issue: https://github.com/elastic/elasticsearch/issues/117419
-- class: org.elasticsearch.xpack.inference.DefaultEndPointsIT
-  method: testInferDeploysDefaultRerank
-  issue: https://github.com/elastic/elasticsearch/issues/118184
 - class: org.elasticsearch.xpack.esql.action.EsqlActionTaskIT
   method: testCancelRequestWhenFailingFetchingPages
   issue: https://github.com/elastic/elasticsearch/issues/118193
@@ -190,20 +146,11 @@ tests:
 - class: org.elasticsearch.action.search.SearchQueryThenFetchAsyncActionTests
   method: testBottomFieldSort
   issue: https://github.com/elastic/elasticsearch/issues/118214
-- class: org.elasticsearch.xpack.remotecluster.CrossClusterEsqlRCS1UnavailableRemotesIT
-  method: testEsqlRcs1UnavailableRemoteScenarios
-  issue: https://github.com/elastic/elasticsearch/issues/118350
 - class: org.elasticsearch.xpack.searchablesnapshots.RetrySearchIntegTests
   method: testSearcherId
   issue: https://github.com/elastic/elasticsearch/issues/118374
-- class: org.elasticsearch.xpack.security.operator.OperatorPrivilegesIT
-  method: testEveryActionIsEitherOperatorOnlyOrNonOperator
-  issue: https://github.com/elastic/elasticsearch/issues/118220
 - class: org.elasticsearch.xpack.esql.action.EsqlActionBreakerIT
   issue: https://github.com/elastic/elasticsearch/issues/118238
-- class: org.elasticsearch.reservedstate.service.FileSettingsServiceTests
-  method: testInvalidJSON
-  issue: https://github.com/elastic/elasticsearch/issues/116521
 - class: org.elasticsearch.xpack.ccr.rest.ShardChangesRestIT
   method: testShardChangesNoOperation
   issue: https://github.com/elastic/elasticsearch/issues/118800
@@ -213,22 +160,8 @@ tests:
 - class: org.elasticsearch.cluster.service.MasterServiceTests
   method: testThreadContext
   issue: https://github.com/elastic/elasticsearch/issues/118914
-- class: org.elasticsearch.repositories.blobstore.testkit.analyze.SecureHdfsRepositoryAnalysisRestIT
-  issue: https://github.com/elastic/elasticsearch/issues/118970
-- class: org.elasticsearch.aggregations.bucket.SearchCancellationIT
-  method: testCancellationDuringTimeSeriesAggregation
-  issue: https://github.com/elastic/elasticsearch/issues/118992
-- class: org.elasticsearch.xpack.security.authc.AuthenticationServiceTests
-  method: testInvalidToken
-  issue: https://github.com/elastic/elasticsearch/issues/119019
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=synonyms/90_synonyms_reloading_for_synset/Reload analyzers for specific synonym set}
-  issue: https://github.com/elastic/elasticsearch/issues/116777
 - class: org.elasticsearch.xpack.security.authc.ldap.ActiveDirectoryRunAsIT
   issue: https://github.com/elastic/elasticsearch/issues/115727
-- class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
-  method: test {yaml=reference/search/search-your-data/retrievers-examples/line_98}
-  issue: https://github.com/elastic/elasticsearch/issues/119155
 - class: org.elasticsearch.xpack.esql.action.EsqlNodeFailureIT
   method: testFailureLoadingFields
   issue: https://github.com/elastic/elasticsearch/issues/118000
@@ -236,54 +169,80 @@ tests:
   method: testCartesianBoundsBlockLoader
   issue: https://github.com/elastic/elasticsearch/issues/119201
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
-  method: test {p0=ml/data_frame_analytics_cat_apis/Test cat data frame analytics all jobs with header}
-  issue: https://github.com/elastic/elasticsearch/issues/119332
-- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
-  issue: https://github.com/elastic/elasticsearch/issues/119191
-- class: org.elasticsearch.xpack.logsdb.qa.LogsDbVersusLogsDbReindexedIntoStandardModeChallengeRestIT
-  method: testEsqlTermsAggregationByMethod
-  issue: https://github.com/elastic/elasticsearch/issues/119355
-- class: org.elasticsearch.xpack.logsdb.qa.LogsDbVersusLogsDbReindexedIntoStandardModeChallengeRestIT
-  method: testMatchAllQuery
-  issue: https://github.com/elastic/elasticsearch/issues/119432
-- class: org.elasticsearch.xpack.logsdb.qa.LogsDbVersusLogsDbReindexedIntoStandardModeChallengeRestIT
-  method: testTermsQuery
-  issue: https://github.com/elastic/elasticsearch/issues/119486
-- class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=transform/transforms_start_stop/Test start/stop/start transform}
   issue: https://github.com/elastic/elasticsearch/issues/119508
-- class: org.elasticsearch.xpack.logsdb.qa.LogsDbVersusLogsDbReindexedIntoStandardModeChallengeRestIT
-  method: testEsqlSource
-  issue: https://github.com/elastic/elasticsearch/issues/119510
 - class: org.elasticsearch.smoketest.MlWithSecurityIT
   method: test {yaml=ml/sparse_vector_search/Test sparse_vector search with query vector and pruning config}
   issue: https://github.com/elastic/elasticsearch/issues/119548
-- class: org.elasticsearch.lucene.RollingUpgradeSearchableSnapshotIndexCompatibilityIT
-  method: testSearchableSnapshotUpgrade {p0=[9.0.0, 8.18.0, 8.18.0]}
-  issue: https://github.com/elastic/elasticsearch/issues/119549
-- class: org.elasticsearch.lucene.RollingUpgradeSearchableSnapshotIndexCompatibilityIT
-  method: testMountSearchableSnapshot {p0=[9.0.0, 8.18.0, 8.18.0]}
-  issue: https://github.com/elastic/elasticsearch/issues/119550
-- class: org.elasticsearch.lucene.RollingUpgradeSearchableSnapshotIndexCompatibilityIT
-  method: testMountSearchableSnapshot {p0=[9.0.0, 9.0.0, 8.18.0]}
-  issue: https://github.com/elastic/elasticsearch/issues/119551
-- class: org.elasticsearch.index.engine.LuceneSyntheticSourceChangesSnapshotTests
-  method: testSkipNonRootOfNestedDocuments
-  issue: https://github.com/elastic/elasticsearch/issues/119553
-- class: org.elasticsearch.lucene.RollingUpgradeSearchableSnapshotIndexCompatibilityIT
-  method: testSearchableSnapshotUpgrade {p0=[9.0.0, 9.0.0, 8.18.0]}
-  issue: https://github.com/elastic/elasticsearch/issues/119560
-- class: org.elasticsearch.lucene.RollingUpgradeSearchableSnapshotIndexCompatibilityIT
-  method: testMountSearchableSnapshot {p0=[9.0.0, 9.0.0, 9.0.0]}
-  issue: https://github.com/elastic/elasticsearch/issues/119561
-- class: org.elasticsearch.lucene.RollingUpgradeSearchableSnapshotIndexCompatibilityIT
-  method: testSearchableSnapshotUpgrade {p0=[9.0.0, 9.0.0, 9.0.0]}
-  issue: https://github.com/elastic/elasticsearch/issues/119562
 - class: org.elasticsearch.xpack.ml.integration.ForecastIT
   method: testOverflowToDisk
   issue: https://github.com/elastic/elasticsearch/issues/117740
 - class: org.elasticsearch.xpack.security.authc.ldap.MultiGroupMappingIT
   issue: https://github.com/elastic/elasticsearch/issues/119599
+- class: org.elasticsearch.search.profile.dfs.DfsProfilerIT
+  method: testProfileDfs
+  issue: https://github.com/elastic/elasticsearch/issues/119711
+- class: org.elasticsearch.multi_cluster.MultiClusterYamlTestSuiteIT
+  issue: https://github.com/elastic/elasticsearch/issues/119983
+- class: org.elasticsearch.xpack.test.rest.XPackRestIT
+  method: test {p0=transform/transforms_unattended/Test unattended put and start}
+  issue: https://github.com/elastic/elasticsearch/issues/120019
+- class: org.elasticsearch.xpack.ilm.actions.SearchableSnapshotActionIT
+  method: testUpdatePolicyToAddPhasesYieldsInvalidActionsToBeSkipped
+  issue: https://github.com/elastic/elasticsearch/issues/118406
+- class: org.elasticsearch.xpack.security.QueryableReservedRolesIT
+  method: testConfiguredReservedRolesAfterClosingAndOpeningIndex
+  issue: https://github.com/elastic/elasticsearch/issues/120127
+- class: org.elasticsearch.oldrepos.OldRepositoryAccessIT
+  method: testOldRepoAccess
+  issue: https://github.com/elastic/elasticsearch/issues/120148
+- class: org.elasticsearch.oldrepos.OldRepositoryAccessIT
+  method: testOldSourceOnlyRepoAccess
+  issue: https://github.com/elastic/elasticsearch/issues/120080
+- class: org.elasticsearch.xpack.test.rest.XPackRestIT
+  method: test {p0=snapshot/10_basic/Failed to snapshot indices with synthetic source}
+  issue: https://github.com/elastic/elasticsearch/issues/120332
+- class: org.elasticsearch.xpack.ccr.FollowIndexSecurityIT
+  method: testCleanShardFollowTaskAfterDeleteFollower
+  issue: https://github.com/elastic/elasticsearch/issues/120339
+- class: org.elasticsearch.search.ccs.CrossClusterIT
+  method: testCancel
+  issue: https://github.com/elastic/elasticsearch/issues/108061
+- class: org.elasticsearch.xpack.logsdb.seqno.RetentionLeaseRestIT
+  issue: https://github.com/elastic/elasticsearch/issues/120434
+- class: org.elasticsearch.reservedstate.service.FileSettingsServiceTests
+  method: testInvalidJSON
+  issue: https://github.com/elastic/elasticsearch/issues/120482
+- class: org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeToCharProcessorTests
+  issue: https://github.com/elastic/elasticsearch/issues/120575
+- class: org.elasticsearch.action.search.SearchProgressActionListenerIT
+  method: testSearchProgressWithHitsAndAggs
+  issue: https://github.com/elastic/elasticsearch/issues/120583
+- class: org.elasticsearch.index.reindex.BulkByScrollUsesAllScrollDocumentsAfterConflictsIntegTests
+  method: testReindex
+  issue: https://github.com/elastic/elasticsearch/issues/120605
+- class: org.elasticsearch.xpack.inference.DefaultEndPointsIT
+  method: testMultipleInferencesTriggeringDownloadAndDeploy
+  issue: https://github.com/elastic/elasticsearch/issues/120668
+- class: org.elasticsearch.xpack.security.authc.ldap.ADLdapUserSearchSessionFactoryTests
+  issue: https://github.com/elastic/elasticsearch/issues/119882
+- class: org.elasticsearch.xpack.esql.action.CrossClusterAsyncEnrichStopIT
+  method: testEnrichAfterStop
+  issue: https://github.com/elastic/elasticsearch/issues/120757
+- class: org.elasticsearch.xpack.esql.action.CrossClusterAsyncQueryIT
+  method: testStopQuery
+  issue: https://github.com/elastic/elasticsearch/issues/120767
+- class: org.elasticsearch.search.fieldcaps.FieldCapabilitiesIT
+  issue: https://github.com/elastic/elasticsearch/issues/120772
+- class: org.elasticsearch.action.search.SearchProgressActionListenerIT
+  method: testSearchProgressWithHits
+  issue: https://github.com/elastic/elasticsearch/issues/120671
+- class: org.elasticsearch.xpack.ml.integration.LearningToRankExplainIT
+  method: testLtrExplainWithMultipleShardsAndReplicas
+  issue: https://github.com/elastic/elasticsearch/issues/120805
+- class: org.elasticsearch.xpack.test.rest.XPackRestIT
+  method: test {p0=ml/3rd_party_deployment/Test start deployment fails while model download in progress}
+  issue: https://github.com/elastic/elasticsearch/issues/120810
 
 # Examples:
 #

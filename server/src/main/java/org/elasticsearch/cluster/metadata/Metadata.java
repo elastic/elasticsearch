@@ -1517,7 +1517,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
             : Collections.emptyIterator();
 
         final Iterator<? extends ToXContent> indices = context == XContentContext.API
-            ? ChunkedToXContentHelper.wrapWithObject("indices", indices().values().iterator())
+            ? ChunkedToXContentHelper.object("indices", indices().values().iterator())
             : Collections.emptyIterator();
 
         return Iterators.concat(start, Iterators.single((builder, params) -> {
@@ -1528,7 +1528,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
             return builder.endObject();
         }),
             persistentSettings,
-            ChunkedToXContentHelper.wrapWithObject(
+            ChunkedToXContentHelper.object(
                 "templates",
                 Iterators.map(
                     templates().values().iterator(),
@@ -1539,10 +1539,10 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
             Iterators.flatMap(
                 customs.entrySet().iterator(),
                 entry -> entry.getValue().context().contains(context)
-                    ? ChunkedToXContentHelper.wrapWithObject(entry.getKey(), entry.getValue().toXContentChunked(p))
+                    ? ChunkedToXContentHelper.object(entry.getKey(), entry.getValue().toXContentChunked(p))
                     : Collections.emptyIterator()
             ),
-            ChunkedToXContentHelper.wrapWithObject("reserved_state", reservedStateMetadata().values().iterator()),
+            ChunkedToXContentHelper.object("reserved_state", reservedStateMetadata().values().iterator()),
             ChunkedToXContentHelper.endObject()
         );
     }
@@ -2492,7 +2492,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
             assert parent == null
                 || parent.getIndices().stream().anyMatch(index -> indexMetadata.getIndex().getName().equals(index.getName()))
                 || (DataStream.isFailureStoreFeatureFlagEnabled()
-                    && parent.getFailureIndices()
+                    && parent.getFailureComponent()
                         .getIndices()
                         .stream()
                         .anyMatch(index -> indexMetadata.getIndex().getName().equals(index.getName())))
@@ -2518,7 +2518,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
                     indexToDataStreamLookup.put(i.getName(), dataStream);
                 }
                 if (DataStream.isFailureStoreFeatureFlagEnabled()) {
-                    for (Index i : dataStream.getFailureIndices().getIndices()) {
+                    for (Index i : dataStream.getFailureIndices()) {
                         indexToDataStreamLookup.put(i.getName(), dataStream);
                     }
                 }
@@ -2534,7 +2534,8 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
             return new IndexAbstraction.Alias(
                 alias,
                 alias.getDataStreams().stream().flatMap(name -> dataStreams.get(name).getIndices().stream()).toList(),
-                writeIndexOfWriteDataStream
+                writeIndexOfWriteDataStream,
+                alias.getDataStreams()
             );
         }
 

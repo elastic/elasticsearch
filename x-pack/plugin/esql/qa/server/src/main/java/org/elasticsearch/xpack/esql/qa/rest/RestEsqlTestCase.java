@@ -782,12 +782,10 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
 
         re = expectThrows(
             ResponseException.class,
-            () -> runEsql(requestObjectBuilder().query("from idx | where x == ?n1").params("[{\"n\" : \"v\"}]"))
+            () -> runEsql(requestObjectBuilder().query("from idx | where x == ?n1 and y == ?n2").params("[{\"n\" : \"v\"}]"))
         );
-        assertThat(
-            EntityUtils.toString(re.getResponse().getEntity()),
-            containsString("line 1:23: Unknown query parameter [n1], did you mean [n]?")
-        );
+        assertThat(EntityUtils.toString(re.getResponse().getEntity()), containsString("""
+            line 1:23: Unknown query parameter [n1], did you mean [n]?; line 1:36: Unknown query parameter [n2], did you mean [n]?"""));
 
         re = expectThrows(
             ResponseException.class,

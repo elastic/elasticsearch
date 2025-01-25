@@ -43,6 +43,11 @@
         "description":"Control whether the response should be stored in the cluster if it completed within the provided [wait_for_completion] time (default: false)",
         "default":false
       },
+      "keep_alive": {
+        "type": "time",
+        "description": "Update the time interval in which the results (partial or final) for this search will be available",
+        "default": "5d"
+      },
       "batched_reduce_size":{
         "type":"number",
         "description":"The number of shard results that should be reduced at once on the coordinating node. This value should be used as the granularity at which progress results will be made available.",

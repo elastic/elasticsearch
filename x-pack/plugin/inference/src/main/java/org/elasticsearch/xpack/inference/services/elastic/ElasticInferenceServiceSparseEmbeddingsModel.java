@@ -115,7 +115,7 @@ public class ElasticInferenceServiceSparseEmbeddingsModel extends ElasticInferen
         try {
             // TODO, consider transforming the base URL into a URI for better error handling.
             return new URI(
-                elasticInferenceServiceComponents().elasticInferenceServiceUrl() + "/api/v1/sparse-text-embeddings/" + modelIdUriPath
+                elasticInferenceServiceComponents().elasticInferenceServiceUrl() + "/api/v1/embed/text/sparse/" + modelIdUriPath
             );
         } catch (URISyntaxException e) {
             throw new ElasticsearchStatusException(

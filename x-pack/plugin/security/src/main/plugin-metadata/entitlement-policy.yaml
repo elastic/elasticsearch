@@ -6,3 +6,7 @@ io.netty.transport:
 io.netty.common:
   - inbound_network
   - outbound_network
+org.opensaml.xmlsec.impl:
+  - write_system_properties:
+      properties:
+        - org.apache.xml.security.ignoreLineBreaks

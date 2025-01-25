@@ -34,9 +34,13 @@ However, if you do not plan to use the {infer} APIs to use these models or if yo
 The chat completion {infer} API enables real-time responses for chat completion tasks by delivering answers incrementally, reducing response times during computation.
 It only works with the `chat_completion` task type for `openai` and `elastic` {infer} services.
 
+
 [NOTE]
 ====
-The `chat_completion` task type is only available within the _unified API and only supports streaming.
+* The `chat_completion` task type is only available within the _unified API and only supports streaming.
+* The Chat completion {infer} API and the Stream {infer} API differ in their response structure and capabilities.
+The Chat completion {infer} API provides more comprehensive customization options through more fields and function calling support.
+If you use the `openai` service or the `elastic` service, use the Chat completion {infer} API.
 ====
 
 [discrete]

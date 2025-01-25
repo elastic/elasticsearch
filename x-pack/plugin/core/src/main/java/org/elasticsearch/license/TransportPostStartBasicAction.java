@@ -41,7 +41,6 @@ public class TransportPostStartBasicAction extends TransportMasterNodeAction<Pos
             threadPool,
             actionFilters,
             PostStartBasicRequest::new,
-            indexNameExpressionResolver,
             PostStartBasicResponse::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );

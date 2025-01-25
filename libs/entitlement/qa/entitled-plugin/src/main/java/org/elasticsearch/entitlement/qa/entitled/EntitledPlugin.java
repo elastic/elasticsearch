@@ -9,6 +9,7 @@
 
 package org.elasticsearch.entitlement.qa.entitled;
 
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.entitlement.runtime.api.NotEntitledException;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -17,6 +18,7 @@ import org.elasticsearch.plugins.Plugin;
 
 public class EntitledPlugin extends Plugin implements ExtensiblePlugin {
 
+    @SuppressForbidden(reason = "Exposes forbidden APIs for testing purposes")
     public static void System_clearProperty(String key) {
         System.clearProperty(key);
     }
@@ -34,7 +36,7 @@ public class EntitledPlugin extends Plugin implements ExtensiblePlugin {
 
     private static void selfTestEntitled() {
         logger.debug("selfTestEntitled");
-        System.clearProperty(SELF_TEST_PROPERTY);
+        System_clearProperty(SELF_TEST_PROPERTY);
     }
 
     private static void selfTestNotEntitled() {

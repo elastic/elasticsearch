@@ -1,5 +1,0 @@
-pr: 120818
-summary: Removing default model ID from `ElasticsearchInternalService` configuration
-area: Machine Learning
-type: enhancement
-issues: []

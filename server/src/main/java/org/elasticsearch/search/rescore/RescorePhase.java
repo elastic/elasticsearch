@@ -20,14 +20,11 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.lucene.grouping.TopFieldGroups;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.query.QueryPhase;
 import org.elasticsearch.search.query.SearchTimeoutException;
 import org.elasticsearch.search.sort.ShardDocSortField;
 import org.elasticsearch.search.sort.SortAndFormats;
-import org.elasticsearch.tasks.CancellableTask;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -195,21 +192,7 @@ public class RescorePhase {
     }
 
     static Runnable getCancellationChecks(SearchContext context) {
-        List<Runnable> cancellationChecks = new ArrayList<>();
-        if (context.lowLevelCancellation()) {
-            cancellationChecks.add(() -> {
-                final CancellableTask task = context.getTask();
-                if (task != null) {
-                    task.ensureNotCancelled();
-                }
-            });
-        }
-
-        final Runnable timeoutRunnable = QueryPhase.getTimeoutCheck(context);
-        if (timeoutRunnable != null) {
-            cancellationChecks.add(timeoutRunnable);
-        }
-
+        List<Runnable> cancellationChecks = context.getCancellationChecks();
         return () -> {
             for (var check : cancellationChecks) {
                 check.run();

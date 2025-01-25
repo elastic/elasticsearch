@@ -40,6 +40,7 @@ import org.elasticsearch.search.fetch.subphase.InnerHitsContext;
 import org.elasticsearch.search.fetch.subphase.ScriptFieldsContext;
 import org.elasticsearch.search.fetch.subphase.highlight.SearchHighlightContext;
 import org.elasticsearch.search.profile.Profilers;
+import org.elasticsearch.search.query.QueryPhase;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rank.context.QueryPhaseRankShardContext;
 import org.elasticsearch.search.rank.feature.RankFeatureResult;
@@ -85,6 +86,21 @@ public abstract class SearchContext implements Releasable {
     protected SearchContext() {}
 
     public abstract void setTask(CancellableTask task);
+
+    public final List<Runnable> getCancellationChecks() {
+        final Runnable timeoutRunnable = QueryPhase.getTimeoutCheck(this);
+        if (lowLevelCancellation()) {
+            // This searching doesn't live beyond this phase, so we don't need to remove query cancellation
+            Runnable c = () -> {
+                final CancellableTask task = getTask();
+                if (task != null) {
+                    task.ensureNotCancelled();
+                }
+            };
+            return timeoutRunnable == null ? List.of(c) : List.of(c, timeoutRunnable);
+        }
+        return timeoutRunnable == null ? List.of() : List.of(timeoutRunnable);
+    }
 
     public abstract CancellableTask getTask();
 

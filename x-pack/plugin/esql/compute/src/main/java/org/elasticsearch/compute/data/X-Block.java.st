@@ -288,6 +288,18 @@ $endif$
          */
         Builder copyFrom($Type$Block block, int beginInclusive, int endExclusive);
 
+        /**
+         * Copy the values in {@code block} at {@code position}. If this position
+         * has a single value, this'll copy a single value. If this positions has
+         * many values, it'll copy all of them. If this is {@code null}, then it'll
+         * copy the {@code null}.
+$if(BytesRef)$
+         * @param scratch Scratch string used to prevent allocation. Share this
+                          between many calls to this function.
+$endif$
+         */
+        Builder copyFrom($Type$Block block, int position$if(BytesRef)$, BytesRef scratch$endif$);
+
         @Override
         Builder appendNull();
 

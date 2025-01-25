@@ -78,7 +78,7 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
     /**
      * Combines the provided {@code rankResults} to return the final top documents.
      */
-    protected abstract RankDoc[] combineInnerRetrieverResults(List<ScoreDoc[]> rankResults);
+    protected abstract RankDoc[] combineInnerRetrieverResults(List<ScoreDoc[]> rankResults, boolean explain);
 
     @Override
     public final boolean isCompound() {
@@ -181,7 +181,7 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
                         failures.forEach(ex::addSuppressed);
                         listener.onFailure(ex);
                     } else {
-                        results.set(combineInnerRetrieverResults(topDocs));
+                        results.set(combineInnerRetrieverResults(topDocs, ctx.isExplain()));
                         listener.onResponse(null);
                     }
                 }

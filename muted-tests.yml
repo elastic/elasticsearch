@@ -456,3 +456,6 @@ tests:
 - class: org.elasticsearch.xpack.logsdb.qa.StandardVersusLogsIndexModeRandomDataChallengeRestIT
   method: testTermsQuery
   issue: https://github.com/elastic/elasticsearch/issues/120856
+- class: org.elasticsearch.xpack.logsdb.qa.StandardVersusStandardReindexedIntoLogsDbChallengeRestIT
+  method: testMatchAllQuery
+  issue: https://github.com/elastic/elasticsearch/issues/120857

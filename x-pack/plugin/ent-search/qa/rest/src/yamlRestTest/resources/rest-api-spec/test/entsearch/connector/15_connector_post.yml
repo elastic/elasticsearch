@@ -48,7 +48,7 @@ setup:
   - do:
       connector.post:
         body:
-          index_name: search-test
+          index_name: search-test-2
 
   - set:  { id: id }
   - match: { id: $id }
@@ -58,7 +58,7 @@ setup:
         connector_id: $id
 
   - match: { id: $id }
-  - match: { index_name: search-test }
+  - match: { index_name: search-test-2 }
   - match: { is_native: false }
   - match: { sync_now: false }
   - match: { status: created }

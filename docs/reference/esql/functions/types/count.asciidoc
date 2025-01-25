@@ -4,7 +4,7 @@
 
 [%header.monospaced.styled,format=dsv,separator=|]
 |===
-field | result
+(optional) field | result
 boolean | long
 cartesian_point | long
 date | long

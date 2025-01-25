@@ -4,7 +4,7 @@
 
 [%header.monospaced.styled,format=dsv,separator=|]
 |===
-first | rest | result
+first | (optional) rest | result
 boolean | boolean | boolean
 boolean | | boolean
 date | date | date

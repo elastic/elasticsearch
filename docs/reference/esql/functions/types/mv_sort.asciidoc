@@ -4,7 +4,7 @@
 
 [%header.monospaced.styled,format=dsv,separator=|]
 |===
-field | order | result
+field | (optional) order | result
 boolean | keyword | boolean
 date | keyword | date
 date_nanos | keyword | date_nanos

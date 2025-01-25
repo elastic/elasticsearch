@@ -4,7 +4,7 @@
 
 [%header.monospaced.styled,format=dsv,separator=|]
 |===
-base | number | result
+(optional) base | number | result
 double | double | double
 double | integer | double
 double | long | double

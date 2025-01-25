@@ -37,4 +37,9 @@ public class MatchOperatorTests extends AbstractMatchFullTextFunctionTests {
     protected Expression build(Source source, List<Expression> args) {
         return new MatchOperator(source, args.get(0), args.get(1));
     }
+
+    @Override
+    public void testSerializationOfSimple() {
+        // MatchOperator is not a separate function that needs to be serialized, it's serialized via Match
+    }
 }

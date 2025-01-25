@@ -4,7 +4,7 @@
 
 [%header.monospaced.styled,format=dsv,separator=|]
 |===
-number | decimals | result
+number | (optional) decimals | result
 double | integer | double
 double | long | double
 double | | double

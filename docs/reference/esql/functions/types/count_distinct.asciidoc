@@ -4,7 +4,7 @@
 
 [%header.monospaced.styled,format=dsv,separator=|]
 |===
-field | precision | result
+field | (optional) precision | result
 boolean | integer | long
 boolean | long | long
 boolean | unsigned_long | long

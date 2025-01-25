@@ -281,8 +281,9 @@ public class Match extends FullTextFunction implements OptionalArgument, PostOpt
         return new Match(source, field, query, null, queryBuilder);
     }
 
+    // This is not meant to be overriden by MatchOperator - MatchOperator should be serialized to Match
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
+    public final void writeTo(StreamOutput out) throws IOException {
         source().writeTo(out);
         out.writeNamedWriteable(field());
         out.writeNamedWriteable(query());

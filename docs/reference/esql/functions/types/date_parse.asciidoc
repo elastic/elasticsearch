@@ -4,7 +4,7 @@
 
 [%header.monospaced.styled,format=dsv,separator=|]
 |===
-datePattern | dateString | result
+(optional) datePattern | dateString | result
 keyword | keyword | date
 keyword | text | date
 text | keyword | date

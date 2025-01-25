@@ -165,7 +165,6 @@ public class TransportVersions {
     public static final TransportVersion ADD_INCLUDE_FAILURE_INDICES_OPTION = def(8_831_00_0);
     public static final TransportVersion ESQL_RESPONSE_PARTIAL = def(8_832_00_0);
     public static final TransportVersion RANK_DOC_OPTIONAL_METADATA_FOR_EXPLAIN = def(8_833_00_0);
-    public static final TransportVersion ESQL_FIX_SERIALIZATION_MATCH_OPERATOR = def(8_834_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

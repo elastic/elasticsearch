@@ -4,7 +4,7 @@
 
 [%header.monospaced.styled,format=dsv,separator=|]
 |===
-condition | trueValue | elseValue | result
+condition | trueValue | (optional) elseValue | result
 boolean | boolean | boolean | boolean
 boolean | boolean | | boolean
 boolean | cartesian_point | cartesian_point | cartesian_point

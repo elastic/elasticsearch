@@ -4,7 +4,7 @@
 
 [%header.monospaced.styled,format=dsv,separator=|]
 |===
-dateFormat | date | result
+(optional) dateFormat | date | result
 date | | keyword
 date_nanos | | keyword
 keyword | date | keyword

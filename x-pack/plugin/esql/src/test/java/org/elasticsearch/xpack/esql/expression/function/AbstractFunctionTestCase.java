@@ -960,11 +960,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     private static void renderTypes(String name, List<EsqlFunctionRegistry.ArgSignature> args) throws IOException {
         StringBuilder header = new StringBuilder();
         List<String> argNames = args.stream().map(EsqlFunctionRegistry.ArgSignature::name).toList();
-        for (EsqlFunctionRegistry.ArgSignature arg : args) {
-            if (arg.optional()) {
-                header.append("(optional) ");
-            }
-            header.append(arg.name()).append(" | ");
+        for (String arg : argNames) {
+            header.append(arg).append(" | ");
         }
         header.append("result");
 

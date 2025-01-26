@@ -93,6 +93,10 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
             request.getMaxConcurrentShardRequests(),
             SearchResponse.Clusters.EMPTY
         ) {
+            {
+                assertTrue(finishShard()); // only have a single shard in the iterator, lets finish that one as is expected by tests
+            }
+
             @Override
             protected SearchPhase getNextPhase() {
                 return null;

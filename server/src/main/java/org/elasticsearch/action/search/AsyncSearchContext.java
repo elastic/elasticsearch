@@ -153,7 +153,7 @@ public abstract class AsyncSearchContext<Result extends SearchPhaseResult> {
         this.nodeIdToConnection = nodeIdToConnection;
         // register the release of the query consumer to free up the circuit breaker memory
         // at the end of the search
-        addReleasable(results);
+        releasables.add(results);
 
         this.timeProvider = timeProvider;
         this.concreteIndexBoosts = concreteIndexBoosts;
@@ -261,7 +261,12 @@ public abstract class AsyncSearchContext<Result extends SearchPhaseResult> {
             if (results.hasResult(shardIndex)) {
                 assert (int) OUTSTANDING_SHARDS.getAcquire(this) == 0 : "should only be called by subsequent phases, not during query";
                 assert failure == null : "shard failed before but shouldn't: " + failure;
-                successfulOps.decrementAndGet(); // if this shard was successful before (initial phase) we
+                successfulOps.decrementAndGet(); // if this shard was successful before (initial phase) we need to count down the successes
+            }
+        }
+    }
+
+    protected final boolean finishShard() {
         return (int) OUTSTANDING_SHARDS.getAndAdd(this, -1) == 1;
     }
 

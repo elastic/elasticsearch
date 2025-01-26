@@ -2606,7 +2606,9 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         );
     }
 
-    public void testPushdownInsist_fieldExistsSingleIndex_insistIsExpunged() {
+    public void testResolveInsist_fieldExistsSingleIndex_insistIsExpunged() {
+        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+
         LogicalPlan plan = optimizedPlan("FROM test | INSIST_🐔 emp_no");
 
         LogicalPlan equivalentPlan = optimizedPlan("FROM test");
@@ -2618,7 +2620,9 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         return attributes.stream().filter(attr -> attr.name().equals(name)).findFirst().get();
     }
 
-    public void testPushdownInsist_fieldDoesNotExist_updatesRelationWithNewField() {
+    public void testResolveInsist_fieldDoesNotExist_updatesRelationWithNewField() {
+        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+
         LogicalPlan plan = optimizedPlan("FROM test | INSIST_🐔 foo");
 
         var limit = as(plan, Limit.class);
@@ -2627,7 +2631,9 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(((FieldAttribute) relation.output().getLast()).field(), is(new KeywordEsField("foo").withReadUnmappedFromSource()));
     }
 
-    public void testPushdownInsist_multiIndexFieldExistsWithSingleKeywordType_updatesRelationWithNewField() {
+    public void testResolveInsist_multiIndexFieldExistsWithSingleKeywordType_updatesRelationWithNewField() {
+        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+
         var plan = planMultiIndex("FROM multi_index | INSIST_🐔 partial_type_keyword");
         var limit = as(plan, Limit.class);
         var relation = as(limit.child(), EsRelation.class);
@@ -2636,7 +2642,9 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(attribute.field(), is(new KeywordEsField("partial_type_keyword").withReadUnmappedFromSource()));
     }
 
-    public void testPushdownInsist_multiIndexFieldExistsWithSingleTypeButIsNotKeywordAndMissingCast_createsAnInvalidMappedField() {
+    public void testResolveInsist_multiIndexFieldExistsWithSingleTypeButIsNotKeywordAndMissingCast_createsAnInvalidMappedField() {
+        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+
         var plan = planMultiIndex("FROM multi_index | INSIST_🐔 partial_type_long");
         var limit = as(plan, Limit.class);
         var relation = as(limit.child(), EsRelation.class);
@@ -2647,14 +2655,18 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(attr.unresolvedMessage(), containsString(substring));
     }
 
-    public void testPushdownInsist_multiIndexFieldExists_insistIsExpunged() {
+    public void testResolveInsist_multiIndexFieldExists_insistIsExpunged() {
+        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+
         var plan = planMultiIndex("FROM multi_index | INSIST_🐔 emp_no");
         LogicalPlan equivalentPlan = planMultiIndex("FROM multi_index");
 
         assertThat(plan, equalTo(equivalentPlan));
     }
 
-    public void testPushdownInsist_multiIndexFieldPartiallyExistsWithMultiTypes_createsTheCorrectUnsupportedField() {
+    public void testResolveInsist_multiIndexFieldPartiallyExistsWithMultiTypes_createsTheCorrectUnsupportedField() {
+        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+
         var plan = planMultiIndex("FROM multi_index | INSIST_🐔 multi_type_without_keyword");
         var limit = as(plan, Limit.class);
         var relation = as(limit.child(), EsRelation.class);
@@ -2665,7 +2677,9 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(attr.unresolvedMessage(), containsString(substring));
     }
 
-    public void testPushdownInsist_multiIndexFieldPartiallyExistsWithMultiTypesWithCast_castsAreNotSupported() {
+    public void testResolveInsist_multiIndexFieldPartiallyExistsWithMultiTypesWithCast_castsAreNotSupported() {
+        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+
         VerificationException e = expectThrows(VerificationException.class, () -> planMultiIndex("""
             FROM multi_index |
             INSIST_🐔 multi_type_without_keyword |

@@ -63,8 +63,8 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
         this.config = indexSettings.getMergeSchedulerConfig();
         this.logger = Loggers.getLogger(getClass(), shardId);
         this.mergeTracking = new MergeTracking(
-                logger,
-                () -> this.config.isAutoThrottle() ? threadPoolMergeQueue.getTargetMBPerSec() : Double.POSITIVE_INFINITY
+            logger,
+            () -> this.config.isAutoThrottle() ? threadPoolMergeQueue.getTargetMBPerSec() : Double.POSITIVE_INFINITY
         );
         this.threadPoolMergeQueue = threadPoolMergeQueue;
         this.maxThreadCount = this.config.getMaxThreadCount();
@@ -159,10 +159,10 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
         boolean isAutoThrottle = mergeTrigger != MergeTrigger.CLOSING && merge.getStoreMergeInfo().mergeMaxNumSegments() == -1;
         // IO throttling cannot be toggled for existing merge tasks, only new merge tasks pick up the updated IO throttling setting
         return new MergeTask(
-                mergeSource,
-                merge,
-                isAutoThrottle && shouldIOThrottledMergeTasks,
-                "Lucene Merge Task #" + mergeTaskCount.incrementAndGet() + " for shard " + shardId
+            mergeSource,
+            merge,
+            isAutoThrottle && shouldIOThrottledMergeTasks,
+            "Lucene Merge Task #" + mergeTaskCount.incrementAndGet() + " for shard " + shardId
         );
     }
 
@@ -289,19 +289,19 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
                 doMerge(mergeSource, onGoingMerge.getMerge());
                 if (verbose()) {
                     message(
-                            String.format(
-                                    Locale.ROOT,
-                                    "merge task %s merge segment [%s] done estSize=%.1f MB (written=%.1f MB) "
-                                            + "runTime=%.1fs (stopped=%.1fs, paused=%.1fs) rate=%s",
-                                    this,
-                                    getSegmentName(onGoingMerge.getMerge()),
-                                    bytesToMB(onGoingMerge.getMerge().estimatedMergeBytes),
-                                    bytesToMB(rateLimiter.getTotalBytesWritten()),
-                                    nsToSec(System.nanoTime() - mergeStartTimeNS.get()),
-                                    nsToSec(rateLimiter.getTotalStoppedNS()),
-                                    nsToSec(rateLimiter.getTotalPausedNS()),
-                                    rateToString(rateLimiter.getMBPerSec())
-                            )
+                        String.format(
+                            Locale.ROOT,
+                            "merge task %s merge segment [%s] done estSize=%.1f MB (written=%.1f MB) "
+                                + "runTime=%.1fs (stopped=%.1fs, paused=%.1fs) rate=%s",
+                            this,
+                            getSegmentName(onGoingMerge.getMerge()),
+                            bytesToMB(onGoingMerge.getMerge().estimatedMergeBytes),
+                            bytesToMB(rateLimiter.getTotalBytesWritten()),
+                            nsToSec(System.nanoTime() - mergeStartTimeNS.get()),
+                            nsToSec(rateLimiter.getTotalStoppedNS()),
+                            nsToSec(rateLimiter.getTotalPausedNS()),
+                            rateToString(rateLimiter.getMBPerSec())
+                        )
                     );
                 }
             } catch (Throwable t) {

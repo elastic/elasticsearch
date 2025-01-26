@@ -2966,7 +2966,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testInvalidInsistNotOnTopOfFrom() {
-        expectError("FROM text | EVAL x = 4 | INSIST_🐔 foo", "INSIST_🐔 command can only be applied on top of a FROM command");
+        expectError("FROM text | EVAL x = 4 | INSIST_🐔 foo", "INSIST command can only be applied on top of a FROM command");
     }
 
     public void testInvalidInsistAsterisk() {

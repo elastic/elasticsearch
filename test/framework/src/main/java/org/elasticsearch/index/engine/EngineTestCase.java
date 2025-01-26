@@ -155,7 +155,7 @@ public abstract class EngineTestCase extends ESTestCase {
     protected static final IndexSettings INDEX_SETTINGS = IndexSettingsModule.newIndexSettings("index", Settings.EMPTY);
 
     protected ThreadPool threadPool;
-    protected ThreadPoolMergeExecutorVer1 threadPoolMergeExecutorVer1;
+    protected ThreadPoolMergeQueue threadPoolMergeQueue;
     protected TranslogHandler translogHandler;
 
     protected Store store;
@@ -242,7 +242,7 @@ public abstract class EngineTestCase extends ESTestCase {
         }
         defaultSettings = IndexSettingsModule.newIndexSettings("index", indexSettings());
         threadPool = new TestThreadPool(getClass().getName());
-        threadPoolMergeExecutorVer1 = new ThreadPoolMergeExecutorVer1(threadPool);
+        threadPoolMergeQueue = new ThreadPoolMergeQueue(threadPool);
 
         store = createStore();
         storeReplica = createStore();
@@ -275,7 +275,7 @@ public abstract class EngineTestCase extends ESTestCase {
         return new EngineConfig(
             config.getShardId(),
             config.getThreadPool(),
-            config.getThreadPoolMergeExecutor(),
+            config.getThreadPoolMergeQueue(),
             config.getIndexSettings(),
             config.getWarmer(),
             config.getStore(),
@@ -308,7 +308,7 @@ public abstract class EngineTestCase extends ESTestCase {
         return new EngineConfig(
             config.getShardId(),
             config.getThreadPool(),
-            config.getThreadPoolMergeExecutor(),
+            config.getThreadPoolMergeQueue(),
             config.getIndexSettings(),
             config.getWarmer(),
             config.getStore(),
@@ -341,7 +341,7 @@ public abstract class EngineTestCase extends ESTestCase {
         return new EngineConfig(
             config.getShardId(),
             config.getThreadPool(),
-            config.getThreadPoolMergeExecutor(),
+            config.getThreadPoolMergeQueue(),
             config.getIndexSettings(),
             config.getWarmer(),
             config.getStore(),
@@ -846,7 +846,7 @@ public abstract class EngineTestCase extends ESTestCase {
         return new EngineConfig(
             shardId,
             threadPool,
-                threadPoolMergeExecutorVer1,
+            threadPoolMergeQueue,
             indexSettings,
             null,
             store,
@@ -887,7 +887,7 @@ public abstract class EngineTestCase extends ESTestCase {
         return new EngineConfig(
             config.getShardId(),
             config.getThreadPool(),
-            config.getThreadPoolMergeExecutor(),
+            config.getThreadPoolMergeQueue(),
             indexSettings,
             config.getWarmer(),
             store,

@@ -256,7 +256,7 @@ public class InternalEngine extends Engine {
             mergeScheduler = createMergeScheduler(
                 engineConfig.getShardId(),
                 engineConfig.getIndexSettings(),
-                engineConfig.getThreadPoolMergeExecutor()
+                engineConfig.getThreadPoolMergeQueue()
             );
             scheduler = mergeScheduler.getMergeScheduler();
             throttle = new IndexThrottle();

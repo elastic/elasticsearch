@@ -151,7 +151,7 @@ public final class EngineConfig {
     public EngineConfig(
         ShardId shardId,
         ThreadPool threadPool,
-        ThreadPoolMergeExecutorVer1 threadPoolMergeExecutorVer1,
+        ThreadPoolMergeQueue threadPoolMergeQueue,
         IndexSettings indexSettings,
         Engine.Warmer warmer,
         Store store,
@@ -181,7 +181,7 @@ public final class EngineConfig {
         this.shardId = shardId;
         this.indexSettings = indexSettings;
         this.threadPool = threadPool;
-        this.threadPoolMergeQueue = threadPoolMergeExecutorVer1;
+        this.threadPoolMergeQueue = threadPoolMergeQueue;
         this.warmer = warmer == null ? (a) -> {} : warmer;
         this.store = store;
         this.mergePolicy = mergePolicy;

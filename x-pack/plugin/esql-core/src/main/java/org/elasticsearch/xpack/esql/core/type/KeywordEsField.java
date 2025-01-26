@@ -25,7 +25,6 @@ public class KeywordEsField extends EsField {
 
     private final int precision;
     private final boolean normalized;
-    private final boolean isReadUnmappedFromSource;
 
     public KeywordEsField(String name) {
         this(name, Collections.emptyMap(), true, Short.MAX_VALUE, false);
@@ -43,7 +42,7 @@ public class KeywordEsField extends EsField {
         boolean normalized,
         boolean isAlias
     ) {
-        this(name, KEYWORD, properties, hasDocValues, precision, normalized, isAlias, false);
+        this(name, KEYWORD, properties, hasDocValues, precision, normalized, isAlias);
     }
 
     protected KeywordEsField(
@@ -53,13 +52,11 @@ public class KeywordEsField extends EsField {
         boolean hasDocValues,
         int precision,
         boolean normalized,
-        boolean isAlias,
-        boolean isReadUnmappedFromSource
+        boolean isAlias
     ) {
         super(name, esDataType, properties, hasDocValues, isAlias);
         this.precision = precision;
         this.normalized = normalized;
-        this.isReadUnmappedFromSource = isReadUnmappedFromSource;
     }
 
     public KeywordEsField(StreamInput in) throws IOException {
@@ -69,7 +66,6 @@ public class KeywordEsField extends EsField {
             in.readImmutableMap(EsField::readFrom),
             in.readBoolean(),
             in.readInt(),
-            in.readBoolean(),
             in.readBoolean(),
             in.readBoolean()
         );
@@ -83,7 +79,6 @@ public class KeywordEsField extends EsField {
         out.writeInt(precision);
         out.writeBoolean(normalized);
         out.writeBoolean(isAlias());
-        out.writeBoolean(isReadUnmappedFromSource);
     }
 
     public String getWriteableName() {
@@ -96,15 +91,6 @@ public class KeywordEsField extends EsField {
 
     public boolean getNormalized() {
         return normalized;
-    }
-
-    public KeywordEsField withReadUnmappedFromSource() {
-        return new KeywordEsField(getName(), getDataType(), getProperties(), isAggregatable(), precision, normalized, isAlias(), true);
-    }
-
-    /** If true, and the field is unmapped, attempt to read it from source. */
-    public boolean isReadUnmappedFromSource() {
-        return isReadUnmappedFromSource;
     }
 
     @Override

@@ -50,8 +50,8 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
+import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
@@ -283,7 +283,7 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
                 return (doc, copier) -> getBlockForMultiType(doc, m, copier);
 
             }
-            if (fa.field() instanceof KeywordEsField k && k.isReadUnmappedFromSource()) {
+            if (fa.field() instanceof PotentiallyUnmappedKeywordEsField k) {
                 return (doc, copier) -> switch (extractBlockForSingleDoc(doc, k.getName(), copier)) {
                     case BlockResultMissing unused -> getNullsBlock(doc);
                     case BlockResultSuccess success -> success.block;

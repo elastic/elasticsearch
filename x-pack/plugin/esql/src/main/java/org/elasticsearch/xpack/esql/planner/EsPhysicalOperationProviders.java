@@ -53,6 +53,7 @@ import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
+import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
@@ -130,7 +131,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
 
     private BlockLoader getBlockLoaderFor(int shardId, Attribute attr, MappedFieldType.FieldExtractPreference fieldExtractPreference) {
         DefaultShardContext shardContext = (DefaultShardContext) shardContexts.get(shardId);
-        if (attr instanceof FieldAttribute fa && fa.field() instanceof KeywordEsField kf && kf.isReadUnmappedFromSource()) {
+        if (attr instanceof FieldAttribute fa && fa.field() instanceof PotentiallyUnmappedKeywordEsField kf) {
             shardContext = new DefaultShardContextForUnmappedField(shardContext, kf);
         }
 
@@ -151,7 +152,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
     private static class DefaultShardContextForUnmappedField extends DefaultShardContext {
         private final KeywordEsField unmappedEsField;
 
-        DefaultShardContextForUnmappedField(DefaultShardContext ctx, KeywordEsField unmappedEsField) {
+        DefaultShardContextForUnmappedField(DefaultShardContext ctx, PotentiallyUnmappedKeywordEsField unmappedEsField) {
             super(ctx.index, ctx.ctx, ctx.aliasFilter);
             this.unmappedEsField = unmappedEsField;
         }

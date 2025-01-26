@@ -46,7 +46,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
-import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
+import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.Order;
@@ -2628,7 +2628,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var limit = as(plan, Limit.class);
         var relation = as(limit.child(), EsRelation.class);
         assertThat(relation.output(), hasSize(optimizedPlan("FROM test").output().size() + 1));
-        assertThat(((FieldAttribute) relation.output().getLast()).field(), is(new KeywordEsField("foo").withReadUnmappedFromSource()));
+        assertThat(((FieldAttribute) relation.output().getLast()).field(), is(new PotentiallyUnmappedKeywordEsField("foo")));
     }
 
     public void testResolveInsist_multiIndexFieldExistsWithSingleKeywordType_updatesRelationWithNewField() {
@@ -2639,7 +2639,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var relation = as(limit.child(), EsRelation.class);
         assertThat(relation.output(), hasSize(planMultiIndex("FROM multi_index").output().size()));
         var attribute = (FieldAttribute) getAttribute(relation.output(), "partial_type_keyword");
-        assertThat(attribute.field(), is(new KeywordEsField("partial_type_keyword").withReadUnmappedFromSource()));
+        assertThat(attribute.field(), is(new PotentiallyUnmappedKeywordEsField("partial_type_keyword")));
     }
 
     public void testResolveInsist_multiIndexFieldExistsWithSingleTypeButIsNotKeywordAndMissingCast_createsAnInvalidMappedField() {

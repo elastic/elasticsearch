@@ -49,6 +49,7 @@ import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.cache.query.QueryCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineFactory;
+import org.elasticsearch.index.engine.ThreadPoolMergeQueue;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
@@ -154,7 +155,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
 
     private final AsyncTrimTranslogTask trimTranslogTask;
     private final ThreadPool threadPool;
-    private final ThreadPoolMergeExecutorVer1 threadPoolMergeExecutorVer1;
+    private final ThreadPoolMergeQueue threadPoolMergeQueue;
     private final BigArrays bigArrays;
     private final ScriptService scriptService;
     private final ClusterService clusterService;
@@ -261,7 +262,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.indexFoldersDeletionListener = indexFoldersDeletionListener;
         this.bigArrays = bigArrays;
         this.threadPool = threadPool;
-        this.threadPoolMergeExecutorVer1 = new ThreadPoolMergeExecutorVer1(threadPool);
+        this.threadPoolMergeQueue = new ThreadPoolMergeQueue(threadPool);
         this.scriptService = scriptService;
         this.clusterService = clusterService;
         this.client = client;
@@ -557,7 +558,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 eventListener,
                 readerWrapper,
                 threadPool,
-                    threadPoolMergeExecutorVer1,
+                threadPoolMergeQueue,
                 bigArrays,
                 engineWarmer,
                 searchOperationListeners,
@@ -822,8 +823,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         return threadPool;
     }
 
-    public ThreadPoolMergeExecutorVer1 getThreadPoolMergeExecutor() {
-        return threadPoolMergeExecutorVer1;
+    public ThreadPoolMergeQueue getThreadPoolMergeQueue() {
+        return threadPoolMergeQueue;
     }
 
     /**

@@ -110,7 +110,6 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -698,7 +697,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // Field is partially unmapped.
             if (resolvedCol instanceof FieldAttribute f && indexResolution.get().partiallyUnmappedFields().contains(name)) {
                 return pushdownInsist(insist, attrs -> {
-                    var index = CollectionUtils.findIndex(attrs, e -> e.name().equals(name)).getAsInt();
+                    var index = CollectionUtils.findFirstIndex(attrs, e -> e.name().equals(name)).getAsInt();
                     Attribute attribute = f.field().getDataType() == KEYWORD ? insistKeyword(insist) : invalidInsistAttribute(insist, f);
                     attrs.set(index, attribute);
                 });
@@ -721,6 +720,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 + "Unmapped fields are treated as KEYWORD in unmapped indices, but field is mapped to another type";
             var field = new UnsupportedEsField(name, fa.field().getDataType().typeName());
             return new UnsupportedAttribute(insist.source(), name, field, Strings.format(messageFormat, name));
+        }
+
+        private static FieldAttribute insistKeyword(Insist insist) {
+            String name = insist.getInsistIdentifier().name();
+            return new FieldAttribute(insist.source(), name, new KeywordEsField(name).withReadUnmappedFromSource());
         }
 
         private Attribute maybeResolveAttribute(UnresolvedAttribute ua, List<Attribute> childrenOutput) {
@@ -992,11 +996,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         private DataType[] allowedEnrichTypes(String matchType) {
             return matchType.equals(GEO_MATCH_TYPE) ? GEO_TYPES : NON_GEO_TYPES;
         }
-    }
-
-    private static FieldAttribute insistKeyword(Insist insist) {
-        String name = insist.getInsistIdentifier().name();
-        return new FieldAttribute(insist.source(), name, new KeywordEsField(name).withReadUnmappedFromSource());
     }
 
     private static List<Attribute> resolveAgainstList(UnresolvedNamePattern up, Collection<Attribute> attrList) {
@@ -1413,68 +1412,39 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         private Expression resolveConvertFunction(AbstractConvertFunction convert, List<FieldAttribute> unionFieldAttributes) {
             if (convert.field() instanceof FieldAttribute fa && fa.field() instanceof InvalidMappedField imf) {
-                var expr = convertHelper(convert, fa, imf, f -> f);
-                if (expr.orElse(null) instanceof Expression e) {
-                    return e;
+                HashMap<TypeResolutionKey, Expression> typeResolutions = new HashMap<>();
+                Set<DataType> supportedTypes = convert.supportedTypes();
+                if (convert instanceof FoldablesConvertFunction fcf) {
+                    // FoldablesConvertFunction does not accept fields as inputs, they only accept constants
+                    String unresolvedMessage = "argument of ["
+                        + fcf.sourceText()
+                        + "] must be a constant, received ["
+                        + Expressions.name(fa)
+                        + "]";
+                    Expression ua = new UnresolvedAttribute(fa.source(), fa.name(), unresolvedMessage);
+                    return fcf.replaceChildren(Collections.singletonList(ua));
                 }
-            }
-            return convert.field() instanceof AbstractConvertFunction subConvert
-                ? convert.replaceChildren(Collections.singletonList(resolveConvertFunction(subConvert, unionFieldAttributes)))
-                : convert;
-        }
-
-        // private static PotentiallyUnmappedEsField unmappedMultiType(
-        // AbstractConvertFunction convert,
-        // FieldAttribute fa,
-        // InvalidMappedField imf,
-        // MultiTypeEsField f
-        // ) {
-        // return PotentiallyUnmappedEsField.fromMultiType(typeSpecificConvert(convert, fa.source(), KEYWORD, imf), f);
-        // }
-        //
-        // private static PotentiallyUnmappedEsField unmappedSimpleResolution(
-        // AbstractConvertFunction convert,
-        // FieldAttribute fa,
-        // DataType otherType
-        // ) {
-        // return PotentiallyUnmappedEsField.simpleResolution(
-        // typeSpecificConvert(convert, fa.source(), KEYWORD, fa.field()),
-        // typeSpecificConvert(convert, fa.source(), otherType, fa.field()),
-        // fa.name()
-        // );
-        // }
-
-        private Optional<Expression> convertHelper(
-            AbstractConvertFunction convert,
-            FieldAttribute fa,
-            InvalidMappedField imf,
-            Function<MultiTypeEsField, EsField> fieldFinisher
-        ) {
-            HashMap<TypeResolutionKey, Expression> typeResolutions = new HashMap<>();
-            Set<DataType> supportedTypes = convert.supportedTypes();
-            if (convert instanceof FoldablesConvertFunction fcf) {
-                // FoldablesConvertFunction does not accept fields as inputs, they only accept constants
-                var message = Strings.format("argument of [%s] must be a constant, received [%s]", fcf.sourceText(), Expressions.name(fa));
-                Expression ua = new UnresolvedAttribute(fa.source(), fa.name(), message);
-                return Optional.of(fcf.replaceChildren(Collections.singletonList(ua)));
-            }
-            imf.types().forEach(type -> {
-                if (supportedTypes.contains(type.widenSmallNumeric())) {
-                    TypeResolutionKey key = new TypeResolutionKey(fa.name(), type);
-                    var concreteConvert = typeSpecificConvert(convert, fa.source(), type, imf);
-                    typeResolutions.put(key, concreteConvert);
+                imf.types().forEach(type -> {
+                    if (supportedTypes.contains(type.widenSmallNumeric())) {
+                        TypeResolutionKey key = new TypeResolutionKey(fa.name(), type);
+                        var concreteConvert = typeSpecificConvert(convert, fa.source(), type, imf);
+                        typeResolutions.put(key, concreteConvert);
+                    }
+                });
+                // If all mapped types were resolved, create a new FieldAttribute with the resolved MultiTypeEsField
+                if (typeResolutions.size() == imf.getTypesToIndices().size()) {
+                    var resolvedField = resolvedMultiTypeEsField(fa, typeResolutions);
+                    return createIfDoesNotAlreadyExist(fa, resolvedField, unionFieldAttributes);
                 }
-            });
-            if (typeResolutions.size() != imf.getTypesToIndices().size()) {
-                return Optional.empty();
+            } else if (convert.field() instanceof AbstractConvertFunction subConvert) {
+                return convert.replaceChildren(Collections.singletonList(resolveConvertFunction(subConvert, unionFieldAttributes)));
             }
-            MultiTypeEsField multiTypeEsField = resolvedMultiTypeEsField(fa.fieldName(), imf, typeResolutions);
-            return Optional.of(createIfDoesNotAlreadyExist(fa, fieldFinisher.apply(multiTypeEsField), unionFieldAttributes));
+            return convert;
         }
 
         private Expression createIfDoesNotAlreadyExist(
             FieldAttribute fa,
-            EsField resolvedField,
+            MultiTypeEsField resolvedField,
             List<FieldAttribute> unionFieldAttributes
         ) {
             // Generate new ID for the field and suffix it with the data type to maintain unique attribute names.
@@ -1492,15 +1462,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
         }
 
-        private MultiTypeEsField resolvedMultiTypeEsField(
-            String fieldAttributeName,
-            InvalidMappedField imf,
-            HashMap<TypeResolutionKey, Expression> typeResolutions
-        ) {
+        private MultiTypeEsField resolvedMultiTypeEsField(FieldAttribute fa, HashMap<TypeResolutionKey, Expression> typeResolutions) {
             Map<String, Expression> typesToConversionExpressions = new HashMap<>();
+            InvalidMappedField imf = (InvalidMappedField) fa.field();
             imf.getTypesToIndices().forEach((typeName, indexNames) -> {
                 DataType type = DataType.fromTypeName(typeName);
-                TypeResolutionKey key = new TypeResolutionKey(fieldAttributeName, type);
+                TypeResolutionKey key = new TypeResolutionKey(fa.name(), type);
                 if (typeResolutions.containsKey(key)) {
                     typesToConversionExpressions.put(typeName, typeResolutions.get(key));
                 }
@@ -1508,13 +1475,14 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return MultiTypeEsField.resolveFrom(imf, typesToConversionExpressions);
         }
 
-        private static Expression typeSpecificConvert(AbstractConvertFunction convert, Source source, DataType type, EsField field) {
+        private Expression typeSpecificConvert(AbstractConvertFunction convert, Source source, DataType type, InvalidMappedField mtf) {
+            EsField field = new EsField(mtf.getName(), type, mtf.getProperties(), mtf.isAggregatable());
             FieldAttribute originalFieldAttr = (FieldAttribute) convert.field();
             FieldAttribute resolvedAttr = new FieldAttribute(
                 source,
                 originalFieldAttr.parentName(),
                 originalFieldAttr.name(),
-                new EsField(field.getName(), type, field.getProperties(), field.isAggregatable()),
+                field,
                 originalFieldAttr.nullable(),
                 originalFieldAttr.id(),
                 true
@@ -1547,32 +1515,19 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 : planWithCheckedUnionTypes;
         }
 
-        private static Attribute checkUnresolved(FieldAttribute fa) {
+        static Attribute checkUnresolved(FieldAttribute fa) {
             if (fa.field() instanceof InvalidMappedField imf) {
-                return unsupportedAttribute(fa, imf);
+                String unresolvedMessage = "Cannot use field [" + fa.name() + "] due to ambiguities being " + imf.errorMessage();
+                String types = imf.getTypesToIndices().keySet().stream().collect(Collectors.joining(","));
+                return new UnsupportedAttribute(
+                    fa.source(),
+                    fa.name(),
+                    new UnsupportedEsField(imf.getName(), types),
+                    unresolvedMessage,
+                    fa.id()
+                );
             }
-            // else if (fa.field() instanceof PotentiallyUnmappedEsField unmapped
-            // && unmapped.getState() instanceof PotentiallyUnmappedEsField.Invalid invalid) {
-            // return unsupportedAttribute(fa, invalid.invalidMappedField());
-            // } else if (fa.field() instanceof PotentiallyUnmappedEsField unmapped
-            // && unmapped.getState() instanceof PotentiallyUnmappedEsField.SimpleConflict sf) {
-            // var format = "Cannot use field [%s] due to ambiguities caused by INSIST. "
-            // + "Unmapped fields are treated as KEYWORD in unmapped indices, but field is mapped to type [%s].";
-            // String unresolvedMessage = Strings.format(format, fa.name(), sf.otherType());
-            // return unsupportedAttribute(fa, new InvalidMappedField(fa.name(), unresolvedMessage), unresolvedMessage);
-            // }
             return fa;
-        }
-
-        private static UnsupportedAttribute unsupportedAttribute(FieldAttribute fa, InvalidMappedField imf) {
-            String unresolvedMessage = "Cannot use field [" + fa.name() + "] due to ambiguities being " + imf.errorMessage();
-            return unsupportedAttribute(fa, imf, unresolvedMessage);
-        }
-
-        private static UnsupportedAttribute unsupportedAttribute(FieldAttribute fa, InvalidMappedField imf, String message) {
-            String types = imf.getTypesToIndices().keySet().stream().collect(Collectors.joining(","));
-            UnsupportedEsField field = new UnsupportedEsField(imf.getName(), types);
-            return new UnsupportedAttribute(fa.source(), fa.name(), field, message, fa.id());
         }
 
         private static LogicalPlan planWithoutSyntheticAttributes(LogicalPlan plan) {

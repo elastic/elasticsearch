@@ -86,7 +86,7 @@ public abstract class CollectionUtils {
         return list;
     }
 
-    public static <T> OptionalInt findIndex(List<T> list, Predicate<T> predicate) {
+    public static <T> OptionalInt findFirstIndex(List<T> list, Predicate<T> predicate) {
         for (int i = 0; i < list.size(); i++) {
             if (predicate.test(list.get(i))) {
                 return OptionalInt.of(i);

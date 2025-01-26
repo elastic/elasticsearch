@@ -23,6 +23,7 @@ public record EsIndex(
     String name,
     Map<String, EsField> mapping,
     Map<String, IndexMode> indexNameWithModes,
+    /** Fields mapped only in some (but *not* all) indices. */
     Set<String> partiallyUnmappedFields
 ) implements Writeable {
 

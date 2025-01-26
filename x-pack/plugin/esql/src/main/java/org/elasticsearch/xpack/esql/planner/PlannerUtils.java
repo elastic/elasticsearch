@@ -298,20 +298,6 @@ public class PlannerUtils {
         };
     }
 
-    public static DataType toDataType(ElementType elementType) {
-        return switch (elementType) {
-            case LONG -> DataType.LONG;
-            case INT -> DataType.INTEGER;
-            case FLOAT -> DataType.FLOAT;
-            case DOUBLE -> DataType.DOUBLE;
-            case BYTES_REF -> DataType.KEYWORD;
-            case NULL -> DataType.NULL;
-            case BOOLEAN -> DataType.BOOLEAN;
-            case DOC -> DataType.DOC_DATA_TYPE;
-            case COMPOSITE, UNKNOWN -> throw new EsqlIllegalArgumentException("Unsupported element type: '%s'", elementType);
-        };
-    }
-
     /**
      * A non-breaking block factory used to create small pages during the planning
      * TODO: Remove this

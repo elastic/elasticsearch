@@ -19,7 +19,6 @@ import java.util.List;
 import java.util.Objects;
 
 public class Insist extends UnaryPlan {
-
     private final UnresolvedAttribute insistIdentifier;
 
     public Insist(Source source, UnresolvedAttribute insistIdentifier, LogicalPlan child) {

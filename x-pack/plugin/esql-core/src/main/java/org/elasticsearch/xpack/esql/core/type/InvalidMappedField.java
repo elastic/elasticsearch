@@ -107,10 +107,6 @@ public class InvalidMappedField extends EsField {
         return typesToIndices;
     }
 
-    public InvalidMappedField withTypesToIndices(Map<String, Set<String>> typesToIndices) {
-        return new InvalidMappedField(getName(), makeErrorMessage(typesToIndices), getProperties(), typesToIndices);
-    }
-
     private static String makeErrorMessage(Map<String, Set<String>> typesToIndices) {
         StringBuilder errorMessage = new StringBuilder();
         errorMessage.append("mapped as [");

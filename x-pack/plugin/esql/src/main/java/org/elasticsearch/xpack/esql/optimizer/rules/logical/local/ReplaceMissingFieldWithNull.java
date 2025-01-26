@@ -74,7 +74,7 @@ public class ReplaceMissingFieldWithNull extends ParameterizedRule<LogicalPlan, 
                 if (projection instanceof FieldAttribute f
                     && stats.exists(f.fieldName()) == false
                     && joinAttributes.contains(f) == false
-                    && isReadFromSource(f) == false) {
+                    && isReadUnmappedFromSource(f) == false) {
                     // TODO: Should do a searchStats lookup for join attributes instead of just ignoring them here
                     // See TransportSearchShardsAction
                     DataType dt = f.dataType();
@@ -109,14 +109,14 @@ public class ReplaceMissingFieldWithNull extends ParameterizedRule<LogicalPlan, 
                     // Do not use the attribute name, this can deviate from the field name for union types.
                     // Also skip fields from lookup indices because we do not have stats for these.
                     // TODO: We do have stats for lookup indices in case they are being used in the FROM clause; this can be refined.
-                    f -> isReadFromSource(f) || (stats.exists(f.fieldName()) || lookupFields.contains(f)) ? f : Literal.of(f, null)
+                    f -> isReadUnmappedFromSource(f) || (stats.exists(f.fieldName()) || lookupFields.contains(f)) ? f : Literal.of(f, null)
                 );
             }
 
         return plan;
     }
 
-    private static boolean isReadFromSource(FieldAttribute fa) {
+    private static boolean isReadUnmappedFromSource(FieldAttribute fa) {
         return fa.field() instanceof KeywordEsField kf && kf.isReadUnmappedFromSource();
     }
 

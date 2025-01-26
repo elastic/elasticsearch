@@ -215,7 +215,7 @@ public class MlAnomaliesIndexUpdateTests extends ESTestCase {
 
         doAnswer(invocationOnMock -> {
             ActionListener<RolloverResponse> actionListener = (ActionListener<RolloverResponse>) invocationOnMock.getArguments()[2];
-            actionListener.onResponse(new RolloverResponse("old", "new", Map.of(), false, true, true, true, true));
+            actionListener.onResponse(new RolloverResponse(indexName, indexName + "-new", Map.of(), false, true, true, true, true));
             return null;
         }).when(client).execute(same(RolloverAction.INSTANCE), any(RolloverRequest.class), any(ActionListener.class));
 
@@ -234,7 +234,7 @@ public class MlAnomaliesIndexUpdateTests extends ESTestCase {
             } else {
                 var removeAliasAction = new AliasActionMatcher(
                     indexName + ".rollover_alias",
-                    indexName,
+                    indexName + "-new",
                     IndicesAliasesRequest.AliasActions.Type.REMOVE
                 );
                 assertEquals(1L, request.getAliasActions().stream().filter(removeAliasAction::matches).count());

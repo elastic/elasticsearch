@@ -51,6 +51,19 @@ public final class AnomalyDetectorsIndex {
     }
 
     /**
+     * Extract the job Id from the alias name.
+     * If not an results index alias null is returned
+     * @param jobResultsAliasedName The alias
+     * @return The job Id
+     */
+    public static String jobIdFromAlias(String jobResultsAliasedName) {
+        if (jobResultsAliasedName.length() < AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX.length()) {
+            return null;
+        }
+        return jobResultsAliasedName.substring(AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX.length());
+    }
+
+    /**
      * The name of the alias pointing to the write index for a job
      * @param jobId Job Id
      * @return The write alias

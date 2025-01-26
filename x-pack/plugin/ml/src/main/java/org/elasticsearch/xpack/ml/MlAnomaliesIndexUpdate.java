@@ -25,9 +25,12 @@ import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields;
 import org.elasticsearch.xpack.core.ml.utils.MlIndexAndAlias;
@@ -110,13 +113,12 @@ public class MlAnomaliesIndexUpdate implements MlAutoUpdateService.UpdateAction 
             try {
                 updated.actionGet();
             } catch (Exception ex) {
-                logger.warn(() -> "failed rolling over legacy ml anomalies index [" + index + "]", ex);
+                var message = "failed rolling over legacy ml anomalies index [" + index + "]";
+                logger.warn(message, ex);
                 if (ex instanceof ElasticsearchException elasticsearchException) {
-                    failures.add(
-                        new ElasticsearchStatusException("Failed rollover", elasticsearchException.status(), elasticsearchException)
-                    );
+                    failures.add(new ElasticsearchStatusException(message, elasticsearchException.status(), elasticsearchException));
                 } else {
-                    failures.add(new ElasticsearchStatusException("Failed rollover", RestStatus.REQUEST_TIMEOUT, ex));
+                    failures.add(new ElasticsearchStatusException(message, RestStatus.REQUEST_TIMEOUT, ex));
                 }
 
                 break;
@@ -135,38 +137,43 @@ public class MlAnomaliesIndexUpdate implements MlAutoUpdateService.UpdateAction 
 
     private void rollAndUpdateAliases(ClusterState clusterState, String index, ActionListener<Boolean> listener) {
         // Create an alias specifically for rolling over.
-        // The ml-anomalies index has aliases for each job
-        // which could be used but that means one alias is
+        // The ml-anomalies index has aliases for each job anyone
+        // of which could be used but that means one alias is
         // treated differently.
         // Using a `.` in the alias name avoids any conflicts
         // as AD job Ids cannot start with `.`
         String rolloverAlias = index + ".rollover_alias";
 
+        // If the index does not end in a digit then rollover does not know
+        // what to name the new index so it must be specified in the request.
+        // Otherwise leave null and rollover will calculate the new name
+        String newIndexName = MlIndexAndAlias.has6DigitSuffix(index) ? null : index + MlIndexAndAlias.FIRST_INDEX_SIX_DIGIT_SUFFIX;
         IndicesAliasesRequestBuilder aliasRequestBuilder = client.admin().indices().prepareAliases();
 
         SubscribableListener.<Boolean>newForked(
             l -> { createAliasForRollover(index, rolloverAlias, l.map(AcknowledgedResponse::isAcknowledged)); }
         ).<String>andThen((l, success) -> {
-            rollover(rolloverAlias, l);
-        }).<Boolean>andThen((l, newIndexName) -> {
-            addIndexAliasesRequests(aliasRequestBuilder, index, newIndexName, clusterState);
+            rollover(rolloverAlias, newIndexName, l);
+        }).<Boolean>andThen((l, newIndexNameResponse) -> {
+            addIndexAliasesRequests(aliasRequestBuilder, index, newIndexNameResponse, clusterState);
             // Delete the new alias created for the rollover action
-            aliasRequestBuilder.removeAlias(index, rolloverAlias);
+            aliasRequestBuilder.removeAlias(newIndexNameResponse, rolloverAlias);
             updateAliases(aliasRequestBuilder, l);
         }).addListener(listener);
     }
 
-    private void rollover(String alias, ActionListener<String> listener) {
-        client.admin().indices().rolloverIndex(new RolloverRequest(alias, null), listener.delegateFailure((l, response) -> {
+    private void rollover(String alias, @Nullable String newIndexName, ActionListener<String> listener) {
+        client.admin().indices().rolloverIndex(new RolloverRequest(alias, newIndexName), listener.delegateFailure((l, response) -> {
             l.onResponse(response.getNewIndex());
         }));
     }
 
     private void createAliasForRollover(String indexName, String aliasName, ActionListener<IndicesAliasesResponse> listener) {
+        logger.info("creating alias for rollover [{}]", aliasName);
         client.admin()
             .indices()
             .prepareAliases()
-            .addAliasAction(IndicesAliasesRequest.AliasActions.add().index(indexName).alias(aliasName))
+            .addAliasAction(IndicesAliasesRequest.AliasActions.add().index(indexName).alias(aliasName).isHidden(true))
             .execute(listener);
     }
 
@@ -191,10 +198,19 @@ public class MlAnomaliesIndexUpdate implements MlAutoUpdateService.UpdateAction 
 
         for (var alias : meta.getAliases().values()) {
             if (isAnomaliesWriteAlias(alias.alias())) {
-                aliasRequestBuilder.addAliasAction(IndicesAliasesRequest.AliasActions.add().index(newIndex).alias(alias.alias()));
+                aliasRequestBuilder.addAliasAction(
+                    IndicesAliasesRequest.AliasActions.add().index(newIndex).alias(alias.alias()).isHidden(true).writeIndex(true)
+                );
                 aliasRequestBuilder.addAliasAction(IndicesAliasesRequest.AliasActions.remove().index(oldIndex).alias(alias.alias()));
             } else if (isAnomaliesReadAlias(alias.alias())) {
-                aliasRequestBuilder.addAliasAction(IndicesAliasesRequest.AliasActions.add().index(newIndex).alias(alias.alias()));
+                String jobId = AnomalyDetectorsIndex.jobIdFromAlias(alias.alias());
+                aliasRequestBuilder.addAliasAction(
+                    IndicesAliasesRequest.AliasActions.add()
+                        .index(newIndex)
+                        .alias(alias.alias())
+                        .isHidden(true)
+                        .filter(QueryBuilders.termQuery(Job.ID.getPreferredName(), jobId))
+                );
             }
         }
 

@@ -68,26 +68,21 @@ public final class MlIndexAndAlias {
     public static final String FIRST_INDEX_SIX_DIGIT_SUFFIX = "-000001";
 
     private static final Logger logger = LogManager.getLogger(MlIndexAndAlias.class);
+    private static final Predicate<String> HAS_SIX_DIGIT_SUFFIX = Pattern.compile("\\d{6}").asMatchPredicate();
 
-    static final Comparator<String> INDEX_NAME_COMPARATOR = new Comparator<>() {
-
-        private final Predicate<String> HAS_SIX_DIGIT_SUFFIX = Pattern.compile("\\d{6}").asMatchPredicate();
-
-        @Override
-        public int compare(String index1, String index2) {
-            String[] index1Parts = index1.split("-");
-            String index1Suffix = index1Parts[index1Parts.length - 1];
-            boolean index1HasSixDigitsSuffix = HAS_SIX_DIGIT_SUFFIX.test(index1Suffix);
-            String[] index2Parts = index2.split("-");
-            String index2Suffix = index2Parts[index2Parts.length - 1];
-            boolean index2HasSixDigitsSuffix = HAS_SIX_DIGIT_SUFFIX.test(index2Suffix);
-            if (index1HasSixDigitsSuffix && index2HasSixDigitsSuffix) {
-                return index1Suffix.compareTo(index2Suffix);
-            } else if (index1HasSixDigitsSuffix != index2HasSixDigitsSuffix) {
-                return Boolean.compare(index1HasSixDigitsSuffix, index2HasSixDigitsSuffix);
-            } else {
-                return index1.compareTo(index2);
-            }
+    static final Comparator<String> INDEX_NAME_COMPARATOR = (index1, index2) -> {
+        String[] index1Parts = index1.split("-");
+        String index1Suffix = index1Parts[index1Parts.length - 1];
+        boolean index1HasSixDigitsSuffix = HAS_SIX_DIGIT_SUFFIX.test(index1Suffix);
+        String[] index2Parts = index2.split("-");
+        String index2Suffix = index2Parts[index2Parts.length - 1];
+        boolean index2HasSixDigitsSuffix = HAS_SIX_DIGIT_SUFFIX.test(index2Suffix);
+        if (index1HasSixDigitsSuffix && index2HasSixDigitsSuffix) {
+            return index1Suffix.compareTo(index2Suffix);
+        } else if (index1HasSixDigitsSuffix != index2HasSixDigitsSuffix) {
+            return Boolean.compare(index1HasSixDigitsSuffix, index2HasSixDigitsSuffix);
+        } else {
+            return index1.compareTo(index2);
         }
     };
 
@@ -381,6 +376,10 @@ public final class MlIndexAndAlias {
 
     public static boolean hasIndexTemplate(ClusterState state, String templateName) {
         return state.getMetadata().templatesV2().containsKey(templateName);
+    }
+
+    public static boolean has6DigitSuffix(String indexName) {
+        return HAS_SIX_DIGIT_SUFFIX.test(indexName);
     }
 
     /**

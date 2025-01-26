@@ -72,18 +72,19 @@ public class MrjarPlugin implements Plugin<Project> {
         var javaExtension = project.getExtensions().getByType(JavaPluginExtension.class);
         var isIdeaSync = System.getProperty("idea.sync.active", "false").equals("true");
         var ideaSourceSetsEnabled = project.hasProperty(MRJAR_IDEA_ENABLED) && project.property(MRJAR_IDEA_ENABLED).equals("true");
+        int minJavaVersion = Integer.parseInt(buildParams.getMinimumCompilerVersion().getMajorVersion());
 
         // Ignore version-specific source sets if we are importing into IntelliJ and have not explicitly enabled this.
         // Avoids an IntelliJ bug:
         // https://youtrack.jetbrains.com/issue/IDEA-285640/Compiler-Options-Settings-language-level-is-set-incorrectly-with-JDK-19ea
         if (isIdeaSync == false || ideaSourceSetsEnabled) {
-            List<Integer> mainVersions = findSourceVersions(project);
+            List<Integer> mainVersions = findSourceVersions(project, minJavaVersion);
             List<String> mainSourceSets = new ArrayList<>();
             mainSourceSets.add(SourceSet.MAIN_SOURCE_SET_NAME);
-            configurePreviewFeatures(project, javaExtension.getSourceSets().getByName(SourceSet.MAIN_SOURCE_SET_NAME), 21);
+            configurePreviewFeatures(project, javaExtension.getSourceSets().getByName(SourceSet.MAIN_SOURCE_SET_NAME), minJavaVersion);
             List<String> testSourceSets = new ArrayList<>(mainSourceSets);
             testSourceSets.add(SourceSet.TEST_SOURCE_SET_NAME);
-            configurePreviewFeatures(project, javaExtension.getSourceSets().getByName(SourceSet.TEST_SOURCE_SET_NAME), 21);
+            configurePreviewFeatures(project, javaExtension.getSourceSets().getByName(SourceSet.TEST_SOURCE_SET_NAME), minJavaVersion);
             for (int javaVersion : mainVersions) {
                 String mainSourceSetName = SourceSet.MAIN_SOURCE_SET_NAME + javaVersion;
                 SourceSet mainSourceSet = addSourceSet(project, javaExtension, mainSourceSetName, mainSourceSets, javaVersion, true);
@@ -103,6 +104,7 @@ public class MrjarPlugin implements Plugin<Project> {
     }
 
     private void configureMrjar(Project project) {
+
         var jarTask = project.getTasks().withType(Jar.class).named(JavaPlugin.JAR_TASK_NAME);
         jarTask.configure(task -> { task.manifest(manifest -> { manifest.attributes(Map.of("Multi-Release", "true")); }); });
 
@@ -222,7 +224,7 @@ public class MrjarPlugin implements Plugin<Project> {
         project.getTasks().named("check").configure(checkTask -> checkTask.dependsOn(testTaskProvider));
     }
 
-    private static List<Integer> findSourceVersions(Project project) {
+    private static List<Integer> findSourceVersions(Project project, int minJavaVersion) {
         var srcDir = project.getProjectDir().toPath().resolve("src");
         List<Integer> versions = new ArrayList<>();
         try (var subdirStream = Files.list(srcDir)) {
@@ -231,7 +233,23 @@ public class MrjarPlugin implements Plugin<Project> {
                 String sourcesetName = sourceSetPath.getFileName().toString();
                 Matcher sourcesetMatcher = MRJAR_SOURCESET_PATTERN.matcher(sourcesetName);
                 if (sourcesetMatcher.matches()) {
-                    versions.add(Integer.parseInt(sourcesetMatcher.group(1)));
+                    int version = Integer.parseInt(sourcesetMatcher.group(1));
+                    if (version < minJavaVersion) {
+                        // NOTE: We allow mainNN for the min java version so that incubating modules can be used without warnings.
+                        // It is a workaround for https://bugs.openjdk.org/browse/JDK-8187591. Once min java is 22, we
+                        // can use the SuppressWarnings("preview") in the code using incubating modules and this check
+                        // can change to <=
+                        throw new IllegalArgumentException(
+                            "Found src dir '"
+                                + sourcesetName
+                                + "' for Java "
+                                + version
+                                + " but multi-release jar sourceset should have version "
+                                + minJavaVersion
+                                + " or greater"
+                        );
+                    }
+                    versions.add(version);
                 }
             }
         } catch (IOException e) {

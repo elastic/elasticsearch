@@ -41,6 +41,7 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.InternalEngine;
+import org.elasticsearch.index.engine.ThreadPoolMergeQueue;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MapperService;
@@ -89,7 +90,7 @@ public class RefreshListenersTests extends ESTestCase {
     private Engine engine;
     private volatile int maxListeners;
     private ThreadPool threadPool;
-    private ThreadPoolMergeExecutorVer1 threadPoolMergeExecutorVer1;
+    private ThreadPoolMergeQueue threadPoolMergeQueue;
     private Store store;
 
     @Before
@@ -98,7 +99,7 @@ public class RefreshListenersTests extends ESTestCase {
         maxListeners = randomIntBetween(2, 1000);
         // Now setup the InternalEngine which is much more complicated because we aren't mocking anything
         threadPool = new TestThreadPool(getTestName());
-        threadPoolMergeExecutorVer1 = new ThreadPoolMergeExecutorVer1(threadPool);
+        threadPoolMergeQueue = new ThreadPoolMergeQueue(threadPool);
         listeners = new RefreshListeners(
             () -> maxListeners,
             () -> engine.refresh("too-many-listeners"),
@@ -136,7 +137,7 @@ public class RefreshListenersTests extends ESTestCase {
         EngineConfig config = new EngineConfig(
             shardId,
             threadPool,
-                threadPoolMergeExecutorVer1,
+            threadPoolMergeQueue,
             indexSettings,
             null,
             store,

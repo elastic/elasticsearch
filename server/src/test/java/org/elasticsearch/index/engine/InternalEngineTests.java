@@ -3587,7 +3587,7 @@ public class InternalEngineTests extends EngineTestCase {
         EngineConfig brokenConfig = new EngineConfig(
             shardId,
             threadPool,
-                threadPoolMergeExecutorVer1,
+            threadPoolMergeQueue,
             config.getIndexSettings(),
             null,
             store,
@@ -7150,7 +7150,7 @@ public class InternalEngineTests extends EngineTestCase {
             EngineConfig configWithWarmer = new EngineConfig(
                 config.getShardId(),
                 config.getThreadPool(),
-                config.getThreadPoolMergeExecutor(),
+                config.getThreadPoolMergeQueue(),
                 config.getIndexSettings(),
                 warmer,
                 store,

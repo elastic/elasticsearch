@@ -20,10 +20,8 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.compute.data.BytesRefVector;
-import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.lucene.DataPartitioning;
@@ -34,6 +32,7 @@ import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.DriverRunner;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
+import org.elasticsearch.compute.test.BlockTestUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
@@ -53,6 +52,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexOperator;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
+import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.plugin.TransportEsqlQueryAction;
@@ -68,21 +68,22 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.hasSize;
 
 public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
-    // TODO should we remove this now that this is integrated into ESQL proper?
-    /**
-     * Quick and dirty test for looking up data from a lookup index.
-     */
-    public void testLookupIndex() throws IOException {
-        runLookup(new UsingSingleLookupTable(new String[] { "aa", "bb", "cc", "dd" }));
+    public void testKeywordKey() throws IOException {
+        runLookup(DataType.KEYWORD, new UsingSingleLookupTable(new String[] { "aa", "bb", "cc", "dd" }));
+    }
+
+    public void testLongKey() throws IOException {
+        runLookup(DataType.LONG, new UsingSingleLookupTable(new Long[] { 12L, 33L, 1L }));
     }
 
     /**
-     * Tests when multiple results match.
+     * LOOKUP multiple results match.
      */
     public void testLookupIndexMultiResults() throws IOException {
-        runLookup(new UsingSingleLookupTable(new String[] { "aa", "bb", "bb", "dd" }));
+        runLookup(DataType.KEYWORD, new UsingSingleLookupTable(new String[] { "aa", "bb", "bb", "dd" }));
     }
 
     interface PopulateIndices {
@@ -90,10 +91,10 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
     }
 
     class UsingSingleLookupTable implements PopulateIndices {
-        private final Map<String, List<Integer>> matches = new HashMap<>();
-        private final String[] lookupData;
+        private final Map<Object, List<Integer>> matches = new HashMap<>();
+        private final Object[] lookupData;
 
-        UsingSingleLookupTable(String[] lookupData) {
+        UsingSingleLookupTable(Object[] lookupData) {
             this.lookupData = lookupData;
             for (int i = 0; i < lookupData.length; i++) {
                 matches.computeIfAbsent(lookupData[i], k -> new ArrayList<>()).add(i);
@@ -104,26 +105,26 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
         public void populate(int docCount, List<String> expected) {
             List<IndexRequestBuilder> docs = new ArrayList<>();
             for (int i = 0; i < docCount; i++) {
-                String data = lookupData[i % lookupData.length];
-                docs.add(client().prepareIndex("source").setSource(Map.of("data", data)));
-                for (Integer match : matches.get(data)) {
-                    expected.add(data + ":" + match);
+                Object key = lookupData[i % lookupData.length];
+                docs.add(client().prepareIndex("source").setSource(Map.of("key", key)));
+                for (Integer match : matches.get(key)) {
+                    expected.add(key + ":" + match);
                 }
             }
             for (int i = 0; i < lookupData.length; i++) {
-                docs.add(client().prepareIndex("lookup").setSource(Map.of("data", lookupData[i], "l", i)));
+                docs.add(client().prepareIndex("lookup").setSource(Map.of("key", lookupData[i], "l", i)));
             }
             Collections.sort(expected);
             indexRandom(true, true, docs);
         }
     }
 
-    private void runLookup(PopulateIndices populateIndices) throws IOException {
+    private void runLookup(DataType keyType, PopulateIndices populateIndices) throws IOException {
         client().admin()
             .indices()
             .prepareCreate("source")
             .setSettings(Settings.builder().put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1))
-            .setMapping("data", "type=keyword")
+            .setMapping("key", "type=" + keyType.esType())
             .get();
         client().admin()
             .indices()
@@ -134,7 +135,7 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
                     // TODO lookup index mode doesn't seem to force a single shard. That'll break the lookup command.
                     .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
             )
-            .setMapping("data", "type=keyword", "l", "type=long")
+            .setMapping("key", "type=" + keyType.esType(), "l", "type=long")
             .get();
         client().admin().cluster().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForGreenStatus().get();
 
@@ -189,9 +190,9 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
             ValuesSourceReaderOperator.Factory reader = new ValuesSourceReaderOperator.Factory(
                 List.of(
                     new ValuesSourceReaderOperator.FieldInfo(
-                        "data",
-                        ElementType.BYTES_REF,
-                        shard -> searchContext.getSearchExecutionContext().getFieldType("data").blockLoader(null)
+                        "key",
+                        PlannerUtils.toElementType(keyType),
+                        shard -> searchContext.getSearchExecutionContext().getFieldType("key").blockLoader(null)
                     )
                 ),
                 List.of(new ValuesSourceReaderOperator.ShardContext(searchContext.getSearchExecutionContext().getIndexReader(), () -> {
@@ -217,9 +218,9 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
                 QueryPragmas.ENRICH_MAX_WORKERS.get(Settings.EMPTY),
                 1,
                 ctx -> internalCluster().getInstance(TransportEsqlQueryAction.class, finalNodeWithShard).getLookupFromIndexService(),
-                DataType.KEYWORD,
+                keyType,
                 "lookup",
-                "data",
+                "key",
                 List.of(new Alias(Source.EMPTY, "l", new ReferenceAttribute(Source.EMPTY, "l", DataType.LONG))),
                 Source.EMPTY
             );
@@ -231,10 +232,16 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
                     List.of(reader.get(driverContext), lookup.get(driverContext)),
                     new PageConsumerOperator(page -> {
                         try {
-                            BytesRefVector dataBlock = page.<BytesRefBlock>getBlock(1).asVector();
+                            Block keyBlock = page.getBlock(1);
                             LongVector loadedBlock = page.<LongBlock>getBlock(2).asVector();
                             for (int p = 0; p < page.getPositionCount(); p++) {
-                                results.add(dataBlock.getBytesRef(p, new BytesRef()).utf8ToString() + ":" + loadedBlock.getLong(p));
+                                List<Object> key = BlockTestUtils.valuesAtPositions(keyBlock, p, p + 1).get(0);
+                                assertThat(key, hasSize(1));
+                                Object keyValue = key.get(0);
+                                if (keyValue instanceof BytesRef b) {
+                                    keyValue = b.utf8ToString();
+                                }
+                                results.add(keyValue + ":" + loadedBlock.getLong(p));
                             }
                         } finally {
                             page.releaseBlocks();

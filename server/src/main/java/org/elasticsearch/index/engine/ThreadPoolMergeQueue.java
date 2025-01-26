@@ -82,7 +82,9 @@ public class ThreadPoolMergeQueue {
             assert added : "failed to run merge task [" + mergeTask + "], it seems to already be running";
         }
         try {
-            mergeTask.setIORateLimit(targetMBPerSec);
+            if (mergeTask.supportsIOThrottling()) {
+                mergeTask.setIORateLimit(targetMBPerSec);
+            }
             mergeTask.run();
         } finally {
             synchronized (this) {

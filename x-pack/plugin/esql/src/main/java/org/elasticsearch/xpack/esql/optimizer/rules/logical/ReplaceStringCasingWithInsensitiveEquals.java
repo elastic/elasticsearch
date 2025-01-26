@@ -11,13 +11,14 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.ScalarFunction;
-import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Not;
-import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ChangeCase;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
+import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InsensitiveEquals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
+import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 
 public class ReplaceStringCasingWithInsensitiveEquals extends OptimizerRules.OptimizerExpressionRule<ScalarFunction> {
 
@@ -26,30 +27,35 @@ public class ReplaceStringCasingWithInsensitiveEquals extends OptimizerRules.Opt
     }
 
     @Override
-    protected Expression rule(ScalarFunction sf) {
+    protected Expression rule(ScalarFunction sf, LogicalOptimizerContext ctx) {
         Expression e = sf;
         if (sf instanceof BinaryComparison bc) {
-            e = rewriteBinaryComparison(sf, bc, false);
+            e = rewriteBinaryComparison(ctx, sf, bc, false);
         } else if (sf instanceof Not not && not.field() instanceof BinaryComparison bc) {
-            e = rewriteBinaryComparison(sf, bc, true);
+            e = rewriteBinaryComparison(ctx, sf, bc, true);
         }
         return e;
     }
 
-    private static Expression rewriteBinaryComparison(ScalarFunction sf, BinaryComparison bc, boolean negated) {
+    private static Expression rewriteBinaryComparison(
+        LogicalOptimizerContext ctx,
+        ScalarFunction sf,
+        BinaryComparison bc,
+        boolean negated
+    ) {
         Expression e = sf;
         if (bc.left() instanceof ChangeCase changeCase && bc.right().foldable()) {
             if (bc instanceof Equals) {
-                e = replaceChangeCase(bc, changeCase, negated);
+                e = replaceChangeCase(ctx, bc, changeCase, negated);
             } else if (bc instanceof NotEquals) { // not actually used currently, `!=` is built as `NOT(==)` already
-                e = replaceChangeCase(bc, changeCase, negated == false);
+                e = replaceChangeCase(ctx, bc, changeCase, negated == false);
             }
         }
         return e;
     }
 
-    private static Expression replaceChangeCase(BinaryComparison bc, ChangeCase changeCase, boolean negated) {
-        var foldedRight = BytesRefs.toString(bc.right().fold());
+    private static Expression replaceChangeCase(LogicalOptimizerContext ctx, BinaryComparison bc, ChangeCase changeCase, boolean negated) {
+        var foldedRight = BytesRefs.toString(bc.right().fold(ctx.foldCtx()));
         var field = unwrapCase(changeCase.field());
         var e = changeCase.caseType().matchesCase(foldedRight)
             ? new InsensitiveEquals(bc.source(), field, bc.right())

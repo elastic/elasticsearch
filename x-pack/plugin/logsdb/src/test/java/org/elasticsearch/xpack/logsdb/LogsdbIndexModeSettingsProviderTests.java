@@ -436,7 +436,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
                 """;
             boolean result = provider.getMappingHints(indexName, null, settings, List.of(new CompressedXContent(mapping)))
                 .hasSyntheticSourceUsage();
-            assertTrue(result);
+            assertFalse("_source.mode is a noop", result);
             assertThat(newMapperServiceCounter.get(), equalTo(1));
             assertWarnings(SourceFieldMapper.DEPRECATION_WARNING);
         }
@@ -640,7 +640,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
         );
         Metadata metadata = mb.build();
         LogsdbIndexModeSettingsProvider provider = withSyntheticSourceDemotionSupport(false);
-        Settings settings = builder().put(SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.SYNTHETIC)
+        Settings settings = builder().put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.SYNTHETIC)
             .build();
 
         Settings result = provider.getAdditionalIndexSettings(
@@ -666,7 +666,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             List.of()
         );
         assertThat(result.size(), equalTo(1));
-        assertEquals(SourceFieldMapper.Mode.STORED, SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.get(result));
+        assertEquals(SourceFieldMapper.Mode.STORED, IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.get(result));
         assertThat(newMapperServiceCounter.get(), equalTo(2));
 
         result = provider.getAdditionalIndexSettings(
@@ -679,7 +679,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             List.of()
         );
         assertThat(result.size(), equalTo(1));
-        assertEquals(SourceFieldMapper.Mode.STORED, SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.get(result));
+        assertEquals(SourceFieldMapper.Mode.STORED, IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.get(result));
         assertThat(newMapperServiceCounter.get(), equalTo(3));
 
         result = provider.getAdditionalIndexSettings(
@@ -692,7 +692,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             List.of()
         );
         assertThat(result.size(), equalTo(3));
-        assertEquals(SourceFieldMapper.Mode.STORED, SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.get(result));
+        assertEquals(SourceFieldMapper.Mode.STORED, IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.get(result));
         assertTrue(IndexSettings.LOGSDB_SORT_ON_HOST_NAME.get(result));
         assertTrue(IndexSettings.LOGSDB_ADD_HOST_NAME_FIELD.get(result));
         assertThat(newMapperServiceCounter.get(), equalTo(4));
@@ -747,7 +747,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             List.of()
         );
         assertThat(result.size(), equalTo(4));
-        assertEquals(SourceFieldMapper.Mode.STORED, SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.get(result));
+        assertEquals(SourceFieldMapper.Mode.STORED, IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.get(result));
         assertEquals(IndexMode.LOGSDB, IndexSettings.MODE.get(result));
         assertTrue(IndexSettings.LOGSDB_SORT_ON_HOST_NAME.get(result));
         assertTrue(IndexSettings.LOGSDB_ADD_HOST_NAME_FIELD.get(result));

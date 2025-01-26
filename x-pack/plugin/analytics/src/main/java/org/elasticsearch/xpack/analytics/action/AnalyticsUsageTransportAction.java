@@ -35,14 +35,7 @@ public class AnalyticsUsageTransportAction extends XPackUsageFeatureTransportAct
         IndexNameExpressionResolver indexNameExpressionResolver,
         Client client
     ) {
-        super(
-            XPackUsageFeatureAction.ANALYTICS.name(),
-            transportService,
-            clusterService,
-            threadPool,
-            actionFilters,
-            indexNameExpressionResolver
-        );
+        super(XPackUsageFeatureAction.ANALYTICS.name(), transportService, clusterService, threadPool, actionFilters);
         this.client = client;
     }
 

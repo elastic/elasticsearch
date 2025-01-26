@@ -155,9 +155,11 @@ public class FullClusterRestartSearchableSnapshotIndexCompatibilityIT extends Fu
             assertThat(indexVersion(mountedIndex), equalTo(VERSION_MINUS_2));
             assertDocCount(client(), mountedIndex, numDocs);
 
-            logger.debug("--> adding replica to test replica upgrade");
-            updateIndexSettings(mountedIndex, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1));
-            ensureGreen(mountedIndex);
+            if (randomBoolean()) {
+                logger.debug("--> adding replica to test upgrade with replica");
+                updateIndexSettings(mountedIndex, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1));
+                ensureGreen(mountedIndex);
+            }
 
             if (randomBoolean()) {
                 logger.debug("--> random closing of index [{}] before upgrade", mountedIndex);

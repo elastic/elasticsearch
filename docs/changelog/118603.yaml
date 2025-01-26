@@ -1,6 +1,0 @@
-pr: 118603
-summary: Allow DATE_PARSE to read the timezones
-area: ES|QL
-type: bug
-issues:
- - 117680

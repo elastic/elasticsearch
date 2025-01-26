@@ -15,6 +15,6 @@ import java.util.Set;
 public class SnapshotLifecycleFeatures implements FeatureSpecification {
     @Override
     public Set<NodeFeature> getFeatures() {
-        return Set.of(SnapshotLifecycleService.INTERVAL_SCHEDULE);
+        return Set.of();
     }
 }

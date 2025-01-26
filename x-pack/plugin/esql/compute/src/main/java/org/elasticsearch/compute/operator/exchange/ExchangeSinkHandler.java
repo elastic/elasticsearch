@@ -52,9 +52,11 @@ public final class ExchangeSinkHandler {
 
     private class ExchangeSinkImpl implements ExchangeSink {
         boolean finished;
+        private final SubscribableListener<Void> onFinished = new SubscribableListener<>();
 
         ExchangeSinkImpl() {
             onChanged();
+            buffer.addCompletionListener(onFinished);
             outstandingSinks.incrementAndGet();
         }
 
@@ -68,6 +70,7 @@ public final class ExchangeSinkHandler {
         public void finish() {
             if (finished == false) {
                 finished = true;
+                onFinished.onResponse(null);
                 onChanged();
                 if (outstandingSinks.decrementAndGet() == 0) {
                     buffer.finish(false);
@@ -78,7 +81,12 @@ public final class ExchangeSinkHandler {
 
         @Override
         public boolean isFinished() {
-            return finished || buffer.isFinished();
+            return onFinished.isDone();
+        }
+
+        @Override
+        public void addCompletionListener(ActionListener<Void> listener) {
+            onFinished.addListener(listener);
         }
 
         @Override

@@ -8,54 +8,36 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.Expressions;
-import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
-import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
-import org.elasticsearch.xpack.esql.core.expression.function.scalar.UnaryScalarFunction;
-import org.elasticsearch.xpack.esql.core.expression.predicate.Predicates;
-import org.elasticsearch.xpack.esql.core.expression.predicate.Range;
-import org.elasticsearch.xpack.esql.core.expression.predicate.logical.BinaryLogic;
-import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Not;
-import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.IsNotNull;
-import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
-import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RegexMatch;
-import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.core.util.Queries;
-import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
-import org.elasticsearch.xpack.esql.expression.function.scalar.ip.CIDRMatch;
-import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.BinarySpatialFunction;
-import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesFunction;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
+import org.elasticsearch.xpack.esql.expression.predicate.Range;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InsensitiveBinaryComparison;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerRules;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
-import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
 import java.util.ArrayList;
 import java.util.List;
 
 import static java.util.Arrays.asList;
-import static org.elasticsearch.xpack.esql.core.expression.predicate.Predicates.splitAnd;
+import static org.elasticsearch.xpack.esql.expression.predicate.Predicates.splitAnd;
+import static org.elasticsearch.xpack.esql.planner.TranslatorHandler.TRANSLATOR_HANDLER;
 
 public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOptimizerRule<FilterExec, LocalPhysicalOptimizerContext> {
 
@@ -117,13 +99,14 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
         // Combine GT, GTE, LT and LTE in pushable to Range if possible
         List<Expression> newPushable = combineEligiblePushableToRange(pushable);
         if (newPushable.size() > 0) { // update the executable with pushable conditions
-            Query queryDSL = PlannerUtils.TRANSLATOR_HANDLER.asQuery(Predicates.combineAnd(newPushable));
+            Query queryDSL = TRANSLATOR_HANDLER.asQuery(Predicates.combineAnd(newPushable));
             QueryBuilder planQuery = queryDSL.asBuilder();
             var query = Queries.combine(Queries.Clause.FILTER, asList(queryExec.query(), planQuery));
             queryExec = new EsQueryExec(
                 queryExec.source(),
-                queryExec.index(),
+                queryExec.indexPattern(),
                 queryExec.indexMode(),
+                queryExec.indexNameWithModes(),
                 queryExec.output(),
                 query,
                 queryExec.limit(),
@@ -227,66 +210,6 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
     }
 
     static boolean canPushToSource(Expression exp, LucenePushdownPredicates lucenePushdownPredicates) {
-        if (exp instanceof BinaryComparison bc) {
-            return isAttributePushable(bc.left(), bc, lucenePushdownPredicates) && bc.right().foldable();
-        } else if (exp instanceof InsensitiveBinaryComparison bc) {
-            return isAttributePushable(bc.left(), bc, lucenePushdownPredicates) && bc.right().foldable();
-        } else if (exp instanceof BinaryLogic bl) {
-            return canPushToSource(bl.left(), lucenePushdownPredicates) && canPushToSource(bl.right(), lucenePushdownPredicates);
-        } else if (exp instanceof In in) {
-            return isAttributePushable(in.value(), null, lucenePushdownPredicates) && Expressions.foldable(in.list());
-        } else if (exp instanceof Not not) {
-            return canPushToSource(not.field(), lucenePushdownPredicates);
-        } else if (exp instanceof UnaryScalarFunction usf) {
-            if (usf instanceof RegexMatch<?> || usf instanceof IsNull || usf instanceof IsNotNull) {
-                if (usf instanceof IsNull || usf instanceof IsNotNull) {
-                    if (usf.field() instanceof FieldAttribute fa && fa.dataType().equals(DataType.TEXT)) {
-                        return true;
-                    }
-                }
-                return isAttributePushable(usf.field(), usf, lucenePushdownPredicates);
-            }
-        } else if (exp instanceof CIDRMatch cidrMatch) {
-            return isAttributePushable(cidrMatch.ipField(), cidrMatch, lucenePushdownPredicates)
-                && Expressions.foldable(cidrMatch.matches());
-        } else if (exp instanceof SpatialRelatesFunction spatial) {
-            return canPushSpatialFunctionToSource(spatial, lucenePushdownPredicates);
-        } else if (exp instanceof FullTextFunction) {
-            return true;
-        }
-        return false;
-    }
-
-    /**
-     * Push-down to Lucene is only possible if one field is an indexed spatial field, and the other is a constant spatial or string column.
-     */
-    public static boolean canPushSpatialFunctionToSource(BinarySpatialFunction s, LucenePushdownPredicates lucenePushdownPredicates) {
-        // The use of foldable here instead of SpatialEvaluatorFieldKey.isConstant is intentional to match the behavior of the
-        // Lucene pushdown code in EsqlTranslationHandler::SpatialRelatesTranslator
-        // We could enhance both places to support ReferenceAttributes that refer to constants, but that is a larger change
-        return isPushableSpatialAttribute(s.left(), lucenePushdownPredicates) && s.right().foldable()
-            || isPushableSpatialAttribute(s.right(), lucenePushdownPredicates) && s.left().foldable();
-    }
-
-    private static boolean isPushableSpatialAttribute(Expression exp, LucenePushdownPredicates p) {
-        return exp instanceof FieldAttribute fa && DataType.isSpatial(fa.dataType()) && fa.getExactInfo().hasExact() && p.isIndexed(fa);
-    }
-
-    private static boolean isAttributePushable(
-        Expression expression,
-        Expression operation,
-        LucenePushdownPredicates lucenePushdownPredicates
-    ) {
-        if (lucenePushdownPredicates.isPushableFieldAttribute(expression)) {
-            return true;
-        }
-        if (expression instanceof MetadataAttribute ma && ma.searchable()) {
-            return operation == null
-                // no range or regex queries supported with metadata fields
-                || operation instanceof Equals
-                || operation instanceof NotEquals
-                || operation instanceof WildcardLike;
-        }
-        return false;
+        return exp instanceof TranslationAware aware && aware.translatable(lucenePushdownPredicates);
     }
 }

@@ -417,7 +417,6 @@
 
   - requires:
       test_runner_features: [arbitrary_key]
-      cluster_features: ["mapper.query_index_mode"]
       reason:  "_ignored_source added to mappings"
 
   - do:
@@ -510,10 +509,6 @@
 
 ---
 "Lucene segment level fields stats":
-
-  - requires:
-      cluster_features: ["mapper.segment_level_fields_stats"]
-      reason: "segment level fields stats"
 
   - do:
       indices.create:

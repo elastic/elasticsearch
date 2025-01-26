@@ -11,7 +11,9 @@ For the most up-to-date API details, refer to {api-es}/group/endpoint-indices[In
 --
 
 Resolves the specified index expressions to return information about
-each cluster, including the local cluster, if included.
+each cluster, including the local "querying" cluster, if included. If no index expression
+is provided, this endpoint will return information about all the remote
+clusters that are configured on the querying cluster.
 
 This endpoint is useful before doing a <<modules-cross-cluster-search,{ccs}>> in
 order to determine which remote clusters should be included in a search.
@@ -20,14 +22,13 @@ You use the same index expression with this endpoint as you would for cross-clus
 search. Index and <<exclude-problematic-clusters,cluster exclusions>> are also supported
 with this endpoint.
 
-For each cluster in the index expression, information is returned about:
+For each cluster in scope, information is returned about:
 
-1. whether the querying ("local") cluster is currently connected to each remote cluster
-   in the index expression scope
+1. whether the querying ("local") cluster is currently connected to it
 2. whether each remote cluster is configured with `skip_unavailable` as `true` or `false`
 3. whether there are any indices, aliases or data streams on that cluster that match
-   the index expression
-4. whether the search is likely to have errors returned when you do the {ccs} (including any
+   the index expression (if one provided)
+4. whether the search is likely to have errors returned when you do a {ccs} (including any
    authorization errors if your user does not have permission to query a remote cluster or
    the indices on that cluster)
 5. (in some cases) cluster version information, including the Elasticsearch server version
@@ -41,6 +42,11 @@ Once the proper security permissions are obtained, then you can rely on the `con
 in the response to determine whether the remote cluster is available and ready for querying.
 ====
 
+NOTE: When querying older clusters that do not support the _resolve/cluster endpoint
+without an index expression, the local cluster will send the index expression `dummy*`
+to those remote clusters, so if an errors occur, you may see a reference to that index
+expression even though you didn't request it. If it causes a problem, you can instead
+include an index expression like `*:*` to this endpoint to bypass the issue.
 
 ////
 [source,console]
@@ -73,12 +79,20 @@ PUT _cluster/settings
 
 [source,console]
 ----
+GET /_resolve/cluster
+----
+// TEST[continued]
+
+Returns information about all remote clusters configured on the local cluster.
+
+[source,console]
+----
 GET /_resolve/cluster/my-index-*,cluster*:my-index-*
 ----
 // TEST[continued]
 
-This will return information about the local cluster and all remotely configured
-clusters that start with the alias `cluster*`. Each cluster will return information
+Returns information about the local cluster and all remote clusters that
+start with the alias `cluster*`. Each cluster will return information
 about whether it has any indices, aliases or data streams that match `my-index-*`.
 
 [[resolve-cluster-api-request]]
@@ -125,6 +139,13 @@ Defaults to `true`.
 ignored when frozen. Defaults to `false`.
 +
 deprecated:[7.16.0]
+
+[TIP]
+====
+The index options above are only allowed when specifying an index expression.
+You will get an error if you specify index options to the _resolve/cluster API
+that takes no index expression.
+====
 
 
 [discrete]

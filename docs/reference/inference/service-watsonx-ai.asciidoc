@@ -1,5 +1,5 @@
 [[infer-service-watsonx-ai]]
-=== Watsonx {infer} service
+=== Watsonx {infer} integration
 
 .New API reference
 [sidebar]

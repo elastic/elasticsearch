@@ -2830,13 +2830,13 @@ public class InternalEngine extends Engine {
     protected ElasticsearchMergeScheduler createMergeScheduler(
         ShardId shardId,
         IndexSettings indexSettings,
-        ThreadPoolMergeExecutorVer1 threadPoolMergeExecutorVer1
+        ThreadPoolMergeQueue threadPoolMergeQueue
     ) {
         // return new EngineMergeScheduler(shardId, indexSettings);
-        return new ThreadPoolMergeSchedulerVer1(shardId, indexSettings, threadPoolMergeExecutorVer1) {
+        return new ThreadPoolMergeScheduler(shardId, indexSettings, threadPoolMergeQueue) {
 
             @Override
-            protected synchronized void activateThrottling(int numRunningMerges, int numQueuedMerges, int configuredMaxMergeCount) {
+            protected synchronized void enableMergeTaskThrottling(int numRunningMerges, int numQueuedMerges, int configuredMaxMergeCount) {
                 logger.info(
                     "now throttling indexing: numRunningMerges={}, numQueuedMerges={}, maxNumMergesConfigured={}",
                     numRunningMerges,
@@ -2847,7 +2847,7 @@ public class InternalEngine extends Engine {
             }
 
             @Override
-            protected synchronized void deactivateThrottling(int numRunningMerges, int numQueuedMerges, int configuredMaxMergeCount) {
+            protected synchronized void disableMergeTaskThrottling(int numRunningMerges, int numQueuedMerges, int configuredMaxMergeCount) {
                 logger.info(
                     "stop throttling indexing: numRunningMerges={}, numQueuedMerges={}, maxNumMergesConfigured={}",
                     numRunningMerges,

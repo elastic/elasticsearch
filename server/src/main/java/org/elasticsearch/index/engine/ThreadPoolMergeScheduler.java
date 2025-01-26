@@ -284,7 +284,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
                 beforeMerge(onGoingMerge);
                 mergeTracking.mergeStarted(onGoingMerge);
                 if (verbose()) {
-                    message(String.format(Locale.ROOT, "merge task %s start", getName()));
+                    message(String.format(Locale.ROOT, "merge task %s start", this));
                 }
                 doMerge(mergeSource, onGoingMerge.getMerge());
                 if (verbose()) {
@@ -321,7 +321,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
             assert this.mergeStartTimeNS.get() != null : "onAfter should always be invoked after doRun";
             try {
                 if (verbose()) {
-                    message(String.format(Locale.ROOT, "merge task %s end", getName()));
+                    message(String.format(Locale.ROOT, "merge task %s end", this));
                 }
                 afterMerge(onGoingMerge);
             } finally {

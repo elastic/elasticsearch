@@ -26,18 +26,13 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.AliasFilter;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
-import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.transport.Transport;
 
-import java.lang.invoke.MethodHandles;
-import java.lang.invoke.VarHandle;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -64,19 +59,6 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     protected final Logger logger;
 
     private final long clusterStateVersion;
-
-    private static final VarHandle OUTSTANDING_SHARDS;
-
-    static {
-        try {
-            OUTSTANDING_SHARDS = MethodHandles.lookup().findVarHandle(AbstractSearchAsyncAction.class, "outstandingShards", int.class);
-        } catch (Exception e) {
-            throw new ExceptionInInitializerError(e);
-        }
-    }
-
-    @SuppressWarnings("unused") // only accessed via #OUTSTANDING_SHARDS
-    private int outstandingShards;
     private final int maxConcurrentRequestsPerNode;
     private final Map<String, PendingExecutions> pendingExecutionsPerNode = new ConcurrentHashMap<>();
     private final boolean throttleConcurrentRequests;
@@ -120,7 +102,6 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             clusters
         );
         this.name = name;
-        OUTSTANDING_SHARDS.setRelease(this, shardIterators.length);
         this.maxConcurrentRequestsPerNode = maxConcurrentRequestsPerNode;
         // in the case were we have less shards than maxConcurrentRequestsPerNode we don't need to throttle
         this.throttleConcurrentRequests = maxConcurrentRequestsPerNode < shardsIts.size();
@@ -181,17 +162,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
      */
     public final void start() {
         if (results.getNumShards() == 0) {
-            // no search shards to search on, bail with empty response
-            // (it happens with search across _all with no indices around and consistent with broadcast operations)
-            int trackTotalHitsUpTo = request.source() == null ? SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO
-                : request.source().trackTotalHitsUpTo() == null ? SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO
-                : request.source().trackTotalHitsUpTo();
-            // total hits is null in the response if the tracking of total hits is disabled
-            boolean withTotalHits = trackTotalHitsUpTo != SearchContext.TRACK_TOTAL_HITS_DISABLED;
-            sendSearchResponse(
-                withTotalHits ? SearchResponseSections.EMPTY_WITH_TOTAL_HITS : SearchResponseSections.EMPTY_WITHOUT_TOTAL_HITS,
-                new AtomicArray<>(0)
-            );
+            sendZeroShardsResponse();
             return;
         }
         try {
@@ -205,7 +176,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     }
 
     private void run() {
-        if ((int) OUTSTANDING_SHARDS.getAcquire(this) == 0) {
+        if (shardsIts.size() == 0) {
             onPhaseDone();
             return;
         }
@@ -338,26 +309,13 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         final boolean lastShard = nextShard == null;
         logger.debug(() -> format("%s: Failed to execute [%s] lastShard [%s]", shard, request, lastShard), e);
         if (lastShard) {
-            if (request.allowPartialSearchResults() == false) {
-                if (requestCancelled.compareAndSet(false, true)) {
-                    try {
-                        searchTransportService.cancelSearchTask(
-                            task.getId(),
-                            "partial results are not allowed and at least one shard has failed"
-                        );
-                    } catch (Exception cancelFailure) {
-                        logger.debug("Failed to cancel search request", cancelFailure);
-                    }
-                }
-            }
+            maybeCancelSearchTask();
             onShardGroupFailure(shardIndex, shard, e);
         }
         if (lastShard == false) {
             performPhaseOnShard(shardIndex, shardIt, nextShard);
         } else {
-            if ((int) OUTSTANDING_SHARDS.getAndAdd(this, -1) == 1) {
-                onPhaseDone();
-            }
+            finishShardAndMaybePhase();
         }
     }
 
@@ -385,40 +343,8 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             // temporary error.
             e = NoShardAvailableActionException.forOnShardFailureWrapper(e.getMessage());
         }
-        // we don't aggregate shard on failures due to the internal cancellation,
-        // but do keep the header counts right
-        if ((requestCancelled.get() && isTaskCancelledException(e)) == false) {
-            AtomicArray<ShardSearchFailure> shardFailures = this.shardFailures.get();
-            // lazily create shard failures, so we can early build the empty shard failure list in most cases (no failures)
-            if (shardFailures == null) { // this is double checked locking but it's fine since SetOnce uses a volatile read internally
-                synchronized (shardFailuresMutex) {
-                    shardFailures = this.shardFailures.get(); // read again otherwise somebody else has created it?
-                    if (shardFailures == null) { // still null so we are the first and create a new instance
-                        shardFailures = new AtomicArray<>(results.getNumShards());
-                        this.shardFailures.set(shardFailures);
-                    }
-                }
-            }
-            ShardSearchFailure failure = shardFailures.get(shardIndex);
-            if (failure == null) {
-                shardFailures.set(shardIndex, new ShardSearchFailure(e, shardTarget));
-            } else {
-                // the failure is already present, try and not override it with an exception that is less meaningless
-                // for example, getting illegal shard state
-                if (TransportActions.isReadOverrideException(e) && (e instanceof SearchContextMissingException == false)) {
-                    shardFailures.set(shardIndex, new ShardSearchFailure(e, shardTarget));
-                }
-            }
 
-            if (results.hasResult(shardIndex)) {
-                assert failure == null : "shard failed before but shouldn't: " + failure;
-                successfulOps.decrementAndGet(); // if this shard was successful before (initial phase) we have to adjust the counter
-            }
-        }
-    }
-
-    static boolean isTaskCancelledException(Exception e) {
-        return ExceptionsHelper.unwrapCausesAndSuppressed(e, ex -> ex instanceof TaskCancelledException).isPresent();
+        handleFailedAndCancelled(shardIndex, shardTarget, e);
     }
 
     /**
@@ -446,16 +372,11 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         if (shardFailures != null) {
             shardFailures.set(result.getShardIndex(), null);
         }
-        // we need to increment successful ops first before we compare the exit condition otherwise if we
-        // are fast we could concurrently update totalOps but then preempt one of the threads which can
-        // cause the successor to read a wrong value from successfulOps if second phase is very fast ie. count etc.
-        // increment all the "future" shards to update the total ops since we some may work and some may not...
-        // and when that happens, we break on total ops, so we must maintain them
-        successfulShardExecution();
+        finishShardAndMaybePhase();
     }
 
-    private void successfulShardExecution() {
-        if ((int) OUTSTANDING_SHARDS.getAndAdd(this, -1) == 1) {
+    private void finishShardAndMaybePhase() {
+        if (finishShard()) {
             onPhaseDone();
         }
     }

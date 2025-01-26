@@ -44,7 +44,6 @@ import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.SimpleRefCounted;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchShardTarget;
@@ -67,8 +66,6 @@ import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponseHandler;
 
 import java.io.IOException;
-import java.lang.invoke.MethodHandles;
-import java.lang.invoke.VarHandle;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -94,19 +91,6 @@ public class SearchQueryThenFetchAsyncAction<Result extends SearchPhaseResult> e
     private static final String NAME = "query";
 
     private static final Logger logger = LogManager.getLogger(SearchQueryThenFetchAsyncAction.class);
-
-    private static final VarHandle OUTSTANDING_SHARDS;
-
-    static {
-        try {
-            OUTSTANDING_SHARDS = MethodHandles.lookup()
-                .findVarHandle(SearchQueryThenFetchAsyncAction.class, "outstandingShards", int.class);
-        } catch (Exception e) {
-            throw new ExceptionInInitializerError(e);
-        }
-    }
-
-    private int outstandingShards;
 
     private final SearchProgressListener progressListener;
 
@@ -149,7 +133,6 @@ public class SearchQueryThenFetchAsyncAction<Result extends SearchPhaseResult> e
             clusterState,
             clusters
         );
-        outstandingShards = shardIterators.length;
         this.topDocsSize = getTopDocsSize(request);
         this.trackTotalHitsUpTo = request.resolveTrackTotalHitsUpTo();
         this.client = client;
@@ -166,18 +149,7 @@ public class SearchQueryThenFetchAsyncAction<Result extends SearchPhaseResult> e
      */
     public final void start() {
         if (results.getNumShards() == 0) {
-            // no search shards to search on, bail with empty response
-            // (it happens with search across _all with no indices around and consistent with broadcast operations)
-            var source = request.source();
-            int trackTotalHitsUpTo = source == null ? SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO
-                : source.trackTotalHitsUpTo() == null ? SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO
-                : source.trackTotalHitsUpTo();
-            // total hits is null in the response if the tracking of total hits is disabled
-            boolean withTotalHits = trackTotalHitsUpTo != SearchContext.TRACK_TOTAL_HITS_DISABLED;
-            sendSearchResponse(
-                withTotalHits ? SearchResponseSections.EMPTY_WITH_TOTAL_HITS : SearchResponseSections.EMPTY_WITHOUT_TOTAL_HITS,
-                new AtomicArray<>(0)
-            );
+            sendZeroShardsResponse();
             return;
         }
         try {
@@ -515,15 +487,15 @@ public class SearchQueryThenFetchAsyncAction<Result extends SearchPhaseResult> e
     }
 
     private void run() {
+        if (shardsIts.size() == 0) {
+            finish();
+            return;
+        }
         // TODO: stupid but we kinda need to fill all of these in with the current logic, do something nicer before merging
         final Map<SearchShardIterator, Integer> shardIndexMap = Maps.newHashMapWithExpectedSize(shardIterators.length);
         for (int i = 0; i < shardIterators.length; i++) {
             var iterator = shardIterators[i];
             shardIndexMap.put(iterator, i);
-        }
-        if (shardsIts.size() == 0) {
-            finish();
-            return;
         }
         final boolean supportsBatchedQuery = minTransportVersion.onOrAfter(TransportVersions.BATCHED_QUERY_PHASE_VERSION);
         final Map<String, NodeQueryRequest> perNodeQueries = new HashMap<>();
@@ -707,18 +679,7 @@ public class SearchQueryThenFetchAsyncAction<Result extends SearchPhaseResult> e
         final boolean lastShard = nextShard == null;
         logger.debug(() -> format("%s: Failed to execute [%s] lastShard [%s]", shard, request, lastShard), e);
         if (lastShard) {
-            if (request.allowPartialSearchResults() == false) {
-                if (requestCancelled.compareAndSet(false, true)) {
-                    try {
-                        searchTransportService.cancelSearchTask(
-                            task.getId(),
-                            "partial results are not allowed and at least one shard has failed"
-                        );
-                    } catch (Exception cancelFailure) {
-                        logger.debug("Failed to cancel search request", cancelFailure);
-                    }
-                }
-            }
+            maybeCancelSearchTask();
             onShardGroupFailure(shardIndex, shard, e);
             finishShardAndMaybePhase();
         } else {
@@ -727,7 +688,7 @@ public class SearchQueryThenFetchAsyncAction<Result extends SearchPhaseResult> e
     }
 
     private void finishShardAndMaybePhase() {
-        if ((int) OUTSTANDING_SHARDS.getAndAdd(this, -1) == 1) {
+        if (finishShard()) {
             finish();
         }
     }
@@ -750,37 +711,7 @@ public class SearchQueryThenFetchAsyncAction<Result extends SearchPhaseResult> e
             // temporary error.
             e = NoShardAvailableActionException.forOnShardFailureWrapper(e.getMessage());
         }
-        // we don't aggregate shard on failures due to the internal cancellation,
-        // but do keep the header counts right
-        if ((requestCancelled.get() && AbstractSearchAsyncAction.isTaskCancelledException(e)) == false) {
-            AtomicArray<ShardSearchFailure> shardFailures = this.shardFailures.get();
-            // lazily create shard failures, so we can early build the empty shard failure list in most cases (no failures)
-            if (shardFailures == null) { // this is double checked locking but it's fine since SetOnce uses a volatile read internally
-                synchronized (shardFailuresMutex) {
-                    shardFailures = this.shardFailures.get(); // read again otherwise somebody else has created it?
-                    if (shardFailures == null) { // still null so we are the first and create a new instance
-                        shardFailures = new AtomicArray<>(results.getNumShards());
-                        this.shardFailures.set(shardFailures);
-                    }
-                }
-            }
-            ShardSearchFailure failure = shardFailures.get(shardIndex);
-            if (failure == null) {
-                shardFailures.set(shardIndex, new ShardSearchFailure(e, shardTarget));
-            } else {
-                // the failure is already present, try and not override it with an exception that is less meaningless
-                // for example, getting illegal shard state
-                if (TransportActions.isReadOverrideException(e) && (e instanceof SearchContextMissingException == false)) {
-                    shardFailures.set(shardIndex, new ShardSearchFailure(e, shardTarget));
-                }
-            }
-
-            if (results.hasResult(shardIndex)) {
-                assert (int) OUTSTANDING_SHARDS.getAcquire(this) == 0 : "should only be called by subsequent phases, not during query";
-                assert failure == null : "shard failed before but shouldn't: " + failure;
-                successfulOps.decrementAndGet(); // if this shard was successful before (initial phase) we have to adjust the counter
-            }
-        }
+        handleFailedAndCancelled(shardIndex, shardTarget, e);
     }
 
     @Override

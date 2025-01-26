@@ -88,7 +88,7 @@ public final class KeywordFieldMapper extends FieldMapper {
     private static final Logger logger = LogManager.getLogger(KeywordFieldMapper.class);
 
     public static final String CONTENT_TYPE = "keyword";
-    public static final String OFFSETS_FIELD_NAME_SUFFIX = "_offsets";
+    public static final String OFFSETS_FIELD_NAME_SUFFIX = ".offsets";
 
     public static class Defaults {
         public static final FieldType FIELD_TYPE;
@@ -968,6 +968,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         while (true) {
             XContentParser.Token token = parser.nextToken();
             if (token == XContentParser.Token.END_ARRAY) {
+                context.maybeRecordEmptyArray(offsetsFieldMapper.fullPath());
                 return;
             }
             if (token.isValue() || token == XContentParser.Token.VALUE_NULL) {
@@ -975,11 +976,15 @@ public final class KeywordFieldMapper extends FieldMapper {
                 if (value == null) {
                     value = fieldType().nullValue;
                 }
-                // TODO: handle json null
+                if (value == null) {
+                    value = DocumentParserContext.Offsets.NULL_SUBSTITUTE_VALUE;
+                }
                 boolean indexed = indexValue(context, value);
                 if (indexed) {
                     context.recordOffset(offsetsFieldMapper.fullPath(), value);
                 }
+            } else if (token == XContentParser.Token.START_ARRAY) {
+                parseArray(context);
             } else {
                 throw new IllegalArgumentException("Encountered unexpected token [" + token + "].");
             }

@@ -485,6 +485,10 @@ public abstract class DocumentParserContext {
 
     public static class Offsets {
 
+        // Should be illegal to define this as json string and can use this as a marker for json null:
+        static final String NULL_SUBSTITUTE_VALUE = "\0";
+        static final BytesRef NULL_SUBSTITUTE_REF = new BytesRef(NULL_SUBSTITUTE_VALUE);
+
         public int currentOffset;
         public final Map<String, List<Integer>> valueToOffsets = new TreeMap<>();
 
@@ -499,6 +503,10 @@ public abstract class DocumentParserContext {
         int nextOffset = arrayOffsets.currentOffset++;
         var offsets = arrayOffsets.valueToOffsets.computeIfAbsent(value, s -> new ArrayList<>());
         offsets.add(nextOffset);
+    }
+
+    void maybeRecordEmptyArray(String field) {
+        offsetsPerField.computeIfAbsent(field, k -> new Offsets());
     }
 
     /**

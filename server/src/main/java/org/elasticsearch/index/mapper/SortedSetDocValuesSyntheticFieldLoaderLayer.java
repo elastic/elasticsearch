@@ -54,7 +54,7 @@ public abstract class SortedSetDocValuesSyntheticFieldLoaderLayer implements Com
     @Override
     public DocValuesLoader docValuesLoader(LeafReader reader, int[] docIdsInLeaf) throws IOException {
         SortedSetDocValues dv = DocValues.getSortedSet(reader, name);
-        if (dv.getValueCount() == 0) {
+        if (offsetsFieldName == null && dv.getValueCount() == 0) {
             docValues = NO_VALUES;
             return null;
         }
@@ -148,12 +148,13 @@ public abstract class SortedSetDocValuesSyntheticFieldLoaderLayer implements Com
         }
     }
 
-    private class OffsetDocValuesLoader implements DocValuesLoader, DocValuesFieldValues {
+    class OffsetDocValuesLoader implements DocValuesLoader, DocValuesFieldValues {
         private final BinaryDocValues oDv;
         private final SortedSetDocValues dv;
         private final ByteArrayStreamInput scratch = new ByteArrayStreamInput();
 
         private boolean hasValue;
+        private boolean hasOffset;
         private int[] offsetToOrd;
 
         OffsetDocValuesLoader(SortedSetDocValues dv, BinaryDocValues oDv) {
@@ -164,8 +165,9 @@ public abstract class SortedSetDocValuesSyntheticFieldLoaderLayer implements Com
         @Override
         public boolean advanceToDoc(int docId) throws IOException {
             hasValue = dv.advanceExact(docId);
+            hasOffset = oDv.advanceExact(docId);
             if (hasValue) {
-                if (oDv.advanceExact(docId)) {
+                if (hasOffset) {
                     var encodedValue = oDv.binaryValue();
                     scratch.reset(encodedValue.bytes, encodedValue.offset, encodedValue.length);
                     offsetToOrd = scratch.readVIntArray();
@@ -175,7 +177,11 @@ public abstract class SortedSetDocValuesSyntheticFieldLoaderLayer implements Com
                 return true;
             } else {
                 offsetToOrd = null;
-                return false;
+                if (hasOffset) {
+                    return true;
+                } else {
+                    return false;
+                }
             }
         }
 
@@ -190,7 +196,12 @@ public abstract class SortedSetDocValuesSyntheticFieldLoaderLayer implements Com
                     return dv.docValueCount();
                 }
             } else {
-                return 0;
+                if (hasOffset) {
+                    // trick CompositeSyntheticFieldLoader to serialize this layer as empty array.
+                    return 2;
+                } else {
+                    return 0;
+                }
             }
         }
 
@@ -205,21 +216,14 @@ public abstract class SortedSetDocValuesSyntheticFieldLoaderLayer implements Com
                     ords[i] = dv.nextOrd();
                 }
 
-                // TODO: remove later
-                logger.info("ords=" + Arrays.toString(ords));
-                logger.info("vals=" + Arrays.stream(ords).mapToObj(ord -> {
-                    try {
-                        return dv.lookupOrd(ord).utf8ToString();
-                    } catch (IOException e) {
-                        throw new RuntimeException(e);
-                    }
-                }).toList());
-                logger.info("offsetToOrd=" + Arrays.toString(offsetToOrd));
-
                 for (int offset : offsetToOrd) {
                     long ord = ords[offset];
                     BytesRef c = convert(dv.lookupOrd(ord));
-                    b.utf8Value(c.bytes, c.offset, c.length);
+                    if (c.bytesEquals(DocumentParserContext.Offsets.NULL_SUBSTITUTE_REF)) {
+                        b.nullValue();
+                    } else {
+                        b.utf8Value(c.bytes, c.offset, c.length);
+                    }
                 }
             } else {
                 for (int i = 0; i < dv.docValueCount(); i++) {

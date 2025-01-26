@@ -114,8 +114,9 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         int docChannel = source.layout.get(sourceAttr.id()).channel();
         for (Attribute attr : fieldExtractExec.attributesToExtract()) {
             layout.append(attr);
+            DataType dataType = attr.dataType();
             MappedFieldType.FieldExtractPreference fieldExtractPreference = fieldExtractExec.fieldExtractPreference(attr);
-            ElementType elementType = PlannerUtils.toElementType(attr.dataType(), fieldExtractPreference);
+            ElementType elementType = PlannerUtils.toElementType(dataType, fieldExtractPreference);
             IntFunction<BlockLoader> loader = s -> getBlockLoaderFor(s, attr, fieldExtractPreference);
             fields.add(new ValuesSourceReaderOperator.FieldInfo(getFieldName(attr), elementType, loader));
         }
@@ -129,14 +130,13 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
 
     private BlockLoader getBlockLoaderFor(int shardId, Attribute attr, MappedFieldType.FieldExtractPreference fieldExtractPreference) {
         DefaultShardContext shardContext = (DefaultShardContext) shardContexts.get(shardId);
-        var isUnmapped = shardContext.fieldType(getFieldName(attr)) == null;
         if (attr instanceof FieldAttribute fa && fa.field() instanceof KeywordEsField kf && kf.isReadUnmappedFromSource()) {
             shardContext = new DefaultShardContextForUnmappedField(shardContext, kf);
         }
 
         boolean isUnsupported = attr.dataType() == DataType.UNSUPPORTED;
         BlockLoader blockLoader = shardContext.blockLoader(getFieldName(attr), isUnsupported, fieldExtractPreference);
-        var unionTypes = findUnionTypes(attr);
+        MultiTypeEsField unionTypes = findUnionTypes(attr);
         if (unionTypes != null) {
             String indexName = shardContext.ctx.index().getName();
             Expression conversion = unionTypes.getConversionExpressionForIndex(indexName);
@@ -157,7 +157,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         }
 
         @Override
-        protected MappedFieldType fieldType(String name) {
+        protected @Nullable MappedFieldType fieldType(String name) {
             var superResult = super.fieldType(name);
             return superResult == null && name.equals(unmappedEsField.getName())
                 ? new KeywordFieldMapper.KeywordFieldType(name, false /* isIndexed */, false /* hasDocValues */, Map.of() /* meta */)
@@ -166,7 +166,10 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
     }
 
     private static @Nullable MultiTypeEsField findUnionTypes(Attribute attr) {
-        return attr instanceof FieldAttribute fa && fa.field() instanceof MultiTypeEsField multiTypeEsField ? multiTypeEsField : null;
+        if (attr instanceof FieldAttribute fa && fa.field() instanceof MultiTypeEsField multiTypeEsField) {
+            return multiTypeEsField;
+        }
+        return null;
     }
 
     public Function<org.elasticsearch.compute.lucene.ShardContext, Query> querySupplier(QueryBuilder builder) {
@@ -333,9 +336,9 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             }
             MappedFieldType fieldType = fieldType(name);
             if (fieldType == null) {
+                // the field does not exist in this context
                 return BlockLoader.CONSTANT_NULLS;
             }
-
             BlockLoader loader = fieldType.blockLoader(new MappedFieldType.BlockLoaderContext() {
                 @Override
                 public String indexName() {
@@ -380,7 +383,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             return loader;
         }
 
-        protected MappedFieldType fieldType(String name) {
+        protected @Nullable MappedFieldType fieldType(String name) {
             return ctx.getFieldType(name);
         }
     }

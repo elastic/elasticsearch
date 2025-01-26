@@ -113,6 +113,7 @@ required_capability: source_field_mapping
 required_capability: unmapped_fields
 FROM partial_mapping_excluded_source_sample_data
 | INSIST_🐔 message
+| SORT @timestamp DESC
 ;
 
 @timestamp:date          | message:keyword

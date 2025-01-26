@@ -23,7 +23,7 @@ public record EsIndex(
     String name,
     Map<String, EsField> mapping,
     Map<String, IndexMode> indexNameWithModes,
-    /** Fields mapped only in some (but *not* all) indices. */
+    /** Fields mapped only in some (but *not* all) indices. Since this is only used by the analyzer, it is not serialized. */
     Set<String> partiallyUnmappedFields
 ) implements Writeable {
 
@@ -66,7 +66,7 @@ public record EsIndex(
             indexNameWithModes = indices.stream().collect(toMap(e -> e, e -> IndexMode.STANDARD));
         }
         // partially unmapped fields shouldn't pass the node anyway, since they are only used by the Analyzer.
-        return new EsIndex(name, mapping, indexNameWithModes);
+        return new EsIndex(name, mapping, indexNameWithModes, Set.of());
     }
 
     @Override

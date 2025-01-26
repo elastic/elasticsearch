@@ -140,6 +140,7 @@ public class IndexResolver {
                     new HashMap<>()
                 );
             fields.put(name, field);
+
             var isPartiallyUnmapped = fcs.size() < numberOfIndices;
             if (isPartiallyUnmapped) {
                 partiallyUnmappedFields.add(fullName);

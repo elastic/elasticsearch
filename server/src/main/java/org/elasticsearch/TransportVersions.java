@@ -156,7 +156,15 @@ public class TransportVersions {
     public static final TransportVersion ELASTIC_INFERENCE_SERVICE_UNIFIED_CHAT_COMPLETIONS_INTEGRATION = def(8_822_00_0);
     public static final TransportVersion KQL_QUERY_TECH_PREVIEW = def(8_823_00_0);
     public static final TransportVersion ESQL_PROFILE_ROWS_PROCESSED = def(8_824_00_0);
-    public static final TransportVersion BYTE_SIZE_VALUE_ALWAYS_USES_BYTES = def(8_825_00_0);
+    public static final TransportVersion BYTE_SIZE_VALUE_ALWAYS_USES_BYTES_1 = def(8_825_00_0);
+    public static final TransportVersion REVERT_BYTE_SIZE_VALUE_ALWAYS_USES_BYTES_1 = def(8_826_00_0);
+    public static final TransportVersion ESQL_SKIP_ES_INDEX_SERIALIZATION = def(8_827_00_0);
+    public static final TransportVersion ADD_INDEX_BLOCK_TWO_PHASE = def(8_828_00_0);
+    public static final TransportVersion RESOLVE_CLUSTER_NO_INDEX_EXPRESSION = def(8_829_00_0);
+    public static final TransportVersion ML_ROLLOVER_LEGACY_INDICES = def(8_830_00_0);
+    public static final TransportVersion ADD_INCLUDE_FAILURE_INDICES_OPTION = def(8_831_00_0);
+    public static final TransportVersion ESQL_RESPONSE_PARTIAL = def(8_832_00_0);
+    public static final TransportVersion RANK_DOC_OPTIONAL_METADATA_FOR_EXPLAIN = def(8_833_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

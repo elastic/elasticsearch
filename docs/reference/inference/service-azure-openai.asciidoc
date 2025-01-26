@@ -1,5 +1,5 @@
 [[infer-service-azure-openai]]
-=== Azure OpenAI {infer} service
+=== Azure OpenAI {infer} integration
 
 .New API reference
 [sidebar]

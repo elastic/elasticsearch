@@ -1769,7 +1769,7 @@ public class TokenService {
                                 client,
                                 request,
                                 new ContextPreservingActionListener<>(supplier, listener),
-                                (SearchHit hit) -> filterAndParseHit(hit, filter)
+                                (SearchHit hit) -> filterAndParseHit(hit.getSourceAsMap(), filter)
                             );
                         }, listener::onFailure));
                 }
@@ -1913,9 +1913,8 @@ public class TokenService {
         };
     }
 
-    private static Tuple<UserToken, String> filterAndParseHit(SearchHit hit, @Nullable Predicate<Map<String, Object>> filter)
+    private static Tuple<UserToken, String> filterAndParseHit(Map<String, Object> source, @Nullable Predicate<Map<String, Object>> filter)
         throws IllegalStateException, DateTimeException {
-        final Map<String, Object> source = hit.getSourceAsMap();
         if (source == null) {
             throw new IllegalStateException("token document did not have source but source should have been fetched");
         }
@@ -2737,7 +2736,6 @@ public class TokenService {
     }
 
     record Doc(String id, Map<String, Object> sourceAsMap, long seqNo, long primaryTerm) {
-
         Doc(SearchHit searchHit) {
             this(searchHit.getId(), searchHit.getSourceAsMap(), searchHit.getSeqNo(), searchHit.getPrimaryTerm());
         }

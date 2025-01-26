@@ -88,8 +88,4 @@ public record EsIndex(
     public String toString() {
         return name;
     }
-
-    public EsIndex withoutPartiallyMappedFields() {
-        return new EsIndex(name, mapping, indexNameWithModes, Set.of());
-    }
 }

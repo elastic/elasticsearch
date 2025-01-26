@@ -218,7 +218,7 @@ public final class EsqlTestUtils {
     }
 
     public static EsRelation relation() {
-        return new EsRelation(EMPTY, new EsIndex(randomAlphaOfLength(8), emptyMap()), IndexMode.STANDARD, randomBoolean());
+        return new EsRelation(EMPTY, new EsIndex(randomAlphaOfLength(8), emptyMap()), IndexMode.STANDARD);
     }
 
     /**

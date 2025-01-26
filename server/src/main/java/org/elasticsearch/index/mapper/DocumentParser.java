@@ -13,6 +13,7 @@ import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.BitUtil;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.regex.Regex;
@@ -167,18 +168,25 @@ public final class DocumentParser {
             var fieldName = entry.getKey();
             var offset = entry.getValue();
 
-            int ord = 0;
+            int currentOrd = 0;
             // This array allows to retain the original ordering of elements in leaf arrays and retain duplicates.
             int[] offsetToOrd = new int[offset.currentOffset];
             for (var offsetEntry : offset.valueToOffsets.entrySet()) {
                 for (var offsetAndLevel : offsetEntry.getValue()) {
-                    offsetToOrd[offsetAndLevel] = ord;
+                    offsetToOrd[offsetAndLevel] = currentOrd;
                 }
-                ord++;
+                currentOrd++;
+            }
+            for (var nullOffset : offset.nullValueOffsets) {
+                offsetToOrd[nullOffset] = -1;
             }
 
             try (var streamOutput = new BytesStreamOutput()) {
-                streamOutput.writeVIntArray(offsetToOrd);
+                // Could just use vint for array length, but this allows for decoding my_field: null as -1
+                streamOutput.writeVInt(BitUtil.zigZagEncode(offsetToOrd.length));
+                for (int ord : offsetToOrd) {
+                    streamOutput.writeVInt(BitUtil.zigZagEncode(ord));
+                }
                 context.doc().add(new BinaryDocValuesField(fieldName, streamOutput.bytes().toBytesRef()));
             }
         }

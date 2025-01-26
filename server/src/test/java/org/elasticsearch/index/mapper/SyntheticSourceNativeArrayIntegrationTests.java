@@ -10,6 +10,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.util.BitUtil;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
@@ -124,7 +125,10 @@ public class SyntheticSourceNativeArrayIntegrationTests extends ESSingleNodeTest
                     var ref = binaryDocValues.binaryValue();
                     try (ByteArrayStreamInput scratch = new ByteArrayStreamInput()) {
                         scratch.reset(ref.bytes, ref.offset, ref.length);
-                        int[] offsets = scratch.readVIntArray();
+                        int[] offsets = new int[BitUtil.zigZagDecode(scratch.readVInt())];
+                        for (int j = 0; j < offsets.length; j++) {
+                            offsets[j] = BitUtil.zigZagDecode(scratch.readVInt());
+                        }
                         assertThat(offsets, notNullValue());
                     }
                 }

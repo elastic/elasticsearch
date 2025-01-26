@@ -45,6 +45,10 @@ public class OffsetDocValuesLoaderTests extends MapperServiceTestCase {
         verifyOffsets("{\"field\":[]}");
     }
 
+    public void testOffsetArrayWithNulls() throws Exception {
+        verifyOffsets("{\"field\":[null,null,null]}");
+    }
+
     public void testOffsetArrayRandom() throws Exception {
         StringBuilder values = new StringBuilder();
         int numValues = randomIntBetween(0, 256);

@@ -976,12 +976,11 @@ public final class KeywordFieldMapper extends FieldMapper {
                 if (value == null) {
                     value = fieldType().nullValue;
                 }
-                if (value == null) {
-                    value = DocumentParserContext.Offsets.NULL_SUBSTITUTE_VALUE;
-                }
                 boolean indexed = indexValue(context, value);
                 if (indexed) {
                     context.recordOffset(offsetsFieldMapper.fullPath(), value);
+                } else if (value == null) {
+                    context.recordNull(offsetsFieldMapper.fullPath());
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
                 parseArray(context);

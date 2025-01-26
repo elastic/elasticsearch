@@ -14,6 +14,7 @@ import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
+import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.logging.LogManager;
@@ -166,22 +167,21 @@ public abstract class SortedSetDocValuesSyntheticFieldLoaderLayer implements Com
         public boolean advanceToDoc(int docId) throws IOException {
             hasValue = dv.advanceExact(docId);
             hasOffset = oDv.advanceExact(docId);
-            if (hasValue) {
+            if (hasValue || hasOffset) {
                 if (hasOffset) {
                     var encodedValue = oDv.binaryValue();
                     scratch.reset(encodedValue.bytes, encodedValue.offset, encodedValue.length);
-                    offsetToOrd = scratch.readVIntArray();
+                    offsetToOrd = new int[BitUtil.zigZagDecode(scratch.readVInt())];
+                    for (int i = 0; i < offsetToOrd.length; i++) {
+                        offsetToOrd[i] = BitUtil.zigZagDecode(scratch.readVInt());
+                    }
                 } else {
                     offsetToOrd = null;
                 }
                 return true;
             } else {
                 offsetToOrd = null;
-                if (hasOffset) {
-                    return true;
-                } else {
-                    return false;
-                }
+                return false;
             }
         }
 
@@ -207,7 +207,7 @@ public abstract class SortedSetDocValuesSyntheticFieldLoaderLayer implements Com
 
         @Override
         public void write(XContentBuilder b) throws IOException {
-            if (hasValue == false) {
+            if (hasValue == false && hasOffset == false) {
                 return;
             }
             if (offsetToOrd != null) {
@@ -217,13 +217,14 @@ public abstract class SortedSetDocValuesSyntheticFieldLoaderLayer implements Com
                 }
 
                 for (int offset : offsetToOrd) {
+                    if (offset == -1) {
+                        b.nullValue();
+                        continue;
+                    }
+
                     long ord = ords[offset];
                     BytesRef c = convert(dv.lookupOrd(ord));
-                    if (c.bytesEquals(DocumentParserContext.Offsets.NULL_SUBSTITUTE_REF)) {
-                        b.nullValue();
-                    } else {
-                        b.utf8Value(c.bytes, c.offset, c.length);
-                    }
+                    b.utf8Value(c.bytes, c.offset, c.length);
                 }
             } else {
                 for (int i = 0; i < dv.docValueCount(); i++) {

@@ -40,6 +40,7 @@ class EntitlementsTestRule implements TestRule {
     EntitlementsTestRule(boolean modular, PolicyBuilder policyBuilder) {
         testDir = new TemporaryFolder();
         cluster = ElasticsearchCluster.local()
+            .module("entitled")
             .module("entitlement-test-plugin", spec -> setupEntitlements(spec, modular, policyBuilder))
             .systemProperty("es.entitlements.enabled", "true")
             .systemProperty("es.entitlements.testdir", () -> testDir.getRoot().getAbsolutePath())

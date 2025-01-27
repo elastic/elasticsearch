@@ -54,7 +54,9 @@ import java.nio.file.Path;
 import java.nio.file.attribute.UserPrincipal;
 import java.security.cert.CertStoreParameters;
 import java.util.List;
+import java.util.Locale;
 import java.util.Properties;
+import java.util.TimeZone;
 
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.HttpsURLConnection;
@@ -298,6 +300,21 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
 
     @Override
     public void check$java_util_logging_LogManager$(Class<?> callerClass) {
+        policyManager.checkChangeJVMGlobalState(callerClass);
+    }
+
+    @Override
+    public void check$java_util_Locale$$setDefault(Class<?> callerClass, Locale.Category category, Locale locale) {
+        policyManager.checkChangeJVMGlobalState(callerClass);
+    }
+
+    @Override
+    public void check$java_util_Locale$$setDefault(Class<?> callerClass, Locale locale) {
+        policyManager.checkChangeJVMGlobalState(callerClass);
+    }
+
+    @Override
+    public void check$java_util_TimeZone$$setDefault(Class<?> callerClass, TimeZone zone) {
         policyManager.checkChangeJVMGlobalState(callerClass);
     }
 

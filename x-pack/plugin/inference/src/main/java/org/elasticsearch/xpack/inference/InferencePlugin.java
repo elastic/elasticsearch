@@ -247,7 +247,6 @@ public class InferencePlugin extends Plugin
     public Collection<?> createComponents(PluginServices services) {
         var components = new ArrayList<>();
 
-        var clusterService = services.clusterService();
         var throttlerManager = new ThrottlerManager(settings, services.threadPool(), services.clusterService());
         var truncator = new Truncator(settings, services.clusterService());
         serviceComponents.set(new ServiceComponents(services.threadPool(), throttlerManager, settings, truncator));
@@ -303,7 +302,7 @@ public class InferencePlugin extends Plugin
         var factoryContext = new InferenceServiceExtension.InferenceServiceFactoryContext(
             services.client(),
             services.threadPool(),
-            clusterService,
+            services.clusterService(),
             settings
         );
 

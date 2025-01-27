@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.rank.linear;
 
-import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.search.retriever.RetrieverBuilder;
 import org.elasticsearch.search.retriever.RetrieverParserContext;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -69,17 +68,12 @@ public class LinearRetrieverComponent implements ToXContentObject {
             return innerRetriever;
         }, RETRIEVER_FIELD);
         PARSER.declareFloat(optionalConstructorArg(), WEIGHT_FIELD);
-        PARSER.declareField(optionalConstructorArg(), (p, c) -> {
-            if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
-                return ScoreNormalizer.valueOf(p.text());
-            } else if (p.currentToken() == XContentParser.Token.START_OBJECT) {
-                p.nextToken();
-                ScoreNormalizer normalizer = ScoreNormalizer.parse(p.currentName(), p);
-                p.nextToken();
-                return normalizer;
-            }
-            throw new ParsingException(p.getTokenLocation(), "Unsupported token [" + p.currentToken() + "]");
-        }, NORMALIZER_FIELD, ObjectParser.ValueType.OBJECT_OR_STRING);
+        PARSER.declareField(
+            optionalConstructorArg(),
+            (p, c) -> ScoreNormalizer.valueOf(p.text()),
+            NORMALIZER_FIELD,
+            ObjectParser.ValueType.STRING
+        );
     }
 
     public static LinearRetrieverComponent fromXContent(XContentParser parser, RetrieverParserContext context) throws IOException {

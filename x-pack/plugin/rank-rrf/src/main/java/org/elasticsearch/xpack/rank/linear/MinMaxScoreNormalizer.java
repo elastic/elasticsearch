@@ -9,49 +9,21 @@ package org.elasticsearch.xpack.rank.linear;
 
 import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-
-import java.io.IOException;
-
-import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class MinMaxScoreNormalizer extends ScoreNormalizer {
 
     public static final String NAME = "minmax";
 
-    public static final ParseField MIN_FIELD = new ParseField("min");
-    public static final ParseField MAX_FIELD = new ParseField("max");
-
     private static final float EPSILON = 1e-6f;
 
-    public static final ConstructingObjectParser<MinMaxScoreNormalizer, Void> PARSER = new ConstructingObjectParser<>(NAME, args -> {
-        Float min = (Float) args[0];
-        Float max = (Float) args[1];
-        return new MinMaxScoreNormalizer(min, max);
-    });
+    public static final ConstructingObjectParser<MinMaxScoreNormalizer, Void> PARSER = new ConstructingObjectParser<>(
+        NAME,
+        args -> new MinMaxScoreNormalizer()
+    );
 
-    static {
-        PARSER.declareFloat(optionalConstructorArg(), MIN_FIELD);
-        PARSER.declareFloat(optionalConstructorArg(), MAX_FIELD);
-    }
-
-    private Float min;
-    private Float max;
-
-    public MinMaxScoreNormalizer() {
-        this.min = null;
-        this.max = null;
-    }
-
-    public MinMaxScoreNormalizer(Float min, Float max) {
-        if (min != null && max != null && min >= max) {
-            throw new IllegalArgumentException("[min] must be less than [max]");
-        }
-        this.min = min;
-        this.max = max;
-    }
+    public MinMaxScoreNormalizer() {}
 
     @Override
     public String getName() {
@@ -65,19 +37,18 @@ public class MinMaxScoreNormalizer extends ScoreNormalizer {
         }
         // create a new array to avoid changing ScoreDocs in place
         ScoreDoc[] scoreDocs = new ScoreDoc[docs.length];
-        float correction = 0f;
-        float xMin = Float.MAX_VALUE;
-        float xMax = Float.MIN_VALUE;
+        float min = Float.MAX_VALUE;
+        float max = Float.MIN_VALUE;
         boolean atLeastOneValidScore = false;
         for (ScoreDoc rd : docs) {
             if (false == atLeastOneValidScore && false == Float.isNaN(rd.score)) {
                 atLeastOneValidScore = true;
             }
-            if (rd.score > xMax) {
-                xMax = rd.score;
+            if (rd.score > max) {
+                max = rd.score;
             }
-            if (rd.score < xMin) {
-                xMin = rd.score;
+            if (rd.score < min) {
+                min = rd.score;
             }
         }
         if (false == atLeastOneValidScore) {
@@ -85,27 +56,13 @@ public class MinMaxScoreNormalizer extends ScoreNormalizer {
             return docs;
         }
 
-        if (min == null) {
-            min = xMin;
-        } else {
-            if (min > xMin) {
-                correction = min - xMin;
-            }
-        }
-        if (max == null) {
-            max = xMax;
-        }
-
-        if (min > max) {
-            throw new IllegalArgumentException("[min=" + min + "] must be less than [max=" + max + "]");
-        }
         boolean minEqualsMax = Math.abs(min - max) < EPSILON;
         for (int i = 0; i < docs.length; i++) {
             float score;
             if (minEqualsMax) {
                 score = min;
             } else {
-                score = correction + (docs[i].score - min) / (max - min);
+                score = (docs[i].score - min) / (max - min);
             }
             scoreDocs[i] = new ScoreDoc(docs[i].doc, score, docs[i].shardIndex);
         }
@@ -117,12 +74,7 @@ public class MinMaxScoreNormalizer extends ScoreNormalizer {
     }
 
     @Override
-    public void doToXContent(XContentBuilder builder, Params params) throws IOException {
-        if (min != null) {
-            builder.field(MIN_FIELD.getPreferredName(), min);
-        }
-        if (max != null) {
-            builder.field(MAX_FIELD.getPreferredName(), max);
-        }
+    public void doToXContent(XContentBuilder builder, Params params) {
+        // no-op
     }
 }

@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.rank.linear;
 import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
@@ -28,15 +27,6 @@ public abstract class ScoreNormalizer implements ToXContent {
         } else {
             throw new IllegalArgumentException("Unknown normalizer [" + normalizer + "]");
         }
-    }
-
-    public static ScoreNormalizer parse(String normalizer, XContentParser p) {
-        if (MinMaxScoreNormalizer.NAME.equalsIgnoreCase(normalizer)) {
-            return MinMaxScoreNormalizer.fromXContent(p);
-        } else if (IdentityScoreNormalizer.NAME.equalsIgnoreCase(normalizer)) {
-            return IdentityScoreNormalizer.fromXContent(p);
-        }
-        throw new IllegalArgumentException("Unknown normalizer [" + normalizer + "]");
     }
 
     protected abstract void doToXContent(XContentBuilder builder, Params params) throws IOException;

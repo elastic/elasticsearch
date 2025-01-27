@@ -125,47 +125,49 @@ setup:
                             }
                           ]
                         }
-                    }
-                  },
-                  weight: 2
+                      }
+                    },
+                    weight: 2
+                  }
                 },
-                  {
-                    # this one will return docs 3 and doc 4 with scores 15 and 12 respectively
-                    retriever: {
-                      standard: {
-                        query: {
-                          bool: {
-                            should: [
-                              {
-                                constant_score: {
-                                  filter: {
-                                    term: {
-                                      keyword: {
-                                        value: "three"
-                                      }
+                {
+                  # this one will return docs 3 and doc 4 with scores 15 and 12 respectively
+                  retriever: {
+                    standard: {
+                      query: {
+                        bool: {
+                          should: [
+                            {
+                              constant_score: {
+                                filter: {
+                                  term: {
+                                    keyword: {
+                                      value: "three"
                                     }
-                                  },
-                                  boost: 5.0
-                                }
-                              },
-                              {
-                                constant_score: {
-                                  filter: {
-                                    term: {
-                                      keyword: {
-                                        value: "four"
-                                      }
-                                    }
-                                  },
-                                  boost: 4.0
-                                }
+                                  }
+                                },
+                                boost: 5.0
                               }
-                            ]
-                          }
+                            },
+                            {
+                              constant_score: {
+                                filter: {
+                                  term: {
+                                    keyword: {
+                                      value: "four"
+                                    }
+                                  }
+                                },
+                                boost: 4.0
+                              }
+                            }
+                          ]
                         }
-                      },
-                      weight: 3
-                    }
+                      }
+                    },
+                    weight: 3
+                  }
+                }
               ]
 
   - match: { hits.total.value: 4 }
@@ -260,105 +262,6 @@ setup:
   - match: { hits.hits.2._score: 2.0 }
   - match: { hits.hits.3._id: "3" }
   - close_to: { hits.hits.3._score: { value: 0.0, error: 0.001 } }
-
----
-"should normalize initial scores with a custom minmax normalizer":
-  - do:
-      search:
-        index: test
-        body:
-          retriever:
-            linear:
-              retrievers: [
-                {
-                  retriever: {
-                    standard: {
-                      query: {
-                        bool: {
-                          should: [
-                            {
-                              constant_score: {
-                                filter: {
-                                  term: {
-                                    keyword: {
-                                      value: "one"
-                                    }
-                                  }
-                                },
-                                boost: 10.0  # normalized score for this would be -0.55
-                              }
-                            },
-                            {
-                              constant_score: {
-                                filter: {
-                                  term: {
-                                    keyword: {
-                                      value: "two"
-                                    }
-                                  }
-                                },
-                                boost: 9.0  # normalized score for this would be -0.56
-                              }
-                            },
-                            {
-                              constant_score: {
-                                filter: {
-                                  term: {
-                                    keyword: {
-                                      value: "three"
-                                    }
-                                  }
-                                },
-                                boost: 5.0  # normalized score for this would be -0.63
-                              }
-                            },
-                            {
-                              constant_score: {
-                                filter: {
-                                  term: {
-                                    keyword: {
-                                      value: "four"
-                                    }
-                                  }
-                                },
-                                boost: 1.0  # normalized score for this would be -0.7
-                              }
-                            }
-                          ]
-                        }
-                      }
-                    }
-                  },
-                  normalizer: {
-                    minmax: {
-                      min: 42,
-                      max: 100
-                    }
-                  }
-                },
-                {
-                  # this only provides a score of 10 for doc 4
-                  retriever: {
-                    knn: {
-                      field: "vector",
-                      query_vector: [ 4 ],
-                      k: 1,
-                      num_candidates: 1
-                    }
-                  },
-                  weight: 10.0
-                }
-              ]
-
-  - match: { hits.total.value: 4 }
-  - match: { hits.hits.0._id: "4" }
-  - close_to: { hits.hits.0._score: { value: 50.2931, error: 0.001 } }
-  - match: { hits.hits.1._id: "1" }
-  - close_to: { hits.hits.1._score: { value: 40.4482, error: 0.001 } }
-  - match: { hits.hits.2._id: "2" }
-  - close_to: { hits.hits.2._score: { value: 40.4310, error: 0.001 } }
-  - match: { hits.hits.3._id: "3" }
-  - close_to: { hits.hits.3._score: { value: 40.3620, error: 0.001 } }
 
 ---
 "should throw on unknown normalizer":
@@ -1104,12 +1007,7 @@ setup:
                     }
                   },
                   weight: 1.0,
-                  normalizer: {
-                    minmax: {
-                      min: 1577836800000, # 2020-01-01T00:00:00
-                      max: 1735689600000 # 2025-01-01T00:00:00
-                    }
-                  }
+                  normalizer: "minmax"
                 }
               ]
               rank_window_size: 2

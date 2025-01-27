@@ -52,8 +52,7 @@ public class ResolveClusterActionRequest extends ActionRequest implements Indice
      */
     private boolean localIndicesRequested = false;
     private IndicesOptions indicesOptions;
-    // We mark this field as transient because it's only needed on the coordinator and does not need to be serialized.
-    private transient TimeValue timeout;
+    private TimeValue timeout;
 
     // true if the user did not provide any index expression - they only want cluster level info, not index matching
     private final boolean clusterInfoOnly;
@@ -92,6 +91,9 @@ public class ResolveClusterActionRequest extends ActionRequest implements Indice
             this.clusterInfoOnly = false;
             this.isQueryingCluster = false;
         }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.TIMEOUT_GET_PARAM_FOR_RESOLVE_CLUSTER)) {
+            this.timeout = in.readOptionalTimeValue();
+        }
     }
 
     @Override
@@ -105,6 +107,9 @@ public class ResolveClusterActionRequest extends ActionRequest implements Indice
         if (out.getTransportVersion().onOrAfter(TransportVersions.RESOLVE_CLUSTER_NO_INDEX_EXPRESSION)) {
             out.writeBoolean(clusterInfoOnly);
             out.writeBoolean(isQueryingCluster);
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.TIMEOUT_GET_PARAM_FOR_RESOLVE_CLUSTER)) {
+            out.writeOptionalTimeValue(timeout);
         }
     }
 
@@ -127,12 +132,14 @@ public class ResolveClusterActionRequest extends ActionRequest implements Indice
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         ResolveClusterActionRequest request = (ResolveClusterActionRequest) o;
-        return Arrays.equals(names, request.names) && indicesOptions.equals(request.indicesOptions());
+        return Arrays.equals(names, request.names)
+            && indicesOptions.equals(request.indicesOptions())
+            && Objects.equals(timeout, request.timeout);
     }
 
     @Override
     public int hashCode() {
-        int result = Objects.hash(indicesOptions);
+        int result = Objects.hash(indicesOptions, timeout);
         result = 31 * result + Arrays.hashCode(names);
         return result;
     }
@@ -209,8 +216,8 @@ public class ResolveClusterActionRequest extends ActionRequest implements Indice
         return false;
     }
 
-    public void setTimeout(String timeout) {
-        this.timeout = TimeValue.parseTimeValue(timeout, "timeout");
+    public void setTimeout(TimeValue timeout) {
+        this.timeout = timeout;
     }
 
     @Override

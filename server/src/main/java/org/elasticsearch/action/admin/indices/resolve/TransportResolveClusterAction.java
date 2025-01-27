@@ -41,7 +41,6 @@ import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.transport.TransportSettings;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -72,19 +71,6 @@ public class TransportResolveClusterAction extends HandledTransportAction<Resolv
     private final boolean ccsCheckCompatibility;
     private final ThreadPool threadPool;
 
-    /*
-     * Max permissible time we can wait before the transport layer code cuts off the connection.
-     * There are 2 reasons why we let user specify a timeout parameter:
-     *
-     * 1. transport.connect_timeout in elasticsearch.yml controls how long to wait before a connection
-     * is cut off. This setting is not guaranteed to exist and if it does not exist, 30s is the default
-     * value. This may be too long for the user.
-     *
-     * 2. User may not want to change transport.connect_timeout since it affects other aspects of Elasticsearch.
-     * In such cases, this parameter helps control how long to wait.
-     */
-    private final long maxTimeoutInSeconds;
-
     @Inject
     public TransportResolveClusterAction(
         TransportService transportService,
@@ -100,12 +86,6 @@ public class TransportResolveClusterAction extends HandledTransportAction<Resolv
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.ccsCheckCompatibility = SearchService.CCS_VERSION_CHECK_SETTING.get(clusterService.getSettings());
         this.threadPool = threadPool;
-        TimeValue timeout = TransportSettings.CONNECT_TIMEOUT.get(clusterService.getSettings());
-        if (timeout != null && timeout.getSeconds() > 0) {
-            this.maxTimeoutInSeconds = timeout.getSeconds();
-        } else {
-            this.maxTimeoutInSeconds = Long.MAX_VALUE;
-        }
     }
 
     @Override
@@ -117,14 +97,6 @@ public class TransportResolveClusterAction extends HandledTransportAction<Resolv
     protected void doExecuteForked(Task task, ResolveClusterActionRequest request, ActionListener<ResolveClusterActionResponse> listener) {
         if (ccsCheckCompatibility) {
             checkCCSVersionCompatibility(request);
-        }
-
-        // Fail the action if the specified timeout exceeds the value set in elasticsearch.yml.
-        TimeValue timeout = request.getTimeout();
-        if (timeout != null && timeout.getSeconds() > maxTimeoutInSeconds) {
-            throw new IllegalArgumentException(
-                "Timeout exceeds the value of transport.connect_timeout: " + maxTimeoutInSeconds + " seconds"
-            );
         }
 
         assert task instanceof CancellableTask;
@@ -361,6 +333,7 @@ public class TransportResolveClusterAction extends HandledTransportAction<Resolv
                 };
 
                 ActionListener<ResolveClusterActionResponse> resultsListener;
+                TimeValue timeout = request.getTimeout();
                 // Wrap the listener with a timeout since a timeout was specified.
                 if (timeout != null) {
                     var releaserListener = ActionListener.releaseAfter(remoteListener, refs.acquire());

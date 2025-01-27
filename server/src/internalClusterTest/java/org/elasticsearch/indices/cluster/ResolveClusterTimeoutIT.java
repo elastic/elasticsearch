@@ -9,46 +9,25 @@ package org.elasticsearch.indices.cluster;
 
 import org.elasticsearch.action.admin.indices.resolve.ResolveClusterActionRequest;
 import org.elasticsearch.action.admin.indices.resolve.TransportResolveClusterAction;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.AbstractMultiClustersTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.transport.TransportSettings;
 
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ResolveClusterTimeoutIT extends AbstractMultiClustersTestCase {
     private static final String REMOTE_CLUSTER_1 = "cluster-a";
     private static final String REMOTE_CLUSTER_2 = "cluster-b";
-    private static final String TIME_UNITS = "s";
 
     @Override
     protected List<String> remoteClusterAlias() {
         return List.of(REMOTE_CLUSTER_1, REMOTE_CLUSTER_2);
-    }
-
-    public void testTimeoutParameterCannotExceedConnectTimeoutSetting() {
-        var maxAllowedTimeout = TransportSettings.CONNECT_TIMEOUT.get(cluster(REMOTE_CLUSTER_1).getDefaultSettings()).getSeconds();
-        var resolveClusterActionRequest = new ResolveClusterActionRequest(new String[] { "*", "*:*" });
-
-        // Exceed the permissible timeout by 1s.
-        resolveClusterActionRequest.setTimeout(maxAllowedTimeout + 1 + "s");
-        var ex = expectThrows(
-            ExecutionException.class,
-            () -> client().execute(TransportResolveClusterAction.TYPE, resolveClusterActionRequest).get()
-        );
-
-        // This should trigger an error.
-        assertThat(
-            ex.getMessage(),
-            containsString("Timeout exceeds the value of transport.connect_timeout: " + maxAllowedTimeout + " seconds")
-        );
     }
 
     public void testTimeoutParameter() throws Exception {
@@ -75,7 +54,7 @@ public class ResolveClusterTimeoutIT extends AbstractMultiClustersTestCase {
 
         var resolveClusterActionRequest = new ResolveClusterActionRequest(new String[] { "*", "*:*" });
         var randomlyChosenTimeout = randomLongBetween(3, maxSleepInSeconds - 1);
-        resolveClusterActionRequest.setTimeout(randomlyChosenTimeout + TIME_UNITS);
+        resolveClusterActionRequest.setTimeout(TimeValue.timeValueSeconds(randomlyChosenTimeout));
 
         var start = Instant.now();
         var futureAction = client().execute(TransportResolveClusterAction.TYPE, resolveClusterActionRequest);

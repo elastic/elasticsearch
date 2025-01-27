@@ -54,8 +54,8 @@ public class ThreadPoolMergeQueue {
         }
     }
 
-    void submitExecuteMergeTask() {
-        executorService.submit(() -> {
+    void executeNextMergeTask() {
+        executorService.execute(() -> {
             // one such task always executes a single merge task; this is important for merge queue statistics
             while (true) {
                 MergeTask smallestMergeTask;

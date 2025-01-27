@@ -278,6 +278,9 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
 
         @Override
         public void doRun() throws Exception {
+            if (isRunning()) {
+                throw new IllegalStateException("Cannot run the same merge task multiple times");
+            }
             mergeStartTimeNS.set(System.nanoTime());
             try {
                 onGoingMergeRateLimiter.set(this.rateLimiter);
@@ -318,7 +321,9 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
 
         @Override
         public void onAfter() {
-            assert this.mergeStartTimeNS.get() != null : "onAfter should always be invoked after doRun";
+            if (isRunning() == false) {
+                throw new IllegalStateException("onAfter must only be invoked after doRun");
+            }
             try {
                 if (verbose()) {
                     message(String.format(Locale.ROOT, "merge task %s end", this));
@@ -350,16 +355,22 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
 
         @Override
         public void onFailure(Exception e) {
+            if (isRunning() == false) {
+                throw new IllegalStateException("onFailure must only be invoked after doRun");
+            }
+            assert this.mergeStartTimeNS.get() != null : "onFailure should always be invoked after doRun";
             // most commonly the merge should've already be aborted by now,
             // plus the engine is probably going to be failed when any merge fails,
             // but keep this in case something believes calling `MergeTask#onFailure` is a sane way to abort a merge
             abortOnGoingMerge();
-            mergeDone(this);
             handleMergeException(ExceptionWrappingError.maybeUnwrapCause(e));
         }
 
         @Override
         public void onRejection(Exception e) {
+            if (isRunning()) {
+                throw new IllegalStateException("A running merge cannot be rejected for running");
+            }
             if (verbose()) {
                 message(String.format(Locale.ROOT, "merge task [%s] rejected by thread pool, aborting", onGoingMerge.getId()));
             }

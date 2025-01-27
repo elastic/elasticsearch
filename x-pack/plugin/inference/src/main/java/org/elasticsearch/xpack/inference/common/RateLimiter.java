@@ -59,7 +59,6 @@ public class RateLimiter {
     RateLimiter(double accumulatedTokensLimit, double tokensPerTimeUnit, TimeUnit unit, Sleeper sleeper, Clock clock) {
         this.sleeper = Objects.requireNonNull(sleeper);
         this.clock = Objects.requireNonNull(clock);
-        System.out.println("CLOCK in RateLimiter constructor " + this.clock);
         nextTokenAvailability = Instant.MIN;
         setRate(accumulatedTokensLimit, tokensPerTimeUnit, unit);
     }

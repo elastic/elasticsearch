@@ -7,7 +7,6 @@
 
 package org.elasticsearch.compute.data;
 
-import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.BlockLoader;
 
@@ -31,30 +30,24 @@ public class AggregateDoubleMetricBlockBuilder extends AbstractBlockBuilder impl
             countBuilder = new IntBlockBuilder(estimatedSize, blockFactory);
         } finally {
             if (countBuilder == null) {
-                Releasables.closeWhileHandlingException(minBuilder);
-                Releasables.closeWhileHandlingException(maxBuilder);
-                Releasables.closeWhileHandlingException(sumBuilder);
-                Releasables.closeWhileHandlingException(countBuilder);
+                Releasables.closeWhileHandlingException(minBuilder, maxBuilder, sumBuilder, countBuilder);
             }
         }
     }
 
     @Override
     protected int valuesLength() {
-        return minBuilder.valuesLength();
+        throw new UnsupportedOperationException("Not available on aggregate_metric_double");
     }
 
     @Override
     protected void growValuesArray(int newSize) {
-        minBuilder.growValuesArray(newSize);
-        maxBuilder.growValuesArray(newSize);
-        sumBuilder.growValuesArray(newSize);
-        countBuilder.growValuesArray(newSize);
+        throw new UnsupportedOperationException("Not available on aggregate_metric_double");
     }
 
     @Override
     protected int elementSize() {
-        return minBuilder.elementSize() + maxBuilder.elementSize() + sumBuilder.elementSize() + countBuilder.elementSize();
+        throw new UnsupportedOperationException("Not available on aggregate_metric_double");
     }
 
     @Override
@@ -103,18 +96,20 @@ public class AggregateDoubleMetricBlockBuilder extends AbstractBlockBuilder impl
     @Override
     public Block build() {
         Block[] blocks = new Block[4];
+        boolean success = false;
         try {
             finish();
             blocks[Metric.MIN.getIndex()] = minBuilder.build();
             blocks[Metric.MAX.getIndex()] = maxBuilder.build();
             blocks[Metric.SUM.getIndex()] = sumBuilder.build();
             blocks[Metric.COUNT.getIndex()] = countBuilder.build();
-            return new CompositeBlock(blocks);
-        } catch (CircuitBreakingException e) {
-            for (Block block : blocks) {
-                Releasables.closeExpectNoException(block);
+            CompositeBlock block = new CompositeBlock(blocks);
+            success = true;
+            return block;
+        } finally {
+            if (success == false) {
+                Releasables.closeExpectNoException(blocks);
             }
-            throw e;
         }
     }
 

@@ -42,8 +42,8 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
         .distribution(DistributionType.DEFAULT)
         .version(getOldClusterTestVersion())
         .nodes(2)
-        .setting("xpack.security.enabled", "false")
         .setting("ingest.geoip.downloader.endpoint", () -> fixture.getAddress(), s -> useFixture)
+        .setting("xpack.security.enabled", "false")
         .feature(FeatureFlag.TIME_SERIES_MODE)
         .build();
 

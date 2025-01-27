@@ -14,6 +14,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.xpack.core.ml.MlConfigIndex;
 import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
@@ -85,7 +86,7 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
 
     private void createAndOpenTestJob() throws IOException {
         // Use a custom index because other rolling upgrade tests meddle with the shared index
-        String jobConfig = """
+        String jobConfig = Strings.format("""
                         {
                             "results_index_name": "%s",
                             "analysis_config" : {
@@ -95,7 +96,7 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
                             "data_description" : {
                             }
                         }"
-            """.formatted(RESULTS_INDEX_NAME);
+            """, RESULTS_INDEX_NAME);
 
         Request putJob = new Request("PUT", "_ml/anomaly_detectors/" + JOB_ID);
         putJob.setJsonEntity(jobConfig);

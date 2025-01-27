@@ -416,7 +416,8 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         private FieldType resolveFieldType(final IndexSortConfig indexSortConfig, final IndexMode indexMode, final String fullFieldName) {
-            if (shouldUseDocValuesSparseIndex(indexSortConfig, indexMode, fullFieldName)) {
+            if (FieldMapper.DOC_VALUES_SPARSE_INDEX.isEnabled()
+                && shouldUseDocValuesSparseIndex(indexSortConfig, indexMode, fullFieldName)) {
                 return new FieldType(Defaults.FIELD_TYPE_WITH_SKIP_DOC_VALUES);
             }
             return new FieldType(Defaults.FIELD_TYPE);
@@ -427,16 +428,11 @@ public final class KeywordFieldMapper extends FieldMapper {
             final IndexMode indexMode,
             final String fullFieldName
         ) {
-            if (FieldMapper.DOC_VALUES_SPARSE_INDEX.isEnabled() == false) {
-                return false;
-            }
-            boolean isIndexedAndDocValuesDefault = indexed.isConfigured() || hasDocValues.isConfigured();
-            boolean isNotIndexedAndHasDocValues = indexed.getValue() || hasDocValues.getValue() == false;
-            boolean isLogsDbMode = IndexMode.LOGSDB.equals(indexMode);
-            boolean isHostNameField = HOST_NAME.equals(fullFieldName);
-            boolean isPrimarySortField = indexSortConfig != null && indexSortConfig.hasPrimarySortOnField(HOST_NAME);
-
-            return (isIndexedAndDocValuesDefault || isNotIndexedAndHasDocValues) && isLogsDbMode && isHostNameField && isPrimarySortField;
+            return indexed.isConfigured() == false
+                && hasDocValues.getValue()
+                && IndexMode.LOGSDB.equals(indexMode)
+                && HOST_NAME.equals(fullFieldName)
+                && (indexSortConfig != null && indexSortConfig.hasPrimarySortOnField(HOST_NAME));
         }
 
     }

@@ -893,7 +893,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         );
 
         final KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("host.name");
-        assertTrue(mapper.fieldType().hasDocValuesSparseIndex());
+        assertFalse(mapper.fieldType().hasDocValuesSparseIndex());
     }
 
     public void testFieldTypeDefault_IndexedFalseDocValuesFalse() throws IOException {

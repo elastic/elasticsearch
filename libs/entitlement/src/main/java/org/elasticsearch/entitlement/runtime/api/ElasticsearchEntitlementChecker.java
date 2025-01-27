@@ -14,7 +14,6 @@ import org.elasticsearch.entitlement.bridge.EntitlementChecker;
 import org.elasticsearch.entitlement.runtime.policy.PolicyManager;
 
 import java.io.File;
-import java.io.FileDescriptor;
 import java.io.InputStream;
 import java.io.PrintStream;
 import java.io.PrintWriter;
@@ -48,8 +47,6 @@ import java.nio.channels.DatagramChannel;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.nio.charset.Charset;
-import java.nio.charset.CharsetDecoder;
-import java.nio.file.OpenOption;
 import java.nio.file.Path;
 import java.nio.file.attribute.UserPrincipal;
 import java.security.cert.CertStoreParameters;

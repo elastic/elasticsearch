@@ -12,17 +12,13 @@ package org.elasticsearch.entitlement.qa.test;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.entitlement.qa.entitled.EntitledActions;
 
-import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.nio.charset.CharsetDecoder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
-import java.nio.file.OpenOption;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.UserPrincipal;
 import java.util.Scanner;
 
@@ -59,15 +55,15 @@ class FileCheckActions {
         new Scanner(readFile().toFile(), "UTF-8");
     }
 
-    static void createFileOutputStreamString() throws IOException{
+    static void createFileOutputStreamString() throws IOException {
         new FileOutputStream(readWriteFile().toString()).close();
     }
 
-    static void createFileOutputStreamStringWithAppend() throws IOException{
+    static void createFileOutputStreamStringWithAppend() throws IOException {
         new FileOutputStream(readWriteFile().toString(), false).close();
     }
 
-    static void createFileOutputStreamFile() throws IOException{
+    static void createFileOutputStreamFile() throws IOException {
         new FileOutputStream(readWriteFile().toFile()).close();
     }
 

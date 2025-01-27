@@ -209,7 +209,7 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
         entry("create_file_output_stream_file_with_append", forPlugins(FileCheckActions::createFileOutputStreamFileWithAppend)),
         entry("files_probe_content_type", forPlugins(FileCheckActions::filesProbeContentType)),
         entry("files_set_owner", forPlugins(FileCheckActions::filesSetOwner))
-        )
+    )
         .filter(entry -> entry.getValue().fromJavaVersion() == null || Runtime.version().feature() >= entry.getValue().fromJavaVersion())
         .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
 

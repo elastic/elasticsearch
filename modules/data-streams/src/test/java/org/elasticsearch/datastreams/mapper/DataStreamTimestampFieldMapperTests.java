@@ -11,6 +11,9 @@ package org.elasticsearch.datastreams.mapper;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -230,5 +233,77 @@ public class DataStreamTimestampFieldMapperTests extends MetadataMapperTestCase 
             assertThat(summaryTimestamp, notNullValue());
             assertThat(summaryTimestamp.ignoreMalformed(), is(false));
         }
+    }
+
+    public void testFieldTypeWithSkipDocValues_LogsDBMode() throws IOException {
+        final MapperService mapperService = createMapperService(
+            Settings.builder()
+                .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.name())
+                .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), DataStreamTimestampFieldMapper.DEFAULT_PATH)
+                .build(),
+            timestampMapping(true, b -> {
+                b.startObject("@timestamp");
+                b.field("type", "date");
+                b.endObject();
+            })
+        );
+
+        final DateFieldMapper timestampMapper = (DateFieldMapper) mapperService.documentMapper()
+            .mappers()
+            .getMapper(DataStreamTimestampFieldMapper.DEFAULT_PATH);
+        assertTrue(timestampMapper.hasDocValuesSparseIndex());
+    }
+
+    public void testFieldTypeWithSkipDocValues_WithoutSorting() throws IOException {
+        final MapperService mapperService = createMapperService(
+            Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.name()).build(),
+            timestampMapping(true, b -> {
+                b.startObject("@timestamp");
+                b.field("type", "date");
+                b.endObject();
+            })
+        );
+
+        final DateFieldMapper timestampMapper = (DateFieldMapper) mapperService.documentMapper()
+            .mappers()
+            .getMapper(DataStreamTimestampFieldMapper.DEFAULT_PATH);
+        assertTrue(timestampMapper.hasDocValuesSparseIndex());
+    }
+
+    public void testFieldTypeWithSkipDocValues_StandardMode() throws IOException {
+        final MapperService mapperService = createMapperService(
+            Settings.builder().put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), DataStreamTimestampFieldMapper.DEFAULT_PATH).build(),
+            timestampMapping(true, b -> {
+                b.startObject("@timestamp");
+                b.field("type", "date");
+                b.endObject();
+            })
+        );
+
+        final DateFieldMapper timestampMapper = (DateFieldMapper) mapperService.documentMapper()
+            .mappers()
+            .getMapper(DataStreamTimestampFieldMapper.DEFAULT_PATH);
+        assertFalse(timestampMapper.hasDocValuesSparseIndex());
+    }
+
+    public void testFieldTypeWithSkipDocValues_InvalidFieldName() throws IOException {
+        final MapperService mapperService = createMapperService(
+            Settings.builder()
+                .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.name())
+                .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), DataStreamTimestampFieldMapper.DEFAULT_PATH)
+                .build(),
+            timestampMapping(true, b -> {
+                b.startObject("timestamp");
+                b.field("type", "date");
+                b.endObject();
+            })
+        );
+
+        final DateFieldMapper customTimestamp = (DateFieldMapper) mapperService.documentMapper().mappers().getMapper("timestamp");
+        assertFalse(customTimestamp.hasDocValuesSparseIndex());
+
+        // Default LogsDB mapping including @timestamp field is used
+        final DateFieldMapper defaultTimestamp = (DateFieldMapper) mapperService.documentMapper().mappers().getMapper("@timestamp");
+        assertTrue(defaultTimestamp.hasDocValuesSparseIndex());
     }
 }

@@ -774,6 +774,7 @@ public class ShardStateAction {
                 maybeUpdatedState = maybeRemoveIndexRefreshBlocks(maybeUpdatedState, indicesWithUnpromotableShardsStarted);
 
                 assert assertStartedIndicesHaveCompleteTimestampRanges(maybeUpdatedState);
+                assert assertRefreshBlockIsNotPresentWhenTheIndexIsSearchable(maybeUpdatedState);
 
                 for (final var taskContext : tasksToBeApplied) {
                     final var task = taskContext.getTask();
@@ -789,10 +790,11 @@ public class ShardStateAction {
             return maybeUpdatedState;
         }
 
-        private ClusterState maybeRemoveIndexRefreshBlocks(
+        private static ClusterState maybeRemoveIndexRefreshBlocks(
             ClusterState clusterState,
             @Nullable Set<Index> indicesWithUnpromotableShardsStarted
         ) {
+            // The provided cluster state must include the newly STARTED unpromotable shards
             if (indicesWithUnpromotableShardsStarted == null) {
                 return clusterState;
             }
@@ -800,7 +802,7 @@ public class ShardStateAction {
             ClusterBlocks.Builder clusterBlocksBuilder = null;
             for (Index indexWithUnpromotableShardsStarted : indicesWithUnpromotableShardsStarted) {
                 String indexName = indexWithUnpromotableShardsStarted.getName();
-                assert clusterState.blocks().hasIndexBlock(indexName, INDEX_REFRESH_BLOCK);
+                assert clusterState.blocks().hasIndexBlock(indexName, INDEX_REFRESH_BLOCK) : indexWithUnpromotableShardsStarted;
 
                 var indexRoutingTable = clusterState.routingTable().index(indexWithUnpromotableShardsStarted);
                 if (indexRoutingTable.readyForSearch(clusterState)) {
@@ -837,6 +839,15 @@ public class ShardStateAction {
                         + clusterState.metadata().index(cursor.getKey()).getEventIngestedRange()
                         + " for "
                         + cursor.getValue().prettyPrint();
+            }
+            return true;
+        }
+
+        private static boolean assertRefreshBlockIsNotPresentWhenTheIndexIsSearchable(ClusterState clusterState) {
+            for (IndexMetadata index : clusterState.metadata()) {
+                assert clusterState.routingTable().index(index.getIndex()).readyForSearch(clusterState)
+                    && clusterState.blocks().hasIndexBlock(index.getIndex().getName(), INDEX_REFRESH_BLOCK) == false
+                    : "Index [" + index.getIndex() + "] is searchable but has an INDEX_REFRESH_BLOCK";
             }
             return true;
         }

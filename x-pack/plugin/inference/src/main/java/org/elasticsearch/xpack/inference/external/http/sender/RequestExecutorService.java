@@ -97,7 +97,8 @@ public class RequestExecutorService implements RequestExecutor {
 
     // TODO: for later (after 8.18)
     // TODO: pass in divisor to RateLimiterCreator
-    // TODO: another map for service/task-type-key -> set of RateLimitingEndpointHandler (used for updates; update divisor and then update all endpoint handlers)
+    // TODO: another map for service/task-type-key -> set of RateLimitingEndpointHandler (used for updates; update divisor and then update
+    // all endpoint handlers)
     // TODO: one map for service/task-type-key -> divisor (this gets also read when we create an inference endpoint)
     // TODO: divisor value read/writes need to be synchronized in some way
 
@@ -109,7 +110,7 @@ public class RequestExecutorService implements RequestExecutor {
     private final ConcurrentMap<Object, RateLimitingEndpointHandler> rateLimitGroupings = new ConcurrentHashMap<>();
     // TODO: add one atomic integer (number of nodes); also explain the assumption and why this works
     // TODO: document that this impacts chat completion (and increase the default rate limit)
-    private final AtomicInteger rateLimitDivisor =  new AtomicInteger(1);
+    private final AtomicInteger rateLimitDivisor = new AtomicInteger(1);
     private final ThreadPool threadPool;
     private final CountDownLatch startupLatch;
     private final CountDownLatch terminationLatch = new CountDownLatch(1);
@@ -193,7 +194,7 @@ public class RequestExecutorService implements RequestExecutor {
     @Override
     public void updateRateLimitDivisor(Integer numResponsibleNodes) {
         rateLimitDivisor.set(numResponsibleNodes);
-        for(var rateLimitingEndpointHandler : rateLimitGroupings.values()){
+        for (var rateLimitingEndpointHandler : rateLimitGroupings.values()) {
             rateLimitingEndpointHandler.updateTokensPerTimeUnit(rateLimitDivisor.get());
         }
     }

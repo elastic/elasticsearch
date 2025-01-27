@@ -29,15 +29,13 @@ public record FileEntitlement(String path, Mode mode) implements Entitlement {
         return Paths.get(path).toAbsolutePath().normalize().toString();
     }
 
-    // TODO: think about whether read/write or "all"
-    // TODO: think about mode parsing?
     private static Mode parseMode(String mode) {
         if (mode.equals("read")) {
             return Mode.READ;
         } else if (mode.equals("read_write")) {
             return Mode.READ_WRITE;
         } else {
-            throw new IllegalArgumentException("invalid mode: " + mode + ", valid values: [read, read_write]");
+            throw new PolicyValidationException("invalid mode: " + mode + ", valid values: [read, read_write]");
         }
     }
 

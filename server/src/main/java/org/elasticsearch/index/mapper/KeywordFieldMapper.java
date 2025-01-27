@@ -71,7 +71,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Iterator;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -379,7 +378,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             super.onScriptError = onScriptError.getValue();
 
             var sourceKeepMode = this.sourceKeepMode.orElse(indexSourceKeepMode);
-            BinaryFieldMapper offsetsFieldMapper;
+            String offsetsFieldName;
             if (context.isSourceSynthetic()
                 && sourceKeepMode == SourceKeepMode.ARRAYS
                 && fieldtype.stored() == false
@@ -391,10 +390,9 @@ public final class KeywordFieldMapper extends FieldMapper {
 
                 // keep track of value offsets so that we can reconstruct arrays from doc values in order as was specified during indexing
                 // (if field is stored then there is no point of doing this)
-                String fieldName = leafName() + OFFSETS_FIELD_NAME_SUFFIX;
-                offsetsFieldMapper = new BinaryFieldMapper.Builder(fieldName, context.isSourceSynthetic()).docValues(true).build(context);
+                offsetsFieldName = leafName() + OFFSETS_FIELD_NAME_SUFFIX;
             } else {
-                offsetsFieldMapper = null;
+                offsetsFieldName = null;
             }
 
             return new KeywordFieldMapper(
@@ -404,7 +402,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 builderParams(this, context),
                 context.isSourceSynthetic(),
                 this,
-                offsetsFieldMapper,
+                offsetsFieldName,
                 indexSourceKeepMode
             );
         }
@@ -896,7 +894,7 @@ public final class KeywordFieldMapper extends FieldMapper {
     private final IndexAnalyzers indexAnalyzers;
     private final int ignoreAboveDefault;
     private final int ignoreAbove;
-    private final BinaryFieldMapper offsetsFieldMapper;
+    private final String offsetsFieldName;
     private final SourceKeepMode indexSourceKeepMode;
 
     private KeywordFieldMapper(
@@ -906,7 +904,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         BuilderParams builderParams,
         boolean isSyntheticSource,
         Builder builder,
-        BinaryFieldMapper offsetsFieldMapper,
+        String offsetsFieldName,
         SourceKeepMode indexSourceKeepMode
     ) {
         super(simpleName, mappedFieldType, builderParams);
@@ -924,7 +922,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         this.isSyntheticSource = isSyntheticSource;
         this.ignoreAboveDefault = builder.ignoreAboveDefault;
         this.ignoreAbove = builder.ignoreAbove.getValue();
-        this.offsetsFieldMapper = offsetsFieldMapper;
+        this.offsetsFieldName = offsetsFieldName;
         this.indexSourceKeepMode = indexSourceKeepMode;
     }
 
@@ -937,12 +935,12 @@ public final class KeywordFieldMapper extends FieldMapper {
     public boolean parsesArrayValue(DocumentParserContext context) {
         // Only if offsets need to be recorded/stored and if current content hasn't been recorded yet.
         // (for example if parent object or object array got stored in ignored source)
-        return offsetsFieldMapper != null && context.getRecordedSource() == false;
+        return offsetsFieldName != null && context.getRecordedSource() == false;
     }
 
     @Override
     public void parse(DocumentParserContext context) throws IOException {
-        if (offsetsFieldMapper != null) {
+        if (offsetsFieldName != null) {
             if (builderParams.hasScript()) {
                 throwIndexingWithScriptParam();
             }
@@ -970,7 +968,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         while (true) {
             XContentParser.Token token = parser.nextToken();
             if (token == XContentParser.Token.END_ARRAY) {
-                context.maybeRecordEmptyArray(offsetsFieldMapper.fullPath());
+                context.maybeRecordEmptyArray(offsetsFieldName);
                 return;
             }
             if (token.isValue() || token == XContentParser.Token.VALUE_NULL) {
@@ -980,9 +978,9 @@ public final class KeywordFieldMapper extends FieldMapper {
                 }
                 boolean indexed = indexValue(context, value);
                 if (indexed) {
-                    context.recordOffset(offsetsFieldMapper.fullPath(), value);
+                    context.recordOffset(offsetsFieldName, value);
                 } else if (value == null) {
-                    context.recordNull(offsetsFieldMapper.fullPath());
+                    context.recordNull(offsetsFieldName);
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
                 parseArray(context);
@@ -1153,7 +1151,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 }
             });
         } else if (hasDocValues) {
-            String offsetsFullPath = offsetsFieldMapper != null ? offsetsFieldMapper.fullPath() : null;
+            String offsetsFullPath = offsetsFieldName != null ? offsetsFieldName : null;
             layers.add(new SortedSetDocValuesSyntheticFieldLoaderLayer(fullPath(), offsetsFullPath) {
 
                 @Override

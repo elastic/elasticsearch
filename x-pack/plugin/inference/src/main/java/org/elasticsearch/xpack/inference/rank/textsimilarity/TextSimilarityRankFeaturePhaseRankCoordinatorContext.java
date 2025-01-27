@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 import org.elasticsearch.xpack.inference.services.cohere.rerank.CohereRerankTaskSettings;
 import org.elasticsearch.xpack.inference.services.googlevertexai.rerank.GoogleVertexAiRerankTaskSettings;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
@@ -130,10 +131,14 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
      */
     @Override
     protected RankFeatureDoc[] preprocess(RankFeatureDoc[] originalDocs) {
-        return Arrays.stream(originalDocs)
-            .filter(doc -> minScore == null || doc.score >= minScore)
-            .sorted(Comparator.comparing((RankFeatureDoc doc) -> doc.score).reversed())
-            .toArray(RankFeatureDoc[]::new);
+        List<RankFeatureDoc> docs = new ArrayList<>();
+        for (RankFeatureDoc doc : originalDocs) {
+            if (minScore == null || doc.score >= minScore) {
+                doc.score = normalizeScore(doc.score);
+                docs.add(doc);
+            }
+        }
+        return docs.stream().sorted(Comparator.comparing((RankFeatureDoc doc) -> doc.score).reversed()).toArray(RankFeatureDoc[]::new);
     }
 
     protected InferenceAction.Request generateRequest(List<String> docFeatures) {
@@ -150,19 +155,19 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
     }
 
     private float[] extractScoresFromRankedDocs(List<RankedDocsResults.RankedDoc> rankedDocs) {
-        // As some models might produce negative scores, we want to ensure that all scores will be positive
-        // so we will make use of the following normalization formula:
-        // score = max(score, 0) + min(exp(score), 1)
-        // this will ensure that all positive scores lie in the [1, inf) range,
-        // while negative values (and 0) will be shifted to (0, 1]
         float[] scores = new float[rankedDocs.size()];
         for (RankedDocsResults.RankedDoc rankedDoc : rankedDocs) {
-            scores[rankedDoc.index()] = normalizeScore(rankedDoc.relevanceScore());
+            scores[rankedDoc.index()] = rankedDoc.relevanceScore();
         }
         return scores;
     }
 
     private static float normalizeScore(float score) {
+        // As some models might produce negative scores, we want to ensure that all scores will be positive
+        // so we will make use of the following normalization formula:
+        // score = max(score, 0) + min(exp(score), 1)
+        // this will ensure that all positive scores lie in the [1, inf) range,
+        // while negative values (and 0) will be shifted to (0, 1]
         return Math.max(score, 0) + Math.min((float) Math.exp(score), 1);
     }
 }

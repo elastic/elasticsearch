@@ -406,9 +406,6 @@ tests:
 - class: org.elasticsearch.search.basic.SearchWithRandomIOExceptionsIT
   method: testRandomDirectoryIOExceptions
   issue: https://github.com/elastic/elasticsearch/issues/118733
-- class: org.elasticsearch.xpack.migrate.action.ReindexDatastreamIndexTransportActionIT
-  method: testTsdbStartEndSet
-  issue: https://github.com/elastic/elasticsearch/issues/120314
 - class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
   method: test {p0=search.vectors/41_knn_search_bbq_hnsw/Vector rescoring has same scoring as exact search for kNN section}
   issue: https://github.com/elastic/elasticsearch/issues/120441
@@ -444,3 +441,6 @@ tests:
 - class: org.elasticsearch.action.search.SearchProgressActionListenerIT
   method: testSearchProgressWithHitsAndAggs
   issue: https://github.com/elastic/elasticsearch/issues/120583
+- class: org.elasticsearch.xpack.esql.action.CrossClusterAsyncEnrichStopIT
+  method: testEnrichAfterStop
+  issue: https://github.com/elastic/elasticsearch/issues/120757

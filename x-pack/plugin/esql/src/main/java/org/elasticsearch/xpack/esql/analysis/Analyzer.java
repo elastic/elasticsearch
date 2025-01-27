@@ -443,43 +443,18 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 childrenOutput.addAll(output);
             }
 
-            if (plan instanceof Aggregate aggregate) {
-                return resolveAggregate(aggregate, childrenOutput);
-            }
-
-            if (plan instanceof Drop d) {
-                return resolveDrop(d, childrenOutput);
-            }
-
-            if (plan instanceof Rename r) {
-                return resolveRename(r, childrenOutput);
-            }
-
-            if (plan instanceof Keep p) {
-                return resolveKeep(p, childrenOutput);
-            }
-
-            if (plan instanceof Eval p) {
-                return resolveEval(p, childrenOutput);
-            }
-
-            if (plan instanceof Enrich p) {
-                return resolveEnrich(p, childrenOutput);
-            }
-
-            if (plan instanceof MvExpand p) {
-                return resolveMvExpand(p, childrenOutput);
-            }
-
-            if (plan instanceof Lookup l) {
-                return resolveLookup(l, childrenOutput);
-            }
-
-            if (plan instanceof LookupJoin j) {
-                return resolveLookupJoin(j);
-            }
-
-            return plan.transformExpressionsOnly(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, childrenOutput));
+            return switch (plan) {
+                case Aggregate aggregate -> resolveAggregate(aggregate, childrenOutput);
+                case Drop d -> resolveDrop(d, childrenOutput);
+                case Rename r -> resolveRename(r, childrenOutput);
+                case Keep p -> resolveKeep(p, childrenOutput);
+                case Eval p -> resolveEval(p, childrenOutput);
+                case Enrich p -> resolveEnrich(p, childrenOutput);
+                case MvExpand p -> resolveMvExpand(p, childrenOutput);
+                case Lookup l -> resolveLookup(l, childrenOutput);
+                case LookupJoin j -> resolveLookupJoin(j);
+                default -> plan.transformExpressionsOnly(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, childrenOutput));
+            };
         }
 
         private Aggregate resolveAggregate(Aggregate aggregate, List<Attribute> childrenOutput) {
@@ -1091,7 +1066,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return processScalarOrGroupingFunction(f, registry);
             }
             if (f instanceof EsqlArithmeticOperation || f instanceof BinaryComparison) {
-                return processBinaryOperator((BinaryOperator) f);
+                return processBinaryOperator((BinaryOperator<?, ?, ?, ?>) f);
             }
             return f;
         }

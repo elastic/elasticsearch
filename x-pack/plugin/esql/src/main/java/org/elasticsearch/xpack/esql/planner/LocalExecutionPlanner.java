@@ -193,57 +193,37 @@ public class LocalExecutionPlanner {
     }
 
     private PhysicalOperation plan(PhysicalPlan node, LocalExecutionPlannerContext context) {
-        if (node instanceof AggregateExec aggregate) {
-            return planAggregation(aggregate, context);
-        } else if (node instanceof FieldExtractExec fieldExtractExec) {
-            return planFieldExtractNode(fieldExtractExec, context);
-        } else if (node instanceof ExchangeExec exchangeExec) {
-            return planExchange(exchangeExec, context);
-        } else if (node instanceof TopNExec topNExec) {
-            return planTopN(topNExec, context);
-        } else if (node instanceof EvalExec eval) {
-            return planEval(eval, context);
-        } else if (node instanceof DissectExec dissect) {
-            return planDissect(dissect, context);
-        } else if (node instanceof GrokExec grok) {
-            return planGrok(grok, context);
-        } else if (node instanceof ProjectExec project) {
-            return planProject(project, context);
-        } else if (node instanceof FilterExec filter) {
-            return planFilter(filter, context);
-        } else if (node instanceof LimitExec limit) {
-            return planLimit(limit, context);
-        } else if (node instanceof MvExpandExec mvExpand) {
-            return planMvExpand(mvExpand, context);
-        }
-        // source nodes
-        else if (node instanceof EsQueryExec esQuery) {
-            return planEsQueryNode(esQuery, context);
-        } else if (node instanceof EsStatsQueryExec statsQuery) {
-            return planEsStats(statsQuery, context);
-        } else if (node instanceof LocalSourceExec localSource) {
-            return planLocal(localSource, context);
-        } else if (node instanceof ShowExec show) {
-            return planShow(show);
-        } else if (node instanceof ExchangeSourceExec exchangeSource) {
-            return planExchangeSource(exchangeSource, context);
-        }
-        // lookups and joins
-        else if (node instanceof EnrichExec enrich) {
-            return planEnrich(enrich, context);
-        } else if (node instanceof HashJoinExec join) {
-            return planHashJoin(join, context);
-        } else if (node instanceof LookupJoinExec join) {
-            return planLookupJoin(join, context);
-        }
-        // output
-        else if (node instanceof OutputExec outputExec) {
-            return planOutput(outputExec, context);
-        } else if (node instanceof ExchangeSinkExec exchangeSink) {
-            return planExchangeSink(exchangeSink, context);
-        }
+        return switch (node) {
+            case AggregateExec aggregate -> planAggregation(aggregate, context);
+            case FieldExtractExec fieldExtractExec -> planFieldExtractNode(fieldExtractExec, context);
+            case ExchangeExec exchangeExec -> planExchange(exchangeExec, context);
+            case TopNExec topNExec -> planTopN(topNExec, context);
+            case EvalExec eval -> planEval(eval, context);
+            case DissectExec dissect -> planDissect(dissect, context);
+            case GrokExec grok -> planGrok(grok, context);
+            case ProjectExec project -> planProject(project, context);
+            case FilterExec filter -> planFilter(filter, context);
+            case LimitExec limit -> planLimit(limit, context);
+            case MvExpandExec mvExpand -> planMvExpand(mvExpand, context);
 
-        throw new EsqlIllegalArgumentException("unknown physical plan node [" + node.nodeName() + "]");
+            // source nodes
+            case EsQueryExec esQuery -> planEsQueryNode(esQuery, context);
+            case EsStatsQueryExec statsQuery -> planEsStats(statsQuery, context);
+            case LocalSourceExec localSource -> planLocal(localSource, context);
+            case ShowExec show -> planShow(show);
+            case ExchangeSourceExec exchangeSource -> planExchangeSource(exchangeSource, context);
+
+            // lookups and joins
+            case EnrichExec enrich -> planEnrich(enrich, context);
+            case HashJoinExec join -> planHashJoin(join, context);
+            case LookupJoinExec join -> planLookupJoin(join, context);
+
+            // output
+            case OutputExec outputExec -> planOutput(outputExec, context);
+            case ExchangeSinkExec exchangeSink -> planExchangeSink(exchangeSink, context);
+            default -> throw new EsqlIllegalArgumentException("unknown physical plan node [" + node.nodeName() + "]");
+        };
+
     }
 
     private PhysicalOperation planAggregation(AggregateExec aggregate, LocalExecutionPlannerContext context) {

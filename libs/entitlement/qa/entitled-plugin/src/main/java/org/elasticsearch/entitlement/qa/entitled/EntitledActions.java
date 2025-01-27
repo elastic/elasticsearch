@@ -7,13 +7,16 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-apply plugin: 'elasticsearch.internal-java-rest-test'
-// Necessary to use tests in Serverless
-apply plugin: 'elasticsearch.internal-test-artifact'
+package org.elasticsearch.entitlement.qa.entitled;
 
-dependencies {
-  javaRestTestImplementation project(':libs:entitlement:qa:entitlement-test-plugin')
-  javaRestTestImplementation project(':libs:entitlement:qa:entitled-plugin')
-  clusterModules project(':libs:entitlement:qa:entitlement-test-plugin')
-  clusterModules project(':libs:entitlement:qa:entitled-plugin')
+import org.elasticsearch.core.SuppressForbidden;
+
+public final class EntitledActions {
+    private EntitledActions() {}
+
+    @SuppressForbidden(reason = "Exposes forbidden APIs for testing purposes")
+    static void System_clearProperty(String key) {
+        System.clearProperty(key);
+    }
+
 }

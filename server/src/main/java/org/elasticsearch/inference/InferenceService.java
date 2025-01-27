@@ -219,7 +219,7 @@ public interface InferenceService extends Closeable {
         return supportedStreamingTasks().contains(taskType);
     }
 
-    record DefaultConfigId(String inferenceId, TaskType taskType, InferenceService service) {};
+    record DefaultConfigId(String inferenceId, MinimalServiceSettings settings, InferenceService service) {};
 
     /**
      * Get the Ids and task type of any default configurations provided by this service

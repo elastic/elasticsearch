@@ -9,19 +9,15 @@
 
 package org.elasticsearch.entitlement.qa.entitled;
 
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.entitlement.runtime.api.NotEntitledException;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
 
-public class EntitledPlugin extends Plugin implements ExtensiblePlugin {
+import static org.elasticsearch.entitlement.qa.entitled.EntitledActions.System_clearProperty;
 
-    @SuppressForbidden(reason = "Exposes forbidden APIs for testing purposes")
-    public static void System_clearProperty(String key) {
-        System.clearProperty(key);
-    }
+public class EntitledPlugin extends Plugin implements ExtensiblePlugin {
 
     /**
      * Runs some actions that should be allowed or denied for this plugin,

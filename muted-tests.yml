@@ -444,3 +444,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.CrossClusterAsyncEnrichStopIT
   method: testEnrichAfterStop
   issue: https://github.com/elastic/elasticsearch/issues/120757
+- class: org.elasticsearch.xpack.shutdown.NodeShutdownIT
+  method: testStalledShardMigrationProperlyDetected
+  issue: https://github.com/elastic/elasticsearch/issues/115697
+- class: org.elasticsearch.xpack.security.FileSettingsRoleMappingsRestartIT
+  method: testFileSettingsReprocessedOnRestartWithoutVersionChange
+  issue: https://github.com/elastic/elasticsearch/issues/120964

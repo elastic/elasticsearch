@@ -85,9 +85,9 @@ public class DesiredBalanceMetrics {
         assert allocationStats != null : "allocation stats cannot be null";
         assert weightStatsPerNode != null : "node balance weight stats cannot be null";
         if (allocationStats != EMPTY_ALLOCATION_STATS) {
-            this.unassignedShards = allocationStats.unassignedShards();
-            this.totalAllocations = allocationStats.totalAllocations();
-            this.undesiredAllocations = allocationStats.undesiredAllocationsExcludingShuttingDownNodes();
+            this.unassignedShards = allocationStats.unassignedShards;
+            this.totalAllocations = allocationStats.totalAllocations;
+            this.undesiredAllocations = allocationStats.undesiredAllocationsExcludingShuttingDownNodes;
         }
         weightStatsPerNodeRef.set(weightStatsPerNode);
         allocationStatsPerNodeRef.set(nodeAllocationStats);

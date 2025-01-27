@@ -96,7 +96,7 @@ public class DesiredBalanceReconciler {
      * @param desiredBalance The new desired cluster shard allocation
      * @param allocation Cluster state information with which to make decisions, contains routing table metadata that will be modified to
      *                   reach the given desired balance.
-     * @return Allocation stats for this round of reconciliation changes.
+     * @return {@link DesiredBalanceMetrics.AllocationStats} for this round of reconciliation changes.
      */
     public DesiredBalanceMetrics.AllocationStats reconcile(DesiredBalance desiredBalance, RoutingAllocation allocation) {
         var nodeIds = allocation.routingNodes().getAllNodeIds();

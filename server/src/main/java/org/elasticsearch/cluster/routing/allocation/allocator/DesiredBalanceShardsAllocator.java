@@ -259,8 +259,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         if (currentDesiredBalanceRef.compareAndSet(DesiredBalance.NOT_MASTER, DesiredBalance.BECOME_MASTER_INITIAL)) {
             logger.debug("initialized desired balance for becoming master");
         }
-        var desiredBalanceInput = DesiredBalanceInput.create(index, allocation);
-        desiredBalanceComputation.onNewInput(desiredBalanceInput);
+        desiredBalanceComputation.onNewInput(DesiredBalanceInput.create(index, allocation));
 
         if (allocation.routingTable().indicesRouting().isEmpty()) {
             logger.debug("No eager reconciliation needed for empty routing table");
@@ -349,7 +348,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
             logger.debug("Reconciling desired balance for [{}]", desiredBalance.lastConvergedIndex());
         }
         recordTime(cumulativeReconciliationTime, () -> {
-            var allocationStats = desiredBalanceReconciler.reconcile(desiredBalance, allocation);
+            DesiredBalanceMetrics.AllocationStats allocationStats = desiredBalanceReconciler.reconcile(desiredBalance, allocation);
             updateDesireBalanceMetrics(desiredBalance, allocation, allocationStats);
         });
 

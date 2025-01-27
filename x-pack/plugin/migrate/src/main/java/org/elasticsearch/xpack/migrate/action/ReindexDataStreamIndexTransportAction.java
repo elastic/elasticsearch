@@ -154,7 +154,7 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
             .<BulkByScrollResponse>andThen(l -> reindex(sourceIndexName, destIndexName, l, taskId))
             .<AcknowledgedResponse>andThen(l -> copyOldSourceSettingsToDest(settingsBefore, destIndexName, l, taskId))
             .<AcknowledgedResponse>andThen(l -> sanityCheck(sourceIndexName, destIndexName, l, taskId))
-            .<CloseIndexResponse>andThen(l -> closeIndexIfWasOpen(destIndexName, wasClosed, l, taskId))
+            .<CloseIndexResponse>andThen(l -> closeIndexIfWasClosed(destIndexName, wasClosed, l, taskId))
             .andThenApply(ignored -> new ReindexDataStreamIndexAction.Response(destIndexName))
             .addListener(listener);
     }
@@ -170,7 +170,7 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
         }
     }
 
-    private void closeIndexIfWasOpen(
+    private void closeIndexIfWasClosed(
         String indexName,
         boolean wasClosed,
         ActionListener<CloseIndexResponse> listener,

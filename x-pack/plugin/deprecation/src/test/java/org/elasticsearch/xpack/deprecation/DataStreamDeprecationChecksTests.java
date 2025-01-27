@@ -199,7 +199,7 @@ public class DataStreamDeprecationChecksTests extends ESTestCase {
     ) {
         Settings.Builder settingsBuilder = isOld ? settings(IndexVersion.fromId(7170099)) : settings(IndexVersion.current());
         String indexName = (isOld ? "old-" : "new-") + (isClosed ? "closed-" : "") + "data-stream-index-" + suffix;
-        if (isOld) { // we only expect warnings on open old indices
+        if (isOld) {
             if (expectedIndices.isEmpty() == false && randomIntBetween(0, 2) == 0) {
                 settingsBuilder.put(INDEX_STORE_TYPE_SETTING.getKey(), SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_STORE_TYPE);
             } else {

@@ -28,7 +28,6 @@ import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.BlockingQueue;
@@ -56,7 +55,7 @@ import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_P
  * attempting to execute a task (aka waiting for the connection manager to lease a connection). See
  * {@link org.apache.http.client.config.RequestConfig.Builder#setConnectionRequestTimeout} for more info.
  */
-public class RequestExecutorService implements RequestExecutor {
+class RequestExecutorService implements RequestExecutor {
 
     /**
      * Provides dependency injection mainly for testing
@@ -187,12 +186,13 @@ public class RequestExecutorService implements RequestExecutor {
         return rateLimitGroupings.values().stream().mapToInt(RateLimitingEndpointHandler::queueSize).sum();
     }
 
-    public Collection<RateLimitingEndpointHandler> rateLimitingEndpointHandlers() {
-        return rateLimitGroupings.values();
-    }
-
     @Override
-    public void updateRateLimitDivisor(Integer numResponsibleNodes) {
+    public void updateRateLimitDivisor(int numResponsibleNodes) {
+        // in the unlikely case where we get an invalid value, we'll just ignore it
+        if (numResponsibleNodes <= 0) {
+            return;
+        }
+
         rateLimitDivisor.set(numResponsibleNodes);
         for (var rateLimitingEndpointHandler : rateLimitGroupings.values()) {
             rateLimitingEndpointHandler.updateTokensPerTimeUnit(rateLimitDivisor.get());
@@ -342,7 +342,7 @@ public class RequestExecutorService implements RequestExecutor {
      * This allows many requests to be serialized if they are being sent too fast. If the rate limit has not been met they will be sent
      * as soon as a thread is available.
      */
-    public static class RateLimitingEndpointHandler {
+    static class RateLimitingEndpointHandler {
 
         private static final TimeValue NO_TASKS_AVAILABLE = TimeValue.MAX_VALUE;
         private static final TimeValue EXECUTED_A_TASK = TimeValue.ZERO;

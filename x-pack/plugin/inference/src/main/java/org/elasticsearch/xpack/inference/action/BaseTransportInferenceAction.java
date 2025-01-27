@@ -141,7 +141,7 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
             }
 
             var service = serviceRegistry.getService(serviceName).get();
-            var routingDecision = determineRouting(serviceName, request);
+            var routingDecision = determineRouting(serviceName, request, unparsedModel);
 
             if (routingDecision.currentNodeShouldHandleRequest()) {
                 var model = service.parsePersistedConfigWithSecrets(
@@ -184,16 +184,16 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
         );
     }
 
-    private NodeRoutingDecision determineRouting(String serviceName, Request request) {
-        var requestTaskType = request.getTaskType();
+    private NodeRoutingDecision determineRouting(String serviceName, Request request, UnparsedModel unparsedModel) {
+        var modelTaskType = unparsedModel.taskType();
 
         // Rerouting not supported or request was already rerouted
-        if (inferenceServiceNodeLocalRateLimitCalculator.isTaskTypeReroutingSupported(serviceName, requestTaskType) == false
+        if (inferenceServiceNodeLocalRateLimitCalculator.isTaskTypeReroutingSupported(serviceName, modelTaskType) == false
             || request.hasBeenRerouted()) {
             return NodeRoutingDecision.handleLocally();
         }
 
-        var rateLimitAssignment = inferenceServiceNodeLocalRateLimitCalculator.getRateLimitAssignment(serviceName, requestTaskType);
+        var rateLimitAssignment = inferenceServiceNodeLocalRateLimitCalculator.getRateLimitAssignment(serviceName, modelTaskType);
 
         // No assignment yet
         if (rateLimitAssignment == null) {

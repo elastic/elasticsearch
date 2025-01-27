@@ -19,7 +19,6 @@ import org.junit.After;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
-import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -36,7 +35,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
-public class RequestTaskTests extends ESTestCase {
+public class TimedListenerTests extends ESTestCase {
 
     private static final TimeValue TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
     private ThreadPool threadPool;
@@ -53,43 +52,28 @@ public class RequestTaskTests extends ESTestCase {
 
     public void testExecuting_DoesNotCallOnFailureForTimeout_AfterIllegalArgumentException() {
         AtomicReference<Runnable> onTimeout = new AtomicReference<>();
-        var mockThreadPool = mockThreadPoolForTimeout(onTimeout);
+        var mockThreadPool = mockThreadPoolForTimeout(onTimeout, threadPool);
 
         @SuppressWarnings("unchecked")
         ActionListener<InferenceServiceResults> listener = mock(ActionListener.class);
+        var timedListener = new TimedListener<>(TimeValue.timeValueMillis(1), listener, mockThreadPool);
 
-        var requestTask = new RequestTask(
-            OpenAiEmbeddingsRequestManagerTests.makeCreator("url", null, "key", "model", null, "id", threadPool),
-            new DocumentsOnlyInput(List.of("abc")),
-            TimeValue.timeValueMillis(1),
-            mockThreadPool,
-            listener
-        );
-
-        requestTask.getListener().onFailure(new IllegalArgumentException("failed"));
+        timedListener.getListener().onFailure(new IllegalArgumentException("failed"));
         verify(listener, times(1)).onFailure(any());
-        assertTrue(requestTask.hasCompleted());
-        assertTrue(requestTask.getRequestCompletedFunction().get());
+        assertTrue(timedListener.hasCompleted());
 
         onTimeout.get().run();
         verifyNoMoreInteractions(listener);
     }
 
     public void testRequest_ReturnsTimeoutException() {
-
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        var requestTask = new RequestTask(
-            OpenAiEmbeddingsRequestManagerTests.makeCreator("url", null, "key", "model", null, "id", threadPool),
-            new DocumentsOnlyInput(List.of("abc")),
-            TimeValue.timeValueMillis(1),
-            threadPool,
-            listener
-        );
+        var timedListener = new TimedListener<>(TimeValue.timeValueMillis(1), listener, threadPool);
 
         var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
         assertThat(thrownException.getMessage(), is(format("Request timed out after [%s]", TimeValue.timeValueMillis(1))));
-        assertTrue(requestTask.hasCompleted());
-        assertTrue(requestTask.getRequestCompletedFunction().get());
+        assertTrue(timedListener.hasCompleted());
+        assertThat(thrownException.status().getStatus(), is(408));
     }
 
     public void testRequest_DoesNotCallOnFailureTwiceWhenTimingOut() throws Exception {
@@ -101,23 +85,16 @@ public class RequestTaskTests extends ESTestCase {
             return Void.TYPE;
         }).when(listener).onFailure(any());
 
-        var requestTask = new RequestTask(
-            OpenAiEmbeddingsRequestManagerTests.makeCreator("url", null, "key", "model", null, "id", threadPool),
-            new DocumentsOnlyInput(List.of("abc")),
-            TimeValue.timeValueMillis(1),
-            threadPool,
-            listener
-        );
+        var timedListener = new TimedListener<>(TimeValue.timeValueMillis(1), listener, threadPool);
 
         calledOnFailureLatch.await(TIMEOUT.millis(), TimeUnit.MILLISECONDS);
 
         ArgumentCaptor<Exception> argument = ArgumentCaptor.forClass(Exception.class);
         verify(listener, times(1)).onFailure(argument.capture());
         assertThat(argument.getValue().getMessage(), is(format("Request timed out after [%s]", TimeValue.timeValueMillis(1))));
-        assertTrue(requestTask.hasCompleted());
-        assertTrue(requestTask.getRequestCompletedFunction().get());
+        assertTrue(timedListener.hasCompleted());
 
-        requestTask.getListener().onFailure(new IllegalArgumentException("failed"));
+        timedListener.getListener().onFailure(new IllegalArgumentException("failed"));
         verifyNoMoreInteractions(listener);
     }
 
@@ -130,51 +107,36 @@ public class RequestTaskTests extends ESTestCase {
             return Void.TYPE;
         }).when(listener).onFailure(any());
 
-        var requestTask = new RequestTask(
-            OpenAiEmbeddingsRequestManagerTests.makeCreator("url", null, "key", "model", null, "id", threadPool),
-            new DocumentsOnlyInput(List.of("abc")),
-            TimeValue.timeValueMillis(1),
-            threadPool,
-            listener
-        );
+        var timedListener = new TimedListener<>(TimeValue.timeValueMillis(1), listener, threadPool);
 
         calledOnFailureLatch.await(TIMEOUT.millis(), TimeUnit.MILLISECONDS);
 
         ArgumentCaptor<Exception> argument = ArgumentCaptor.forClass(Exception.class);
         verify(listener, times(1)).onFailure(argument.capture());
         assertThat(argument.getValue().getMessage(), is(format("Request timed out after [%s]", TimeValue.timeValueMillis(1))));
-        assertTrue(requestTask.hasCompleted());
-        assertTrue(requestTask.getRequestCompletedFunction().get());
+        assertTrue(timedListener.hasCompleted());
 
-        requestTask.getListener().onResponse(mock(InferenceServiceResults.class));
+        timedListener.getListener().onResponse(mock(InferenceServiceResults.class));
         verifyNoMoreInteractions(listener);
     }
 
     public void testRequest_DoesNotCallOnFailureForTimeout_AfterAlreadyCallingOnResponse() throws Exception {
         AtomicReference<Runnable> onTimeout = new AtomicReference<>();
-        var mockThreadPool = mockThreadPoolForTimeout(onTimeout);
+        var mockThreadPool = mockThreadPoolForTimeout(onTimeout, threadPool);
 
         @SuppressWarnings("unchecked")
         ActionListener<InferenceServiceResults> listener = mock(ActionListener.class);
+        var timedListener = new TimedListener<>(TimeValue.timeValueMillis(1), listener, mockThreadPool);
 
-        var requestTask = new RequestTask(
-            OpenAiEmbeddingsRequestManagerTests.makeCreator("url", null, "key", "model", null, "id", threadPool),
-            new DocumentsOnlyInput(List.of("abc")),
-            TimeValue.timeValueMillis(1),
-            mockThreadPool,
-            listener
-        );
-
-        requestTask.getListener().onResponse(mock(InferenceServiceResults.class));
+        timedListener.getListener().onResponse(mock(InferenceServiceResults.class));
         verify(listener, times(1)).onResponse(any());
-        assertTrue(requestTask.hasCompleted());
-        assertTrue(requestTask.getRequestCompletedFunction().get());
+        assertTrue(timedListener.hasCompleted());
 
         onTimeout.get().run();
         verifyNoMoreInteractions(listener);
     }
 
-    private ThreadPool mockThreadPoolForTimeout(AtomicReference<Runnable> onTimeoutRunnable) {
+    public static ThreadPool mockThreadPoolForTimeout(AtomicReference<Runnable> onTimeoutRunnable, ThreadPool threadPool) {
         var mockThreadPool = mock(ThreadPool.class);
         when(mockThreadPool.executor(any())).thenReturn(mock(ExecutorService.class));
         when(mockThreadPool.getThreadContext()).thenReturn(threadPool.getThreadContext());

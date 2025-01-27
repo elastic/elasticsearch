@@ -51,14 +51,7 @@ public class IndexLifecycleUsageTransportAction extends XPackUsageFeatureTranspo
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
-        super(
-            XPackUsageFeatureAction.INDEX_LIFECYCLE.name(),
-            transportService,
-            clusterService,
-            threadPool,
-            actionFilters,
-            indexNameExpressionResolver
-        );
+        super(XPackUsageFeatureAction.INDEX_LIFECYCLE.name(), transportService, clusterService, threadPool, actionFilters);
     }
 
     @Override

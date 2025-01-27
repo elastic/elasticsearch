@@ -36,14 +36,7 @@ public class DataStreamUsageTransportAction extends XPackUsageFeatureTransportAc
         IndexNameExpressionResolver indexNameExpressionResolver,
         DataStreamFailureStoreSettings dataStreamFailureStoreSettings
     ) {
-        super(
-            XPackUsageFeatureAction.DATA_STREAMS.name(),
-            transportService,
-            clusterService,
-            threadPool,
-            actionFilters,
-            indexNameExpressionResolver
-        );
+        super(XPackUsageFeatureAction.DATA_STREAMS.name(), transportService, clusterService, threadPool, actionFilters);
         this.dataStreamFailureStoreSettings = dataStreamFailureStoreSettings;
     }
 

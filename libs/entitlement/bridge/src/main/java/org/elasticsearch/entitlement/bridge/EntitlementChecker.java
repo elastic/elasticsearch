@@ -42,6 +42,9 @@ import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.security.cert.CertStoreParameters;
 import java.util.List;
+import java.util.Locale;
+import java.util.Properties;
+import java.util.TimeZone;
 
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.HttpsURLConnection;
@@ -123,6 +126,15 @@ public interface EntitlementChecker {
 
     ////////////////////
     //
+    // System Properties and similar
+    //
+
+    void check$java_lang_System$$setProperty(Class<?> callerClass, String key, String value);
+
+    void check$java_lang_System$$clearProperty(Class<?> callerClass, String key);
+
+    ////////////////////
+    //
     // JVM-wide state changes
     //
 
@@ -131,6 +143,8 @@ public interface EntitlementChecker {
     void check$java_lang_System$$setOut(Class<?> callerClass, PrintStream out);
 
     void check$java_lang_System$$setErr(Class<?> callerClass, PrintStream err);
+
+    void check$java_lang_System$$setProperties(Class<?> callerClass, Properties props);
 
     void check$java_lang_Runtime$addShutdownHook(Class<?> callerClass, Runtime runtime, Thread hook);
 
@@ -175,6 +189,12 @@ public interface EntitlementChecker {
     void check$java_util_spi_TimeZoneNameProvider$(Class<?> callerClass);
 
     void check$java_util_logging_LogManager$(Class<?> callerClass);
+
+    void check$java_util_Locale$$setDefault(Class<?> callerClass, Locale locale);
+
+    void check$java_util_Locale$$setDefault(Class<?> callerClass, Locale.Category category, Locale locale);
+
+    void check$java_util_TimeZone$$setDefault(Class<?> callerClass, TimeZone zone);
 
     void check$java_net_DatagramSocket$$setDatagramSocketImplFactory(Class<?> callerClass, DatagramSocketImplFactory fac);
 
@@ -386,4 +406,16 @@ public interface EntitlementChecker {
     void check$sun_nio_ch_DatagramChannelImpl$send(Class<?> callerClass, DatagramChannel that, ByteBuffer src, SocketAddress target);
 
     void check$sun_nio_ch_DatagramChannelImpl$receive(Class<?> callerClass, DatagramChannel that, ByteBuffer dst);
+
+    ////////////////////
+    //
+    // Load native libraries
+    //
+    void check$java_lang_Runtime$load(Class<?> callerClass, Runtime that, String filename);
+
+    void check$java_lang_Runtime$loadLibrary(Class<?> callerClass, Runtime that, String libname);
+
+    void check$java_lang_System$$load(Class<?> callerClass, String filename);
+
+    void check$java_lang_System$$loadLibrary(Class<?> callerClass, String libname);
 }

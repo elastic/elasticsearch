@@ -10,9 +10,12 @@ package org.elasticsearch.xpack.esql.expression.function.fulltext;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.FunctionName;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
+import java.util.List;
 import java.util.function.Supplier;
 
 /**
@@ -27,6 +30,11 @@ public class MatchOperatorTests extends MatchTests {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        return MatchTests.parameters();
+        return AbstractMatchFullTextFunctionTests.parameters();
+    }
+
+    @Override
+    protected Expression build(Source source, List<Expression> args) {
+        return new MatchOperator(source, args.get(0), args.get(1));
     }
 }

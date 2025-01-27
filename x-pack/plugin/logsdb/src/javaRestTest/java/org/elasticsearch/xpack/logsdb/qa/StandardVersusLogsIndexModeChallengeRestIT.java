@@ -17,6 +17,8 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.logsdb.datageneration.matchers.MatchResult;
+import org.elasticsearch.logsdb.datageneration.matchers.Matcher;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
@@ -27,8 +29,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.logsdb.qa.matchers.MatchResult;
-import org.elasticsearch.xpack.logsdb.qa.matchers.Matcher;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;

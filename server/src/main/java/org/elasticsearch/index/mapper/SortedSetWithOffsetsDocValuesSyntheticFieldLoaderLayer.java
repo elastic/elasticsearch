@@ -21,13 +21,18 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Objects;
 
-public class SortedSetWithOffsetsDocValuesSyntheticFieldLoaderLayer implements CompositeSyntheticFieldLoader.DocValuesLayer {
+/**
+ * Load {@code _source} fields from {@link SortedSetDocValues} and associated {@link BinaryDocValues}. The former contains the unique values
+ * in sorted order and the latter the offsets for each instance of the values. This allows synthesizing array elements in order as was
+ * specified at index time. Note that this works only for leaf arrays.
+ */
+final class SortedSetWithOffsetsDocValuesSyntheticFieldLoaderLayer implements CompositeSyntheticFieldLoader.DocValuesLayer {
 
     private final String name;
     private final String offsetsFieldName;
-    private DocValuesFieldValues docValues = NO_VALUES;
+    private ImmediateDocValuesLoader docValues;
 
-    public SortedSetWithOffsetsDocValuesSyntheticFieldLoaderLayer(String name, String offsetsFieldName) {
+    SortedSetWithOffsetsDocValuesSyntheticFieldLoaderLayer(String name, String offsetsFieldName) {
         this.name = Objects.requireNonNull(name);
         this.offsetsFieldName = Objects.requireNonNull(offsetsFieldName);
     }
@@ -49,20 +54,30 @@ public class SortedSetWithOffsetsDocValuesSyntheticFieldLoaderLayer implements C
 
     @Override
     public boolean hasValue() {
-        return docValues.count() > 0;
+        if (docValues != null) {
+            return docValues.count() > 0;
+        } else {
+            return false;
+        }
     }
 
     @Override
     public long valueCount() {
-        return docValues.count();
+        if (docValues != null) {
+            return docValues.count();
+        } else {
+            return 0;
+        }
     }
 
     @Override
     public void write(XContentBuilder b) throws IOException {
-        docValues.write(b);
+        if (docValues != null) {
+            docValues.write(b);
+        }
     }
 
-    class ImmediateDocValuesLoader implements DocValuesLoader, DocValuesFieldValues {
+    static final class ImmediateDocValuesLoader implements DocValuesLoader {
         private final BinaryDocValues oDv;
         private final SortedSetDocValues dv;
         private final ByteArrayStreamInput scratch = new ByteArrayStreamInput();
@@ -98,7 +113,6 @@ public class SortedSetWithOffsetsDocValuesSyntheticFieldLoaderLayer implements C
             }
         }
 
-        @Override
         public int count() {
             if (hasValue) {
                 if (offsetToOrd != null) {
@@ -118,7 +132,6 @@ public class SortedSetWithOffsetsDocValuesSyntheticFieldLoaderLayer implements C
             }
         }
 
-        @Override
         public void write(XContentBuilder b) throws IOException {
             if (hasValue == false && hasOffset == false) {
                 return;
@@ -154,19 +167,4 @@ public class SortedSetWithOffsetsDocValuesSyntheticFieldLoaderLayer implements C
         }
     }
 
-    private static final DocValuesFieldValues NO_VALUES = new DocValuesFieldValues() {
-        @Override
-        public int count() {
-            return 0;
-        }
-
-        @Override
-        public void write(XContentBuilder b) {}
-    };
-
-    private interface DocValuesFieldValues {
-        int count();
-
-        void write(XContentBuilder b) throws IOException;
-    }
 }

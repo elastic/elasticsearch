@@ -70,6 +70,8 @@ public class SyntheticSourceNativeArrayIntegrationTests extends ESSingleNodeTest
             .endObject()
             .endObject()
             .endObject();
+        // Note values that would be ignored are added at the end of arrays,
+        // this makes testing easier as ignored values are always synthesized after regular values:
         var arrayValues = new Object[][] {
             new Object[] { null, "a", "ab", "abc", "abcd", null, "abcde" },
             new Object[] { "12345", "12345", "12345" },

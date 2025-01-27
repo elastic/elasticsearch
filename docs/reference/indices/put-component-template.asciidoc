@@ -97,6 +97,7 @@ Name of the component template to create.
 {es} includes the following built-in component templates:
 
 // tag::built-in-component-templates[]
+- `kibana-reporting@settings`
 - `logs@mappings`
 - `logs@settings`
 - `metrics@mappings`

@@ -68,9 +68,9 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
     private final DesiredBalanceReconcilerAction reconciler;
     private final DesiredBalanceComputer desiredBalanceComputer;
     /**
-     * Reconciliation ({@link DesiredBalanceReconciler#reconcile(DesiredBalance, RoutingAllocation, BalancingRoundStats.Builder)}) takes the
-     * {@link DesiredBalance} output of {@link DesiredBalanceComputer#compute} and identifies how shards need to be added, moved or removed
-     * to go from the current cluster shard allocation to the new desired allocation.
+     * Reconciliation ({@link DesiredBalanceReconciler#reconcile(DesiredBalance, RoutingAllocation)}) takes the {@link DesiredBalance}
+     * output of {@link DesiredBalanceComputer#compute} and identifies how shards need to be added, moved or removed to go from the current
+     * cluster shard allocation to the new desired allocation.
      */
     private final DesiredBalanceReconciler desiredBalanceReconciler;
     private final ContinuousComputation<DesiredBalanceInput> desiredBalanceComputation;
@@ -156,9 +156,6 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
                     return;
                 }
 
-                // TODO: this will be expanded upon shortly in ES-10341.
-                BalancingRoundStats.Builder statsBuilder = new BalancingRoundStats.Builder();
-
                 recordTime(
                     cumulativeComputationTime,
                     // We set currentDesiredBalance back to INITIAL when the node stands down as master in onNoLongerMaster.
@@ -191,13 +188,13 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
                         "Desired balance computation for [{}] terminated early with partial result, scheduling reconciliation",
                         index
                     );
-                    submitReconcileTask(currentDesiredBalance, statsBuilder);
+                    submitReconcileTask(currentDesiredBalance);
                     var newInput = DesiredBalanceInput.create(indexGenerator.incrementAndGet(), desiredBalanceInput.routingAllocation());
                     desiredBalanceComputation.compareAndEnqueue(desiredBalanceInput, newInput);
                 } else if (isFresh(desiredBalanceInput)) {
                     logger.debug("Desired balance computation for [{}] is completed, scheduling reconciliation", index);
                     computationsConverged.inc();
-                    submitReconcileTask(currentDesiredBalance, statsBuilder);
+                    submitReconcileTask(currentDesiredBalance);
                 } else {
                     logger.debug("Desired balance computation for [{}] is discarded as newer one is submitted", index);
                 }
@@ -272,7 +269,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         // Starts reconciliation towards desired balance that might have not been updated with a recent calculation yet.
         // This is fine as balance should have incremental rather than radical changes.
         // This should speed up achieving the desired balance in cases current state is still different from it (due to THROTTLING).
-        reconcile(currentDesiredBalanceRef.get(), allocation, desiredBalanceInput.clusterAllocationStatsBuilder());
+        reconcile(currentDesiredBalanceRef.get(), allocation);
     }
 
     private void processNodeShutdowns(ClusterState clusterState) {
@@ -341,19 +338,19 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
      * Submits the desired balance to be reconciled (applies the desired changes to the routing table) and creates and publishes a new
      * cluster state. The data nodes will receive and apply the new cluster state to start/move/remove shards.
      */
-    protected void submitReconcileTask(DesiredBalance desiredBalance, BalancingRoundStats.Builder statsBuilder) {
-        masterServiceTaskQueue.submitTask("reconcile-desired-balance", new ReconcileDesiredBalanceTask(desiredBalance, statsBuilder), null);
+    protected void submitReconcileTask(DesiredBalance desiredBalance) {
+        masterServiceTaskQueue.submitTask("reconcile-desired-balance", new ReconcileDesiredBalanceTask(desiredBalance), null);
     }
 
-    protected void reconcile(DesiredBalance desiredBalance, RoutingAllocation allocation, BalancingRoundStats.Builder statsBuilder) {
+    protected void reconcile(DesiredBalance desiredBalance, RoutingAllocation allocation) {
         if (logger.isTraceEnabled()) {
             logger.trace("Reconciling desired balance: {}", desiredBalance);
         } else {
             logger.debug("Reconciling desired balance for [{}]", desiredBalance.lastConvergedIndex());
         }
         recordTime(cumulativeReconciliationTime, () -> {
-            desiredBalanceReconciler.reconcile(desiredBalance, allocation, statsBuilder);
-            updateDesireBalanceMetrics(desiredBalance, allocation, statsBuilder.build());
+            var allocationStats = desiredBalanceReconciler.reconcile(desiredBalance, allocation);
+            updateDesireBalanceMetrics(desiredBalance, allocation, allocationStats);
         });
 
         if (logger.isTraceEnabled()) {
@@ -363,7 +360,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         }
     }
 
-    private RerouteStrategy createReconcileAllocationAction(DesiredBalance desiredBalance, BalancingRoundStats.Builder statsBuilder) {
+    private RerouteStrategy createReconcileAllocationAction(DesiredBalance desiredBalance) {
         return new RerouteStrategy() {
             @Override
             public void removeDelayMarkers(RoutingAllocation allocation) {
@@ -376,7 +373,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
 
             @Override
             public void execute(RoutingAllocation allocation) {
-                reconcile(desiredBalance, allocation, statsBuilder);
+                reconcile(desiredBalance, allocation);
             }
         };
     }
@@ -392,7 +389,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
     private void updateDesireBalanceMetrics(
         DesiredBalance desiredBalance,
         RoutingAllocation routingAllocation,
-        BalancingRoundStats balancingRoundStats
+        DesiredBalanceMetrics.AllocationStats allocationStats
     ) {
         var nodesStatsAndWeights = nodeAllocationStatsAndWeightsCalculator.nodesAllocationStatsAndWeights(
             routingAllocation.metadata(),
@@ -408,7 +405,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
                 filteredNodeAllocationStatsAndWeights.put(node, nodeStatsAndWeight.getValue());
             }
         }
-        desiredBalanceMetrics.updateMetrics(balancingRoundStats, desiredBalance.weightsPerNode(), filteredNodeAllocationStatsAndWeights);
+        desiredBalanceMetrics.updateMetrics(allocationStats, desiredBalance.weightsPerNode(), filteredNodeAllocationStatsAndWeights);
     }
 
     public DesiredBalanceStats getStats() {
@@ -440,11 +437,9 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
 
     private static final class ReconcileDesiredBalanceTask implements ClusterStateTaskListener {
         private final DesiredBalance desiredBalance;
-        private final BalancingRoundStats.Builder statsBuilder;
 
-        private ReconcileDesiredBalanceTask(DesiredBalance desiredBalance, BalancingRoundStats.Builder statsBuilder) {
+        private ReconcileDesiredBalanceTask(DesiredBalance desiredBalance) {
             this.desiredBalance = desiredBalance;
-            this.statsBuilder = statsBuilder;
         }
 
         @Override
@@ -481,7 +476,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
             try (var ignored = batchExecutionContext.dropHeadersContext()) {
                 var newState = reconciler.apply(
                     batchExecutionContext.initialState(),
-                    createReconcileAllocationAction(latest.getTask().desiredBalance, latest.getTask().statsBuilder)
+                    createReconcileAllocationAction(latest.getTask().desiredBalance)
                 );
                 latest.success(() -> pendingListenersQueue.complete(latest.getTask().desiredBalance.lastConvergedIndex()));
                 return newState;

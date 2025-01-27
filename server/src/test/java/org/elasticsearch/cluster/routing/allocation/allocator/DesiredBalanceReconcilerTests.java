@@ -1225,7 +1225,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
         while (true) {
 
             var allocation = createRoutingAllocationFrom(clusterState, deciders);
-            reconciler.reconcile(balance, allocation, new BalancingRoundStats.Builder());
+            reconciler.reconcile(balance, allocation);
 
             var initializing = shardsWithState(allocation.routingNodes(), ShardRoutingState.INITIALIZING);
             if (initializing.isEmpty()) {
@@ -1305,11 +1305,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
             + ") are not on their desired nodes, which exceeds the warn threshold of [10%]";
         // Desired assignment matches current routing table
         assertThatLogger(
-            () -> reconciler.reconcile(
-                new DesiredBalance(1, allShardsDesiredOnDataNode1),
-                createRoutingAllocationFrom(clusterState),
-                new BalancingRoundStats.Builder()
-            ),
+            () -> reconciler.reconcile(new DesiredBalance(1, allShardsDesiredOnDataNode1), createRoutingAllocationFrom(clusterState)),
             DesiredBalanceReconciler.class,
             new MockLog.UnseenEventExpectation(
                 "Should not log if all shards on desired location",
@@ -1319,11 +1315,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
             )
         );
         assertThatLogger(
-            () -> reconciler.reconcile(
-                new DesiredBalance(1, allShardsDesiredOnDataNode2),
-                createRoutingAllocationFrom(clusterState),
-                new BalancingRoundStats.Builder()
-            ),
+            () -> reconciler.reconcile(new DesiredBalance(1, allShardsDesiredOnDataNode2), createRoutingAllocationFrom(clusterState)),
             DesiredBalanceReconciler.class,
             node1ShuttingDown
                 ? new MockLog.UnseenEventExpectation(
@@ -1340,11 +1332,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
                 )
         );
         assertThatLogger(
-            () -> reconciler.reconcile(
-                new DesiredBalance(1, allShardsDesiredOnDataNode2),
-                createRoutingAllocationFrom(clusterState),
-                new BalancingRoundStats.Builder()
-            ),
+            () -> reconciler.reconcile(new DesiredBalance(1, allShardsDesiredOnDataNode2), createRoutingAllocationFrom(clusterState)),
             DesiredBalanceReconciler.class,
             new MockLog.UnseenEventExpectation(
                 "Should not log immediate second too many shards on undesired locations",
@@ -1358,11 +1346,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
     private static void reconcile(RoutingAllocation routingAllocation, DesiredBalance desiredBalance) {
         final var threadPool = mock(ThreadPool.class);
         when(threadPool.relativeTimeInMillisSupplier()).thenReturn(new AtomicLong()::incrementAndGet);
-        new DesiredBalanceReconciler(createBuiltInClusterSettings(), threadPool).reconcile(
-            desiredBalance,
-            routingAllocation,
-            new BalancingRoundStats.Builder()
-        );
+        new DesiredBalanceReconciler(createBuiltInClusterSettings(), threadPool).reconcile(desiredBalance, routingAllocation);
     }
 
     private static boolean isReconciled(RoutingNode node, DesiredBalance balance) {

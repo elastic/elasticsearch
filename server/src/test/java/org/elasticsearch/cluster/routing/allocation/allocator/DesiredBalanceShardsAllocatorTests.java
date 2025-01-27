@@ -958,12 +958,12 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             }
 
             @Override
-            protected void reconcile(DesiredBalance desiredBalance, RoutingAllocation allocation, BalancingRoundStats.Builder builder) {
+            protected void reconcile(DesiredBalance desiredBalance, RoutingAllocation allocation) {
                 fail("should not call reconcile");
             }
 
             @Override
-            protected void submitReconcileTask(DesiredBalance desiredBalance, BalancingRoundStats.Builder statsBuilder) {
+            protected void submitReconcileTask(DesiredBalance desiredBalance) {
                 assertThat(desiredBalance.lastConvergedIndex(), equalTo(0L));
                 reconciliationTaskSubmitted.set(true);
                 lastListener.onResponse(null);

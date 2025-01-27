@@ -29,7 +29,6 @@ import org.elasticsearch.cluster.routing.allocation.NodeAllocationStatsAndWeight
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
-import org.elasticsearch.cluster.routing.allocation.allocator.BalancingRoundStats;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalance;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
@@ -184,18 +183,14 @@ public abstract class ESAllocationTestCase extends ESTestCase {
             }
 
             @Override
-            protected void reconcile(
-                DesiredBalance desiredBalance,
-                RoutingAllocation allocation,
-                BalancingRoundStats.Builder statsBuilder
-            ) {
+            protected void reconcile(DesiredBalance desiredBalance, RoutingAllocation allocation) {
                 // do nothing as balance is not computed yet (during allocate)
             }
 
             @Override
-            protected void submitReconcileTask(DesiredBalance desiredBalance, BalancingRoundStats.Builder statsBuilder) {
+            protected void submitReconcileTask(DesiredBalance desiredBalance) {
                 // reconcile synchronously rather than in cluster state update task
-                super.reconcile(desiredBalance, lastAllocation, statsBuilder);
+                super.reconcile(desiredBalance, lastAllocation);
             }
         };
     }

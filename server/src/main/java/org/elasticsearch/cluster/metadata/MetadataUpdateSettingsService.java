@@ -340,8 +340,9 @@ public class MetadataUpdateSettingsService {
             }
 
             // provides the value of VERIFIED_READ_ONLY_SETTING before block changes
-            final Function<String, Boolean> verifiedReadOnly = indexName ->
-                VERIFIED_READ_ONLY_SETTING.get(currentState.metadata().index(indexName).getSettings());
+            final Function<String, Boolean> verifiedReadOnly = indexName -> VERIFIED_READ_ONLY_SETTING.get(
+                currentState.metadata().index(indexName).getSettings()
+            );
 
             final ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
             boolean changedBlocks = false;

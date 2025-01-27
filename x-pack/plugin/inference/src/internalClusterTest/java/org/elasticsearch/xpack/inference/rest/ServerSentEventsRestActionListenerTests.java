@@ -242,7 +242,7 @@ public class ServerSentEventsRestActionListenerTests extends ESIntegTestCase {
         @Override
         public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
             var randomString = randomUnicodeOfLengthBetween(2, 20);
-            return ChunkedToXContentHelper.object(ChunkedToXContentHelper.chunk((b, p) -> b.field("delta", randomString)));
+            return ChunkedToXContentHelper.chunk((b, p) -> b.startObject().field("delta", randomString).endObject());
         }
     }
 

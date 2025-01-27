@@ -13,15 +13,14 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.Function;
 
 // This class is deprecated in favor of ScriptStats and ScriptContextStats
 public record ScriptCacheStats(Map<String, ScriptStats> context, ScriptStats general) implements Writeable, ToXContentFragment {
@@ -49,6 +48,13 @@ public record ScriptCacheStats(Map<String, ScriptStats> context, ScriptStats gen
         return new ScriptCacheStats(context);
     }
 
+    private Map.Entry<String, ScriptStats>[] sortedContextStats() {
+        @SuppressWarnings("unchecked")
+        Map.Entry<String, ScriptStats>[] stats = context.entrySet().toArray(Map.Entry[]::new);
+        Arrays.sort(stats, Map.Entry.comparingByKey());
+        return stats;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         if (general != null) {
@@ -59,36 +65,36 @@ public record ScriptCacheStats(Map<String, ScriptStats> context, ScriptStats gen
 
         out.writeBoolean(true);
         out.writeInt(context.size());
-        for (String name : context.keySet().stream().sorted().toList()) {
-            out.writeString(name);
-            context.get(name).writeTo(out);
+        for (Map.Entry<String, ScriptStats> stats : sortedContextStats()) {
+            out.writeString(stats.getKey());
+            stats.getValue().writeTo(out);
         }
+    }
+
+    private static void scriptStatsToXContent(ScriptStats s, XContentBuilder builder) throws IOException {
+        builder.field(ScriptStats.Fields.COMPILATIONS, s.getCompilations());
+        builder.field(ScriptStats.Fields.CACHE_EVICTIONS, s.getCacheEvictions());
+        builder.field(ScriptStats.Fields.COMPILATION_LIMIT_TRIGGERED, s.getCompilationLimitTriggered());
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        Function<ScriptStats, ToXContent> statsFields = s -> (b, p) -> b.field(ScriptStats.Fields.COMPILATIONS, s.getCompilations())
-            .field(ScriptStats.Fields.CACHE_EVICTIONS, s.getCacheEvictions())
-            .field(ScriptStats.Fields.COMPILATION_LIMIT_TRIGGERED, s.getCompilationLimitTriggered());
-
         builder.startObject(Fields.SCRIPT_CACHE_STATS);
         builder.startObject(Fields.SUM);
         if (general != null) {
-            statsFields.apply(general).toXContent(builder, params);
+            scriptStatsToXContent(general, builder);
             builder.endObject().endObject();
             return builder;
         }
 
-        statsFields.apply(sum()).toXContent(builder, params);
+        scriptStatsToXContent(sum(), builder);
         builder.endObject();
 
         builder.startArray(Fields.CONTEXTS);
-        for (var it = context.keySet().stream().sorted().iterator(); it.hasNext();) {
-            String name = it.next();
-
+        for (Map.Entry<String, ScriptStats> stats : sortedContextStats()) {
             builder.startObject();
-            builder.field(Fields.CONTEXT, name);
-            statsFields.apply(context.get(name)).toXContent(builder, params);
+            builder.field(Fields.CONTEXT, stats.getKey());
+            scriptStatsToXContent(stats.getValue(), builder);
             builder.endObject();
         }
         builder.endArray();

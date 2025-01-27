@@ -40,6 +40,7 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
 import java.util.function.Predicate;
+import java.util.stream.Stream;
 
 /**
  * Holds execution metadata about ES|QL queries for cross-cluster searches in order to display
@@ -273,12 +274,12 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     }
 
     /**
-     * @param status the status you want a count of
-     * @return how many clusters are currently in a specific state
+     * @param status the status you want to access
+     * @return a stream of clusters with that status
      */
-    public int getClusterStateCount(Cluster.Status status) {
-        assert clusterInfo.size() > 0 : "ClusterMap in EsqlExecutionInfo must not be empty";
-        return (int) clusterInfo.values().stream().filter(cluster -> cluster.getStatus() == status).count();
+    public Stream<Cluster> getClusterStates(Cluster.Status status) {
+        assert clusterInfo.isEmpty() == false : "ClusterMap in EsqlExecutionInfo must not be empty";
+        return clusterInfo.values().stream().filter(cluster -> cluster.getStatus() == status);
     }
 
     @Override

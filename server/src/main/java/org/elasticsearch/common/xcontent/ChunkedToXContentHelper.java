@@ -51,6 +51,13 @@ public enum ChunkedToXContentHelper {
     }
 
     /**
+     * Defines an object named {@code name}, with the contents set by calling {@code toXContent} on each entry in {@code map}
+     */
+    public static <T> Iterator<ToXContent> object(String name, Map<String, T> map, Function<Map.Entry<String, T>, ToXContent> toXContent) {
+        return object(name, Iterators.map(map.entrySet().iterator(), toXContent));
+    }
+
+    /**
      * Defines an object named {@code name}, with the contents of each field created from each entry in {@code map}
      */
     public static Iterator<ToXContent> xContentObjectFields(String name, Map<String, ? extends ToXContent> map) {
@@ -107,22 +114,8 @@ public enum ChunkedToXContentHelper {
     /**
      * Defines an object named {@code name}, with the contents set by {@code iterator}
      */
-    public static Iterator<ToXContent> object(Iterator<? extends ToXContent> iterator) {
-        return Iterators.concat(startObject(), iterator, endObject());
-    }
-
-    /**
-     * Defines an object named {@code name}, with the contents set by {@code iterator}
-     */
     public static Iterator<ToXContent> object(String name, Iterator<? extends ToXContent> iterator) {
         return Iterators.concat(startObject(name), iterator, endObject());
-    }
-
-    /**
-     * Defines an object named {@code name}, with the contents set by calling {@code toXContent} on each entry in {@code map}
-     */
-    public static <T> Iterator<ToXContent> object(String name, Map<String, T> map, Function<Map.Entry<String, T>, ToXContent> toXContent) {
-        return object(name, Iterators.map(map.entrySet().iterator(), toXContent));
     }
 
     /**

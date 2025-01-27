@@ -299,17 +299,6 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
         return sourceBuilder;
     }
 
-    private RankDoc[] normalizeRankDocs(RankDoc[] rankDocs) {
-        // normalize scores according to
-        // score = max(score, 0) + min(exp(score), 1)
-        // this maps negative numbers to (0, 1) and positive numbers to [1, inf)
-        // which is really useful as we don't want to push down negative scores
-        for (RankDoc rankDoc : rankDocs) {
-            rankDoc.score = (float) (Math.max(rankDoc.score, 0) + Math.min(Math.exp(rankDoc.score), 1));
-        }
-        return rankDocs;
-    }
-
     private RankDoc[] getRankDocs(SearchResponse searchResponse) {
         int size = searchResponse.getHits().getHits().length;
         RankDoc[] docs = new RankDoc[size];

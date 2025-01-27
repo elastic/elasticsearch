@@ -149,6 +149,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.THREE;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TWO;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.asLimit;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptySource;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.fieldAttribute;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getFieldAttribute;
@@ -1860,10 +1861,10 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
     /**
      * Expected
-     * Limit[1000[INTEGER],false]
+     * Limit[1000[INTEGER],true]
      * \_MvExpand[x{r}#4,x{r}#19]
      *   \_EsqlProject[[first_name{f}#9 AS x]]
-     *     \_Limit[1000[INTEGER],true]
+     *     \_Limit[1000[INTEGER],false]
      *       \_EsRelation[test][_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, ge..]
      */
     public void testCopyDefaultLimitPastMvExpand() {
@@ -1874,9 +1875,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             | mv_expand x
             """);
 
-        var limit = as(plan, Limit.class);
-        assertEquals(as(limit.limit(), Literal.class).value(), 1000);
-        assertTrue(limit.duplicated());
+        var limit = asLimit(plan, 1000, true);
         var mvExpand = as(limit.child(), MvExpand.class);
         var keep = as(mvExpand.child(), EsqlProject.class);
         var limitPastMvExpand = as(keep.child(), Limit.class);
@@ -1886,10 +1885,10 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
     /**
      * Expected
-     * Limit[10[INTEGER],false]
+     * Limit[10[INTEGER],true]
      * \_MvExpand[first_name{f}#7,first_name{r}#17]
      *   \_EsqlProject[[first_name{f}#7, last_name{f}#10]]
-     *     \_Limit[1[INTEGER],true]
+     *     \_Limit[1[INTEGER],false]
      *       \_EsRelation[test][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]
      */
     public void testDontPushDownLimitPastMvExpand() {
@@ -1900,13 +1899,10 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             | mv_expand first_name
             | limit 10""");
 
-        var limit = as(plan, Limit.class);
-        assertEquals(as(limit.limit(), Literal.class).value(), 10);
-        assertTrue(limit.duplicated());
+        var limit = asLimit(plan, 10, true);
         var mvExpand = as(limit.child(), MvExpand.class);
         var project = as(mvExpand.child(), EsqlProject.class);
-        var limit2 = as(project.child(), Limit.class);
-        assertThat(limit2.limit().fold(FoldContext.small()), equalTo(1));
+        var limit2 = asLimit(project.child(), 1, false);
         as(limit2.child(), EsRelation.class);
     }
 
@@ -1914,12 +1910,12 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
      * Expected
      * EsqlProject[[emp_no{f}#19, first_name{r}#30, languages{f}#22, lll{r}#9, salary{r}#31]]
      * \_TopN[[Order[salary{r}#31,DESC,FIRST]],5[INTEGER]]
-     *   \_Limit[5[INTEGER],false]
+     *   \_Limit[5[INTEGER],true]
      *     \_MvExpand[salary{f}#24,salary{r}#31]
      *       \_Eval[[languages{f}#22 + 5[INTEGER] AS lll]]
-     *         \_Limit[5[INTEGER],true]
+     *         \_Limit[5[INTEGER],false]
      *           \_Filter[languages{f}#22 > 1[INTEGER]]
-     *             \_Limit[10[INTEGER],false]
+     *             \_Limit[10[INTEGER],true]
      *               \_MvExpand[first_name{f}#20,first_name{r}#30]
      *                 \_TopN[[Order[emp_no{f}#19,DESC,FIRST]],10[INTEGER]]
      *                   \_Filter[emp_no{f}#19 &leq; 10006[INTEGER]]
@@ -1944,16 +1940,12 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var topN = as(keep.child(), TopN.class);
         assertThat(topN.limit().fold(FoldContext.small()), equalTo(5));
         assertThat(orderNames(topN), contains("salary"));
-        var limit5Before = as(topN.child(), Limit.class);
-        assertEquals(as(limit5Before.limit(), Literal.class).value(), 5);
-        assertTrue(limit5Before.duplicated());
+        var limit5Before = asLimit(topN.child(), 5, true);
         var mvExp = as(limit5Before.child(), MvExpand.class);
         var eval = as(mvExp.child(), Eval.class);
-        var limit5 = as(eval.child(), Limit.class);
+        var limit5 = asLimit(eval.child(), 5, false);
         var filter = as(limit5.child(), Filter.class);
-        var limit10Before = as(filter.child(), Limit.class);
-        assertEquals(as(limit10Before.limit(), Literal.class).value(), 10);
-        assertTrue(limit10Before.duplicated());
+        var limit10Before = asLimit(filter.child(), 10, true);
         mvExp = as(limit10Before.child(), MvExpand.class);
         topN = as(mvExp.child(), TopN.class);
         assertThat(topN.limit().fold(FoldContext.small()), equalTo(10));
@@ -2059,12 +2051,12 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
      * TODO: Push down the filter correctly https://github.com/elastic/elasticsearch/issues/115311
      *
      * Expected
-     * Limit[5[INTEGER],true]
+     * Limit[5[INTEGER],false]
      * \_Filter[ISNOTNULL(first_name{r}#23)]
      *   \_Aggregate[STANDARD,[first_name{r}#23],[MAX(salary{f}#17,true[BOOLEAN]) AS max_s, first_name{r}#23]]
-     *     \_Limit[50[INTEGER],false]
+     *     \_Limit[50[INTEGER],true]
      *       \_MvExpand[first_name{f}#13,first_name{r}#23]
-     *         \_Limit[50[INTEGER],true]
+     *         \_Limit[50[INTEGER],false]
      *           \_EsRelation[test][_meta_field{f}#18, emp_no{f}#12, first_name{f}#13, ..]
      */
     public void testPushDown_TheRightLimit_PastMvExpand() {
@@ -2077,16 +2069,12 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             | where first_name is not null
             | limit 5""");
 
-        var limit = as(plan, Limit.class);
-        assertThat(limit.limit().fold(FoldContext.small()), equalTo(5));
+        var limit = asLimit(plan, 5);
         var filter = as(limit.child(), Filter.class);
         var agg = as(filter.child(), Aggregate.class);
-        var limit50Before = as(agg.child(), Limit.class);
-        assertEquals(as(limit50Before.limit(), Literal.class).value(), 50);
-        assertTrue(limit50Before.duplicated());
+        var limit50Before = asLimit(agg.child(), 50, true);
         var mvExp = as(limit50Before.child(), MvExpand.class);
-        limit = as(mvExp.child(), Limit.class);
-        assertThat(limit.limit().fold(FoldContext.small()), equalTo(50));
+        limit = asLimit(mvExp.child(), 50, false);
         as(limit.child(), EsRelation.class);
     }
 
@@ -2155,7 +2143,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     /**
      * Expected
      *
-     * Limit[10[INTEGER],false]
+     * Limit[10[INTEGER],true]
      * \_MvExpand[first_name{f}#7,first_name{r}#17]
      *   \_TopN[[Order[emp_no{f}#6,DESC,FIRST]],10[INTEGER]]
      *     \_Filter[emp_no{f}#6 &leq; 10006[INTEGER]]
@@ -2169,9 +2157,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             | mv_expand first_name
             | limit 10""");
 
-        var limit = as(plan, Limit.class);
-        assertEquals(as(limit.limit(), Literal.class).value(), 10);
-        assertTrue(limit.duplicated());
+        var limit = asLimit(plan, 10, true);
         var mvExp = as(limit.child(), MvExpand.class);
         var topN = as(mvExp.child(), TopN.class);
         assertThat(topN.limit().fold(FoldContext.small()), equalTo(10));
@@ -2211,13 +2197,13 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     /**
      * Expected
      *
-     * Limit[10000[INTEGER],false]
+     * Limit[10000[INTEGER],true]
      * \_MvExpand[c{r}#7,c{r}#16]
      *   \_EsqlProject[[c{r}#7, a{r}#3]]
      *     \_TopN[[Order[a{r}#3,ASC,FIRST]],7300[INTEGER]]
-     *       \_Limit[7300[INTEGER],false]
+     *       \_Limit[7300[INTEGER],true]
      *         \_MvExpand[b{r}#5,b{r}#15]
-     *           \_Limit[7300[INTEGER],true]
+     *           \_Limit[7300[INTEGER],false]
      *             \_LocalRelation[[a{r}#3, b{r}#5, c{r}#7],[ConstantNullBlock[positions=1],
      *               IntVectorBlock[vector=ConstantIntVector[positions=1, value=123]],
      *               IntVectorBlock[vector=ConstantIntVector[positions=1, value=234]]]]
@@ -2232,20 +2218,15 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             | sort a NULLS FIRST
             | mv_expand c""");
 
-        var limit10kBefore = as(plan, Limit.class);
-        assertEquals(as(limit10kBefore.limit(), Literal.class).value(), 10000);
-        assertTrue(limit10kBefore.duplicated());
+        var limit10kBefore = asLimit(plan, 10000, true);
         var mvExpand = as(limit10kBefore.child(), MvExpand.class);
         var project = as(mvExpand.child(), EsqlProject.class);
         var topN = as(project.child(), TopN.class);
         assertThat(topN.limit().fold(FoldContext.small()), equalTo(7300));
         assertThat(orderNames(topN), contains("a"));
-        var limit7300Before = as(topN.child(), Limit.class);
-        assertEquals(as(limit7300Before.limit(), Literal.class).value(), 7300);
-        assertTrue(limit7300Before.duplicated());
+        var limit7300Before = asLimit(topN.child(), 7300, true);
         mvExpand = as(limit7300Before.child(), MvExpand.class);
-        var limit = as(mvExpand.child(), Limit.class);
-        assertThat(limit.limit().fold(FoldContext.small()), equalTo(7300));
+        var limit = asLimit(mvExpand.child(), 7300, false);
         as(limit.child(), LocalRelation.class);
     }
 
@@ -2378,7 +2359,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
     /**
      * Expected:
-     * Limit[1000[INTEGER],false]
+     * Limit[1000[INTEGER],true]
      * \_MvExpand[a{r}#3,a{r}#7]
      *   \_TopN[[Order[a{r}#3,ASC,LAST]],1000[INTEGER]]
      *     \_LocalRelation[[a{r}#3],[IntVectorBlock[vector=ConstantIntVector[positions=1, value=1]]]]
@@ -2389,9 +2370,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             | sort a
             | mv_expand a""");
 
-        var limit = as(plan, Limit.class);
-        assertEquals(as(limit.limit(), Literal.class).value(), 1000);
-        assertTrue(limit.duplicated());
+        var limit = asLimit(plan, 1000, true);
         var expand = as(limit.child(), MvExpand.class);
         var topN = as(expand.child(), TopN.class);
         var row = as(topN.child(), LocalRelation.class);
@@ -2399,7 +2378,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
     /**
      * Expected:
-     * Limit[20[INTEGER],false]
+     * Limit[20[INTEGER],true]
      * \_MvExpand[emp_no{f}#5,emp_no{r}#16]
      *   \_TopN[[Order[emp_no{f}#5,ASC,LAST]],20[INTEGER]]
      *     \_EsRelation[test][_meta_field{f}#11, emp_no{f}#5, first_name{f}#6, ge..]
@@ -2411,9 +2390,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             | mv_expand emp_no
             | limit 20""");
 
-        var limit = as(plan, Limit.class);
-        assertEquals(as(limit.limit(), Literal.class).value(), 20);
-        assertTrue(limit.duplicated());
+        var limit = asLimit(plan, 20, true);
         var expand = as(limit.child(), MvExpand.class);
         var topN = as(expand.child(), TopN.class);
         assertThat(topN.limit().fold(FoldContext.small()), is(20));
@@ -2422,9 +2399,9 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
     /**
      * Expected:
-     * Limit[1000[INTEGER],false]
+     * Limit[1000[INTEGER],true]
      * \_MvExpand[b{r}#5,b{r}#9]
-     *   \_Limit[1000[INTEGER],true]
+     *   \_Limit[1000[INTEGER],false]
      *     \_LocalRelation[[a{r}#3, b{r}#5],[IntVectorBlock[vector=ConstantIntVector[positions=1, value=1]],
      *       IntVectorBlock[vector=ConstantIntVector[positions=1, value=-15]]]]
      *
@@ -2436,12 +2413,9 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             | where b < 3
             | mv_expand b""");
 
-        var limit = as(plan, Limit.class);
-        assertEquals(as(limit.limit(), Literal.class).value(), 1000);
-        assertTrue(limit.duplicated());
+        var limit = asLimit(plan, 1000, true);
         var expand = as(limit.child(), MvExpand.class);
-        var limit2 = as(expand.child(), Limit.class);
-        assertThat(limit2.limit().fold(FoldContext.small()), is(1000));
+        var limit2 = asLimit(expand.child(), 1000, false);
         var row = as(limit2.child(), LocalRelation.class);
     }
 
@@ -4979,11 +4953,11 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
     /**
      * Expects
-     * Limit[1000[INTEGER],false]
+     * Limit[1000[INTEGER],true]
      * \_Join[LEFT,[language_code{r}#4],[language_code{r}#4],[language_code{f}#17]]
      *   |_EsqlProject[[_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, gender{f}#8, hire_date{f}#13, job{f}#14, job.raw{f}#15, lang
      * uages{f}#9 AS language_code, last_name{f}#10, long_noidx{f}#16, salary{f}#11]]
-     *   | \_Limit[1000[INTEGER],true]
+     *   | \_Limit[1000[INTEGER],false]
      *   |   \_EsRelation[test][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]
      *   \_EsRelation[languages_lookup][LOOKUP][language_code{f}#17, language_name{f}#18]
      */
@@ -4996,7 +4970,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             | LOOKUP JOIN languages_lookup ON language_code
             """);
 
-        var upperLimit = as(plan, Limit.class);
+        var upperLimit = asLimit(plan, null, true);
         var join = as(upperLimit.child(), Join.class);
 
         var joinWithInvalidLeftPlan = join.replaceChildren(join.right(), join.right());
@@ -6054,11 +6028,11 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
      * Filter on join keys should be pushed down
      * Expects
      *
-     * Limit[1000[INTEGER],false]
+     * Limit[1000[INTEGER],true]
      * \_Join[LEFT,[language_code{r}#4],[language_code{r}#4],[language_code{f}#18]]
      *   |_EsqlProject[[_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, gender{f}#9, hire_date{f}#14, job{f}#15, job.raw{f}#16, lang
      * uages{f}#10 AS language_code, last_name{f}#11, long_noidx{f}#17, salary{f}#12]]
-     *   | \_Limit[1000[INTEGER],true]
+     *   | \_Limit[1000[INTEGER],false]
      *   |   \_Filter[languages{f}#10 > 1[INTEGER]]
      *   |     \_EsRelation[test][_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, ge..]
      *   \_EsRelation[languages_lookup][LOOKUP][language_code{f}#18, language_name{f}#19]
@@ -6074,12 +6048,11 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             """;
         var plan = optimizedPlan(query);
 
-        var upperLimit = as(plan, Limit.class);
+        var upperLimit = asLimit(plan, 1000, true);
         var join = as(upperLimit.child(), Join.class);
         assertThat(join.config().type(), equalTo(JoinTypes.LEFT));
         var project = as(join.left(), Project.class);
-        var limit = as(project.child(), Limit.class);
-        assertThat(limit.limit().fold(FoldContext.small()), equalTo(1000));
+        var limit = asLimit(project.child(), 1000, false);
         var filter = as(limit.child(), Filter.class);
         // assert that the rename has been undone
         var op = as(filter.condition(), GreaterThan.class);
@@ -6096,11 +6069,11 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     /**
      * Filter on on left side fields (outside the join key) should be pushed down
      * Expects
-     * Limit[1000[INTEGER],false]
+     * Limit[1000[INTEGER],true]
      * \_Join[LEFT,[language_code{r}#4],[language_code{r}#4],[language_code{f}#18]]
      *   |_EsqlProject[[_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, gender{f}#9, hire_date{f}#14, job{f}#15, job.raw{f}#16, lang
      * uages{f}#10 AS language_code, last_name{f}#11, long_noidx{f}#17, salary{f}#12]]
-     *   | \_Limit[1000[INTEGER],true]
+     *   | \_Limit[1000[INTEGER],false]
      *   |   \_Filter[emp_no{f}#7 > 1[INTEGER]]
      *   |     \_EsRelation[test][_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, ge..]
      *   \_EsRelation[languages_lookup][LOOKUP][language_code{f}#18, language_name{f}#19]
@@ -6117,13 +6090,12 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         var plan = optimizedPlan(query);
 
-        var upperLimit = as(plan, Limit.class);
+        var upperLimit = asLimit(plan, 1000, true);
         var join = as(upperLimit.child(), Join.class);
         assertThat(join.config().type(), equalTo(JoinTypes.LEFT));
         var project = as(join.left(), Project.class);
 
-        var limit = as(project.child(), Limit.class);
-        assertThat(limit.limit().fold(FoldContext.small()), equalTo(1000));
+        var limit = asLimit(project.child(), 1000, false);
         var filter = as(limit.child(), Filter.class);
         var op = as(filter.condition(), GreaterThan.class);
         var field = as(op.left(), FieldAttribute.class);
@@ -6288,11 +6260,11 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
      *
      * Expects
      * EsqlProject[[languages{f}#21]]
-     * \_Limit[1000[INTEGER],false]
+     * \_Limit[1000[INTEGER],true]
      *   \_Join[LEFT,[language_code{r}#4],[language_code{r}#4],[language_code{f}#29]]
      *     |_Project[[_meta_field{f}#24, emp_no{f}#18, first_name{f}#19, gender{f}#20, hire_date{f}#25, job{f}#26, job.raw{f}#27, l
      * anguages{f}#21, last_name{f}#22, long_noidx{f}#28, salary{f}#23, languages{f}#21 AS language_code]]
-     *     | \_Limit[1000[INTEGER],true]
+     *     | \_Limit[1000[INTEGER],false]
      *     |   \_EsRelation[test][_meta_field{f}#24, emp_no{f}#18, first_name{f}#19, ..]
      *     \_EsRelation[languages_lookup][LOOKUP][language_code{f}#29]
      */
@@ -6316,9 +6288,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(project.projections().size(), equalTo(1));
         assertThat(project.projections().get(0).name(), equalTo("languages"));
 
-        var limit = as(project.child(), Limit.class);
-        assertEquals(as(limit.limit(), Literal.class).value(), 1000);
-        assertTrue(limit.duplicated());
+        var limit = asLimit(project.child(), 1000, true);
 
         var join = as(limit.child(), Join.class);
         var joinRightRelation = as(join.right(), EsRelation.class);
@@ -6331,12 +6301,12 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
      * Ensure a JOIN shadowed by another JOIN doesn't request the shadowed fields.
      *
      * Expected
-     * Limit[1000[INTEGER],false]
+     * Limit[1000[INTEGER],true]
      * \_Join[LEFT,[language_code{r}#4],[language_code{r}#4],[language_code{f}#20]]
-     *   |_Limit[1000[INTEGER],false]
+     *   |_Limit[1000[INTEGER],true]
      *   | \_Join[LEFT,[language_code{r}#4],[language_code{r}#4],[language_code{f}#18]]
      *   |   |_Eval[[languages{f}#10 AS language_code]]
-     *   |   | \_Limit[1000[INTEGER],true]
+     *   |   | \_Limit[1000[INTEGER],false]
      *   |   |   \_EsRelation[test][_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, ge..]
      *   |   \_EsRelation[languages_lookup][LOOKUP][language_code{f}#18]
      *   \_EsRelation[languages_lookup][LOOKUP][language_code{f}#20, language_name{f}#21]
@@ -6353,9 +6323,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         var plan = optimizedPlan(query);
 
-        var limit1 = as(plan, Limit.class);
-        assertEquals(as(limit1.limit(), Literal.class).value(), 1000);
-        assertTrue(limit1.duplicated());
+        var limit1 = asLimit(plan, 1000, true);
 
         var finalJoin = as(limit1.child(), Join.class);
         var finalJoinRightRelation = as(finalJoin.right(), EsRelation.class);
@@ -6364,15 +6332,16 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(finalJoinRightRelation.output().get(0).name(), equalTo("language_code"));
         assertThat(finalJoinRightRelation.output().get(1).name(), equalTo("language_name"));
 
-        var limit2 = as(finalJoin.left(), Limit.class);
-        assertEquals(as(limit2.limit(), Literal.class).value(), 1000);
-        assertTrue(limit2.duplicated());
+        var limit2 = asLimit(finalJoin.left(), 1000, true);
 
         var initialJoin = as(limit2.child(), Join.class);
         var initialJoinRightRelation = as(initialJoin.right(), EsRelation.class);
 
         assertThat(initialJoinRightRelation.output().size(), equalTo(1));
         assertThat(initialJoinRightRelation.output().get(0).name(), equalTo("language_code"));
+
+        var eval = as(initialJoin.left(), Eval.class);
+        var limit3 = asLimit(eval.child(), 1000, false);
     }
 
     //

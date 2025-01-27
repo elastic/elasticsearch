@@ -196,9 +196,9 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
     /**
      * Expects
      * EsqlProject[[first_name{f}#7, last_name{r}#17]]
-     * \_Limit[1000[INTEGER],false]
+     * \_Limit[1000[INTEGER],true]
      *   \_MvExpand[last_name{f}#10,last_name{r}#17]
-     *     \_Limit[1000[INTEGER],true]
+     *     \_Limit[1000[INTEGER],false]
      *       \_EsRelation[test][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]
      */
     public void testMissingFieldInMvExpand() {

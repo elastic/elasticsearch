@@ -464,7 +464,7 @@ public class EsqlDataTypeConverter {
 
     public static long chronoToLong(long dateTime, BytesRef chronoField, ZoneId zone) {
         ChronoField chrono = ChronoField.valueOf(chronoField.utf8ToString().toUpperCase(Locale.ROOT));
-        return Instant.ofEpochMilli(dateTime).atZone(zone).getLong(chrono);
+        return chronoToLong(dateTime, chrono, zone);
     }
 
     public static long chronoToLong(long dateTime, ChronoField chronoField, ZoneId zone) {
@@ -480,7 +480,7 @@ public class EsqlDataTypeConverter {
      */
     public static long chronoToLongNanos(long dateNanos, BytesRef chronoField, ZoneId zone) {
         ChronoField chrono = ChronoField.valueOf(chronoField.utf8ToString().toUpperCase(Locale.ROOT));
-        return DateUtils.toInstant(dateNanos).atZone(zone).getLong(chrono);
+        return chronoToLongNanos(dateNanos, chrono, zone);
     }
 
     /**

@@ -107,12 +107,8 @@ public class HttpRequestSender implements Sender {
         }
     }
 
-    public Collection<RequestExecutorService.RateLimitingEndpointHandler> rateLimitingEndpointHandlers() {
-        if (service instanceof RequestExecutorService) {
-            return ((RequestExecutorService) service).rateLimitingEndpointHandlers();
-        }
-
-        return List.of();
+    public void updateRateLimitDivisor(Integer rateLimitDivisor){
+        service.updateRateLimitDivisor(rateLimitDivisor);
     }
 
     private void waitForStartToComplete() {

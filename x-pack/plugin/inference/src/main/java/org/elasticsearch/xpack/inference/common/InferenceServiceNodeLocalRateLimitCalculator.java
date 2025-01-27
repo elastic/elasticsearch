@@ -86,9 +86,8 @@ public class InferenceServiceNodeLocalRateLimitCalculator implements ClusterStat
      * Record for storing rate limit assignment information.
      *
      * @param responsibleNodes - nodes responsible for a certain service and task type
-     * @param endpointRateLimits - current rate limits for a certain inference endpoint
      */
-    public record RateLimitAssignment(List<DiscoveryNode> responsibleNodes, Map<String, Long> endpointRateLimits) {}
+    public record RateLimitAssignment(List<DiscoveryNode> responsibleNodes) {}
 
     public InferenceServiceNodeLocalRateLimitCalculator(ClusterService clusterService, InferenceServiceRegistry serviceRegistry) {
         clusterService.addListener(this);
@@ -163,9 +162,9 @@ public class InferenceServiceNodeLocalRateLimitCalculator implements ClusterStat
 
                     // Update rate limits to be "node-local"
                     var numAssignedNodes = assignedNodes.size();
-                    var updatedLimitsPerEndpoint = updateRateLimits(inferenceService, numAssignedNodes);
+                    updateRateLimits(inferenceService, numAssignedNodes);
 
-                    perTaskTypeAssignments.put(taskType, new RateLimitAssignment(assignedNodes, updatedLimitsPerEndpoint));
+                    perTaskTypeAssignments.put(taskType, new RateLimitAssignment(assignedNodes));
                     newAssignments.put(serviceName, perTaskTypeAssignments);
                 }
             } else {
@@ -199,30 +198,21 @@ public class InferenceServiceNodeLocalRateLimitCalculator implements ClusterStat
         return assignedNodes;
     }
 
-    private Map<String, Long> updateRateLimits(InferenceService service, int responsibleNodes) {
+    private void updateRateLimits(InferenceService service, int responsibleNodes) {
         if ((service instanceof SenderService) == false) {
-            return Map.of();
+            return;
         }
 
         SenderService senderService = (SenderService) service;
 
         Sender sender = senderService.getSender();
         if ((sender instanceof HttpRequestSender) == false) {
-            return Map.of();
+            return;
         }
 
         HttpRequestSender httpSender = (HttpRequestSender) sender;
-        Map<String, Long> endpointRateLimits = new HashMap<>();
-
-        for (var handler : httpSender.rateLimitingEndpointHandlers()) {
-            var originalLimit = handler.originalRequestsPerTimeUnit();
-            var newLimit = (originalLimit / responsibleNodes);
-
-            endpointRateLimits.put(handler.id(), newLimit);
-            handler.updateTokensPerTimeUnit(newLimit);
-        }
-
-        return endpointRateLimits;
+        // TODO: this needs to take in service and task type as soon as multiple services/task types are supported
+        httpSender.updateRateLimitDivisor(responsibleNodes);
     }
 
     InferenceServiceRegistry serviceRegistry() {

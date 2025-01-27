@@ -38,6 +38,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
@@ -94,12 +95,21 @@ public class RequestExecutorService implements RequestExecutor {
         RateLimiter create(double accumulatedTokensLimit, double tokensPerTimeUnit, TimeUnit unit);
     }
 
+    // TODO: for later (after 8.18)
+    // TODO: pass in divisor to RateLimiterCreator
+    // TODO: another map for service/task-type-key -> set of RateLimitingEndpointHandler (used for updates; update divisor and then update all endpoint handlers)
+    // TODO: one map for service/task-type-key -> divisor (this gets also read when we create an inference endpoint)
+    // TODO: divisor value read/writes need to be synchronized in some way
+
     // default for testing
     static final RateLimiterCreator DEFAULT_RATE_LIMIT_CREATOR = RateLimiter::new;
     private static final Logger logger = LogManager.getLogger(RequestExecutorService.class);
     private static final TimeValue RATE_LIMIT_GROUP_CLEANUP_INTERVAL = TimeValue.timeValueDays(1);
 
     private final ConcurrentMap<Object, RateLimitingEndpointHandler> rateLimitGroupings = new ConcurrentHashMap<>();
+    // TODO: add one atomic integer (number of nodes); also explain the assumption and why this works
+    // TODO: document that this impacts chat completion (and increase the default rate limit)
+    private final AtomicInteger rateLimitDivisor =  new AtomicInteger(1);
     private final ThreadPool threadPool;
     private final CountDownLatch startupLatch;
     private final CountDownLatch terminationLatch = new CountDownLatch(1);
@@ -178,6 +188,14 @@ public class RequestExecutorService implements RequestExecutor {
 
     public Collection<RateLimitingEndpointHandler> rateLimitingEndpointHandlers() {
         return rateLimitGroupings.values();
+    }
+
+    @Override
+    public void updateRateLimitDivisor(Integer numResponsibleNodes) {
+        rateLimitDivisor.set(numResponsibleNodes);
+        for(var rateLimitingEndpointHandler : rateLimitGroupings.values()){
+            rateLimitingEndpointHandler.updateTokensPerTimeUnit(rateLimitDivisor.get());
+        }
     }
 
     /**
@@ -305,8 +323,11 @@ public class RequestExecutorService implements RequestExecutor {
                 clock,
                 requestManager.rateLimitSettings(),
                 this::isShutdown,
-                rateLimiterCreator
+                rateLimiterCreator,
+                rateLimitDivisor.get()
             );
+
+            // TODO: add or create/compute if absent set for new map (service/task-type-key -> rate limit endpoint handler)
 
             endpointHandler.init();
             return endpointHandler;
@@ -346,7 +367,8 @@ public class RequestExecutorService implements RequestExecutor {
             Clock clock,
             RateLimitSettings rateLimitSettings,
             Supplier<Boolean> isShutdownMethod,
-            RateLimiterCreator rateLimiterCreator
+            RateLimiterCreator rateLimiterCreator,
+            Integer rateLimitDivisor
         ) {
             this.requestExecutorServiceSettings = Objects.requireNonNull(settings);
             this.id = Objects.requireNonNull(id);
@@ -365,6 +387,7 @@ public class RequestExecutorService implements RequestExecutor {
                 rateLimitSettings.timeUnit()
             );
 
+            this.updateTokensPerTimeUnit(rateLimitDivisor);
         }
 
         public void init() {
@@ -376,14 +399,11 @@ public class RequestExecutorService implements RequestExecutor {
          * rate limits, so they're "node-local".
          * The general idea is described in {@link InferenceServiceNodeLocalRateLimitCalculator} in more detail.
          *
-         * @param newTokensPerTimeUnit - specifies the amount of tokens per time unit the rate limiter should be updated to
+         * @param divisor - divisor to divide the initial requests per time unit by
          */
-        public synchronized void updateTokensPerTimeUnit(double newTokensPerTimeUnit) {
-            rateLimiter.setRate(ACCUMULATED_TOKENS_LIMIT, newTokensPerTimeUnit, rateLimitSettings.timeUnit());
-        }
-
-        public synchronized long originalRequestsPerTimeUnit() {
-            return originalRequestsPerTimeUnit;
+        public synchronized void updateTokensPerTimeUnit(Integer divisor) {
+            double updatedTokensPerTimeUnit = (double) originalRequestsPerTimeUnit / divisor;
+            rateLimiter.setRate(ACCUMULATED_TOKENS_LIMIT, updatedTokensPerTimeUnit, rateLimitSettings.timeUnit());
         }
 
         public String id() {

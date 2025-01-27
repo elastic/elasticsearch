@@ -105,7 +105,7 @@ public class TransportInferenceActionTests extends BaseTransportInferenceActionT
 
         when(inferenceServiceNodeLocalRateLimitCalculator.isTaskTypeReroutingSupported(serviceId, taskType)).thenReturn(true);
         when(inferenceServiceNodeLocalRateLimitCalculator.getRateLimitAssignment(serviceId, taskType)).thenReturn(
-            new RateLimitAssignment(List.of(), Map.of())
+            new RateLimitAssignment(List.of())
         );
 
         var listener = doExecute(taskType);
@@ -123,7 +123,7 @@ public class TransportInferenceActionTests extends BaseTransportInferenceActionT
         when(nodeClient.getLocalNodeId()).thenReturn("local-node");
         when(inferenceServiceNodeLocalRateLimitCalculator.isTaskTypeReroutingSupported(serviceId, taskType)).thenReturn(true);
         // Requests for serviceId are always routed to "other-node"
-        var assignment = new RateLimitAssignment(List.of(otherNode), Map.of("endpoint1", 50L));
+        var assignment = new RateLimitAssignment(List.of(otherNode));
         when(inferenceServiceNodeLocalRateLimitCalculator.getRateLimitAssignment(serviceId, taskType)).thenReturn(assignment);
 
         mockService(listener -> listener.onResponse(mock()));
@@ -143,7 +143,7 @@ public class TransportInferenceActionTests extends BaseTransportInferenceActionT
         // The local node is the only one responsible for serviceId
         when(nodeClient.getLocalNodeId()).thenReturn(localNodeId);
         when(inferenceServiceNodeLocalRateLimitCalculator.isTaskTypeReroutingSupported(serviceId, taskType)).thenReturn(true);
-        var assignment = new RateLimitAssignment(List.of(localNode), Map.of("endpoint1", 50L));
+        var assignment = new RateLimitAssignment(List.of(localNode));
         when(inferenceServiceNodeLocalRateLimitCalculator.getRateLimitAssignment(serviceId, taskType)).thenReturn(assignment);
 
         mockService(listener -> listener.onResponse(mock()));
@@ -160,7 +160,7 @@ public class TransportInferenceActionTests extends BaseTransportInferenceActionT
 
         when(nodeClient.getLocalNodeId()).thenReturn("local-node");
         when(inferenceServiceNodeLocalRateLimitCalculator.isTaskTypeReroutingSupported(serviceId, taskType)).thenReturn(true);
-        var assignment = new RateLimitAssignment(List.of(otherNode), Map.of("endpoint1", 50L));
+        var assignment = new RateLimitAssignment(List.of(otherNode));
         when(inferenceServiceNodeLocalRateLimitCalculator.getRateLimitAssignment(serviceId, taskType)).thenReturn(assignment);
 
         mockService(listener -> listener.onResponse(mock()));

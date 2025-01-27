@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServic
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.inference.common.InferenceServiceNodeLocalRateLimitCalculator.DEFAULT_MAX_NODES_PER_GROUPING;
@@ -91,12 +90,6 @@ public class InferenceServiceNodeLocalRateLimitCalculatorTests extends ESIntegTe
             assertEquals(1, assignment.responsibleNodes().size());
             // That node should be our remaining node
             assertEquals(nodeLeftInCluster, assignment.responsibleNodes().get(0).getName());
-
-            // Rate limits should be adjusted for single node
-            for (var limit : assignment.endpointRateLimits().values()) {
-                // The entire rate limit should be assigned to the single node
-                assertTrue(limit > 0);
-            }
         }
     }
 
@@ -115,11 +108,6 @@ public class InferenceServiceNodeLocalRateLimitCalculatorTests extends ESIntegTe
 
             assertNotNull(assignment);
             assertThat(DEFAULT_MAX_NODES_PER_GROUPING, equalTo(assignment.responsibleNodes().size()));
-
-            // Verify rate limits are distributed among MAX_NODES_PER_GROUPING nodes
-            for (var limit : assignment.endpointRateLimits().values()) {
-                assertTrue(limit > 0);
-            }
         }
     }
 
@@ -146,15 +134,6 @@ public class InferenceServiceNodeLocalRateLimitCalculatorTests extends ESIntegTe
 
                         assertNotNull(assignment);
                         assertThat(DEFAULT_MAX_NODES_PER_GROUPING, equalTo(assignment.responsibleNodes().size()));
-
-                        // Check rate limits are "node-local" -> rate limit / number of nodes responsible for service
-                        for (var handler : httpSender.rateLimitingEndpointHandlers()) {
-                            long originalLimit = handler.originalRequestsPerTimeUnit();
-                            long expectedLimit = (originalLimit / DEFAULT_MAX_NODES_PER_GROUPING);
-                            long actualLimit = assignment.endpointRateLimits().get(handler.id());
-
-                            assertThat(expectedLimit, equalTo(actualLimit));
-                        }
                     }
                 }
             }
@@ -175,7 +154,6 @@ public class InferenceServiceNodeLocalRateLimitCalculatorTests extends ESIntegTe
             for (var config : configs) {
                 // Get initial assignments and rate limits
                 var initialAssignment = calculator.getRateLimitAssignment(serviceName, config.taskType());
-                var initialRateLimits = new HashMap<>(initialAssignment.endpointRateLimits());
                 assertEquals(2, initialAssignment.responsibleNodes().size());
 
                 // Add a new node
@@ -187,19 +165,6 @@ public class InferenceServiceNodeLocalRateLimitCalculatorTests extends ESIntegTe
 
                 // Verify number of responsible nodes increased
                 assertEquals(3, updatedAssignment.responsibleNodes().size());
-
-                // Verify rate limits were recalculated after node joined cluster
-                for (var entry : updatedAssignment.endpointRateLimits().entrySet()) {
-                    var endpointId = entry.getKey();
-                    var newLimit = entry.getValue();
-                    var oldLimit = initialRateLimits.get(endpointId);
-
-                    // New limit has to be smaller
-                    assertTrue(newLimit < oldLimit);
-
-                    // Check the new limit
-                    assertThat(oldLimit * 2 / 3, equalTo(newLimit));
-                }
             }
         }
     }
@@ -217,7 +182,6 @@ public class InferenceServiceNodeLocalRateLimitCalculatorTests extends ESIntegTe
             for (var config : configs) {
                 // Get initial assignments and rate limits
                 var initialAssignment = calculator.getRateLimitAssignment(serviceName, config.taskType());
-                var initialRateLimits = new HashMap<>(initialAssignment.endpointRateLimits());
                 assertThat(DEFAULT_MAX_NODES_PER_GROUPING, equalTo(initialAssignment.responsibleNodes().size()));
 
                 // Remove a node
@@ -230,19 +194,6 @@ public class InferenceServiceNodeLocalRateLimitCalculatorTests extends ESIntegTe
 
                 // Verify number of responsible nodes decreased
                 assertThat(2, equalTo(updatedAssignment.responsibleNodes().size()));
-
-                // Verify rate limits were recalculated after node left cluster
-                for (var entry : updatedAssignment.endpointRateLimits().entrySet()) {
-                    var endpointId = entry.getKey();
-                    var newLimit = entry.getValue();
-                    var oldLimit = initialRateLimits.get(endpointId);
-
-                    // New limit should be larger
-                    assertTrue(newLimit > oldLimit);
-
-                    // Check the new limit
-                    assertThat(oldLimit * 3 / 2, equalTo(newLimit));
-                }
             }
         }
     }

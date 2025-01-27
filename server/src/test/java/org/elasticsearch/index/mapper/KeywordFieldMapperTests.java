@@ -791,7 +791,10 @@ public class KeywordFieldMapperTests extends MapperTestCase {
 
     public void testFieldTypeDefault_StandardMode() throws IOException {
         final MapperService mapperService = createMapperService(
-            Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.STANDARD.name()).build(),
+            Settings.builder()
+                .put(IndexSettings.MODE.getKey(), IndexMode.STANDARD.name())
+                .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), "host.name")
+                .build(),
             mapping(b -> {
                 b.startObject("host.name");
                 b.field("type", "keyword");
@@ -801,11 +804,16 @@ public class KeywordFieldMapperTests extends MapperTestCase {
 
         final KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("host.name");
         assertFalse(mapper.fieldType().hasDocValuesSparseIndex());
+        assertTrue(mapper.fieldType().hasDocValues());
+        assertTrue(mapper.fieldType().isIndexed());
     }
 
     public void testFieldTypeDefault_NonMatchingFieldName() throws IOException {
         final MapperService mapperService = createMapperService(
-            Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.name()).build(),
+            Settings.builder()
+                .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.name())
+                .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), "hostname")
+                .build(),
             mapping(b -> {
                 b.startObject("hostname");
                 b.field("type", "keyword");
@@ -815,11 +823,16 @@ public class KeywordFieldMapperTests extends MapperTestCase {
 
         final KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("hostname");
         assertFalse(mapper.fieldType().hasDocValuesSparseIndex());
+        assertTrue(mapper.fieldType().hasDocValues());
+        assertTrue(mapper.fieldType().isIndexed());
     }
 
     public void testFieldTypeDefault_ConfiguredIndexed() throws IOException {
         final MapperService mapperService = createMapperService(
-            Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.name()).build(),
+            Settings.builder()
+                .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.name())
+                .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), "host.name")
+                .build(),
             mapping(b -> {
                 b.startObject("host.name");
                 b.field("type", "keyword");
@@ -829,12 +842,17 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         );
 
         final KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("host.name");
-        assertFalse(mapper.fieldType().hasDocValuesSparseIndex());
+        assertTrue(mapper.fieldType().hasDocValuesSparseIndex());
+        assertTrue(mapper.fieldType().hasDocValues());
+        assertTrue(mapper.fieldType().isIndexed());
     }
 
     public void testFieldTypeDefault_ConfiguredDocValues() throws IOException {
         final MapperService mapperService = createMapperService(
-            Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.name()).build(),
+            Settings.builder()
+                .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.name())
+                .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), "host.name")
+                .build(),
             mapping(b -> {
                 b.startObject("host.name");
                 b.field("type", "keyword");
@@ -844,23 +862,9 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         );
 
         final KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("host.name");
-        assertFalse(mapper.fieldType().hasDocValuesSparseIndex());
-    }
-
-    public void testFieldTypeDefault_ConfiguredIndexedAndDocValues() throws IOException {
-        final MapperService mapperService = createMapperService(
-            Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.name()).build(),
-            mapping(b -> {
-                b.startObject("host.name");
-                b.field("type", "keyword");
-                b.field("index", true);
-                b.field("doc_values", true);
-                b.endObject();
-            })
-        );
-
-        final KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("host.name");
-        assertFalse(mapper.fieldType().hasDocValuesSparseIndex());
+        assertTrue(mapper.fieldType().hasDocValuesSparseIndex());
+        assertTrue(mapper.fieldType().hasDocValues());
+        assertTrue(mapper.fieldType().isIndexed());
     }
 
     public void testFieldTypeDefault_LogsDbMode_NonSortField() throws IOException {
@@ -875,6 +879,8 @@ public class KeywordFieldMapperTests extends MapperTestCase {
 
         final KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("host.name");
         assertFalse(mapper.fieldType().hasDocValuesSparseIndex());
+        assertTrue(mapper.fieldType().hasDocValues());
+        assertTrue(mapper.fieldType().isIndexed());
     }
 
     public void testFieldTypeWithSkipDocValues_IndexedFalseDocValuesTrue() throws IOException {
@@ -894,11 +900,16 @@ public class KeywordFieldMapperTests extends MapperTestCase {
 
         final KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("host.name");
         assertFalse(mapper.fieldType().hasDocValuesSparseIndex());
+        assertTrue(mapper.fieldType().hasDocValues());
+        assertFalse(mapper.fieldType().isIndexed());
     }
 
     public void testFieldTypeDefault_IndexedFalseDocValuesFalse() throws IOException {
         final MapperService mapperService = createMapperService(
-            Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.name()).build(),
+            Settings.builder()
+                .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.name())
+                .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), "host.name")
+                .build(),
             mapping(b -> {
                 b.startObject("host.name");
                 b.field("type", "keyword");
@@ -910,37 +921,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
 
         final KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("host.name");
         assertFalse(mapper.fieldType().hasDocValuesSparseIndex());
-    }
-
-    public void testFieldTypeDefault_IndexedTrueDocValuesTrue() throws IOException {
-        final MapperService mapperService = createMapperService(
-            Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.name()).build(),
-            mapping(b -> {
-                b.startObject("host.name");
-                b.field("type", "keyword");
-                b.field("index", true);
-                b.field("doc_values", true);
-                b.endObject();
-            })
-        );
-
-        final KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("host.name");
-        assertFalse(mapper.fieldType().hasDocValuesSparseIndex());
-    }
-
-    public void testFieldTypeDefault_StandardModeIndexedFalseDocValuesTrue() throws IOException {
-        final MapperService mapperService = createMapperService(
-            Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.STANDARD.name()).build(),
-            mapping(b -> {
-                b.startObject("host.name");
-                b.field("type", "keyword");
-                b.field("index", false);
-                b.field("doc_values", true);
-                b.endObject();
-            })
-        );
-
-        final KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("host.name");
-        assertFalse(mapper.fieldType().hasDocValuesSparseIndex());
+        assertFalse(mapper.fieldType().hasDocValues());
+        assertFalse(mapper.fieldType().isIndexed());
     }
 }

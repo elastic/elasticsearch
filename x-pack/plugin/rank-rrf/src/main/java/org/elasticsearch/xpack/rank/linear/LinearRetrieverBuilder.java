@@ -148,42 +148,28 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
             ScoreDoc[] originalScoreDocs = rankResults.get(result);
             ScoreDoc[] normalizedScoreDocs = normalizer.normalizeScores(originalScoreDocs);
             for (int scoreDocIndex = 0; scoreDocIndex < normalizedScoreDocs.length; scoreDocIndex++) {
-                int finalResult = result;
-                int finalScoreIndex = scoreDocIndex;
-                docsToRankResults.compute(
+                LinearRankDoc rankDoc = docsToRankResults.computeIfAbsent(
                     new RankDoc.RankKey(originalScoreDocs[scoreDocIndex].doc, originalScoreDocs[scoreDocIndex].shardIndex),
-                    (key, value) -> {
-                        if (value == null) {
-                            if (isExplain) {
-                                value = new LinearRankDoc(
-                                    originalScoreDocs[finalScoreIndex].doc,
-                                    0f,
-                                    originalScoreDocs[finalScoreIndex].shardIndex,
-                                    weights,
-                                    normalizerNames
-                                );
-                                value.normalizedScores = new float[rankResults.size()];
-                            } else {
-                                value = new LinearRankDoc(
-                                    originalScoreDocs[finalScoreIndex].doc,
-                                    0f,
-                                    originalScoreDocs[finalScoreIndex].shardIndex
-                                );
-                            }
-                        }
+                    key -> {
                         if (isExplain) {
-                            value.normalizedScores[finalResult] = normalizedScoreDocs[finalScoreIndex].score;
+                            LinearRankDoc doc = new LinearRankDoc(key.doc(), 0f, key.shardIndex(), weights, normalizerNames);
+                            doc.normalizedScores = new float[rankResults.size()];
+                            return doc;
+                        } else {
+                            return new LinearRankDoc(key.doc(), 0f, key.shardIndex());
                         }
-                        // if we do not have scores associated with this result set, just ignore its contribution to the final
-                        // score computation by setting its score to 0.
-                        final float docScore = false == Float.isNaN(normalizedScoreDocs[finalScoreIndex].score)
-                            ? normalizedScoreDocs[finalScoreIndex].score
-                            : DEFAULT_SCORE;
-                        final float weight = Float.isNaN(weights[finalResult]) ? DEFAULT_WEIGHT : weights[finalResult];
-                        value.score += weight * docScore;
-                        return value;
                     }
                 );
+                if (isExplain) {
+                    rankDoc.normalizedScores[result] = normalizedScoreDocs[scoreDocIndex].score;
+                }
+                // if we do not have scores associated with this result set, just ignore its contribution to the final
+                // score computation by setting its score to 0.
+                final float docScore = false == Float.isNaN(normalizedScoreDocs[scoreDocIndex].score)
+                    ? normalizedScoreDocs[scoreDocIndex].score
+                    : DEFAULT_SCORE;
+                final float weight = Float.isNaN(weights[result]) ? DEFAULT_WEIGHT : weights[result];
+                rankDoc.score += weight * docScore;
             }
         }
         // sort the results based on the final score, tiebreaker based on smaller doc id

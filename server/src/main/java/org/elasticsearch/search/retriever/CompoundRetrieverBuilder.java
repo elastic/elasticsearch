@@ -181,8 +181,7 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
                         failures.forEach(ex::addSuppressed);
                         listener.onFailure(ex);
                     } else {
-                        RankDoc[] combinedResults = combineInnerRetrieverResults(topDocs, ctx.isExplain());
-                        results.set(normalizeRankDocs(combinedResults));
+                        results.set(combineInnerRetrieverResults(topDocs, ctx.isExplain()));
                         listener.onResponse(null);
                     }
                 }

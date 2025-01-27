@@ -447,3 +447,6 @@ tests:
 - class: org.elasticsearch.xpack.shutdown.NodeShutdownIT
   method: testStalledShardMigrationProperlyDetected
   issue: https://github.com/elastic/elasticsearch/issues/115697
+- class: org.elasticsearch.xpack.security.FileSettingsRoleMappingsRestartIT
+  method: testFileSettingsReprocessedOnRestartWithoutVersionChange
+  issue: https://github.com/elastic/elasticsearch/issues/120964

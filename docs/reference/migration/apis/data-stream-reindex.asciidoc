@@ -114,6 +114,8 @@ POST _migration/reindex
     "mode": "upgrade"
 }
 ----
+// TEST[skip:cannot easily clean up reindex task between tests]
+
 
 As this task runs in the background this API will return immediately.
 The task will do the following.
@@ -142,6 +144,7 @@ While the reindex data stream task is running, we can inspect the current status
 ----
 GET /_migration/reindex/my-data-stream/_status
 ----
+// TEST[continued]
 
 For the above example, the following would be a possible status:
 
@@ -164,6 +167,7 @@ For the above example, the following would be a possible status:
   "errors": []
 }
 ----
+// TEST[skip:specific value is part of explanation]
 
 This output means that the first backing index, `.ds-my-data-stream-2025.01.23-000001`, is currently being processed,
 and none of the backing indices have yet completed. Notice that `total_indices_in_data_stream` has a value of `4`,
@@ -200,6 +204,7 @@ returns the following:
   "errors": []
 }
 ----
+// TEST[skip:specific value is part of explanation]
 
 Let's assume the task has been running for a long time. By default, we throttle how many requests the reindex operation
 can execute per second. This keeps the reindex process from consuming too many resources.
@@ -220,6 +225,7 @@ So we call the <<data-stream-reindex-cancel-api,cancel API>>:
 ----
 POST /_migration/reindex/my-data-stream/_cancel
 ----
+// TEST[skip:task will not be present]
 
 Now we can use the <<cluster-update-settings, update cluster settings API>> to increase the throttle:
 
@@ -228,10 +234,11 @@ Now we can use the <<cluster-update-settings, update cluster settings API>> to i
 PUT /_cluster/settings
 {
   "persistent" : {
-    "migrate_data_stream_reindex_max_request_per_second-setting" : 10000
+    "migrate.data_stream_reindex_max_request_per_second" : 10000
   }
 }
 --------------------------------------------------
+// TEST[continued]
 
 The <<reindex-data-stream-start,original reindex command>> can now be used to restart reindexing.
 Because the first backing index, `.ds-my-data-stream-2025.01.23-000001`, has already been reindexed and thus is already version 8.x,
@@ -252,6 +259,8 @@ Later, once all the backing indices have finished, the <<data-stream-reindex-sta
   "errors": []
 }
 ----
+// TEST[skip:specific value is part of explanation]
+
 Notice that the value of `total_indices_requiring_upgrade` is `2`, unlike the previous status, which had a value of `3`.
 This is because `.ds-my-data-stream-2025.01.23-000001` was upgraded before the task cancellation.
 After the restart, the API sees that it does not need to be upgraded, thus does not include it in `total_indices_requiring_upgrade` or `successes`,
@@ -265,6 +274,8 @@ We can now check the data stream to verify that indices were upgraded:
 ----
 GET _data_stream/my-data-stream?filter_path=data_streams.indices.index_name
 ----
+// TEST[continued]
+
 
 which returns:
 [source,console-result]
@@ -290,6 +301,7 @@ which returns:
   ]
 }
 ----
+// TEST[skip:did not actually run reindex]
 
 Index `.ds-my-data-stream-2025.01.23-000004` is the write index and didn't need to be upgraded because it was created with version 8.x.
 The other three backing indices are now prefixed with `.migrated` because they have been upgraded.
@@ -299,6 +311,8 @@ We can now check the indices and verify that they have version 8.x:
 ----
 GET .migrated-ds-my-data-stream-2025.01.23-000001?human&filter_path=*.settings.index.version.created_string
 ----
+// TEST[skip:migrated index does not exist]
+
 which returns:
 [source,console-result]
 ----
@@ -314,6 +328,7 @@ which returns:
   }
 }
 ----
+// TEST[skip:migrated index does not exist]
 
 [[reindex-data-stream-handling-failure]]
 ===== Handling Failures
@@ -338,5 +353,6 @@ For example, if the backing index `.ds-my-data-stream-2025.01.23-000002` was acc
   ]
 }
 ----
+// TEST[skip:result just part of explanation]
 
 Once the issue has been fixed, the reindex task can re-run using the <<reindex-data-stream-start,original reindex command>> to pick up where it left off.

@@ -24,9 +24,7 @@ this API will return `resource_not_found_exception`.
 ----
 POST _migration/reindex/my-data-stream/_cancel
 ----
-// TEST[setup:my_data_stream]
-// TEST[teardown:data_stream_cleanup]
-
+// TEST[skip:cannot easily clean up reindex task between tests]
 
 [[data-stream-reindex-cancel-request]]
 ==== {api-request-title}

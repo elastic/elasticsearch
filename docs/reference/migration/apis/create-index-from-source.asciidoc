@@ -83,7 +83,7 @@ as the source index.
 
 [source,console]
 --------------------------------------------------
-POST /_create_from/my-index/my-new-index
+POST _create_from/my-index/my-new-index
 --------------------------------------------------
 
 
@@ -92,7 +92,7 @@ and mappings as a basis and combine these with the overrides to create the desti
 
 [source,console]
 --------------------------------------------------
-POST /_create_from/my-index/my-new-index
+POST _create_from/my-index/my-new-index
 {
   "settings_override": {
     "index": {
@@ -115,7 +115,7 @@ settings override removes all index blocks.
 
 [source,console]
 --------------------------------------------------
-POST /_create_from/my-index/my-new-index
+POST _create_from/my-index/my-new-index
 {
   "settings_override": {
     "index": {
@@ -135,7 +135,7 @@ the source index, we can do the following:
 
 [source,console]
 --------------------------------------------------
-POST /_create_from/my-index/my-new-index
+POST _create_from/my-index/my-new-index
 {
   "remove_index_blocks": false
 }

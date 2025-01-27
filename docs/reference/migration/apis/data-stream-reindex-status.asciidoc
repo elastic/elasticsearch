@@ -106,6 +106,7 @@ older version and are not closed or read-only.
 ----
 GET _migration/reindex/my-data-stream/_status
 ----
+// TEST[skip:cannot easily clean up reindex task between tests]
 
 The following is a typical response:
 [source,console-result]
@@ -127,6 +128,7 @@ The following is a typical response:
   "errors": []
 }
 ----
+// TEST[skip:cannot easily clean up reindex task between tests]
 
 For a more in-depth example showing the usage of this API along with the <<data-stream-reindex-api,reindex>> and <<data-stream-reindex-cancel-api,cancel>> APIs,
 see this <<reindex-data-stream-api-example,example>>.

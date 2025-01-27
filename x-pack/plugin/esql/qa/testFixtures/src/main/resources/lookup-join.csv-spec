@@ -8,7 +8,7 @@
 ###############################################
 
 basicOnTheDataNode
-required_capability: join_lookup_v11
+required_capability: join_lookup_v12
 
 FROM employees
 | EVAL language_code = languages
@@ -25,7 +25,7 @@ emp_no:integer | language_code:integer | language_name:keyword
 ;
 
 basicRow
-required_capability: join_lookup_v11
+required_capability: join_lookup_v12
 
 ROW language_code = 1
 | LOOKUP JOIN languages_lookup ON language_code
@@ -36,7 +36,7 @@ language_code:integer  | language_name:keyword
 ;
 
 basicOnTheCoordinator
-required_capability: join_lookup_v11
+required_capability: join_lookup_v12
 
 FROM employees
 | SORT emp_no
@@ -53,7 +53,7 @@ emp_no:integer | language_code:integer | language_name:keyword
 ;
 
 subsequentEvalOnTheDataNode
-required_capability: join_lookup_v11
+required_capability: join_lookup_v12
 
 FROM employees
 | EVAL language_code = languages
@@ -71,7 +71,7 @@ emp_no:integer | language_code:integer | language_name:keyword | language_code_x
 ;
 
 subsequentEvalOnTheCoordinator
-required_capability: join_lookup_v11
+required_capability: join_lookup_v12
 
 FROM employees
 | SORT emp_no
@@ -89,7 +89,7 @@ emp_no:integer | language_code:integer | language_name:keyword | language_code_x
 ;
 
 sortEvalBeforeLookup
-required_capability: join_lookup_v11
+required_capability: join_lookup_v12
 
 FROM employees
 | SORT emp_no
@@ -105,8 +105,23 @@ emp_no:integer | language_code:integer | language_name:keyword
 10003          | 4                     | German
 ;
 
+repeatedIndexOnFrom
+required_capability: join_lookup_v12
+
+FROM languages_lookup
+| LOOKUP JOIN languages_lookup ON language_code
+| SORT language_code
+;
+
+language_code:integer | language_name:keyword
+1                     | English
+2                     | French
+3                     | Spanish
+4                     | German
+;
+
 nonUniqueLeftKeyOnTheDataNode
-required_capability: join_lookup_v11
+required_capability: join_lookup_v12
 
 FROM employees
 | WHERE emp_no <= 10030
@@ -129,8 +144,12 @@ emp_no:integer | language_code:integer | language_name:keyword
 10030          |0                      | null
 ;
 
+###########################################################################
+# multiple match behavior with languages_lookup_non_unique_key index
+###########################################################################
+
 nonUniqueRightKeyOnTheDataNode
-required_capability: join_lookup_v11
+required_capability: join_lookup_v12
 
 FROM employees
 | EVAL language_code = emp_no % 10
@@ -154,7 +173,7 @@ emp_no:integer | language_code:integer | language_name:keyword | country:text
 ;
 
 nonUniqueRightKeyOnTheCoordinator
-required_capability: join_lookup_v11
+required_capability: join_lookup_v12
 
 FROM employees
 | SORT emp_no
@@ -164,6 +183,7 @@ FROM employees
 | KEEP emp_no, language_code, language_name, country
 ;
 
+ignoreOrder:true
 emp_no:integer | language_code:integer | language_name:keyword | country:text
 10001          | 1                     | English               | Canada
 10001          | 1                     | English               | null
@@ -177,44 +197,55 @@ emp_no:integer | language_code:integer | language_name:keyword | country:text
 10005          | 5                     | null                  | Atlantis
 ;
 
+nonUniqueRightKeyOnTheCoordinatorCorrectOrdering
+// Same as above, but don't ignore the order completely. At least the emp_no col must remain correctly ordered.
+required_capability: join_lookup_v12
+
+FROM employees
+| SORT emp_no
+| LIMIT 5
+| EVAL language_code = emp_no % 10
+| LOOKUP JOIN languages_lookup_non_unique_key ON language_code
+| KEEP emp_no, language_code
+;
+
+emp_no:integer | language_code:integer
+10001          | 1
+10001          | 1
+10001          | 1
+10001          | 1
+10002          | 2
+10002          | 2
+10002          | 2
+10003          | 3
+10004          | 4
+10005          | 5
+;
+
 nonUniqueRightKeyFromRow
-required_capability: join_lookup_v11
+required_capability: join_lookup_v12
 
 ROW language_code = 2
 | LOOKUP JOIN languages_lookup_non_unique_key ON language_code
 | DROP country.keyword
 ;
 
+ignoreOrder:true
 language_code:integer | country:text       | language_name:keyword
 2                     | [Germany, Austria] | German
 2                     | Switzerland        | German
 2                     | null               | German
 ;
 
-repeatedIndexOnFrom
-required_capability: join_lookup_v11
-
-FROM languages_lookup
-| LOOKUP JOIN languages_lookup ON language_code
-| SORT language_code
-;
-
-language_code:integer | language_name:keyword
-1                     | English
-2                     | French
-3                     | Spanish
-4                     | German
-;
-
-keepFieldNotInLookup
-required_capability: join_lookup_v11
+keepFieldNotInLookupOnTheDataNode
+required_capability: join_lookup_v12
 
 FROM employees
 | EVAL language_code = emp_no % 10
 | LOOKUP JOIN languages_lookup_non_unique_key ON language_code
 | WHERE emp_no == 10001
 | SORT emp_no
-| keep emp_no
+| KEEP emp_no
 ;
 
 emp_no:integer
@@ -224,12 +255,12 @@ emp_no:integer
 10001
 ;
 
-dropAllFieldsUsedInLookup
-required_capability: join_lookup_v11
+dropAllFieldsUsedInLookupOnTheCoordinator
+required_capability: join_lookup_v12
 
 FROM employees
 | WHERE emp_no == 10001
-| keep emp_no
+| KEEP emp_no
 | EVAL language_code = emp_no % 10
 | LOOKUP JOIN languages_lookup_non_unique_key ON language_code
 | DROP language_*, country*
@@ -242,160 +273,12 @@ emp_no:integer
 10001
 ;
 
-###############################################
-# Filtering tests with languages_lookup index
-###############################################
-
-filterOnLeftSide
-required_capability: join_lookup_v11
-
-FROM employees
-| EVAL language_code = languages
-| LOOKUP JOIN languages_lookup ON language_code
-| SORT emp_no
-| KEEP emp_no, language_code, language_name
-| WHERE emp_no >= 10091 AND emp_no < 10094
-;
-
-emp_no:integer | language_code:integer | language_name:keyword
-10091          | 3                     | Spanish
-10092          | 1                     | English
-10093          | 3                     | Spanish
-;
-
-filterOnRightSide
-required_capability: join_lookup_v11
-
-FROM sample_data
-| LOOKUP JOIN message_types_lookup ON message
-| WHERE type == "Error"
-| KEEP @timestamp, client_ip, event_duration, message, type
-| SORT @timestamp DESC
-;
-
-@timestamp:date          | client_ip:ip | event_duration:long | message:keyword       | type:keyword
-2023-10-23T13:53:55.832Z | 172.21.3.15  | 5033755             | Connection error      | Error
-2023-10-23T13:52:55.015Z | 172.21.3.15  | 8268153             | Connection error      | Error
-2023-10-23T13:51:54.732Z | 172.21.3.15  | 725448              | Connection error      | Error
-;
-
-filterOnRightSideAfterStats
-required_capability: join_lookup_v11
-
-FROM sample_data
-| LOOKUP JOIN message_types_lookup ON message
-| STATS count = count(message) BY type
-| WHERE type == "Error"
-;
-
-count:long | type:keyword
-3          | Error
-;
-
-filterOnJoinKey
-required_capability: join_lookup_v11
-
-FROM employees
-| EVAL language_code = languages
-| WHERE emp_no >= 10091 AND emp_no < 10094
-| LOOKUP JOIN languages_lookup ON language_code
-| WHERE language_code == 1
-| KEEP emp_no, language_code, language_name
-;
-
-emp_no:integer | language_code:integer | language_name:keyword
-10092          | 1                     | English
-;
-
-filterOnJoinKeyAndRightSide
-required_capability: join_lookup_v11
-
-FROM employees
-| WHERE emp_no < 10006
-| EVAL language_code = languages
-| LOOKUP JOIN languages_lookup ON language_code
-| WHERE language_code > 1 AND language_name IS NOT NULL
-| KEEP emp_no, language_code, language_name
-;
-ignoreOrder:true
-
-emp_no:integer | language_code:integer | language_name:keyword
-10001          | 2                     | French
-10003          | 4                     | German
-;
-
-filterOnRightSideOnTheCoordinator
-required_capability: join_lookup_v11
-
-FROM employees
-| SORT emp_no
-| LIMIT 5
-| EVAL language_code = languages
-| LOOKUP JOIN languages_lookup ON language_code
-| WHERE language_name == "English"
-| KEEP emp_no, language_code, language_name
-;
-
-emp_no:integer | language_code:integer | language_name:keyword
-10005          | 1                     | English
-;
-
-filterOnJoinKeyOnTheCoordinator
-required_capability: join_lookup_v11
-
-FROM employees
-| SORT emp_no
-| LIMIT 5
-| EVAL language_code = languages
-| LOOKUP JOIN languages_lookup ON language_code
-| WHERE language_code == 1
-| KEEP emp_no, language_code, language_name
-;
-
-emp_no:integer | language_code:integer | language_name:keyword
-10005          | 1                     | English
-;
-
-filterOnJoinKeyAndRightSideOnTheCoordinator
-required_capability: join_lookup_v11
-
-FROM employees
-| SORT emp_no
-| LIMIT 5
-| EVAL language_code = languages
-| LOOKUP JOIN languages_lookup ON language_code
-| WHERE language_code > 1 AND language_name IS NOT NULL
-| KEEP emp_no, language_code, language_name
-;
-
-emp_no:integer | language_code:integer | language_name:keyword
-10001          | 2                     | French
-10003          | 4                     | German
-;
-
-filterOnTheDataNodeThenFilterOnTheCoordinator
-required_capability: join_lookup_v11
-
-FROM employees
-| EVAL language_code = languages
-| WHERE emp_no >= 10091 AND emp_no < 10094
-| LOOKUP JOIN languages_lookup ON language_code
-| WHERE language_name == "English"
-| KEEP emp_no, language_code, language_name
-| SORT emp_no
-| WHERE language_code == 1
-;
-
-emp_no:integer | language_code:integer | language_name:keyword
-10092          | 1                     | English
-;
-
 ###########################################################################
 # null and multi-value behavior with languages_lookup_non_unique_key index
 ###########################################################################
 
 nullJoinKeyOnTheDataNode
-required_capability: join_lookup_v11
+required_capability: join_lookup_v12
 
 FROM employees
 | WHERE emp_no < 10004
@@ -417,7 +300,7 @@ emp_no:integer | language_code:integer | language_name:keyword
 ;
 
 mvJoinKeyOnTheLookupIndex
-required_capability: join_lookup_v11
+required_capability: join_lookup_v12
 
 FROM employees
 | WHERE 10003 < emp_no AND emp_no < 10008
@@ -436,7 +319,8 @@ emp_no:integer | language_code:integer | language_name:keyword
 ;
 
 mvJoinKeyOnFrom
-required_capability: join_lookup_v11
+required_capability: join_lookup_v12
+required_capability: join_lookup_skip_mv
 
 FROM employees
 | WHERE emp_no < 10006
@@ -455,7 +339,7 @@ emp_no:integer | language_code:integer | language_name:keyword
 ;
 
 mvJoinKeyFromRow
-required_capability: join_lookup_v11
+required_capability: join_lookup_v12
 required_capability: join_lookup_skip_mv
 
 ROW language_code = [4, 5, 6, 7]
@@ -469,7 +353,7 @@ language_code:integer | language_name:keyword | country:text
 ;
 
 mvJoinKeyFromRowExpanded
-required_capability: join_lookup_v11
+required_capability: join_lookup_v12
 
 ROW language_code = [4, 5, 6, 7, 8]
 | MV_EXPAND language_code
@@ -487,12 +371,160 @@ language_code:integer | language_name:keyword | country:text
 8                     | Mv-Lang2              | Mv-Land2
 ;
 
+###############################################
+# Filtering tests with languages_lookup index
+###############################################
+
+filterOnLeftSide
+required_capability: join_lookup_v12
+
+FROM employees
+| EVAL language_code = languages
+| LOOKUP JOIN languages_lookup ON language_code
+| SORT emp_no
+| KEEP emp_no, language_code, language_name
+| WHERE emp_no >= 10091 AND emp_no < 10094
+;
+
+emp_no:integer | language_code:integer | language_name:keyword
+10091          | 3                     | Spanish
+10092          | 1                     | English
+10093          | 3                     | Spanish
+;
+
+filterOnRightSide
+required_capability: join_lookup_v12
+
+FROM sample_data
+| LOOKUP JOIN message_types_lookup ON message
+| WHERE type == "Error"
+| KEEP @timestamp, client_ip, event_duration, message, type
+| SORT @timestamp DESC
+;
+
+@timestamp:date          | client_ip:ip | event_duration:long | message:keyword       | type:keyword
+2023-10-23T13:53:55.832Z | 172.21.3.15  | 5033755             | Connection error      | Error
+2023-10-23T13:52:55.015Z | 172.21.3.15  | 8268153             | Connection error      | Error
+2023-10-23T13:51:54.732Z | 172.21.3.15  | 725448              | Connection error      | Error
+;
+
+filterOnRightSideAfterStats
+required_capability: join_lookup_v12
+
+FROM sample_data
+| LOOKUP JOIN message_types_lookup ON message
+| STATS count = count(message) BY type
+| WHERE type == "Error"
+;
+
+count:long | type:keyword
+3          | Error
+;
+
+filterOnJoinKey
+required_capability: join_lookup_v12
+
+FROM employees
+| EVAL language_code = languages
+| WHERE emp_no >= 10091 AND emp_no < 10094
+| LOOKUP JOIN languages_lookup ON language_code
+| WHERE language_code == 1
+| KEEP emp_no, language_code, language_name
+;
+
+emp_no:integer | language_code:integer | language_name:keyword
+10092          | 1                     | English
+;
+
+filterOnJoinKeyAndRightSide
+required_capability: join_lookup_v12
+
+FROM employees
+| WHERE emp_no < 10006
+| EVAL language_code = languages
+| LOOKUP JOIN languages_lookup ON language_code
+| WHERE language_code > 1 AND language_name IS NOT NULL
+| KEEP emp_no, language_code, language_name
+;
+ignoreOrder:true
+
+emp_no:integer | language_code:integer | language_name:keyword
+10001          | 2                     | French
+10003          | 4                     | German
+;
+
+filterOnRightSideOnTheCoordinator
+required_capability: join_lookup_v12
+
+FROM employees
+| SORT emp_no
+| LIMIT 5
+| EVAL language_code = languages
+| LOOKUP JOIN languages_lookup ON language_code
+| WHERE language_name == "English"
+| KEEP emp_no, language_code, language_name
+;
+
+emp_no:integer | language_code:integer | language_name:keyword
+10005          | 1                     | English
+;
+
+filterOnJoinKeyOnTheCoordinator
+required_capability: join_lookup_v12
+
+FROM employees
+| SORT emp_no
+| LIMIT 5
+| EVAL language_code = languages
+| LOOKUP JOIN languages_lookup ON language_code
+| WHERE language_code == 1
+| KEEP emp_no, language_code, language_name
+;
+
+emp_no:integer | language_code:integer | language_name:keyword
+10005          | 1                     | English
+;
+
+filterOnJoinKeyAndRightSideOnTheCoordinator
+required_capability: join_lookup_v12
+
+FROM employees
+| SORT emp_no
+| LIMIT 5
+| EVAL language_code = languages
+| LOOKUP JOIN languages_lookup ON language_code
+| WHERE language_code > 1 AND language_name IS NOT NULL
+| KEEP emp_no, language_code, language_name
+;
+
+emp_no:integer | language_code:integer | language_name:keyword
+10001          | 2                     | French
+10003          | 4                     | German
+;
+
+filterOnTheDataNodeThenFilterOnTheCoordinator
+required_capability: join_lookup_v12
+
+FROM employees
+| EVAL language_code = languages
+| WHERE emp_no >= 10091 AND emp_no < 10094
+| LOOKUP JOIN languages_lookup ON language_code
+| WHERE language_name == "English"
+| KEEP emp_no, language_code, language_name
+| SORT emp_no
+| WHERE language_code == 1
+;
+
+emp_no:integer | language_code:integer | language_name:keyword
+10092          | 1                     | English
+;
+
 ###########################################################################
-# nested filed join behavior with languages_nested_fields index
+# nested field join behavior with languages_nested_fields index
 ###########################################################################
 
 joinOnNestedField
-required_capability: join_lookup_v11
+required_capability: join_lookup_v12
 
 FROM employees
 | WHERE 10000 < emp_no AND emp_no < 10006
@@ -512,7 +544,7 @@ emp_no:integer | language.id:integer | language.name:text
 
 
 joinOnNestedFieldRow
-required_capability: join_lookup_v11
+required_capability: join_lookup_v12
 
 ROW language.code = "EN"
 | LOOKUP JOIN languages_nested_fields ON language.code
@@ -525,7 +557,7 @@ language.id:integer | language.code:keyword | language.name.keyword:keyword
 
 
 joinOnNestedNestedFieldRow
-required_capability: join_lookup_v11
+required_capability: join_lookup_v12
 
 ROW language.name.keyword = "English"
 | LOOKUP JOIN languages_nested_fields ON language.name.keyword
@@ -536,12 +568,40 @@ language.id:integer | language.name:text | language.name.keyword:keyword
 1                   | English            | English
 ;
 
+joinOnNestedNestedFieldRowExplicitKeyword
+required_capability: join_lookup_v12
+required_capability: lookup_join_text
+
+ROW language.name.keyword = "English"
+| LOOKUP JOIN languages_nested_fields ON language.name.keyword
+| KEEP language.id, language.name, language.name.keyword
+;
+
+language.id:integer | language.name:text | language.name.keyword:keyword
+1                   | English            | English
+;
+
+joinOnNestedNestedFieldRowExplicitKeywords
+required_capability: join_lookup_v12
+required_capability: lookup_join_text
+
+ROW language.name.keyword = ["English", "French"]
+| MV_EXPAND language.name.keyword
+| LOOKUP JOIN languages_nested_fields ON language.name.keyword
+| KEEP language.id, language.name, language.name.keyword, language.code
+;
+
+language.id:integer | language.name:text | language.name.keyword:keyword | language.code:keyword
+1                   | English            | English                       | EN
+2                   | French             | French                        | FR
+;
+
 ###############################################
 # Tests with clientips_lookup index
 ###############################################
 
 lookupIPFromRow
-required_capability: join_lookup_v11
+required_capability: join_lookup_v12
 
 ROW left = "left", client_ip = "172.21.0.5", right = "right"
 | LOOKUP JOIN clientips_lookup ON client_ip
@@ -552,7 +612,7 @@ left         | 172.21.0.5        | right         | Development
 ;
 
 lookupIPFromKeepRow
-required_capability: join_lookup_v11
+required_capability: join_lookup_v12
 
 ROW left = "left", client_ip = "172.21.0.5", right = "right"
 | KEEP left, client_ip, right
@@ -564,7 +624,7 @@ left         | 172.21.0.5        | right         | Development
 ;
 
 lookupIPFromRowWithShadowing
-required_capability: join_lookup_v11
+required_capability: join_lookup_v12
 
 ROW left = "left", client_ip = "172.21.0.5", env = "env", right = "right"
 | LOOKUP JOIN clientips_lookup ON client_ip
@@ -575,7 +635,7 @@ left         | 172.21.0.5        | right         | Development
 ;
 
 lookupIPFromRowWithShadowingKeep
-required_capability: join_lookup_v11
+required_capability: join_lookup_v12
 
 ROW left = "left", client_ip = "172.21.0.5", env = "env", right = "right"
 | EVAL client_ip = client_ip::keyword
@@ -588,7 +648,7 @@ left         | 172.21.0.5        | right         | Development
 ;
 
 lookupIPFromRowWithShadowingKeepReordered
-required_capability: join_lookup_v11
+required_capability: join_lookup_v12
 
 ROW left = "left", client_ip = "172.21.0.5", env = "env", right = "right"
 | EVAL client_ip = client_ip::keyword
@@ -601,7 +661,7 @@ right         | Development | 172.21.0.5
 ;
 
 lookupIPFromIndex
-required_capability: join_lookup_v11
+required_capability: join_lookup_v12
 
 FROM sample_data
 | EVAL client_ip = client_ip::keyword
@@ -620,7 +680,7 @@ ignoreOrder:true
 ;
 
 lookupIPFromIndexKeep
-required_capability: join_lookup_v11
+required_capability: join_lookup_v12
 
 FROM sample_data
 | EVAL client_ip = client_ip::keyword
@@ -640,7 +700,7 @@ ignoreOrder:true
 ;
 
 lookupIPFromIndexKeepKeep
-required_capability: join_lookup_v11
+required_capability: join_lookup_v12
 
 FROM sample_data
 | KEEP client_ip, event_duration, @timestamp, message
@@ -662,7 +722,7 @@ timestamp:date           | client_ip:keyword | event_duration:long | msg:keyword
 ;
 
 lookupIPFromIndexStats
-required_capability: join_lookup_v11
+required_capability: join_lookup_v12
 
 FROM sample_data
 | EVAL client_ip = client_ip::keyword
@@ -678,7 +738,7 @@ count:long | env:keyword
 ;
 
 lookupIPFromIndexStatsKeep
-required_capability: join_lookup_v11
+required_capability: join_lookup_v12
 
 FROM sample_data
 | EVAL client_ip = client_ip::keyword
@@ -695,7 +755,7 @@ count:long | env:keyword
 ;
 
 statsAndLookupIPFromIndex
-required_capability: join_lookup_v11
+required_capability: join_lookup_v12
 
 FROM sample_data
 | EVAL client_ip = client_ip::keyword
@@ -716,7 +776,7 @@ count:long | client_ip:keyword | env:keyword
 ###############################################
 
 lookupMessageFromRow
-required_capability: join_lookup_v11
+required_capability: join_lookup_v12
 
 ROW left = "left", message = "Connected to 10.1.0.1", right = "right"
 | LOOKUP JOIN message_types_lookup ON message
@@ -727,7 +787,7 @@ left         | Connected to 10.1.0.1 | right         | Success
 ;
 
 lookupMessageFromKeepRow
-required_capability: join_lookup_v11
+required_capability: join_lookup_v12
 
 ROW left = "left", message = "Connected to 10.1.0.1", right = "right"
 | KEEP left, message, right
@@ -739,7 +799,7 @@ left         | Connected to 10.1.0.1 | right         | Success
 ;
 
 lookupMessageFromRowWithShadowing
-required_capability: join_lookup_v11
+required_capability: join_lookup_v12
 
 ROW left = "left", message = "Connected to 10.1.0.1", type = "unknown", right = "right"
 | LOOKUP JOIN message_types_lookup ON message
@@ -750,7 +810,7 @@ left         | Connected to 10.1.0.1 | right         | Success
 ;
 
 lookupMessageFromRowWithShadowingKeep
-required_capability: join_lookup_v11
+required_capability: join_lookup_v12
 
 ROW left = "left", message = "Connected to 10.1.0.1", type = "unknown", right = "right"
 | LOOKUP JOIN message_types_lookup ON message
@@ -762,7 +822,7 @@ left         | Connected to 10.1.0.1 | right         | Success
 ;
 
 lookupMessageFromIndex
-required_capability: join_lookup_v11
+required_capability: join_lookup_v12
 
 FROM sample_data
 | LOOKUP JOIN message_types_lookup ON message
@@ -780,7 +840,7 @@ ignoreOrder:true
 ;
 
 lookupMessageFromIndexKeep
-required_capability: join_lookup_v11
+required_capability: join_lookup_v12
 
 FROM sample_data
 | LOOKUP JOIN message_types_lookup ON message
@@ -799,7 +859,7 @@ ignoreOrder:true
 ;
 
 lookupMessageFromIndexKeepKeep
-required_capability: join_lookup_v11
+required_capability: join_lookup_v12
 
 FROM sample_data
 | KEEP client_ip, event_duration, @timestamp, message
@@ -819,7 +879,7 @@ ignoreOrder:true
 ;
 
 lookupMessageFromIndexKeepReordered
-required_capability: join_lookup_v11
+required_capability: join_lookup_v12
 
 FROM sample_data
 | LOOKUP JOIN message_types_lookup ON message
@@ -838,7 +898,7 @@ Success      | 172.21.2.162 | 3450233             | Connected to 10.1.0.3
 ;
 
 lookupMessageFromIndexStats
-required_capability: join_lookup_v11
+required_capability: join_lookup_v12
 
 FROM sample_data
 | LOOKUP JOIN message_types_lookup ON message
@@ -853,7 +913,7 @@ count:long | type:keyword
 ;
 
 lookupMessageFromIndexStatsKeep
-required_capability: join_lookup_v11
+required_capability: join_lookup_v12
 
 FROM sample_data
 | LOOKUP JOIN message_types_lookup ON message
@@ -869,7 +929,7 @@ count:long | type:keyword
 ;
 
 statsAndLookupMessageFromIndex
-required_capability: join_lookup_v11
+required_capability: join_lookup_v12
 
 FROM sample_data
 | STATS count = count(message) BY message
@@ -887,7 +947,7 @@ count:long | type:keyword | message:keyword
 ;
 
 lookupMessageFromIndexTwice
-required_capability: join_lookup_v11
+required_capability: join_lookup_v12
 
 FROM sample_data
 | LOOKUP JOIN message_types_lookup ON message
@@ -909,7 +969,7 @@ ignoreOrder:true
 ;
 
 lookupMessageFromIndexTwiceKeep
-required_capability: join_lookup_v11
+required_capability: join_lookup_v12
 
 FROM sample_data
 | LOOKUP JOIN message_types_lookup ON message
@@ -932,7 +992,7 @@ ignoreOrder:true
 ;
 
 lookupMessageFromIndexTwiceFullyShadowing
-required_capability: join_lookup_v11
+required_capability: join_lookup_v12
 
 FROM sample_data
 | LOOKUP JOIN message_types_lookup ON message
@@ -956,7 +1016,7 @@ ignoreOrder:true
 ###############################################
 
 lookupIPAndMessageFromRow
-required_capability: join_lookup_v11
+required_capability: join_lookup_v12
 
 ROW left = "left", client_ip = "172.21.0.5", message = "Connected to 10.1.0.1", right = "right"
 | LOOKUP JOIN clientips_lookup ON client_ip
@@ -968,7 +1028,7 @@ left         | 172.21.0.5        | Connected to 10.1.0.1 | right         | Devel
 ;
 
 lookupIPAndMessageFromRowKeepBefore
-required_capability: join_lookup_v11
+required_capability: join_lookup_v12
 
 ROW left = "left", client_ip = "172.21.0.5", message = "Connected to 10.1.0.1", right = "right"
 | KEEP left, client_ip, message, right
@@ -981,7 +1041,7 @@ left         | 172.21.0.5        | Connected to 10.1.0.1 | right         | Devel
 ;
 
 lookupIPAndMessageFromRowKeepBetween
-required_capability: join_lookup_v11
+required_capability: join_lookup_v12
 
 ROW left = "left", client_ip = "172.21.0.5", message = "Connected to 10.1.0.1", right = "right"
 | LOOKUP JOIN clientips_lookup ON client_ip
@@ -994,7 +1054,7 @@ left         | 172.21.0.5        | Connected to 10.1.0.1 | right         | Devel
 ;
 
 lookupIPAndMessageFromRowKeepAfter
-required_capability: join_lookup_v11
+required_capability: join_lookup_v12
 
 ROW left = "left", client_ip = "172.21.0.5", message = "Connected to 10.1.0.1", right = "right"
 | LOOKUP JOIN clientips_lookup ON client_ip
@@ -1007,7 +1067,7 @@ left         | 172.21.0.5        | Connected to 10.1.0.1 | right         | Devel
 ;
 
 lookupIPAndMessageFromRowWithShadowing
-required_capability: join_lookup_v11
+required_capability: join_lookup_v12
 
 ROW left = "left", client_ip = "172.21.0.5", message = "Connected to 10.1.0.1", env = "env", type = "type", right = "right"
 | LOOKUP JOIN clientips_lookup ON client_ip
@@ -1019,7 +1079,7 @@ left         | 172.21.0.5        | Connected to 10.1.0.1 | right         | Devel
 ;
 
 lookupIPAndMessageFromRowWithShadowingKeep
-required_capability: join_lookup_v11
+required_capability: join_lookup_v12
 
 ROW left = "left", client_ip = "172.21.0.5", message = "Connected to 10.1.0.1", env = "env", right = "right"
 | EVAL client_ip = client_ip::keyword
@@ -1033,7 +1093,7 @@ left         | 172.21.0.5        | Connected to 10.1.0.1 | right         | Devel
 ;
 
 lookupIPAndMessageFromRowWithShadowingKeepKeep
-required_capability: join_lookup_v11
+required_capability: join_lookup_v12
 
 ROW left = "left", client_ip = "172.21.0.5", message = "Connected to 10.1.0.1", env = "env", right = "right"
 | EVAL client_ip = client_ip::keyword
@@ -1048,7 +1108,7 @@ left         | 172.21.0.5        | Connected to 10.1.0.1 | right         | Devel
 ;
 
 lookupIPAndMessageFromRowWithShadowingKeepKeepKeep
-required_capability: join_lookup_v11
+required_capability: join_lookup_v12
 
 ROW left = "left", client_ip = "172.21.0.5", message = "Connected to 10.1.0.1", env = "env", right = "right"
 | EVAL client_ip = client_ip::keyword
@@ -1064,7 +1124,7 @@ left         | 172.21.0.5        | Connected to 10.1.0.1 | right         | Devel
 ;
 
 lookupIPAndMessageFromRowWithShadowingKeepReordered
-required_capability: join_lookup_v11
+required_capability: join_lookup_v12
 
 ROW left = "left", client_ip = "172.21.0.5", message = "Connected to 10.1.0.1", env = "env", right = "right"
 | EVAL client_ip = client_ip::keyword
@@ -1078,7 +1138,7 @@ right         | Development  | Success      | 172.21.0.5
 ;
 
 lookupIPAndMessageFromIndex
-required_capability: join_lookup_v11
+required_capability: join_lookup_v12
 
 FROM sample_data
 | EVAL client_ip = client_ip::keyword
@@ -1098,7 +1158,7 @@ ignoreOrder:true
 ;
 
 lookupIPAndMessageFromIndexKeep
-required_capability: join_lookup_v11
+required_capability: join_lookup_v12
 
 FROM sample_data
 | EVAL client_ip = client_ip::keyword
@@ -1119,7 +1179,7 @@ ignoreOrder:true
 ;
 
 lookupIPAndMessageFromIndexStats
-required_capability: join_lookup_v11
+required_capability: join_lookup_v12
 
 FROM sample_data
 | EVAL client_ip = client_ip::keyword
@@ -1137,7 +1197,7 @@ count:long | env:keyword | type:keyword
 ;
 
 lookupIPAndMessageFromIndexStatsKeep
-required_capability: join_lookup_v11
+required_capability: join_lookup_v12
 
 FROM sample_data
 | EVAL client_ip = client_ip::keyword
@@ -1156,7 +1216,7 @@ count:long | env:keyword | type:keyword
 ;
 
 statsAndLookupIPAndMessageFromIndex
-required_capability: join_lookup_v11
+required_capability: join_lookup_v12
 
 FROM sample_data
 | EVAL client_ip = client_ip::keyword
@@ -1175,7 +1235,7 @@ count:long | client_ip:keyword | message:keyword       | env:keyword | type:keyw
 ;
 
 lookupIPAndMessageFromIndexChainedEvalKeep
-required_capability: join_lookup_v11
+required_capability: join_lookup_v12
 
 FROM sample_data
 | EVAL client_ip = client_ip::keyword
@@ -1197,7 +1257,7 @@ ignoreOrder:true
 ;
 
 lookupIPAndMessageFromIndexChainedRenameKeep
-required_capability: join_lookup_v11
+required_capability: join_lookup_v12
 
 FROM sample_data
 | EVAL client_ip = client_ip::keyword
@@ -1219,10 +1279,28 @@ ignoreOrder:true
 ;
 
 lookupIndexInFromRepeatedRowBug
-required_capability: join_lookup_v11
+// Test for https://github.com/elastic/elasticsearch/issues/118852
+required_capability: join_lookup_v12
 FROM languages_lookup_non_unique_key
 | WHERE language_code == 1
 | LOOKUP JOIN languages_lookup ON language_code
+| KEEP language_code, language_name, country
+| SORT language_code, language_name, country
+;
+
+language_code:integer | language_name:keyword       | country:text
+1                     | English                     | Canada
+1                     | English                     | United Kingdom
+1                     | English                     | United States of America
+1                     | English                     | null
+;
+
+lookupIndexQuoting
+required_capability: join_lookup_v12
+FROM languages_lookup_non_unique_key
+| WHERE language_code == 1
+| LOOKUP JOIN "languages_lookup" ON language_code
+| LOOKUP JOIN """languages_lookup""" ON language_code
 | KEEP language_code, language_name, country
 | SORT language_code, language_name, country
 ;

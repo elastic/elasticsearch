@@ -1,0 +1,6 @@
+pr: 120752
+summary: Refresh source index before reindexing data stream index
+area: Data streams
+type: bug
+issues:
+ - 120314

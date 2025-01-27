@@ -42,7 +42,9 @@ import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.security.cert.CertStoreParameters;
 import java.util.List;
+import java.util.Locale;
 import java.util.Properties;
+import java.util.TimeZone;
 
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.HttpsURLConnection;
@@ -187,6 +189,12 @@ public interface EntitlementChecker {
     void check$java_util_spi_TimeZoneNameProvider$(Class<?> callerClass);
 
     void check$java_util_logging_LogManager$(Class<?> callerClass);
+
+    void check$java_util_Locale$$setDefault(Class<?> callerClass, Locale locale);
+
+    void check$java_util_Locale$$setDefault(Class<?> callerClass, Locale.Category category, Locale locale);
+
+    void check$java_util_TimeZone$$setDefault(Class<?> callerClass, TimeZone zone);
 
     void check$java_net_DatagramSocket$$setDatagramSocketImplFactory(Class<?> callerClass, DatagramSocketImplFactory fac);
 

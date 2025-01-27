@@ -461,3 +461,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/120975
 - class: org.elasticsearch.packaging.test.DockerTests
   issue: https://github.com/elastic/elasticsearch/issues/120978
+- class: org.elasticsearch.xpack.esql.qa.multi_node.RestEsqlIT
+  method: testInternalRange {ASYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/120979

@@ -158,12 +158,12 @@ final class FetchSearchPhase extends SearchPhase {
         );
         for (int i = 0; i < docIdsToLoad.length; i++) {
             List<Integer> entry = docIdsToLoad[i];
+            SearchPhaseResult shardPhaseResult = searchPhaseShardResults.get(i);
             if (entry == null) { // no results for this shard ID
                 // if we got some hits from this shard we have to release the context
                 // we do this below after sending out the fetch requests relevant to the search to give priority to those requests
                 // that contribute to the final search response
                 // in any case we count down this result since we don't talk to this shard anymore
-                SearchPhaseResult shardPhaseResult = searchPhaseShardResults.get(i);
                 if (shardPhaseResult != null) {
                     // notifying the listener here as otherwise the search operation might finish before we
                     // get a chance to notify the progress listener for some fetch results
@@ -172,7 +172,7 @@ final class FetchSearchPhase extends SearchPhase {
                 counter.countDown();
             } else {
                 executeFetch(
-                    searchPhaseShardResults.get(i),
+                    shardPhaseResult,
                     counter,
                     entry,
                     rankDocsPerShard == null || rankDocsPerShard.get(i).isEmpty() ? null : new RankDocShardInfo(rankDocsPerShard.get(i)),

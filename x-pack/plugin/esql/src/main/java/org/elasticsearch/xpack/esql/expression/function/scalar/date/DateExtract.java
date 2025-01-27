@@ -113,12 +113,14 @@ public class DateExtract extends EsqlConfigurationFunction {
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        boolean isNanos = switch(field().dataType()) {
+        boolean isNanos = switch (field().dataType()) {
             case DataType.DATETIME -> false;
             case DataType.DATE_NANOS -> true;
             default -> throw new UnsupportedOperationException(
-                "Unsupported field type [" + field().dataType().name() + "]. " +
-                    "If you're seeing this, there's a bug in DateExtract.resolveType"
+                "Unsupported field type ["
+                    + field().dataType().name()
+                    + "]. "
+                    + "If you're seeing this, there's a bug in DateExtract.resolveType"
             );
         };
 
@@ -207,7 +209,13 @@ public class DateExtract extends EsqlConfigurationFunction {
         }
         String operationName = sourceText();
         return isStringAndExact(children().get(0), sourceText(), TypeResolutions.ParamOrdinal.FIRST).and(
-            TypeResolutions.isType(children().get(1), DataType::isDate, operationName, TypeResolutions.ParamOrdinal.SECOND, "datetime or date_nanos")
+            TypeResolutions.isType(
+                children().get(1),
+                DataType::isDate,
+                operationName,
+                TypeResolutions.ParamOrdinal.SECOND,
+                "datetime or date_nanos"
+            )
         );
     }
 

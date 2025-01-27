@@ -314,7 +314,7 @@ This returns the following response based on the normalized weighted score for e
 
 By normalizing scores and leveraging `function_score` queries, we can also implement more complex ranking strategies,
 such as sorting results based on their timestamps, assign the timestamp as a score, and then normalizing this score to
-[0, 1] range where 1 is `today` and `0` is the oldest reference document in the index.
+[0, 1].
 Then, we can easily combine the above with a `knn` retriever as follows:
 
 [source,console]

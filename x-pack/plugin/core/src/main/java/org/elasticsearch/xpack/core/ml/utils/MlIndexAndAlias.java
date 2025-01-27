@@ -66,7 +66,6 @@ public final class MlIndexAndAlias {
 
     private static final Logger logger = LogManager.getLogger(MlIndexAndAlias.class);
 
-    // Visible for testing
     static final Comparator<String> INDEX_NAME_COMPARATOR = new Comparator<>() {
 
         private final Predicate<String> HAS_SIX_DIGIT_SUFFIX = Pattern.compile("\\d{6}").asMatchPredicate();
@@ -200,7 +199,7 @@ public final class MlIndexAndAlias {
         } else {
             if (indexPointedByCurrentWriteAlias.isEmpty()) {
                 assert concreteIndexNames.length > 0;
-                String latestConcreteIndexName = Arrays.stream(concreteIndexNames).max(INDEX_NAME_COMPARATOR).get();
+                String latestConcreteIndexName = latestIndex(concreteIndexNames);
                 updateWriteAlias(client, alias, null, latestConcreteIndexName, loggingListener);
                 return;
             }
@@ -307,18 +306,22 @@ public final class MlIndexAndAlias {
         );
     }
 
-    private static void updateWriteAlias(
+    public static void updateWriteAlias(
         Client client,
         String alias,
         @Nullable String currentIndex,
         String newIndex,
         ActionListener<Boolean> listener
     ) {
-        logger.info("About to move write alias [{}] from index [{}] to index [{}]", alias, currentIndex, newIndex);
+        if (currentIndex != null) {
+            logger.info("About to move write alias [{}] from index [{}] to index [{}]", alias, currentIndex, newIndex);
+        } else {
+            logger.info("About to create write alias [{}] for index [{}]", alias, newIndex);
+        }
         IndicesAliasesRequestBuilder requestBuilder = client.admin()
             .indices()
             .prepareAliases()
-            .addAliasAction(IndicesAliasesRequest.AliasActions.add().index(newIndex).alias(alias).isHidden(true));
+            .addAliasAction(IndicesAliasesRequest.AliasActions.add().index(newIndex).alias(alias).isHidden(true).writeIndex(true));
         if (currentIndex != null) {
             requestBuilder.removeAlias(currentIndex, alias);
         }
@@ -409,5 +412,17 @@ public final class MlIndexAndAlias {
     public static boolean hasIndexTemplate(ClusterState state, String templateName, long version) {
         var template = state.getMetadata().templatesV2().get(templateName);
         return template != null && Long.valueOf(version).equals(template.version());
+    }
+
+    /**
+     * Returns the latest index. Latest is the index with the highest
+     * 6 digit suffix.
+     * @param concreteIndices List of index names
+     * @return The latest index by index name version suffix
+     */
+    public static String latestIndex(String[] concreteIndices) {
+        return concreteIndices.length == 1
+            ? concreteIndices[0]
+            : Arrays.stream(concreteIndices).max(MlIndexAndAlias.INDEX_NAME_COMPARATOR).get();
     }
 }

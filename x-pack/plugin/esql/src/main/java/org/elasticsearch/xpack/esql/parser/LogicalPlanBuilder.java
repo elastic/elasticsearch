@@ -11,12 +11,13 @@ import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.elasticsearch.Build;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.dissect.DissectException;
 import org.elasticsearch.dissect.DissectParser;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.VerificationException;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -35,7 +36,7 @@ import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
-import org.elasticsearch.xpack.esql.plan.TableIdentifier;
+import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
@@ -256,14 +257,13 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     public LogicalPlan visitFromCommand(EsqlBaseParser.FromCommandContext ctx) {
         Source source = source(ctx);
-        TableIdentifier table = new TableIdentifier(source, null, visitIndexPattern(ctx.indexPattern()));
+        IndexPattern table = new IndexPattern(source, visitIndexPattern(ctx.indexPattern()));
         Map<String, Attribute> metadataMap = new LinkedHashMap<>();
         if (ctx.metadata() != null) {
             for (var c : ctx.metadata().UNQUOTED_SOURCE()) {
                 String id = c.getText();
                 Source src = source(c);
-                if (MetadataAttribute.isSupported(id) == false // TODO: drop check below once METADATA_SCORE is no longer snapshot-only
-                    || (EsqlCapabilities.Cap.METADATA_SCORE.isEnabled() == false && MetadataAttribute.SCORE.equals(id))) {
+                if (MetadataAttribute.isSupported(id) == false) {
                     throw new ParsingException(src, "unsupported metadata field [" + id + "]");
                 }
                 Attribute a = metadataMap.put(id, MetadataAttribute.create(src, id));
@@ -470,7 +470,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             throw new IllegalArgumentException("METRICS command currently requires a snapshot build");
         }
         Source source = source(ctx);
-        TableIdentifier table = new TableIdentifier(source, null, visitIndexPattern(ctx.indexPattern()));
+        IndexPattern table = new IndexPattern(source, visitIndexPattern(ctx.indexPattern()));
 
         if (ctx.aggregates == null && ctx.grouping == null) {
             return new UnresolvedRelation(source, table, false, List.of(), IndexMode.STANDARD, null, "METRICS");
@@ -525,9 +525,21 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         }
 
         var target = ctx.joinTarget();
+        var rightPattern = visitIndexPattern(List.of(target.index));
+        if (rightPattern.contains(WILDCARD)) {
+            throw new ParsingException(source(target), "invalid index pattern [{}], * is not allowed in LOOKUP JOIN", rightPattern);
+        }
+        if (RemoteClusterAware.isRemoteIndexName(rightPattern)) {
+            throw new ParsingException(
+                source(target),
+                "invalid index pattern [{}], remote clusters are not supported in LOOKUP JOIN",
+                rightPattern
+            );
+        }
+
         UnresolvedRelation right = new UnresolvedRelation(
             source(target),
-            new TableIdentifier(source(target.index), null, visitIdentifier(target.index)),
+            new IndexPattern(source(target.index), rightPattern),
             false,
             emptyList(),
             IndexMode.LOOKUP,
@@ -554,6 +566,20 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             throw new ParsingException(source, "JOIN ON clause only supports one field at the moment, found [{}]", matchFieldsCount);
         }
 
-        return p -> new LookupJoin(source, p, right, joinFields);
+        return p -> {
+            p.forEachUp(UnresolvedRelation.class, r -> {
+                for (var leftPattern : Strings.splitStringByCommaToArray(r.indexPattern().indexPattern())) {
+                    if (RemoteClusterAware.isRemoteIndexName(leftPattern)) {
+                        throw new ParsingException(
+                            source(target),
+                            "invalid index pattern [{}], remote clusters are not supported in LOOKUP JOIN",
+                            r.indexPattern().indexPattern()
+                        );
+                    }
+                }
+            });
+
+            return new LookupJoin(source, p, right, joinFields);
+        };
     }
 }

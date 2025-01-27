@@ -43,7 +43,7 @@ public class EqlUsageTransportAction extends XPackUsageFeatureTransportAction {
         IndexNameExpressionResolver indexNameExpressionResolver,
         Client client
     ) {
-        super(XPackUsageFeatureAction.EQL.name(), transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver);
+        super(XPackUsageFeatureAction.EQL.name(), transportService, clusterService, threadPool, actionFilters);
         this.client = client;
     }
 

@@ -19,7 +19,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -266,7 +265,7 @@ public class SortProcessorTests extends ESTestCase {
     }
 
     public void testDescendingSortWithTargetField() throws Exception {
-        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Map.of());
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         int numItems = randomIntBetween(1, 10);
         List<String> fieldValue = new ArrayList<>(numItems);
         List<String> expectedResult = new ArrayList<>(numItems);
@@ -286,7 +285,7 @@ public class SortProcessorTests extends ESTestCase {
     }
 
     public void testAscendingSortWithTargetField() throws Exception {
-        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Map.of());
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         int numItems = randomIntBetween(1, 10);
         List<String> fieldValue = new ArrayList<>(numItems);
         List<String> expectedResult = new ArrayList<>(numItems);
@@ -306,7 +305,7 @@ public class SortProcessorTests extends ESTestCase {
     }
 
     public void testSortWithTargetFieldLeavesOriginalUntouched() throws Exception {
-        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Map.of());
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         List<Integer> fieldValue = List.of(1, 5, 4);
         List<Integer> expectedResult = new ArrayList<>(fieldValue);
         Collections.sort(expectedResult);

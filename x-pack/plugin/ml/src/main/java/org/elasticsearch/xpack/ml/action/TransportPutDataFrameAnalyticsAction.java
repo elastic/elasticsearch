@@ -98,7 +98,6 @@ public class TransportPutDataFrameAnalyticsAction extends TransportMasterNodeAct
             threadPool,
             actionFilters,
             PutDataFrameAnalyticsAction.Request::new,
-            indexNameExpressionResolver,
             PutDataFrameAnalyticsAction.Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );

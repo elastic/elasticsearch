@@ -42,7 +42,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Gre
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
-import org.elasticsearch.xpack.esql.plan.TableIdentifier;
+import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
@@ -62,6 +62,8 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
+import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -76,6 +78,12 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsConstant;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsIdentifier;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsPattern;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
+import static org.elasticsearch.xpack.esql.IdentifierGenerator.Features.CROSS_CLUSTER;
+import static org.elasticsearch.xpack.esql.IdentifierGenerator.Features.WILDCARD_PATTERN;
+import static org.elasticsearch.xpack.esql.IdentifierGenerator.randomIndexPattern;
+import static org.elasticsearch.xpack.esql.IdentifierGenerator.randomIndexPatterns;
+import static org.elasticsearch.xpack.esql.IdentifierGenerator.unquoteIndexPattern;
+import static org.elasticsearch.xpack.esql.IdentifierGenerator.without;
 import static org.elasticsearch.xpack.esql.core.expression.Literal.FALSE;
 import static org.elasticsearch.xpack.esql.core.expression.Literal.TRUE;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
@@ -300,18 +308,18 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
     }
 
-    public void testStatsWithoutAggs() throws Exception {
+    public void testStatsWithoutAggs() {
         assertEquals(
             new Aggregate(EMPTY, PROCESSING_CMD_INPUT, Aggregate.AggregateType.STANDARD, List.of(attribute("a")), List.of(attribute("a"))),
             processingCommand("stats by a")
         );
     }
 
-    public void testStatsWithoutAggsOrGroup() throws Exception {
+    public void testStatsWithoutAggsOrGroup() {
         expectError("from text | stats", "At least one aggregation or grouping expression required in [stats]");
     }
 
-    public void testAggsWithGroupKeyAsAgg() throws Exception {
+    public void testAggsWithGroupKeyAsAgg() {
         var queries = new String[] { """
             row a = 1, b = 2
             | stats a by a
@@ -332,7 +340,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         }
     }
 
-    public void testStatsWithGroupKeyAndAggFilter() throws Exception {
+    public void testStatsWithGroupKeyAndAggFilter() {
         var a = attribute("a");
         var f = new UnresolvedFunction(EMPTY, "min", DEFAULT, List.of(a));
         var filter = new Alias(EMPTY, "min(a) where a > 1", new FilteredExpression(EMPTY, f, new GreaterThan(EMPTY, a, integer(1))));
@@ -342,7 +350,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
     }
 
-    public void testStatsWithGroupKeyAndMixedAggAndFilter() throws Exception {
+    public void testStatsWithGroupKeyAndMixedAggAndFilter() {
         var a = attribute("a");
         var min = new UnresolvedFunction(EMPTY, "min", DEFAULT, List.of(a));
         var max = new UnresolvedFunction(EMPTY, "max", DEFAULT, List.of(a));
@@ -377,7 +385,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
     }
 
-    public void testStatsWithoutGroupKeyMixedAggAndFilter() throws Exception {
+    public void testStatsWithoutGroupKeyMixedAggAndFilter() {
         var a = attribute("a");
         var f = new UnresolvedFunction(EMPTY, "min", DEFAULT, List.of(a));
         var filter = new Alias(EMPTY, "min(a) where a > 1", new FilteredExpression(EMPTY, f, new GreaterThan(EMPTY, a, integer(1))));
@@ -2045,7 +2053,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         LogicalPlan from = statement(statement);
         assertThat(from, instanceOf(UnresolvedRelation.class));
         UnresolvedRelation table = (UnresolvedRelation) from;
-        assertThat(table.table().index(), is(string));
+        assertThat(table.indexPattern().indexPattern(), is(string));
     }
 
     private void assertStringAsLookupIndexPattern(String string, String statement) {
@@ -2060,41 +2068,41 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(tableName.fold(FoldContext.small()), equalTo(string));
     }
 
-    public void testIdPatternUnquoted() throws Exception {
+    public void testIdPatternUnquoted() {
         var string = "regularString";
         assertThat(breakIntoFragments(string), contains(string));
     }
 
-    public void testIdPatternQuoted() throws Exception {
+    public void testIdPatternQuoted() {
         var string = "`escaped string`";
         assertThat(breakIntoFragments(string), contains(string));
     }
 
-    public void testIdPatternQuotedWithDoubleBackticks() throws Exception {
+    public void testIdPatternQuotedWithDoubleBackticks() {
         var string = "`escaped``string`";
         assertThat(breakIntoFragments(string), contains(string));
     }
 
-    public void testIdPatternUnquotedAndQuoted() throws Exception {
+    public void testIdPatternUnquotedAndQuoted() {
         var string = "this`is`a`mix`of`ids`";
         assertThat(breakIntoFragments(string), contains("this", "`is`", "a", "`mix`", "of", "`ids`"));
     }
 
-    public void testIdPatternQuotedTraling() throws Exception {
+    public void testIdPatternQuotedTraling() {
         var string = "`foo`*";
         assertThat(breakIntoFragments(string), contains("`foo`", "*"));
     }
 
-    public void testIdPatternWithDoubleQuotedStrings() throws Exception {
+    public void testIdPatternWithDoubleQuotedStrings() {
         var string = "`this``is`a`quoted `` string``with`backticks";
         assertThat(breakIntoFragments(string), contains("`this``is`", "a", "`quoted `` string``with`", "backticks"));
     }
 
-    public void testSpaceNotAllowedInIdPattern() throws Exception {
+    public void testSpaceNotAllowedInIdPattern() {
         expectError("ROW a = 1| RENAME a AS this is `not okay`", "mismatched input 'is' expecting {<EOF>, '|', ',', '.'}");
     }
 
-    public void testSpaceNotAllowedInIdPatternKeep() throws Exception {
+    public void testSpaceNotAllowedInIdPatternKeep() {
         expectError("ROW a = 1, b = 1| KEEP a b", "extraneous input 'b'");
     }
 
@@ -2276,20 +2284,12 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     private LogicalPlan unresolvedRelation(String index) {
-        return new UnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, index), false, List.of(), IndexMode.STANDARD, null, "FROM");
+        return new UnresolvedRelation(EMPTY, new IndexPattern(EMPTY, index), false, List.of(), IndexMode.STANDARD, null, "FROM");
     }
 
     private LogicalPlan unresolvedTSRelation(String index) {
         List<Attribute> metadata = List.of(new MetadataAttribute(EMPTY, MetadataAttribute.TSID_FIELD, DataType.KEYWORD, false));
-        return new UnresolvedRelation(
-            EMPTY,
-            new TableIdentifier(EMPTY, null, index),
-            false,
-            metadata,
-            IndexMode.TIME_SERIES,
-            null,
-            "FROM TS"
-        );
+        return new UnresolvedRelation(EMPTY, new IndexPattern(EMPTY, index), false, metadata, IndexMode.TIME_SERIES, null, "FROM TS");
     }
 
     public void testMetricWithGroupKeyAsAgg() {
@@ -2936,6 +2936,60 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     error,
                     "Invalid named function argument [\"option1\":?n1], only constant value is supported"
                 )
+            );
+        }
+    }
+
+    public void testValidFromPattern() {
+        var basePattern = randomIndexPatterns();
+
+        var plan = statement("FROM " + basePattern);
+
+        assertThat(as(plan, UnresolvedRelation.class).indexPattern().indexPattern(), equalTo(unquoteIndexPattern(basePattern)));
+    }
+
+    public void testValidJoinPattern() {
+        var basePattern = randomIndexPatterns(without(CROSS_CLUSTER));
+        var joinPattern = randomIndexPattern(without(WILDCARD_PATTERN), without(CROSS_CLUSTER));
+        var onField = randomIdentifier();
+
+        var plan = statement("FROM " + basePattern + " | LOOKUP JOIN " + joinPattern + " ON " + onField);
+
+        var join = as(plan, LookupJoin.class);
+        assertThat(as(join.left(), UnresolvedRelation.class).indexPattern().indexPattern(), equalTo(unquoteIndexPattern(basePattern)));
+        assertThat(as(join.right(), UnresolvedRelation.class).indexPattern().indexPattern(), equalTo(unquoteIndexPattern(joinPattern)));
+
+        var joinType = as(join.config().type(), JoinTypes.UsingJoinType.class);
+        assertThat(joinType.columns(), hasSize(1));
+        assertThat(as(joinType.columns().getFirst(), UnresolvedAttribute.class).name(), equalTo(onField));
+        assertThat(joinType.coreJoin().joinName(), equalTo("LEFT OUTER"));
+    }
+
+    public void testInvalidJoinPatterns() {
+        {
+            // wildcard
+            var joinPattern = randomIndexPattern(WILDCARD_PATTERN, without(CROSS_CLUSTER));
+            expectError(
+                "FROM " + randomIndexPatterns() + " | LOOKUP JOIN " + joinPattern + " ON " + randomIdentifier(),
+                "invalid index pattern [" + unquoteIndexPattern(joinPattern) + "], * is not allowed in LOOKUP JOIN"
+            );
+        }
+        {
+            // remote cluster on the right
+            var fromPatterns = randomIndexPatterns(without(CROSS_CLUSTER));
+            var joinPattern = randomIndexPattern(CROSS_CLUSTER, without(WILDCARD_PATTERN));
+            expectError(
+                "FROM " + fromPatterns + " | LOOKUP JOIN " + joinPattern + " ON " + randomIdentifier(),
+                "invalid index pattern [" + unquoteIndexPattern(joinPattern) + "], remote clusters are not supported in LOOKUP JOIN"
+            );
+        }
+        {
+            // remote cluster on the left
+            var fromPatterns = randomIndexPatterns(CROSS_CLUSTER);
+            var joinPattern = randomIndexPattern(without(CROSS_CLUSTER), without(WILDCARD_PATTERN));
+            expectError(
+                "FROM " + fromPatterns + " | LOOKUP JOIN " + joinPattern + " ON " + randomIdentifier(),
+                "invalid index pattern [" + unquoteIndexPattern(fromPatterns) + "], remote clusters are not supported in LOOKUP JOIN"
             );
         }
     }

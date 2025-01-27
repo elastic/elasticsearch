@@ -196,7 +196,7 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
         return createMapperService(getVersion(), getIndexSettings(), idFieldEnabled, mappings);
     }
 
-    protected final MapperService createMapperService(String mappings) throws IOException {
+    public final MapperService createMapperService(String mappings) throws IOException {
         MapperService mapperService = createMapperService(mapping(b -> {}));
         merge(mapperService, mappings);
         return mapperService;
@@ -744,7 +744,7 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
         return createSearchExecutionContext(mapperService, null, Settings.EMPTY);
     }
 
-    protected SearchExecutionContext createSearchExecutionContext(MapperService mapperService, IndexSearcher searcher) {
+    public final SearchExecutionContext createSearchExecutionContext(MapperService mapperService, IndexSearcher searcher) {
         return createSearchExecutionContext(mapperService, searcher, Settings.EMPTY);
     }
 

@@ -221,6 +221,8 @@ public abstract class RequestIndexFilteringTestCase extends ESRestTestCase {
             assertEquals(400, e.getResponse().getStatusLine().getStatusCode());
             assertThat(
                 e.getMessage(),
+                // currently we don't support remote clusters in LOOKUP JOIN
+                // this check happens before resolving actual indices and results in a different error message
                 RemoteClusterAware.isRemoteIndexName(pattern)
                     ? allOf(containsString("parsing_exception"), containsString("remote clusters are not supported in LOOKUP JOIN"))
                     : allOf(containsString("verification_exception"), containsString("Unknown index [foo]"))

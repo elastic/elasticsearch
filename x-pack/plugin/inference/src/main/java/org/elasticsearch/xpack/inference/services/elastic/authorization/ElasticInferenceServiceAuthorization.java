@@ -44,8 +44,9 @@ public class ElasticInferenceServiceAuthorization {
             if (model.taskTypes().isEmpty() == false) {
                 for (var taskType : model.taskTypes()) {
                     taskTypeToModelsMap.merge(taskType, Set.of(model.modelName()), (existingModelIds, newModelIds) -> {
-                        existingModelIds.addAll(newModelIds);
-                        return existingModelIds;
+                        var combinedNames = new HashSet<>(existingModelIds);
+                        combinedNames.addAll(newModelIds);
+                        return combinedNames;
                     });
                     enabledTaskTypesSet.add(taskType);
                 }
@@ -94,17 +95,20 @@ public class ElasticInferenceServiceAuthorization {
      */
     public ElasticInferenceServiceAuthorization newLimitedToTaskTypes(EnumSet<TaskType> taskTypes) {
         var newTaskTypeToModels = new HashMap<TaskType, Set<String>>();
+        var taskTypesThatHaveModels = EnumSet.noneOf(TaskType.class);
 
         for (var taskType : taskTypes) {
             var models = taskTypeToModels.get(taskType);
             if (models != null) {
                 newTaskTypeToModels.put(taskType, models);
+                // we only want task types that correspond to actual models to ensure we're only enabling valid task types
+                taskTypesThatHaveModels.add(taskType);
             }
         }
 
         Set<String> newEnabledModels = newTaskTypeToModels.values().stream().flatMap(Set::stream).collect(Collectors.toSet());
 
-        return new ElasticInferenceServiceAuthorization(newTaskTypeToModels, newEnabledModels, taskTypes);
+        return new ElasticInferenceServiceAuthorization(newTaskTypeToModels, newEnabledModels, taskTypesThatHaveModels);
     }
 
     @Override

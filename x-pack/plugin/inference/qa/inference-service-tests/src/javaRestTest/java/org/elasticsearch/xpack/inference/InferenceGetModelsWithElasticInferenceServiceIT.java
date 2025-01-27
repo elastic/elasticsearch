@@ -10,6 +10,7 @@
 package org.elasticsearch.xpack.inference;
 
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceFeature;
 
 import java.io.IOException;
 
@@ -21,13 +22,20 @@ public class InferenceGetModelsWithElasticInferenceServiceIT extends BaseMockEIS
 
     public void testGetDefaultEndpoints() throws IOException {
         var allModels = getAllModels();
-        int numModels = 4;
-        assertThat(allModels, hasSize(numModels));
-
         var chatCompletionModels = getModels("_all", TaskType.CHAT_COMPLETION);
-        assertThat(chatCompletionModels, hasSize(1));
-        for (var model : chatCompletionModels) {
-            assertEquals("chat_completion", model.get("task_type"));
+
+        if ((ElasticInferenceServiceFeature.DEPRECATED_ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG.isEnabled()
+            || ElasticInferenceServiceFeature.ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG.isEnabled())) {
+            assertThat(allModels, hasSize(4));
+            assertThat(chatCompletionModels, hasSize(1));
+
+            for (var model : chatCompletionModels) {
+                assertEquals("chat_completion", model.get("task_type"));
+            }
+        } else {
+            assertThat(allModels, hasSize(3));
+            assertThat(chatCompletionModels, hasSize(0));
         }
+
     }
 }

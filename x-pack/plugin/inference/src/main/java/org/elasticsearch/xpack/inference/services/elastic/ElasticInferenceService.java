@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.inference.services.elastic;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
@@ -82,10 +84,11 @@ public class ElasticInferenceService extends SenderService {
     public static final String NAME = "elastic";
     public static final String ELASTIC_INFERENCE_SERVICE_IDENTIFIER = "Elastic Inference Service";
 
+    private static final Logger logger = LogManager.getLogger(ElasticInferenceService.class);
     private static final EnumSet<TaskType> IMPLEMENTED_TASK_TYPES = EnumSet.of(TaskType.SPARSE_EMBEDDING, TaskType.CHAT_COMPLETION);
     private static final String SERVICE_NAME = "Elastic";
-    private static final String DEFAULT_CHAT_COMPLETION_ENDPOINT_ID_V1 = "rainbow-sprinkles";
-    private static final String DEFAULT_CHAT_COMPLETION_MODEL_ID_V1 = Strings.format(".%s-elastic", DEFAULT_CHAT_COMPLETION_ENDPOINT_ID_V1);
+    static final String DEFAULT_CHAT_COMPLETION_MODEL_ID_V1 = "rainbow-sprinkles";
+    static final String DEFAULT_CHAT_COMPLETION_ENDPOINT_ID_V1 = Strings.format(".%s-elastic", DEFAULT_CHAT_COMPLETION_MODEL_ID_V1);
 
     /**
      * The task types that the {@link InferenceAction.Request} can accept.
@@ -181,7 +184,17 @@ public class ElasticInferenceService extends SenderService {
         for (var id : enabledDefaultModelIds) {
             var model = defaultModels.get(id);
             if (model != null) {
-                enabledConfigIds.add(new DefaultConfigId(id, model.getTaskType(), this));
+                if (auth.getEnabledTaskTypes().contains(model.getTaskType()) == false) {
+                    logger.warn(
+                        Strings.format(
+                            "The authorization response included the default model: %s, "
+                                + "but did not authorize the assumed task type of the model: %s. Enabling model.",
+                            id,
+                            model.getTaskType()
+                        )
+                    );
+                }
+                enabledConfigIds.add(new DefaultConfigId(model.getInferenceEntityId(), model.getTaskType(), this));
             }
         }
 

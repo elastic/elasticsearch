@@ -20,6 +20,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.EmptySecretSettings;
 import org.elasticsearch.inference.EmptyTaskSettings;
+import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
@@ -795,6 +796,60 @@ public class ElasticInferenceServiceTests extends ESTestCase {
             service.waitForAuthorizationToComplete(TIMEOUT);
             assertThat(service.supportedStreamingTasks(), is(EnumSet.of(TaskType.CHAT_COMPLETION, TaskType.ANY)));
             assertTrue(service.defaultConfigIds().isEmpty());
+
+            PlainActionFuture<List<Model>> listener = new PlainActionFuture<>();
+            service.defaultConfigs(listener);
+            assertTrue(listener.actionGet(TIMEOUT).isEmpty());
+        }
+    }
+
+    public void testSupportedTaskTypes_Returns_TheAuthorizedTaskTypes_IgnoresUnimplementedTaskTypes() throws Exception {
+        String responseJson = """
+            {
+                "models": [
+                    {
+                      "model_name": "model-a",
+                      "task_types": ["embed/text/sparse"]
+                    },
+                    {
+                      "model_name": "model-b",
+                      "task_types": ["embed"]
+                    }
+                ]
+            }
+            """;
+
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+        try (var service = createServiceWithAuthHandler(senderFactory, getUrl(webServer))) {
+            service.waitForAuthorizationToComplete(TIMEOUT);
+            assertThat(service.supportedTaskTypes(), is(EnumSet.of(TaskType.SPARSE_EMBEDDING)));
+        }
+    }
+
+    public void testSupportedTaskTypes_Returns_TheAuthorizedTaskTypes() throws Exception {
+        String responseJson = """
+            {
+                "models": [
+                    {
+                      "model_name": "model-a",
+                      "task_types": ["embed/text/sparse"]
+                    },
+                    {
+                      "model_name": "model-b",
+                      "task_types": ["chat"]
+                    }
+                ]
+            }
+            """;
+
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+        try (var service = createServiceWithAuthHandler(senderFactory, getUrl(webServer))) {
+            service.waitForAuthorizationToComplete(TIMEOUT);
+            assertThat(service.supportedTaskTypes(), is(EnumSet.of(TaskType.SPARSE_EMBEDDING, TaskType.CHAT_COMPLETION)));
         }
     }
 
@@ -817,6 +872,71 @@ public class ElasticInferenceServiceTests extends ESTestCase {
             service.waitForAuthorizationToComplete(TIMEOUT);
             assertThat(service.supportedStreamingTasks(), is(EnumSet.noneOf(TaskType.class)));
             assertTrue(service.defaultConfigIds().isEmpty());
+            assertThat(service.supportedTaskTypes(), is(EnumSet.of(TaskType.SPARSE_EMBEDDING)));
+
+            PlainActionFuture<List<Model>> listener = new PlainActionFuture<>();
+            service.defaultConfigs(listener);
+            assertTrue(listener.actionGet(TIMEOUT).isEmpty());
+        }
+    }
+
+    public void testDefaultConfigs_Returns_DefaultChatCompletion_V1_WhenTaskTypeIsIncorrect() throws Exception {
+        String responseJson = """
+            {
+                "models": [
+                    {
+                      "model_name": "rainbow-sprinkles",
+                      "task_types": ["embed/text/sparse"]
+                    }
+                ]
+            }
+            """;
+
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+        try (var service = createServiceWithAuthHandler(senderFactory, getUrl(webServer))) {
+            service.waitForAuthorizationToComplete(TIMEOUT);
+            assertThat(service.supportedStreamingTasks(), is(EnumSet.noneOf(TaskType.class)));
+            assertThat(
+                service.defaultConfigIds(),
+                is(List.of(new InferenceService.DefaultConfigId(".rainbow-sprinkles-elastic", TaskType.CHAT_COMPLETION, service)))
+            );
+            assertThat(service.supportedTaskTypes(), is(EnumSet.of(TaskType.SPARSE_EMBEDDING)));
+
+            PlainActionFuture<List<Model>> listener = new PlainActionFuture<>();
+            service.defaultConfigs(listener);
+            assertThat(listener.actionGet(TIMEOUT).get(0).getConfigurations().getInferenceEntityId(), is(".rainbow-sprinkles-elastic"));
+        }
+    }
+
+    public void testDefaultConfigs_Returns_DefaultChatCompletion_V1_WhenTaskTypeIsCorrect() throws Exception {
+        String responseJson = """
+            {
+                "models": [
+                    {
+                      "model_name": "rainbow-sprinkles",
+                      "task_types": ["chat"]
+                    }
+                ]
+            }
+            """;
+
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+        try (var service = createServiceWithAuthHandler(senderFactory, getUrl(webServer))) {
+            service.waitForAuthorizationToComplete(TIMEOUT);
+            assertThat(service.supportedStreamingTasks(), is(EnumSet.of(TaskType.CHAT_COMPLETION, TaskType.ANY)));
+            assertThat(
+                service.defaultConfigIds(),
+                is(List.of(new InferenceService.DefaultConfigId(".rainbow-sprinkles-elastic", TaskType.CHAT_COMPLETION, service)))
+            );
+            assertThat(service.supportedTaskTypes(), is(EnumSet.of(TaskType.CHAT_COMPLETION)));
+
+            PlainActionFuture<List<Model>> listener = new PlainActionFuture<>();
+            service.defaultConfigs(listener);
+            assertThat(listener.actionGet(TIMEOUT).get(0).getConfigurations().getInferenceEntityId(), is(".rainbow-sprinkles-elastic"));
         }
     }
 

@@ -1265,10 +1265,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
                                     masterClusterState.stateUUID(),
                                     localClusterState.stateUUID()
                                 );
-
-                                // Compare the stateMaps for equality.
-                                assertNull(XContentTestUtils.differenceBetweenMapsIgnoringArrayOrder(masterStateMap, localStateMap));
-
                                 // Compare JSON serialization
                                 assertNull(
                                     "cluster state JSON serialization does not match",

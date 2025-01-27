@@ -251,28 +251,12 @@ public abstract class AggregatorTestCase extends ESTestCase {
         return List.of();
     }
 
-    /**
-     * Deprecated - this will be made private in a future update
-     */
-    @Deprecated
-    protected <A extends Aggregator> A createAggregator(
-        AggregationBuilder aggregationBuilder,
-        IndexReader indexReader,
-        MappedFieldType... fieldTypes
-    ) throws IOException {
-        return createAggregator(aggregationBuilder, createAggregationContext(indexReader, new MatchAllDocsQuery(), fieldTypes));
-    }
-
     protected <A extends Aggregator> A createAggregator(AggregationBuilder aggregationBuilder, AggregationContext context)
         throws IOException {
         return createAggregator(new AggregatorFactories.Builder().addAggregator(aggregationBuilder), context);
     }
 
-    /**
-     * Deprecated - this will be made private in a future update
-     */
-    @Deprecated
-    protected <A extends Aggregator> A createAggregator(AggregatorFactories.Builder builder, AggregationContext context)
+    private <A extends Aggregator> A createAggregator(AggregatorFactories.Builder builder, AggregationContext context)
         throws IOException {
         Aggregator[] aggregators = builder.build(context, null).createTopLevelAggregators();
         assertThat(aggregators.length, equalTo(1));
@@ -310,11 +294,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
      * While {@linkplain AggregationContext} is {@link Releasable} the caller is
      * not responsible for releasing it. Instead, it is released automatically in
      * in {@link #cleanupReleasables()}.
-     *
-     * Deprecated - this will be made private in a future update
      */
-    @Deprecated
-    protected AggregationContext createAggregationContext(
+    private AggregationContext createAggregationContext(
         IndexReader indexReader,
         IndexSettings indexSettings,
         Query query,

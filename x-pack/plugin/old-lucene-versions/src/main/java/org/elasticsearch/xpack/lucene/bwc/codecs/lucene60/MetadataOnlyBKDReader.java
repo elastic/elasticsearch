@@ -90,15 +90,10 @@ public class MetadataOnlyBKDReader extends PointValues {
         pointCount = metaIn.readVLong();
         docCount = metaIn.readVInt();
 
+        // This code has been introduced to process IndexInput created with Lucene86Codec+
         numIndexBytes = metaIn.readVInt();
-        if (version >= VERSION_META_FILE) {
-            minLeafBlockFP = metaIn.readLong();
-            indexStartPointer = metaIn.readLong();
-        } else {
-            indexStartPointer = metaIn.getFilePointer();
-            minLeafBlockFP = metaIn.readVLong();
-            metaIn.seek(indexStartPointer);
-        }
+        minLeafBlockFP = metaIn.readLong();
+        indexStartPointer = metaIn.readLong();
     }
 
     @Override

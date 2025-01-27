@@ -28,7 +28,6 @@ import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.store.ChecksumIndexInput;
-import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.xpack.lucene.bwc.codecs.lucene60.MetadataOnlyBKDReader;
 
@@ -38,11 +37,9 @@ import java.util.Map;
 
 /** Reads the metadata of point values previously written with Lucene86PointsWriter */
 public final class Lucene86MetadataOnlyPointsReader extends PointsReader {
-    final IndexInput indexIn, dataIn;
     final SegmentReadState readState;
     final Map<Integer, PointValues> readers = new HashMap<>();
 
-    /** Sole constructor */
     public Lucene86MetadataOnlyPointsReader(SegmentReadState readState) throws IOException {
         this.readState = readState;
 
@@ -51,39 +48,9 @@ public final class Lucene86MetadataOnlyPointsReader extends PointsReader {
             readState.segmentSuffix,
             Lucene86MetadataOnlyPointsFormat.META_EXTENSION
         );
-        String indexFileName = IndexFileNames.segmentFileName(
-            readState.segmentInfo.name,
-            readState.segmentSuffix,
-            Lucene86MetadataOnlyPointsFormat.INDEX_EXTENSION
-        );
-        String dataFileName = IndexFileNames.segmentFileName(
-            readState.segmentInfo.name,
-            readState.segmentSuffix,
-            Lucene86MetadataOnlyPointsFormat.DATA_EXTENSION
-        );
 
         boolean success = false;
         try {
-            indexIn = EndiannessReverserUtil.openInput(readState.directory, indexFileName, readState.context);
-            CodecUtil.checkIndexHeader(
-                indexIn,
-                Lucene86MetadataOnlyPointsFormat.INDEX_CODEC_NAME,
-                Lucene86MetadataOnlyPointsFormat.VERSION_START,
-                Lucene86MetadataOnlyPointsFormat.VERSION_CURRENT,
-                readState.segmentInfo.getId(),
-                readState.segmentSuffix
-            );
-
-            dataIn = EndiannessReverserUtil.openInput(readState.directory, dataFileName, readState.context);
-            CodecUtil.checkIndexHeader(
-                dataIn,
-                Lucene86MetadataOnlyPointsFormat.DATA_CODEC_NAME,
-                Lucene86MetadataOnlyPointsFormat.VERSION_START,
-                Lucene86MetadataOnlyPointsFormat.VERSION_CURRENT,
-                readState.segmentInfo.getId(),
-                readState.segmentSuffix
-            );
-
             long indexLength = -1, dataLength = -1;
             try (
                 ChecksumIndexInput metaIn = EndiannessReverserUtil.openChecksumInput(readState.directory, metaFileName, readState.context)
@@ -117,10 +84,7 @@ public final class Lucene86MetadataOnlyPointsReader extends PointsReader {
                     CodecUtil.checkFooter(metaIn, priorE);
                 }
             }
-            // At this point, checksums of the meta file have been validated so we
-            // know that indexLength and dataLength are very likely correct.
-            CodecUtil.retrieveChecksum(indexIn, indexLength);
-            CodecUtil.retrieveChecksum(dataIn, dataLength);
+
             success = true;
         } finally {
             if (success == false) {
@@ -143,14 +107,12 @@ public final class Lucene86MetadataOnlyPointsReader extends PointsReader {
     }
 
     @Override
-    public void checkIntegrity() throws IOException {
-        CodecUtil.checksumEntireFile(indexIn);
-        CodecUtil.checksumEntireFile(dataIn);
+    public void checkIntegrity() {
+  ;
     }
 
     @Override
     public void close() throws IOException {
-        IOUtils.close(indexIn, dataIn);
         // Free up heap:
         readers.clear();
     }

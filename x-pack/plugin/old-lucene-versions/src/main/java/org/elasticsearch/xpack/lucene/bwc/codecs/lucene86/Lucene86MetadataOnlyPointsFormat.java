@@ -32,15 +32,7 @@ import java.io.IOException;
  **/
 public class Lucene86MetadataOnlyPointsFormat extends PointsFormat {
 
-    static final String DATA_CODEC_NAME = "Lucene86PointsFormatData";
-    static final String INDEX_CODEC_NAME = "Lucene86PointsFormatIndex";
     static final String META_CODEC_NAME = "Lucene86PointsFormatMeta";
-
-    /** Filename extension for the leaf blocks */
-    public static final String DATA_EXTENSION = "kdd";
-
-    /** Filename extension for the index per field */
-    public static final String INDEX_EXTENSION = "kdi";
 
     /** Filename extension for the meta per field */
     public static final String META_EXTENSION = "kdm";

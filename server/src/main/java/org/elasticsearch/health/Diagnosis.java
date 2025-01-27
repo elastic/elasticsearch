@@ -21,6 +21,7 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 
 import static org.elasticsearch.health.HealthService.HEALTH_API_ID_PREFIX;
 
@@ -143,6 +144,10 @@ public record Diagnosis(Definition definition, @Nullable List<Resource> affected
         }
     }
 
+    private Optional<Collection<Resource>> resources() {
+        return affectedResources != null && affectedResources.isEmpty() == false ? Optional.of(affectedResources) : Optional.empty();
+    }
+
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params outerParams) {
         return Iterators.concat(ChunkedToXContentHelper.chunk((builder, params) -> {
@@ -151,15 +156,21 @@ public record Diagnosis(Definition definition, @Nullable List<Resource> affected
             builder.field("cause", definition.cause);
             builder.field("action", definition.action);
             builder.field("help_url", definition.helpURL);
+
+            if (resources().isPresent()) {
+                // don't want to have a new chunk & nested iterator for this, so we start the object here
+                builder.startObject("affected_resources");
+            }
             return builder;
         }),
-            affectedResources != null && affectedResources.isEmpty() == false
-                ? ChunkedToXContentHelper.object(
-                    "affected_resources",
-                    Iterators.flatMap(affectedResources.iterator(), s -> s.toXContentChunked(outerParams))
-                )
-                : Collections.emptyIterator(),
-            ChunkedToXContentHelper.endObject()
+            resources().map(r -> Iterators.flatMap(r.iterator(), s -> s.toXContentChunked(outerParams)))
+                .orElse(Collections.emptyIterator()),
+            ChunkedToXContentHelper.chunk((b, p) -> {
+                if (resources().isPresent()) {
+                    b.endObject();
+                }
+                return b.endObject();
+            })
         );
     }
 }

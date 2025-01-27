@@ -10,6 +10,7 @@
 package org.elasticsearch.entitlement.qa.test;
 
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.entitlement.qa.entitled.EntitledActions;
 
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -79,7 +80,8 @@ class FileCheckActions {
     }
 
     static void filesSetOwner() throws IOException {
-        Files.setOwner(readWriteFile(), UserPrincipal)
+        UserPrincipal owner = EntitledActions.getFileOwner(readWriteFile());
+        Files.setOwner(readWriteFile(), owner); // set to existing owner, just trying to execute the method
     }
 
     private FileCheckActions() {}

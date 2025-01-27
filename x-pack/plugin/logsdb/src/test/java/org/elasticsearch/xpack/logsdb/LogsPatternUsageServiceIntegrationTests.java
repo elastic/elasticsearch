@@ -21,12 +21,15 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.threadpool.ThreadPoolStats;
 
 import java.util.Collection;
 import java.util.List;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.nullValue;
 
 public class LogsPatternUsageServiceIntegrationTests extends ESSingleNodeTestCase {
@@ -97,11 +100,23 @@ public class LogsPatternUsageServiceIntegrationTests extends ESSingleNodeTestCas
         assertThat(indexResponse.getResult(), equalTo(DocWriteResponse.Result.CREATED));
 
         ensureGreen("log-myapp-prod");
+        // Check that LogsPatternUsageService checked three times by checking generic threadpool stats.
+        // (the LogsPatternUsageService's check is scheduled via the generic threadpool)
+        var threadPool = getInstanceFromNode(ThreadPool.class);
+        var beforeStat = getGenericThreadpoolStat(threadPool);
         assertBusy(() -> {
-            var response = client().execute(ClusterGetSettingsAction.INSTANCE, new ClusterGetSettingsAction.Request(TimeValue.ONE_MINUTE))
-                .actionGet();
-            assertThat(response.persistentSettings().get("logsdb.prior_logs_usage"), nullValue());
+            var stat = getGenericThreadpoolStat(threadPool);
+            assertThat(stat.completed(), greaterThanOrEqualTo(beforeStat.completed() + 3));
         });
+        var response = client().execute(ClusterGetSettingsAction.INSTANCE, new ClusterGetSettingsAction.Request(TimeValue.ONE_MINUTE))
+            .actionGet();
+        assertThat(response.persistentSettings().get("logsdb.prior_logs_usage"), nullValue());
+    }
+
+    private static ThreadPoolStats.Stats getGenericThreadpoolStat(ThreadPool threadPool) {
+        var result = threadPool.stats().stats().stream().filter(stats -> stats.name().equals(ThreadPool.Names.GENERIC)).toList();
+        assertThat(result.size(), equalTo(1));
+        return result.get(0);
     }
 
     @Override

@@ -10,13 +10,6 @@
 For the most up-to-date API details, refer to {api-es}/group/endpoint-indices[Index APIs].
 --
 
-Creates a new index.
-
-[source,console]
---------------------------------------------------
-POST /_create_from/my-index/another-index/
---------------------------------------------------
-
 [[indices-create-index-from-source-api-request]]
 ==== {api-request-title}
 
@@ -73,7 +66,7 @@ PUT /my-index
   "settings": {
     "index": {
       "number_of_shards": 3,
-      "block.writes": true
+      "blocks.write": true
     }
   },
   "mappings": {
@@ -83,6 +76,7 @@ PUT /my-index
   }
 }
 --------------------------------------------------
+// TESTSETUP
 
 Now we create a destination index from the source index. This new index will have the same mappings and settings
 as the source index.
@@ -105,7 +99,7 @@ POST /_create_from/my-index/my-new-index
       "number_of_shards": 5
     }
   },
-  "mappings": {
+  "mappings_override": {
     "properties": {
         "field2": { "type": "boolean" }
     }
@@ -125,11 +119,11 @@ POST /_create_from/my-index/my-new-index
 {
   "settings_override": {
     "index": {
-      "index.blocks.write": null,
-      "index.blocks.read": null,
-      "index.blocks.read_only": null,
-      "index.blocks.read_only_allow_delete": null,
-      "index.blocks.metadata": null
+      "blocks.write": null,
+      "blocks.read": null,
+      "blocks.read_only": null,
+      "blocks.read_only_allow_delete": null,
+      "blocks.metadata": null
     }
   }
 }

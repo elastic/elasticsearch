@@ -427,24 +427,42 @@ public class AsyncSearchTaskTests extends ESTestCase {
 
     public void testDelayedOnListShardsShouldNotResultInExceptions() throws InterruptedException {
         try (AsyncSearchTask task = createAsyncSearchTask()) {
-            // Methods on search listener called in some random order.
-            // Aim is to ensure that these methods do not result in an NPE.
-            task.getSearchProgressActionListener()
-                .onPartialReduce(Collections.emptyList(), new TotalHits(0, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO), null, 0);
+            int numShards = randomIntBetween(0, 10);
+            List<SearchShard> shards = new ArrayList<>();
 
-            var searchResponse = newSearchResponse(0, 0, 0);
+            // All local shards.
+            for (int i = 0; i < numShards; i++) {
+                shards.add(new SearchShard(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, new ShardId("0", "0", 1)));
+            }
+
+            int numSkippedShards = randomIntBetween(0, 10);
+            List<SearchShard> skippedShards = new ArrayList<>();
+            for (int i = 0; i < numSkippedShards; i++) {
+                skippedShards.add(new SearchShard(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, new ShardId("0", "0", 1)));
+            }
+
+            int totalShards = numShards + numSkippedShards;
+            for (int i = 0; i < numShards; i++) {
+                task.getSearchProgressActionListener()
+                    .onPartialReduce(shards.subList(i, i + 1), new TotalHits(0, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO), null, 0);
+            }
+
+            task.getSearchProgressActionListener()
+                .onFinalReduce(shards, new TotalHits(0, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO), null, 0);
+
+            SearchResponse searchResponse = newSearchResponse(totalShards, totalShards, numSkippedShards);
             task.getSearchProgressActionListener()
                 .onClusterResponseMinimizeRoundtrips(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, searchResponse);
 
+            /**
+             * We're calling onListShards() at last. Previously, this delay would have resulted in an NPE for other `onABC()` methods.
+             * Now, we should not see any Exceptions or errors (be it NPE or anything else).
+             */
             task.getSearchProgressActionListener()
-                .onFinalReduce(Collections.emptyList(), new TotalHits(0, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO), null, 0);
-
-            // Pass the shard info at last.
-            task.getSearchProgressActionListener()
-                .onListShards(Collections.emptyList(), Collections.emptyList(), SearchResponse.Clusters.EMPTY, false, createTimeProvider());
+                .onListShards(shards, skippedShards, SearchResponse.Clusters.EMPTY, false, createTimeProvider());
 
             ActionListener.respondAndRelease((AsyncSearchTask.Listener) task.getProgressListener(), searchResponse);
-            assertCompletionListeners(task, 0, 0, 0, 0, false, false);
+            assertCompletionListeners(task, totalShards, totalShards, numSkippedShards, 0, false, false);
         }
     }
 

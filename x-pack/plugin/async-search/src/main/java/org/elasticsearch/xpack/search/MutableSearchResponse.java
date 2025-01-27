@@ -92,10 +92,13 @@ class MutableSearchResponse implements Releasable {
     }
 
     /**
-     * Updates the response with the number of total and skipped local shards.
+     * Updates the response with the number of total and skipped shards.
      *
-     * @param totalShards The number of local shards that participate in the request.
-     * @param skippedShards The number of local shards skipped.
+     * @param totalShards The number of shards that participate in the request.
+     * @param skippedShards The number of shards skipped.
+     * <p>
+     * Shards in this context depend on the value of minimize round trips (MRT):
+     * They are the shards being searched by this coordinator (local only for MRT=true, local + remote otherwise).
      */
     synchronized void updateShardsAndClusters(int totalShards, int skippedShards, Clusters clusters) {
         this.totalShards = totalShards;

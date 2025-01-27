@@ -148,8 +148,7 @@
   # rollover data stream to create new failure store index
   - do:
       indices.rollover:
-        alias: "data-stream-for-modification"
-        target_failure_store: true
+        alias: "data-stream-for-modification::failures"
   - is_true: acknowledged
 
   # save index names for later use

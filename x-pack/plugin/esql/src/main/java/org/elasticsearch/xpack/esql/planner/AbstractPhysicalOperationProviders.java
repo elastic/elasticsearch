@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
@@ -47,9 +48,11 @@ import static java.util.Collections.emptyList;
 public abstract class AbstractPhysicalOperationProviders implements PhysicalOperationProviders {
 
     private final AggregateMapper aggregateMapper = new AggregateMapper();
+    private final FoldContext foldContext;
     private final AnalysisRegistry analysisRegistry;
 
-    AbstractPhysicalOperationProviders(AnalysisRegistry analysisRegistry) {
+    AbstractPhysicalOperationProviders(FoldContext foldContext, AnalysisRegistry analysisRegistry) {
+        this.foldContext = foldContext;
         this.analysisRegistry = analysisRegistry;
     }
 
@@ -251,6 +254,7 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
     private record AggFunctionSupplierContext(AggregatorFunctionSupplier supplier, AggregatorMode mode) {}
 
     private void aggregatesToFactory(
+
         List<? extends NamedExpression> aggregates,
         AggregatorMode mode,
         Layout layout,
@@ -311,7 +315,11 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
 
                     // apply the filter only in the initial phase - as the rest of the data is already filtered
                     if (aggregateFunction.hasFilter() && mode.isInputPartial() == false) {
-                        EvalOperator.ExpressionEvaluator.Factory evalFactory = EvalMapper.toEvaluator(aggregateFunction.filter(), layout);
+                        EvalOperator.ExpressionEvaluator.Factory evalFactory = EvalMapper.toEvaluator(
+                            foldContext,
+                            aggregateFunction.filter(),
+                            layout
+                        );
                         aggSupplier = new FilteredAggregatorFunctionSupplier(aggSupplier, evalFactory);
                     }
                     consumer.accept(new AggFunctionSupplierContext(aggSupplier, mode));

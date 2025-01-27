@@ -51,7 +51,7 @@ import static org.elasticsearch.xpack.inference.external.http.sender.HttpRequest
 import static org.elasticsearch.xpack.inference.external.request.openai.OpenAiUtils.ORGANIZATION_HEADER;
 import static org.elasticsearch.xpack.inference.results.ChatCompletionResultsTests.buildExpectationCompletion;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
-import static org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionModelTests.createChatCompletionModel;
+import static org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionModelTests.createCompletionModel;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -284,7 +284,7 @@ public class OpenAiChatCompletionActionTests extends ESTestCase {
     }
 
     private ExecutableAction createAction(String url, String org, String apiKey, String modelName, @Nullable String user, Sender sender) {
-        var model = createChatCompletionModel(url, org, apiKey, modelName, user);
+        var model = createCompletionModel(url, org, apiKey, modelName, user);
         var requestCreator = OpenAiCompletionRequestManager.of(model, threadPool);
         var errorMessage = constructFailedToSendRequestMessage(model.getServiceSettings().uri(), "OpenAI chat completions");
         return new SingleInputSenderExecutableAction(sender, requestCreator, errorMessage, "OpenAI chat completions");

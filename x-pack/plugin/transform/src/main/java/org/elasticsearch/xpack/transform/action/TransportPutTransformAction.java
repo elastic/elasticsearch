@@ -45,6 +45,7 @@ import org.elasticsearch.xpack.core.transform.action.ValidateTransformAction;
 import org.elasticsearch.xpack.core.transform.transforms.AuthorizationState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.transform.TransformExtensionHolder;
+import org.elasticsearch.xpack.transform.TransformConfigAutoMigration;
 import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.AuthorizationStatePersistenceUtils;
@@ -61,10 +62,12 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
     private static final Logger logger = LogManager.getLogger(TransportPutTransformAction.class);
 
     private final Settings settings;
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final Client client;
     private final TransformConfigManager transformConfigManager;
     private final SecurityContext securityContext;
     private final TransformAuditor auditor;
+    private final TransformConfigAutoMigration transformConfigAutoMigration;
     private final TransformExtensionHolder extension;
 
     @Inject
@@ -77,6 +80,7 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
         ClusterService clusterService,
         TransformServices transformServices,
         Client client,
+        TransformConfigAutoMigration transformConfigAutoMigration,
         TransformExtensionHolder extension
     ) {
         super(
@@ -86,10 +90,10 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
             threadPool,
             actionFilters,
             PutTransformAction.Request::new,
-            indexNameExpressionResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.settings = settings;
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.client = client;
         this.transformConfigManager = transformServices.configManager();
         this.extension = extension;
@@ -97,6 +101,7 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
             ? new SecurityContext(settings, threadPool.getThreadContext())
             : null;
         this.auditor = transformServices.auditor();
+        this.transformConfigAutoMigration = transformConfigAutoMigration;
     }
 
     @Override
@@ -206,7 +211,7 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
     }
 
     private void putTransform(Request request, ActionListener<AcknowledgedResponse> listener) {
-        var config = request.getConfig();
+        var config = transformConfigAutoMigration.migrate(request.getConfig());
         transformConfigManager.putTransformConfiguration(config, listener.delegateFailureAndWrap((l, unused) -> {
             var transformId = config.getId();
             logger.info("[{}] created transform", transformId);

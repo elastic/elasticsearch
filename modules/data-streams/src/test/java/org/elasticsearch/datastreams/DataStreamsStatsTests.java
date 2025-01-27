@@ -15,6 +15,7 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.template.delete.TransportDeleteComposableIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
+import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.datastreams.DataStreamsStatsAction;
 import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
@@ -22,8 +23,12 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.DataStreamFailureStore;
+import org.elasticsearch.cluster.metadata.DataStreamOptions;
+import org.elasticsearch.cluster.metadata.ResettableValue;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -40,12 +45,14 @@ import java.util.concurrent.TimeUnit;
 
 import static java.lang.Math.max;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.is;
 
 public class DataStreamsStatsTests extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return List.of(DataStreamsPlugin.class);
+        return List.of(DataStreamsPlugin.class, MapperExtrasPlugin.class);
     }
 
     private final Set<String> createdDataStreams = new HashSet<>();
@@ -107,8 +114,30 @@ public class DataStreamsStatsTests extends ESSingleNodeTestCase {
         assertEquals(stats.getTotalStoreSize().getBytes(), stats.getDataStreams()[0].getStoreSize().getBytes());
     }
 
+    public void testStatsExistingDataStreamWithFailureStores() throws Exception {
+        String dataStreamName = createDataStream(false, true);
+        createFailedDocument(dataStreamName);
+
+        DataStreamsStatsAction.Response stats = getDataStreamsStats();
+
+        assertEquals(2, stats.getSuccessfulShards());
+        assertEquals(0, stats.getFailedShards());
+        assertEquals(1, stats.getDataStreamCount());
+        assertEquals(2, stats.getBackingIndices());
+        assertNotEquals(0L, stats.getTotalStoreSize().getBytes());
+        assertEquals(1, stats.getDataStreams().length);
+        assertEquals(dataStreamName, stats.getDataStreams()[0].getDataStream());
+        assertEquals(2, stats.getDataStreams()[0].getBackingIndices());
+        // The timestamp is going to not be something we can validate because
+        // it captures the time of failure which is uncontrolled in the test
+        // Just make sure it exists by ensuring it isn't zero
+        assertThat(stats.getDataStreams()[0].getMaximumTimestamp(), is(greaterThan(0L)));
+        assertNotEquals(0L, stats.getDataStreams()[0].getStoreSize().getBytes());
+        assertEquals(stats.getTotalStoreSize().getBytes(), stats.getDataStreams()[0].getStoreSize().getBytes());
+    }
+
     public void testStatsExistingHiddenDataStream() throws Exception {
-        String dataStreamName = createDataStream(true);
+        String dataStreamName = createDataStream(true, false);
         long timestamp = createDocument(dataStreamName);
 
         DataStreamsStatsAction.Response stats = getDataStreamsStats(true);
@@ -221,14 +250,19 @@ public class DataStreamsStatsTests extends ESSingleNodeTestCase {
     }
 
     private String createDataStream() throws Exception {
-        return createDataStream(false);
+        return createDataStream(false, false);
     }
 
-    private String createDataStream(boolean hidden) throws Exception {
+    private String createDataStream(boolean hidden, boolean failureStore) throws Exception {
         String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.getDefault());
+        ResettableValue<DataStreamOptions.Template> failureStoreOptions = failureStore == false
+            ? ResettableValue.undefined()
+            : ResettableValue.create(
+                new DataStreamOptions.Template(ResettableValue.create(new DataStreamFailureStore.Template(ResettableValue.create(true))))
+            );
         Template idxTemplate = new Template(null, new CompressedXContent("""
             {"properties":{"@timestamp":{"type":"date"},"data":{"type":"keyword"}}}
-            """), null);
+            """), null, null, failureStoreOptions);
         ComposableIndexTemplate template = ComposableIndexTemplate.builder()
             .indexPatterns(List.of(dataStreamName + "*"))
             .template(idxTemplate)
@@ -265,6 +299,27 @@ public class DataStreamsStatsTests extends ESSingleNodeTestCase {
                 )
         ).get();
         indicesAdmin().refresh(new RefreshRequest(".ds-" + dataStreamName + "*").indicesOptions(IndicesOptions.lenientExpandOpenHidden()))
+            .get();
+        return timestamp;
+    }
+
+    private long createFailedDocument(String dataStreamName) throws Exception {
+        // Get some randomized but reasonable timestamps on the data since not all of it is guaranteed to arrive in order.
+        long timeSeed = System.currentTimeMillis();
+        long timestamp = randomLongBetween(timeSeed - TimeUnit.HOURS.toMillis(5), timeSeed);
+        client().bulk(
+            new BulkRequest(dataStreamName).add(
+                new IndexRequest().opType(DocWriteRequest.OpType.CREATE)
+                    .source(
+                        JsonXContent.contentBuilder()
+                            .startObject()
+                            .field("@timestamp", timestamp)
+                            .object("data", b -> b.field("garbage", randomAlphaOfLength(25)))
+                            .endObject()
+                    )
+            )
+        ).get();
+        indicesAdmin().refresh(new RefreshRequest(".fs-" + dataStreamName + "*").indicesOptions(IndicesOptions.lenientExpandOpenHidden()))
             .get();
         return timestamp;
     }

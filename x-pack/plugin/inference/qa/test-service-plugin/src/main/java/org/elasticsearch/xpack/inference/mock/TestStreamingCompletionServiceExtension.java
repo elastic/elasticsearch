@@ -19,7 +19,6 @@ import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInference;
-import org.elasticsearch.inference.EmptySettingsConfiguration;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -28,10 +27,8 @@ import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SettingsConfiguration;
-import org.elasticsearch.inference.TaskSettingsConfiguration;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
-import org.elasticsearch.inference.configuration.SettingsConfigurationDisplayType;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -58,9 +55,9 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
 
     public static class TestInferenceService extends AbstractTestInferenceService {
         private static final String NAME = "streaming_completion_test_service";
-        private static final Set<TaskType> supportedStreamingTasks = Set.of(TaskType.COMPLETION);
+        private static final Set<TaskType> supportedStreamingTasks = Set.of(TaskType.COMPLETION, TaskType.CHAT_COMPLETION);
 
-        private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(TaskType.COMPLETION);
+        private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(TaskType.COMPLETION, TaskType.CHAT_COMPLETION);
 
         public TestInferenceService(InferenceServiceExtension.InferenceServiceFactoryContext context) {}
 
@@ -132,7 +129,7 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
             ActionListener<InferenceServiceResults> listener
         ) {
             switch (model.getConfigurations().getTaskType()) {
-                case COMPLETION -> listener.onResponse(makeUnifiedResults(request));
+                case CHAT_COMPLETION -> listener.onResponse(makeUnifiedResults(request));
                 default -> listener.onFailure(
                     new ElasticsearchStatusException(
                         TaskType.unsupportedTaskTypeErrorMsg(model.getConfigurations().getTaskType(), name()),
@@ -260,23 +257,18 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
 
                     configurationMap.put(
                         "model_id",
-                        new SettingsConfiguration.Builder().setDisplay(SettingsConfigurationDisplayType.TEXTBOX)
+                        new SettingsConfiguration.Builder(EnumSet.of(TaskType.COMPLETION)).setDescription("")
                             .setLabel("Model ID")
-                            .setOrder(1)
                             .setRequired(true)
                             .setSensitive(true)
-                            .setTooltip("")
                             .setType(SettingsConfigurationFieldType.STRING)
                             .build()
                     );
 
-                    return new InferenceServiceConfiguration.Builder().setProvider(NAME).setTaskTypes(supportedTaskTypes.stream().map(t -> {
-                        Map<String, SettingsConfiguration> taskSettingsConfig;
-                        switch (t) {
-                            default -> taskSettingsConfig = EmptySettingsConfiguration.get();
-                        }
-                        return new TaskSettingsConfiguration.Builder().setTaskType(t).setConfiguration(taskSettingsConfig).build();
-                    }).toList()).setConfiguration(configurationMap).build();
+                    return new InferenceServiceConfiguration.Builder().setService(NAME)
+                        .setTaskTypes(supportedTaskTypes)
+                        .setConfigurations(configurationMap)
+                        .build();
                 }
             );
         }

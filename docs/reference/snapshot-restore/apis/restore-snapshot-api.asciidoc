@@ -75,7 +75,7 @@ POST /_snapshot/my_repository/my_snapshot/_restore
 
 // tag::restore-prereqs[]
 * You can only restore a snapshot to a running cluster with an elected
-<<master-node,master node>>. The snapshot's repository must be
+<<master-node-role,master node>>. The snapshot's repository must be
 <<snapshots-register-repository,registered>> and available to the cluster.
 
 * The snapshot and cluster versions must be compatible. See

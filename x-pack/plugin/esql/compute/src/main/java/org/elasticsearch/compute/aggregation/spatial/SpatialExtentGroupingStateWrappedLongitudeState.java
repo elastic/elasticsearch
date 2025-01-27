@@ -19,20 +19,23 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.utils.SpatialEnvelopeVisitor;
 import org.elasticsearch.geometry.utils.WellKnownBinary;
+import org.elasticsearch.lucene.spatial.GeometryDocValueReader;
 
 import java.nio.ByteOrder;
+
+import static org.elasticsearch.compute.aggregation.spatial.SpatialExtentStateWrappedLongitudeState.asRectangle;
 
 final class SpatialExtentGroupingStateWrappedLongitudeState extends AbstractArrayState implements GroupingAggregatorState {
     // Only geo points support longitude wrapping.
     private static final PointType POINT_TYPE = PointType.GEO;
-    private IntArray minNegXs;
-    private IntArray minPosXs;
-    private IntArray maxNegXs;
-    private IntArray maxPosXs;
-    private IntArray maxYs;
-    private IntArray minYs;
+    private IntArray tops;
+    private IntArray bottoms;
+    private IntArray negLefts;
+    private IntArray negRights;
+    private IntArray posLefts;
+    private IntArray posRights;
 
-    private GeoPointEnvelopeVisitor geoPointVisitor = new GeoPointEnvelopeVisitor();
+    private final SpatialEnvelopeVisitor.GeoPointVisitor geoPointVisitor;
 
     SpatialExtentGroupingStateWrappedLongitudeState() {
         this(BigArrays.NON_RECYCLING_INSTANCE);
@@ -40,44 +43,52 @@ final class SpatialExtentGroupingStateWrappedLongitudeState extends AbstractArra
 
     SpatialExtentGroupingStateWrappedLongitudeState(BigArrays bigArrays) {
         super(bigArrays);
-        this.minNegXs = bigArrays.newIntArray(0, false);
-        this.minPosXs = bigArrays.newIntArray(0, false);
-        this.maxNegXs = bigArrays.newIntArray(0, false);
-        this.maxPosXs = bigArrays.newIntArray(0, false);
-        this.maxYs = bigArrays.newIntArray(0, false);
-        this.minYs = bigArrays.newIntArray(0, false);
+        this.tops = bigArrays.newIntArray(0, false);
+        this.bottoms = bigArrays.newIntArray(0, false);
+        this.negLefts = bigArrays.newIntArray(0, false);
+        this.negRights = bigArrays.newIntArray(0, false);
+        this.posLefts = bigArrays.newIntArray(0, false);
+        this.posRights = bigArrays.newIntArray(0, false);
         enableGroupIdTracking(new SeenGroupIds.Empty());
+        this.geoPointVisitor = new SpatialEnvelopeVisitor.GeoPointVisitor(SpatialEnvelopeVisitor.WrapLongitude.WRAP);
     }
 
     @Override
     public void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
         assert blocks.length >= offset;
         try (
-            var minNegXsBuilder = driverContext.blockFactory().newIntBlockBuilder(selected.getPositionCount());
-            var minPosXsBuilder = driverContext.blockFactory().newIntBlockBuilder(selected.getPositionCount());
-            var maxNegXsBuilder = driverContext.blockFactory().newIntBlockBuilder(selected.getPositionCount());
-            var maxPosXsBuilder = driverContext.blockFactory().newIntBlockBuilder(selected.getPositionCount());
-            var maxYsBuilder = driverContext.blockFactory().newIntBlockBuilder(selected.getPositionCount());
-            var minYsBuilder = driverContext.blockFactory().newIntBlockBuilder(selected.getPositionCount());
+            var topsBuilder = driverContext.blockFactory().newIntBlockBuilder(selected.getPositionCount());
+            var bottomsBuilder = driverContext.blockFactory().newIntBlockBuilder(selected.getPositionCount());
+            var negLeftsBuilder = driverContext.blockFactory().newIntBlockBuilder(selected.getPositionCount());
+            var negRightsBuilder = driverContext.blockFactory().newIntBlockBuilder(selected.getPositionCount());
+            var posLeftsBuilder = driverContext.blockFactory().newIntBlockBuilder(selected.getPositionCount());
+            var posRightsBuilder = driverContext.blockFactory().newIntBlockBuilder(selected.getPositionCount());
         ) {
             for (int i = 0; i < selected.getPositionCount(); i++) {
                 int group = selected.getInt(i);
-                assert hasValue(group);
-                assert minNegXs.get(group) <= 0 == maxNegXs.get(group) <= 0;
-                assert minPosXs.get(group) >= 0 == maxPosXs.get(group) >= 0;
-                minNegXsBuilder.appendInt(minNegXs.get(group));
-                minPosXsBuilder.appendInt(minPosXs.get(group));
-                maxNegXsBuilder.appendInt(maxNegXs.get(group));
-                maxPosXsBuilder.appendInt(maxPosXs.get(group));
-                maxYsBuilder.appendInt(maxYs.get(group));
-                minYsBuilder.appendInt(minYs.get(group));
+                if (hasValue(group)) {
+                    topsBuilder.appendInt(tops.get(group));
+                    bottomsBuilder.appendInt(bottoms.get(group));
+                    negLeftsBuilder.appendInt(negLefts.get(group));
+                    negRightsBuilder.appendInt(negRights.get(group));
+                    posLeftsBuilder.appendInt(posLefts.get(group));
+                    posRightsBuilder.appendInt(posRights.get(group));
+                } else {
+                    // TODO: Should we add Nulls here instead?
+                    topsBuilder.appendInt(Integer.MIN_VALUE);
+                    bottomsBuilder.appendInt(Integer.MAX_VALUE);
+                    negLeftsBuilder.appendInt(Integer.MAX_VALUE);
+                    negRightsBuilder.appendInt(Integer.MIN_VALUE);
+                    posLeftsBuilder.appendInt(Integer.MAX_VALUE);
+                    posRightsBuilder.appendInt(Integer.MIN_VALUE);
+                }
             }
-            blocks[offset + 0] = minNegXsBuilder.build();
-            blocks[offset + 1] = minPosXsBuilder.build();
-            blocks[offset + 2] = maxNegXsBuilder.build();
-            blocks[offset + 3] = maxPosXsBuilder.build();
-            blocks[offset + 4] = maxYsBuilder.build();
-            blocks[offset + 5] = minYsBuilder.build();
+            blocks[offset + 0] = topsBuilder.build();
+            blocks[offset + 1] = bottomsBuilder.build();
+            blocks[offset + 2] = negLeftsBuilder.build();
+            blocks[offset + 3] = negRightsBuilder.build();
+            blocks[offset + 4] = posLeftsBuilder.build();
+            blocks[offset + 5] = posRightsBuilder.build();
         }
     }
 
@@ -87,12 +98,12 @@ final class SpatialExtentGroupingStateWrappedLongitudeState extends AbstractArra
         if (geo.visit(new SpatialEnvelopeVisitor(geoPointVisitor))) {
             add(
                 groupId,
-                SpatialAggregationUtils.encodeNegativeLongitude(geoPointVisitor.getMinNegX()),
-                SpatialAggregationUtils.encodePositiveLongitude(geoPointVisitor.getMinPosX()),
-                SpatialAggregationUtils.encodeNegativeLongitude(geoPointVisitor.getMaxNegX()),
-                SpatialAggregationUtils.encodePositiveLongitude(geoPointVisitor.getMaxPosX()),
-                POINT_TYPE.encoder().encodeY(geoPointVisitor.getMaxY()),
-                POINT_TYPE.encoder().encodeY(geoPointVisitor.getMinY())
+                POINT_TYPE.encoder().encodeY(geoPointVisitor.getTop()),
+                POINT_TYPE.encoder().encodeY(geoPointVisitor.getBottom()),
+                SpatialAggregationUtils.encodeLongitude(geoPointVisitor.getNegLeft()),
+                SpatialAggregationUtils.encodeLongitude(geoPointVisitor.getNegRight()),
+                SpatialAggregationUtils.encodeLongitude(geoPointVisitor.getPosLeft()),
+                SpatialAggregationUtils.encodeLongitude(geoPointVisitor.getPosRight())
             );
         }
     }
@@ -102,53 +113,73 @@ final class SpatialExtentGroupingStateWrappedLongitudeState extends AbstractArra
         if (inState.hasValue(inPosition)) {
             add(
                 groupId,
-                inState.minNegXs.get(inPosition),
-                inState.minPosXs.get(inPosition),
-                inState.maxNegXs.get(inPosition),
-                inState.maxPosXs.get(inPosition),
-                inState.maxYs.get(inPosition),
-                inState.minYs.get(inPosition)
+                inState.tops.get(inPosition),
+                inState.bottoms.get(inPosition),
+                inState.negLefts.get(inPosition),
+                inState.negRights.get(inPosition),
+                inState.posLefts.get(inPosition),
+                inState.posRights.get(inPosition)
             );
         }
     }
 
+    /**
+     * This method is used when the field is a geo_point or cartesian_point and is loaded from doc-values.
+     * This optimization is enabled when the field has doc-values and is only used in a spatial aggregation.
+     */
     public void add(int groupId, long encoded) {
         int x = POINT_TYPE.extractX(encoded);
         int y = POINT_TYPE.extractY(encoded);
-        add(groupId, x, x, x, x, y, y);
+        add(groupId, y, y, x, x, x, x);
     }
 
-    public void add(int groupId, int minNegX, int minPosX, int maxNegX, int maxPosX, int maxY, int minY) {
+    /**
+     * This method is used when extents are extracted from the doc-values field by the {@link GeometryDocValueReader}.
+     * This optimization is enabled when the field has doc-values and is only used in the ST_EXTENT aggregation.
+     */
+    public void add(int groupId, int[] values) {
+        if (values.length != 6) {
+            throw new IllegalArgumentException("Expected 6 values, got " + values.length);
+        }
+        // Values are stored according to the order defined in the Extent class
+        int top = values[0];
+        int bottom = values[1];
+        int negLeft = values[2];
+        int negRight = values[3];
+        int posLeft = values[4];
+        int posRight = values[5];
+        add(groupId, top, bottom, negLeft, negRight, posLeft, posRight);
+    }
+
+    public void add(int groupId, int top, int bottom, int negLeft, int negRight, int posLeft, int posRight) {
         ensureCapacity(groupId);
         if (hasValue(groupId)) {
-            minNegXs.set(groupId, Math.min(minNegXs.get(groupId), minNegX));
-            minPosXs.set(groupId, SpatialAggregationUtils.minPos(minPosXs.get(groupId), minPosX));
-            maxNegXs.set(groupId, SpatialAggregationUtils.maxNeg(maxNegXs.get(groupId), maxNegX));
-            maxPosXs.set(groupId, Math.max(maxPosXs.get(groupId), maxPosX));
-            maxYs.set(groupId, Math.max(maxYs.get(groupId), maxY));
-            minYs.set(groupId, Math.min(minYs.get(groupId), minY));
+            tops.set(groupId, Math.max(tops.get(groupId), top));
+            bottoms.set(groupId, Math.min(bottoms.get(groupId), bottom));
+            negLefts.set(groupId, Math.min(negLefts.get(groupId), negLeft));
+            negRights.set(groupId, SpatialAggregationUtils.maxNeg(negRights.get(groupId), negRight));
+            posLefts.set(groupId, SpatialAggregationUtils.minPos(posLefts.get(groupId), posLeft));
+            posRights.set(groupId, Math.max(posRights.get(groupId), posRight));
         } else {
-            minNegXs.set(groupId, minNegX);
-            minPosXs.set(groupId, minPosX);
-            maxNegXs.set(groupId, maxNegX);
-            maxPosXs.set(groupId, maxPosX);
-            maxYs.set(groupId, maxY);
-            minYs.set(groupId, minY);
+            tops.set(groupId, top);
+            bottoms.set(groupId, bottom);
+            negLefts.set(groupId, negLeft);
+            negRights.set(groupId, negRight);
+            posLefts.set(groupId, posLeft);
+            posRights.set(groupId, posRight);
         }
-        assert minNegX <= 0 == maxNegX <= 0 : "minNegX=" + minNegX + " maxNegX=" + maxNegX;
-        assert minPosX >= 0 == maxPosX >= 0 : "minPosX=" + minPosX + " maxPosX=" + maxPosX;
         trackGroupId(groupId);
     }
 
     private void ensureCapacity(int groupId) {
         long requiredSize = groupId + 1;
-        if (minNegXs.size() < requiredSize) {
-            minNegXs = bigArrays.grow(minNegXs, requiredSize);
-            minPosXs = bigArrays.grow(minPosXs, requiredSize);
-            maxNegXs = bigArrays.grow(maxNegXs, requiredSize);
-            maxPosXs = bigArrays.grow(maxPosXs, requiredSize);
-            minYs = bigArrays.grow(minYs, requiredSize);
-            maxYs = bigArrays.grow(maxYs, requiredSize);
+        if (negLefts.size() < requiredSize) {
+            tops = bigArrays.grow(tops, requiredSize);
+            bottoms = bigArrays.grow(bottoms, requiredSize);
+            negLefts = bigArrays.grow(negLefts, requiredSize);
+            negRights = bigArrays.grow(negRights, requiredSize);
+            posLefts = bigArrays.grow(posLefts, requiredSize);
+            posRights = bigArrays.grow(posRights, requiredSize);
         }
     }
 
@@ -160,13 +191,13 @@ final class SpatialExtentGroupingStateWrappedLongitudeState extends AbstractArra
                     builder.appendBytesRef(
                         new BytesRef(
                             WellKnownBinary.toWKB(
-                                SpatialAggregationUtils.asRectangle(
-                                    minNegXs.get(si),
-                                    minPosXs.get(si),
-                                    maxNegXs.get(si),
-                                    maxPosXs.get(si),
-                                    maxYs.get(si),
-                                    minYs.get(si)
+                                asRectangle(
+                                    tops.get(si),
+                                    bottoms.get(si),
+                                    negLefts.get(si),
+                                    negRights.get(si),
+                                    posLefts.get(si),
+                                    posRights.get(si)
                                 ),
                                 ByteOrder.LITTLE_ENDIAN
                             )

@@ -384,6 +384,7 @@ A collection of model size stats fields.
 `model_size_bytes`:::
 (integer)
 The size of the model in bytes.
+This parameter applies only to PyTorch models.
 
 `required_native_memory_bytes`:::
 (integer)

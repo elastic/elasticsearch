@@ -81,6 +81,8 @@ DELETE _index_template/*
 ////
 // end::downsample-example[]
 
+Check the <<downsampling,Downsampling>> documentation for an overview, details about the downsampling process, and examples of running downsampling manually and as part of an ILM policy.
+
 [[downsample-api-request]]
 ==== {api-request-title}
 
@@ -122,43 +124,3 @@ document for each 60 minute (hourly) interval. This follows standard time
 formatting syntax as used elsewhere in {es}.
 +
 NOTE: Smaller, more granular intervals take up proportionally more space.
-
-[[downsample-api-process]]
-==== The downsampling process
-
-The downsampling operation traverses the source TSDS index and performs the
-following steps:
-
-. Creates a new document for each value of the `_tsid` field and each
-`@timestamp` value, rounded to the `fixed_interval` defined in the downsample
-configuration.
-. For each new document, copies all <<time-series-dimension,time
-series dimensions>> from the source index to the target index. Dimensions in a
-TSDS are constant, so this is done only once per bucket.
-. For each <<time-series-metric,time series metric>> field, computes aggregations
-for all documents in the bucket. Depending on the metric type of each metric
-field a different set of pre-aggregated results is stored:
-
-** `gauge`: The `min`, `max`, `sum`, and `value_count` are stored; `value_count`
-is stored as type `aggregate_metric_double`.
-** `counter`: The `last_value` is stored.
-. For all other fields, the most recent value is copied to the target index.
-
-[[downsample-api-mappings]]
-==== Source and target index field mappings
-
-Fields in the target, downsampled index are created based on fields in the
-original source index, as follows:
-
-. All fields mapped with the `time-series-dimension` parameter are created in
-the target downsample index with the same mapping as in the source index.
-. All fields mapped with the `time_series_metric` parameter are created
-in the target downsample index with the same mapping as in the source
-index. An exception is that for fields mapped as `time_series_metric: gauge`
-the field type is changed to `aggregate_metric_double`.
-. All other fields that are neither dimensions nor metrics (that is, label
-fields), are created in the target downsample index with the same mapping
-that they had in the source index.
-
-Check the <<downsampling,Downsampling>> documentation for an overview and
-examples of running downsampling manually and as part of an ILM policy.

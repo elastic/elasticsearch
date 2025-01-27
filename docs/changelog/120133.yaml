@@ -1,0 +1,6 @@
+pr: 120133
+summary: Use approximation to advance matched queries
+area: Search
+type: bug
+issues:
+ - 120130

@@ -286,3 +286,22 @@ include::remote-cluster-network.asciidoc[]
 include::network/tracers.asciidoc[]
 
 include::network/threading.asciidoc[]
+
+[[tcp-readiness-port]]
+==== TCP readiness port
+
+preview::[]
+
+If configured, a node can open a TCP port when the node is in a ready state. A node is deemed
+ready when it has successfully joined a cluster. In a single node configuration, the node is
+said to be ready, when it's able to accept requests.
+
+To enable the readiness TCP port, use the `readiness.port` setting. The readiness service will bind to
+all host addresses.
+
+If the node leaves the cluster, or the <<put-shutdown,Shutdown API>> is used to mark the node
+for shutdown, the readiness port is immediately closed.
+
+A successful connection to the readiness TCP port signals that the {es} node is ready. When a client
+connects to the readiness port, the server simply terminates the socket connection. No data is sent back
+to the client. If a client cannot connect to the readiness port, the node is not ready.

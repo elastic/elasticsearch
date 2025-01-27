@@ -262,9 +262,11 @@ max_analyzed_offset:: By default, the maximum number of characters
 analyzed for a highlight request is bounded by the value defined in the
 <<index-max-analyzed-offset, `index.highlight.max_analyzed_offset`>> setting,
 and when the number of characters exceeds this limit an error is returned. If
-this setting is set to a non-negative value, the highlighting stops at this defined
+this setting is set to a positive value, the highlighting stops at this defined
 maximum limit, and the rest of the text is not processed, thus not highlighted and
-no error is returned. The <<max-analyzed-offset, `max_analyzed_offset`>> query setting
+no error is returned. If it is specifically set to -1 then the value of
+<<index-max-analyzed-offset, `index.highlight.max_analyzed_offset`>> is used instead.
+For values < -1 or 0, an error is returned. The <<max-analyzed-offset, `max_analyzed_offset`>> query setting
 does *not* override the <<index-max-analyzed-offset, `index.highlight.max_analyzed_offset`>>
 which prevails when it's set to lower value than the query setting.
 

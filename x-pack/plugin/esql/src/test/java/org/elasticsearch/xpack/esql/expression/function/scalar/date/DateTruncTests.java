@@ -56,11 +56,7 @@ public class DateTruncTests extends AbstractScalarFunctionTestCase {
         suppliers.addAll(ofDuration(Duration.ofSeconds(30), ts, "2023-02-17T10:25:30.00Z"));
         suppliers.add(randomSecond());
 
-        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers, (v, p) -> switch (p) {
-            case 0 -> "dateperiod or timeduration";
-            case 1 -> "date_nanos or datetime";
-            default -> null;
-        });
+        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
     }
 
     private static List<TestCaseSupplier> ofDatePeriod(Period period, long value, String expectedDate) {

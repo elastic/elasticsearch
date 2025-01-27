@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.predicate.BinaryOperator;
+import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 
 public final class LiteralsOnTheRight extends OptimizerRules.OptimizerExpressionRule<BinaryOperator<?, ?, ?, ?>> {
 
@@ -17,7 +18,7 @@ public final class LiteralsOnTheRight extends OptimizerRules.OptimizerExpression
     }
 
     @Override
-    public BinaryOperator<?, ?, ?, ?> rule(BinaryOperator<?, ?, ?, ?> be) {
+    public BinaryOperator<?, ?, ?, ?> rule(BinaryOperator<?, ?, ?, ?> be, LogicalOptimizerContext ctx) {
         return be.left() instanceof Literal && (be.right() instanceof Literal) == false ? be.swapLeftAndRight() : be;
     }
 }

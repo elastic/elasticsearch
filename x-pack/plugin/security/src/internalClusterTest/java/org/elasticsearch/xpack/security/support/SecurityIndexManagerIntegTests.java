@@ -274,7 +274,7 @@ public class SecurityIndexManagerIntegTests extends SecurityIntegTestCase {
 
     public void testSecurityIndexSettingsCannotBeChanged() throws Exception {
         // make sure the security index is not auto-created
-        GetIndexRequest getIndexRequest = new GetIndexRequest();
+        GetIndexRequest getIndexRequest = new GetIndexRequest(TEST_REQUEST_TIMEOUT);
         getIndexRequest.indices(SECURITY_MAIN_ALIAS);
         getIndexRequest.indicesOptions(IndicesOptions.lenientExpandOpen());
         GetIndexResponse getIndexResponse = client().admin().indices().getIndex(getIndexRequest).actionGet();

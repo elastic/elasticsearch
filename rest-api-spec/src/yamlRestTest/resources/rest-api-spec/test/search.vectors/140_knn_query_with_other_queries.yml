@@ -69,6 +69,7 @@ setup:
                   field: my_vector
                   query_vector: [ 1, 1, 1, 1 ]
                   num_candidates: 5
+                  k: 5
               functions:
                 - filter: { match: { my_name: v1 } }
                   weight: 10

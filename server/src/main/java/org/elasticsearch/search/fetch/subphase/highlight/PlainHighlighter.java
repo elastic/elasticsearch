@@ -27,6 +27,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.lucene.search.uhighlight.QueryMaxAnalyzedOffset;
 import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 
@@ -107,7 +108,10 @@ public class PlainHighlighter implements Highlighter {
         ArrayList<OrderedTextFragment> fragsList = new ArrayList<>();
         List<Object> textsToHighlight;
         final int maxAnalyzedOffset = context.getSearchExecutionContext().getIndexSettings().getHighlightMaxAnalyzedOffset();
-        Integer queryMaxAnalyzedOffset = fieldContext.field.fieldOptions().maxAnalyzedOffset();
+        QueryMaxAnalyzedOffset queryMaxAnalyzedOffset = QueryMaxAnalyzedOffset.create(
+            fieldContext.field.fieldOptions().maxAnalyzedOffset(),
+            maxAnalyzedOffset
+        );
         Analyzer analyzer = wrapAnalyzer(
             context.getSearchExecutionContext().getIndexAnalyzer(f -> Lucene.KEYWORD_ANALYZER),
             queryMaxAnalyzedOffset
@@ -119,7 +123,8 @@ public class PlainHighlighter implements Highlighter {
         for (Object textToHighlight : textsToHighlight) {
             String text = convertFieldValue(fieldType, textToHighlight);
             int textLength = text.length();
-            if ((queryMaxAnalyzedOffset == null || queryMaxAnalyzedOffset > maxAnalyzedOffset) && (textLength > maxAnalyzedOffset)) {
+            if ((queryMaxAnalyzedOffset == null || queryMaxAnalyzedOffset.getNotNull() > maxAnalyzedOffset)
+                && (textLength > maxAnalyzedOffset)) {
                 throw new IllegalArgumentException(
                     "The length ["
                         + textLength
@@ -241,9 +246,9 @@ public class PlainHighlighter implements Highlighter {
         }
     }
 
-    private static Analyzer wrapAnalyzer(Analyzer analyzer, Integer maxAnalyzedOffset) {
+    private static Analyzer wrapAnalyzer(Analyzer analyzer, QueryMaxAnalyzedOffset maxAnalyzedOffset) {
         if (maxAnalyzedOffset != null) {
-            return new LimitTokenOffsetAnalyzer(analyzer, maxAnalyzedOffset);
+            return new LimitTokenOffsetAnalyzer(analyzer, maxAnalyzedOffset.getNotNull());
         }
         return analyzer;
     }

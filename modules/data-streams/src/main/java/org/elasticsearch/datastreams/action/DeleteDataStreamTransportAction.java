@@ -51,6 +51,7 @@ public class DeleteDataStreamTransportAction extends AcknowledgedTransportMaster
 
     private static final Logger LOGGER = LogManager.getLogger(DeleteDataStreamTransportAction.class);
 
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final SystemIndices systemIndices;
 
     @Inject
@@ -69,9 +70,9 @@ public class DeleteDataStreamTransportAction extends AcknowledgedTransportMaster
             threadPool,
             actionFilters,
             DeleteDataStreamAction.Request::new,
-            indexNameExpressionResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.systemIndices = systemIndices;
     }
 
@@ -156,7 +157,7 @@ public class DeleteDataStreamTransportAction extends AcknowledgedTransportMaster
             DataStream dataStream = currentState.metadata().dataStreams().get(dataStreamName);
             assert dataStream != null;
             backingIndicesToRemove.addAll(dataStream.getIndices());
-            backingIndicesToRemove.addAll(dataStream.getFailureIndices().getIndices());
+            backingIndicesToRemove.addAll(dataStream.getFailureIndices());
         }
 
         // first delete the data streams and then the indices:

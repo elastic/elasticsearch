@@ -1,7 +1,5 @@
 setup:
   - requires:
-      cluster_features: 'rrf_retriever_composition_supported'
-      reason: 'test requires rrf retriever composition support'
       test_runner_features: close_to
 
   - do:

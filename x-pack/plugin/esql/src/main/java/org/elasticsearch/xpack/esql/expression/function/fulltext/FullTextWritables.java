@@ -25,10 +25,9 @@ public class FullTextWritables {
         entries.add(MultiMatchQueryPredicate.ENTRY);
         entries.add(QueryString.ENTRY);
         entries.add(Match.ENTRY);
+        entries.add(MatchOperator.ENTRY);
+        entries.add(Kql.ENTRY);
 
-        if (EsqlCapabilities.Cap.KQL_FUNCTION.isEnabled()) {
-            entries.add(Kql.ENTRY);
-        }
         if (EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled()) {
             entries.add(Term.ENTRY);
         }

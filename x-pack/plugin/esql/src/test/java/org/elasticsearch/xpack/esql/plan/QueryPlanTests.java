@@ -38,7 +38,7 @@ import static org.hamcrest.Matchers.contains;
 public class QueryPlanTests extends ESTestCase {
 
     public void testTransformWithExpressionTopLevel() throws Exception {
-        Limit limit = new Limit(EMPTY, of(42), relation(), true);
+        Limit limit = new Limit(EMPTY, of(42), relation());
         LogicalPlan transformed = limit.transformExpressionsOnly(Literal.class, l -> of(24));
 
         assertEquals(Limit.class, transformed.getClass());
@@ -47,7 +47,7 @@ public class QueryPlanTests extends ESTestCase {
     }
 
     public void testTransformWithExpressionTree() throws Exception {
-        Limit limit = new Limit(EMPTY, of(42), relation(), true);
+        Limit limit = new Limit(EMPTY, of(42), relation());
         OrderBy o = new OrderBy(EMPTY, limit, emptyList());
         LogicalPlan transformed = o.transformExpressionsDown(Literal.class, l -> of(24));
 
@@ -93,7 +93,7 @@ public class QueryPlanTests extends ESTestCase {
     }
 
     public void testForEachWithExpressionTree() throws Exception {
-        Limit limit = new Limit(EMPTY, of(42), relation(), true);
+        Limit limit = new Limit(EMPTY, of(42), relation());
         OrderBy o = new OrderBy(EMPTY, limit, emptyList());
 
         List<Object> list = new ArrayList<>();

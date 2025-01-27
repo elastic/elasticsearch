@@ -22,36 +22,51 @@ public class Limit extends UnaryPlan {
 
     private final Expression limit;
     /**
-     * Important for optimizations. This should be {@code true} in most cases, which allows this instance to be duplicated past a child plan
-     * node that increases the number of rows, like for LOOKUP JOIN and MV_EXPAND.
-     * Needs to be set to {@code false} in {@link org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownAndCombineLimits} to avoid
+     * Important for optimizations. This should be {@code false} in most cases, which allows this instance to be duplicated past a child
+     * plan node that increases the number of rows, like for LOOKUP JOIN and MV_EXPAND.
+     * Needs to be set to {@code true} in {@link org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownAndCombineLimits} to avoid
      * infinite loops from adding a duplicate of the limit past the child over and over again.
      */
-    private final boolean allowDuplicatePastExpandingNode;
+    private final transient boolean duplicated;
 
-    public Limit(Source source, Expression limit, LogicalPlan child, boolean allowDuplicatePastExpandingNode) {
-        super(source, child);
-        this.limit = limit;
-        this.allowDuplicatePastExpandingNode = allowDuplicatePastExpandingNode;
+    /**
+     * Default way to create a new instance. Do not use this to copy an existing instance, as this uses sets {@link Limit#duplicated} to
+     * {@code false}.
+     */
+    public Limit(Source source, Expression limit, LogicalPlan child) {
+        this(source, limit, child, false);
     }
 
+    public Limit(Source source, Expression limit, LogicalPlan child, boolean duplicated) {
+        super(source, child);
+        this.limit = limit;
+        this.duplicated = duplicated;
+    }
+
+    /**
+     * Omits reading {@link Limit#duplicated}, c.f. {@link Limit#writeTo}.
+     */
     private Limit(StreamInput in) throws IOException {
         this(
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(Expression.class),
             in.readNamedWriteable(LogicalPlan.class),
-            true
+            false
         );
     }
 
+    /**
+     * Omits serializing {@link Limit#duplicated} because when sent to a data node, this should always be {@code false}.
+     * That's because if it's true, this means a copy of this limit was pushed down below an MvExpand or Join, and thus there's
+     * another pipeline breaker further upstream - we're already on the coordinator node.
+     */
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         Source.EMPTY.writeTo(out);
         out.writeNamedWriteable(limit());
         out.writeNamedWriteable(child());
-        // For limits sent to data nodes, allowDuplicatePastExpandingNode should always be true.
-        // That's because if it's false, this means a copy of this limit was pushed down below an MvExpand or Join, and thus there's
-        // another pipeline breaker further upstream.
+        // Let's make sure we notice during tests if we ever serialize a duplicated Limit.
+        assert duplicated == false;
     }
 
     @Override
@@ -61,20 +76,28 @@ public class Limit extends UnaryPlan {
 
     @Override
     protected NodeInfo<Limit> info() {
-        return NodeInfo.create(this, Limit::new, limit, child(), allowDuplicatePastExpandingNode);
+        return NodeInfo.create(this, Limit::new, limit, child(), duplicated);
     }
 
     @Override
     public Limit replaceChild(LogicalPlan newChild) {
-        return new Limit(source(), limit, newChild, allowDuplicatePastExpandingNode);
+        return new Limit(source(), limit, newChild, duplicated);
     }
 
     public Expression limit() {
         return limit;
     }
 
-    public boolean allowDuplicatePastExpandingNode() {
-        return allowDuplicatePastExpandingNode;
+    public Limit withLimit(Expression limit) {
+        return new Limit(source(), limit, child(), duplicated);
+    }
+
+    public boolean duplicated() {
+        return duplicated;
+    }
+
+    public Limit withDuplicated(boolean duplicated) {
+        return new Limit(source(), limit, child(), duplicated);
     }
 
     @Override
@@ -89,7 +112,7 @@ public class Limit extends UnaryPlan {
 
     @Override
     public int hashCode() {
-        return Objects.hash(limit, child(), allowDuplicatePastExpandingNode);
+        return Objects.hash(limit, child(), duplicated);
     }
 
     @Override
@@ -103,8 +126,6 @@ public class Limit extends UnaryPlan {
 
         Limit other = (Limit) obj;
 
-        return Objects.equals(limit, other.limit)
-            && Objects.equals(child(), other.child())
-            && Objects.equals(allowDuplicatePastExpandingNode, other.allowDuplicatePastExpandingNode);
+        return Objects.equals(limit, other.limit) && Objects.equals(child(), other.child()) && Objects.equals(duplicated, other.duplicated);
     }
 }

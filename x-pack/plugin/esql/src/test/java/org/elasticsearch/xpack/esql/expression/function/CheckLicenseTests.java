@@ -82,7 +82,7 @@ public class CheckLicenseTests extends ESTestCase {
         plan = plan.transformDown(
             Limit.class,
             l -> Objects.equals(l.limit().fold(FoldContext.small()), 10)
-                ? new LicensedLimit(l.source(), l.limit(), l.child(), l.allowDuplicatePastExpandingNode(), functionLicenseFeature)
+                ? new LicensedLimit(l.source(), l.limit(), l.child(), functionLicenseFeature)
                 : l
         );
         return analyzer(registry, operationMode).analyze(plan);
@@ -147,14 +147,8 @@ public class CheckLicenseTests extends ESTestCase {
 
         private final LicensedFeature licensedFeature;
 
-        public LicensedLimit(
-            Source source,
-            Expression limit,
-            LogicalPlan child,
-            boolean allowDuplicatePastExpandingNode,
-            LicensedFeature licensedFeature
-        ) {
-            super(source, limit, child, allowDuplicatePastExpandingNode);
+        public LicensedLimit(Source source, Expression limit, LogicalPlan child, LicensedFeature licensedFeature) {
+            super(source, limit, child);
             this.licensedFeature = licensedFeature;
         }
 
@@ -165,12 +159,12 @@ public class CheckLicenseTests extends ESTestCase {
 
         @Override
         public Limit replaceChild(LogicalPlan newChild) {
-            return new LicensedLimit(source(), limit(), newChild, allowDuplicatePastExpandingNode(), licensedFeature);
+            return new LicensedLimit(source(), limit(), newChild, licensedFeature);
         }
 
         @Override
         protected NodeInfo<Limit> info() {
-            return NodeInfo.create(this, LicensedLimit::new, limit(), child(), allowDuplicatePastExpandingNode(), licensedFeature);
+            return NodeInfo.create(this, LicensedLimit::new, limit(), child(), licensedFeature);
         }
 
         @Override

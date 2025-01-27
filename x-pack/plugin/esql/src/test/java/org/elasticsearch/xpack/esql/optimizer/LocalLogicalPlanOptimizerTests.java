@@ -217,7 +217,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
 
         var limit1 = as(project.child(), Limit.class);
         assertEquals(as(limit1.limit(), Literal.class).value(), 1000);
-        assertFalse(limit1.allowDuplicatePastExpandingNode());
+        assertTrue(limit1.duplicated());
         var mvExpand = as(limit1.child(), MvExpand.class);
         var limit2 = as(mvExpand.child(), Limit.class);
         as(limit2.child(), EsRelation.class);

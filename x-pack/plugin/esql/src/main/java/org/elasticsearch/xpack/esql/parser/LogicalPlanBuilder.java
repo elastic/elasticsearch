@@ -352,7 +352,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     public PlanFactory visitLimitCommand(EsqlBaseParser.LimitCommandContext ctx) {
         Source source = source(ctx);
         int limit = stringToInt(ctx.INTEGER_LITERAL().getText());
-        return input -> new Limit(source, new Literal(source, limit, DataType.INTEGER), input, true);
+        return input -> new Limit(source, new Literal(source, limit, DataType.INTEGER), input);
     }
 
     @Override

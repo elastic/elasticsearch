@@ -27,14 +27,14 @@ public class LimitSerializationTests extends AbstractLogicalPlanSerializationTes
     protected Limit mutateInstance(Limit instance) throws IOException {
         Expression limit = instance.limit();
         LogicalPlan child = instance.child();
-        boolean allowDuplicatePastExpandingNode = instance.allowDuplicatePastExpandingNode();
+        boolean duplicated = instance.duplicated();
         switch (randomIntBetween(0, 2)) {
             case 0 -> limit = randomValueOtherThan(limit, () -> FieldAttributeTests.createFieldAttribute(0, false));
             case 1 -> child = randomValueOtherThan(child, () -> randomChild(0));
-            case 2 -> allowDuplicatePastExpandingNode = allowDuplicatePastExpandingNode == false;
+            case 2 -> duplicated = duplicated == false;
             default -> throw new IllegalStateException("Should never reach here");
         }
-        return new Limit(instance.source(), limit, child, allowDuplicatePastExpandingNode);
+        return new Limit(instance.source(), limit, child, duplicated);
     }
 
     @Override
@@ -45,12 +45,7 @@ public class LimitSerializationTests extends AbstractLogicalPlanSerializationTes
     @Override
     protected Limit copyInstance(Limit instance, TransportVersion version) throws IOException {
         Limit deserializedCopy = super.copyInstance(instance, version);
-        // allowDuplicatePastExpandingNode does not get serialized - so we need to copy this manually.
-        return new Limit(
-            deserializedCopy.source(),
-            deserializedCopy.limit(),
-            deserializedCopy.child(),
-            instance.allowDuplicatePastExpandingNode()
-        );
+        // Limit#duplicated() does not get serialized - so we need to copy this manually.
+        return new Limit(deserializedCopy.source(), deserializedCopy.limit(), deserializedCopy.child(), instance.duplicated());
     }
 }

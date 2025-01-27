@@ -38,12 +38,12 @@ public final class PushDownAndCombineLimits extends OptimizerRules.Parameterized
         } else if (limit.child() instanceof UnaryPlan unary) {
             if (unary instanceof Eval || unary instanceof Project || unary instanceof RegexExtract || unary instanceof Enrich) {
                 return unary.replaceChild(limit.replaceChild(unary.child()));
-            } else if (unary instanceof MvExpand mvx && limit.allowDuplicatePastExpandingNode()) {
+            } else if (unary instanceof MvExpand mvx && limit.duplicated() == false) {
                 // MV_EXPAND can increase the number of rows, so we cannot just push the limit down
                 // (we also have to preserve the LIMIT afterwards)
                 // To avoid repeating this infinitely, we have to set allowDuplicatePastExpandingNode = false.
                 MvExpand newChild = mvx.replaceChild(limit.replaceChild(mvx.child()));
-                return new Limit(limit.source(), limit.limit(), newChild, false);
+                return limit.replaceChild(newChild).withDuplicated(true);
             }
             // check if there's a 'visible' descendant limit lower than the current one
             // and if so, align the current limit since it adds no value
@@ -54,22 +54,17 @@ public final class PushDownAndCombineLimits extends OptimizerRules.Parameterized
                     var l1 = (int) limit.limit().fold(ctx.foldCtx());
                     var l2 = (int) descendantLimit.limit().fold(ctx.foldCtx());
                     if (l2 <= l1) {
-                        return new Limit(
-                            limit.source(),
-                            Literal.of(limit.limit(), l2),
-                            limit.child(),
-                            limit.allowDuplicatePastExpandingNode()
-                        );
+                        return limit.withLimit(Literal.of(limit.limit(), l2));
                     }
                 }
             }
-        } else if (limit.child() instanceof Join join && limit.allowDuplicatePastExpandingNode()) {
+        } else if (limit.child() instanceof Join join && limit.duplicated() == false) {
             if (join.config().type() == JoinTypes.LEFT) {
                 // Left joins increase the number of rows if any join key has multiple matches from the right hand side.
                 // Therefore, we cannot simply push down the limit - but we can add another limit before the join.
                 // To avoid repeating this infinitely, we have to set allowDuplicatePastExpandingNode = false.
                 Join newChild = join.replaceChildren(limit.replaceChild(join.left()), join.right());
-                return new Limit(limit.source(), limit.limit(), newChild, false);
+                return limit.replaceChild(newChild).withDuplicated(true);
             }
         }
         return limit;

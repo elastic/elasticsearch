@@ -1306,10 +1306,10 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var limitValues = new int[] { randomIntBetween(10, 99), randomIntBetween(100, 1000) };
         var firstLimit = randomBoolean() ? 0 : 1;
         var secondLimit = firstLimit == 0 ? 1 : 0;
-        var oneLimit = new Limit(EMPTY, L(limitValues[firstLimit]), emptySource(), true);
-        var anotherLimit = new Limit(EMPTY, L(limitValues[secondLimit]), oneLimit, true);
+        var oneLimit = new Limit(EMPTY, L(limitValues[firstLimit]), emptySource());
+        var anotherLimit = new Limit(EMPTY, L(limitValues[secondLimit]), oneLimit);
         assertEquals(
-            new Limit(EMPTY, L(Math.min(limitValues[0], limitValues[1])), emptySource(), true),
+            new Limit(EMPTY, L(Math.min(limitValues[0], limitValues[1])), emptySource()),
             new PushDownAndCombineLimits().rule(anotherLimit, logicalOptimizerCtx)
         );
     }
@@ -1329,12 +1329,12 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             default -> throw new IllegalArgumentException();
         };
 
-        var limit = new Limit(EMPTY, L(10), join, true);
+        var limit = new Limit(EMPTY, L(10), join);
 
         var optimizedPlan = rule.apply(limit, logicalOptimizerCtx);
 
         assertEquals(
-            new Limit(limit.source(), limit.limit(), join.replaceChildren(limit.replaceChild(join.left()), join.right()), false),
+            new Limit(limit.source(), limit.limit(), join.replaceChildren(limit.replaceChild(join.left()), join.right()), true),
             optimizedPlan
         );
 
@@ -1354,9 +1354,9 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         for (int i = 0; i < numberOfLimits; i++) {
             var value = i == limitWithMinimum ? minimum : randomIntBetween(100, 1000);
-            plan = new Limit(EMPTY, L(value), plan, true);
+            plan = new Limit(EMPTY, L(value), plan);
         }
-        assertEquals(new Limit(EMPTY, L(minimum), relation, true), logicalOptimizer.optimize(plan));
+        assertEquals(new Limit(EMPTY, L(minimum), relation), logicalOptimizer.optimize(plan));
     }
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/115311")
@@ -1876,7 +1876,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         var limit = as(plan, Limit.class);
         assertEquals(as(limit.limit(), Literal.class).value(), 1000);
-        assertFalse(limit.allowDuplicatePastExpandingNode());
+        assertTrue(limit.duplicated());
         var mvExpand = as(limit.child(), MvExpand.class);
         var keep = as(mvExpand.child(), EsqlProject.class);
         var limitPastMvExpand = as(keep.child(), Limit.class);
@@ -1902,7 +1902,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         var limit = as(plan, Limit.class);
         assertEquals(as(limit.limit(), Literal.class).value(), 10);
-        assertFalse(limit.allowDuplicatePastExpandingNode());
+        assertTrue(limit.duplicated());
         var mvExpand = as(limit.child(), MvExpand.class);
         var project = as(mvExpand.child(), EsqlProject.class);
         var limit2 = as(project.child(), Limit.class);
@@ -1946,14 +1946,14 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(orderNames(topN), contains("salary"));
         var limit5Before = as(topN.child(), Limit.class);
         assertEquals(as(limit5Before.limit(), Literal.class).value(), 5);
-        assertFalse(limit5Before.allowDuplicatePastExpandingNode());
+        assertTrue(limit5Before.duplicated());
         var mvExp = as(limit5Before.child(), MvExpand.class);
         var eval = as(mvExp.child(), Eval.class);
         var limit5 = as(eval.child(), Limit.class);
         var filter = as(limit5.child(), Filter.class);
         var limit10Before = as(filter.child(), Limit.class);
         assertEquals(as(limit10Before.limit(), Literal.class).value(), 10);
-        assertFalse(limit10Before.allowDuplicatePastExpandingNode());
+        assertTrue(limit10Before.duplicated());
         mvExp = as(limit10Before.child(), MvExpand.class);
         topN = as(mvExp.child(), TopN.class);
         assertThat(topN.limit().fold(FoldContext.small()), equalTo(10));
@@ -2083,7 +2083,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var agg = as(filter.child(), Aggregate.class);
         var limit50Before = as(agg.child(), Limit.class);
         assertEquals(as(limit50Before.limit(), Literal.class).value(), 50);
-        assertFalse(limit50Before.allowDuplicatePastExpandingNode());
+        assertTrue(limit50Before.duplicated());
         var mvExp = as(limit50Before.child(), MvExpand.class);
         limit = as(mvExp.child(), Limit.class);
         assertThat(limit.limit().fold(FoldContext.small()), equalTo(50));
@@ -2171,7 +2171,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         var limit = as(plan, Limit.class);
         assertEquals(as(limit.limit(), Literal.class).value(), 10);
-        assertFalse(limit.allowDuplicatePastExpandingNode());
+        assertTrue(limit.duplicated());
         var mvExp = as(limit.child(), MvExpand.class);
         var topN = as(mvExp.child(), TopN.class);
         assertThat(topN.limit().fold(FoldContext.small()), equalTo(10));
@@ -2234,7 +2234,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         var limit10kBefore = as(plan, Limit.class);
         assertEquals(as(limit10kBefore.limit(), Literal.class).value(), 10000);
-        assertFalse(limit10kBefore.allowDuplicatePastExpandingNode());
+        assertTrue(limit10kBefore.duplicated());
         var mvExpand = as(limit10kBefore.child(), MvExpand.class);
         var project = as(mvExpand.child(), EsqlProject.class);
         var topN = as(project.child(), TopN.class);
@@ -2242,7 +2242,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(orderNames(topN), contains("a"));
         var limit7300Before = as(topN.child(), Limit.class);
         assertEquals(as(limit7300Before.limit(), Literal.class).value(), 7300);
-        assertFalse(limit7300Before.allowDuplicatePastExpandingNode());
+        assertTrue(limit7300Before.duplicated());
         mvExpand = as(limit7300Before.child(), MvExpand.class);
         var limit = as(mvExpand.child(), Limit.class);
         assertThat(limit.limit().fold(FoldContext.small()), equalTo(7300));
@@ -2391,7 +2391,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         var limit = as(plan, Limit.class);
         assertEquals(as(limit.limit(), Literal.class).value(), 1000);
-        assertFalse(limit.allowDuplicatePastExpandingNode());
+        assertTrue(limit.duplicated());
         var expand = as(limit.child(), MvExpand.class);
         var topN = as(expand.child(), TopN.class);
         var row = as(topN.child(), LocalRelation.class);
@@ -2413,7 +2413,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         var limit = as(plan, Limit.class);
         assertEquals(as(limit.limit(), Literal.class).value(), 20);
-        assertFalse(limit.allowDuplicatePastExpandingNode());
+        assertTrue(limit.duplicated());
         var expand = as(limit.child(), MvExpand.class);
         var topN = as(expand.child(), TopN.class);
         assertThat(topN.limit().fold(FoldContext.small()), is(20));
@@ -2438,7 +2438,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         var limit = as(plan, Limit.class);
         assertEquals(as(limit.limit(), Literal.class).value(), 1000);
-        assertFalse(limit.allowDuplicatePastExpandingNode());
+        assertTrue(limit.duplicated());
         var expand = as(limit.child(), MvExpand.class);
         var limit2 = as(expand.child(), Limit.class);
         assertThat(limit2.limit().fold(FoldContext.small()), is(1000));
@@ -6318,7 +6318,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         var limit = as(project.child(), Limit.class);
         assertEquals(as(limit.limit(), Literal.class).value(), 1000);
-        assertFalse(limit.allowDuplicatePastExpandingNode());
+        assertTrue(limit.duplicated());
 
         var join = as(limit.child(), Join.class);
         var joinRightRelation = as(join.right(), EsRelation.class);
@@ -6355,7 +6355,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         var limit1 = as(plan, Limit.class);
         assertEquals(as(limit1.limit(), Literal.class).value(), 1000);
-        assertFalse(limit1.allowDuplicatePastExpandingNode());
+        assertTrue(limit1.duplicated());
 
         var finalJoin = as(limit1.child(), Join.class);
         var finalJoinRightRelation = as(finalJoin.right(), EsRelation.class);
@@ -6366,7 +6366,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         var limit2 = as(finalJoin.left(), Limit.class);
         assertEquals(as(limit2.limit(), Literal.class).value(), 1000);
-        assertFalse(limit2.allowDuplicatePastExpandingNode());
+        assertTrue(limit2.duplicated());
 
         var initialJoin = as(limit2.child(), Join.class);
         var initialJoinRightRelation = as(initialJoin.right(), EsRelation.class);

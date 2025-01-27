@@ -15,6 +15,7 @@ import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
@@ -38,6 +39,11 @@ public class LogsPatternUsageServiceIntegrationTests extends ESSingleNodeTestCas
     @Override
     protected Settings nodeSettings() {
         return Settings.builder().put("logsdb.usage_check.max_period", "1s").build();
+    }
+
+    @Override
+    protected boolean resetNodeAfterTest() {
+        return true;
     }
 
     public void testLogsPatternUsage() throws Exception {
@@ -70,6 +76,31 @@ public class LogsPatternUsageServiceIntegrationTests extends ESSingleNodeTestCas
             var response = client().execute(ClusterGetSettingsAction.INSTANCE, new ClusterGetSettingsAction.Request(TimeValue.ONE_MINUTE))
                 .actionGet();
             assertThat(response.persistentSettings().get("logsdb.prior_logs_usage"), equalTo("true"));
+        });
+    }
+
+    public void testLogsPatternUsageNoLogsStarDashStarUsage() throws Exception {
+        var template = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of("log-*-*"))
+            .template(new Template(Settings.builder().put("index.number_of_replicas", 0).build(), null, null))
+            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+            .build();
+        assertAcked(
+            client().execute(
+                TransportPutComposableIndexTemplateAction.TYPE,
+                new TransportPutComposableIndexTemplateAction.Request("1").indexTemplate(template)
+            ).actionGet()
+        );
+
+        var indexRequest = new IndexRequest("log-myapp-prod").create(true).source("@timestamp", "2000-01-01T00:00");
+        var indexResponse = client().index(indexRequest).actionGet();
+        assertThat(indexResponse.getResult(), equalTo(DocWriteResponse.Result.CREATED));
+
+        ensureGreen("log-myapp-prod");
+        assertBusy(() -> {
+            var response = client().execute(ClusterGetSettingsAction.INSTANCE, new ClusterGetSettingsAction.Request(TimeValue.ONE_MINUTE))
+                .actionGet();
+            assertThat(response.persistentSettings().get("logsdb.prior_logs_usage"), nullValue());
         });
     }
 

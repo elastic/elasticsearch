@@ -29,8 +29,18 @@ import java.util.function.Supplier;
 import static org.elasticsearch.xpack.logsdb.LogsdbIndexModeSettingsProvider.LOGS_PATTERN;
 
 /**
- * A component that checks in the background whether there are data streams that match log-*-* pattern and if so records this as persistent
- * setting in cluster state. If logs-*-* data stream usage has been found then this component will no longer run in the background.
+ * A component that checks in the background whether there are data streams that match <code>log-*-*</code> pattern and if so records this
+ * as persistent setting in cluster state. If <code>logs-*-*</code> data stream usage has been found then this component will no longer
+ * run in the background.
+ * <p>
+ * After {@link #onMaster()} is invoked, the first check is scheduled to run after 1 minute. If no <code>logs-*-*</code> data streams are
+ * found, then the next check runs after 2 minutes. The schedule time will double if no data streams with <code>logs-*-*</code> pattern
+ * are found up until the maximum configured period in the {@link #USAGE_CHECK_MAX_PERIOD} setting (defaults to 24 hours).
+ * <p>
+ * If during a check one or more <code>logs-*-*</code> data streams are found, then the {@link #LOGSDB_PRIOR_LOGS_USAGE} setting gets set
+ * as persistent cluster setting and this component will not schedule new checks. The mentioned setting is visible in persistent settings
+ * of cluster state and a signal that upon upgrading to 9.x logsdb will not be enabled by default for data streams matching the
+ * <code>logs-*-*</code> pattern. It isn't recommended to manually set the {@link #LOGSDB_PRIOR_LOGS_USAGE} setting.
  */
 final class LogsPatternUsageService implements LocalNodeMasterListener {
 
@@ -47,7 +57,6 @@ final class LogsPatternUsageService implements LocalNodeMasterListener {
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
-
 
     private final Client client;
     private final Settings nodeSettings;

@@ -1,7 +1,7 @@
 [[indices-create-index-from-source]]
 === Create index from source API
 ++++
-<titleabbrev>Create from</titleabbrev>
+<titleabbrev>Create index from source</titleabbrev>
 ++++
 
 .New API reference

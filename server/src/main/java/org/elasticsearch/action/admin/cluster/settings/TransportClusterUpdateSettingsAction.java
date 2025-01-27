@@ -27,10 +27,12 @@ import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsUpdater;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.reservedstate.action.ReservedClusterSettingsAction;
@@ -157,7 +159,12 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeAct
         final ClusterState state,
         final ActionListener<ClusterUpdateSettingsResponse> listener
     ) {
-        submitUnbatchedTask(UPDATE_TASK_SOURCE, new ClusterUpdateSettingsTask(clusterSettings, Priority.IMMEDIATE, request, listener) {
+        // Force propagating the X-Opaque-Id to the settings update task if set, so we can correctly track deprecations.
+        String xOpaqueId = task.getHeader(Task.X_OPAQUE_ID_HTTP_HEADER);
+        Runnable contextUpdater = Strings.hasText(xOpaqueId)
+            ? () -> threadPool.getThreadContext().putHeader(Task.X_OPAQUE_ID_HTTP_HEADER, xOpaqueId)
+            : null;
+        submitUnbatchedTask(UPDATE_TASK_SOURCE, new ClusterUpdateSettingsTask(clusterSettings, request, listener, contextUpdater) {
             @Override
             protected ClusterUpdateSettingsResponse newResponse(boolean acknowledged) {
                 return new ClusterUpdateSettingsResponse(acknowledged, updater.getTransientUpdates(), updater.getPersistentUpdate());
@@ -237,20 +244,25 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeAct
         protected volatile boolean reroute = false;
         protected final SettingsUpdater updater;
         protected final ClusterUpdateSettingsRequest request;
+        protected final @Nullable Runnable threadContextUpdater;
 
         ClusterUpdateSettingsTask(
             final ClusterSettings clusterSettings,
-            Priority priority,
             ClusterUpdateSettingsRequest request,
-            ActionListener<? extends AcknowledgedResponse> listener
+            ActionListener<? extends AcknowledgedResponse> listener,
+            @Nullable Runnable threadContextUpdater
         ) {
-            super(priority, request, listener);
+            super(Priority.IMMEDIATE, request, listener);
             this.updater = new SettingsUpdater(clusterSettings);
             this.request = request;
+            this.threadContextUpdater = threadContextUpdater;
         }
 
         @Override
         public ClusterState execute(final ClusterState currentState) {
+            if (threadContextUpdater != null) {
+                threadContextUpdater.run();
+            }
             final ClusterState clusterState = updater.updateSettings(
                 currentState,
                 request.transientSettings(),

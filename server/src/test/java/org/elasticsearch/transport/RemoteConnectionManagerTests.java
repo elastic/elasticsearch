@@ -142,7 +142,7 @@ public class RemoteConnectionManagerTests extends ESTestCase {
         assertWarnings(
             "The remote cluster connection to ["
                 + remoteClusterAlias
-                + "] is using deprecated certificated based security model. "
+                + "] is using deprecated certificate based security model. "
                 + "The certificate based security model is deprecated and will be removed in a future major version. "
                 + "Migrate remote cluster from certificate to API key based security model."
         );

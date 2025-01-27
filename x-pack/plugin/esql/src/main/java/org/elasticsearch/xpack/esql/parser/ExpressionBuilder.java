@@ -41,7 +41,7 @@ import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.FunctionResolutionStrategy;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FilteredExpression;
-import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchOperator;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.RLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
@@ -988,6 +988,6 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
             matchFieldExpression = expression(ctx.fieldExp);
         }
 
-        return new Match(source(ctx), matchFieldExpression, expression(ctx.matchQuery));
+        return new MatchOperator(source(ctx), matchFieldExpression, expression(ctx.matchQuery));
     }
 }

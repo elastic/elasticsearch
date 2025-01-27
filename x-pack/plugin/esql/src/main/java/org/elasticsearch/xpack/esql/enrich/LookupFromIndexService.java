@@ -20,12 +20,10 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.compute.operator.lookup.QueryList;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -87,11 +85,12 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
         Warnings warnings
     ) {
         MappedFieldType fieldType = context.getFieldType(request.matchField);
-        validateTypes(request.inputDataType, fieldType);
         return termQueryList(fieldType, context, inputBlock, inputDataType).onlySingleValues(
             warnings,
             "LOOKUP JOIN encountered multi-value"
         );
+    protected QueryList queryList(TransportRequest request, SearchExecutionContext context, Block inputBlock, DataType inputDataType) {
+        return termQueryList(context.getFieldType(request.matchField), context, inputBlock, inputDataType).onlySingleValues();
     }
 
     @Override
@@ -102,20 +101,6 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
     @Override
     protected AbstractLookupService.LookupResponse readLookupResponse(StreamInput in, BlockFactory blockFactory) throws IOException {
         return new LookupResponse(in, blockFactory);
-    }
-
-    @Override
-    protected String getRequiredPrivilege() {
-        return null;
-    }
-
-    private static void validateTypes(DataType inputDataType, MappedFieldType fieldType) {
-        // TODO: consider supporting implicit type conversion as done in ENRICH for some types
-        if (fieldType.typeName().equals(inputDataType.typeName()) == false) {
-            throw new EsqlIllegalArgumentException(
-                "LOOKUP JOIN match and input types are incompatible: match[" + fieldType.typeName() + "], input[" + inputDataType + "]"
-            );
-        }
     }
 
     public static class Request extends AbstractLookupService.Request {

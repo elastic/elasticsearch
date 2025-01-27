@@ -56,7 +56,7 @@ import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
-import org.elasticsearch.xpack.esql.plan.TableIdentifier;
+import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
@@ -321,7 +321,9 @@ public class EsqlSession {
         EsqlSessionCCSUtils.checkForCcsLicense(executionInfo, indices, indicesExpressionGrouper, verifier.licenseState());
 
         final Set<String> targetClusters = enrichPolicyResolver.groupIndicesPerCluster(
-            indices.stream().flatMap(t -> Arrays.stream(Strings.commaDelimitedListToStringArray(t.id().index()))).toArray(String[]::new)
+            indices.stream()
+                .flatMap(t -> Arrays.stream(Strings.commaDelimitedListToStringArray(t.id().indexPattern())))
+                .toArray(String[]::new)
         ).keySet();
 
         var listener = SubscribableListener.<EnrichResolution>newForked(
@@ -373,14 +375,14 @@ public class EsqlSession {
     }
 
     private void preAnalyzeLookupIndex(TableInfo tableInfo, PreAnalysisResult result, ActionListener<PreAnalysisResult> listener) {
-        TableIdentifier table = tableInfo.id();
-        Set<String> fieldNames = result.wildcardJoinIndices().contains(table.index()) ? IndexResolver.ALL_FIELDS : result.fieldNames;
+        IndexPattern table = tableInfo.id();
+        Set<String> fieldNames = result.wildcardJoinIndices().contains(table.indexPattern()) ? IndexResolver.ALL_FIELDS : result.fieldNames;
         // call the EsqlResolveFieldsAction (field-caps) to resolve indices and get field types
         indexResolver.resolveAsMergedMapping(
-            table.index(),
+            table.indexPattern(),
             fieldNames,
             null,
-            listener.map(indexResolution -> result.addLookupIndexResolution(table.index(), indexResolution))
+            listener.map(indexResolution -> result.addLookupIndexResolution(table.indexPattern(), indexResolution))
         );
         // TODO: Verify that the resolved index actually has indexMode: "lookup"
     }
@@ -400,9 +402,12 @@ public class EsqlSession {
             // known to be unavailable from the enrich policy API call
             Map<String, Exception> unavailableClusters = result.enrichResolution.getUnavailableClusters();
             TableInfo tableInfo = indices.get(0);
-            TableIdentifier table = tableInfo.id();
+            IndexPattern table = tableInfo.id();
 
-            Map<String, OriginalIndices> clusterIndices = indicesExpressionGrouper.groupIndices(IndicesOptions.DEFAULT, table.index());
+            Map<String, OriginalIndices> clusterIndices = indicesExpressionGrouper.groupIndices(
+                IndicesOptions.DEFAULT,
+                table.indexPattern()
+            );
             for (Map.Entry<String, OriginalIndices> entry : clusterIndices.entrySet()) {
                 final String clusterAlias = entry.getKey();
                 String indexExpr = Strings.arrayToCommaDelimitedString(entry.getValue().indices());
@@ -431,7 +436,9 @@ public class EsqlSession {
             String indexExpressionToResolve = EsqlSessionCCSUtils.createIndexExpressionFromAvailableClusters(executionInfo);
             if (indexExpressionToResolve.isEmpty()) {
                 // if this was a pure remote CCS request (no local indices) and all remotes are offline, return an empty IndexResolution
-                listener.onResponse(result.withIndexResolution(IndexResolution.valid(new EsIndex(table.index(), Map.of(), Map.of()))));
+                listener.onResponse(
+                    result.withIndexResolution(IndexResolution.valid(new EsIndex(table.indexPattern(), Map.of(), Map.of())))
+                );
             } else {
                 // call the EsqlResolveFieldsAction (field-caps) to resolve indices and get field types
                 indexResolver.resolveAsMergedMapping(
@@ -588,7 +595,7 @@ public class EsqlSession {
                 }
                 if (keepCommandReferences.isEmpty()) {
                     // No KEEP commands after the JOIN, so we need to mark this index for "*" field resolution
-                    wildcardJoinIndices.add(((UnresolvedRelation) join.right()).table().index());
+                    wildcardJoinIndices.add(((UnresolvedRelation) join.right()).indexPattern().indexPattern());
                 } else {
                     // Keep commands can reference the join columns with names that shadow aliases, so we block their removal
                     keepJoinReferences.addAll(keepCommandReferences);

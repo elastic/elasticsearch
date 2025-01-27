@@ -436,19 +436,21 @@ public class VersionStringFieldMapper extends FieldMapper {
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport() {
-        var loader = new CompositeSyntheticFieldLoader(leafName(), fullPath(), new SortedSetDocValuesSyntheticFieldLoaderLayer(fullPath()) {
-            @Override
-            protected BytesRef convert(BytesRef value) {
-                return VersionEncoder.decodeVersion(value);
-            }
+        return new SyntheticSourceSupport.Native(() -> new CompositeSyntheticFieldLoader(
+            leafName(),
+            fullPath(),
+            new SortedSetDocValuesSyntheticFieldLoaderLayer(fullPath()) {
+                @Override
+                protected BytesRef convert(BytesRef value) {
+                    return VersionEncoder.decodeVersion(value);
+                }
 
-            @Override
-            protected BytesRef preserve(BytesRef value) {
-                // Convert copies the underlying bytes
-                return value;
+                @Override
+                protected BytesRef preserve(BytesRef value) {
+                    // Convert copies the underlying bytes
+                    return value;
+                }
             }
-        });
-
-        return new SyntheticSourceSupport.Native(loader);
+        ));
     }
 }

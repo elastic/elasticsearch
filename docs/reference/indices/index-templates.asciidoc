@@ -40,6 +40,7 @@ template with the highest priority is used.
 following index patterns:
 
 // tag::built-in-index-template-patterns[]
+- `.kibana-reporting*`
 - `logs-*-*`
 - `metrics-*-*`
 - `synthetics-*-*`

@@ -20,6 +20,7 @@ import java.util.List;
  */
 public class ElasticInferenceServiceSettings {
 
+    // TODO when we remove this look at InferenceGetServicesIT and remove the setting there as well
     @Deprecated
     static final Setting<String> EIS_GATEWAY_URL = Setting.simpleString("xpack.inference.eis.gateway.url", Setting.Property.NodeScope);
 

@@ -71,7 +71,7 @@ import java.util.function.Supplier;
 public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin {
 
     public static final String DEPRECATION_MESSAGE =
-        "The rollup functionality will be removed in in Elasticsearch 10.0. See docs for more information.";
+        "The rollup functionality will be removed in Elasticsearch 10.0. See docs for more information.";
     public static final String DEPRECATION_KEY = "rollup_removal";
 
     // Introduced in ES version 6.3

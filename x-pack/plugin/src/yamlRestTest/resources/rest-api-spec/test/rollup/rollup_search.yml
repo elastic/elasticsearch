@@ -30,7 +30,7 @@ setup:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       allowed_warnings:
-        - "The rollup functionality will be removed in in Elasticsearch 10.0. See docs for more information."
+        - "The rollup functionality will be removed in Elasticsearch 10.0. See docs for more information."
       rollup.put_job:
         id: foo
         body:  >
@@ -142,7 +142,7 @@ setup:
 
   - do:
       allowed_warnings:
-        - "The rollup functionality will be removed in in Elasticsearch 10.0. See docs for more information."
+        - "The rollup functionality will be removed in Elasticsearch 10.0. See docs for more information."
       rollup.rollup_search:
         index: "foo_rollup"
         body:
@@ -171,7 +171,7 @@ setup:
       reason: rest_total_hits_as_int was introduced in 6.6.0
   - do:
       allowed_warnings:
-        - The rollup functionality will be removed in in Elasticsearch 10.0. See docs for more information.
+        - The rollup functionality will be removed in Elasticsearch 10.0. See docs for more information.
       rollup.rollup_search:
         index: "foo_rollup"
         body:
@@ -198,7 +198,7 @@ setup:
 
   - do:
       allowed_warnings:
-        - "The rollup functionality will be removed in in Elasticsearch 10.0. See docs for more information."
+        - "The rollup functionality will be removed in Elasticsearch 10.0. See docs for more information."
       rollup.rollup_search:
         index: "foo_rollup"
         body:
@@ -226,7 +226,7 @@ setup:
 
   - do:
       allowed_warnings:
-        - "The rollup functionality will be removed in in Elasticsearch 10.0. See docs for more information."
+        - "The rollup functionality will be removed in Elasticsearch 10.0. See docs for more information."
       rollup.rollup_search:
         rest_total_hits_as_int: true
         index: "foo_rollup"
@@ -243,7 +243,7 @@ setup:
 
   - do:
       allowed_warnings:
-        - "The rollup functionality will be removed in in Elasticsearch 10.0. See docs for more information."
+        - "The rollup functionality will be removed in Elasticsearch 10.0. See docs for more information."
       rollup.rollup_search:
         index: "foo_rollup"
         body:
@@ -262,7 +262,7 @@ setup:
 
   - do:
       allowed_warnings:
-        - "The rollup functionality will be removed in in Elasticsearch 10.0. See docs for more information."
+        - "The rollup functionality will be removed in Elasticsearch 10.0. See docs for more information."
       rollup.rollup_search:
         index: "foo_rollup"
         body:
@@ -297,7 +297,7 @@ setup:
 
   - do:
       allowed_warnings:
-        - "The rollup functionality will be removed in in Elasticsearch 10.0. See docs for more information."
+        - "The rollup functionality will be removed in Elasticsearch 10.0. See docs for more information."
       rollup.rollup_search:
         index: "foo_rollup"
         body:
@@ -334,7 +334,7 @@ setup:
 
   - do:
       allowed_warnings:
-        - "The rollup functionality will be removed in in Elasticsearch 10.0. See docs for more information."
+        - "The rollup functionality will be removed in Elasticsearch 10.0. See docs for more information."
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       rollup.put_job:
@@ -446,7 +446,7 @@ setup:
 
   - do:
       allowed_warnings:
-        - "The rollup functionality will be removed in in Elasticsearch 10.0. See docs for more information."
+        - "The rollup functionality will be removed in Elasticsearch 10.0. See docs for more information."
       rollup.rollup_search:
         index: "foo_rollup"
         body:
@@ -481,7 +481,7 @@ setup:
 
   - do:
       allowed_warnings:
-        - "The rollup functionality will be removed in in Elasticsearch 10.0. See docs for more information."
+        - "The rollup functionality will be removed in Elasticsearch 10.0. See docs for more information."
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       rollup.put_job:
@@ -593,7 +593,7 @@ setup:
 
   - do:
       allowed_warnings:
-        - "The rollup functionality will be removed in in Elasticsearch 10.0. See docs for more information."
+        - "The rollup functionality will be removed in Elasticsearch 10.0. See docs for more information."
       rollup.rollup_search:
         index: "foo_rollup"
         body:
@@ -630,7 +630,7 @@ setup:
 
   - do:
       allowed_warnings:
-        - "The rollup functionality will be removed in in Elasticsearch 10.0. See docs for more information."
+        - "The rollup functionality will be removed in Elasticsearch 10.0. See docs for more information."
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       rollup.put_job:
@@ -741,7 +741,7 @@ setup:
 
   - do:
       allowed_warnings:
-        - "The rollup functionality will be removed in in Elasticsearch 10.0. See docs for more information."
+        - "The rollup functionality will be removed in Elasticsearch 10.0. See docs for more information."
       rollup.rollup_search:
         index: "foo_rollup"
         body:
@@ -778,7 +778,7 @@ setup:
 
   - do:
       allowed_warnings:
-        - "The rollup functionality will be removed in in Elasticsearch 10.0. See docs for more information."
+        - "The rollup functionality will be removed in Elasticsearch 10.0. See docs for more information."
       rollup.rollup_search:
         index: "foo_rollup*"
         body:
@@ -818,7 +818,7 @@ setup:
 
   - do:
       allowed_warnings:
-        - "The rollup functionality will be removed in in Elasticsearch 10.0. See docs for more information."
+        - "The rollup functionality will be removed in Elasticsearch 10.0. See docs for more information."
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       rollup.put_job:
@@ -870,7 +870,7 @@ setup:
 
   - do:
       allowed_warnings:
-        - "The rollup functionality will be removed in in Elasticsearch 10.0. See docs for more information."
+        - "The rollup functionality will be removed in Elasticsearch 10.0. See docs for more information."
       rollup.rollup_search:
         index: "rollup_alias"
         body:
@@ -910,7 +910,7 @@ setup:
 
   - do:
       allowed_warnings:
-        - "The rollup functionality will be removed in in Elasticsearch 10.0. See docs for more information."
+        - "The rollup functionality will be removed in Elasticsearch 10.0. See docs for more information."
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       rollup.put_job:
@@ -945,7 +945,7 @@ setup:
 
   - do:
        allowed_warnings:
-        - "The rollup functionality will be removed in in Elasticsearch 10.0. See docs for more information."
+        - "The rollup functionality will be removed in Elasticsearch 10.0. See docs for more information."
        catch: /RollupSearch currently only supports searching one rollup index at a time\./
        rollup.rollup_search:
          index: "rollup_alias"
@@ -982,7 +982,7 @@ setup:
       warnings:
         - "Creating Rollup job [tz] with timezone [Canada/Mountain], but [Canada/Mountain] has been deprecated by the IANA.  Use [America/Edmonton] instead."
       allowed_warnings:
-        - "The rollup functionality will be removed in in Elasticsearch 10.0. See docs for more information."
+        - "The rollup functionality will be removed in Elasticsearch 10.0. See docs for more information."
       rollup.put_job:
         id: tz
         body:  >
@@ -1053,7 +1053,7 @@ setup:
 
   - do:
       allowed_warnings:
-        - "The rollup functionality will be removed in in Elasticsearch 10.0. See docs for more information."
+        - "The rollup functionality will be removed in Elasticsearch 10.0. See docs for more information."
       rollup.rollup_search:
         index: "tz_rollup"
         body:
@@ -1082,7 +1082,7 @@ setup:
 
   - do:
       allowed_warnings:
-        - "The rollup functionality will be removed in in Elasticsearch 10.0. See docs for more information."
+        - "The rollup functionality will be removed in Elasticsearch 10.0. See docs for more information."
       rollup.rollup_search:
         index: "tz_rollup"
         body:
@@ -1207,7 +1207,7 @@ setup:
 
   - do:
       allowed_warnings:
-        - "The rollup functionality will be removed in in Elasticsearch 10.0. See docs for more information."
+        - "The rollup functionality will be removed in Elasticsearch 10.0. See docs for more information."
       rollup.rollup_search:
         index: "tz_rollup"
         body:
@@ -1237,7 +1237,7 @@ setup:
 
   - do:
       allowed_warnings:
-        - "The rollup functionality will be removed in in Elasticsearch 10.0. See docs for more information."
+        - "The rollup functionality will be removed in Elasticsearch 10.0. See docs for more information."
       rollup.rollup_search:
         index: "tz_rollup"
         body:
@@ -1270,7 +1270,7 @@ setup:
 
   - do:
       allowed_warnings:
-        - "The rollup functionality will be removed in in Elasticsearch 10.0. See docs for more information."
+        - "The rollup functionality will be removed in Elasticsearch 10.0. See docs for more information."
       rollup.rollup_search:
         index: "foo_rollup"
         typed_keys: true
@@ -1305,7 +1305,7 @@ setup:
 
   - do:
       allowed_warnings:
-        - "The rollup functionality will be removed in in Elasticsearch 10.0. See docs for more information."
+        - "The rollup functionality will be removed in Elasticsearch 10.0. See docs for more information."
       catch: bad_request
       rollup.rollup_search:
         index: "foo"
@@ -1323,7 +1323,7 @@ setup:
 
   - do:
       allowed_warnings:
-        - "The rollup functionality will be removed in in Elasticsearch 10.0. See docs for more information."
+        - "The rollup functionality will be removed in Elasticsearch 10.0. See docs for more information."
       catch: bad_request
       rollup.rollup_search:
         index: "foo*"
@@ -1340,7 +1340,7 @@ setup:
 
   - do:
       allowed_warnings:
-        - "The rollup functionality will be removed in in Elasticsearch 10.0. See docs for more information."
+        - "The rollup functionality will be removed in Elasticsearch 10.0. See docs for more information."
       catch: /Must specify at least one concrete index/
       rollup.rollup_search:
         index: "bar*"

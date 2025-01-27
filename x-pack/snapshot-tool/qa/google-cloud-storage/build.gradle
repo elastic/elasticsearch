@@ -10,8 +10,12 @@ import java.nio.file.Files
 apply plugin: 'elasticsearch.java'
 
 dependencies {
-  api project(":plugins:repository-gcs")
-  testImplementation project(":test:framework")
+  api(project(":plugins:repository-gcs")) {
+    exclude group: 'com.fasterxml.jackson.core'
+  }
+  testImplementation(project(":test:framework")) {
+    exclude group: 'com.fasterxml.jackson.core'
+  }
   testImplementation project(':x-pack:snapshot-tool')
   testImplementation files(project(':x-pack:snapshot-tool').sourceSets.test.output)
 }
@@ -51,7 +55,7 @@ def gcsThirdPartyTest = tasks.register("gcsThirdPartyTest", Test) {
   systemProperty 'test.google.bucket', gcsBucket
   classpath = sourceSets.test.runtimeClasspath
   testClassesDirs = sourceSets.test.output.classesDirs
-  
+
   nonInputProperties.systemProperty 'test.google.base', gcsBasePath ? gcsBasePath + "_snapshot_tool_tests" + BuildParams.testSeed : 'base_path'
   nonInputProperties.systemProperty 'test.google.account', "${-> encodedCredentials.call()}"
 }

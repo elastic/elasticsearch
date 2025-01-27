@@ -9,8 +9,12 @@ import org.elasticsearch.gradle.internal.info.BuildParams
 apply plugin: 'elasticsearch.java'
 
 dependencies {
-  api project(":plugins:repository-s3")
-  testImplementation project(":test:framework")
+  api(project(":plugins:repository-s3")) {
+    exclude group: 'com.fasterxml.jackson.core'
+  }
+  testImplementation(project(":test:framework")) {
+    exclude group: 'com.fasterxml.jackson.core'
+  }
   testImplementation project(':x-pack:snapshot-tool')
   testImplementation files(project(':x-pack:snapshot-tool').sourceSets.test.output)
 }

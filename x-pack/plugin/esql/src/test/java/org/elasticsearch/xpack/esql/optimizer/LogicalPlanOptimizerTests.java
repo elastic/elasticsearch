@@ -2180,7 +2180,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             | where first_name is not null
             | limit 5""");
 
-        var limit = asLimit(plan, 5);
+        var limit = asLimit(plan, 5, false);
         var filter = as(limit.child(), Filter.class);
         var agg = as(filter.child(), Aggregate.class);
         var limit50Before = asLimit(agg.child(), 50, true);
@@ -2189,7 +2189,41 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         as(limit.child(), EsRelation.class);
     }
 
-    // TODO: here
+    /**
+     * TODO: Push down the filter correctly https://github.com/elastic/elasticsearch/issues/115311
+     *
+     * Expected
+     * Limit[5[INTEGER],false]
+     * \_Filter[ISNOTNULL(first_name{f}#15)]
+     *   \_Aggregate[STANDARD,[first_name{f}#15],[MAX(salary{f}#19,true[BOOLEAN]) AS max_s, first_name{f}#15]]
+     *     \_Limit[50[INTEGER],true]
+     *       \_Join[LEFT,[language_code{r}#4],[language_code{r}#4],[language_code{f}#25]]
+     *         |_EsqlProject[[_meta_field{f}#20, emp_no{f}#14, first_name{f}#15, gender{f}#16, hire_date{f}#21, job{f}#22, job.raw{f}#23, l
+     * anguages{f}#17 AS language_code, last_name{f}#18, long_noidx{f}#24, salary{f}#19]]
+     *         | \_Limit[50[INTEGER],false]
+     *         |   \_EsRelation[test][_meta_field{f}#20, emp_no{f}#14, first_name{f}#15, ..]
+     *         \_EsRelation[languages_lookup][LOOKUP][language_code{f}#25]
+     */
+    public void testPushDown_TheRightLimit_PastLookupJoin() {
+        LogicalPlan plan = optimizedPlan("""
+            from test
+            | rename languages as language_code
+            | lookup join languages_lookup on language_code
+            | limit 50
+            | keep emp_no, first_name, salary
+            | stats max_s = max(salary) by first_name
+            | where first_name is not null
+            | limit 5""");
+
+        var limit = asLimit(plan, 5, false);
+        var filter = as(limit.child(), Filter.class);
+        var agg = as(filter.child(), Aggregate.class);
+        var limit50Before = asLimit(agg.child(), 50, true);
+        var join = as(limit50Before.child(), Join.class);
+        var project = as(join.left(), Project.class);
+        limit = asLimit(project.child(), 50, false);
+        as(limit.child(), EsRelation.class);
+    }
 
     /**
      * Expected
@@ -2278,6 +2312,38 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var filter = as(topN.child(), Filter.class);
         as(filter.child(), EsRelation.class);
     }
+
+    /**
+     * Expected
+     * Limit[10[INTEGER],true]
+     * \_Join[LEFT,[language_code{r}#6],[language_code{r}#6],[language_code{f}#19]]
+     *   |_EsqlProject[[_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, gender{f}#10, hire_date{f}#15, job{f}#16, job.raw{f}#17, lan
+     * guages{f}#11 AS language_code, last_name{f}#12, long_noidx{f}#18, salary{f}#13]]
+     *   | \_TopN[[Order[emp_no{f}#8,DESC,FIRST]],10[INTEGER]]
+     *   |   \_Filter[emp_no{f}#8 &leq; 10006[INTEGER]]
+     *   |     \_EsRelation[test][_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, ge..]
+     *   \_EsRelation[languages_lookup][LOOKUP][language_code{f}#19, language_name{f}#20]
+     */
+    public void testFilterWithSortBeforeLookupJoin() {
+        LogicalPlan plan = optimizedPlan("""
+            from test
+            | where emp_no <= 10006
+            | sort emp_no desc
+            | rename languages as language_code
+            | lookup join languages_lookup on language_code
+            | limit 10""");
+
+        var limit = asLimit(plan, 10, true);
+        var join = as(limit.child(), Join.class);
+        var project = as(join.left(), Project.class);
+        var topN = as(project.child(), TopN.class);
+        assertThat(topN.limit().fold(FoldContext.small()), equalTo(10));
+        assertThat(orderNames(topN), contains("emp_no"));
+        var filter = as(topN.child(), Filter.class);
+        as(filter.child(), EsRelation.class);
+    }
+
+    // TODO: all mv_expands below this line
 
     /**
      * Expected

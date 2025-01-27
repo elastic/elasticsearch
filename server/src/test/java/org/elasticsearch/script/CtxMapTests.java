@@ -17,7 +17,10 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.script.Metadata.LongField;
+import static org.elasticsearch.script.Metadata.VERSION;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
 public class CtxMapTests extends ESTestCase {
     CtxMap<?> map;
@@ -27,6 +30,37 @@ public class CtxMapTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
         map = new CtxMap<>(new HashMap<>(), new Metadata(Map.of(), Map.of()));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testGetOrDefault() {
+        {
+            map = new CtxMap<>(Map.of("foo", "bar"), new Metadata(Map.of("_version", 5L), Map.of(VERSION, LongField.withWritable())));
+
+            // it does the expected thing for fields that are present
+            assertThat(map.getOrDefault("_version", -1L), equalTo(5L));
+            assertThat(((Map<String, Object>) map.getOrDefault("_source", Map.of())).getOrDefault("foo", "wat"), equalTo("bar"));
+
+            // it does the expected thing for fields that are not present
+            assertThat(map.getOrDefault("_version_type", "something"), equalTo("something"));
+            assertThat(map.getOrDefault("baz", "quux"), equalTo("quux"));
+        }
+        {
+            map = new CtxMap<>(Map.of("foo", "bar"), new Metadata(Map.of("_version", 5L), Map.of(VERSION, LongField.withWritable()))) {
+                @Override
+                protected boolean directSourceAccess() {
+                    return true;
+                }
+            };
+
+            // it does the expected thing for fields that are present
+            assertThat(map.getOrDefault("_version", -1L), equalTo(5L));
+            assertThat(map.getOrDefault("foo", "wat"), equalTo("bar"));
+
+            // it does the expected thing for fields that are not present
+            assertThat(map.getOrDefault("_version_type", "something"), equalTo("something"));
+            assertThat(map.getOrDefault("baz", "quux"), equalTo("quux"));
+        }
     }
 
     public void testAddingJunkToCtx() {

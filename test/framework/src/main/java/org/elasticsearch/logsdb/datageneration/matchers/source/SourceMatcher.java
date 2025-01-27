@@ -1,27 +1,29 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0; you may not use this file except in compliance with the Elastic License
- * 2.0.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.xpack.logsdb.qa.matchers.source;
+package org.elasticsearch.logsdb.datageneration.matchers.source;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.logsdb.datageneration.matchers.GenericEqualsMatcher;
+import org.elasticsearch.logsdb.datageneration.matchers.ListEqualMatcher;
+import org.elasticsearch.logsdb.datageneration.matchers.MatchResult;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.logsdb.qa.matchers.GenericEqualsMatcher;
-import org.elasticsearch.xpack.logsdb.qa.matchers.ListEqualMatcher;
-import org.elasticsearch.xpack.logsdb.qa.matchers.MatchResult;
 
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
-import static org.elasticsearch.xpack.logsdb.qa.matchers.Messages.formatErrorMessage;
-import static org.elasticsearch.xpack.logsdb.qa.matchers.Messages.prettyPrintCollections;
+import static org.elasticsearch.logsdb.datageneration.matchers.Messages.formatErrorMessage;
+import static org.elasticsearch.logsdb.datageneration.matchers.Messages.prettyPrintCollections;
 
 public class SourceMatcher extends GenericEqualsMatcher<List<Map<String, Object>>> {
     private final Map<String, MappingTransforms.FieldMapping> actualNormalizedMapping;
@@ -104,7 +106,7 @@ public class SourceMatcher extends GenericEqualsMatcher<List<Map<String, Object>
             // See #111916.
             var genericMatchResult = matchWithGenericMatcher(actualValues, expectedValues);
             if (genericMatchResult.isMatch()) {
-                return genericMatchResult;
+                continue;
             }
 
             var matchIncludingFieldSpecificMatchers = matchWithFieldSpecificMatcher(name, actualValues, expectedValues).orElse(
@@ -115,7 +117,6 @@ public class SourceMatcher extends GenericEqualsMatcher<List<Map<String, Object>
                 return MatchResult.noMatch(message);
             }
         }
-
         return MatchResult.match();
     }
 

@@ -171,7 +171,6 @@
         index: test_lookup
 
   - match: { test_lookup.settings.index.number_of_shards: "1"}
-  - match: { test_lookup.settings.index.auto_expand_replicas: "0-all"}
 
 ---
 "Create lookup index with one shard":
@@ -196,7 +195,6 @@
         index: test_lookup
 
   - match: { test_lookup.settings.index.number_of_shards: "1"}
-  - match: { test_lookup.settings.index.auto_expand_replicas: "0-all"}
 
 ---
 "Create lookup index with two shards":

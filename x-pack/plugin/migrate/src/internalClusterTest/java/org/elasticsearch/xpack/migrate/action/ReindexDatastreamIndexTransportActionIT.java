@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.migrate.action;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
@@ -52,7 +53,6 @@ import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.DE
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.xpack.migrate.action.ReindexDataStreamAction.REINDEX_DATA_STREAM_FEATURE_FLAG;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
@@ -76,8 +76,6 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
     }
 
     public void testDestIndexDeletedIfExists() throws Exception {
-        assumeTrue("requires the migration reindex feature flag", REINDEX_DATA_STREAM_FEATURE_FLAG.isEnabled());
-
         // empty source index
         var sourceIndex = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
         indicesAdmin().create(new CreateIndexRequest(sourceIndex)).get();
@@ -86,6 +84,7 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
         var destIndex = ReindexDataStreamIndexTransportAction.generateDestIndexName(sourceIndex);
         indicesAdmin().create(new CreateIndexRequest(destIndex)).actionGet();
         indexDocs(destIndex, 10);
+        indicesAdmin().refresh(new RefreshRequest(destIndex)).actionGet();
         assertHitCount(prepareSearch(destIndex).setSize(0), 10);
 
         // call reindex
@@ -97,8 +96,6 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
     }
 
     public void testDestIndexNameSet_noDotPrefix() throws Exception {
-        assumeTrue("requires the migration reindex feature flag", REINDEX_DATA_STREAM_FEATURE_FLAG.isEnabled());
-
         var sourceIndex = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
         indicesAdmin().create(new CreateIndexRequest(sourceIndex)).get();
 
@@ -111,7 +108,6 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
     }
 
     public void testDestIndexNameSet_withDotPrefix() throws Exception {
-        assumeTrue("requires the migration reindex feature flag", REINDEX_DATA_STREAM_FEATURE_FLAG.isEnabled());
 
         var sourceIndex = "." + randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
         indicesAdmin().create(new CreateIndexRequest(sourceIndex)).get();
@@ -125,8 +121,6 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
     }
 
     public void testDestIndexContainsDocs() throws Exception {
-        assumeTrue("requires the migration reindex feature flag", REINDEX_DATA_STREAM_FEATURE_FLAG.isEnabled());
-
         // source index with docs
         var numDocs = randomIntBetween(1, 100);
         var sourceIndex = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
@@ -143,8 +137,6 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
     }
 
     public void testSetSourceToBlockWrites() throws Exception {
-        assumeTrue("requires the migration reindex feature flag", REINDEX_DATA_STREAM_FEATURE_FLAG.isEnabled());
-
         var settings = randomBoolean() ? Settings.builder().put(IndexMetadata.SETTING_BLOCKS_WRITE, true).build() : Settings.EMPTY;
 
         // empty source index
@@ -161,8 +153,6 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
     }
 
     public void testSettingsAddedBeforeReindex() throws Exception {
-        assumeTrue("requires the migration reindex feature flag", REINDEX_DATA_STREAM_FEATURE_FLAG.isEnabled());
-
         // start with a static setting
         var numShards = randomIntBetween(1, 10);
         var staticSettings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards).build();
@@ -191,29 +181,16 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
     }
 
     public void testMappingsAddedToDestIndex() throws Exception {
-        assumeTrue("requires the migration reindex feature flag", REINDEX_DATA_STREAM_FEATURE_FLAG.isEnabled());
-
         var sourceIndex = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
-        String mapping = """
-            {
-              "_doc":{
-                "dynamic":"strict",
-                "properties":{
-                  "foo1":{
-                    "type":"text"
-                  }
-                }
-              }
-            }
-            """;
-        indicesAdmin().create(new CreateIndexRequest(sourceIndex).mapping(mapping)).actionGet();
+        indicesAdmin().create(new CreateIndexRequest(sourceIndex).mapping(MAPPING)).actionGet();
 
         // call reindex
         var destIndex = client().execute(ReindexDataStreamIndexAction.INSTANCE, new ReindexDataStreamIndexAction.Request(sourceIndex))
             .actionGet()
             .getDestIndex();
 
-        var mappingsResponse = indicesAdmin().getMappings(new GetMappingsRequest().indices(sourceIndex, destIndex)).actionGet();
+        var mappingsResponse = indicesAdmin().getMappings(new GetMappingsRequest(TEST_REQUEST_TIMEOUT).indices(sourceIndex, destIndex))
+            .actionGet();
         Map<String, MappingMetadata> mappings = mappingsResponse.mappings();
         var destMappings = mappings.get(destIndex).sourceAsMap();
         var sourceMappings = mappings.get(sourceIndex).sourceAsMap();
@@ -223,16 +200,40 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
         assertEquals("text", XContentMapValues.extractValue("properties.foo1.type", destMappings));
     }
 
-    public void testReadOnlyAddedBack() {
-        assumeTrue("requires the migration reindex feature flag", REINDEX_DATA_STREAM_FEATURE_FLAG.isEnabled());
-
-        // Create source index with read-only and/or block-writes
+    public void testFailIfMetadataBlockSet() {
         var sourceIndex = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
-        boolean isReadOnly = randomBoolean();
-        boolean isBlockWrites = randomBoolean();
+        var settings = Settings.builder().put(IndexMetadata.SETTING_BLOCKS_METADATA, true).build();
+        indicesAdmin().create(new CreateIndexRequest(sourceIndex, settings)).actionGet();
+
+        try {
+            client().execute(ReindexDataStreamIndexAction.INSTANCE, new ReindexDataStreamIndexAction.Request(sourceIndex)).actionGet();
+        } catch (ElasticsearchException e) {
+            assertTrue(e.getMessage().contains("Cannot reindex index") || e.getCause().getMessage().equals("Cannot reindex index"));
+        }
+
+        cleanupMetadataBlocks(sourceIndex);
+    }
+
+    public void testFailIfReadBlockSet() {
+        var sourceIndex = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
+        var settings = Settings.builder().put(IndexMetadata.SETTING_BLOCKS_READ, true).build();
+        indicesAdmin().create(new CreateIndexRequest(sourceIndex, settings)).actionGet();
+
+        try {
+            client().execute(ReindexDataStreamIndexAction.INSTANCE, new ReindexDataStreamIndexAction.Request(sourceIndex)).actionGet();
+        } catch (ElasticsearchException e) {
+            assertTrue(e.getMessage().contains("Cannot reindex index") || e.getCause().getMessage().equals("Cannot reindex index"));
+        }
+
+        cleanupMetadataBlocks(sourceIndex);
+    }
+
+    public void testReadOnlyBlocksNotAddedBack() {
+        var sourceIndex = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
         var settings = Settings.builder()
-            .put(IndexMetadata.SETTING_READ_ONLY, isReadOnly)
-            .put(IndexMetadata.SETTING_BLOCKS_WRITE, isBlockWrites)
+            .put(IndexMetadata.SETTING_READ_ONLY, randomBoolean())
+            .put(IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE, randomBoolean())
+            .put(IndexMetadata.SETTING_BLOCKS_WRITE, randomBoolean())
             .build();
         indicesAdmin().create(new CreateIndexRequest(sourceIndex, settings)).actionGet();
 
@@ -241,18 +242,16 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
             .actionGet()
             .getDestIndex();
 
-        // assert read-only settings added back to dest index
         var settingsResponse = indicesAdmin().getSettings(new GetSettingsRequest().indices(destIndex)).actionGet();
-        assertEquals(isReadOnly, Boolean.parseBoolean(settingsResponse.getSetting(destIndex, IndexMetadata.SETTING_READ_ONLY)));
-        assertEquals(isBlockWrites, Boolean.parseBoolean(settingsResponse.getSetting(destIndex, IndexMetadata.SETTING_BLOCKS_WRITE)));
+        assertFalse(Boolean.parseBoolean(settingsResponse.getSetting(destIndex, IndexMetadata.SETTING_READ_ONLY)));
+        assertFalse(Boolean.parseBoolean(settingsResponse.getSetting(destIndex, IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE)));
+        assertFalse(Boolean.parseBoolean(settingsResponse.getSetting(destIndex, IndexMetadata.SETTING_BLOCKS_WRITE)));
 
-        removeReadOnly(sourceIndex);
-        removeReadOnly(destIndex);
+        cleanupMetadataBlocks(sourceIndex);
+        cleanupMetadataBlocks(destIndex);
     }
 
     public void testUpdateSettingsDefaultsRestored() {
-        assumeTrue("requires the migration reindex feature flag", REINDEX_DATA_STREAM_FEATURE_FLAG.isEnabled());
-
         // ESIntegTestCase creates a template random_index_template which contains a value for number_of_replicas.
         // Since this test checks the behavior of default settings, there cannot be a value for number_of_replicas,
         // so we delete the template within this method. This has no effect on other tests which will still
@@ -283,8 +282,6 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
     }
 
     public void testSettingsAndMappingsFromTemplate() throws IOException {
-        assumeTrue("requires the migration reindex feature flag", REINDEX_DATA_STREAM_FEATURE_FLAG.isEnabled());
-
         var numShards = randomIntBetween(1, 10);
         var numReplicas = randomIntBetween(0, 10);
 
@@ -305,6 +302,12 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
         var sourceIndex = "logs-" + randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
         indicesAdmin().create(new CreateIndexRequest(sourceIndex)).actionGet();
 
+        {
+            var indexRequest = new IndexRequest(sourceIndex);
+            indexRequest.source("{ \"foo1\": \"cheese\" }", XContentType.JSON);
+            client().index(indexRequest).actionGet();
+        }
+
         // call reindex
         var destIndex = client().execute(ReindexDataStreamIndexAction.INSTANCE, new ReindexDataStreamIndexAction.Request(sourceIndex))
             .actionGet()
@@ -319,13 +322,17 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
 
         // verify mappings from templates copied to dest index
         {
-            var mappingsResponse = indicesAdmin().getMappings(new GetMappingsRequest().indices(sourceIndex, destIndex)).actionGet();
+            var mappingsResponse = indicesAdmin().getMappings(new GetMappingsRequest(TEST_REQUEST_TIMEOUT).indices(sourceIndex, destIndex))
+                .actionGet();
             var destMappings = mappingsResponse.mappings().get(destIndex).sourceAsMap();
             var sourceMappings = mappingsResponse.mappings().get(sourceIndex).sourceAsMap();
             assertEquals(sourceMappings, destMappings);
             // sanity check specific value from dest mapping
             assertEquals("text", XContentMapValues.extractValue("properties.foo1.type", destMappings));
         }
+
+        // verify doc was successfully added
+        assertHitCount(prepareSearch(destIndex).setSize(0), 1);
     }
 
     private static final String TSDB_MAPPING = """
@@ -362,8 +369,6 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
         """;
 
     public void testTsdbStartEndSet() throws Exception {
-        assumeTrue("requires the migration reindex feature flag", REINDEX_DATA_STREAM_FEATURE_FLAG.isEnabled());
-
         var templateSettings = Settings.builder().put("index.mode", "time_series");
         if (randomBoolean()) {
             templateSettings.put("index.routing_path", "metricset");
@@ -391,7 +396,7 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
             backingIndexName = indexResponse.getIndex();
         }
 
-        var sourceSettings = indicesAdmin().getIndex(new GetIndexRequest().indices(backingIndexName))
+        var sourceSettings = indicesAdmin().getIndex(new GetIndexRequest(TEST_REQUEST_TIMEOUT).indices(backingIndexName))
             .actionGet()
             .getSettings()
             .get(backingIndexName);
@@ -413,23 +418,25 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
             .actionGet()
             .getDestIndex();
 
-        var destSettings = indicesAdmin().getIndex(new GetIndexRequest().indices(destIndex)).actionGet().getSettings().get(destIndex);
+        var destSettings = indicesAdmin().getIndex(new GetIndexRequest(TEST_REQUEST_TIMEOUT).indices(destIndex))
+            .actionGet()
+            .getSettings()
+            .get(destIndex);
         var destStart = IndexSettings.TIME_SERIES_START_TIME.get(destSettings);
         var destEnd = IndexSettings.TIME_SERIES_END_TIME.get(destSettings);
 
         assertEquals(startTime, destStart);
         assertEquals(endTime, destEnd);
+
+        // verify doc was successfully added
+        assertHitCount(prepareSearch(destIndex).setSize(0), 1);
     }
 
-    // TODO more logsdb/tsdb specific tests
-    // TODO more data stream specific tests (how are data streams indices are different from regular indices?)
-    // TODO check other IndexMetadata fields that need to be fixed after the fact
-    // TODO what happens if don't have necessary perms for a given index?
-
-    private static void removeReadOnly(String index) {
+    private static void cleanupMetadataBlocks(String index) {
         var settings = Settings.builder()
-            .put(IndexMetadata.SETTING_READ_ONLY, false)
-            .put(IndexMetadata.SETTING_BLOCKS_WRITE, false)
+            .putNull(IndexMetadata.SETTING_READ_ONLY)
+            .putNull(IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE)
+            .putNull(IndexMetadata.SETTING_BLOCKS_METADATA)
             .build();
         assertAcked(indicesAdmin().updateSettings(new UpdateSettingsRequest(settings, index)).actionGet());
     }
@@ -446,7 +453,6 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
         }
         BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
         assertThat(bulkResponse.getItems().length, equalTo(numDocs));
-        indicesAdmin().refresh(new RefreshRequest(index)).actionGet();
     }
 
     private static String formatInstant(Instant instant) {
@@ -454,38 +460,11 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
     }
 
     private static String getIndexUUID(String index) {
-        return indicesAdmin().getIndex(new GetIndexRequest().indices(index))
+        return indicesAdmin().getIndex(new GetIndexRequest(TEST_REQUEST_TIMEOUT).indices(index))
             .actionGet()
             .getSettings()
             .get(index)
             .get(IndexMetadata.SETTING_INDEX_UUID);
     }
 
-    public void testGenerateDestIndexName_noDotPrefix() {
-        String sourceIndex = "sourceindex";
-        String expectedDestIndex = "migrated-sourceindex";
-        String actualDestIndex = ReindexDataStreamIndexTransportAction.generateDestIndexName(sourceIndex);
-        assertEquals(expectedDestIndex, actualDestIndex);
-    }
-
-    public void testGenerateDestIndexName_withDotPrefix() {
-        String sourceIndex = ".sourceindex";
-        String expectedDestIndex = ".migrated-sourceindex";
-        String actualDestIndex = ReindexDataStreamIndexTransportAction.generateDestIndexName(sourceIndex);
-        assertEquals(expectedDestIndex, actualDestIndex);
-    }
-
-    public void testGenerateDestIndexName_withHyphen() {
-        String sourceIndex = "source-index";
-        String expectedDestIndex = "migrated-source-index";
-        String actualDestIndex = ReindexDataStreamIndexTransportAction.generateDestIndexName(sourceIndex);
-        assertEquals(expectedDestIndex, actualDestIndex);
-    }
-
-    public void testGenerateDestIndexName_withUnderscore() {
-        String sourceIndex = "source_index";
-        String expectedDestIndex = "migrated-source_index";
-        String actualDestIndex = ReindexDataStreamIndexTransportAction.generateDestIndexName(sourceIndex);
-        assertEquals(expectedDestIndex, actualDestIndex);
-    }
 }

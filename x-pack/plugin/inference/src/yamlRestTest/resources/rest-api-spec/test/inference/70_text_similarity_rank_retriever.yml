@@ -4,8 +4,6 @@ setup:
         - close_to
         - contains
   - requires:
-      cluster_features: "text_similarity_reranker_retriever_supported"
-      reason: semantic reranking introduced in 8.15.0
       test_runner_features: "close_to"
 
   - do:

@@ -7,16 +7,18 @@
 
 package org.elasticsearch.compute.operator;
 
-import org.elasticsearch.compute.data.BasicBlockTests;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.test.OperatorTestCase;
+import org.elasticsearch.compute.test.RandomBlock;
+import org.elasticsearch.compute.test.SequenceLongBlockSourceOperator;
 import org.hamcrest.Matcher;
 
 import java.util.List;
 import java.util.stream.LongStream;
 
-import static org.elasticsearch.compute.data.BasicBlockTests.randomElementType;
+import static org.elasticsearch.compute.test.RandomBlock.randomElementType;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -128,6 +130,6 @@ public class LimitOperatorTests extends OperatorTestCase {
         if (randomBoolean()) {
             return blockFactory.newConstantNullBlock(size);
         }
-        return BasicBlockTests.randomBlock(blockFactory, randomElementType(), size, false, 1, 1, 0, 0).block();
+        return RandomBlock.randomBlock(blockFactory, randomElementType(), size, false, 1, 1, 0, 0).block();
     }
 }

@@ -52,6 +52,11 @@ public enum ValueType implements Writeable {
     private final byte id;
     private final String preferredName;
 
+    /**
+     * Name of the {@code value_type} field in the JSON. The name {@code valueType} has
+     * been deprecated since before #22160, but we have no plans to remove it so we don't
+     * break anyone that might be using it.
+     */
     public static final ParseField VALUE_TYPE = new ParseField("value_type", "valueType");
 
     ValueType(byte id, String description, String preferredName, ValuesSourceType valuesSourceType, DocValueFormat defaultFormat) {

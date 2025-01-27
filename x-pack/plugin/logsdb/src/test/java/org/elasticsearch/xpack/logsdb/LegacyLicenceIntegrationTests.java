@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.logsdb;
 
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.mapper.SourceFieldMapper;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.license.AbstractLicensesIntegrationTestCase;
 import org.elasticsearch.license.GetFeatureUsageRequest;
 import org.elasticsearch.license.GetFeatureUsageResponse;
@@ -104,11 +104,11 @@ public class LegacyLicenceIntegrationTests extends AbstractLicensesIntegrationTe
     }
 
     private void createIndexWithSyntheticSourceAndAssertExpectedType(String indexName, String expectedType) {
-        var settings = Settings.builder().put(SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "synthetic").build();
+        var settings = Settings.builder().put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "synthetic").build();
         createIndex(indexName, settings);
         var response = admin().indices().getSettings(new GetSettingsRequest().indices(indexName)).actionGet();
         assertThat(
-            response.getIndexToSettings().get(indexName).get(SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey()),
+            response.getIndexToSettings().get(indexName).get(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey()),
             equalTo(expectedType)
         );
     }

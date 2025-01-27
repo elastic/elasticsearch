@@ -92,10 +92,10 @@ public class FollowerFailOverIT extends CcrIntegTestCase {
         availableDocs.release(between(100, 200));
         PutFollowAction.Request follow = putFollow(leaderIndex, followerIndex);
         follow.getParameters().setMaxReadRequestOperationCount(randomIntBetween(32, 2048));
-        follow.getParameters().setMaxReadRequestSize(new ByteSizeValue(randomIntBetween(1, 4096), ByteSizeUnit.KB));
+        follow.getParameters().setMaxReadRequestSize(ByteSizeValue.of(randomIntBetween(1, 4096), ByteSizeUnit.KB));
         follow.getParameters().setMaxOutstandingReadRequests(randomIntBetween(1, 10));
         follow.getParameters().setMaxWriteRequestOperationCount(randomIntBetween(32, 2048));
-        follow.getParameters().setMaxWriteRequestSize(new ByteSizeValue(randomIntBetween(1, 4096), ByteSizeUnit.KB));
+        follow.getParameters().setMaxWriteRequestSize(ByteSizeValue.of(randomIntBetween(1, 4096), ByteSizeUnit.KB));
         follow.getParameters().setMaxOutstandingWriteRequests(randomIntBetween(1, 10));
         logger.info("--> follow request {}", Strings.toString(follow));
         followerClient().execute(PutFollowAction.INSTANCE, follow).get();
@@ -153,10 +153,10 @@ public class FollowerFailOverIT extends CcrIntegTestCase {
 
         PutFollowAction.Request followRequest = putFollow("index1", "index2");
         followRequest.getParameters().setMaxReadRequestOperationCount(randomIntBetween(32, 2048));
-        followRequest.getParameters().setMaxReadRequestSize(new ByteSizeValue(randomIntBetween(1, 4096), ByteSizeUnit.KB));
+        followRequest.getParameters().setMaxReadRequestSize(ByteSizeValue.of(randomIntBetween(1, 4096), ByteSizeUnit.KB));
         followRequest.getParameters().setMaxOutstandingReadRequests(randomIntBetween(1, 10));
         followRequest.getParameters().setMaxWriteRequestOperationCount(randomIntBetween(32, 2048));
-        followRequest.getParameters().setMaxWriteRequestSize(new ByteSizeValue(randomIntBetween(1, 4096), ByteSizeUnit.KB));
+        followRequest.getParameters().setMaxWriteRequestSize(ByteSizeValue.of(randomIntBetween(1, 4096), ByteSizeUnit.KB));
         followRequest.getParameters().setMaxOutstandingWriteRequests(randomIntBetween(1, 10));
         followRequest.waitForActiveShards(ActiveShardCount.ALL);
         followerClient().execute(PutFollowAction.INSTANCE, followRequest).get();

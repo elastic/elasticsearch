@@ -28,7 +28,7 @@ import java.util.Map;
 import java.util.Random;
 
 import static org.elasticsearch.xpack.inference.Utils.assertJsonEquals;
-import static org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionModelTests.createChatCompletionModel;
+import static org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionModelTests.createCompletionModel;
 
 public class UnifiedChatCompletionRequestEntityTests extends ESTestCase {
 
@@ -46,7 +46,7 @@ public class UnifiedChatCompletionRequestEntityTests extends ESTestCase {
         UnifiedCompletionRequest unifiedRequest = new UnifiedCompletionRequest(messageList, null, null, null, null, null, null, null);
 
         UnifiedChatInput unifiedChatInput = new UnifiedChatInput(unifiedRequest, true);
-        OpenAiChatCompletionModel model = createChatCompletionModel("test-url", "organizationId", "api-key", "test-endpoint", null);
+        OpenAiChatCompletionModel model = createCompletionModel("test-url", "organizationId", "api-key", "test-endpoint", null);
 
         OpenAiUnifiedChatCompletionRequestEntity entity = new OpenAiUnifiedChatCompletionRequestEntity(unifiedChatInput, model);
 
@@ -111,7 +111,7 @@ public class UnifiedChatCompletionRequestEntityTests extends ESTestCase {
 
         UnifiedChatInput unifiedChatInput = new UnifiedChatInput(unifiedRequest, true);
 
-        OpenAiChatCompletionModel model = createChatCompletionModel("test-endpoint", "organizationId", "api-key", "model-name", null);
+        OpenAiChatCompletionModel model = createCompletionModel("test-endpoint", "organizationId", "api-key", "model-name", null);
 
         OpenAiUnifiedChatCompletionRequestEntity entity = new OpenAiUnifiedChatCompletionRequestEntity(unifiedChatInput, model);
 
@@ -204,7 +204,7 @@ public class UnifiedChatCompletionRequestEntityTests extends ESTestCase {
 
         UnifiedChatInput unifiedChatInput = new UnifiedChatInput(unifiedRequest, true);
 
-        OpenAiChatCompletionModel model = createChatCompletionModel("test-endpoint", "organizationId", "api-key", "model-name", null);
+        OpenAiChatCompletionModel model = createCompletionModel("test-endpoint", "organizationId", "api-key", "model-name", null);
 
         OpenAiUnifiedChatCompletionRequestEntity entity = new OpenAiUnifiedChatCompletionRequestEntity(unifiedChatInput, model);
 
@@ -253,7 +253,7 @@ public class UnifiedChatCompletionRequestEntityTests extends ESTestCase {
 
         UnifiedChatInput unifiedChatInput = new UnifiedChatInput(unifiedRequest, true);
 
-        OpenAiChatCompletionModel model = createChatCompletionModel("test-endpoint", "organizationId", "api-key", "model-name", null);
+        OpenAiChatCompletionModel model = createCompletionModel("test-endpoint", "organizationId", "api-key", "model-name", null);
 
         OpenAiUnifiedChatCompletionRequestEntity entity = new OpenAiUnifiedChatCompletionRequestEntity(unifiedChatInput, model);
 
@@ -334,7 +334,7 @@ public class UnifiedChatCompletionRequestEntityTests extends ESTestCase {
 
         UnifiedChatInput unifiedChatInput = new UnifiedChatInput(unifiedRequest, true);
 
-        OpenAiChatCompletionModel model = createChatCompletionModel("test-endpoint", "organizationId", "api-key", randomModel, null);
+        OpenAiChatCompletionModel model = createCompletionModel("test-endpoint", "organizationId", "api-key", randomModel, null);
 
         OpenAiUnifiedChatCompletionRequestEntity entity = new OpenAiUnifiedChatCompletionRequestEntity(unifiedChatInput, model);
 
@@ -452,7 +452,7 @@ public class UnifiedChatCompletionRequestEntityTests extends ESTestCase {
 
         UnifiedChatInput unifiedChatInput = new UnifiedChatInput(unifiedRequest, true);
 
-        OpenAiChatCompletionModel model = createChatCompletionModel("test-endpoint", "organizationId", "api-key", "model-name", null);
+        OpenAiChatCompletionModel model = createCompletionModel("test-endpoint", "organizationId", "api-key", "model-name", null);
 
         OpenAiUnifiedChatCompletionRequestEntity entity = new OpenAiUnifiedChatCompletionRequestEntity(unifiedChatInput, model);
 
@@ -516,7 +516,7 @@ public class UnifiedChatCompletionRequestEntityTests extends ESTestCase {
 
         UnifiedChatInput unifiedChatInput = new UnifiedChatInput(unifiedRequest, true);
 
-        OpenAiChatCompletionModel model = createChatCompletionModel("test-endpoint", "organizationId", "api-key", "model-name", null);
+        OpenAiChatCompletionModel model = createCompletionModel("test-endpoint", "organizationId", "api-key", "model-name", null);
 
         OpenAiUnifiedChatCompletionRequestEntity entity = new OpenAiUnifiedChatCompletionRequestEntity(unifiedChatInput, model);
 
@@ -574,7 +574,7 @@ public class UnifiedChatCompletionRequestEntityTests extends ESTestCase {
             null  // topP
         );
 
-        OpenAiChatCompletionModel model = createChatCompletionModel("test-endpoint", "organizationId", "api-key", "model-name", null);
+        OpenAiChatCompletionModel model = createCompletionModel("test-endpoint", "organizationId", "api-key", "model-name", null);
 
         UnifiedChatInput unifiedChatInputTrue = new UnifiedChatInput(unifiedRequest, true);
         OpenAiUnifiedChatCompletionRequestEntity entityTrue = new OpenAiUnifiedChatCompletionRequestEntity(unifiedChatInputTrue, model);
@@ -642,7 +642,7 @@ public class UnifiedChatCompletionRequestEntityTests extends ESTestCase {
         UnifiedCompletionRequest unifiedRequest = new UnifiedCompletionRequest(messageList, null, null, null, null, null, null, null);
 
         UnifiedChatInput unifiedChatInput = new UnifiedChatInput(unifiedRequest, true);
-        OpenAiChatCompletionModel model = createChatCompletionModel("test-url", "organizationId", "api-key", "test-endpoint", null);
+        OpenAiChatCompletionModel model = createCompletionModel("test-url", "organizationId", "api-key", "test-endpoint", null);
 
         OpenAiUnifiedChatCompletionRequestEntity entity = new OpenAiUnifiedChatCompletionRequestEntity(unifiedChatInput, model);
 

@@ -14,7 +14,9 @@ import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.MockScriptPlugin;
@@ -59,7 +61,6 @@ import static org.elasticsearch.xpack.application.connector.ConnectorTemplateReg
 import static org.elasticsearch.xpack.application.connector.ConnectorTestUtils.getRandomConnectorFeatures;
 import static org.elasticsearch.xpack.application.connector.ConnectorTestUtils.getRandomCronExpression;
 import static org.elasticsearch.xpack.application.connector.ConnectorTestUtils.randomConnectorFeatureEnabled;
-import static org.elasticsearch.xpack.application.connector.ConnectorTestUtils.registerSimplifiedConnectorIndexTemplates;
 import static org.hamcrest.CoreMatchers.anyOf;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.not;
@@ -72,7 +73,6 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
 
     @Before
     public void setup() {
-        registerSimplifiedConnectorIndexTemplates(indicesAdmin());
         this.connectorIndexService = new ConnectorIndexService(client());
     }
 
@@ -80,6 +80,7 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
     protected Collection<Class<? extends Plugin>> getPlugins() {
         List<Class<? extends Plugin>> plugins = new ArrayList<>(super.getPlugins());
         plugins.add(MockPainlessScriptEngine.TestPlugin.class);
+        plugins.add(ConnectorIndexServiceTests.TestPlugin.class);
         return plugins;
     }
 
@@ -101,7 +102,7 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
         assertThat(resp.getId(), equalTo(indexedConnector.getConnectorId()));
     }
 
-    public void testDeleteConnector() throws Exception {
+    public void testDeleteConnector_expectSoftDeletionSingle() throws Exception {
         int numConnectors = 5;
         List<String> connectorIds = new ArrayList<>();
         for (int i = 0; i < numConnectors; i++) {
@@ -111,11 +112,10 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
         }
 
         String connectorIdToDelete = connectorIds.get(0);
-        UpdateResponse resp = awaitDeleteConnector(connectorIdToDelete, false);
+        DocWriteResponse resp = awaitDeleteConnector(connectorIdToDelete, false, false);
         assertThat(resp.status(), equalTo(RestStatus.OK));
         expectThrows(ResourceNotFoundException.class, () -> awaitGetConnector(connectorIdToDelete));
-
-        expectThrows(ResourceNotFoundException.class, () -> awaitDeleteConnector(connectorIdToDelete, false));
+        expectThrows(ResourceNotFoundException.class, () -> awaitDeleteConnector(connectorIdToDelete, false, false));
     }
 
     public void testDeleteConnector_expectSoftDeletion() throws Exception {
@@ -130,13 +130,11 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
         }
 
         String connectorIdToDelete = connectorIds.get(0);
-        UpdateResponse resp = awaitDeleteConnector(connectorIdToDelete, false);
+        DocWriteResponse resp = awaitDeleteConnector(connectorIdToDelete, false, false);
         assertThat(resp.status(), equalTo(RestStatus.OK));
         expectThrows(ResourceNotFoundException.class, () -> awaitGetConnector(connectorIdToDelete));
-
-        expectThrows(ResourceNotFoundException.class, () -> awaitDeleteConnector(connectorIdToDelete, false));
-
-        Connector softDeletedConnector = awaitGetSoftDeletedConnector(connectorIdToDelete);
+        expectThrows(ResourceNotFoundException.class, () -> awaitDeleteConnector(connectorIdToDelete, false, false));
+        Connector softDeletedConnector = awaitGetConnectorIncludeDeleted(connectorIdToDelete);
         assertThat(softDeletedConnector.getConnectorId(), equalTo(connectorIdToDelete));
         assertThat(softDeletedConnector.getServiceType(), equalTo(connectors.get(0).getServiceType()));
     }
@@ -150,24 +148,62 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
             connectorIds.add(resp.getId());
         }
 
-        // Delete all of them
         for (int i = 0; i < numConnectors; i++) {
             String connectorIdToDelete = connectorIds.get(i);
-            UpdateResponse resp = awaitDeleteConnector(connectorIdToDelete, false);
+            DocWriteResponse resp = awaitDeleteConnector(connectorIdToDelete, false, false);
             assertThat(resp.status(), equalTo(RestStatus.OK));
         }
 
-        // Connectors were deleted from main index
         for (int i = 0; i < numConnectors; i++) {
             String connectorId = connectorIds.get(i);
             expectThrows(ResourceNotFoundException.class, () -> awaitGetConnector(connectorId));
         }
 
-        // Soft deleted connectors available in system index
         for (int i = 0; i < numConnectors; i++) {
             String connectorId = connectorIds.get(i);
-            Connector softDeletedConnector = awaitGetSoftDeletedConnector(connectorId);
+            Connector softDeletedConnector = awaitGetConnectorIncludeDeleted(connectorId);
             assertThat(softDeletedConnector.getConnectorId(), equalTo(connectorId));
+        }
+    }
+
+    public void testDeleteConnector_expectHardDeletionSingle() throws Exception {
+        int numConnectors = 3;
+        List<String> connectorIds = new ArrayList<>();
+        for (int i = 0; i < numConnectors; i++) {
+            Connector connector = ConnectorTestUtils.getRandomConnector();
+            ConnectorCreateActionResponse resp = awaitCreateConnector(null, connector);
+            connectorIds.add(resp.getId());
+        }
+
+        String connectorIdToDelete = connectorIds.get(0);
+        DocWriteResponse resp = awaitDeleteConnector(connectorIdToDelete, true, false);
+        assertThat(resp.status(), equalTo(RestStatus.OK));
+        expectThrows(ResourceNotFoundException.class, () -> awaitGetConnector(connectorIdToDelete));
+        expectThrows(ResourceNotFoundException.class, () -> awaitGetConnectorIncludeDeleted(connectorIdToDelete));
+        expectThrows(ResourceNotFoundException.class, () -> awaitDeleteConnector(connectorIdToDelete, true, false));
+    }
+
+    public void testDeleteConnector_expectHardDeletionMultipleConnectors() throws Exception {
+        int numConnectors = 5;
+        List<String> connectorIds = new ArrayList<>();
+        for (int i = 0; i < numConnectors; i++) {
+            Connector connector = ConnectorTestUtils.getRandomConnector();
+            ConnectorCreateActionResponse resp = awaitCreateConnector(null, connector);
+            connectorIds.add(resp.getId());
+        }
+
+        for (int i = 0; i < numConnectors; i++) {
+            String connectorIdToDelete = connectorIds.get(i);
+            DocWriteResponse resp = awaitDeleteConnector(connectorIdToDelete, true, false);
+            assertThat(resp.status(), equalTo(RestStatus.OK));
+        }
+
+        for (String connectorId : connectorIds) {
+            expectThrows(ResourceNotFoundException.class, () -> awaitGetConnector(connectorId));
+        }
+
+        for (String connectorId : connectorIds) {
+            expectThrows(ResourceNotFoundException.class, () -> awaitGetConnectorIncludeDeleted(connectorId));
         }
     }
 
@@ -949,13 +985,14 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
         assertThat(updateApiKeyIdRequest.getApiKeySecretId(), equalTo(indexedConnector.getApiKeySecretId()));
     }
 
-    private UpdateResponse awaitDeleteConnector(String connectorId, boolean deleteConnectorSyncJobs) throws Exception {
+    private DocWriteResponse awaitDeleteConnector(String connectorId, boolean hardDelete, boolean deleteConnectorSyncJobs)
+        throws Exception {
         CountDownLatch latch = new CountDownLatch(1);
-        final AtomicReference<UpdateResponse> resp = new AtomicReference<>(null);
+        final AtomicReference<DocWriteResponse> resp = new AtomicReference<>(null);
         final AtomicReference<Exception> exc = new AtomicReference<>(null);
-        connectorIndexService.deleteConnector(connectorId, deleteConnectorSyncJobs, new ActionListener<>() {
+        connectorIndexService.deleteConnector(connectorId, hardDelete, deleteConnectorSyncJobs, new ActionListener<>() {
             @Override
-            public void onResponse(UpdateResponse deleteResponse) {
+            public void onResponse(DocWriteResponse deleteResponse) {
                 resp.set(deleteResponse);
                 latch.countDown();
             }
@@ -1008,7 +1045,7 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
         return resp.get();
     }
 
-    private Connector awaitGetSoftDeletedConnector(String connectorId) throws Exception {
+    private Connector awaitGetConnectorIncludeDeleted(String connectorId) throws Exception {
         return awaitGetConnector(connectorId, true);
     }
 
@@ -1573,6 +1610,26 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
                 return context.factoryClazz.cast(factory);
             }
             throw new IllegalArgumentException("mock painless does not know how to handle context [" + context.name + "]");
+        }
+    }
+
+    /**
+     * Test plugin to register the {@link ConnectorIndexService} system index descriptor.
+     */
+    public static class TestPlugin extends Plugin implements SystemIndexPlugin {
+        @Override
+        public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
+            return List.of(ConnectorIndexService.getSystemIndexDescriptor());
+        }
+
+        @Override
+        public String getFeatureName() {
+            return this.getClass().getSimpleName();
+        }
+
+        @Override
+        public String getFeatureDescription() {
+            return this.getClass().getCanonicalName();
         }
     }
 

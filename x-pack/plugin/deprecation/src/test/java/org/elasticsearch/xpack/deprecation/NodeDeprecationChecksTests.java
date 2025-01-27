@@ -11,23 +11,29 @@ import org.apache.logging.log4j.Level;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -827,6 +833,44 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             "One or more of your nodes is configured with node.attributes.data settings. This is typically used to create a "
                 + "hot/warm or tiered architecture, based on legacy guidelines. Data tiers are a recommended replacement for tiered "
                 + "architecture clusters.",
+            false,
+            null
+        );
+        assertThat(issues, hasItem(expected));
+    }
+
+    public void testCheckSourceModeInComponentTemplates() throws IOException {
+        Template template = Template.builder().mappings(CompressedXContent.fromJSON("""
+            { "_doc": { "_source": { "mode": "stored"} } }""")).build();
+        ComponentTemplate componentTemplate = new ComponentTemplate(template, 1L, new HashMap<>());
+
+        Template template2 = Template.builder().mappings(CompressedXContent.fromJSON("""
+            { "_doc": { "_source": { "enabled": false} } }""")).build();
+        ComponentTemplate componentTemplate2 = new ComponentTemplate(template2, 1L, new HashMap<>());
+
+        ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .metadata(
+                Metadata.builder()
+                    .componentTemplates(
+                        Map.of("my-template-1", componentTemplate, "my-template-2", componentTemplate, "my-template-3", componentTemplate2)
+                    )
+            )
+            .build();
+
+        final List<DeprecationIssue> issues = DeprecationChecks.filterChecks(
+            DeprecationChecks.NODE_SETTINGS_CHECKS,
+            c -> c.apply(
+                Settings.EMPTY,
+                new PluginsAndModules(Collections.emptyList(), Collections.emptyList()),
+                clusterState,
+                new XPackLicenseState(() -> 0)
+            )
+        );
+        final DeprecationIssue expected = new DeprecationIssue(
+            DeprecationIssue.Level.CRITICAL,
+            SourceFieldMapper.DEPRECATION_WARNING,
+            "https://github.com/elastic/elasticsearch/pull/117172",
+            SourceFieldMapper.DEPRECATION_WARNING + " Affected component templates: [my-template-1, my-template-2]",
             false,
             null
         );

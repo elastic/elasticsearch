@@ -1,5 +1,5 @@
 [[infer-service-elasticsearch]]
-=== Elasticsearch {infer} service
+=== Elasticsearch {infer} integration
 
 .New API reference
 [sidebar]

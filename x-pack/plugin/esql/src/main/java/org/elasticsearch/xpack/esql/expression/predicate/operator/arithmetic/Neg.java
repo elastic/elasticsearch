@@ -37,6 +37,7 @@ public class Neg extends UnaryScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Neg", Neg::new);
 
     @FunctionInfo(
+        operator = "-",
         returnType = { "double", "integer", "long", "date_period", "time_duration" },
         description = "Returns the negation of the argument."
     )

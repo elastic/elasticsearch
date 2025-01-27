@@ -42,7 +42,6 @@ public class TransportPutLicenseAction extends TransportMasterNodeAction<PutLice
             threadPool,
             actionFilters,
             PutLicenseRequest::new,
-            indexNameExpressionResolver,
             PutLicenseResponse::new,
             threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );

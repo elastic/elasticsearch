@@ -83,9 +83,12 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         updateClusterSettings(Settings.builder().putNull("logger.org.elasticsearch.xpack.ml.datafeed"));
         cleanUp();
         // Race conditions between closing and killing tasks in these tests,
-        // sometimes result in lingering persistent tasks (such as "_close"),
-        // which cause subsequent tests to fail.
-        client().execute(TransportCancelTasksAction.TYPE, new CancelTasksRequest());
+        // sometimes result in lingering persistent close tasks, which cause
+        // subsequent tests to fail. Therefore, they're explicitly cancelled.
+        CancelTasksRequest cancelTasksRequest = new CancelTasksRequest();
+        cancelTasksRequest.setActions("*close*");
+        cancelTasksRequest.setWaitForCompletion(true);
+        client().execute(TransportCancelTasksAction.TYPE, cancelTasksRequest).actionGet();
     }
 
     public void testLookbackOnly() throws Exception {

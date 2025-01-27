@@ -147,7 +147,7 @@ public class EnrichPolicyRunner {
                 // Collect the source index information
                 final String[] sourceIndices = policy.getIndices().toArray(new String[0]);
                 logger.debug("Policy [{}]: Checking source indices [{}]", policyName, sourceIndices);
-                GetIndexRequest getIndexRequest = new GetIndexRequest().indices(sourceIndices);
+                GetIndexRequest getIndexRequest = new GetIndexRequest(ENRICH_MASTER_REQUEST_TIMEOUT).indices(sourceIndices);
                 // This call does not set the origin to ensure that the user executing the policy has permission to access the source index
                 client.admin().indices().getIndex(getIndexRequest, l);
             })

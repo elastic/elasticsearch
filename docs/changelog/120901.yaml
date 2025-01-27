@@ -1,0 +1,5 @@
+pr: 120901
+summary: "[Bug] Data stream stats fails when there is a concrete index in the cluster"
+area: Data streams
+type: bug
+issues: []

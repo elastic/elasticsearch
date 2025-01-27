@@ -113,37 +113,40 @@ public class DateExtract extends EsqlConfigurationFunction {
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        if (field().dataType() == DataType.DATETIME) {
-            ExpressionEvaluator.Factory fieldEvaluator = toEvaluator.apply(children().get(1));
-            if (children().get(0).foldable()) {
-                ChronoField chrono = chronoField(toEvaluator.foldCtx());
-                if (chrono == null) {
-                    BytesRef field = (BytesRef) children().get(0).fold(toEvaluator.foldCtx());
-                    throw new InvalidArgumentException("invalid date field for [{}]: {}", sourceText(), field.utf8ToString());
-                }
+        boolean isNanos = switch(field().dataType()) {
+            case DataType.DATETIME -> false;
+            case DataType.DATE_NANOS -> true;
+            default -> throw new UnsupportedOperationException(
+                "Unsupported field type [" + field().dataType().name() + "]. " +
+                    "If you're seeing this, there's a bug in DateExtract.resolveType"
+            );
+        };
+
+        ExpressionEvaluator.Factory fieldEvaluator = toEvaluator.apply(children().get(1));
+        
+        // Constant chrono field
+        if (children().get(0).foldable()) {
+            ChronoField chrono = chronoField(toEvaluator.foldCtx());
+            if (chrono == null) {
+                BytesRef field = (BytesRef) children().get(0).fold(toEvaluator.foldCtx());
+                throw new InvalidArgumentException("invalid date field for [{}]: {}", sourceText(), field.utf8ToString());
+            }
+
+            if (isNanos) {
+                return new DateExtractConstantNanosEvaluator.Factory(source(), fieldEvaluator, chrono, configuration().zoneId());
+            } else {
                 return new DateExtractConstantMillisEvaluator.Factory(source(), fieldEvaluator, chrono, configuration().zoneId());
             }
-            var chronoEvaluator = toEvaluator.apply(children().get(0));
-            return new DateExtractMillisEvaluator.Factory(source(), fieldEvaluator, chronoEvaluator, configuration().zoneId());
-        } else if (field().dataType() == DataType.DATE_NANOS) {
-            ExpressionEvaluator.Factory fieldEvaluator = toEvaluator.apply(children().get(1));
-            if (children().get(0).foldable()) {
-                ChronoField chrono = chronoField(toEvaluator.foldCtx());
-                if (chrono == null) {
-                    BytesRef field = (BytesRef) children().get(0).fold(toEvaluator.foldCtx());
-                    throw new InvalidArgumentException("invalid date field for [{}]: {}", sourceText(), field.utf8ToString());
-                }
-                return new DateExtractConstantNanosEvaluator.Factory(source(), fieldEvaluator, chrono, configuration().zoneId());
-            }
-            var chronoEvaluator = toEvaluator.apply(children().get(0));
-            return new DateExtractNanosEvaluator.Factory(source(), fieldEvaluator, chronoEvaluator, configuration().zoneId());
         }
-        throw new UnsupportedOperationException(
-            "Unsupported field type ["
-                + field().dataType().name()
-                + "]. If you're seeing this, "
-                + "there's a bug in DateExtract.resolveType"
-        );
+
+        var chronoEvaluator = toEvaluator.apply(children().get(0));
+
+        if (isNanos) {
+            return new DateExtractNanosEvaluator.Factory(source(), fieldEvaluator, chronoEvaluator, configuration().zoneId());
+        } else {
+            return new DateExtractMillisEvaluator.Factory(source(), fieldEvaluator, chronoEvaluator, configuration().zoneId());
+        }
+
     }
 
     private ChronoField chronoField(FoldContext ctx) {

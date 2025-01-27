@@ -244,6 +244,8 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
 
         @Override
         public int compareTo(MergeTask other) {
+            assert onGoingMerge.getMerge().estimatedMergeBytes > 0 : "estimated merge bytes not set";
+            assert other.onGoingMerge.getMerge().estimatedMergeBytes > 0 : "estimated merge bytes not set";
             // sort smaller merges first, so they are executed before larger ones
             return Long.compare(onGoingMerge.getMerge().estimatedMergeBytes, other.onGoingMerge.getMerge().estimatedMergeBytes);
         }

@@ -9,14 +9,11 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
-import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -31,7 +28,6 @@ public abstract class SortedSetDocValuesSyntheticFieldLoaderLayer implements Com
     private static final Logger logger = LogManager.getLogger(SortedSetDocValuesSyntheticFieldLoaderLayer.class);
 
     private final String name;
-    private final String offsetsFieldName;
     private DocValuesFieldValues docValues = NO_VALUES;
 
     /**
@@ -39,12 +35,7 @@ public abstract class SortedSetDocValuesSyntheticFieldLoaderLayer implements Com
      * @param name the name of the field to load from doc values
      */
     public SortedSetDocValuesSyntheticFieldLoaderLayer(String name) {
-        this(name, null);
-    }
-
-    public SortedSetDocValuesSyntheticFieldLoaderLayer(String name, String offsetsFieldName) {
         this.name = name;
-        this.offsetsFieldName = offsetsFieldName;
     }
 
     @Override
@@ -55,11 +46,11 @@ public abstract class SortedSetDocValuesSyntheticFieldLoaderLayer implements Com
     @Override
     public DocValuesLoader docValuesLoader(LeafReader reader, int[] docIdsInLeaf) throws IOException {
         SortedSetDocValues dv = DocValues.getSortedSet(reader, name);
-        if (offsetsFieldName == null && dv.getValueCount() == 0) {
+        if (dv.getValueCount() == 0) {
             docValues = NO_VALUES;
             return null;
         }
-        if (offsetsFieldName == null && docIdsInLeaf != null && docIdsInLeaf.length > 1) {
+        if (docIdsInLeaf != null && docIdsInLeaf.length > 1) {
             /*
              * The singleton optimization is mostly about looking up ordinals
              * in sorted order and doesn't buy anything if there is only a single
@@ -72,16 +63,9 @@ public abstract class SortedSetDocValuesSyntheticFieldLoaderLayer implements Com
                 return loader;
             }
         }
-        BinaryDocValues oDv = offsetsFieldName != null ? DocValues.getBinary(reader, offsetsFieldName) : null;
-        if (oDv != null) {
-            OffsetDocValuesLoader loader = new OffsetDocValuesLoader(dv, oDv);
-            docValues = loader;
-            return loader;
-        } else {
-            ImmediateDocValuesLoader loader = new ImmediateDocValuesLoader(dv);
-            docValues = loader;
-            return loader;
-        }
+        ImmediateDocValuesLoader loader = new ImmediateDocValuesLoader(dv);
+        docValues = loader;
+        return loader;
     }
 
     @Override
@@ -145,98 +129,6 @@ public abstract class SortedSetDocValuesSyntheticFieldLoaderLayer implements Com
             for (int i = 0; i < dv.docValueCount(); i++) {
                 BytesRef c = convert(dv.lookupOrd(dv.nextOrd()));
                 b.utf8Value(c.bytes, c.offset, c.length);
-            }
-        }
-    }
-
-    class OffsetDocValuesLoader implements DocValuesLoader, DocValuesFieldValues {
-        private final BinaryDocValues oDv;
-        private final SortedSetDocValues dv;
-        private final ByteArrayStreamInput scratch = new ByteArrayStreamInput();
-
-        private boolean hasValue;
-        private boolean hasOffset;
-        private int[] offsetToOrd;
-
-        OffsetDocValuesLoader(SortedSetDocValues dv, BinaryDocValues oDv) {
-            this.dv = dv;
-            this.oDv = oDv;
-        }
-
-        @Override
-        public boolean advanceToDoc(int docId) throws IOException {
-            hasValue = dv.advanceExact(docId);
-            hasOffset = oDv.advanceExact(docId);
-            if (hasValue || hasOffset) {
-                if (hasOffset) {
-                    var encodedValue = oDv.binaryValue();
-                    scratch.reset(encodedValue.bytes, encodedValue.offset, encodedValue.length);
-                    offsetToOrd = new int[BitUtil.zigZagDecode(scratch.readVInt())];
-                    for (int i = 0; i < offsetToOrd.length; i++) {
-                        offsetToOrd[i] = BitUtil.zigZagDecode(scratch.readVInt());
-                    }
-                } else {
-                    offsetToOrd = null;
-                }
-                return true;
-            } else {
-                offsetToOrd = null;
-                return false;
-            }
-        }
-
-        @Override
-        public int count() {
-            if (hasValue) {
-                if (offsetToOrd != null) {
-                    // HACK: trick CompositeSyntheticFieldLoader to serialize this layer as array.
-                    // (if offsetToOrd is not null, then at index time an array was always specified even if there is just one value)
-                    return offsetToOrd.length + 1;
-                } else {
-                    return dv.docValueCount();
-                }
-            } else {
-                if (hasOffset) {
-                    // trick CompositeSyntheticFieldLoader to serialize this layer as empty array.
-                    return 2;
-                } else {
-                    return 0;
-                }
-            }
-        }
-
-        @Override
-        public void write(XContentBuilder b) throws IOException {
-            if (hasValue == false && hasOffset == false) {
-                return;
-            }
-            if (offsetToOrd != null && hasValue) {
-                long[] ords = new long[dv.docValueCount()];
-                for (int i = 0; i < dv.docValueCount(); i++) {
-                    ords[i] = dv.nextOrd();
-                }
-
-                for (int offset : offsetToOrd) {
-                    if (offset == -1) {
-                        b.nullValue();
-                        continue;
-                    }
-
-                    long ord = ords[offset];
-                    BytesRef c = convert(dv.lookupOrd(ord));
-                    b.utf8Value(c.bytes, c.offset, c.length);
-                }
-            } else if (offsetToOrd != null) {
-                // in case all values are NULLs
-                for (int offset : offsetToOrd) {
-                    assert offset == -1;
-                    b.nullValue();
-                }
-            } else {
-                for (int i = 0; i < dv.docValueCount(); i++) {
-                    BytesRef c = convert(dv.lookupOrd(dv.nextOrd()));
-                    b.utf8Value(c.bytes, c.offset, c.length);
-                }
             }
         }
     }

@@ -1151,20 +1151,23 @@ public final class KeywordFieldMapper extends FieldMapper {
                 }
             });
         } else if (hasDocValues) {
-            String offsetsFullPath = offsetsFieldName != null ? offsetsFieldName : null;
-            layers.add(new SortedSetDocValuesSyntheticFieldLoaderLayer(fullPath(), offsetsFullPath) {
+            if (offsetsFieldName != null) {
+                layers.add(new SortedSetWithOffsetsDocValuesSyntheticFieldLoaderLayer(fullPath(), offsetsFieldName));
+            } else {
+                layers.add(new SortedSetDocValuesSyntheticFieldLoaderLayer(fullPath()) {
 
-                @Override
-                protected BytesRef convert(BytesRef value) {
-                    return value;
-                }
+                    @Override
+                    protected BytesRef convert(BytesRef value) {
+                        return value;
+                    }
 
-                @Override
-                protected BytesRef preserve(BytesRef value) {
-                    // Preserve must make a deep copy because convert gets a shallow copy from the iterator
-                    return BytesRef.deepCopyOf(value);
-                }
-            });
+                    @Override
+                    protected BytesRef preserve(BytesRef value) {
+                        // Preserve must make a deep copy because convert gets a shallow copy from the iterator
+                        return BytesRef.deepCopyOf(value);
+                    }
+                });
+            }
         }
 
         if (fieldType().ignoreAbove != Integer.MAX_VALUE) {

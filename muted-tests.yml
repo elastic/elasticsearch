@@ -274,6 +274,9 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/120910
 - class: org.elasticsearch.xpack.esql.qa.multi_node.RestEsqlIT
   issue: https://github.com/elastic/elasticsearch/issues/120948
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=nodes.stats/11_indices_metrics/indices mappings exact count test for indices level}
+  issue: https://github.com/elastic/elasticsearch/issues/120950
 
 # Examples:
 #

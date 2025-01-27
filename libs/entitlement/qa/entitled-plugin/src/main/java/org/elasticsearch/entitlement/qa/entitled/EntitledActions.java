@@ -15,7 +15,7 @@ public final class EntitledActions {
     private EntitledActions() {}
 
     @SuppressForbidden(reason = "Exposes forbidden APIs for testing purposes")
-    public static void System_clearProperty(String key) {
+    static void System_clearProperty(String key) {
         System.clearProperty(key);
     }
 

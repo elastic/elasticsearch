@@ -537,30 +537,37 @@ public class RestRequest implements ToXContent.Params, Traceable {
         return parserConfig;
     }
 
-    private XContentParserConfiguration internalParserConfig() {
-        // consume query param lazily so we can report if consumed or not
-        return parserConfig.withIncludeSourceOnError(RestUtils.getIncludeSourceOnError(this));
-    }
-
     /**
      * A parser for the contents of this request if there is a body, otherwise throws an {@link ElasticsearchParseException}. Use
      * {@link #applyContentParser(CheckedConsumer)} if you want to gracefully handle when the request doesn't have any contents. Use
      * {@link #contentOrSourceParamParser()} for requests that support specifying the request body in the {@code source} param.
      */
     public final XContentParser contentParser() throws IOException {
+        return contentParser(parserConfig);
+    }
+
+    private XContentParser contentParser(XContentParserConfiguration parserConfig) throws IOException {
         BytesReference content = requiredContent(); // will throw exception if body or content type missing
-        return XContentHelper.createParserNotCompressed(internalParserConfig(), content, xContentType.get());
+        return XContentHelper.createParserNotCompressed(parserConfig, content, xContentType.get());
+    }
+
+    /**
+     * If there is any content then call {@code applyParser} with the parser modified by {@code includeSourceOnError}, otherwise do nothing.
+     */
+    public final void applyContentParser(Boolean includeSourceOnError, CheckedConsumer<XContentParser, IOException> applyParser)
+        throws IOException {
+        if (hasContent()) {
+            try (XContentParser parser = contentParser(parserConfig.withIncludeSourceOnError(includeSourceOnError))) {
+                applyParser.accept(parser);
+            }
+        }
     }
 
     /**
      * If there is any content then call {@code applyParser} with the parser, otherwise do nothing.
      */
     public final void applyContentParser(CheckedConsumer<XContentParser, IOException> applyParser) throws IOException {
-        if (hasContent()) {
-            try (XContentParser parser = contentParser()) {
-                applyParser.accept(parser);
-            }
-        }
+        applyContentParser(null, applyParser);
     }
 
     /**
@@ -578,7 +585,7 @@ public class RestRequest implements ToXContent.Params, Traceable {
      */
     public final XContentParser contentOrSourceParamParser() throws IOException {
         Tuple<XContentType, ReleasableBytesReference> tuple = contentOrSourceParam();
-        return XContentHelper.createParserNotCompressed(internalParserConfig(), tuple.v2(), tuple.v1().xContent().type());
+        return XContentHelper.createParserNotCompressed(parserConfig, tuple.v2(), tuple.v1().xContent().type());
     }
 
     /**
@@ -589,7 +596,7 @@ public class RestRequest implements ToXContent.Params, Traceable {
     public final void withContentOrSourceParamParserOrNull(CheckedConsumer<XContentParser, IOException> withParser) throws IOException {
         if (hasContentOrSourceParam()) {
             Tuple<XContentType, ReleasableBytesReference> tuple = contentOrSourceParam();
-            try (XContentParser parser = XContentHelper.createParserNotCompressed(internalParserConfig(), tuple.v2(), tuple.v1())) {
+            try (XContentParser parser = XContentHelper.createParserNotCompressed(parserConfig, tuple.v2(), tuple.v1())) {
                 withParser.accept(parser);
             }
         } else {

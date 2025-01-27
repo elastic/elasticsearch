@@ -11,6 +11,9 @@ package org.elasticsearch.entitlement.qa.test;
 
 import org.elasticsearch.core.SuppressForbidden;
 
+import java.util.Locale;
+import java.util.TimeZone;
+
 @SuppressForbidden(reason = "testing entitlements")
 class WritePropertiesCheckActions {
     private WritePropertiesCheckActions() {}
@@ -31,5 +34,17 @@ class WritePropertiesCheckActions {
 
     static void setSystemProperties() {
         System.setProperties(System.getProperties()); // no side effect in case if allowed (but shouldn't)
+    }
+
+    static void setDefaultLocale() {
+        Locale.setDefault(Locale.getDefault());
+    }
+
+    static void setDefaultLocaleForCategory() {
+        Locale.setDefault(Locale.Category.DISPLAY, Locale.getDefault(Locale.Category.DISPLAY));
+    }
+
+    static void setDefaultTimeZone() {
+        TimeZone.setDefault(TimeZone.getDefault());
     }
 }

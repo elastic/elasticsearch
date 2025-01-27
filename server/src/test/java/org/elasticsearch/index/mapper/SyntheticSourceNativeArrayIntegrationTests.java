@@ -21,12 +21,15 @@ import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.contains;
@@ -58,29 +61,52 @@ public class SyntheticSourceNativeArrayIntegrationTests extends ESSingleNodeTest
         verifySyntheticArray(arrayValues);
     }
 
+    public void testSynthesizeArrayIgnoreAbove() throws Exception {
+        var mapping = jsonBuilder().startObject()
+            .startObject("properties")
+            .startObject("field")
+            .field("type", "keyword")
+            .field("ignore_above", 4)
+            .endObject()
+            .endObject()
+            .endObject();
+        var arrayValues = new Object[][] {
+            new Object[] { null, "a", "ab", "abc", "abcd", null, "abcde" },
+            new Object[] { "12345", "12345", "12345" },
+            new Object[] { "123", "1234", "12345" },
+            new Object[] { null, null, null, "blabla" },
+            new Object[] { "1", "2", "3", "blabla" } };
+        verifySyntheticArray(arrayValues, mapping, "_id", "_recovery_source", "field._original");
+    }
+
     public void testSynthesizeObjectArray() throws Exception {
         List<List<Object[]>> documents = new ArrayList<>();
         {
             List<Object[]> document = new ArrayList<>();
-            document.add(new Object[]{"z", "y", "x"});
-            document.add(new Object[]{"m", "l", "m"});
-            document.add(new Object[]{"c", "b", "a"});
+            document.add(new Object[] { "z", "y", "x" });
+            document.add(new Object[] { "m", "l", "m" });
+            document.add(new Object[] { "c", "b", "a" });
             documents.add(document);
         }
         verifySyntheticObjectArray(documents);
     }
 
     private void verifySyntheticArray(Object[][] arrays) throws IOException {
+        var mapping = jsonBuilder().startObject()
+            .startObject("properties")
+            .startObject("field")
+            .field("type", "keyword")
+            .endObject()
+            .endObject()
+            .endObject();
+        verifySyntheticArray(arrays, mapping, "_id", "_recovery_source");
+    }
+
+    private void verifySyntheticArray(Object[][] arrays, XContentBuilder mapping, String... expectedStoredFields) throws IOException {
         var indexService = createIndex(
             "test-index",
             Settings.builder().put("index.mapping.source.mode", "synthetic").put("index.mapping.synthetic_source_keep", "arrays").build(),
-            jsonBuilder().startObject()
-                .startObject("properties")
-                .startObject("field")
-                .field("type", "keyword")
-                .endObject()
-                .endObject()
-                .endObject()
+            mapping
         );
         for (int i = 0; i < arrays.length; i++) {
             var array = arrays[i];
@@ -128,8 +154,8 @@ public class SyntheticSourceNativeArrayIntegrationTests extends ESSingleNodeTest
             for (int i = 0; i < arrays.length; i++) {
                 var document = reader.storedFields().document(i);
                 // Verify that there is no ignored source:
-                List<String> storedFieldNames = document.getFields().stream().map(IndexableField::name).toList();
-                assertThat(storedFieldNames, contains("_id", "_recovery_source"));
+                Set<String> storedFieldNames = new LinkedHashSet<>(document.getFields().stream().map(IndexableField::name).toList());
+                assertThat(storedFieldNames, contains(expectedStoredFields));
 
                 // Verify that there is an offset field:
                 var binaryDocValues = reader.leaves().get(0).reader().getBinaryDocValues("field.offsets");

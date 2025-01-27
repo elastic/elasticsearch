@@ -7460,6 +7460,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var plans = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(EstimatesRowSize.estimateRowSize(0, plan), config);
         plan = useDataNodePlan ? plans.v2() : plans.v1();
         plan = PlannerUtils.localPlan(List.of(), config, FoldContext.small(), plan);
+        ExchangeSinkHandler exchangeSinkHandler = new ExchangeSinkHandler(null, 10, () -> 10);
         LocalExecutionPlanner planner = new LocalExecutionPlanner(
             "test",
             "",
@@ -7468,8 +7469,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             TestBlockFactory.getNonBreakingInstance(),
             Settings.EMPTY,
             config,
-            new ExchangeSourceHandler(10, null, null),
-            new ExchangeSinkHandler(null, 10, () -> 10),
+            new ExchangeSourceHandler(10, null, null)::createExchangeSource,
+            () -> exchangeSinkHandler.createExchangeSink(() -> {}),
             null,
             null,
             new EsPhysicalOperationProviders(FoldContext.small(), List.of(), null)

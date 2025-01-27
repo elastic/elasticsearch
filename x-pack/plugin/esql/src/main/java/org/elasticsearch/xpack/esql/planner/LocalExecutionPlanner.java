@@ -36,9 +36,9 @@ import org.elasticsearch.compute.operator.SinkOperator.SinkOperatorFactory;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator.SourceOperatorFactory;
 import org.elasticsearch.compute.operator.StringExtractOperator;
-import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
+import org.elasticsearch.compute.operator.exchange.ExchangeSink;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator.ExchangeSinkOperatorFactory;
-import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
+import org.elasticsearch.compute.operator.exchange.ExchangeSource;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceOperator.ExchangeSourceOperatorFactory;
 import org.elasticsearch.compute.operator.topn.TopNEncoder;
 import org.elasticsearch.compute.operator.topn.TopNOperator;
@@ -103,6 +103,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
@@ -126,8 +127,8 @@ public class LocalExecutionPlanner {
     private final BlockFactory blockFactory;
     private final Settings settings;
     private final Configuration configuration;
-    private final ExchangeSourceHandler exchangeSourceHandler;
-    private final ExchangeSinkHandler exchangeSinkHandler;
+    private final Supplier<ExchangeSource> exchangeSourceSupplier;
+    private final Supplier<ExchangeSink> exchangeSinkSupplier;
     private final EnrichLookupService enrichLookupService;
     private final LookupFromIndexService lookupFromIndexService;
     private final PhysicalOperationProviders physicalOperationProviders;
@@ -140,8 +141,8 @@ public class LocalExecutionPlanner {
         BlockFactory blockFactory,
         Settings settings,
         Configuration configuration,
-        ExchangeSourceHandler exchangeSourceHandler,
-        ExchangeSinkHandler exchangeSinkHandler,
+        Supplier<ExchangeSource> exchangeSourceSupplier,
+        Supplier<ExchangeSink> exchangeSinkSupplier,
         EnrichLookupService enrichLookupService,
         LookupFromIndexService lookupFromIndexService,
         PhysicalOperationProviders physicalOperationProviders
@@ -152,8 +153,8 @@ public class LocalExecutionPlanner {
         this.bigArrays = bigArrays;
         this.blockFactory = blockFactory;
         this.settings = settings;
-        this.exchangeSourceHandler = exchangeSourceHandler;
-        this.exchangeSinkHandler = exchangeSinkHandler;
+        this.exchangeSourceSupplier = exchangeSourceSupplier;
+        this.exchangeSinkSupplier = exchangeSinkSupplier;
         this.enrichLookupService = enrichLookupService;
         this.lookupFromIndexService = lookupFromIndexService;
         this.physicalOperationProviders = physicalOperationProviders;
@@ -323,7 +324,7 @@ public class LocalExecutionPlanner {
     }
 
     private PhysicalOperation planExchangeSink(ExchangeSinkExec exchangeSink, LocalExecutionPlannerContext context) {
-        Objects.requireNonNull(exchangeSinkHandler, "ExchangeSinkHandler wasn't provided");
+        Objects.requireNonNull(exchangeSinkSupplier, "ExchangeSinkHandler wasn't provided");
         var child = exchangeSink.child();
 
         PhysicalOperation source = plan(child, context);
@@ -332,11 +333,11 @@ public class LocalExecutionPlanner {
             ? Function.identity()
             : alignPageToAttributes(exchangeSink.output(), source.layout);
 
-        return source.withSink(new ExchangeSinkOperatorFactory(exchangeSinkHandler::createExchangeSink, transformer), source.layout);
+        return source.withSink(new ExchangeSinkOperatorFactory(exchangeSinkSupplier, transformer), source.layout);
     }
 
     private PhysicalOperation planExchangeSource(ExchangeSourceExec exchangeSource, LocalExecutionPlannerContext context) {
-        Objects.requireNonNull(exchangeSourceHandler, "ExchangeSourceHandler wasn't provided");
+        Objects.requireNonNull(exchangeSourceSupplier, "ExchangeSourceHandler wasn't provided");
 
         var builder = new Layout.Builder();
         builder.append(exchangeSource.output());
@@ -344,7 +345,7 @@ public class LocalExecutionPlanner {
         var l = builder.build();
         var layout = exchangeSource.isIntermediateAgg() ? new ExchangeLayout(l) : l;
 
-        return PhysicalOperation.fromSource(new ExchangeSourceOperatorFactory(exchangeSourceHandler::createExchangeSource), layout);
+        return PhysicalOperation.fromSource(new ExchangeSourceOperatorFactory(exchangeSourceSupplier), layout);
     }
 
     private PhysicalOperation planTopN(TopNExec topNExec, LocalExecutionPlannerContext context) {

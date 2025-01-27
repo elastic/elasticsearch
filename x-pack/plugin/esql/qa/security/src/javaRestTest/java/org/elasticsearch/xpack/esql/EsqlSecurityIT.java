@@ -57,6 +57,10 @@ public class EsqlSecurityIT extends ESRestTestCase {
         .user("user4", "x-pack-test-password", "user4", false)
         .user("user5", "x-pack-test-password", "user5", false)
         .user("fls_user", "x-pack-test-password", "fls_user", false)
+        .user("fls_user2", "x-pack-test-password", "fls_user2", false)
+        .user("fls_user3", "x-pack-test-password", "fls_user3", false)
+        .user("fls_user4_1", "x-pack-test-password", "fls_user4_1", false)
+        .user("dls_user", "x-pack-test-password", "dls_user", false)
         .user("metadata1_read2", "x-pack-test-password", "metadata1_read2", false)
         .user("alias_user1", "x-pack-test-password", "alias_user1", false)
         .user("alias_user2", "x-pack-test-password", "alias_user2", false)
@@ -92,7 +96,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
     public void indexDocuments() throws IOException {
         Settings lookupSettings = Settings.builder().put("index.mode", "lookup").build();
         String mapping = """
-            "properties":{"value": {"type": "double"}, "org": {"type": "keyword"}}
+            "properties":{"value": {"type": "double"}, "org": {"type": "keyword"}, "other": {"type": "keyword"}}
             """;
 
         createIndex("index", Settings.EMPTY, mapping);
@@ -163,6 +167,32 @@ public class EsqlSecurityIT extends ESRestTestCase {
                 """);
             assertOK(client().performRequest(aliasRequest));
         }
+
+        createMultiRoleUsers();
+    }
+
+    private void createMultiRoleUsers() throws IOException {
+        Request request = new Request("POST", "_security/user/dls_user2");
+        request.setJsonEntity("""
+            {
+              "password" : "x-pack-test-password",
+              "roles" : [ "dls_user", "dls_user2" ],
+              "full_name" : "Test Role",
+              "email" : "test.role@example.com"
+            }
+            """);
+        assertOK(client().performRequest(request));
+
+        request = new Request("POST", "_security/user/fls_user4");
+        request.setJsonEntity("""
+            {
+              "password" : "x-pack-test-password",
+              "roles" : [ "fls_user4_1", "fls_user4_2" ],
+              "full_name" : "Test Role",
+              "email" : "test.role@example.com"
+            }
+            """);
+        assertOK(client().performRequest(request));
     }
 
     protected MapMatcher responseMatcher(Map<String, Object> result) {
@@ -538,12 +568,12 @@ public class EsqlSecurityIT extends ESRestTestCase {
     public void testLookupJoinIndexAllowed() throws Exception {
         assumeTrue(
             "Requires LOOKUP JOIN capability",
-            EsqlSpecTestCase.hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.JOIN_LOOKUP_V11.capabilityName()))
+            EsqlSpecTestCase.hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.JOIN_LOOKUP_V12.capabilityName()))
         );
 
         Response resp = runESQLCommand(
             "metadata1_read2",
-            "ROW x = 40.0 | EVAL value = x | LOOKUP JOIN `lookup-user2` ON value | KEEP x, org"
+            "ROW x = 40.0 | EVAL value = x | LOOKUP JOIN lookup-user2 ON value | KEEP x, org"
         );
         assertOK(resp);
         Map<String, Object> respMap = entityAsMap(resp);
@@ -553,36 +583,141 @@ public class EsqlSecurityIT extends ESRestTestCase {
         );
         assertThat(respMap.get("values"), equalTo(List.of(List.of(40.0, "sales"))));
 
-        // Alias, should find the index and the row
-        resp = runESQLCommand("alias_user1", "ROW x = 31.0 | EVAL value = x | LOOKUP JOIN `lookup-first-alias` ON value | KEEP x, org");
-        assertOK(resp);
-        respMap = entityAsMap(resp);
-        assertThat(
-            respMap.get("columns"),
-            equalTo(List.of(Map.of("name", "x", "type", "double"), Map.of("name", "org", "type", "keyword")))
+        // Aliases are not allowed in LOOKUP JOIN
+        var resp2 = expectThrows(
+            ResponseException.class,
+            () -> runESQLCommand("alias_user1", "ROW x = 31.0 | EVAL value = x | LOOKUP JOIN lookup-first-alias ON value | KEEP x, org")
         );
-        assertThat(respMap.get("values"), equalTo(List.of(List.of(31.0, "sales"))));
 
-        // Alias, for a row that's filtered out
-        resp = runESQLCommand("alias_user1", "ROW x = 123.0 | EVAL value = x | LOOKUP JOIN `lookup-first-alias` ON value | KEEP x, org");
+        assertThat(resp2.getMessage(), containsString("Aliases and index patterns are not allowed for LOOKUP JOIN [lookup-first-alias]"));
+        assertThat(resp2.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
+
+        // Aliases are not allowed in LOOKUP JOIN, regardless of alias filters
+        resp2 = expectThrows(
+            ResponseException.class,
+            () -> runESQLCommand("alias_user1", "ROW x = 123.0 | EVAL value = x | LOOKUP JOIN lookup-first-alias ON value | KEEP x, org")
+        );
+        assertThat(resp2.getMessage(), containsString("Aliases and index patterns are not allowed for LOOKUP JOIN [lookup-first-alias]"));
+        assertThat(resp2.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testLookupJoinDocLevelSecurity() throws Exception {
+        assumeTrue(
+            "Requires LOOKUP JOIN capability",
+            EsqlSpecTestCase.hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.JOIN_LOOKUP_V12.capabilityName()))
+        );
+
+        Response resp = runESQLCommand("dls_user", "ROW x = 40.0 | EVAL value = x | LOOKUP JOIN lookup-user2 ON value | KEEP x, org");
+        assertOK(resp);
+        Map<String, Object> respMap = entityAsMap(resp);
+        assertThat(
+            respMap.get("columns"),
+            equalTo(List.of(Map.of("name", "x", "type", "double"), Map.of("name", "org", "type", "keyword")))
+        );
+
+        assertThat(respMap.get("values"), equalTo(List.of(Arrays.asList(40.0, null))));
+
+        resp = runESQLCommand("dls_user", "ROW x = 32.0 | EVAL value = x | LOOKUP JOIN lookup-user2 ON value | KEEP x, org");
         assertOK(resp);
         respMap = entityAsMap(resp);
         assertThat(
             respMap.get("columns"),
             equalTo(List.of(Map.of("name", "x", "type", "double"), Map.of("name", "org", "type", "keyword")))
         );
-        assertThat(respMap.get("values"), equalTo(List.of(Arrays.asList(123.0, null))));
+        assertThat(respMap.get("values"), equalTo(List.of(List.of(32.0, "marketing"))));
+
+        // same, but with a user that has two dls roles that allow him more visibility
+
+        resp = runESQLCommand("dls_user2", "ROW x = 40.0 | EVAL value = x | LOOKUP JOIN lookup-user2 ON value | KEEP x, org");
+        assertOK(resp);
+        respMap = entityAsMap(resp);
+        assertThat(
+            respMap.get("columns"),
+            equalTo(List.of(Map.of("name", "x", "type", "double"), Map.of("name", "org", "type", "keyword")))
+        );
+
+        assertThat(respMap.get("values"), equalTo(List.of(Arrays.asList(40.0, "sales"))));
+
+        resp = runESQLCommand("dls_user2", "ROW x = 32.0 | EVAL value = x | LOOKUP JOIN lookup-user2 ON value | KEEP x, org");
+        assertOK(resp);
+        respMap = entityAsMap(resp);
+        assertThat(
+            respMap.get("columns"),
+            equalTo(List.of(Map.of("name", "x", "type", "double"), Map.of("name", "org", "type", "keyword")))
+        );
+        assertThat(respMap.get("values"), equalTo(List.of(List.of(32.0, "marketing"))));
+
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testLookupJoinFieldLevelSecurity() throws Exception {
+        assumeTrue(
+            "Requires LOOKUP JOIN capability",
+            EsqlSpecTestCase.hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.JOIN_LOOKUP_V12.capabilityName()))
+        );
+
+        Response resp = runESQLCommand("fls_user2", "ROW x = 40.0 | EVAL value = x | LOOKUP JOIN lookup-user2 ON value");
+        assertOK(resp);
+        Map<String, Object> respMap = entityAsMap(resp);
+        assertThat(
+            respMap.get("columns"),
+            equalTo(
+                List.of(
+                    Map.of("name", "x", "type", "double"),
+                    Map.of("name", "value", "type", "double"),
+                    Map.of("name", "org", "type", "keyword")
+                )
+            )
+        );
+
+        resp = runESQLCommand("fls_user3", "ROW x = 40.0 | EVAL value = x | LOOKUP JOIN lookup-user2 ON value");
+        assertOK(resp);
+        respMap = entityAsMap(resp);
+        assertThat(
+            respMap.get("columns"),
+            equalTo(
+                List.of(
+                    Map.of("name", "x", "type", "double"),
+                    Map.of("name", "value", "type", "double"),
+                    Map.of("name", "org", "type", "keyword"),
+                    Map.of("name", "other", "type", "keyword")
+                )
+            )
+
+        );
+
+        resp = runESQLCommand("fls_user4", "ROW x = 40.0 | EVAL value = x | LOOKUP JOIN lookup-user2 ON value");
+        assertOK(resp);
+        respMap = entityAsMap(resp);
+        assertThat(
+            respMap.get("columns"),
+            equalTo(
+                List.of(
+                    Map.of("name", "x", "type", "double"),
+                    Map.of("name", "value", "type", "double"),
+                    Map.of("name", "org", "type", "keyword")
+                )
+            )
+        );
+
+        ResponseException error = expectThrows(
+            ResponseException.class,
+            () -> runESQLCommand("fls_user4_1", "ROW x = 40.0 | EVAL value = x | LOOKUP JOIN lookup-user2 ON value")
+        );
+        assertThat(error.getMessage(), containsString("Unknown column [value] in right side of join"));
+        assertThat(error.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
     }
 
     public void testLookupJoinIndexForbidden() throws Exception {
         assumeTrue(
             "Requires LOOKUP JOIN capability",
-            EsqlSpecTestCase.hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.JOIN_LOOKUP_V11.capabilityName()))
+            EsqlSpecTestCase.hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.JOIN_LOOKUP_V12.capabilityName()))
         );
 
         var resp = expectThrows(
             ResponseException.class,
-            () -> runESQLCommand("metadata1_read2", "FROM lookup-user2 | EVAL value = 10.0 | LOOKUP JOIN `lookup-user1` ON value | KEEP x")
+            () -> runESQLCommand("metadata1_read2", "FROM lookup-user2 | EVAL value = 10.0 | LOOKUP JOIN lookup-user1 ON value | KEEP x")
         );
         assertThat(resp.getMessage(), containsString("Unknown index [lookup-user1]"));
         assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
@@ -591,7 +726,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
             ResponseException.class,
             () -> runESQLCommand(
                 "metadata1_read2",
-                "FROM lookup-user2 | EVAL value = 10.0 | LOOKUP JOIN `lookup-first-alias` ON value | KEEP x"
+                "FROM lookup-user2 | EVAL value = 10.0 | LOOKUP JOIN lookup-first-alias ON value | KEEP x"
             )
         );
         assertThat(resp.getMessage(), containsString("Unknown index [lookup-first-alias]"));
@@ -599,14 +734,14 @@ public class EsqlSecurityIT extends ESRestTestCase {
 
         resp = expectThrows(
             ResponseException.class,
-            () -> runESQLCommand("metadata1_read2", "ROW x = 10.0 | EVAL value = x | LOOKUP JOIN `lookup-user1` ON value | KEEP x")
+            () -> runESQLCommand("metadata1_read2", "ROW x = 10.0 | EVAL value = x | LOOKUP JOIN lookup-user1 ON value | KEEP x")
         );
         assertThat(resp.getMessage(), containsString("Unknown index [lookup-user1]"));
         assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
 
         resp = expectThrows(
             ResponseException.class,
-            () -> runESQLCommand("alias_user1", "ROW x = 10.0 | EVAL value = x | LOOKUP JOIN `lookup-user1` ON value | KEEP x")
+            () -> runESQLCommand("alias_user1", "ROW x = 10.0 | EVAL value = x | LOOKUP JOIN lookup-user1 ON value | KEEP x")
         );
         assertThat(resp.getMessage(), containsString("Unknown index [lookup-user1]"));
         assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));

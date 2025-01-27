@@ -706,6 +706,26 @@ public abstract class DocumentParserContext {
      * @param doc           the document to target
      */
     public final DocumentParserContext createCopyToContext(String copyToField, LuceneDocument doc) throws IOException {
+        /*
+            Mark field as containing copied data meaning it should not be present
+            in synthetic _source (to be consistent with stored _source).
+            Ignored source values take precedence over standard synthetic source implementation
+            so by adding the `XContentDataHelper.voidValue()` entry we disable the field in synthetic source.
+            Otherwise, it would be constructed f.e. from doc_values which leads to duplicate values
+            in copied field after reindexing.
+         */
+        if (mappingLookup.isSourceSynthetic() && indexSettings().getSkipIgnoredSourceWrite() == false) {
+            ObjectMapper parent = root().findParentMapper(copyToField);
+            // There are scenarios when this is false:
+            // 1. all values of the field that is the source of copy_to are null
+            // 2. copy_to points at a field inside a disabled object
+            // 3. copy_to points at dynamic field which is not yet applied to mapping, we will process it properly after the dynamic update
+            if (parent != null) {
+                int offset = parent.isRoot() ? 0 : parent.fullPath().length() + 1;
+                ignoredFieldValues.add(new IgnoredSourceFieldMapper.NameValue(copyToField, offset, XContentDataHelper.voidValue(), doc));
+            }
+        }
+
         ContentPath path = new ContentPath();
         XContentParser parser = DotExpandingXContentParser.expandDots(new CopyToParser(copyToField, parser()), path);
         return new Wrapper(root(), this) {

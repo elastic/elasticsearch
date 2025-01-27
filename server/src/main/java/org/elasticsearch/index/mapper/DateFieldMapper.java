@@ -382,7 +382,7 @@ public final class DateFieldMapper extends FieldMapper {
             if (ft.name().equals(DataStreamTimestampFieldMapper.DEFAULT_PATH)
                 && context.isDataStream()
                 && ignoreMalformed.isConfigured() == false) {
-                ignoreMalformed.setValue(false);
+                ignoreMalformed.setValue(ignoreMalformed.getDefaultValue());
             }
             hasScript = script.get() != null;
             onScriptError = onScriptErrorParam.get();

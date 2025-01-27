@@ -39,6 +39,10 @@ public class OffsetDocValuesLoaderTests extends MapperServiceTestCase {
 
     public void testOffsetNestedArray() throws Exception {
         verifyOffsets("{\"field\":[\"z\",[\"y\"],[\"c\"],null,\"a\"]}", "{\"field\":[\"z\",\"y\",\"c\",null,\"a\"]}");
+        verifyOffsets(
+            "{\"field\":[\"z\",[\"y\", [\"k\"]],[\"c\", [\"l\"]],null,\"a\"]}",
+            "{\"field\":[\"z\",\"y\",\"k\",\"c\",\"l\",null,\"a\"]}"
+        );
     }
 
     public void testOffsetEmptyArray() throws Exception {

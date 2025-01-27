@@ -9,7 +9,9 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.util.BitUtil;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.index.IndexRequest;
@@ -22,7 +24,9 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.contains;
@@ -52,6 +56,18 @@ public class SyntheticSourceNativeArrayIntegrationTests extends ESSingleNodeTest
     public void testSynthesizeArrayRandom() throws Exception {
         var arrayValues = new Object[][] { generateRandomStringArray(64, 8, false, true) };
         verifySyntheticArray(arrayValues);
+    }
+
+    public void testSynthesizeObjectArray() throws Exception {
+        List<List<Object[]>> documents = new ArrayList<>();
+        {
+            List<Object[]> document = new ArrayList<>();
+            document.add(new Object[]{"z", "y", "x"});
+            document.add(new Object[]{"m", "l", "m"});
+            document.add(new Object[]{"c", "b", "a"});
+            documents.add(document);
+        }
+        verifySyntheticObjectArray(documents);
     }
 
     private void verifySyntheticArray(Object[][] arrays) throws IOException {
@@ -132,6 +148,79 @@ public class SyntheticSourceNativeArrayIntegrationTests extends ESSingleNodeTest
                         assertThat(offsets, notNullValue());
                     }
                 }
+            }
+        }
+    }
+
+    private void verifySyntheticObjectArray(List<List<Object[]>> documents) throws IOException {
+        var indexService = createIndex(
+            "test-index",
+            Settings.builder().put("index.mapping.source.mode", "synthetic").put("index.mapping.synthetic_source_keep", "arrays").build(),
+            jsonBuilder().startObject()
+                .startObject("properties")
+                .startObject("object")
+                .startObject("properties")
+                .startObject("field")
+                .field("type", "keyword")
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+        );
+        for (int i = 0; i < documents.size(); i++) {
+            var document = documents.get(i);
+
+            var indexRequest = new IndexRequest("test-index");
+            indexRequest.id("my-id-" + i);
+            var source = jsonBuilder().startObject();
+            source.startArray("object");
+            for (Object[] arrayValue : document) {
+                source.startObject();
+                source.array("field", arrayValue);
+                source.endObject();
+            }
+            source.endArray();
+            indexRequest.source(source.endObject());
+            indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+            client().index(indexRequest).actionGet();
+
+            var searchRequest = new SearchRequest("test-index");
+            searchRequest.source().query(new IdsQueryBuilder().addIds("my-id-" + i));
+            var searchResponse = client().search(searchRequest).actionGet();
+            try {
+                var hit = searchResponse.getHits().getHits()[0];
+                assertThat(hit.getId(), equalTo("my-id-" + i));
+                var sourceAsMap = hit.getSourceAsMap();
+                var objectArray = (List<?>) sourceAsMap.get("object");
+                for (int j = 0; j < document.size(); j++) {
+                    var expected = document.get(j);
+                    List<?> actual = (List<?>) ((Map<?, ?>) objectArray.get(j)).get("field");
+                    assertThat(actual, Matchers.contains(expected));
+                }
+            } finally {
+                searchResponse.decRef();
+            }
+        }
+
+        indexService.getShard(0).forceMerge(new ForceMergeRequest("test-index").maxNumSegments(1));
+        try (var searcher = indexService.getShard(0).acquireSearcher(getTestName())) {
+            var reader = searcher.getDirectoryReader();
+            for (int i = 0; i < documents.size(); i++) {
+                var document = reader.storedFields().document(i);
+                // Verify that there is no ignored source:
+                List<String> storedFieldNames = document.getFields().stream().map(IndexableField::name).toList();
+                assertThat(storedFieldNames, contains("_id", "_recovery_source", "_ignored_source"));
+
+                // Verify that there is no offset field:
+                LeafReader leafReader = reader.leaves().get(0).reader();
+                for (FieldInfo fieldInfo : leafReader.getFieldInfos()) {
+                    String name = fieldInfo.getName();
+                    assertFalse("expected no field that contains [offsets] in name, but found [" + name + "]", name.contains("offsets"));
+                }
+
+                var binaryDocValues = leafReader.getBinaryDocValues("object.field.offsets");
+                assertThat(binaryDocValues, nullValue());
             }
         }
     }

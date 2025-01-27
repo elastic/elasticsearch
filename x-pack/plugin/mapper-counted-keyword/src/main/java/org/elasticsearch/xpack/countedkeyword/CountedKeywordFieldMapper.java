@@ -411,7 +411,7 @@ public class CountedKeywordFieldMapper extends FieldMapper {
     }
 
     @Override
-    public boolean parsesArrayValue() {
+    public boolean parsesArrayValue(DocumentParserContext context) {
         return true;
     }
 

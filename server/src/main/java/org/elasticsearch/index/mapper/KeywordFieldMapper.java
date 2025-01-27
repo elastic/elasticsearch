@@ -71,6 +71,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -385,14 +386,13 @@ public final class KeywordFieldMapper extends FieldMapper {
                 && copyTo.copyToFields().isEmpty()
                 && multiFieldsBuilder.hasMultiFields() == false) {
                 // Skip stored, we will be synthesizing from stored fields, no point to keep track of the offsets
-                // Skip copy_to, supporting that requires more work. However, copy_to usage is rare in metrics and logging use cases
+                // Skip copy_to and multi fields, supporting that requires more work. However, copy_to usage is rare in metrics and
+                // logging use cases
 
                 // keep track of value offsets so that we can reconstruct arrays from doc values in order as was specified during indexing
                 // (if field is stored then there is no point of doing this)
-                offsetsFieldMapper = new BinaryFieldMapper.Builder(
-                    context.buildFullName(leafName() + OFFSETS_FIELD_NAME_SUFFIX),
-                    context.isSourceSynthetic()
-                ).docValues(true).build(context);
+                String fieldName = leafName() + OFFSETS_FIELD_NAME_SUFFIX;
+                offsetsFieldMapper = new BinaryFieldMapper.Builder(fieldName, context.isSourceSynthetic()).docValues(true).build(context);
             } else {
                 offsetsFieldMapper = null;
             }
@@ -934,8 +934,10 @@ public final class KeywordFieldMapper extends FieldMapper {
     }
 
     @Override
-    public boolean parsesArrayValue() {
-        return offsetsFieldMapper != null;
+    public boolean parsesArrayValue(DocumentParserContext context) {
+        // Only if offsets need to be recorded/stored and if current content hasn't been recorded yet.
+        // (for example if parent object or object array got stored in ignored source)
+        return offsetsFieldMapper != null && context.getRecordedSource() == false;
     }
 
     @Override

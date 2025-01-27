@@ -647,7 +647,7 @@ public final class DocumentParser {
             // There is a concrete mapper for this field already. Need to check if the mapper
             // expects an array, if so we pass the context straight to the mapper and if not
             // we serialize the array components
-            if (parsesArrayValue(mapper)) {
+            if (parsesArrayValue(mapper, context)) {
                 parseObjectOrField(context, mapper);
             } else {
                 parseNonDynamicArray(context, mapper, lastFieldName, lastFieldName);
@@ -695,7 +695,7 @@ public final class DocumentParser {
             }
             parseNonDynamicArray(context, objectMapperFromTemplate, currentFieldName, currentFieldName);
         } else {
-            if (parsesArrayValue(objectMapperFromTemplate)) {
+            if (parsesArrayValue(objectMapperFromTemplate, context)) {
                 if (context.addDynamicMapper(objectMapperFromTemplate) == false) {
                     context.parser().skipChildren();
                     return;
@@ -709,8 +709,8 @@ public final class DocumentParser {
         }
     }
 
-    private static boolean parsesArrayValue(Mapper mapper) {
-        return mapper instanceof FieldMapper && ((FieldMapper) mapper).parsesArrayValue();
+    private static boolean parsesArrayValue(Mapper mapper, DocumentParserContext context) {
+        return mapper instanceof FieldMapper && ((FieldMapper) mapper).parsesArrayValue(context);
     }
 
     private static void parseNonDynamicArray(
@@ -723,7 +723,7 @@ public final class DocumentParser {
 
         // Check if we need to record the array source. This only applies to synthetic source.
         boolean canRemoveSingleLeafElement = false;
-        if (context.canAddIgnoredField() && (parsesArrayValue(mapper) == false)) {
+        if (context.canAddIgnoredField() && (parsesArrayValue(mapper, context) == false)) {
             Mapper.SourceKeepMode mode = Mapper.SourceKeepMode.NONE;
             boolean objectWithFallbackSyntheticSource = false;
             if (mapper instanceof ObjectMapper objectMapper) {
@@ -760,7 +760,7 @@ public final class DocumentParser {
             }
         }
 
-        if (parsesArrayValue(mapper) == false) {
+        if (parsesArrayValue(mapper, context) == false) {
             // In synthetic source, if any array element requires storing its source as-is, it takes precedence over
             // elements from regular source loading that are then skipped from the synthesized array source.
             // To prevent this, we track that parsing sub-context is within array scope.

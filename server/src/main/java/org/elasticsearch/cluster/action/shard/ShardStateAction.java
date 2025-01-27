@@ -847,7 +847,10 @@ public class ShardStateAction {
             for (IndexMetadata index : clusterState.metadata()) {
                 assert clusterState.routingTable().index(index.getIndex()).readyForSearch(clusterState)
                     && clusterState.blocks().hasIndexBlock(index.getIndex().getName(), INDEX_REFRESH_BLOCK) == false
-                    : "Index [" + index.getIndex() + "] is searchable but has an INDEX_REFRESH_BLOCK";
+                    : "Index ["
+                        + index.getIndex()
+                        + "] is searchable but has an INDEX_REFRESH_BLOCK "
+                        + clusterState.routingTable().index(index.getIndex());
             }
             return true;
         }

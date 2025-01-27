@@ -219,7 +219,3 @@ tasks.named("yamlRestTestV7CompatTransform").configure({ task ->
   task.skipTest("esql/190_lookup_join/alias-pattern-single", "LOOKUP JOIN does not support index aliases for now")
 
 })
-
-tasks.named('yamlRestCompatTest').configure {
-  systemProperty 'es.queryable_built_in_roles_enabled', 'false'
-}

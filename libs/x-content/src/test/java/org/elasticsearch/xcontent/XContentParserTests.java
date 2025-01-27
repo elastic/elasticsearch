@@ -663,10 +663,10 @@ public class XContentParserTests extends ESTestCase {
         var sourceEnabled = XContentParserConfiguration.EMPTY;
         var sourceDisabled = XContentParserConfiguration.EMPTY.withIncludeSourceOnError(false);
 
-        var parseException = assertThrows(XContentParseException.class, () -> createParser(xContent, sourceEnabled, source).map());
+        var parseException = expectThrows(XContentParseException.class, () -> createParser(xContent, sourceEnabled, source).map());
         assertThat(parseException.getMessage(), containsString(source));
 
-        parseException = assertThrows(XContentParseException.class, () -> createParser(xContent, sourceDisabled, source).map());
+        parseException = expectThrows(XContentParseException.class, () -> createParser(xContent, sourceDisabled, source).map());
         assertThat(parseException.getMessage(), not(containsString(source)));
     }
 

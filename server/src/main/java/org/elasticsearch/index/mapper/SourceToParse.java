@@ -110,7 +110,7 @@ public class SourceToParse {
         return meteringParserDecorator;
     }
 
-    boolean getIncludeSourceOnError() {
+    public boolean getIncludeSourceOnError() {
         return includeSourceOnError;
     }
 }

@@ -91,16 +91,6 @@ public final class BulkRequestParser {
             .withIncludeSourceOnError(includeSourceOnError);
     }
 
-    /**
-     * Create a new parser.
-     *
-     * @param deprecateOrErrorOnType whether to allow _type information in the index line; used by BulkMonitoring
-     * @param restApiVersion
-     */
-    public BulkRequestParser(boolean deprecateOrErrorOnType, RestApiVersion restApiVersion) {
-        this(deprecateOrErrorOnType, true, restApiVersion);
-    }
-
     private static int findNextMarker(byte marker, int from, BytesReference data, boolean lastData) {
         final int res = data.indexOf(marker, from);
         if (res != -1) {

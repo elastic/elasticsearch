@@ -277,26 +277,25 @@ public class InferencePlugin extends Plugin
         );
         elasicInferenceServiceFactory.set(elasticInferenceServiceRequestSenderFactory);
 
-            ElasticInferenceServiceSettings inferenceServiceSettings = new ElasticInferenceServiceSettings(settings);
-            String elasticInferenceUrl = this.getElasticInferenceServiceUrl(inferenceServiceSettings);
+        ElasticInferenceServiceSettings inferenceServiceSettings = new ElasticInferenceServiceSettings(settings);
+        String elasticInferenceUrl = inferenceServiceSettings.getElasticInferenceServiceUrl();
 
-            var elasticInferenceServiceComponentsInstance = new ElasticInferenceServiceComponents(elasticInferenceUrl);
-            elasticInferenceServiceComponents.set(elasticInferenceServiceComponentsInstance);
+        var elasticInferenceServiceComponentsInstance = new ElasticInferenceServiceComponents(elasticInferenceUrl);
+        elasticInferenceServiceComponents.set(elasticInferenceServiceComponentsInstance);
 
-            var authorizationHandler = new ElasticInferenceServiceAuthorizationHandler(
-                elasticInferenceServiceComponentsInstance.elasticInferenceServiceUrl(),
-                services.threadPool()
-            );
+        var authorizationHandler = new ElasticInferenceServiceAuthorizationHandler(
+            elasticInferenceServiceComponentsInstance.elasticInferenceServiceUrl(),
+            services.threadPool()
+        );
 
-            inferenceServices.add(
-                () -> List.of(
-                    context -> new ElasticInferenceService(
-                        elasicInferenceServiceFactory.get(),
-                        serviceComponents.get(),
-                        elasticInferenceServiceComponentsInstance,
-                        modelRegistry,
-                        authorizationHandler
-                    )
+        inferenceServices.add(
+            () -> List.of(
+                context -> new ElasticInferenceService(
+                    elasicInferenceServiceFactory.get(),
+                    serviceComponents.get(),
+                    elasticInferenceServiceComponentsInstance,
+                    modelRegistry,
+                    authorizationHandler
                 )
             )
         );
@@ -495,12 +494,6 @@ public class InferencePlugin extends Plugin
     @Override
     public Map<String, Highlighter> getHighlighters() {
         return Map.of(SemanticTextHighlighter.NAME, new SemanticTextHighlighter());
-    }
-
-    // Get Elastic Inference service URL based on feature flags to support transitioning
-    // to the new Elastic Inference Service URL.
-    private String getElasticInferenceServiceUrl(ElasticInferenceServiceSettings settings) {
-        return settings.getElasticInferenceServiceUrl();
     }
 
     protected SSLService getSslService() {

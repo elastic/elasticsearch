@@ -98,9 +98,13 @@ public class LocalMapper {
         if (unary instanceof ChangePoint changePoint) {
             // TODO: ChangePoint shouldn't run on the local node
             // TODO: fix hardcoded 1000
-            mappedChild = new TopNExec(changePoint.source(), mappedChild,
+            mappedChild = new TopNExec(
+                changePoint.source(),
+                mappedChild,
                 List.of(new Order(changePoint.source(), changePoint.key(), Order.OrderDirection.ASC, Order.NullsPosition.ANY)),
-                new Literal(Source.EMPTY, 1000, DataType.INTEGER), null);
+                new Literal(Source.EMPTY, 1000, DataType.INTEGER),
+                null
+            );
             return new ChangePointExec(
                 changePoint.source(),
                 mappedChild,

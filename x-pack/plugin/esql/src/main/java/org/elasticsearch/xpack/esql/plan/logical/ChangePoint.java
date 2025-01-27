@@ -168,7 +168,6 @@ public class ChangePoint extends UnaryPlan implements GeneratingPlan<ChangePoint
         return Objects.equals(child(), other.child())
             && Objects.equals(value, other.value)
             && Objects.equals(key, other.key)
-            && Objects.equals(targetType, value)
             && Objects.equals(targetType, other.targetType)
             && Objects.equals(targetPvalue, other.targetPvalue);
     }

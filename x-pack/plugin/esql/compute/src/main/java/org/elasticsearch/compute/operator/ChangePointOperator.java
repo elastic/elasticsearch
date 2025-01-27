@@ -14,8 +14,6 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.ml.aggs.MlAggsHelper;
 import org.elasticsearch.xpack.ml.aggs.changepoint.ChangePointDetector;
 import org.elasticsearch.xpack.ml.aggs.changepoint.ChangeType;
@@ -24,7 +22,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class ChangePointOperator implements Operator {
-    private static final Logger logger = LogManager.getLogger(ChangePointOperator.class);
 
     public record Factory(int inputChannel) implements OperatorFactory {
         @Override
@@ -40,9 +37,10 @@ public class ChangePointOperator implements Operator {
 
     private final BlockFactory blockFactory;
     private final int inputChannel;
+    private final List<Page> inputPages;
+    private final List<Page> outputPages;
+
     private boolean finished;
-    private List<Page> inputPages;
-    private List<Page> outputPages;
     private int outputPageIndex;
 
     public ChangePointOperator(BlockFactory blockFactory, int inputChannel) {
@@ -101,37 +99,36 @@ public class ChangePointOperator implements Operator {
                 values[valuesIndex++] = (double) vector.getLong(i);
             }
         }
-        logger.warn("***ALL DATA*** (#pages={}) {}", inputPages.size(), values);
 
-        ChangeType changeType =
-            ChangePointDetector.getChangeType(new MlAggsHelper.DoubleBucketValues(null, values));
+        ChangeType changeType = ChangePointDetector.getChangeType(new MlAggsHelper.DoubleBucketValues(null, values));
         int changePointIndex = changeType.changePoint();
 
         int pageStartIndex = 0;
         for (Page inputPage : inputPages) {
             Block changeTypeBlock;
             Block changePvalueBlock;
-
             if (pageStartIndex <= changePointIndex && changePointIndex < pageStartIndex + inputPage.getPositionCount()) {
-                BytesRefBlock.Builder changeTypeBlockBuilder = blockFactory.newBytesRefBlockBuilder(inputPage.getPositionCount());
-                DoubleBlock.Builder pvalueBlockBuilder = blockFactory.newDoubleBlockBuilder(inputPage.getPositionCount());
-                for (int i = 0; i < inputPage.getPositionCount(); i++) {
-                    if (pageStartIndex + i == changePointIndex) {
-                        changeTypeBlockBuilder.appendBytesRef(new BytesRef(changeType.getWriteableName()));
-                        pvalueBlockBuilder.appendDouble(changeType.pValue());
-                    } else {
-                        changeTypeBlockBuilder.appendNull();
-                        pvalueBlockBuilder.appendNull();
+                try (
+                    BytesRefBlock.Builder changeTypeBlockBuilder = blockFactory.newBytesRefBlockBuilder(inputPage.getPositionCount());
+                    DoubleBlock.Builder pvalueBlockBuilder = blockFactory.newDoubleBlockBuilder(inputPage.getPositionCount())
+                ) {
+                    for (int i = 0; i < inputPage.getPositionCount(); i++) {
+                        if (pageStartIndex + i == changePointIndex) {
+                            changeTypeBlockBuilder.appendBytesRef(new BytesRef(changeType.getWriteableName()));
+                            pvalueBlockBuilder.appendDouble(changeType.pValue());
+                        } else {
+                            changeTypeBlockBuilder.appendNull();
+                            pvalueBlockBuilder.appendNull();
+                        }
                     }
+                    changeTypeBlock = changeTypeBlockBuilder.build();
+                    changePvalueBlock = pvalueBlockBuilder.build();
                 }
-                changeTypeBlock = changeTypeBlockBuilder.build();
-                changePvalueBlock = pvalueBlockBuilder.build();
             } else {
                 changeTypeBlock = blockFactory.newConstantNullBlock(inputPage.getPositionCount());
                 changePvalueBlock = blockFactory.newConstantNullBlock(inputPage.getPositionCount());
             }
 
-            // TODO: make sure it's the right channel
             Page outputPage = inputPage.appendBlocks(new Block[] { changeTypeBlock, changePvalueBlock });
             outputPages.add(outputPage);
 
@@ -141,6 +138,5 @@ public class ChangePointOperator implements Operator {
 
     @Override
     public void close() {
-
     }
 }

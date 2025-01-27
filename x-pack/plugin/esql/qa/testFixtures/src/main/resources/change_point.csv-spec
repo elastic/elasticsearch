@@ -1,0 +1,105 @@
+detect nothing
+// TODO: required_capability: change_point
+
+FROM k8s
+  | STATS count=COUNT() BY @timestamp=BUCKET(@timestamp, 1 MINUTE)
+  | CHANGE_POINT count ON @timestamp AS type, pvalue
+;
+
+count:long | @timestamp:datetime      | type:text | pvalue:double
+4          | 2024-05-10T00:00:00.000Z | null      | null
+4          | 2024-05-10T00:01:00.000Z | null      | null
+8          | 2024-05-10T00:02:00.000Z | null      | null
+8          | 2024-05-10T00:03:00.000Z | null      | null
+5          | 2024-05-10T00:04:00.000Z | null      | null
+8          | 2024-05-10T00:05:00.000Z | null      | null
+10         | 2024-05-10T00:06:00.000Z | null      | null
+5          | 2024-05-10T00:07:00.000Z | null      | null
+12         | 2024-05-10T00:08:00.000Z | null      | null
+20         | 2024-05-10T00:09:00.000Z | null      | null
+5          | 2024-05-10T00:10:00.000Z | null      | null
+7          | 2024-05-10T00:11:00.000Z | null      | null
+8          | 2024-05-10T00:12:00.000Z | null      | null
+9          | 2024-05-10T00:13:00.000Z | null      | null
+9          | 2024-05-10T00:14:00.000Z | null      | null
+11         | 2024-05-10T00:15:00.000Z | null      | null
+7          | 2024-05-10T00:16:00.000Z | null      | null
+15         | 2024-05-10T00:17:00.000Z | null      | null
+17         | 2024-05-10T00:18:00.000Z | null      | null
+5          | 2024-05-10T00:19:00.000Z | null      | null
+10         | 2024-05-10T00:20:00.000Z | null      | null
+4          | 2024-05-10T00:21:00.000Z | null      | null
+9          | 2024-05-10T00:22:00.000Z | null      | null
+;
+
+
+detect spike
+// TODO: required_capability: change_point
+
+FROM k8s
+  | STATS count=COUNT() BY @timestamp=BUCKET(@timestamp, 1 MINUTE)
+  | EVAL count=count+CASE(@timestamp=="2024-05-10T00:08:00.000Z", 100, 0)
+  | CHANGE_POINT count ON @timestamp AS type, pvalue
+;
+
+@timestamp:datetime      | count:long | type:text | pvalue:double
+2024-05-10T00:00:00.000Z | 4          | null      | null
+2024-05-10T00:01:00.000Z | 4          | null      | null
+2024-05-10T00:02:00.000Z | 8          | null      | null
+2024-05-10T00:03:00.000Z | 8          | null      | null
+2024-05-10T00:04:00.000Z | 5          | null      | null
+2024-05-10T00:05:00.000Z | 8          | null      | null
+2024-05-10T00:06:00.000Z | 10         | null      | null
+2024-05-10T00:07:00.000Z | 5          | null      | null
+2024-05-10T00:08:00.000Z | 112        | spike     | 1.7502597878858522E-193
+2024-05-10T00:09:00.000Z | 20         | null      | null
+2024-05-10T00:10:00.000Z | 5          | null      | null
+2024-05-10T00:11:00.000Z | 7          | null      | null
+2024-05-10T00:12:00.000Z | 8          | null      | null
+2024-05-10T00:13:00.000Z | 9          | null      | null
+2024-05-10T00:14:00.000Z | 9          | null      | null
+2024-05-10T00:15:00.000Z | 11         | null      | null
+2024-05-10T00:16:00.000Z | 7          | null      | null
+2024-05-10T00:17:00.000Z | 15         | null      | null
+2024-05-10T00:18:00.000Z | 17         | null      | null
+2024-05-10T00:19:00.000Z | 5          | null      | null
+2024-05-10T00:20:00.000Z | 10         | null      | null
+2024-05-10T00:21:00.000Z | 4          | null      | null
+2024-05-10T00:22:00.000Z | 9          | null      | null
+;
+
+
+detect step change
+// TODO: required_capability: change_point
+
+FROM k8s
+  | STATS count=COUNT() BY @timestamp=BUCKET(@timestamp, 1 MINUTE)
+  | EVAL count=count+CASE(@timestamp>="2024-05-10T00:11:00.000Z", 100, 0)
+  | CHANGE_POINT count ON @timestamp AS type, pvalue
+;
+
+@timestamp:datetime      | count:long | type:text   | pvalue:double
+2024-05-10T00:00:00.000Z | 4          | null        | null
+2024-05-10T00:01:00.000Z | 4          | null        | null
+2024-05-10T00:02:00.000Z | 8          | null        | null
+2024-05-10T00:03:00.000Z | 8          | null        | null
+2024-05-10T00:04:00.000Z | 5          | null        | null
+2024-05-10T00:05:00.000Z | 8          | null        | null
+2024-05-10T00:06:00.000Z | 10         | null        | null
+2024-05-10T00:07:00.000Z | 5          | null        | null
+2024-05-10T00:08:00.000Z | 12         | null        | null
+2024-05-10T00:09:00.000Z | 20         | null        | null
+2024-05-10T00:10:00.000Z | 5          | null        | null
+2024-05-10T00:11:00.000Z | 107        | step_change | 3.0924162021968114E-23
+2024-05-10T00:12:00.000Z | 108        | null        | null
+2024-05-10T00:13:00.000Z | 109        | null        | null
+2024-05-10T00:14:00.000Z | 109        | null        | null
+2024-05-10T00:15:00.000Z | 111        | null        | null
+2024-05-10T00:16:00.000Z | 107        | null        | null
+2024-05-10T00:17:00.000Z | 115        | null        | null
+2024-05-10T00:18:00.000Z | 117        | null        | null
+2024-05-10T00:19:00.000Z | 105        | null        | null
+2024-05-10T00:20:00.000Z | 110        | null        | null
+2024-05-10T00:21:00.000Z | 104        | null        | null
+2024-05-10T00:22:00.000Z | 109        | null        | null
+;

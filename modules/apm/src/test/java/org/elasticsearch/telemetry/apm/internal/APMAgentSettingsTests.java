@@ -159,7 +159,6 @@ public class APMAgentSettingsTests extends ESTestCase {
      * Check that invalid or forbidden APM agent settings are rejected.
      */
     public void testRejectForbiddenOrUnknownAgentSettings() {
-
         String prefix = APM_AGENT_SETTINGS.getKey();
         Settings settings = Settings.builder().put(prefix + "unknown", "true").build();
         Exception exception = expectThrows(IllegalArgumentException.class, () -> APM_AGENT_SETTINGS.getAsMap(settings));

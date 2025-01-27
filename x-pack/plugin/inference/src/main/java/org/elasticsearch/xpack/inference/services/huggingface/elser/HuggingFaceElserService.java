@@ -151,8 +151,8 @@ public class HuggingFaceElserService extends HuggingFaceBaseService {
     }
 
     @Override
-    public Boolean hideFromConfigurationApi() {
-        return Boolean.TRUE;
+    public boolean hideFromConfigurationApi() {
+        return true;
     }
 
     @Override

@@ -448,6 +448,9 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                     .map(r -> r.input)
                     .collect(Collectors.toList());
 
+                // TODO remove this, used for easy debugging comparisons
+                Map<String, Object> inferenceChunkingSettings = inferenceFieldMetadata.getChunkingSettings();
+
                 // The model can be null if we are only processing update requests that clear inference results. This is ok because we will
                 // merge in the field's existing model settings on the data node.
                 var result = new SemanticTextField(

@@ -62,6 +62,11 @@ public final class InferenceFieldMetadata implements SimpleDiffable<InferenceFie
         this.searchInferenceId = Objects.requireNonNull(searchInferenceId);
         this.sourceFields = Objects.requireNonNull(sourceFields);
         this.chunkingSettings = chunkingSettings;
+
+        // TODO remove this, trying to get stack traces where this called
+        if (chunkingSettings != null && chunkingSettings.size() != 3) {
+            throw new IllegalArgumentException("Chunking settings must contain exactly 3 settings");
+        }
     }
 
     public InferenceFieldMetadata(StreamInput input) throws IOException {
@@ -182,7 +187,6 @@ public final class InferenceFieldMetadata implements SimpleDiffable<InferenceFie
                 }
             } else if (CHUNKING_SETTINGS_FIELD.equals(currentFieldName)) {
                 chunkingSettings = parser.map();
-                System.out.println("foo");
 
             } else {
                 parser.skipChildren();

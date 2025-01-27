@@ -9,11 +9,10 @@
 
 package org.elasticsearch.index.engine;
 
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.engine.ThreadPoolMergeScheduler.MergeTask;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.Collections;
-import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.PriorityBlockingQueue;
@@ -37,7 +36,7 @@ public class ThreadPoolMergeQueue {
     private final PriorityBlockingQueue<MergeTask> queuedMergeTasks = new PriorityBlockingQueue<>();
     // the set of all merge tasks currently being executed by merge threads from the pool,
     // in order to be able to update the IO throttle rate of merge tasks also after they have started (while executing)
-    private final Set<MergeTask> currentlyRunningMergeTasks = Collections.synchronizedSet(new HashSet<>());
+    private final Set<MergeTask> currentlyRunningMergeTasks = ConcurrentCollections.newConcurrentSet();
     /**
      * Current IO write throttle rate, for all merge, across all merge schedulers (shards) on the node
      */
@@ -99,22 +98,38 @@ public class ThreadPoolMergeQueue {
     }
 
     private void maybeUpdateTargetMBPerSec() {
-        double currentTargetMBPerSec = targetMBPerSec.get();
+        do {
+            double currentTargetMBPerSec = targetMBPerSec.get();
+            double newTargetMBPerSec = newTargetMBPerSec(
+                currentTargetMBPerSec,
+                activeIOThrottledMergeTasksCount.get(),
+                maxConcurrentMerges
+            );
+            if (currentTargetMBPerSec == newTargetMBPerSec) {
+                return;
+            }
+            if (targetMBPerSec.compareAndSet(currentTargetMBPerSec, newTargetMBPerSec)) {
+                // supports iterating on running merges as they come in and go out
+                currentlyRunningMergeTasks.forEach(mergeTask -> {
+                    if (mergeTask.supportsIOThrottling()) {
+                        mergeTask.setIORateLimit(newTargetMBPerSec);
+                    }
+                });
+                return;
+            }
+        } while (true);
+    }
+
+    private static double newTargetMBPerSec(double currentTargetMBPerSec, int activeTasksCount, int maxConcurrentMerges) {
         final double newTargetMBPerSec;
-        if (activeIOThrottledMergeTasksCount.get() < maxConcurrentMerges * 2 && currentTargetMBPerSec > MIN_MERGE_MB_PER_SEC) {
+        if (activeTasksCount < maxConcurrentMerges * 2 && currentTargetMBPerSec > MIN_MERGE_MB_PER_SEC) {
             newTargetMBPerSec = Math.max(MIN_MERGE_MB_PER_SEC, currentTargetMBPerSec / 1.1);
-        } else if (activeIOThrottledMergeTasksCount.get() > maxConcurrentMerges * 4 && currentTargetMBPerSec < MAX_MERGE_MB_PER_SEC) {
+        } else if (activeTasksCount > maxConcurrentMerges * 4 && currentTargetMBPerSec < MAX_MERGE_MB_PER_SEC) {
             newTargetMBPerSec = Math.min(MAX_MERGE_MB_PER_SEC, currentTargetMBPerSec * 1.1);
         } else {
             newTargetMBPerSec = currentTargetMBPerSec;
         }
-        if (newTargetMBPerSec != currentTargetMBPerSec && targetMBPerSec.compareAndSet(currentTargetMBPerSec, newTargetMBPerSec)) {
-            currentlyRunningMergeTasks.forEach(mergeTask -> {
-                if (mergeTask.supportsIOThrottling()) {
-                    mergeTask.setIORateLimit(newTargetMBPerSec);
-                }
-            });
-        }
+        return newTargetMBPerSec;
     }
 
     // exposed for stats

@@ -46,7 +46,9 @@ import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.security.cert.CertStoreParameters;
 import java.util.List;
+import java.util.Locale;
 import java.util.Properties;
+import java.util.TimeZone;
 
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.HttpsURLConnection;
@@ -289,6 +291,21 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
 
     @Override
     public void check$java_util_logging_LogManager$(Class<?> callerClass) {
+        policyManager.checkChangeJVMGlobalState(callerClass);
+    }
+
+    @Override
+    public void check$java_util_Locale$$setDefault(Class<?> callerClass, Locale.Category category, Locale locale) {
+        policyManager.checkChangeJVMGlobalState(callerClass);
+    }
+
+    @Override
+    public void check$java_util_Locale$$setDefault(Class<?> callerClass, Locale locale) {
+        policyManager.checkChangeJVMGlobalState(callerClass);
+    }
+
+    @Override
+    public void check$java_util_TimeZone$$setDefault(Class<?> callerClass, TimeZone zone) {
         policyManager.checkChangeJVMGlobalState(callerClass);
     }
 
@@ -731,5 +748,25 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     @Override
     public void check$sun_nio_ch_DatagramChannelImpl$receive(Class<?> callerClass, DatagramChannel that, ByteBuffer dst) {
         policyManager.checkInboundNetworkAccess(callerClass);
+    }
+
+    @Override
+    public void check$java_lang_Runtime$load(Class<?> callerClass, Runtime that, String filename) {
+        policyManager.checkLoadingNativeLibraries(callerClass);
+    }
+
+    @Override
+    public void check$java_lang_Runtime$loadLibrary(Class<?> callerClass, Runtime that, String libname) {
+        policyManager.checkLoadingNativeLibraries(callerClass);
+    }
+
+    @Override
+    public void check$java_lang_System$$load(Class<?> callerClass, String filename) {
+        policyManager.checkLoadingNativeLibraries(callerClass);
+    }
+
+    @Override
+    public void check$java_lang_System$$loadLibrary(Class<?> callerClass, String libname) {
+        policyManager.checkLoadingNativeLibraries(callerClass);
     }
 }

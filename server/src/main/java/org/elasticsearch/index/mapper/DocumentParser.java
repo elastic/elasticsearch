@@ -57,6 +57,7 @@ public final class DocumentParser {
     static final NodeFeature FIX_PARSING_SUBOBJECTS_FALSE_DYNAMIC_FALSE = new NodeFeature(
         "mapper.fix_parsing_subobjects_false_dynamic_false"
     );
+    private static final String NOOP_FIELD_MAPPER_NAME = "no-op";
 
     private final XContentParserConfiguration parserConfiguration;
     private final MappingParserContext mappingParserContext;
@@ -706,6 +707,8 @@ public final class DocumentParser {
 
             canRemoveSingleLeafElement = mapper instanceof FieldMapper
                 && mode == Mapper.SourceKeepMode.ARRAYS
+                && context.inArrayScope() == false
+                && mapper.leafName().equals(NOOP_FIELD_MAPPER_NAME) == false
                 && fieldWithFallbackSyntheticSource == false
                 && copyToFieldHasValuesInDocument == false;
 
@@ -732,10 +735,10 @@ public final class DocumentParser {
         int elements = 0;
         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
             if (token == XContentParser.Token.START_OBJECT) {
-                elements = Integer.MAX_VALUE;
+                elements = 2;
                 parseObject(context, lastFieldName);
             } else if (token == XContentParser.Token.START_ARRAY) {
-                elements = Integer.MAX_VALUE;
+                elements = 2;
                 parseArray(context, lastFieldName);
             } else if (token == XContentParser.Token.VALUE_NULL) {
                 elements++;
@@ -925,22 +928,26 @@ public final class DocumentParser {
     }
 
     private static FieldMapper noopFieldMapper(String path) {
-        return new FieldMapper("no-op", new MappedFieldType("no-op", false, false, false, TextSearchInfo.NONE, Collections.emptyMap()) {
-            @Override
-            public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-                throw new UnsupportedOperationException();
-            }
+        return new FieldMapper(
+            NOOP_FIELD_MAPPER_NAME,
+            new MappedFieldType(NOOP_FIELD_MAPPER_NAME, false, false, false, TextSearchInfo.NONE, Collections.emptyMap()) {
+                @Override
+                public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+                    throw new UnsupportedOperationException();
+                }
 
-            @Override
-            public String typeName() {
-                throw new UnsupportedOperationException();
-            }
+                @Override
+                public String typeName() {
+                    throw new UnsupportedOperationException();
+                }
 
-            @Override
-            public Query termQuery(Object value, SearchExecutionContext context) {
-                throw new UnsupportedOperationException();
-            }
-        }, FieldMapper.BuilderParams.empty()) {
+                @Override
+                public Query termQuery(Object value, SearchExecutionContext context) {
+                    throw new UnsupportedOperationException();
+                }
+            },
+            FieldMapper.BuilderParams.empty()
+        ) {
 
             @Override
             protected void parseCreateField(DocumentParserContext context) {
@@ -1016,7 +1023,7 @@ public final class DocumentParser {
             protected SyntheticSourceSupport syntheticSourceSupport() {
                 // Opt out of fallback synthetic source implementation
                 // since there is custom logic in #parseCreateField().
-                return new SyntheticSourceSupport.Native(SourceLoader.SyntheticFieldLoader.NOTHING);
+                return new SyntheticSourceSupport.Native(() -> SourceLoader.SyntheticFieldLoader.NOTHING);
             }
         };
     }

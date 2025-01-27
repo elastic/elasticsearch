@@ -26,16 +26,18 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.logsdb.LogsdbIndexModeSettingsProvider.LOGS_PATTERN;
+
 /**
  * A component that checks in the background whether there are data streams that match log-*-* pattern and if so records this as persistent
  * setting in cluster state. If logs-*-* data stream usage has been found then this component will no longer run in the background.
  */
 final class LogsPatternUsageService implements LocalNodeMasterListener {
 
-    private static final String LOGS_PATTERN = "logs-*-*";
     private static final Logger LOGGER = LogManager.getLogger(LogsPatternUsageService.class);
-    static final Setting<TimeValue> USAGE_CHECK_PERIOD = Setting.timeSetting(
-        "logsdb.usage_check.period",
+    private static final TimeValue USAGE_CHECK_MINIMUM = TimeValue.timeValueSeconds(30);
+    static final Setting<TimeValue> USAGE_CHECK_MAX_PERIOD = Setting.timeSetting(
+        "logsdb.usage_check.max_period",
         new TimeValue(24, TimeUnit.HOURS),
         Setting.Property.NodeScope
     );
@@ -46,11 +48,14 @@ final class LogsPatternUsageService implements LocalNodeMasterListener {
         Setting.Property.NodeScope
     );
 
+
     private final Client client;
     private final Settings nodeSettings;
     private final ThreadPool threadPool;
     private final Supplier<Metadata> metadataSupplier;
 
+    // Initializing to 30s, so first time will run with a delay of 60s:
+    volatile TimeValue nextWaitTime = USAGE_CHECK_MINIMUM;
     volatile boolean isMaster;
     volatile boolean hasPriorLogsUsage;
     volatile Scheduler.Cancellable cancellable;
@@ -66,6 +71,7 @@ final class LogsPatternUsageService implements LocalNodeMasterListener {
     public void onMaster() {
         if (cancellable == null || cancellable.isCancelled()) {
             isMaster = true;
+            nextWaitTime = USAGE_CHECK_MINIMUM;
             scheduleNext();
         }
     }
@@ -80,8 +86,9 @@ final class LogsPatternUsageService implements LocalNodeMasterListener {
     }
 
     void scheduleNext() {
-        TimeValue waitTime = USAGE_CHECK_PERIOD.get(nodeSettings);
-        scheduleNext(waitTime);
+        TimeValue maxWaitTime = USAGE_CHECK_MAX_PERIOD.get(nodeSettings);
+        nextWaitTime = TimeValue.timeValueMillis(Math.min(nextWaitTime.millis() * 2, maxWaitTime.millis()));
+        scheduleNext(nextWaitTime);
     }
 
     void scheduleNext(TimeValue waitTime) {

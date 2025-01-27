@@ -43,7 +43,7 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.logsdb.LogsPatternUsageService.LOGSDB_PRIOR_LOGS_USAGE;
-import static org.elasticsearch.xpack.logsdb.LogsPatternUsageService.USAGE_CHECK_PERIOD;
+import static org.elasticsearch.xpack.logsdb.LogsPatternUsageService.USAGE_CHECK_MAX_PERIOD;
 import static org.elasticsearch.xpack.logsdb.SyntheticSourceLicenseService.FALLBACK_SETTING;
 
 public class LogsDBPlugin extends Plugin implements ActionPlugin {
@@ -112,7 +112,7 @@ public class LogsDBPlugin extends Plugin implements ActionPlugin {
 
     @Override
     public List<Setting<?>> getSettings() {
-        return List.of(FALLBACK_SETTING, CLUSTER_LOGSDB_ENABLED, USAGE_CHECK_PERIOD, LOGSDB_PRIOR_LOGS_USAGE);
+        return List.of(FALLBACK_SETTING, CLUSTER_LOGSDB_ENABLED, USAGE_CHECK_MAX_PERIOD, LOGSDB_PRIOR_LOGS_USAGE);
     }
 
     @Override

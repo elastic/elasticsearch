@@ -37,7 +37,7 @@ public class LogsPatternUsageServiceIntegrationTests extends ESSingleNodeTestCas
 
     @Override
     protected Settings nodeSettings() {
-        return Settings.builder().put("logsdb.usage_check.period", "1s").build();
+        return Settings.builder().put("logsdb.usage_check.max_period", "1s").build();
     }
 
     public void testLogsPatternUsage() throws Exception {

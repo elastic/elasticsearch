@@ -36,7 +36,7 @@ import static org.mockito.Mockito.when;
 public class LogsPatternUsageServiceTests extends ESTestCase {
 
     public void testOnMaster() throws Exception {
-        var nodeSettings = Settings.builder().put("logsdb.usage_check.period", "1s").build();
+        var nodeSettings = Settings.builder().put("logsdb.usage_check.max_period", "1s").build();
         var client = mock(Client.class);
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")

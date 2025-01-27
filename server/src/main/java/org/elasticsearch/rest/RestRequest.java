@@ -554,7 +554,7 @@ public class RestRequest implements ToXContent.Params, Traceable {
     /**
      * If there is any content then call {@code applyParser} with the parser modified by {@code includeSourceOnError}, otherwise do nothing.
      */
-    public final void applyContentParser(Boolean includeSourceOnError, CheckedConsumer<XContentParser, IOException> applyParser)
+    public final void applyContentParser(boolean includeSourceOnError, CheckedConsumer<XContentParser, IOException> applyParser)
         throws IOException {
         if (hasContent()) {
             try (XContentParser parser = contentParser(parserConfig.withIncludeSourceOnError(includeSourceOnError))) {
@@ -567,7 +567,11 @@ public class RestRequest implements ToXContent.Params, Traceable {
      * If there is any content then call {@code applyParser} with the parser, otherwise do nothing.
      */
     public final void applyContentParser(CheckedConsumer<XContentParser, IOException> applyParser) throws IOException {
-        applyContentParser(null, applyParser);
+        if (hasContent()) {
+            try (XContentParser parser = contentParser(parserConfig)) {
+                applyParser.accept(parser);
+            }
+        }
     }
 
     /**

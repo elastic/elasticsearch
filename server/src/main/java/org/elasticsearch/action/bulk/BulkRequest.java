@@ -106,7 +106,7 @@ public class BulkRequest extends ActionRequest
         }
         if (in.getTransportVersion().onOrAfter(TransportVersions.INGEST_REQUEST_INCLUDE_SOURCE_ON_ERROR)) {
             includeSourceOnError = in.readBoolean();
-        }
+        } // else default value is true
     }
 
     public BulkRequest(@Nullable String globalIndex) {

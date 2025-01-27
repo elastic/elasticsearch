@@ -298,6 +298,28 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         }
     }
 
+    public void testInvalidTaskTypes() {
+        for (var taskType : TaskType.values()) {
+            if (taskType == TaskType.TEXT_EMBEDDING || taskType == TaskType.SPARSE_EMBEDDING) {
+                continue;
+            }
+            Exception e = expectThrows(
+                MapperParsingException.class,
+                () -> createMapperService(
+                    fieldMapping(
+                        b -> b.field("type", "semantic_text")
+                            .field(INFERENCE_ID_FIELD, "test1")
+                            .startObject("model_settings")
+                            .field("task_type", taskType)
+                            .endObject()
+                    ),
+                    useLegacyFormat
+                )
+            );
+            assertThat(e.getMessage(), containsString("Failed to parse mapping: Wrong [task_type]"));
+        }
+    }
+
     public void testMultiFieldsSupport() throws IOException {
         if (useLegacyFormat) {
             Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {

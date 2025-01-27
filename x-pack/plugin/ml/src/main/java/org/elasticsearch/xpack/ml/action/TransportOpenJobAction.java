@@ -100,7 +100,6 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
             threadPool,
             actionFilters,
             OpenJobAction.Request::new,
-            indexNameExpressionResolver,
             NodeAcknowledgedResponse::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );

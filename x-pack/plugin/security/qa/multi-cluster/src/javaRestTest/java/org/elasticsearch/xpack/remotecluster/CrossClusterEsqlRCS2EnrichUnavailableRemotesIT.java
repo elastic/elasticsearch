@@ -207,7 +207,10 @@ public class CrossClusterEsqlRCS2EnrichUnavailableRemotesIT extends AbstractRemo
             Map<String, ?> failuresMap = (Map<String, ?>) remoteClusterFailures.get(0);
 
             Map<String, ?> reason = (Map<String, ?>) failuresMap.get("reason");
-            assertThat(reason.get("type").toString(), oneOf("node_disconnected_exception", "connect_transport_exception"));
+            assertThat(
+                reason.get("type").toString(),
+                oneOf("node_disconnected_exception", "connect_transport_exception", "node_not_connected_exception")
+            );
         } finally {
             fulfillingCluster.start();
             closeFulfillingClusterClient();
@@ -225,7 +228,11 @@ public class CrossClusterEsqlRCS2EnrichUnavailableRemotesIT extends AbstractRemo
             ResponseException ex = expectThrows(ResponseException.class, () -> performRequestWithRemoteSearchUser(esqlRequest(query)));
             assertThat(
                 ex.getMessage(),
-                anyOf(containsString("connect_transport_exception"), containsString("node_disconnected_exception"))
+                anyOf(
+                    containsString("connect_transport_exception"),
+                    containsString("node_disconnected_exception"),
+                    containsString("node_not_connected_exception")
+                )
             );
         } finally {
             fulfillingCluster.start();

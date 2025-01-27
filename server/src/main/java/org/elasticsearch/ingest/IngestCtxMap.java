@@ -29,7 +29,7 @@ import java.util.Map;
  *
  * The map is expected to be used by processors, server code should the typed getter and setters where possible.
  */
-class IngestCtxMap extends CtxMap<IngestDocMetadata> {
+final class IngestCtxMap extends CtxMap<IngestDocMetadata> {
 
     /**
      * Create an IngestCtxMap with the given metadata, source and default validators

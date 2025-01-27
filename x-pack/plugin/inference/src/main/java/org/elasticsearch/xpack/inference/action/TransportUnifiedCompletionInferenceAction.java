@@ -52,7 +52,7 @@ public class TransportUnifiedCompletionInferenceAction extends BaseTransportInfe
 
     @Override
     protected boolean isInvalidTaskTypeForInferenceEndpoint(UnifiedCompletionAction.Request request, UnparsedModel unparsedModel) {
-        return request.getTaskType().isAnyOrSame(TaskType.COMPLETION) == false || unparsedModel.taskType() != TaskType.COMPLETION;
+        return request.getTaskType().isAnyOrSame(TaskType.CHAT_COMPLETION) == false || unparsedModel.taskType() != TaskType.CHAT_COMPLETION;
     }
 
     @Override
@@ -64,7 +64,7 @@ public class TransportUnifiedCompletionInferenceAction extends BaseTransportInfe
             "Incompatible task_type for unified API, the requested type [{}] must be one of [{}]",
             RestStatus.BAD_REQUEST,
             request.getTaskType(),
-            TaskType.COMPLETION.toString()
+            TaskType.CHAT_COMPLETION.toString()
         );
     }
 

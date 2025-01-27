@@ -39,14 +39,7 @@ public class GraphUsageTransportAction extends XPackUsageFeatureTransportAction 
         Settings settings,
         XPackLicenseState licenseState
     ) {
-        super(
-            XPackUsageFeatureAction.GRAPH.name(),
-            transportService,
-            clusterService,
-            threadPool,
-            actionFilters,
-            indexNameExpressionResolver
-        );
+        super(XPackUsageFeatureAction.GRAPH.name(), transportService, clusterService, threadPool, actionFilters);
         this.settings = settings;
         this.licenseState = licenseState;
     }

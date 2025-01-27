@@ -166,7 +166,8 @@ public class AmazonBedrockServiceTests extends ESTestCase {
                              "required": true,
                              "sensitive": true,
                              "updatable": true,
-                             "type": "str"
+                             "type": "str",
+                             "supported_task_types": ["text_embedding", "completion"]
                          },
                          "provider": {
                              "description": "The model provider for your deployment.",
@@ -174,7 +175,8 @@ public class AmazonBedrockServiceTests extends ESTestCase {
                              "required": true,
                              "sensitive": false,
                              "updatable": false,
-                             "type": "str"
+                             "type": "str",
+                             "supported_task_types": ["text_embedding", "completion"]
                          },
                          "access_key": {
                              "description": "A valid AWS access key that has permissions to use Amazon Bedrock.",
@@ -182,7 +184,8 @@ public class AmazonBedrockServiceTests extends ESTestCase {
                              "required": true,
                              "sensitive": true,
                              "updatable": true,
-                             "type": "str"
+                             "type": "str",
+                             "supported_task_types": ["text_embedding", "completion"]
                          },
                          "model": {
                              "description": "The base model ID or an ARN to a custom model based on a foundational model.",
@@ -190,7 +193,8 @@ public class AmazonBedrockServiceTests extends ESTestCase {
                              "required": true,
                              "sensitive": false,
                              "updatable": false,
-                             "type": "str"
+                             "type": "str",
+                             "supported_task_types": ["text_embedding", "completion"]
                          },
                          "rate_limit.requests_per_minute": {
                              "description": "By default, the amazonbedrock service sets the number of requests allowed per minute to 240.",
@@ -198,7 +202,8 @@ public class AmazonBedrockServiceTests extends ESTestCase {
                              "required": false,
                              "sensitive": false,
                              "updatable": false,
-                             "type": "int"
+                             "type": "int",
+                             "supported_task_types": ["text_embedding", "completion"]
                          },
                          "region": {
                              "description": "The region that your model or ARN is deployed in.",
@@ -206,7 +211,8 @@ public class AmazonBedrockServiceTests extends ESTestCase {
                              "required": true,
                              "sensitive": false,
                              "updatable": false,
-                             "type": "str"
+                             "type": "str",
+                             "supported_task_types": ["text_embedding", "completion"]
                          }
                      }
                  }

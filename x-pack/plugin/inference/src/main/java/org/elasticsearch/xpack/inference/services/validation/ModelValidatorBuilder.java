@@ -23,6 +23,9 @@ public class ModelValidatorBuilder {
             case COMPLETION -> {
                 return new ChatCompletionModelValidator(new SimpleServiceIntegrationValidator());
             }
+            case CHAT_COMPLETION -> {
+                return new ChatCompletionModelValidator(new SimpleChatCompletionServiceIntegrationValidator());
+            }
             case SPARSE_EMBEDDING, RERANK, ANY -> {
                 return new SimpleModelValidator(new SimpleServiceIntegrationValidator());
             }

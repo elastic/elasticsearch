@@ -12,12 +12,12 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
-import org.elasticsearch.compute.data.BasicBlockTests;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.test.MockBlockFactory;
+import org.elasticsearch.compute.test.RandomBlock;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.concurrent.CountDownLatch;
@@ -73,7 +73,7 @@ public class ExchangeBufferTests extends ESTestCase {
     }
 
     private static Page randomPage(BlockFactory blockFactory) {
-        Block block = BasicBlockTests.randomBlock(
+        Block block = RandomBlock.randomBlock(
             blockFactory,
             randomFrom(ElementType.LONG, ElementType.BYTES_REF, ElementType.BOOLEAN),
             randomIntBetween(1, 100),

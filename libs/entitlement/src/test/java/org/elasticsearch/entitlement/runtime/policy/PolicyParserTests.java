@@ -15,12 +15,22 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class PolicyParserTests extends ESTestCase {
 
     private static class TestWrongEntitlementName implements Entitlement {}
+
+    public static class ManyConstructorsEntitlement implements Entitlement {
+        @ExternalEntitlement
+        public ManyConstructorsEntitlement(String s) {}
+
+        @ExternalEntitlement
+        public ManyConstructorsEntitlement(int i) {}
+    }
 
     public void testGetEntitlementTypeName() {
         assertEquals("create_class_loader", PolicyParser.getEntitlementTypeName(CreateClassLoaderEntitlement.class));
@@ -55,15 +65,46 @@ public class PolicyParserTests extends ESTestCase {
     public void testParseNetwork() throws IOException {
         Policy parsedPolicy = new PolicyParser(new ByteArrayInputStream("""
             entitlement-module-name:
-              - network:
-                  actions:
-                    - listen
-                    - accept
-                    - connect
+              - inbound_network
             """.getBytes(StandardCharsets.UTF_8)), "test-policy.yaml", false).parsePolicy();
         Policy expected = new Policy(
             "test-policy.yaml",
-            List.of(new Scope("entitlement-module-name", List.of(new NetworkEntitlement(List.of("listen", "accept", "connect")))))
+            List.of(new Scope("entitlement-module-name", List.of(new InboundNetworkEntitlement())))
+        );
+        assertEquals(expected, parsedPolicy);
+
+        parsedPolicy = new PolicyParser(new ByteArrayInputStream("""
+            entitlement-module-name:
+              - outbound_network
+            """.getBytes(StandardCharsets.UTF_8)), "test-policy.yaml", false).parsePolicy();
+        expected = new Policy("test-policy.yaml", List.of(new Scope("entitlement-module-name", List.of(new OutboundNetworkEntitlement()))));
+        assertEquals(expected, parsedPolicy);
+
+        parsedPolicy = new PolicyParser(new ByteArrayInputStream("""
+            entitlement-module-name:
+              - outbound_network
+              - inbound_network
+            """.getBytes(StandardCharsets.UTF_8)), "test-policy.yaml", false).parsePolicy();
+        expected = new Policy(
+            "test-policy.yaml",
+            List.of(new Scope("entitlement-module-name", List.of(new OutboundNetworkEntitlement(), new InboundNetworkEntitlement())))
+        );
+        assertEquals(expected, parsedPolicy);
+    }
+
+    public void testParseWriteSystemProperties() throws IOException {
+        Policy parsedPolicy = new PolicyParser(new ByteArrayInputStream("""
+            entitlement-module-name:
+              - write_system_properties:
+                  properties:
+                    - es.property1
+                    - es.property2
+            """.getBytes(StandardCharsets.UTF_8)), "test-policy.yaml", false).parsePolicy();
+        Policy expected = new Policy(
+            "test-policy.yaml",
+            List.of(
+                new Scope("entitlement-module-name", List.of(new WriteSystemPropertiesEntitlement(Set.of("es.property1", "es.property2"))))
+            )
         );
         assertEquals(expected, parsedPolicy);
     }
@@ -90,5 +131,39 @@ public class PolicyParserTests extends ESTestCase {
             List.of(new Scope("entitlement-module-name", List.of(new SetHttpsConnectionPropertiesEntitlement())))
         );
         assertEquals(expected, parsedPolicy);
+    }
+
+    public void testParseLoadNativeLibraries() throws IOException {
+        Policy parsedPolicy = new PolicyParser(new ByteArrayInputStream("""
+            entitlement-module-name:
+              - load_native_libraries
+            """.getBytes(StandardCharsets.UTF_8)), "test-policy.yaml", true).parsePolicy();
+        Policy expected = new Policy(
+            "test-policy.yaml",
+            List.of(new Scope("entitlement-module-name", List.of(new LoadNativeLibrariesEntitlement())))
+        );
+        assertEquals(expected, parsedPolicy);
+    }
+
+    public void testMultipleConstructorsAnnotated() throws IOException {
+        var parser = new PolicyParser(
+            new ByteArrayInputStream("""
+                entitlement-module-name:
+                  - many_constructors
+                """.getBytes(StandardCharsets.UTF_8)),
+            "test-policy.yaml",
+            true,
+            Map.of("many_constructors", ManyConstructorsEntitlement.class)
+        );
+
+        var e = expectThrows(IllegalStateException.class, parser::parsePolicy);
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                "entitlement class "
+                    + "[org.elasticsearch.entitlement.runtime.policy.PolicyParserTests$ManyConstructorsEntitlement]"
+                    + " has more than one constructor annotated with ExternalEntitlement"
+            )
+        );
     }
 }

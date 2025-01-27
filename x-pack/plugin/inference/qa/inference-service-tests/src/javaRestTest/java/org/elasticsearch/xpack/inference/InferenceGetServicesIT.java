@@ -219,7 +219,7 @@ public class InferenceGetServicesIT extends ESRestTestCase {
 
         if ((ElasticInferenceServiceFeature.DEPRECATED_ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG.isEnabled()
             || ElasticInferenceServiceFeature.ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG.isEnabled())) {
-            providerList.addFirst("elastic");
+            providerList.add(0, "elastic");
         }
 
         assertArrayEquals(providers, providerList.toArray());

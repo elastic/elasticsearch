@@ -8,20 +8,14 @@
 package org.elasticsearch.xpack.rank.linear;
 
 import org.apache.lucene.search.ScoreDoc;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 
 public class MinMaxScoreNormalizer extends ScoreNormalizer {
+
+    public static final MinMaxScoreNormalizer INSTANCE = new MinMaxScoreNormalizer();
 
     public static final String NAME = "minmax";
 
     private static final float EPSILON = 1e-6f;
-
-    public static final ConstructingObjectParser<MinMaxScoreNormalizer, Void> PARSER = new ConstructingObjectParser<>(
-        NAME,
-        args -> new MinMaxScoreNormalizer()
-    );
 
     public MinMaxScoreNormalizer() {}
 
@@ -67,14 +61,5 @@ public class MinMaxScoreNormalizer extends ScoreNormalizer {
             scoreDocs[i] = new ScoreDoc(docs[i].doc, score, docs[i].shardIndex);
         }
         return scoreDocs;
-    }
-
-    public static MinMaxScoreNormalizer fromXContent(XContentParser parser) {
-        return PARSER.apply(parser, null);
-    }
-
-    @Override
-    public void doToXContent(XContentBuilder builder, Params params) {
-        // no-op
     }
 }

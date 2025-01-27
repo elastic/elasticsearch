@@ -8,24 +8,12 @@
 package org.elasticsearch.xpack.rank.linear;
 
 import org.apache.lucene.search.ScoreDoc;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
-
-import java.io.IOException;
 
 public class IdentityScoreNormalizer extends ScoreNormalizer {
 
     public static final IdentityScoreNormalizer INSTANCE = new IdentityScoreNormalizer();
 
     public static final String NAME = "none";
-
-    public static final ConstructingObjectParser<IdentityScoreNormalizer, Void> PARSER = new ConstructingObjectParser<>(NAME, args -> {
-        if (args.length != 0) {
-            throw new IllegalArgumentException("[IdentityScoreNormalizer] does not accept any arguments");
-        }
-        return new IdentityScoreNormalizer();
-    });
 
     @Override
     public String getName() {
@@ -35,14 +23,5 @@ public class IdentityScoreNormalizer extends ScoreNormalizer {
     @Override
     public ScoreDoc[] normalizeScores(ScoreDoc[] docs) {
         return docs;
-    }
-
-    public static IdentityScoreNormalizer fromXContent(XContentParser parser) {
-        return PARSER.apply(parser, null);
-    }
-
-    @Override
-    public void doToXContent(XContentBuilder builder, Params params) throws IOException {
-        // no-op
     }
 }

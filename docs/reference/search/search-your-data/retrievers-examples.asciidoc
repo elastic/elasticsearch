@@ -415,12 +415,12 @@ Which would return the following results:
             },
             {
                 "_index": "retrievers_example",
-                "_id": "1",
+                "_id": "4",
                 "_score": -3
             },
             {
                 "_index": "retrievers_example",
-                "_id": "4",
+                "_id": "1",
                 "_score": -4
             }
         ]

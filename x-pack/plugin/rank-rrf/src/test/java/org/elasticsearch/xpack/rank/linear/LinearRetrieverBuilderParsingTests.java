@@ -93,9 +93,9 @@ public class LinearRetrieverBuilderParsingTests extends AbstractXContentTestCase
 
     private static ScoreNormalizer randomScoreNormalizer() {
         if (randomBoolean()) {
-            return new MinMaxScoreNormalizer();
+            return MinMaxScoreNormalizer.INSTANCE;
         } else {
-            return new IdentityScoreNormalizer();
+            return IdentityScoreNormalizer.INSTANCE;
         }
     }
 }

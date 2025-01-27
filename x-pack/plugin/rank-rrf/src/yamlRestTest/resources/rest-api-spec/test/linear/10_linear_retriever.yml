@@ -126,9 +126,9 @@ setup:
                           ]
                         }
                       }
-                    },
-                    weight: 2
-                  }
+                    }
+                  },
+                  weight: 2
                 },
                 {
                   # this one will return docs 3 and doc 4 with scores 15 and 12 respectively
@@ -164,9 +164,9 @@ setup:
                           ]
                         }
                       }
-                    },
-                    weight: 3
-                  }
+                    }
+                  },
+                  weight: 3
                 }
               ]
 
@@ -291,9 +291,7 @@ setup:
                     }
                   },
                   weight: 1.0,
-                  normalizer: {
-                    aardvark: { }
-                  }
+                  normalizer: "aardvark"
                 },
                 {
                   retriever: {
@@ -907,14 +905,14 @@ setup:
                                 {
                                   term: {
                                     keyword: {
-                                      value: "one"  # this will give doc 1 a normalized score of 10
+                                      value: "one"  # this will give doc 1 a normalized score of 10 because min == max
                                     }
                                   }
                                 },
                                 {
                                   term: {
                                     keyword: {
-                                      value: "two" # this will give doc 2 a normalized score of 10
+                                      value: "two" # this will give doc 2 a normalized score of 10 because min == max
                                     }
                                   }
                                 } ]
@@ -934,15 +932,17 @@ setup:
                   normalizer: "minmax"
                 },
                 {
-                  # because we're sorting on timestamp and use a rank window size of 2, we will only get to see
+                  # because we're sorting on timestamp and use a rank window size of 3, we will only get to see
                   # docs 3 and 2.
                   # their `scores` (which are the timestamps) are:
                   # doc 3: 1672531200000 (2023-01-01T00:00:00)
                   # doc 2: 1640995200000 (2022-01-01T00:00:00)
+                  # doc 1: 1609459200000 (2021-01-01T00:00:00)
                   # and their normalized scores based on the provided conf
                   # will be:
-                  # normalized(doc3) = 0.59989
-                  # normalized(doc2) = 0.40010
+                  # normalized(doc3) = 1.
+                  # normalized(doc2) = 0.5
+                  # normalized(doc1) = 0
                   retriever: {
                     standard: {
                       query: {
@@ -1010,12 +1010,12 @@ setup:
                   normalizer: "minmax"
                 }
               ]
-              rank_window_size: 2
+              rank_window_size: 3
           size: 2
 
   - match: { hits.total.value: 3 }
   - length: {hits.hits: 2}
   - match: { hits.hits.0._id: "2" }
-  - close_to: { hits.hits.0._score: { value: 10.4001, error: 0.001 } }
+  - close_to: { hits.hits.0._score: { value: 10.5, error: 0.001 } }
   - match: { hits.hits.1._id: "1" }
   - match: { hits.hits.1._score: 10 }

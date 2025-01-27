@@ -2984,15 +2984,16 @@ public class StatementParserTests extends AbstractStatementParserTests {
         }
         {
             // remote cluster on the right
+            var fromPatterns = randomIndexPatterns(without(CROSS_CLUSTER));
             var joinPattern = randomIndexPattern(CROSS_CLUSTER, without(WILDCARD_PATTERN));
             expectError(
-                "FROM " + randomIndexPatterns() + " | LOOKUP JOIN " + joinPattern + " ON " + randomIdentifier(),
+                "FROM " + fromPatterns + " | LOOKUP JOIN " + joinPattern + " ON " + randomIdentifier(),
                 "invalid index pattern [" + unquoteIndexPattern(joinPattern) + "], remote clusters are not supported in LOOKUP JOIN"
             );
         }
         {
             // remote cluster on the left
-            var fromPatterns = randomIndexPatterns(CROSS_CLUSTER, without(WILDCARD_PATTERN));
+            var fromPatterns = randomIndexPatterns(CROSS_CLUSTER);
             var joinPattern = randomIndexPattern(without(CROSS_CLUSTER), without(WILDCARD_PATTERN));
             expectError(
                 "FROM " + fromPatterns + " | LOOKUP JOIN " + joinPattern + " ON " + randomIdentifier(),

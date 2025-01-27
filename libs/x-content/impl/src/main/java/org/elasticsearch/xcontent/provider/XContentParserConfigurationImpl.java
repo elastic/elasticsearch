@@ -32,7 +32,7 @@ public class XContentParserConfigurationImpl implements XContentParserConfigurat
         null,
         null,
         false,
-        true
+        null
     );
 
     final NamedXContentRegistry registry;
@@ -41,7 +41,7 @@ public class XContentParserConfigurationImpl implements XContentParserConfigurat
     final FilterPath[] includes;
     final FilterPath[] excludes;
     final boolean filtersMatchFieldNamesWithDots;
-    final boolean includeSourceOnError;
+    final Boolean includeSourceOnError;
 
     private XContentParserConfigurationImpl(
         NamedXContentRegistry registry,
@@ -50,7 +50,7 @@ public class XContentParserConfigurationImpl implements XContentParserConfigurat
         FilterPath[] includes,
         FilterPath[] excludes,
         boolean filtersMatchFieldNamesWithDots,
-        boolean includeSourceOnError
+        Boolean includeSourceOnError
     ) {
         this.registry = registry;
         this.deprecationHandler = deprecationHandler;
@@ -62,12 +62,12 @@ public class XContentParserConfigurationImpl implements XContentParserConfigurat
     }
 
     @Override
-    public boolean includeSourceOnError() {
+    public Boolean includeSourceOnError() {
         return includeSourceOnError;
     }
 
     @Override
-    public XContentParserConfiguration withIncludeSourceOnError(boolean includeSourceOnError) {
+    public XContentParserConfiguration withIncludeSourceOnError(Boolean includeSourceOnError) {
         if (includeSourceOnError == this.includeSourceOnError) {
             return this;
         }

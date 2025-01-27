@@ -336,14 +336,15 @@ public class RestUtils {
     }
 
     /**
-     * Extract the {@code ?include_source_on_error} parameter from the request, returning {@code true} in case the parameter is missing.
+     * Extract the {@code ?include_source_on_error} parameter from the request, or {@code null} if missing.
+     * By default, the source is included, this parameter allows to disable this.
      *
      * @param restRequest The request from which to extract the {@code ?include_source_on_error} parameter
-     * @return the value of the {@code ?include_source_on_error} parameter from the request, with a default of {@code true} if the request
+     * @return the value of the {@code ?include_source_on_error} parameter from the request.
      */
-    public static boolean getIncludeSourceOnError(RestRequest restRequest) {
+    public static Boolean getIncludeSourceOnError(RestRequest restRequest) {
         assert restRequest != null;
-        return restRequest.paramAsBoolean(INCLUDE_SOURCE_ON_ERROR_PARAMETER, true);
+        return restRequest.paramAsBoolean(INCLUDE_SOURCE_ON_ERROR_PARAMETER, null);
     }
 
     // Remove the BWC support for the deprecated ?local parameter.

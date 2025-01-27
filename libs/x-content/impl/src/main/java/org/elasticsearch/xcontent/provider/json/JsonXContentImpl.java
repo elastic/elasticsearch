@@ -88,7 +88,7 @@ public class JsonXContentImpl implements XContent {
     }
 
     private XContentParser createParser(XContentParserConfiguration config, JsonParser parser) {
-        if (config.includeSourceOnError() == false) {
+        if (config.includeSourceOnError() == Boolean.FALSE) {
             parser.disable(JsonParser.Feature.INCLUDE_SOURCE_IN_LOCATION); // enabled by default, disable if requested
         }
         return new JsonXContentParser(config, parser);

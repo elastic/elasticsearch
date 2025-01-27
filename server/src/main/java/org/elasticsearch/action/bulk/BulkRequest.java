@@ -84,7 +84,7 @@ public class BulkRequest extends ActionRequest
     private String globalIndex;
     private Boolean globalRequireAlias;
     private Boolean globalRequireDatsStream;
-    private boolean includeSourceOnError = true;
+    private Boolean includeSourceOnError;
 
     private long sizeInBytes = 0;
 
@@ -105,7 +105,7 @@ public class BulkRequest extends ActionRequest
             incrementalState = BulkRequest.IncrementalState.EMPTY;
         }
         if (in.getTransportVersion().onOrAfter(TransportVersions.INGEST_REQUEST_INCLUDE_SOURCE_ON_ERROR)) {
-            includeSourceOnError = in.readBoolean();
+            includeSourceOnError = in.readOptionalBoolean();
         }
     }
 
@@ -345,7 +345,7 @@ public class BulkRequest extends ActionRequest
         this.incrementalState = incrementalState;
     }
 
-    public final BulkRequest includeSourceOnError(boolean includeSourceOnError) {
+    public final BulkRequest includeSourceOnError(Boolean includeSourceOnError) {
         this.includeSourceOnError = includeSourceOnError;
         return this;
     }
@@ -408,7 +408,7 @@ public class BulkRequest extends ActionRequest
         return globalRequireDatsStream;
     }
 
-    public boolean includeSourceOnError() {
+    public Boolean includeSourceOnError() {
         return includeSourceOnError;
     }
 
@@ -471,7 +471,7 @@ public class BulkRequest extends ActionRequest
             incrementalState.writeTo(out);
         }
         if (out.getTransportVersion().onOrAfter(TransportVersions.INGEST_REQUEST_INCLUDE_SOURCE_ON_ERROR)) {
-            out.writeBoolean(includeSourceOnError);
+            out.writeOptionalBoolean(includeSourceOnError);
         }
     }
 

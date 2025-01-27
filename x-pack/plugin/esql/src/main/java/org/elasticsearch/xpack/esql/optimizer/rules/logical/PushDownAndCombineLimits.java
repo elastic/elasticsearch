@@ -33,7 +33,7 @@ public final class PushDownAndCombineLimits extends OptimizerRules.Parameterized
             var limitSource = limit.limit();
             var parentLimitValue = (int) limitSource.fold(ctx.foldCtx());
             var childLimitValue = (int) childLimit.limit().fold(ctx.foldCtx());
-            // We want to preserve the allowDuplicatePastExpandingNode of the smaller limit, so we'll use replaceChild.
+            // We want to preserve the duplicated() value of the smaller limit, so we'll use replaceChild.
             return parentLimitValue < childLimitValue ? limit.replaceChild(childLimit.child()) : childLimit;
         } else if (limit.child() instanceof UnaryPlan unary) {
             if (unary instanceof Eval || unary instanceof Project || unary instanceof RegexExtract || unary instanceof Enrich) {
@@ -41,7 +41,7 @@ public final class PushDownAndCombineLimits extends OptimizerRules.Parameterized
             } else if (unary instanceof MvExpand mvx && limit.duplicated() == false) {
                 // MV_EXPAND can increase the number of rows, so we cannot just push the limit down
                 // (we also have to preserve the LIMIT afterwards)
-                // To avoid repeating this infinitely, we have to set allowDuplicatePastExpandingNode = false.
+                // To avoid repeating this infinitely, we have to set duplicated = true.
                 MvExpand newChild = mvx.replaceChild(limit.replaceChild(mvx.child()));
                 return limit.replaceChild(newChild).withDuplicated(true);
             }
@@ -62,7 +62,7 @@ public final class PushDownAndCombineLimits extends OptimizerRules.Parameterized
             if (join.config().type() == JoinTypes.LEFT) {
                 // Left joins increase the number of rows if any join key has multiple matches from the right hand side.
                 // Therefore, we cannot simply push down the limit - but we can add another limit before the join.
-                // To avoid repeating this infinitely, we have to set allowDuplicatePastExpandingNode = false.
+                // To avoid repeating this infinitely, we have to set duplicated = true.
                 Join newChild = join.replaceChildren(limit.replaceChild(join.left()), join.right());
                 return limit.replaceChild(newChild).withDuplicated(true);
             }

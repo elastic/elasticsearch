@@ -46,6 +46,6 @@ public class LimitSerializationTests extends AbstractLogicalPlanSerializationTes
     protected Limit copyInstance(Limit instance, TransportVersion version) throws IOException {
         Limit deserializedCopy = super.copyInstance(instance, version);
         // Limit#duplicated() does not get serialized - so we need to copy this manually.
-        return new Limit(deserializedCopy.source(), deserializedCopy.limit(), deserializedCopy.child(), instance.duplicated());
+        return deserializedCopy.withDuplicated(instance.duplicated());
     }
 }

@@ -30,7 +30,7 @@ public class Limit extends UnaryPlan {
     private final transient boolean duplicated;
 
     /**
-     * Default way to create a new instance. Do not use this to copy an existing instance, as this uses sets {@link Limit#duplicated} to
+     * Default way to create a new instance. Do not use this to copy an existing instance, as this sets {@link Limit#duplicated} to
      * {@code false}.
      */
     public Limit(Source source, Expression limit, LogicalPlan child) {

@@ -517,8 +517,8 @@ public class TimeseriesLifecycleType implements LifecycleType {
             }
         }
 
-        final var firstSearchableSnapshotPhase = searchableSnapshotActions.getFirst().v1();
-        final var firstSearchableSnapshotAction = searchableSnapshotActions.getFirst().v2();
+        final var firstSearchableSnapshotPhase = searchableSnapshotActions.get(0).v1();
+        final var firstSearchableSnapshotAction = searchableSnapshotActions.get(0).v2();
         // second validation rule: if the first searchable_snapshot action has a 'replicate_for', then the replication time
         // must be less than the next explicit min_age (if there is a min_age)
         final TimeValue firstReplicateFor = firstSearchableSnapshotAction.getReplicateFor();

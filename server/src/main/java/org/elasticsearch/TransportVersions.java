@@ -165,6 +165,7 @@ public class TransportVersions {
     public static final TransportVersion ADD_INCLUDE_FAILURE_INDICES_OPTION = def(8_831_00_0);
     public static final TransportVersion ESQL_RESPONSE_PARTIAL = def(8_832_00_0);
     public static final TransportVersion RANK_DOC_OPTIONAL_METADATA_FOR_EXPLAIN = def(8_833_00_0);
+    public static final TransportVersion ELASTICSEARCH_9_0 = def(9_000_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,
@@ -223,15 +224,13 @@ public class TransportVersions {
      * Reference to the earliest compatible transport version to this version of the codebase.
      * This should be the transport version used by the highest minor version of the previous major.
      */
-    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA)
-    // This needs to be bumped to the 8.last
-    public static final TransportVersion MINIMUM_COMPATIBLE = V_7_17_0;
+    public static final TransportVersion MINIMUM_COMPATIBLE = RANK_DOC_OPTIONAL_METADATA_FOR_EXPLAIN;
 
     /**
      * Reference to the minimum transport version that can be used with CCS.
      * This should be the transport version used by the previous minor release.
      */
-    public static final TransportVersion MINIMUM_CCS_VERSION = V_8_15_0;
+    public static final TransportVersion MINIMUM_CCS_VERSION = RANK_DOC_OPTIONAL_METADATA_FOR_EXPLAIN;
 
     /**
      * Sorted list of all versions defined in this class

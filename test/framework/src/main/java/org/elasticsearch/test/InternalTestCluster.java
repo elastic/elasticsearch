@@ -1263,7 +1263,6 @@ public final class InternalTestCluster extends TestCluster {
                 }
             }, 30, TimeUnit.SECONDS);
 
-            final Object[] previousStates = new Object[1];
             assertBusy(() -> {
                 final List<ClusterState> states = nodes.values()
                     .stream()

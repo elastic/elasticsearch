@@ -1,5 +1,0 @@
-pr: 120538
-summary: "Revert unwanted ES|QL lexer changes from PR #120354"
-area: ES|QL
-type: bug
-issues: []

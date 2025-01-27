@@ -53,6 +53,7 @@ public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
         return List.copyOf(plugins);
     }
 
+    // NOCOMMIT - make sure this test is still verifying what it was intended to verify
     public void testCancellationDuringTimeSeriesAggregation() throws Exception {
         List<ScriptedBlockPlugin> plugins = initBlockFactory();
         int numberOfShards = between(2, 5);

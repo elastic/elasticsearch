@@ -94,6 +94,7 @@ public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
         ensureSearchWasCancelled(searchResponse);
     }
 
+    // NOCOMMIT - make sure this test is still verifying what it was intended to verify
     public void testCancellationDuringAggregation() throws Exception {
         List<ScriptedBlockPlugin> plugins = initBlockFactory();
         // This test is only meaningful with at least 2 shards to trigger reduce

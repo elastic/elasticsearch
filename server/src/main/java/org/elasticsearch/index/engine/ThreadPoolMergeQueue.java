@@ -103,26 +103,16 @@ public class ThreadPoolMergeQueue {
     }
 
     private void maybeUpdateTargetMBPerSec() {
-        do {
-            double currentTargetMBPerSec = targetMBPerSec.get();
-            double newTargetMBPerSec = newTargetMBPerSec(
-                currentTargetMBPerSec,
-                activeIOThrottledMergeTasksCount.get(),
-                maxConcurrentMerges
-            );
-            if (currentTargetMBPerSec == newTargetMBPerSec) {
-                return;
-            }
-            if (targetMBPerSec.compareAndSet(currentTargetMBPerSec, newTargetMBPerSec)) {
-                // supports iterating on running merges as they come in and go out
-                currentlyRunningMergeTasks.forEach(mergeTask -> {
-                    if (mergeTask.supportsIOThrottling()) {
-                        mergeTask.setIORateLimit(newTargetMBPerSec);
-                    }
-                });
-                return;
-            }
-        } while (true);
+        double currentTargetMBPerSec = targetMBPerSec.get();
+        double newTargetMBPerSec = newTargetMBPerSec(currentTargetMBPerSec, activeIOThrottledMergeTasksCount.get(), maxConcurrentMerges);
+        if (currentTargetMBPerSec != newTargetMBPerSec && targetMBPerSec.compareAndSet(currentTargetMBPerSec, newTargetMBPerSec)) {
+            // supports iterating on running merges as they come in and complete out
+            currentlyRunningMergeTasks.forEach(mergeTask -> {
+                if (mergeTask.supportsIOThrottling()) {
+                    mergeTask.setIORateLimit(newTargetMBPerSec);
+                }
+            });
+        }
     }
 
     private static double newTargetMBPerSec(double currentTargetMBPerSec, int activeTasksCount, int maxConcurrentMerges) {

@@ -10,6 +10,7 @@
 package org.elasticsearch.entitlement.runtime.policy;
 
 import org.elasticsearch.entitlement.runtime.policy.PolicyManager.ModuleEntitlements;
+import org.elasticsearch.entitlement.runtime.policy.agent.TestAgent;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.compiler.InMemoryJavaCompiler;
 import org.elasticsearch.test.jar.JarUtils;
@@ -38,10 +39,9 @@ import static org.hamcrest.Matchers.sameInstance;
 public class PolicyManagerTests extends ESTestCase {
 
     /**
-     * An agents module for use in tests. Normally, this is
-     * the unnamed-module as part of the system class loader.
+     * A test agent package name for use in tests.
      */
-    private static Module TEST_AGENTS_MODULE;
+    private static String TEST_AGENTS_PACKAGE_NAME = "org.elasticsearch.entitlement.runtime.policy.agent";
 
     /**
      * A module you can use for test cases that don't actually care about the
@@ -52,7 +52,6 @@ public class PolicyManagerTests extends ESTestCase {
     @BeforeClass
     public static void beforeClass() {
         try {
-            TEST_AGENTS_MODULE = makeClassInItsOwnModule().getModule();
             // Any old module will do for tests using NO_ENTITLEMENTS_MODULE
             NO_ENTITLEMENTS_MODULE = makeClassInItsOwnModule().getModule();
         } catch (Exception e) {
@@ -67,7 +66,7 @@ public class PolicyManagerTests extends ESTestCase {
             List.of(),
             Map.of("plugin1", createPluginPolicy("plugin.module")),
             c -> "plugin1",
-            TEST_AGENTS_MODULE,
+            TEST_AGENTS_PACKAGE_NAME,
             NO_ENTITLEMENTS_MODULE
         );
 
@@ -86,7 +85,7 @@ public class PolicyManagerTests extends ESTestCase {
             List.of(),
             Map.of(),
             c -> "plugin1",
-            TEST_AGENTS_MODULE,
+            TEST_AGENTS_PACKAGE_NAME,
             NO_ENTITLEMENTS_MODULE
         );
 
@@ -105,7 +104,7 @@ public class PolicyManagerTests extends ESTestCase {
             List.of(),
             Map.of(),
             c -> "plugin1",
-            TEST_AGENTS_MODULE,
+            TEST_AGENTS_PACKAGE_NAME,
             NO_ENTITLEMENTS_MODULE
         );
 
@@ -129,7 +128,7 @@ public class PolicyManagerTests extends ESTestCase {
             List.of(),
             Map.ofEntries(entry("plugin2", createPluginPolicy(ALL_UNNAMED))),
             c -> "plugin2",
-            TEST_AGENTS_MODULE,
+            TEST_AGENTS_PACKAGE_NAME,
             NO_ENTITLEMENTS_MODULE
         );
 
@@ -146,7 +145,7 @@ public class PolicyManagerTests extends ESTestCase {
             List.of(),
             Map.of(),
             c -> null,
-            TEST_AGENTS_MODULE,
+            TEST_AGENTS_PACKAGE_NAME,
             NO_ENTITLEMENTS_MODULE
         );
 
@@ -168,7 +167,7 @@ public class PolicyManagerTests extends ESTestCase {
             List.of(),
             Map.of(),
             c -> null,
-            TEST_AGENTS_MODULE,
+            TEST_AGENTS_PACKAGE_NAME,
             NO_ENTITLEMENTS_MODULE
         );
 
@@ -193,7 +192,7 @@ public class PolicyManagerTests extends ESTestCase {
             List.of(),
             Map.of("mock-plugin", createPluginPolicy("org.example.plugin")),
             c -> "mock-plugin",
-            TEST_AGENTS_MODULE,
+            TEST_AGENTS_PACKAGE_NAME,
             NO_ENTITLEMENTS_MODULE
         );
 
@@ -214,7 +213,7 @@ public class PolicyManagerTests extends ESTestCase {
             List.of(),
             Map.ofEntries(entry("plugin2", createPluginPolicy(ALL_UNNAMED))),
             c -> "plugin2",
-            TEST_AGENTS_MODULE,
+            TEST_AGENTS_PACKAGE_NAME,
             NO_ENTITLEMENTS_MODULE
         );
 
@@ -234,17 +233,17 @@ public class PolicyManagerTests extends ESTestCase {
 
     public void testRequestingClassFastPath() throws IOException, ClassNotFoundException {
         var callerClass = makeClassInItsOwnModule();
-        assertEquals(callerClass, policyManager(TEST_AGENTS_MODULE, NO_ENTITLEMENTS_MODULE).requestingClass(callerClass));
+        assertEquals(callerClass, policyManager(TEST_AGENTS_PACKAGE_NAME, NO_ENTITLEMENTS_MODULE).requestingClass(callerClass));
     }
 
     public void testRequestingModuleWithStackWalk() throws IOException, ClassNotFoundException {
-        var agentsClass = makeClassInItsOwnModule();
+        var agentsClass = new TestAgent();
         var entitlementsClass = makeClassInItsOwnModule();    // A class in the entitlements library itself
         var requestingClass = makeClassInItsOwnModule();      // This guy is always the right answer
         var instrumentedClass = makeClassInItsOwnModule();    // The class that called the check method
         var ignorableClass = makeClassInItsOwnModule();
 
-        var policyManager = policyManager(agentsClass.getModule(), entitlementsClass.getModule());
+        var policyManager = policyManager(TEST_AGENTS_PACKAGE_NAME, entitlementsClass.getModule());
 
         assertEquals(
             "Skip entitlement library and the instrumented method",
@@ -265,17 +264,17 @@ public class PolicyManagerTests extends ESTestCase {
     }
 
     public void testAgentsEntitlements() throws IOException, ClassNotFoundException {
-        var agentsClass = makeClassInItsOwnModule();
+        var agentsClass = new TestAgent();
         var notAgentsClass = makeClassInItsOwnModule();
         var policyManager = new PolicyManager(
             createEmptyTestServerPolicy(),
             List.of(new CreateClassLoaderEntitlement()),
             Map.of(),
             c -> "test",
-            agentsClass.getModule(),
+            agentsClass.getClass().getPackageName(),
             NO_ENTITLEMENTS_MODULE
         );
-        ModuleEntitlements agentsEntitlements = policyManager.getEntitlements(agentsClass);
+        ModuleEntitlements agentsEntitlements = policyManager.getEntitlements(agentsClass.getClass());
         assertThat(agentsEntitlements.hasEntitlement(CreateClassLoaderEntitlement.class), is(true));
         ModuleEntitlements notAgentsEntitlements = policyManager.getEntitlements(notAgentsClass);
         assertThat(notAgentsEntitlements.hasEntitlement(CreateClassLoaderEntitlement.class), is(false));
@@ -288,8 +287,8 @@ public class PolicyManagerTests extends ESTestCase {
         return layer.findLoader("org.example.plugin").loadClass("q.B");
     }
 
-    private static PolicyManager policyManager(Module agentsModule, Module entitlementsModule) {
-        return new PolicyManager(createEmptyTestServerPolicy(), List.of(), Map.of(), c -> "test", agentsModule, entitlementsModule);
+    private static PolicyManager policyManager(String agentsPackageName, Module entitlementsModule) {
+        return new PolicyManager(createEmptyTestServerPolicy(), List.of(), Map.of(), c -> "test", agentsPackageName, entitlementsModule);
     }
 
     private static Policy createEmptyTestServerPolicy() {

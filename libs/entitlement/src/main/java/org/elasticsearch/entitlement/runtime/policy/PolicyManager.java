@@ -85,9 +85,9 @@ public class PolicyManager {
     }
 
     /**
-     * The module containing agent classes.
+     * The package name containing agent classes.
      */
-    private final Module agentsModule;
+    private final String agentsPackageName;
 
     /**
      * Frames originating from this module are ignored in the permission logic.
@@ -99,7 +99,7 @@ public class PolicyManager {
         List<Entitlement> agentEntitlements,
         Map<String, Policy> pluginPolicies,
         Function<Class<?>, String> pluginResolver,
-        Module agentsModule,
+        String agentsPackageName,
         Module entitlementsModule
     ) {
         this.serverEntitlements = buildScopeEntitlementsMap(requireNonNull(serverPolicy));
@@ -108,7 +108,7 @@ public class PolicyManager {
             .stream()
             .collect(toUnmodifiableMap(Map.Entry::getKey, e -> buildScopeEntitlementsMap(e.getValue())));
         this.pluginResolver = pluginResolver;
-        this.agentsModule = agentsModule;
+        this.agentsPackageName = agentsPackageName;
         this.entitlementsModule = entitlementsModule;
     }
 
@@ -325,7 +325,8 @@ public class PolicyManager {
             }
         }
 
-        if (requestingModule == agentsModule) {
+        if (requestingModule.isNamed() == false && requestingClass.getPackageName().startsWith(agentsPackageName)) {
+            // if (true) throw new NotEntitledException("HELLO: " + requestingClass.getName());
             // agents are the only thing running non-modular in the system classloader
             return ModuleEntitlements.from(agentEntitlements);
         }

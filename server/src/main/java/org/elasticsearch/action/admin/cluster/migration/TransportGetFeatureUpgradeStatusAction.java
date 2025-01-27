@@ -24,7 +24,6 @@ import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
-import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -56,7 +55,6 @@ public class TransportGetFeatureUpgradeStatusAction extends TransportMasterNodeA
     public static final IndexVersion NO_UPGRADE_REQUIRED_INDEX_VERSION = IndexVersions.V_8_0_0;
 
     private final SystemIndices systemIndices;
-    PersistentTasksService persistentTasksService;
 
     @Inject
     public TransportGetFeatureUpgradeStatusAction(
@@ -65,7 +63,6 @@ public class TransportGetFeatureUpgradeStatusAction extends TransportMasterNodeA
         ActionFilters actionFilters,
         ClusterService clusterService,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        PersistentTasksService persistentTasksService,
         SystemIndices systemIndices
     ) {
         super(
@@ -80,7 +77,6 @@ public class TransportGetFeatureUpgradeStatusAction extends TransportMasterNodeA
         );
 
         this.systemIndices = systemIndices;
-        this.persistentTasksService = persistentTasksService;
     }
 
     @Override

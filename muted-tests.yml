@@ -266,6 +266,9 @@ tests:
 - class: org.elasticsearch.datastreams.DataStreamsClientYamlTestSuiteIT
   method: test {p0=data_stream/140_data_stream_aliases/Create data stream alias}
   issue: https://github.com/elastic/elasticsearch/issues/120920
+- class: org.elasticsearch.xpack.security.FileSettingsRoleMappingsRestartIT
+  method: testReservedStatePersistsOnRestart
+  issue: https://github.com/elastic/elasticsearch/issues/120923
 
 # Examples:
 #

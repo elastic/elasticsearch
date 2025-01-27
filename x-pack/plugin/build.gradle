@@ -104,3 +104,6 @@ tasks.named("yamlRestCompatTestTransform").configure({ task ->
 
 })
 
+tasks.named('yamlRestCompatTest').configure {
+  systemProperty 'es.queryable_built_in_roles_enabled', 'false'
+}

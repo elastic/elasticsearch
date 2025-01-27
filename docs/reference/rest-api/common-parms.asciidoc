@@ -1385,24 +1385,13 @@ Specifies how we will normalize the retriever's scores, before applying the spec
 We can either provide a string reference to use with the default values or further configure any normalizer
 using its specific properties. Available values are: `minmax`, and `none`. Defaults to `none`.
 
-** `none` : takes no argument
+** `none`
 ** `minmax` :
 A `MinMaxScoreNormalizer` that normalizes scores based on the following formula
 +
 ```
 score = (score - min) / (max - min)
 ```
-Available properties are:
-*** `min`::
-(Optional, float)
-+
-The minimum value of the original scores. Defaults to result set's true min value.
-
-*** `max`::
-(Optional, float)
-+
-The maximum value of the original scores. Defaults to result set's true max value.
-
 
 See also <<retrievers-examples-linear-retriever, this hybrid search example>> using a linear retriever on how to
 independently configure and apply normalizers to retrievers.

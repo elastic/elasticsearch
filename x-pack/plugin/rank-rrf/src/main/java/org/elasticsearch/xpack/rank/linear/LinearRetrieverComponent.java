@@ -39,6 +39,9 @@ public class LinearRetrieverComponent implements ToXContentObject {
         this.retriever = retrieverBuilder;
         this.weight = weight == null ? DEFAULT_WEIGHT : weight;
         this.normalizer = normalizer == null ? DEFAULT_NORMALIZER : normalizer;
+        if (this.weight < 0) {
+            throw new IllegalArgumentException("[weight] must be non-negative");
+        }
     }
 
     @Override

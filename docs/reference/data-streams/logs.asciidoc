@@ -126,8 +126,9 @@ To configure a routing optimization:
  * Make sure the <<mapping-id-field,`_id`>> field is not populated in ingested documents. It should be
    auto-generated instead.
 
-A custom sort configuration is required, to minimize hotspots and improve storage efficiency. For best results, use a few sort fields that have a relatively low cardinality and don't co-vary
-(for example, `host.name` and `host.id` are not optimal).
+A custom sort configuration is required, to improve storage efficiency and to minimize hotspots 
+from logging spikes that may route documents to a single shard. For best results, use a few sort fields 
+that have a relatively low cardinality and don't co-vary (for example, `host.name` and `host.id` are not optimal).
 
 [discrete]
 [[logsdb-specialized-codecs]]

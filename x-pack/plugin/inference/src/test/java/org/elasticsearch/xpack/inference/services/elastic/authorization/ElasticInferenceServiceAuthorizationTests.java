@@ -28,8 +28,8 @@ public class ElasticInferenceServiceAuthorizationTests extends ESTestCase {
         );
     }
 
-    public void testIsEnabled_ReturnsFalse_WithEmptyMap() {
-        assertFalse(ElasticInferenceServiceAuthorization.newDisabledService().isEnabled());
+    public void testIsAuthorized_ReturnsFalse_WithEmptyMap() {
+        assertFalse(ElasticInferenceServiceAuthorization.newDisabledService().isAuthorized());
     }
 
     public void testExcludes_ModelsWithoutTaskTypes() {
@@ -37,8 +37,8 @@ public class ElasticInferenceServiceAuthorizationTests extends ESTestCase {
             List.of(new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedModel("model-1", EnumSet.noneOf(TaskType.class)))
         );
         var auth = ElasticInferenceServiceAuthorization.of(response);
-        assertTrue(auth.getEnabledTaskTypes().isEmpty());
-        assertFalse(auth.isEnabled());
+        assertTrue(auth.getAuthorizedTaskTypes().isEmpty());
+        assertFalse(auth.isAuthorized());
     }
 
     public void testEnabledTaskTypes_MergesFromSeparateModels() {
@@ -50,8 +50,8 @@ public class ElasticInferenceServiceAuthorizationTests extends ESTestCase {
                 )
             )
         );
-        assertThat(auth.getEnabledTaskTypes(), is(EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.SPARSE_EMBEDDING)));
-        assertThat(auth.getEnabledModels(), is(Set.of("model-1", "model-2")));
+        assertThat(auth.getAuthorizedTaskTypes(), is(EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.SPARSE_EMBEDDING)));
+        assertThat(auth.getAuthorizedModelIds(), is(Set.of("model-1", "model-2")));
     }
 
     public void testEnabledTaskTypes_FromSingleEntry() {
@@ -66,8 +66,8 @@ public class ElasticInferenceServiceAuthorizationTests extends ESTestCase {
             )
         );
 
-        assertThat(auth.getEnabledTaskTypes(), is(EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.SPARSE_EMBEDDING)));
-        assertThat(auth.getEnabledModels(), is(Set.of("model-1")));
+        assertThat(auth.getAuthorizedTaskTypes(), is(EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.SPARSE_EMBEDDING)));
+        assertThat(auth.getAuthorizedModelIds(), is(Set.of("model-1")));
     }
 
     public void testNewLimitToTaskTypes_SingleModel() {

@@ -32,7 +32,7 @@ public class BaseMockEISAuthServerTest extends ESRestTestCase {
     public RetryRule retry = new RetryRule(3, TimeValue.timeValueSeconds(1));
 
     private static final MockElasticInferenceServiceAuthorizationServer mockEISServer = MockElasticInferenceServiceAuthorizationServer
-        .enabledRainbowSprinkles();
+        .enabledWithRainbowSprinklesAndElser();
 
     private static final ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
@@ -40,7 +40,9 @@ public class BaseMockEISAuthServerTest extends ESRestTestCase {
         .setting("xpack.security.enabled", "true")
         // Adding both settings unless one feature flag is disabled in a particular environment
         .setting("xpack.inference.elastic.url", mockEISServer::getUrl)
+        // TODO remove this once we've removed DEPRECATED_ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG and EIS_GATEWAY_URL
         .setting("xpack.inference.eis.gateway.url", mockEISServer::getUrl)
+        // This plugin is located in the inference/qa/test-service-plugin package, look for TestInferenceServicePlugin
         .plugin("inference-service-test")
         .user("x_pack_rest_user", "x-pack-test-password")
         .feature(FeatureFlag.INFERENCE_UNIFIED_API_ENABLED)

@@ -23,7 +23,7 @@ public class MockElasticInferenceServiceAuthorizationServer implements TestRule 
     private static final Logger logger = LogManager.getLogger(MockElasticInferenceServiceAuthorizationServer.class);
     private final MockWebServer webServer = new MockWebServer();
 
-    public static MockElasticInferenceServiceAuthorizationServer enabledRainbowSprinkles() {
+    public static MockElasticInferenceServiceAuthorizationServer enabledWithRainbowSprinklesAndElser() {
         var server = new MockElasticInferenceServiceAuthorizationServer();
 
         String responseJson = """
@@ -31,7 +31,11 @@ public class MockElasticInferenceServiceAuthorizationServer implements TestRule 
                 "models": [
                     {
                       "model_name": "rainbow-sprinkles",
-                      "task_types": ["embed/text/sparse", "chat"]
+                      "task_types": ["chat"]
+                    },
+                    {
+                      "model_name": ".elser_model_2",
+                      "task_types": ["embed/text/sparse"]
                     }
                 ]
             }

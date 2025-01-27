@@ -78,9 +78,9 @@ public class ElasticInferenceServiceAuthorizationHandlerTests extends ESTestCase
             authHandler.getAuthorization(listener, sender);
 
             var authResponse = listener.actionGet(TIMEOUT);
-            assertTrue(authResponse.getEnabledTaskTypes().isEmpty());
-            assertTrue(authResponse.getEnabledModels().isEmpty());
-            assertFalse(authResponse.isEnabled());
+            assertTrue(authResponse.getAuthorizedTaskTypes().isEmpty());
+            assertTrue(authResponse.getAuthorizedModelIds().isEmpty());
+            assertFalse(authResponse.isAuthorized());
 
             var loggerArgsCaptor = ArgumentCaptor.forClass(String.class);
             verify(logger).warn(loggerArgsCaptor.capture());
@@ -99,9 +99,9 @@ public class ElasticInferenceServiceAuthorizationHandlerTests extends ESTestCase
             authHandler.getAuthorization(listener, sender);
 
             var authResponse = listener.actionGet(TIMEOUT);
-            assertTrue(authResponse.getEnabledTaskTypes().isEmpty());
-            assertTrue(authResponse.getEnabledModels().isEmpty());
-            assertFalse(authResponse.isEnabled());
+            assertTrue(authResponse.getAuthorizedTaskTypes().isEmpty());
+            assertTrue(authResponse.getAuthorizedModelIds().isEmpty());
+            assertFalse(authResponse.isAuthorized());
 
             var loggerArgsCaptor = ArgumentCaptor.forClass(String.class);
             verify(logger).warn(loggerArgsCaptor.capture());
@@ -134,9 +134,9 @@ public class ElasticInferenceServiceAuthorizationHandlerTests extends ESTestCase
             authHandler.getAuthorization(listener, sender);
 
             var authResponse = listener.actionGet(TIMEOUT);
-            assertTrue(authResponse.getEnabledTaskTypes().isEmpty());
-            assertTrue(authResponse.getEnabledModels().isEmpty());
-            assertFalse(authResponse.isEnabled());
+            assertTrue(authResponse.getAuthorizedTaskTypes().isEmpty());
+            assertTrue(authResponse.getAuthorizedModelIds().isEmpty());
+            assertFalse(authResponse.isAuthorized());
 
             var loggerArgsCaptor = ArgumentCaptor.forClass(String.class);
             verify(logger).warn(loggerArgsCaptor.capture());
@@ -185,9 +185,9 @@ public class ElasticInferenceServiceAuthorizationHandlerTests extends ESTestCase
             authHandler.getAuthorization(listener, sender);
 
             var authResponse = listener.actionGet(TIMEOUT);
-            assertThat(authResponse.getEnabledTaskTypes(), is(EnumSet.of(TaskType.SPARSE_EMBEDDING, TaskType.CHAT_COMPLETION)));
-            assertThat(authResponse.getEnabledModels(), is(Set.of("model-a")));
-            assertTrue(authResponse.isEnabled());
+            assertThat(authResponse.getAuthorizedTaskTypes(), is(EnumSet.of(TaskType.SPARSE_EMBEDDING, TaskType.CHAT_COMPLETION)));
+            assertThat(authResponse.getAuthorizedModelIds(), is(Set.of("model-a")));
+            assertTrue(authResponse.isAuthorized());
 
             var loggerArgsCaptor = ArgumentCaptor.forClass(String.class);
             verify(logger, times(1)).debug(loggerArgsCaptor.capture());

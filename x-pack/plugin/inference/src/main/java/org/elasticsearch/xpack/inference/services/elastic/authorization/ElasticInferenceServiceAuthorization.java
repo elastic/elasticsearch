@@ -24,8 +24,8 @@ import java.util.stream.Collectors;
 public class ElasticInferenceServiceAuthorization {
 
     private final Map<TaskType, Set<String>> taskTypeToModels;
-    private final EnumSet<TaskType> enabledTaskTypes;
-    private final Set<String> enabledModels;
+    private final EnumSet<TaskType> authorizedTaskTypes;
+    private final Set<String> authorizedModelIds;
 
     /**
      * Converts an authorization response from Elastic Inference Service into the {@link ElasticInferenceServiceAuthorization} format.
@@ -66,24 +66,28 @@ public class ElasticInferenceServiceAuthorization {
 
     private ElasticInferenceServiceAuthorization(
         Map<TaskType, Set<String>> taskTypeToModels,
-        Set<String> enabledModels,
-        EnumSet<TaskType> enabledTaskTypes
+        Set<String> authorizedModelIds,
+        EnumSet<TaskType> authorizedTaskTypes
     ) {
         this.taskTypeToModels = Objects.requireNonNull(taskTypeToModels);
-        this.enabledModels = Objects.requireNonNull(enabledModels);
-        this.enabledTaskTypes = Objects.requireNonNull(enabledTaskTypes);
+        this.authorizedModelIds = Objects.requireNonNull(authorizedModelIds);
+        this.authorizedTaskTypes = Objects.requireNonNull(authorizedTaskTypes);
     }
 
-    public boolean isEnabled() {
-        return enabledModels.isEmpty() == false && taskTypeToModels.isEmpty() == false && enabledTaskTypes.isEmpty() == false;
+    /**
+     * Returns true if at least one task type and model is authorized.
+     * @return true if this cluster is authorized for at least one model and task type.
+     */
+    public boolean isAuthorized() {
+        return authorizedModelIds.isEmpty() == false && taskTypeToModels.isEmpty() == false && authorizedTaskTypes.isEmpty() == false;
     }
 
-    public Set<String> getEnabledModels() {
-        return Set.copyOf(enabledModels);
+    public Set<String> getAuthorizedModelIds() {
+        return Set.copyOf(authorizedModelIds);
     }
 
-    public EnumSet<TaskType> getEnabledTaskTypes() {
-        return EnumSet.copyOf(enabledTaskTypes);
+    public EnumSet<TaskType> getAuthorizedTaskTypes() {
+        return EnumSet.copyOf(authorizedTaskTypes);
     }
 
     /**
@@ -116,12 +120,12 @@ public class ElasticInferenceServiceAuthorization {
         if (o == null || getClass() != o.getClass()) return false;
         ElasticInferenceServiceAuthorization that = (ElasticInferenceServiceAuthorization) o;
         return Objects.equals(taskTypeToModels, that.taskTypeToModels)
-            && Objects.equals(enabledTaskTypes, that.enabledTaskTypes)
-            && Objects.equals(enabledModels, that.enabledModels);
+            && Objects.equals(authorizedTaskTypes, that.authorizedTaskTypes)
+            && Objects.equals(authorizedModelIds, that.authorizedModelIds);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(taskTypeToModels, enabledTaskTypes, enabledModels);
+        return Objects.hash(taskTypeToModels, authorizedTaskTypes, authorizedModelIds);
     }
 }

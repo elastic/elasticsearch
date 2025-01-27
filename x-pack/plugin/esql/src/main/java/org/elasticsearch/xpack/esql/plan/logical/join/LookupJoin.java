@@ -7,9 +7,13 @@
 
 package org.elasticsearch.xpack.esql.plan.logical.join;
 
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
+import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.SurrogateLogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.UsingJoinType;
@@ -17,12 +21,13 @@ import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.UsingJoinType;
 import java.util.List;
 
 import static java.util.Collections.emptyList;
+import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.LEFT;
 
 /**
  * Lookup join - specialized LEFT (OUTER) JOIN between the main left side and a lookup index (index_mode = lookup) on the right.
  */
-public class LookupJoin extends Join implements SurrogateLogicalPlan {
+public class LookupJoin extends Join implements SurrogateLogicalPlan, PostAnalysisVerificationAware {
 
     public LookupJoin(Source source, LogicalPlan left, LogicalPlan right, List<Attribute> joinFields) {
         this(source, left, right, new UsingJoinType(LEFT, joinFields), emptyList(), emptyList(), emptyList());
@@ -70,5 +75,32 @@ public class LookupJoin extends Join implements SurrogateLogicalPlan {
             config().leftFields(),
             config().rightFields()
         );
+    }
+
+    @Override
+    public void postAnalysisVerification(Failures failures) {
+        super.postAnalysisVerification(failures);
+        right().forEachDown(EsRelation.class, esr -> {
+            var indexNameWithModes = esr.indexNameWithModes();
+            if (indexNameWithModes.size() != 1) {
+                failures.add(
+                    fail(esr, "invalid [{}] resolution in lookup mode to [{}] indices", esr.indexPattern(), indexNameWithModes.size())
+                );
+            } else if (indexNameWithModes.values().iterator().next() != IndexMode.LOOKUP) {
+                failures.add(
+                    fail(
+                        esr,
+                        "invalid [{}] resolution in lookup mode to an index in [{}] mode",
+                        esr.indexPattern(),
+                        indexNameWithModes.values().iterator().next()
+                    )
+                );
+            }
+
+            // this check is crucial for security: ES|QL would use the concrete indices, so it would bypass the security on the alias
+            if (esr.concreteIndices().contains(esr.indexPattern()) == false) {
+                failures.add(fail(this, "Aliases and index patterns are not allowed for LOOKUP JOIN [{}]", esr.indexPattern()));
+            }
+        });
     }
 }

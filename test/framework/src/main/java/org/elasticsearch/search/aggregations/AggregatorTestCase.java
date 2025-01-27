@@ -256,8 +256,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
         return createAggregator(new AggregatorFactories.Builder().addAggregator(aggregationBuilder), context);
     }
 
-    private <A extends Aggregator> A createAggregator(AggregatorFactories.Builder builder, AggregationContext context)
-        throws IOException {
+    private <A extends Aggregator> A createAggregator(AggregatorFactories.Builder builder, AggregationContext context) throws IOException {
         Aggregator[] aggregators = builder.build(context, null).createTopLevelAggregators();
         assertThat(aggregators.length, equalTo(1));
         @SuppressWarnings("unchecked")

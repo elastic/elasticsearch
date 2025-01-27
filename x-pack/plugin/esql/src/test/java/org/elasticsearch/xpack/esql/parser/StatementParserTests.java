@@ -2945,7 +2945,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
         var plan = statement("FROM " + basePattern);
 
-        assertThat(as(plan, UnresolvedRelation.class).table().index(), equalTo(unquoteIndexPattern(basePattern)));
+        assertThat(as(plan, UnresolvedRelation.class).indexPattern().indexPattern(), equalTo(unquoteIndexPattern(basePattern)));
     }
 
     public void testValidJoinPattern() {

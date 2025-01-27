@@ -568,12 +568,12 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
         return p -> {
             p.forEachUp(UnresolvedRelation.class, r -> {
-                for (var leftPattern : Strings.splitStringByCommaToArray(r.table().index())) {
+                for (var leftPattern : Strings.splitStringByCommaToArray(r.indexPattern().indexPattern())) {
                     if (RemoteClusterAware.isRemoteIndexName(leftPattern)) {
                         throw new ParsingException(
                             source(target),
                             "invalid index pattern [{}], remote clusters are not supported in LOOKUP JOIN",
-                            r.table().index()
+                            r.indexPattern().indexPattern()
                         );
                     }
                 }

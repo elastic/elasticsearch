@@ -236,10 +236,6 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
             this.onGoingMerge = new OnGoingMerge(merge);
             this.rateLimiter = new MergeRateLimiter(merge.getMergeProgress());
             this.supportsIOThrottling = supportsIOThrottling;
-            // probably redundant, but better be explicit
-            if (this.supportsIOThrottling == false) {
-                this.rateLimiter.setMBPerSec(Double.POSITIVE_INFINITY);
-            }
         }
 
         boolean runNowOrBacklog() {

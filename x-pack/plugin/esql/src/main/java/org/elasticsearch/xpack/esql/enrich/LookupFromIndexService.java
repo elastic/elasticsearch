@@ -84,13 +84,10 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
         DataType inputDataType,
         Warnings warnings
     ) {
-        MappedFieldType fieldType = context.getFieldType(request.matchField);
-        return termQueryList(fieldType, context, inputBlock, inputDataType).onlySingleValues(
+        return termQueryList(context.getFieldType(request.matchField), context, inputBlock, inputDataType).onlySingleValues(
             warnings,
             "LOOKUP JOIN encountered multi-value"
         );
-    protected QueryList queryList(TransportRequest request, SearchExecutionContext context, Block inputBlock, DataType inputDataType) {
-        return termQueryList(context.getFieldType(request.matchField), context, inputBlock, inputDataType).onlySingleValues();
     }
 
     @Override

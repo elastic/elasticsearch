@@ -101,6 +101,42 @@ setup:
   - match: { hits.hits.2.fields.keyword.0: "other" }
 
 ---
+"Simple rank with old window_size param":
+
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_search
+          capabilities: [ rrf_window_size_support_deprecated ]
+      test_runner_features: capabilities
+      reason: "add deprecated field [window_size] back to support upgrade"
+  - do:
+      warnings:
+        - "Deprecated field [rank] used, replaced by [retriever]"
+        - "Deprecated field [window_size] used, expected [rank_window_size] instead"
+      search:
+        index: test
+        body:
+          track_total_hits: false
+          fields: [ "keyword" ]
+          knn:
+            field: vector
+            query_vector: [ 0.0 ]
+            k: 3
+            num_candidates: 3
+          query:
+            term:
+              text: term
+          rank:
+            rrf:
+              window_size: 100
+              rank_constant: 1
+          size: 1
+
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.0.fields.keyword.0: "other" }
+
+---
 "Simple rank with multiple bm25 sub searches":
 
   - requires:

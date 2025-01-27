@@ -94,7 +94,7 @@ POST /_create_from/my-index/my-new-index
 
 
 Alternatively, we could override some of the source's settings and mappings. This will use the source settings
-and mappings as a basis and combine in the overrides to create the destination settings and mappings.
+and mappings as a basis and combine these with the overrides to create the destination settings and mappings.
 
 [source,console]
 --------------------------------------------------
@@ -114,7 +114,7 @@ POST /_create_from/my-index/my-new-index
 --------------------------------------------------
 
 Since the destination index is empty, we very likely will want to write into the index after creation.
-This would not be possible if the source index contains an index write block which is copied over to the destination index.
+This would not be possible if the source index contains an <<index-block-settings,index write block>> which is copied over to the destination index.
 One way to handle this is to remove the index write block using a settings override. For example, the following
 settings override removes all index blocks.
 

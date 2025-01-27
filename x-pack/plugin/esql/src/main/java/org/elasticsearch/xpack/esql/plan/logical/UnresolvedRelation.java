@@ -13,7 +13,7 @@ import org.elasticsearch.xpack.esql.core.capabilities.Unresolvable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.plan.TableIdentifier;
+import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 
 import java.util.Collections;
@@ -24,7 +24,7 @@ import static java.util.Collections.singletonList;
 
 public class UnresolvedRelation extends LeafPlan implements Unresolvable, TelemetryAware {
 
-    private final TableIdentifier table;
+    private final IndexPattern indexPattern;
     private final boolean frozen;
     private final List<Attribute> metadataFields;
     /*
@@ -42,7 +42,7 @@ public class UnresolvedRelation extends LeafPlan implements Unresolvable, Teleme
 
     public UnresolvedRelation(
         Source source,
-        TableIdentifier table,
+        IndexPattern indexPattern,
         boolean frozen,
         List<Attribute> metadataFields,
         IndexMode indexMode,
@@ -50,17 +50,17 @@ public class UnresolvedRelation extends LeafPlan implements Unresolvable, Teleme
         String commandName
     ) {
         super(source);
-        this.table = table;
+        this.indexPattern = indexPattern;
         this.frozen = frozen;
         this.metadataFields = metadataFields;
         this.indexMode = indexMode;
-        this.unresolvedMsg = unresolvedMessage == null ? "Unknown index [" + table.index() + "]" : unresolvedMessage;
+        this.unresolvedMsg = unresolvedMessage == null ? "Unknown index [" + indexPattern.indexPattern() + "]" : unresolvedMessage;
         this.commandName = commandName;
     }
 
     public UnresolvedRelation(
         Source source,
-        TableIdentifier table,
+        IndexPattern table,
         boolean frozen,
         List<Attribute> metadataFields,
         IndexMode indexMode,
@@ -81,11 +81,11 @@ public class UnresolvedRelation extends LeafPlan implements Unresolvable, Teleme
 
     @Override
     protected NodeInfo<UnresolvedRelation> info() {
-        return NodeInfo.create(this, UnresolvedRelation::new, table, frozen, metadataFields, indexMode, unresolvedMsg, commandName);
+        return NodeInfo.create(this, UnresolvedRelation::new, indexPattern, frozen, metadataFields, indexMode, unresolvedMsg, commandName);
     }
 
-    public TableIdentifier table() {
-        return table;
+    public IndexPattern indexPattern() {
+        return indexPattern;
     }
 
     public boolean frozen() {
@@ -137,7 +137,7 @@ public class UnresolvedRelation extends LeafPlan implements Unresolvable, Teleme
 
     @Override
     public int hashCode() {
-        return Objects.hash(source(), table, metadataFields, indexMode, unresolvedMsg);
+        return Objects.hash(source(), indexPattern, metadataFields, indexMode, unresolvedMsg);
     }
 
     @Override
@@ -151,7 +151,7 @@ public class UnresolvedRelation extends LeafPlan implements Unresolvable, Teleme
         }
 
         UnresolvedRelation other = (UnresolvedRelation) obj;
-        return Objects.equals(table, other.table)
+        return Objects.equals(indexPattern, other.indexPattern)
             && Objects.equals(frozen, other.frozen)
             && Objects.equals(metadataFields, other.metadataFields)
             && indexMode == other.indexMode
@@ -160,11 +160,11 @@ public class UnresolvedRelation extends LeafPlan implements Unresolvable, Teleme
 
     @Override
     public List<Object> nodeProperties() {
-        return singletonList(table);
+        return singletonList(indexPattern);
     }
 
     @Override
     public String toString() {
-        return UNRESOLVED_PREFIX + table.index();
+        return UNRESOLVED_PREFIX + indexPattern.indexPattern();
     }
 }

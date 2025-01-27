@@ -17,6 +17,7 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LocalCircuitBreaker;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.LuceneOperator;
+import org.elasticsearch.compute.operator.ChangePointOperator;
 import org.elasticsearch.compute.operator.ColumnExtractOperator;
 import org.elasticsearch.compute.operator.ColumnLoadOperator;
 import org.elasticsearch.compute.operator.Driver;
@@ -702,17 +703,17 @@ public class LocalExecutionPlanner {
     }
 
     private PhysicalOperation planChangePoint(ChangePointExec changePoint, LocalExecutionPlannerContext context) {
-        // note: mostly copied from "planEval"
         PhysicalOperation source = plan(changePoint.child(), context);
-        for (Attribute target : List.of(changePoint.targetType(), changePoint.targetPvalue())) {
-            // For now: copy/paste "value" into both type and pvalue field.
-            // TODO: compute actual changepoint
-            var evaluatorSupplier = EvalMapper.toEvaluator(context.foldCtx(), changePoint.value(), source.layout);
-            Layout.Builder layout = source.layout.builder();
-            layout.append(target);
-            source = source.with(new EvalOperatorFactory(evaluatorSupplier), layout.build());
-        }
-        return source;
+        Layout layout = source.layout.builder()
+            .append(changePoint.targetType())
+            .append(changePoint.targetPvalue())
+            .build();
+        return source.with(
+            new ChangePointOperator.Factory(
+                layout.get(changePoint.value().id()).channel()
+            ),
+            layout
+        );
     }
 
     /**

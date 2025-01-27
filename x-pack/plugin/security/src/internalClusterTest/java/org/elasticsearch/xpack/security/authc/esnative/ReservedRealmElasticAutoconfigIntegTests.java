@@ -91,7 +91,7 @@ public class ReservedRealmElasticAutoconfigIntegTests extends SecuritySingleNode
 
     private void deleteSecurityIndex() {
         // delete the security index, if it exist
-        GetIndexRequest getIndexRequest = new GetIndexRequest(TEST_REQUEST_TIMEOUT);
+        GetIndexRequest getIndexRequest = new GetIndexRequest();
         getIndexRequest.indices(SECURITY_MAIN_ALIAS);
         getIndexRequest.indicesOptions(IndicesOptions.lenientExpandOpen());
         GetIndexResponse getIndexResponse = client().admin().indices().getIndex(getIndexRequest).actionGet();

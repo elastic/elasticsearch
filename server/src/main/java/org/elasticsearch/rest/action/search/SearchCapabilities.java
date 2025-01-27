@@ -42,6 +42,8 @@ public final class SearchCapabilities {
     private static final String MOVING_FN_RIGHT_MATH = "moving_fn_right_math";
 
     private static final String RANDOM_SAMPLER_WITH_SCORED_SUBAGGS = "random_sampler_with_scored_subaggs";
+    /** Support deprecated window_size field in rank. */
+    private static final String RRF_WINDOW_SIZE_SUPPORT_DEPRECATED = "rrf_window_size_support_deprecated";
 
     public static final Set<String> CAPABILITIES;
     static {
@@ -60,6 +62,7 @@ public final class SearchCapabilities {
         if (Build.current().isSnapshot()) {
             capabilities.add(KQL_QUERY_SUPPORTED);
         }
+        capabilities.add(RRF_WINDOW_SIZE_SUPPORT_DEPRECATED);
         CAPABILITIES = Set.copyOf(capabilities);
     }
 }

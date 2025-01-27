@@ -126,6 +126,6 @@ public class Limit extends UnaryPlan {
 
         Limit other = (Limit) obj;
 
-        return Objects.equals(limit, other.limit) && Objects.equals(child(), other.child()) && Objects.equals(duplicated, other.duplicated);
+        return Objects.equals(limit, other.limit) && Objects.equals(child(), other.child()) && (duplicated == other.duplicated);
     }
 }

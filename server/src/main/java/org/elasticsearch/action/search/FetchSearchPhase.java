@@ -163,6 +163,12 @@ final class FetchSearchPhase extends SearchPhase {
                 // we do this below after sending out the fetch requests relevant to the search to give priority to those requests
                 // that contribute to the final search response
                 // in any case we count down this result since we don't talk to this shard anymore
+                SearchPhaseResult shardPhaseResult = searchPhaseShardResults.get(i);
+                if (shardPhaseResult != null) {
+                    // notifying the listener here as otherwise the search operation might finish before we
+                    // get a chance to notify the progress listener for some fetch results
+                    progressListener.notifyFetchResult(i);
+                }
                 counter.countDown();
             } else {
                 executeFetch(
@@ -179,7 +185,6 @@ final class FetchSearchPhase extends SearchPhase {
                 SearchPhaseResult shardPhaseResult = searchPhaseShardResults.get(i);
                 if (shardPhaseResult != null) {
                     releaseIrrelevantSearchContext(shardPhaseResult, context);
-                    progressListener.notifyFetchResult(i);
                 }
             }
         }

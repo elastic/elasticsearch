@@ -260,6 +260,23 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test050BasicApiTests
   issue: https://github.com/elastic/elasticsearch/issues/120911
+- class: org.elasticsearch.packaging.test.DockerTests
+  method: test140CgroupOsStatsAreAvailable
+  issue: https://github.com/elastic/elasticsearch/issues/120914
+- class: org.elasticsearch.datastreams.DataStreamsClientYamlTestSuiteIT
+  method: test {p0=data_stream/140_data_stream_aliases/Create data stream alias}
+  issue: https://github.com/elastic/elasticsearch/issues/120920
+- class: org.elasticsearch.xpack.security.FileSettingsRoleMappingsRestartIT
+  method: testReservedStatePersistsOnRestart
+  issue: https://github.com/elastic/elasticsearch/issues/120923
+- class: org.elasticsearch.packaging.test.DockerTests
+  method: test070BindMountCustomPathConfAndJvmOptions
+  issue: https://github.com/elastic/elasticsearch/issues/120910
+- class: org.elasticsearch.xpack.esql.qa.multi_node.RestEsqlIT
+  issue: https://github.com/elastic/elasticsearch/issues/120948
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=nodes.stats/11_indices_metrics/indices mappings exact count test for indices level}
+  issue: https://github.com/elastic/elasticsearch/issues/120950
 
 # Examples:
 #

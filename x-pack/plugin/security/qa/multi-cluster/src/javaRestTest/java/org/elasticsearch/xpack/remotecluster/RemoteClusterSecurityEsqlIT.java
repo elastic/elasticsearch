@@ -729,7 +729,9 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
 
     @SuppressWarnings("unchecked")
     public void testCrossClusterEnrich() throws Exception {
-        configureRemoteCluster();
+        boolean isProxyMode = randomBoolean();
+        boolean skipUnavailable = randomBoolean();
+        configureRemoteCluster(REMOTE_CLUSTER_ALIAS, fulfillingCluster, false, isProxyMode, skipUnavailable);
         populateData();
         // Query cluster
         {

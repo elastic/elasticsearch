@@ -542,6 +542,11 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         String[] copyFields = sourcePaths.toArray(String[]::new);
         // ensure consistent order
         Arrays.sort(copyFields);
+
+        SemanticTextFieldType fieldType = fieldType();
+        ChunkingSettings fieldTypeChunkingSettings = fieldType.getChunkingSettings();
+        Map<String, Object> asMap = fieldTypeChunkingSettings != null ? fieldTypeChunkingSettings.asMap() : null;
+
         return new InferenceFieldMetadata(
             fullPath(),
             fieldType().getInferenceId(),

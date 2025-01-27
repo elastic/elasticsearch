@@ -108,7 +108,15 @@ public abstract class SenderService implements InferenceService {
     ) {
         init();
         // a non-null query is not supported and is dropped by all providers
-        doChunkedInfer(model, new DocumentsOnlyInput(input), taskSettings, chunkingSettings, inputType, timeout, listener);
+        doChunkedInfer(
+            model,
+            new DocumentsOnlyInput(input),
+            taskSettings,
+            chunkingSettings != null ? chunkingSettings : model.getConfigurations().getChunkingSettings(),
+            inputType,
+            timeout,
+            listener
+        );
     }
 
     protected abstract void doInfer(

@@ -32,6 +32,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.inference.ChunkedInference;
+import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.inference.InputType;
@@ -134,7 +135,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
         new AsyncBulkShardInferenceAction(useLegacyFormat, fieldInferenceMap, bulkShardRequest, onCompletion).run();
     }
 
-    private record InferenceProvider(InferenceService service, Model model) {}
+    private record InferenceProvider(InferenceService service, Model model, ChunkingSettings chunkingSettings) {}
 
     /**
      * A field inference request on a single input.
@@ -242,16 +243,22 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                     public void onResponse(UnparsedModel unparsedModel) {
                         var service = inferenceServiceRegistry.getService(unparsedModel.service());
                         if (service.isEmpty() == false) {
-                            var provider = new InferenceProvider(
-                                service.get(),
-                                service.get()
-                                    .parsePersistedConfigWithSecrets(
-                                        inferenceId,
-                                        unparsedModel.taskType(),
-                                        unparsedModel.settings(),
-                                        unparsedModel.secrets()
-                                    )
+                            InferenceService inferenceService = service.get();
+                            Model model = inferenceService.parsePersistedConfigWithSecrets(
+                                inferenceId,
+                                unparsedModel.taskType(),
+                                unparsedModel.settings(),
+                                unparsedModel.secrets()
                             );
+                            // This assumes that all fields will have the same chunking settings - supporting per field chunking settings
+                            // seems like a pretty big refactor
+                            Map<String, Object> overrideChunkingSettings = fieldInferenceMap.get(requests.getFirst().field())
+                                .getChunkingSettings();
+                            ChunkingSettings chunkingSettings = overrideChunkingSettings != null
+                                ? ChunkingSettingsBuilder.fromMap(overrideChunkingSettings)
+                                : model.getConfigurations().getChunkingSettings();
+
+                            var provider = new InferenceProvider(inferenceService, model, chunkingSettings);
                             executeShardBulkInferenceAsync(inferenceId, provider, requests, onFinish);
                         } else {
                             try (onFinish) {
@@ -368,7 +375,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                     null,
                     inputs,
                     Map.of(),
-                    inferenceProvider.model().getConfigurations().getChunkingSettings(), // TODO Override here
+                    inferenceProvider.chunkingSettings(),
                     InputType.INGEST,
                     TimeValue.MAX_VALUE,
                     completionListener
@@ -453,7 +460,9 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                         chunkMap
                     ),
                     indexRequest.getContentType(),
-                    ChunkingSettingsBuilder.fromMap(inferenceFieldMetadata.getChunkingSettings())
+                    inferenceFieldMetadata.getChunkingSettings() != null
+                        ? ChunkingSettingsBuilder.fromMap(inferenceFieldMetadata.getChunkingSettings())
+                        : null
                 );
 
                 if (useLegacyFormat) {

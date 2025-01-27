@@ -11,6 +11,10 @@ import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.ChangePoint;
@@ -92,6 +96,11 @@ public class LocalMapper {
         }
 
         if (unary instanceof ChangePoint changePoint) {
+            // TODO: ChangePoint shouldn't run on the local node
+            // TODO: fix hardcoded 1000
+            mappedChild = new TopNExec(changePoint.source(), mappedChild,
+                List.of(new Order(changePoint.source(), changePoint.key(), Order.OrderDirection.ASC, Order.NullsPosition.ANY)),
+                new Literal(Source.EMPTY, 1000, DataType.INTEGER), null);
             return new ChangePointExec(
                 changePoint.source(),
                 mappedChild,

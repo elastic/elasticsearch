@@ -703,6 +703,7 @@ public class LocalExecutionPlanner {
     }
 
     private PhysicalOperation planChangePoint(ChangePointExec changePoint, LocalExecutionPlannerContext context) {
+        // TODO: should this be planned locally?
         PhysicalOperation source = plan(changePoint.child(), context);
         Layout layout = source.layout.builder()
             .append(changePoint.targetType())

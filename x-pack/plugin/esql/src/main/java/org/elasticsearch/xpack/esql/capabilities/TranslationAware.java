@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
+import org.elasticsearch.xpack.esql.planner.mapper.preprocessor.MappingPreProcessor;
 
 /**
  * Expressions implementing this interface can get called on data nodes to provide an Elasticsearch/Lucene query.
@@ -41,5 +42,9 @@ public interface TranslationAware {
          * Returns the field that only supports single-value semantics.
          */
         Expression singleValueField();
+    }
+
+    interface QueryRewriter extends TranslationAware {
+        MappingPreProcessor queryRewriter();
     }
 }

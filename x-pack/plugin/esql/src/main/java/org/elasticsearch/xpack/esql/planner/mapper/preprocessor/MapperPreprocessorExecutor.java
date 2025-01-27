@@ -8,41 +8,42 @@
 package org.elasticsearch.xpack.esql.planner.mapper.preprocessor;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plugin.TransportActionServices;
 
-import java.util.ArrayList;
-import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 public class MapperPreprocessorExecutor {
 
     private final TransportActionServices services;
-    private final List<MappingPreProcessor> proprocessors = new ArrayList<>();
 
     public MapperPreprocessorExecutor(TransportActionServices services) {
         this.services = services;
     }
 
-    public MapperPreprocessorExecutor addPreprocessor(MappingPreProcessor preProcessor) {
-        proprocessors.add(preProcessor);
-        return this;
-    }
-
-    public MapperPreprocessorExecutor addPreprocessors(Collection<MappingPreProcessor> preProcessors) {
-        proprocessors.addAll(preProcessors);
-        return this;
-    }
-
     public void execute(LogicalPlan plan, ActionListener<LogicalPlan> listener) {
-        execute(plan, 0, listener);
+        execute(plan, queryRewriters(plan), 0, listener);
     }
 
-    private void execute(LogicalPlan plan, int index, ActionListener<LogicalPlan> listener) {
-        if (index == proprocessors.size()) {
+    private static List<MappingPreProcessor> queryRewriters(LogicalPlan plan) {
+        Set<MappingPreProcessor> queryRewriters = new HashSet<>();
+        plan.forEachExpressionDown(e -> {
+            if (e instanceof TranslationAware.QueryRewriter qr) {
+                queryRewriters.add(qr.queryRewriter());
+            }
+        });
+        return List.copyOf(queryRewriters);
+    }
+
+    private void execute(LogicalPlan plan, List<MappingPreProcessor> preprocessors, int index, ActionListener<LogicalPlan> listener) {
+        if (index == preprocessors.size()) {
             listener.onResponse(plan);
         } else {
-            proprocessors.get(index).preprocess(plan, services, listener.delegateFailureAndWrap((l, p) -> execute(p, index + 1, l)));
+            preprocessors.get(index)
+                .preprocess(plan, services, listener.delegateFailureAndWrap((l, p) -> execute(p, preprocessors, index + 1, l)));
         }
     }
 }

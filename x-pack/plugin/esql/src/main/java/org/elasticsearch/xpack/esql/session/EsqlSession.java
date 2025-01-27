@@ -73,7 +73,6 @@ import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
-import org.elasticsearch.xpack.esql.planner.mapper.preprocessor.FullTextFunctionMapperPreprocessor;
 import org.elasticsearch.xpack.esql.planner.mapper.preprocessor.MapperPreprocessorExecutor;
 import org.elasticsearch.xpack.esql.plugin.TransportActionServices;
 import org.elasticsearch.xpack.esql.stats.PlanningMetrics;
@@ -145,9 +144,7 @@ public class EsqlSession {
         this.physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(configuration));
         this.planningMetrics = planningMetrics;
         this.indicesExpressionGrouper = indicesExpressionGrouper;
-        this.mapperPreprocessorExecutor = new MapperPreprocessorExecutor(services).addPreprocessor(
-            new FullTextFunctionMapperPreprocessor()
-        );
+        this.mapperPreprocessorExecutor = new MapperPreprocessorExecutor(services);
     }
 
     public String sessionId() {
@@ -167,10 +164,23 @@ public class EsqlSession {
             new EsqlSessionCCSUtils.CssPartialErrorsActionListener(executionInfo, listener) {
                 @Override
                 public void onResponse(LogicalPlan analyzedPlan) {
-                    executeOptimizedPlan(request, executionInfo, planRunner, optimizedPlan(analyzedPlan), listener);
+                    preMapping(request, executionInfo, planRunner, optimizedPlan(analyzedPlan), listener);
                 }
             }
         );
+    }
+
+    public void preMapping(
+        EsqlQueryRequest request,
+        EsqlExecutionInfo executionInfo,
+        PlanRunner planRunner,
+        LogicalPlan optimizedPlan,
+        ActionListener<Result> listener
+    ) {
+        mapperPreprocessorExecutor.execute(optimizedPlan, listener.delegateFailureAndWrap((l, p) -> {
+            p.setOptimized(); // might have been updated by the preprocessor
+            executeOptimizedPlan(request, executionInfo, planRunner, p, listener);
+        }));
     }
 
     /**
@@ -184,13 +194,11 @@ public class EsqlSession {
         LogicalPlan optimizedPlan,
         ActionListener<Result> listener
     ) {
-        mapperPreprocessorExecutor.execute(optimizedPlan, listener.delegateFailureAndWrap((l, p) -> {
-            PhysicalPlan physicalPlan = logicalPlanToPhysicalPlan(p, request);
-            // TODO: this could be snuck into the underlying listener
-            EsqlSessionCCSUtils.updateExecutionInfoAtEndOfPlanning(executionInfo);
-            // execute any potential subplans
-            executeSubPlans(physicalPlan, planRunner, executionInfo, request, l);
-        }));
+        PhysicalPlan physicalPlan = logicalPlanToPhysicalPlan(optimizedPlan, request);
+        // TODO: this could be snuck into the underlying listener
+        EsqlSessionCCSUtils.updateExecutionInfoAtEndOfPlanning(executionInfo);
+        // execute any potential subplans
+        executeSubPlans(physicalPlan, planRunner, executionInfo, request, listener);
     }
 
     private record PlanTuple(PhysicalPlan physical, LogicalPlan logical) {}

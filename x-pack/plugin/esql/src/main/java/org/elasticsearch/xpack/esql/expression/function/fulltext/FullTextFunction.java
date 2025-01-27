@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
+import org.elasticsearch.xpack.esql.planner.mapper.preprocessor.MappingPreProcessor;
 import org.elasticsearch.xpack.esql.querydsl.query.TranslationAwareExpressionQuery;
 
 import java.util.List;
@@ -50,7 +51,11 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isStr
  * These functions needs to be pushed down to Lucene queries to be executed - there's no Evaluator for them, but depend on
  * {@link org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizer} to rewrite them into Lucene queries.
  */
-public abstract class FullTextFunction extends Function implements TranslationAware, PostAnalysisPlanVerificationAware {
+public abstract class FullTextFunction extends Function
+    implements
+        TranslationAware,
+        TranslationAware.QueryRewriter,
+        PostAnalysisPlanVerificationAware {
 
     private final Expression query;
     private final QueryBuilder queryBuilder;
@@ -114,6 +119,11 @@ public abstract class FullTextFunction extends Function implements TranslationAw
     public Object queryAsObject() {
         Object queryAsObject = query().fold(FoldContext.small() /* TODO remove me */);
         return BytesRefs.toString(queryAsObject);
+    }
+
+    @Override
+    public MappingPreProcessor queryRewriter() {
+        return FullTextFunctionMapperPreprocessor.INSTANCE;
     }
 
     /**
@@ -274,26 +284,6 @@ public abstract class FullTextFunction extends Function implements TranslationAw
             return onlyFullTextFunctionsInExpression(expression.children().get(0));
         } else if (expression instanceof BinaryLogic binaryLogic) {
             return onlyFullTextFunctionsInExpression(binaryLogic.left()) && onlyFullTextFunctionsInExpression(binaryLogic.right());
-        }
-
-        return false;
-    }
-
-    /**
-     * Checks whether an expression contains a full text function as part of it
-     *
-     * @param expression expression to check
-     * @return true if the expression or any of its children is a full text function, false otherwise
-     */
-    private static boolean anyFullTextFunctionsInExpression(Expression expression) {
-        if (expression instanceof FullTextFunction) {
-            return true;
-        }
-
-        for (Expression child : expression.children()) {
-            if (anyFullTextFunctionsInExpression(child)) {
-                return true;
-            }
         }
 
         return false;

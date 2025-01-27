@@ -116,7 +116,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
 
     private boolean requireDataStream;
 
-    private Boolean includeSourceOnError;
+    private boolean includeSourceOnError = true;
 
     /**
      * Transient flag denoting that the local request should be routed to a failure store. Not persisted across the wire.
@@ -214,7 +214,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         }
 
         if (in.getTransportVersion().onOrAfter(TransportVersions.INGEST_REQUEST_INCLUDE_SOURCE_ON_ERROR)) {
-            includeSourceOnError = in.readOptionalBoolean();
+            includeSourceOnError = in.readBoolean();
         }
     }
 
@@ -813,7 +813,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             }
         }
         if (out.getTransportVersion().onOrAfter(TransportVersions.INGEST_REQUEST_INCLUDE_SOURCE_ON_ERROR)) {
-            out.writeOptionalBoolean(includeSourceOnError);
+            out.writeBoolean(includeSourceOnError);
         }
     }
 
@@ -883,11 +883,11 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         return this;
     }
 
-    public Boolean getIncludeSourceOnError() {
+    public boolean getIncludeSourceOnError() {
         return includeSourceOnError;
     }
 
-    public IndexRequest setIncludeSourceOnError(Boolean includeSourceOnError) {
+    public IndexRequest setIncludeSourceOnError(boolean includeSourceOnError) {
         this.includeSourceOnError = includeSourceOnError;
         return this;
     }

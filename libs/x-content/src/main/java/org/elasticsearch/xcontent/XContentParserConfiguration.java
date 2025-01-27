@@ -29,9 +29,9 @@ public interface XContentParserConfiguration {
     /**
      *  Disable to not include the source in case of parsing errors (defaults to true).
      */
-    XContentParserConfiguration withIncludeSourceOnError(Boolean includeSourceOnError);
+    XContentParserConfiguration withIncludeSourceOnError(boolean includeSourceOnError);
 
-    Boolean includeSourceOnError();
+    boolean includeSourceOnError();
 
     /**
      * Replace the registry backing {@link XContentParser#namedObject}.

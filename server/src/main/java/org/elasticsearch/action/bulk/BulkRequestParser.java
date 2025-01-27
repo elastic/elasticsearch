@@ -84,7 +84,7 @@ public final class BulkRequestParser {
      * @param includeSourceOnError if to include the source in parser error messages
      * @param restApiVersion
      */
-    public BulkRequestParser(boolean deprecateOrErrorOnType, Boolean includeSourceOnError, RestApiVersion restApiVersion) {
+    public BulkRequestParser(boolean deprecateOrErrorOnType, boolean includeSourceOnError, RestApiVersion restApiVersion) {
         this.deprecateOrErrorOnType = deprecateOrErrorOnType;
         this.config = XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE)
             .withRestApiVersion(restApiVersion)

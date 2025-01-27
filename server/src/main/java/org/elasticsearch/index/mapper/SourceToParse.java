@@ -30,7 +30,7 @@ public class SourceToParse {
 
     private final Map<String, String> dynamicTemplates;
 
-    private final Boolean includeSourceOnError;
+    private final boolean includeSourceOnError;
 
     private final XContentMeteringParserDecorator meteringParserDecorator;
 
@@ -40,7 +40,7 @@ public class SourceToParse {
         XContentType xContentType,
         @Nullable String routing,
         Map<String, String> dynamicTemplates,
-        Boolean includeSourceOnError,
+        boolean includeSourceOnError,
         XContentMeteringParserDecorator meteringParserDecorator
     ) {
         this.id = id;
@@ -55,11 +55,11 @@ public class SourceToParse {
     }
 
     public SourceToParse(String id, BytesReference source, XContentType xContentType) {
-        this(id, source, xContentType, null, Map.of(), null, XContentMeteringParserDecorator.NOOP);
+        this(id, source, xContentType, null, Map.of(), true, XContentMeteringParserDecorator.NOOP);
     }
 
     public SourceToParse(String id, BytesReference source, XContentType xContentType, String routing) {
-        this(id, source, xContentType, routing, Map.of(), null, XContentMeteringParserDecorator.NOOP);
+        this(id, source, xContentType, routing, Map.of(), true, XContentMeteringParserDecorator.NOOP);
     }
 
     public SourceToParse(
@@ -69,7 +69,7 @@ public class SourceToParse {
         String routing,
         Map<String, String> dynamicTemplates
     ) {
-        this(id, source, xContentType, routing, dynamicTemplates, null, XContentMeteringParserDecorator.NOOP);
+        this(id, source, xContentType, routing, dynamicTemplates, true, XContentMeteringParserDecorator.NOOP);
     }
 
     public BytesReference source() {
@@ -110,7 +110,7 @@ public class SourceToParse {
         return meteringParserDecorator;
     }
 
-    public Boolean getIncludeSourceOnError() {
+    public boolean getIncludeSourceOnError() {
         return includeSourceOnError;
     }
 }

@@ -164,7 +164,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport() {
         if (fieldType().isStored()) {
-            return new SyntheticSourceSupport.Native(new SparseVectorSyntheticFieldLoader(fullPath(), leafName()));
+            return new SyntheticSourceSupport.Native(() -> new SparseVectorSyntheticFieldLoader(fullPath(), leafName()));
         }
         return super.syntheticSourceSupport();
     }

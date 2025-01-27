@@ -292,7 +292,7 @@ language_code:integer | language_name:keyword       | country:text
 ;
 
 nonUniqueRightKeyOnTheCoordinatorLateLimit
-required_capability: join_lookup_v12
+required_capability: join_lookup_fix_limit_pushdown
 
 FROM employees
 | SORT emp_no
@@ -311,7 +311,7 @@ emp_no:integer | language_code:integer | language_name:keyword | country:text
 ;
 
 nonUniqueRightKeyLateLimitWithEmptyRelation
-required_capability: join_lookup_v12
+required_capability: join_lookup_fix_limit_pushdown
 
 ROW language_code = 1
 | WHERE language_code != 1

@@ -210,7 +210,7 @@ public abstract class SortedSetDocValuesSyntheticFieldLoaderLayer implements Com
             if (hasValue == false && hasOffset == false) {
                 return;
             }
-            if (offsetToOrd != null) {
+            if (offsetToOrd != null && hasValue) {
                 long[] ords = new long[dv.docValueCount()];
                 for (int i = 0; i < dv.docValueCount(); i++) {
                     ords[i] = dv.nextOrd();
@@ -225,6 +225,12 @@ public abstract class SortedSetDocValuesSyntheticFieldLoaderLayer implements Com
                     long ord = ords[offset];
                     BytesRef c = convert(dv.lookupOrd(ord));
                     b.utf8Value(c.bytes, c.offset, c.length);
+                }
+            } else if (offsetToOrd != null) {
+                // in case all values are NULLs
+                for (int offset : offsetToOrd) {
+                    assert offset == -1;
+                    b.nullValue();
                 }
             } else {
                 for (int i = 0; i < dv.docValueCount(); i++) {

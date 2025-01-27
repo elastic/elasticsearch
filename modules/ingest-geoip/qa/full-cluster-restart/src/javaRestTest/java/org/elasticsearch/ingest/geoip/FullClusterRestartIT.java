@@ -93,7 +93,7 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
             Request migrateSystemFeatures = new Request("POST", "/_migration/system_features");
             assertOK(client().performRequest(migrateSystemFeatures));
 
-            assertBusy(() -> testCatIndices(".geoip_databases-reindexed-for-8", "my-index-00001"));
+            assertBusy(() -> testCatIndices(".geoip_databases-reindexed-for-10", "my-index-00001"));
             assertBusy(() -> testIndexGeoDoc());
 
             Request disableDownloader = new Request("PUT", "/_cluster/settings");

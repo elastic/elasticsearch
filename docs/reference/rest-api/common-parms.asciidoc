@@ -1376,14 +1376,13 @@ results, which will later be merged based on the specified `weight` and `normali
 * `weight`::
 (Optional, float)
 +
-The weight that each score of this retriever's top docs will be multiplied with. Defaults to 1.0.
+The weight that each score of this retriever's top docs will be multiplied with. Must be greater or equal to 0. Defaults to 1.0.
 
 * `normalizer`::
-(Optional, String or Object)
+(Optional, String)
 +
 Specifies how we will normalize the retriever's scores, before applying the specified `weight`.
-We can either provide a string reference to use with the default values or further configure any normalizer
-using its specific properties. Available values are: `minmax`, and `none`. Defaults to `none`.
+Available values are: `minmax`, and `none`. Defaults to `none`.
 
 ** `none`
 ** `minmax` :

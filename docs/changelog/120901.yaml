@@ -1,5 +1,0 @@
-pr: 120901
-summary: "Fix bug that caused data stream stats requests to fail when there was a concrete index in the cluster"
-area: Data streams
-type: bug
-issues: []

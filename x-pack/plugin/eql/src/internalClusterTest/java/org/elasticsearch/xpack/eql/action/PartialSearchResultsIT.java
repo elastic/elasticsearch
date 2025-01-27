@@ -274,7 +274,10 @@ public class PartialSearchResultsIT extends AbstractEqlIntegTestCase {
         internalCluster().stopNode(assignedNodeForIndex1);
 
         // event query
-        var request = new EqlSearchRequest().indices("test-*").query("process where true").allowPartialSearchResults(true);
+        var request = new EqlSearchRequest().indices("test-*").query("process where true");
+        if (randomBoolean()) {
+            request = request.allowPartialSearchResults(true);
+        }
         var response = client().execute(EqlSearchAction.INSTANCE, request).get();
         assertThat(response.hits().events().size(), equalTo(5));
         for (int i = 0; i < 5; i++) {
@@ -295,8 +298,11 @@ public class PartialSearchResultsIT extends AbstractEqlIntegTestCase {
         // sequence query on both shards
         var request = new EqlSearchRequest().indices("test-*")
             .query("sequence [process where value == 1] [process where value == 2]")
-            .allowPartialSearchResults(true)
             .allowPartialSequenceResults(true);
+        if (randomBoolean()) {
+            request = request.allowPartialSearchResults(true);
+        }
+
         var response = client().execute(EqlSearchAction.INSTANCE, request).get();
         assertThat(response.hits().sequences().size(), equalTo(0));
         assertThat(response.shardFailures().length, is(1));
@@ -306,8 +312,10 @@ public class PartialSearchResultsIT extends AbstractEqlIntegTestCase {
         // sequence query on the available shard only
         request = new EqlSearchRequest().indices("test-*")
             .query("sequence [process where value == 1] [process where value == 3]")
-            .allowPartialSearchResults(true)
             .allowPartialSequenceResults(true);
+        if (randomBoolean()) {
+            request = request.allowPartialSearchResults(true);
+        }
         response = client().execute(EqlSearchAction.INSTANCE, request).get();
         assertThat(response.hits().sequences().size(), equalTo(1));
         var sequence = response.hits().sequences().get(0);
@@ -320,8 +328,10 @@ public class PartialSearchResultsIT extends AbstractEqlIntegTestCase {
         // sequence query on the unavailable shard only
         request = new EqlSearchRequest().indices("test-*")
             .query("sequence [process where value == 0] [process where value == 2]")
-            .allowPartialSearchResults(true)
             .allowPartialSequenceResults(true);
+        if (randomBoolean()) {
+            request = request.allowPartialSearchResults(true);
+        }
         response = client().execute(EqlSearchAction.INSTANCE, request).get();
         assertThat(response.hits().sequences().size(), equalTo(0));
         assertThat(response.shardFailures().length, is(1));
@@ -331,8 +341,10 @@ public class PartialSearchResultsIT extends AbstractEqlIntegTestCase {
         // sequence query with missing event on unavailable shard. THIS IS A FALSE POSITIVE
         request = new EqlSearchRequest().indices("test-*")
             .query("sequence with maxspan=10s  [process where value == 1] ![process where value == 2] [process where value == 3]")
-            .allowPartialSearchResults(true)
             .allowPartialSequenceResults(true);
+        if (randomBoolean()) {
+            request = request.allowPartialSearchResults(true);
+        }
         response = client().execute(EqlSearchAction.INSTANCE, request).get();
         assertThat(response.hits().sequences().size(), equalTo(1));
         sequence = response.hits().sequences().get(0);
@@ -355,8 +367,10 @@ public class PartialSearchResultsIT extends AbstractEqlIntegTestCase {
         // sample query on both shards
         var request = new EqlSearchRequest().indices("test-*")
             .query("sample by key [process where value == 2] [process where value == 1]")
-            .allowPartialSearchResults(true)
             .allowPartialSequenceResults(true);
+        if (randomBoolean()) {
+            request = request.allowPartialSearchResults(true);
+        }
         var response = client().execute(EqlSearchAction.INSTANCE, request).get();
         assertThat(response.hits().sequences().size(), equalTo(0));
         assertThat(response.shardFailures().length, is(1));
@@ -366,8 +380,10 @@ public class PartialSearchResultsIT extends AbstractEqlIntegTestCase {
         // sample query on the available shard only
         request = new EqlSearchRequest().indices("test-*")
             .query("sample by key [process where value == 3] [process where value == 1]")
-            .allowPartialSearchResults(true)
             .allowPartialSequenceResults(true);
+        if (randomBoolean()) {
+            request = request.allowPartialSearchResults(true);
+        }
         response = client().execute(EqlSearchAction.INSTANCE, request).get();
         assertThat(response.hits().sequences().size(), equalTo(1));
         var sample = response.hits().sequences().get(0);
@@ -380,8 +396,10 @@ public class PartialSearchResultsIT extends AbstractEqlIntegTestCase {
         // sample query on the unavailable shard only
         request = new EqlSearchRequest().indices("test-*")
             .query("sample by key [process where value == 2] [process where value == 0]")
-            .allowPartialSearchResults(true)
             .allowPartialSequenceResults(true);
+        if (randomBoolean()) {
+            request = request.allowPartialSearchResults(true);
+        }
         response = client().execute(EqlSearchAction.INSTANCE, request).get();
         assertThat(response.hits().sequences().size(), equalTo(0));
         assertThat(response.shardFailures().length, is(1));
@@ -404,7 +422,10 @@ public class PartialSearchResultsIT extends AbstractEqlIntegTestCase {
         internalCluster().stopNode(assignedNodeForIndex1);
 
         // event query
-        var request = new EqlSearchRequest().indices("test-*").query("process where true").allowPartialSearchResults(true);
+        var request = new EqlSearchRequest().indices("test-*").query("process where true");
+        if (randomBoolean()) {
+            request = request.allowPartialSearchResults(true);
+        }
         var response = client().execute(EqlSearchAction.INSTANCE, request).get();
         assertThat(response.hits().events().size(), equalTo(5));
         for (int i = 0; i < 5; i++) {
@@ -423,9 +444,10 @@ public class PartialSearchResultsIT extends AbstractEqlIntegTestCase {
         internalCluster().stopNode(assignedNodeForIndex1);
 
         // sequence query on both shards
-        var request = new EqlSearchRequest().indices("test-*")
-            .query("sequence [process where value == 1] [process where value == 2]")
-            .allowPartialSearchResults(true);
+        var request = new EqlSearchRequest().indices("test-*").query("sequence [process where value == 1] [process where value == 2]");
+        if (randomBoolean()) {
+            request = request.allowPartialSearchResults(true);
+        }
         var response = client().execute(EqlSearchAction.INSTANCE, request).get();
         assertThat(response.hits().sequences().size(), equalTo(0));
         assertThat(response.shardFailures().length, is(1));
@@ -433,9 +455,10 @@ public class PartialSearchResultsIT extends AbstractEqlIntegTestCase {
         assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
 
         // sequence query on the available shard only
-        request = new EqlSearchRequest().indices("test-*")
-            .query("sequence [process where value == 1] [process where value == 3]")
-            .allowPartialSearchResults(true);
+        request = new EqlSearchRequest().indices("test-*").query("sequence [process where value == 1] [process where value == 3]");
+        if (randomBoolean()) {
+            request = request.allowPartialSearchResults(true);
+        }
         response = client().execute(EqlSearchAction.INSTANCE, request).get();
         assertThat(response.hits().sequences().size(), equalTo(0));
         assertThat(response.shardFailures().length, is(1));
@@ -443,9 +466,10 @@ public class PartialSearchResultsIT extends AbstractEqlIntegTestCase {
         assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
 
         // sequence query on the unavailable shard only
-        request = new EqlSearchRequest().indices("test-*")
-            .query("sequence [process where value == 0] [process where value == 2]")
-            .allowPartialSearchResults(true);
+        request = new EqlSearchRequest().indices("test-*").query("sequence [process where value == 0] [process where value == 2]");
+        if (randomBoolean()) {
+            request = request.allowPartialSearchResults(true);
+        }
         response = client().execute(EqlSearchAction.INSTANCE, request).get();
         assertThat(response.hits().sequences().size(), equalTo(0));
         assertThat(response.shardFailures().length, is(1));
@@ -454,8 +478,10 @@ public class PartialSearchResultsIT extends AbstractEqlIntegTestCase {
 
         // sequence query with missing event on unavailable shard. THIS IS A FALSE POSITIVE
         request = new EqlSearchRequest().indices("test-*")
-            .query("sequence with maxspan=10s  [process where value == 1] ![process where value == 2] [process where value == 3]")
-            .allowPartialSearchResults(true);
+            .query("sequence with maxspan=10s  [process where value == 1] ![process where value == 2] [process where value == 3]");
+        if (randomBoolean()) {
+            request = request.allowPartialSearchResults(true);
+        }
         response = client().execute(EqlSearchAction.INSTANCE, request).get();
         assertThat(response.hits().sequences().size(), equalTo(0));
         assertThat(response.shardFailures().length, is(1));
@@ -473,9 +499,10 @@ public class PartialSearchResultsIT extends AbstractEqlIntegTestCase {
         internalCluster().stopNode(assignedNodeForIndex1);
 
         // sample query on both shards
-        var request = new EqlSearchRequest().indices("test-*")
-            .query("sample by key [process where value == 2] [process where value == 1]")
-            .allowPartialSearchResults(true);
+        var request = new EqlSearchRequest().indices("test-*").query("sample by key [process where value == 2] [process where value == 1]");
+        if (randomBoolean()) {
+            request = request.allowPartialSearchResults(true);
+        }
         var response = client().execute(EqlSearchAction.INSTANCE, request).get();
         assertThat(response.hits().sequences().size(), equalTo(0));
         assertThat(response.shardFailures().length, is(1));
@@ -483,9 +510,10 @@ public class PartialSearchResultsIT extends AbstractEqlIntegTestCase {
         assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
 
         // sample query on the available shard only
-        request = new EqlSearchRequest().indices("test-*")
-            .query("sample by key [process where value == 3] [process where value == 1]")
-            .allowPartialSearchResults(true);
+        request = new EqlSearchRequest().indices("test-*").query("sample by key [process where value == 3] [process where value == 1]");
+        if (randomBoolean()) {
+            request = request.allowPartialSearchResults(true);
+        }
         response = client().execute(EqlSearchAction.INSTANCE, request).get();
         assertThat(response.hits().sequences().size(), equalTo(1));
         var sample = response.hits().sequences().get(0);
@@ -496,9 +524,10 @@ public class PartialSearchResultsIT extends AbstractEqlIntegTestCase {
         assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
 
         // sample query on the unavailable shard only
-        request = new EqlSearchRequest().indices("test-*")
-            .query("sample by key [process where value == 2] [process where value == 0]")
-            .allowPartialSearchResults(true);
+        request = new EqlSearchRequest().indices("test-*").query("sample by key [process where value == 2] [process where value == 0]");
+        if (randomBoolean()) {
+            request = request.allowPartialSearchResults(true);
+        }
         response = client().execute(EqlSearchAction.INSTANCE, request).get();
         assertThat(response.hits().sequences().size(), equalTo(0));
         assertThat(response.shardFailures().length, is(1));
@@ -605,7 +634,7 @@ public class PartialSearchResultsIT extends AbstractEqlIntegTestCase {
     }
 
     // ------------------------------------------------------------------------
-    // same queries, with missing shards and with default xpack.eql.default_allow_partial_results=true
+    // same queries, with missing shards and with default xpack.eql.default_allow_partial_results=false
     // ------------------------------------------------------------------------
 
     public void testClusterSetting_event() throws Exception {
@@ -619,18 +648,12 @@ public class PartialSearchResultsIT extends AbstractEqlIntegTestCase {
         client().execute(
             ClusterUpdateSettingsAction.INSTANCE,
             new ClusterUpdateSettingsRequest(TimeValue.THIRTY_SECONDS, TimeValue.THIRTY_SECONDS).persistentSettings(
-                Settings.builder().put(EqlPlugin.DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS.getKey(), true)
+                Settings.builder().put(EqlPlugin.DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS.getKey(), false)
             )
         ).get();
 
         // event query
-        var request = new EqlSearchRequest().indices("test-*").query("process where true");
-        var response = client().execute(EqlSearchAction.INSTANCE, request).get();
-        assertThat(response.hits().events().size(), equalTo(5));
-        for (int i = 0; i < 5; i++) {
-            assertThat(response.hits().events().get(i).toString(), containsString("\"value\" : " + (i * 2 + 1)));
-        }
-        assertThat(response.shardFailures().length, is(1));
+        shouldFail("process where true");
 
         client().execute(
             ClusterUpdateSettingsAction.INSTANCE,
@@ -651,41 +674,20 @@ public class PartialSearchResultsIT extends AbstractEqlIntegTestCase {
         client().execute(
             ClusterUpdateSettingsAction.INSTANCE,
             new ClusterUpdateSettingsRequest(TimeValue.THIRTY_SECONDS, TimeValue.THIRTY_SECONDS).persistentSettings(
-                Settings.builder().put(EqlPlugin.DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS.getKey(), true)
+                Settings.builder().put(EqlPlugin.DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS.getKey(), false)
             )
         ).get();
         // sequence query on both shards
-        var request = new EqlSearchRequest().indices("test-*").query("sequence [process where value == 1] [process where value == 2]");
-        var response = client().execute(EqlSearchAction.INSTANCE, request).get();
-        assertThat(response.hits().sequences().size(), equalTo(0));
-        assertThat(response.shardFailures().length, is(1));
-        assertThat(response.shardFailures()[0].index(), is("test-1"));
-        assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
+        shouldFail("sequence [process where value == 1] [process where value == 2]");
 
         // sequence query on the available shard only
-        request = new EqlSearchRequest().indices("test-*").query("sequence [process where value == 1] [process where value == 3]");
-        response = client().execute(EqlSearchAction.INSTANCE, request).get();
-        assertThat(response.hits().sequences().size(), equalTo(0));
-        assertThat(response.shardFailures().length, is(1));
-        assertThat(response.shardFailures()[0].index(), is("test-1"));
-        assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
+        shouldFail("sequence [process where value == 1] [process where value == 3]");
 
         // sequence query on the unavailable shard only
-        request = new EqlSearchRequest().indices("test-*").query("sequence [process where value == 0] [process where value == 2]");
-        response = client().execute(EqlSearchAction.INSTANCE, request).get();
-        assertThat(response.hits().sequences().size(), equalTo(0));
-        assertThat(response.shardFailures().length, is(1));
-        assertThat(response.shardFailures()[0].index(), is("test-1"));
-        assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
+        shouldFail("sequence [process where value == 0] [process where value == 2]");
 
         // sequence query with missing event on unavailable shard. THIS IS A FALSE POSITIVE
-        request = new EqlSearchRequest().indices("test-*")
-            .query("sequence with maxspan=10s  [process where value == 1] ![process where value == 2] [process where value == 3]");
-        response = client().execute(EqlSearchAction.INSTANCE, request).get();
-        assertThat(response.hits().sequences().size(), equalTo(0));
-        assertThat(response.shardFailures().length, is(1));
-        assertThat(response.shardFailures()[0].index(), is("test-1"));
-        assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
+        shouldFail("sequence with maxspan=10s  [process where value == 1] ![process where value == 2] [process where value == 3]");
 
         client().execute(
             ClusterUpdateSettingsAction.INSTANCE,
@@ -706,36 +708,18 @@ public class PartialSearchResultsIT extends AbstractEqlIntegTestCase {
         client().execute(
             ClusterUpdateSettingsAction.INSTANCE,
             new ClusterUpdateSettingsRequest(TimeValue.THIRTY_SECONDS, TimeValue.THIRTY_SECONDS).persistentSettings(
-                Settings.builder().put(EqlPlugin.DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS.getKey(), true)
+                Settings.builder().put(EqlPlugin.DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS.getKey(), false)
             )
         ).get();
 
         // sample query on both shards
-        var request = new EqlSearchRequest().indices("test-*").query("sample by key [process where value == 2] [process where value == 1]");
-        var response = client().execute(EqlSearchAction.INSTANCE, request).get();
-        assertThat(response.hits().sequences().size(), equalTo(0));
-        assertThat(response.shardFailures().length, is(1));
-        assertThat(response.shardFailures()[0].index(), is("test-1"));
-        assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
+        shouldFail("sample by key [process where value == 2] [process where value == 1]");
 
         // sample query on the available shard only
-        request = new EqlSearchRequest().indices("test-*").query("sample by key [process where value == 3] [process where value == 1]");
-        response = client().execute(EqlSearchAction.INSTANCE, request).get();
-        assertThat(response.hits().sequences().size(), equalTo(1));
-        var sample = response.hits().sequences().get(0);
-        assertThat(sample.events().get(0).toString(), containsString("\"value\" : 3"));
-        assertThat(sample.events().get(1).toString(), containsString("\"value\" : 1"));
-        assertThat(response.shardFailures().length, is(1));
-        assertThat(response.shardFailures()[0].index(), is("test-1"));
-        assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
+        shouldFail("sample by key [process where value == 3] [process where value == 1]");
 
         // sample query on the unavailable shard only
-        request = new EqlSearchRequest().indices("test-*").query("sample by key [process where value == 2] [process where value == 0]");
-        response = client().execute(EqlSearchAction.INSTANCE, request).get();
-        assertThat(response.hits().sequences().size(), equalTo(0));
-        assertThat(response.shardFailures().length, is(1));
-        assertThat(response.shardFailures()[0].index(), is("test-1"));
-        assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
+        shouldFail("sample by key [process where value == 2] [process where value == 0]");
 
         client().execute(
             ClusterUpdateSettingsAction.INSTANCE,
@@ -751,7 +735,9 @@ public class PartialSearchResultsIT extends AbstractEqlIntegTestCase {
         EqlSearchResponse response;
         request = new EqlSearchRequest().indices("test-*").query(query).waitForCompletionTimeout(TimeValue.ZERO);
         if (allowPartialSearchResults != null) {
-            request = request.allowPartialSearchResults(allowPartialSearchResults);
+            if (allowPartialSearchResults == false || randomBoolean()) request = request.allowPartialSearchResults(
+                allowPartialSearchResults
+            );
         }
         response = client().execute(EqlSearchAction.INSTANCE, request).get();
         while (response.isRunning()) {
@@ -764,9 +750,7 @@ public class PartialSearchResultsIT extends AbstractEqlIntegTestCase {
 
     private static void shouldFail(String query) throws InterruptedException {
         EqlSearchRequest request = new EqlSearchRequest().indices("test-*").query(query);
-        if (randomBoolean()) {
-            request = request.allowPartialSearchResults(false);
-        }
+        request = request.allowPartialSearchResults(false);
         if (randomBoolean()) {
             request = request.allowPartialSequenceResults(randomBoolean());
         }

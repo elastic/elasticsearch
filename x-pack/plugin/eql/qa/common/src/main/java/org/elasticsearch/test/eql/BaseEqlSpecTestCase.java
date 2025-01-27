@@ -187,29 +187,29 @@ public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestC
             builder.field("max_samples_per_key", maxSamplesPerKey);
         }
         boolean allowPartialResultsInBody = randomBoolean();
-        if (allowPartialSearchResults != null) {
-            if (allowPartialResultsInBody) {
+
+        if (allowPartialResultsInBody) {
+            if (allowPartialSearchResults != null) {
                 builder.field("allow_partial_search_results", String.valueOf(allowPartialSearchResults));
-                if (allowPartialSequenceResults != null) {
-                    builder.field("allow_partial_sequence_results", String.valueOf(allowPartialSequenceResults));
-                }
-            } else {
-                // these will be overwritten by the path params, that have higher priority than the query (JSON body) params
-                if (allowPartialSearchResults != null) {
-                    builder.field("allow_partial_search_results", randomBoolean());
-                }
-                if (allowPartialSequenceResults != null) {
-                    builder.field("allow_partial_sequence_results", randomBoolean());
-                }
+            } else if (randomBoolean()) {
+                builder.field("allow_partial_search_results", true);
+            }
+            if (allowPartialSequenceResults != null) {
+                builder.field("allow_partial_sequence_results", String.valueOf(allowPartialSequenceResults));
+            } else if (randomBoolean()) {
+                builder.field("allow_partial_sequence_results", false);
             }
         } else {
-            // Tests that don't specify a setting for these parameters should always pass.
-            // These params should be irrelevant.
-            if (randomBoolean()) {
+            // these will be overwritten by the path params, that have higher priority than the query (JSON body) params
+            if (allowPartialSearchResults != null) {
                 builder.field("allow_partial_search_results", randomBoolean());
+            } else if (randomBoolean()) {
+                builder.field("allow_partial_search_results", true);
             }
-            if (randomBoolean()) {
+            if (allowPartialSequenceResults != null) {
                 builder.field("allow_partial_sequence_results", randomBoolean());
+            } else if (randomBoolean()) {
+                builder.field("allow_partial_sequence_results", false);
             }
         }
         builder.endObject();
@@ -219,23 +219,17 @@ public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestC
         if (ccsMinimizeRoundtrips != null) {
             request.addParameter("ccs_minimize_roundtrips", ccsMinimizeRoundtrips.toString());
         }
-        if (allowPartialSearchResults != null) {
-            if (allowPartialResultsInBody == false) {
+        if (allowPartialResultsInBody == false) {
+            if (allowPartialSearchResults != null) {
                 request.addParameter("allow_partial_search_results", String.valueOf(allowPartialSearchResults));
-                if (allowPartialSequenceResults != null) {
-                    request.addParameter("allow_partial_sequence_results", String.valueOf(allowPartialSequenceResults));
-                }
+            } else if (randomBoolean()) {
+                request.addParameter("allow_partial_search_results", String.valueOf(true));
             }
-        } else {
-            // Tests that don't specify a setting for these parameters should always pass.
-            // These params should be irrelevant.
-            if (randomBoolean()) {
-                request.addParameter("allow_partial_search_results", String.valueOf(randomBoolean()));
-            }
-            if (randomBoolean()) {
-                request.addParameter("allow_partial_sequence_results", String.valueOf(randomBoolean()));
+            if (allowPartialSequenceResults != null) {
+                request.addParameter("allow_partial_sequence_results", String.valueOf(allowPartialSequenceResults));
             }
         }
+
         int timeout = Math.toIntExact(timeout().millis());
         RequestConfig config = RequestConfig.copy(RequestConfig.DEFAULT)
             .setConnectionRequestTimeout(timeout)

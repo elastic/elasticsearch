@@ -53,7 +53,7 @@ final class TransportHandshaker {
      * rely on them matching the real transport protocol (which itself matched the release version numbers), but these days that's no longer
      * true.
      *
-     * Here are some example messages, broken down to show their structure:
+     * Here are some example messages, broken down to show their structure. See TransportHandshakerRawMessageTests for supporting tests.
      *
      * ## v6080099 Request:
      *
@@ -87,7 +87,7 @@ final class TransportHandshaker {
      *    c3 f9 eb 03                   -- max acceptable protocol version (vInt: 00000011 11101011 11111001 11000011 == 8060099)
      *
      *
-     * ## v7170099 and v8800000 Requests:
+     * ## v7170099 Requests:
      *
      * 45 53                            -- 'ES' marker
      * 00 00 00 31                      -- total message length
@@ -106,7 +106,7 @@ final class TransportHandshaker {
      *    04                            -- payload length
      *       c3 f9 eb 03                -- max acceptable protocol version (vInt: 00000011 11101011 11111001 11000011 == 8060099)
      *
-     * ## v7170099 and v8800000 Responses:
+     * ## v7170099 Responses:
      *
      * 45 53                            -- 'ES' marker
      * 00 00 00 17                      -- total message length
@@ -117,6 +117,40 @@ final class TransportHandshaker {
      *       00                         -- no request headers [1]
      *       00                         -- no response headers [1]
      *    c3 f9 eb 03                   -- max acceptable protocol version (vInt: 00000011 11101011 11111001 11000011 == 8060099)
+     *
+     * ## v8800000 Requests:
+     *
+     * 45 53                            -- 'ES' marker
+     * 00 00 00 36                      -- total message length
+     *    00 00 00 00 00 00 00 01       -- request ID
+     *    08                            -- status flags (0b1000 == handshake request)
+     *    00 86 47 00                   -- handshake protocol version (0x6d6833 == 7170099)
+     *    00 00 00 19                   -- length of variable portion of header
+     *       00                         -- no request headers [1]
+     *       00                         -- no response headers [1]
+     *       16                         -- action string size
+     *       69 6e 74 65 72 6e 61 6c    }
+     *       3a 74 63 70 2f 68 61 6e    }- ASCII representation of HANDSHAKE_ACTION_NAME
+     *       64 73 68 61 6b 65          }
+     *    00                            -- no parent task ID [3]
+     *    0a                            -- payload length
+     *       e8 8f 9b 04                -- requesting node transport version (vInt: 00000100 10011011 10001111 11101000 == 8833000)
+     *       05                         -- requesting node release version string length
+     *          39 2e 30 2e 30          -- requesting node release version string "9.0.0"
+     *
+     * ## v8800000 Responses:
+     *
+     * 45 53                            -- 'ES' marker
+     * 00 00 00 1d                      -- total message length
+     *    00 00 00 00 00 00 00 01       -- request ID (copied from request)
+     *    09                            -- status flags (0b1001 == handshake response)
+     *    00 86 47 00                   -- handshake protocol version (0x864700 == 8800000, copied from request)
+     *    00 00 00 02                   -- length of following variable portion of header
+     *       00                         -- no request headers [1]
+     *       00                         -- no response headers [1]
+     *    e8 8f 9b 04                   -- responding node transport version (vInt: 00000100 10011011 10001111 11101000 == 8833000)
+     *    05                            -- responding node release version string length
+     *       39 2e 30 2e 30             -- responding node release version string "9.0.0"
      *
      * [1] Thread context headers should be empty; see org.elasticsearch.common.util.concurrent.ThreadContext.ThreadContextStruct.writeTo
      *     for their structure.

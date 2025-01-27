@@ -122,6 +122,10 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
         entry("timeZoneNameProvider", alwaysDenied(RestEntitlementsCheckAction::timeZoneNameProvider$)),
         entry("logManager", alwaysDenied(RestEntitlementsCheckAction::logManager$)),
 
+        entry("locale_setDefault", alwaysDenied(WritePropertiesCheckActions::setDefaultLocale)),
+        entry("locale_setDefaultForCategory", alwaysDenied(WritePropertiesCheckActions::setDefaultLocaleForCategory)),
+        entry("timeZone_setDefault", alwaysDenied(WritePropertiesCheckActions::setDefaultTimeZone)),
+
         entry("system_setProperty", forPlugins(WritePropertiesCheckActions::setSystemProperty)),
         entry("system_clearProperty", forPlugins(WritePropertiesCheckActions::clearSystemProperty)),
         entry("system_setSystemProperties", alwaysDenied(WritePropertiesCheckActions::setSystemProperties)),

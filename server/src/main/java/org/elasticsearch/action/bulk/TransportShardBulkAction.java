@@ -23,6 +23,7 @@ import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.replication.PostWriteRefresh;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.action.support.replication.TransportWriteAction;
@@ -151,30 +152,43 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         IndexShard primary,
         ActionListener<PrimaryResult<BulkShardRequest, BulkShardResponse>> listener
     ) {
-        ClusterStateObserver observer = new ClusterStateObserver(clusterService, request.timeout(), logger, threadPool.getThreadContext());
-        performOnPrimary(request, primary, updateHelper, threadPool::absoluteTimeInMillis, (update, shardId, mappingListener) -> {
-            assert update != null;
-            assert shardId != null;
-            mappingUpdatedAction.updateMappingOnMaster(shardId.getIndex(), update, mappingListener);
-        }, (mappingUpdateListener, initialMappingVersion) -> observer.waitForNextChange(new ClusterStateObserver.Listener() {
-            @Override
-            public void onNewClusterState(ClusterState state) {
-                mappingUpdateListener.onResponse(null);
-            }
+        final Executor executor = executor(primary);
+        final ActionListener<Void> wrappedListener = listener.delegateFailure((l, e) -> executor.execute(() -> {
+            ClusterStateObserver observer = new ClusterStateObserver(
+                clusterService,
+                request.timeout(),
+                logger,
+                threadPool.getThreadContext()
+            );
+            performOnPrimary(request, primary, updateHelper, threadPool::absoluteTimeInMillis, (update, shardId, mappingListener) -> {
+                assert update != null;
+                assert shardId != null;
+                mappingUpdatedAction.updateMappingOnMaster(shardId.getIndex(), update, mappingListener);
+            }, (mappingUpdateListener, initialMappingVersion) -> observer.waitForNextChange(new ClusterStateObserver.Listener() {
+                @Override
+                public void onNewClusterState(ClusterState state) {
+                    mappingUpdateListener.onResponse(null);
+                }
 
-            @Override
-            public void onClusterServiceClose() {
-                mappingUpdateListener.onFailure(new NodeClosedException(clusterService.localNode()));
-            }
+                @Override
+                public void onClusterServiceClose() {
+                    mappingUpdateListener.onFailure(new NodeClosedException(clusterService.localNode()));
+                }
 
-            @Override
-            public void onTimeout(TimeValue timeout) {
-                mappingUpdateListener.onFailure(new MapperException("timed out while waiting for a dynamic mapping update"));
-            }
-        }, clusterState -> {
-            var indexMetadata = clusterState.metadata().index(primary.shardId().getIndex());
-            return indexMetadata == null || (indexMetadata.mapping() != null && indexMetadata.getMappingVersion() != initialMappingVersion);
-        }), listener, executor(primary), postWriteRefresh, postWriteAction, documentParsingProvider);
+                @Override
+                public void onTimeout(TimeValue timeout) {
+                    mappingUpdateListener.onFailure(new MapperException("timed out while waiting for a dynamic mapping update"));
+                }
+            }, clusterState -> {
+                var indexMetadata = clusterState.metadata().index(primary.shardId().getIndex());
+                return indexMetadata == null
+                    || (indexMetadata.mapping() != null && indexMetadata.getMappingVersion() != initialMappingVersion);
+            }), l, executor, postWriteRefresh, postWriteAction, documentParsingProvider);
+        }));
+
+        try (var listeners = new RefCountingListener(wrappedListener)) {
+            primary.getIndexingOperationListener().preBulkOnPrimary(primary, () -> listeners.acquire());
+        }
     }
 
     @Override

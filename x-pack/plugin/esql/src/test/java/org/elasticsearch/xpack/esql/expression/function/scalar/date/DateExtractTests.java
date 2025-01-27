@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.session.Configuration;
 import java.time.Instant;
 import java.time.ZonedDateTime;
 import java.time.temporal.ChronoField;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
@@ -40,14 +41,15 @@ public class DateExtractTests extends AbstractConfigurationFunctionTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(
-            true,
-            List.of(
+        var suppliers = new ArrayList<TestCaseSupplier>();
+
+        for (var stringType : DataType.stringTypes()) {
+            suppliers.addAll(List.of(
                 new TestCaseSupplier(
-                    List.of(DataType.KEYWORD, DataType.DATETIME),
+                    List.of(stringType, DataType.DATETIME),
                     () -> new TestCaseSupplier.TestCase(
                         List.of(
-                            new TestCaseSupplier.TypedData(new BytesRef("YeAr"), DataType.KEYWORD, "chrono"),
+                            new TestCaseSupplier.TypedData(new BytesRef("YeAr"), stringType, "chrono"),
                             new TestCaseSupplier.TypedData(1687944333000L, DataType.DATETIME, "date")
                         ),
                         "DateExtractMillisEvaluator[value=Attribute[channel=1], chronoField=Attribute[channel=0], zone=Z]",
@@ -56,22 +58,10 @@ public class DateExtractTests extends AbstractConfigurationFunctionTestCase {
                     )
                 ),
                 new TestCaseSupplier(
-                    List.of(DataType.TEXT, DataType.DATETIME),
+                    List.of(stringType, DataType.DATE_NANOS),
                     () -> new TestCaseSupplier.TestCase(
                         List.of(
-                            new TestCaseSupplier.TypedData(new BytesRef("YeAr"), DataType.TEXT, "chrono"),
-                            new TestCaseSupplier.TypedData(1687944333000L, DataType.DATETIME, "date")
-                        ),
-                        "DateExtractMillisEvaluator[value=Attribute[channel=1], chronoField=Attribute[channel=0], zone=Z]",
-                        DataType.LONG,
-                        equalTo(2023L)
-                    )
-                ),
-                new TestCaseSupplier(
-                    List.of(DataType.KEYWORD, DataType.DATE_NANOS),
-                    () -> new TestCaseSupplier.TestCase(
-                        List.of(
-                            new TestCaseSupplier.TypedData(new BytesRef("YeAr"), DataType.KEYWORD, "chrono"),
+                            new TestCaseSupplier.TypedData(new BytesRef("YeAr"), stringType, "chrono"),
                             new TestCaseSupplier.TypedData(1687944333000000000L, DataType.DATE_NANOS, "date")
                         ),
                         "DateExtractNanosEvaluator[value=Attribute[channel=1], chronoField=Attribute[channel=0], zone=Z]",
@@ -80,22 +70,22 @@ public class DateExtractTests extends AbstractConfigurationFunctionTestCase {
                     )
                 ),
                 new TestCaseSupplier(
-                    List.of(DataType.TEXT, DataType.DATE_NANOS),
+                    List.of(stringType, DataType.DATE_NANOS),
                     () -> new TestCaseSupplier.TestCase(
                         List.of(
-                            new TestCaseSupplier.TypedData(new BytesRef("YeAr"), DataType.TEXT, "chrono"),
-                            new TestCaseSupplier.TypedData(1687944333000000000L, DataType.DATE_NANOS, "date")
+                            new TestCaseSupplier.TypedData(new BytesRef("nano_of_second"), stringType, "chrono"),
+                            new TestCaseSupplier.TypedData(1687944333000123456L, DataType.DATE_NANOS, "date")
                         ),
                         "DateExtractNanosEvaluator[value=Attribute[channel=1], chronoField=Attribute[channel=0], zone=Z]",
                         DataType.LONG,
-                        equalTo(2023L)
+                        equalTo(123456L)
                     )
                 ),
                 new TestCaseSupplier(
-                    List.of(DataType.KEYWORD, DataType.DATETIME),
+                    List.of(stringType, DataType.DATETIME),
                     () -> new TestCaseSupplier.TestCase(
                         List.of(
-                            new TestCaseSupplier.TypedData(new BytesRef("not a unit"), DataType.KEYWORD, "chrono"),
+                            new TestCaseSupplier.TypedData(new BytesRef("not a unit"), stringType, "chrono"),
                             new TestCaseSupplier.TypedData(0L, DataType.DATETIME, "date")
 
                         ),
@@ -109,7 +99,12 @@ public class DateExtractTests extends AbstractConfigurationFunctionTestCase {
                         )
                         .withFoldingException(InvalidArgumentException.class, "invalid date field for []: not a unit")
                 )
-            )
+            ));
+        }
+
+        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(
+            true,
+            suppliers
         );
     }
 

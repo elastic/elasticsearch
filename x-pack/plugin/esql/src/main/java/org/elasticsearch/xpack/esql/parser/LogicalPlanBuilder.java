@@ -36,7 +36,7 @@ import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
-import org.elasticsearch.xpack.esql.plan.TableIdentifier;
+import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
@@ -257,7 +257,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     public LogicalPlan visitFromCommand(EsqlBaseParser.FromCommandContext ctx) {
         Source source = source(ctx);
-        TableIdentifier table = new TableIdentifier(source, null, visitIndexPattern(ctx.indexPattern()));
+        IndexPattern table = new IndexPattern(source, visitIndexPattern(ctx.indexPattern()));
         Map<String, Attribute> metadataMap = new LinkedHashMap<>();
         if (ctx.metadata() != null) {
             for (var c : ctx.metadata().UNQUOTED_SOURCE()) {
@@ -470,7 +470,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             throw new IllegalArgumentException("METRICS command currently requires a snapshot build");
         }
         Source source = source(ctx);
-        TableIdentifier table = new TableIdentifier(source, null, visitIndexPattern(ctx.indexPattern()));
+        IndexPattern table = new IndexPattern(source, visitIndexPattern(ctx.indexPattern()));
 
         if (ctx.aggregates == null && ctx.grouping == null) {
             return new UnresolvedRelation(source, table, false, List.of(), IndexMode.STANDARD, null, "METRICS");
@@ -539,7 +539,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
         UnresolvedRelation right = new UnresolvedRelation(
             source(target),
-            new TableIdentifier(source(target.index), null, rightPattern),
+            new IndexPattern(source(target.index), rightPattern),
             false,
             emptyList(),
             IndexMode.LOOKUP,

@@ -1878,8 +1878,31 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var limit = asLimit(plan, 1000, true);
         var mvExpand = as(limit.child(), MvExpand.class);
         var keep = as(mvExpand.child(), EsqlProject.class);
-        var limitPastMvExpand = as(keep.child(), Limit.class);
-        assertThat(limitPastMvExpand.limit().fold(FoldContext.small()), equalTo(1000));
+        var limitPastMvExpand = asLimit(keep.child(), 1000, false);
+        as(limitPastMvExpand.child(), EsRelation.class);
+    }
+
+    /**
+     * Expected
+     * Limit[1000[INTEGER],true]
+     * \_Join[LEFT,[language_code{r}#4],[language_code{r}#4],[language_code{f}#18]]
+     *   |_EsqlProject[[languages{f}#10 AS language_code]]
+     *   | \_Limit[1000[INTEGER],false]
+     *   |   \_EsRelation[test][_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, ge..]
+     *   \_EsRelation[languages_lookup][LOOKUP][language_code{f}#18, language_name{f}#19]
+     */
+    public void testCopyDefaultLimitPastLookupJoin() {
+        LogicalPlan plan = optimizedPlan("""
+            from test
+            | rename languages AS language_code
+            | keep language_code
+            | lookup join languages_lookup ON language_code
+            """);
+
+        var limit = asLimit(plan, 1000, true);
+        var join = as(limit.child(), Join.class);
+        var keep = as(join.left(), EsqlProject.class);
+        var limitPastMvExpand = asLimit(keep.child(), 1000, false);
         as(limitPastMvExpand.child(), EsRelation.class);
     }
 
@@ -1897,11 +1920,38 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             | limit 1
             | keep first_name, last_name
             | mv_expand first_name
-            | limit 10""");
+            | limit 10
+            """);
 
         var limit = asLimit(plan, 10, true);
         var mvExpand = as(limit.child(), MvExpand.class);
         var project = as(mvExpand.child(), EsqlProject.class);
+        var limit2 = asLimit(project.child(), 1, false);
+        as(limit2.child(), EsRelation.class);
+    }
+
+    /**
+     * Expected
+     * Limit[10[INTEGER],true]
+     * \_Join[LEFT,[language_code{r}#4],[language_code{r}#4],[language_code{f}#19]]
+     *   |_EsqlProject[[languages{f}#11 AS language_code, last_name{f}#12]]
+     *   | \_Limit[1[INTEGER],false]
+     *   |   \_EsRelation[test][_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, ge..]
+     *   \_EsRelation[languages_lookup][LOOKUP][language_code{f}#19, language_name{f}#20]
+     */
+    public void testDontPushDownLimitPastLookupJoin() {
+        LogicalPlan plan = optimizedPlan("""
+            from test
+            | limit 1
+            | rename languages AS language_code
+            | keep language_code, last_name
+            | lookup join languages_lookup on language_code
+            | limit 10
+            """);
+
+        var limit = asLimit(plan, 10, true);
+        var join = as(limit.child(), Join.class);
+        var project = as(join.left(), EsqlProject.class);
         var limit2 = asLimit(project.child(), 1, false);
         as(limit2.child(), EsRelation.class);
     }
@@ -1934,7 +1984,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             | limit 5
             | sort first_name
             | keep emp_no, first_name, languages, lll, salary
-            | sort salary desc""");
+            | sort salary desc
+            """);
 
         var keep = as(plan, EsqlProject.class);
         var topN = as(keep.child(), TopN.class);
@@ -1949,6 +2000,66 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         mvExp = as(limit10Before.child(), MvExpand.class);
         topN = as(mvExp.child(), TopN.class);
         assertThat(topN.limit().fold(FoldContext.small()), equalTo(10));
+        filter = as(topN.child(), Filter.class);
+        as(filter.child(), EsRelation.class);
+    }
+
+    /**
+     * Expected
+     * EsqlProject[[emp_no{f}#24, first_name{f}#25, languages{f}#27, lll{r}#11, salary{f}#29, language_name{f}#38]]
+     * \_TopN[[Order[salary{f}#29,DESC,FIRST]],5[INTEGER]]
+     *   \_Limit[5[INTEGER],true]
+     *     \_Join[LEFT,[language_code{r}#14],[language_code{r}#14],[language_code{f}#37]]
+     *       |_Project[[_meta_field{f}#30, emp_no{f}#24, first_name{f}#25, gender{f}#26, hire_date{f}#31, job{f}#32, job.raw{f}#33, l
+     * anguages{f}#27, last_name{f}#28, long_noidx{f}#34, salary{f}#29, language_name{f}#36, lll{r}#11, salary{f}#29 AS language_code]]
+     *       | \_Eval[[languages{f}#27 + 5[INTEGER] AS lll]]
+     *       |   \_Limit[5[INTEGER],false]
+     *       |     \_Filter[languages{f}#27 &gt; 1[INTEGER]]
+     *       |       \_Limit[10[INTEGER],true]
+     *       |         \_Join[LEFT,[language_code{r}#6],[language_code{r}#6],[language_code{f}#35]]
+     *       |           |_Project[[_meta_field{f}#30, emp_no{f}#24, first_name{f}#25, gender{f}#26, hire_date{f}#31, job{f}#32,
+     *       |           | |        job.raw{f}#33, languages{f}#27, last_name{f}#28, long_noidx{f}#34, salary{f}#29,
+     *       |           | |        languages{f}#27 AS language_code]]
+     *       |           | \_TopN[[Order[emp_no{f}#24,DESC,FIRST]],10[INTEGER]]
+     *       |           |   \_Filter[emp_no{f}#24 &leq; 10006[INTEGER]]
+     *       |           |     \_EsRelation[test][_meta_field{f}#30, emp_no{f}#24, first_name{f}#25, ..]
+     *       |           \_EsRelation[languages_lookup][LOOKUP][language_code{f}#35, language_name{f}#36]
+     *       \_EsRelation[languages_lookup][LOOKUP][language_code{f}#37, language_name{f}#38]
+     */
+    public void testMultipleLookupJoinWithSortAndLimit() {
+        LogicalPlan plan = optimizedPlan("""
+            from test
+            | where emp_no <= 10006
+            | sort emp_no desc
+            | eval language_code = languages
+            | lookup join languages_lookup on language_code
+            | limit 10
+            | where languages > 1
+            | eval lll = languages + 5
+            | eval language_code = salary::integer
+            | lookup join languages_lookup on language_code
+            | limit 5
+            | sort first_name
+            | keep emp_no, first_name, languages, lll, salary, language_name
+            | sort salary desc
+            """);
+
+        var keep = as(plan, EsqlProject.class);
+        var topN = as(keep.child(), TopN.class);
+        assertThat(topN.limit().fold(FoldContext.small()), equalTo(5));
+        assertThat(orderNames(topN), contains("salary"));
+        var limit5Before = asLimit(topN.child(), 5, true);
+        var join = as(limit5Before.child(), Join.class);
+        var project = as(join.left(), Project.class);
+        var eval = as(project.child(), Eval.class);
+        var limit5 = asLimit(eval.child(), 5, false);
+        var filter = as(limit5.child(), Filter.class);
+        var limit10Before = asLimit(filter.child(), 10, true);
+        join = as(limit10Before.child(), Join.class);
+        project = as(join.left(), Project.class);
+        topN = as(project.child(), TopN.class);
+        assertThat(topN.limit().fold(FoldContext.small()), equalTo(10));
+        assertThat(orderNames(topN), contains("emp_no"));
         filter = as(topN.child(), Filter.class);
         as(filter.child(), EsRelation.class);
     }
@@ -2077,6 +2188,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         limit = asLimit(mvExp.child(), 50, false);
         as(limit.child(), EsRelation.class);
     }
+
+    // TODO: here
 
     /**
      * Expected

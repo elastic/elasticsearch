@@ -18,6 +18,7 @@ import org.elasticsearch.jdk.RuntimeVersionFeature;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
@@ -69,7 +70,7 @@ final class SystemJvmOptions {
                 // Pass through distribution type
                 "-Des.distribution.type=" + distroType
             ),
-            maybeEnableNativeAccess(),
+            maybeEnableNativeAccess(useEntitlements),
             maybeOverrideDockerCgroup(distroType),
             maybeSetActiveProcessorCount(nodeSettings),
             maybeSetReplayFile(distroType, isHotspot),
@@ -124,11 +125,18 @@ final class SystemJvmOptions {
         return Stream.empty();
     }
 
-    private static Stream<String> maybeEnableNativeAccess() {
+    private static Stream<String> maybeEnableNativeAccess(boolean useEntitlements) {
+        var enableNativeAccessOptions = new ArrayList<String>();
         if (Runtime.version().feature() >= 21) {
-            return Stream.of("--enable-native-access=org.elasticsearch.nativeaccess,org.apache.lucene.core");
+            enableNativeAccessOptions.add("--enable-native-access=org.elasticsearch.nativeaccess,org.apache.lucene.core");
+            if (useEntitlements) {
+                enableNativeAccessOptions.add("--enable-native-access=ALL-UNNAMED");
+                if (Runtime.version().feature() >= 24) {
+                    enableNativeAccessOptions.add("--illegal-native-access=deny");
+                }
+            }
         }
-        return Stream.empty();
+        return enableNativeAccessOptions.stream();
     }
 
     /*

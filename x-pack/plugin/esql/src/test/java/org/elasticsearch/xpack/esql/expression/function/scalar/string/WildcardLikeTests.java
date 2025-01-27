@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+import com.unboundid.util.NotNull;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -18,11 +19,19 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPatt
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionName;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
+import org.junit.AfterClass;
 
+import java.io.IOException;
+import java.lang.annotation.Annotation;
+import java.lang.reflect.Constructor;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -86,5 +95,68 @@ public class WildcardLikeTests extends AbstractScalarFunctionTestCase {
             assertThat(caseInsensitive.fold(FoldContext.small()), equalTo(false));
         }
         return new WildcardLike(source, expression, new WildcardPattern(((BytesRef) pattern.fold(FoldContext.small())).utf8ToString()));
+    }
+
+    @AfterClass
+    public static void renderNotLike() throws IOException {
+        renderNot(constructorWithFunctionInfo(WildcardLike.class), "LIKE", d -> d);
+    }
+
+    public static void renderNot(@NotNull Constructor<?> ctor, String name, Function<String, String> description) throws IOException {
+        FunctionInfo orig = ctor.getAnnotation(FunctionInfo.class);
+        assert orig != null;
+        FunctionInfo functionInfo = new FunctionInfo() {
+            @Override
+            public Class<? extends Annotation> annotationType() {
+                return orig.annotationType();
+            }
+
+            @Override
+            public String operator() {
+                return "NOT " + name;
+            }
+
+            @Override
+            public String[] returnType() {
+                return orig.returnType();
+            }
+
+            @Override
+            public boolean preview() {
+                return orig.preview();
+            }
+
+            @Override
+            public String description() {
+                return description.apply(orig.description().replace(name, "NOT " + name));
+            }
+
+            @Override
+            public String detailedDescription() {
+                return "";
+            }
+
+            @Override
+            public String note() {
+                return orig.note().replace(name, "NOT " + name);
+            }
+
+            @Override
+            public String appendix() {
+                return orig.appendix().replace(name, "NOT " + name);
+            }
+
+            @Override
+            public boolean isAggregation() {
+                return orig.isAggregation();
+            }
+
+            @Override
+            public Example[] examples() {
+                // throw away examples
+                return new Example[] {};
+            }
+        };
+        renderDocsForOperators("not_" + name.toLowerCase(Locale.ENGLISH), ctor, functionInfo);
     }
 }

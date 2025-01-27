@@ -92,6 +92,7 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                     exchangeSource.addRemoteSink(
                         remoteSink,
                         true,
+                        () -> {},
                         queryPragmas.concurrentExchangeClients(),
                         computeListener.acquireAvoid()
                     );
@@ -209,8 +210,8 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                         List.of(),
                         configuration,
                         configuration.newFoldContext(),
-                        exchangeSource,
-                        exchangeSink
+                        exchangeSource::createExchangeSource,
+                        () -> exchangeSink.createExchangeSink(() -> {})
                     ),
                     coordinatorPlan,
                     computeListener.acquireCompute()

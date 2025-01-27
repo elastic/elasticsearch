@@ -1011,14 +1011,14 @@ public final class DateFieldMapper extends FieldMapper {
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport() {
         if (hasDocValues) {
-            var loader = new SortedNumericDocValuesSyntheticFieldLoader(fullPath(), leafName(), ignoreMalformed) {
-                @Override
-                protected void writeValue(XContentBuilder b, long value) throws IOException {
-                    b.value(fieldType().format(value, fieldType().dateTimeFormatter()));
+            return new SyntheticSourceSupport.Native(
+                () -> new SortedNumericDocValuesSyntheticFieldLoader(fullPath(), leafName(), ignoreMalformed) {
+                    @Override
+                    protected void writeValue(XContentBuilder b, long value) throws IOException {
+                        b.value(fieldType().format(value, fieldType().dateTimeFormatter()));
+                    }
                 }
-            };
-
-            return new SyntheticSourceSupport.Native(loader);
+            );
         }
 
         return super.syntheticSourceSupport();

@@ -66,6 +66,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.THREE;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TWO;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.asLimit;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getFieldAttribute;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.greaterThanOf;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
@@ -215,11 +216,9 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         var projections = project.projections();
         assertThat(Expressions.names(projections), contains("first_name", "last_name"));
 
-        var limit1 = as(project.child(), Limit.class);
-        assertEquals(as(limit1.limit(), Literal.class).value(), 1000);
-        assertTrue(limit1.duplicated());
+        var limit1 = asLimit(project.child(), 1000, true);
         var mvExpand = as(limit1.child(), MvExpand.class);
-        var limit2 = as(mvExpand.child(), Limit.class);
+        var limit2 = asLimit(mvExpand.child(), 1000, false);
         as(limit2.child(), EsRelation.class);
     }
 

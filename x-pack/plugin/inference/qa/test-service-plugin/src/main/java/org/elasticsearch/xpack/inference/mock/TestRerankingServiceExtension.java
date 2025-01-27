@@ -40,7 +40,6 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Random;
 
 public class TestRerankingServiceExtension implements InferenceServiceExtension {
 
@@ -151,10 +150,12 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
         private RankedDocsResults makeResults(List<String> input) {
             List<RankedDocsResults.RankedDoc> results = new ArrayList<>();
             int totalResults = input.size();
-            float minScore = new Random().nextFloat(-1f, 1f);
+            float minScore = random.nextFloat(-1f, 1f);
             float resultDiff = 0.2f;
             for (int i = 0; i < input.size(); i++) {
-                results.add(new RankedDocsResults.RankedDoc(totalResults - 1 - i, minScore + resultDiff * (totalResults - i), input.get(i)));
+                results.add(
+                    new RankedDocsResults.RankedDoc(totalResults - 1 - i, minScore + resultDiff * (totalResults - i), input.get(i))
+                );
             }
             return new RankedDocsResults(results);
         }

@@ -24,7 +24,6 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
-import org.elasticsearch.index.query.RankDocsQueryBuilder;
 import org.elasticsearch.search.rank.RankDoc;
 
 import java.io.IOException;

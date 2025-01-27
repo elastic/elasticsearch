@@ -307,6 +307,7 @@ public class PolicyManager {
     private ModuleEntitlements computeEntitlements(Class<?> requestingClass) {
         Module requestingModule = requestingClass.getModule();
         if (isServerModule(requestingModule)) {
+            logger.info("HELLO: " + requestingClass.getName());
             return getModuleScopeEntitlements(requestingClass, serverEntitlements, requestingModule.getName(), "server");
         }
 
@@ -326,7 +327,7 @@ public class PolicyManager {
         }
 
         if (requestingModule.isNamed() == false && requestingClass.getPackageName().startsWith(agentsPackageName)) {
-            // if (true) throw new NotEntitledException("HELLO: " + requestingClass.getName());
+            logger.info("HELLO: " + requestingClass.getName());
             // agents are the only thing running non-modular in the system classloader
             return ModuleEntitlements.from(agentEntitlements);
         }

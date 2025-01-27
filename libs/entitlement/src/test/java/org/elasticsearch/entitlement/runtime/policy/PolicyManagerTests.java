@@ -11,6 +11,9 @@ package org.elasticsearch.entitlement.runtime.policy;
 
 import org.elasticsearch.entitlement.runtime.policy.PolicyManager.ModuleEntitlements;
 import org.elasticsearch.entitlement.runtime.policy.agent.TestAgent;
+import org.elasticsearch.entitlement.runtime.policy.agent.inner.TestInnerAgent;
+import org.elasticsearch.entitlement.runtime.policy.notagent.NotAgent;
+import org.elasticsearch.entitlement.runtime.policy.notagent.NotAgentClassLoader;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.compiler.InMemoryJavaCompiler;
 import org.elasticsearch.test.jar.JarUtils;
@@ -20,6 +23,7 @@ import java.io.IOException;
 import java.lang.module.Configuration;
 import java.lang.module.ModuleFinder;
 import java.nio.file.Path;
+import java.security.SecureClassLoader;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -264,23 +268,35 @@ public class PolicyManagerTests extends ESTestCase {
     }
 
     public void testAgentsEntitlements() throws IOException, ClassNotFoundException {
-        var agentsClass = new TestAgent();
         var notAgentsClass = makeClassInItsOwnModule();
         var policyManager = new PolicyManager(
             createEmptyTestServerPolicy(),
             List.of(new CreateClassLoaderEntitlement()),
             Map.of(),
             c -> "test",
-            agentsClass.getClass().getPackageName(),
+            TEST_AGENTS_PACKAGE_NAME,
             NO_ENTITLEMENTS_MODULE
         );
-        ModuleEntitlements agentsEntitlements = policyManager.getEntitlements(agentsClass.getClass());
+        ModuleEntitlements agentsEntitlements = policyManager.getEntitlements(TestAgent.class);
+        assertThat(agentsEntitlements.hasEntitlement(CreateClassLoaderEntitlement.class), is(true));
+        agentsEntitlements = policyManager.getEntitlements(TestInnerAgent.class);
         assertThat(agentsEntitlements.hasEntitlement(CreateClassLoaderEntitlement.class), is(true));
         ModuleEntitlements notAgentsEntitlements = policyManager.getEntitlements(notAgentsClass);
+        assertThat(notAgentsEntitlements.hasEntitlement(CreateClassLoaderEntitlement.class), is(false));
+        NotAgentClassLoader notAgentClassLoader = new NotAgentClassLoader(getClass().getClassLoader());
+        Class<?> notAgentClass = notAgentClassLoader.getNotAgentClass();
+        notAgentsEntitlements = policyManager.getEntitlements(notAgentClass);
         assertThat(notAgentsEntitlements.hasEntitlement(CreateClassLoaderEntitlement.class), is(false));
     }
 
     private static Class<?> makeClassInItsOwnModule() throws IOException, ClassNotFoundException {
+        final Path home = createTempDir();
+        Path jar = createMockPluginJar(home);
+        var layer = createLayerForJar(jar, "org.example.plugin");
+        return layer.findLoader("org.example.plugin").loadClass("q.B");
+    }
+
+    private static Class<?> makeClassInItsOwnUnnamedModule() throws IOException, ClassNotFoundException {
         final Path home = createTempDir();
         Path jar = createMockPluginJar(home);
         var layer = createLayerForJar(jar, "org.example.plugin");

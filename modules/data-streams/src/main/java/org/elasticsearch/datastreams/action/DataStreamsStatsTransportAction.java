@@ -133,6 +133,16 @@ public class DataStreamsStatsTransportAction extends TransportBroadcastByNodeAct
     }
 
     @Override
+    protected String[] resolveConcreteIndexNames(ClusterState clusterState, DataStreamsStatsAction.Request request) {
+        return DataStreamsActionUtil.resolveConcreteIndexNames(
+            indexNameExpressionResolver,
+            clusterState,
+            request.indices(),
+            request.indicesOptions()
+        ).toArray(String[]::new);
+    }
+
+    @Override
     protected DataStreamsStatsAction.DataStreamShardStats readShardResult(StreamInput in) throws IOException {
         return new DataStreamsStatsAction.DataStreamShardStats(in);
     }

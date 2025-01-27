@@ -114,8 +114,7 @@ Otherwise, the query will fail with a validation error.
 Another limitation is that any <<esql-where>> command containing a full-text search function
 cannot use disjunctions (`OR`), unless:
 
-* All functions used in the OR clauses are full-text functions themselves, or
-* Scoring is not used
+* All functions used in the OR clauses are full-text functions themselves, or scoring is not used
 
 For example, this query is valid:
 

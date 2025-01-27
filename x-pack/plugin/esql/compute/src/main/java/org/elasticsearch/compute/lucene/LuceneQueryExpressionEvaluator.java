@@ -56,7 +56,9 @@ public class LuceneQueryExpressionEvaluator implements EvalOperator.ExpressionEv
     @Override
     public Block eval(Page page) {
         // Lucene based operators retrieve DocVectors as first block
-        DocVector docs = page.<DocBlock>getBlock(0).asVector();
+        Block block = page.getBlock(0);
+        assert block instanceof DocBlock : "LuceneQueryExpressionEvaluator expects DocBlock as input";
+        DocVector docs = (DocVector) block.asVector();
         try {
             if (docs.singleSegmentNonDecreasing()) {
                 return evalSingleSegmentNonDecreasing(docs).asBlock();

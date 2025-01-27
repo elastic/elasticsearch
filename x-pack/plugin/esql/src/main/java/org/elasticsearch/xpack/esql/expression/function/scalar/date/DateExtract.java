@@ -123,7 +123,7 @@ public class DateExtract extends EsqlConfigurationFunction {
         };
 
         ExpressionEvaluator.Factory fieldEvaluator = toEvaluator.apply(children().get(1));
-        
+
         // Constant chrono field
         if (children().get(0).foldable()) {
             ChronoField chrono = chronoField(toEvaluator.foldCtx());
@@ -207,7 +207,7 @@ public class DateExtract extends EsqlConfigurationFunction {
         }
         String operationName = sourceText();
         return isStringAndExact(children().get(0), sourceText(), TypeResolutions.ParamOrdinal.FIRST).and(
-            TypeResolutions.isType(children().get(1), DataType::isDate, operationName, TypeResolutions.ParamOrdinal.SECOND, "datetime")
+            TypeResolutions.isType(children().get(1), DataType::isDate, operationName, TypeResolutions.ParamOrdinal.SECOND, "datetime or date_nanos")
         );
     }
 

@@ -153,6 +153,7 @@ public class TransportExplainLifecycleAction extends TransportClusterInfoAction<
                 // Try to add default rollover conditions to the response.
                 var phase = phaseExecutionInfo.getPhase();
                 if (phase != null) {
+                    phase.maybeAddDeprecationWarningForFreezeAction(policyName);
                     var rolloverAction = (RolloverAction) phase.getActions().get(RolloverAction.NAME);
                     if (rolloverAction != null) {
                         var conditions = applyDefaultConditions(rolloverAction.getConditions(), rolloverOnlyIfHasDocuments);

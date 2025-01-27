@@ -22,6 +22,7 @@ import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapper;
+import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -31,6 +32,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.lucene.spatial.BinaryShapeDocValuesField;
 import org.elasticsearch.lucene.spatial.CartesianShapeIndexer;
 import org.elasticsearch.lucene.spatial.CoordinateEncoder;
+import org.elasticsearch.lucene.spatial.Extent;
 import org.elasticsearch.lucene.spatial.XYQueriesUtils;
 import org.elasticsearch.script.field.AbstractScriptFieldFactory;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
@@ -186,13 +188,26 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
         }
 
         @Override
-        protected boolean isBoundsExtractionSupported() {
-            return true;
+        public BlockLoader blockLoader(BlockLoaderContext blContext) {
+            return blContext.fieldExtractPreference() == FieldExtractPreference.EXTRACT_SPATIAL_BOUNDS
+                ? new CartesianBoundsBlockLoader(name())
+                : blockLoaderFromSource(blContext);
         }
 
-        @Override
-        protected CoordinateEncoder coordinateEncoder() {
-            return CoordinateEncoder.CARTESIAN;
+        static class CartesianBoundsBlockLoader extends BoundsBlockLoader {
+            protected CartesianBoundsBlockLoader(String fieldName) {
+                super(fieldName);
+            }
+
+            protected void writeExtent(BlockLoader.IntBuilder builder, Extent extent) {
+                // For cartesian_shape we store 4 values as a multi-valued field, in the same order as the fields in the Rectangle class
+                builder.beginPositionEntry();
+                builder.appendInt(Math.min(extent.negLeft, extent.posLeft));
+                builder.appendInt(Math.max(extent.negRight, extent.posRight));
+                builder.appendInt(extent.top);
+                builder.appendInt(extent.bottom);
+                builder.endPositionEntry();
+            }
         }
     }
 

@@ -77,7 +77,7 @@ and latency of the network interconnections between all nodes in the cluster.
 You must therefore ensure that the storage and networking available to the
 nodes in your cluster are good enough to meet your performance goals.
 
-[[dangling-indices]]
+[[dangling-index]]
 ==== Dangling indices
 
 When a node joins the cluster, if it finds any shards stored in its local

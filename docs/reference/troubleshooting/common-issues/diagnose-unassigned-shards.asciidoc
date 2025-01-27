@@ -11,3 +11,7 @@ include::{es-ref-dir}/tab-widgets/troubleshooting/data/diagnose-unassigned-shard
 See https://www.youtube.com/watch?v=v2mbeSd1vTQ[this video]
 for a walkthrough of monitoring allocation health.
 
+****
+If you're using Elastic Cloud Hosted, then you can use AutoOps to monitor your cluster. AutoOps significantly simplifies cluster management with performance recommendations, resource utilization visibility, real-time issue detection and resolution paths. For more information, refer to https://www.elastic.co/guide/en/cloud/current/ec-autoops.html[Monitor with AutoOps].
+****
+

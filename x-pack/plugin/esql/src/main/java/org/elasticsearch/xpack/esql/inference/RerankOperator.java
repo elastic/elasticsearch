@@ -26,7 +26,7 @@ import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 
 import java.util.List;
 
-public class RerankOperator extends AsyncOperator {
+public class RerankOperator extends AsyncOperator<Page> {
 
     private static final Logger logger = LogManager.getLogger(RerankOperator.class);
 
@@ -80,6 +80,16 @@ public class RerankOperator extends AsyncOperator {
         this.queryText = queryText;
         this.inputEvaluator = inputEvaluator;
         this.scoreChannel = scoreChannel;
+    }
+
+    @Override
+    public Page getOutput() {
+        return fetchFromBuffer();
+    }
+
+    @Override
+    protected void releaseFetchedOnAnyThread(Page page) {
+        releasePageOnAnyThread(page);
     }
 
     @Override

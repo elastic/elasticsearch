@@ -56,7 +56,6 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
 
     public static final TypeParser PARSER = new FixedTypeParser(context -> new IgnoredSourceFieldMapper(context.getIndexSettings()));
 
-    static final NodeFeature TRACK_IGNORED_SOURCE = new NodeFeature("mapper.track_ignored_source");
     static final NodeFeature DONT_EXPAND_DOTS_IN_IGNORED_SOURCE = new NodeFeature("mapper.ignored_source.dont_expand_dots");
     static final NodeFeature IGNORED_SOURCE_AS_TOP_LEVEL_METADATA_ARRAY_FIELD = new NodeFeature(
         "mapper.ignored_source_as_top_level_metadata_array_field"
@@ -234,7 +233,7 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
         // not being available.
         // We would like to have an option to lose some values in synthetic source
         // but have search not fail.
-        return new SyntheticSourceSupport.Native(new SourceLoader.SyntheticFieldLoader() {
+        return new SyntheticSourceSupport.Native(() -> new SourceLoader.SyntheticFieldLoader() {
             @Override
             public Stream<Map.Entry<String, StoredFieldLoader>> storedFieldLoaders() {
                 if (indexSettings.getSkipIgnoredSourceRead()) {

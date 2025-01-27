@@ -22,7 +22,6 @@ import org.elasticsearch.compute.operator.ColumnLoadOperator;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator.EvalOperatorFactory;
-import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.FilterOperator.FilterOperatorFactory;
 import org.elasticsearch.compute.operator.LocalSourceOperator;
 import org.elasticsearch.compute.operator.LocalSourceOperator.LocalSourceFactory;
@@ -55,10 +54,13 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.expression.TypedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Holder;
@@ -168,13 +170,14 @@ public class LocalExecutionPlanner {
     /**
      * turn the given plan into a list of drivers to execute
      */
-    public LocalExecutionPlan plan(PhysicalPlan localPhysicalPlan) {
+    public LocalExecutionPlan plan(FoldContext foldCtx, PhysicalPlan localPhysicalPlan) {
         var context = new LocalExecutionPlannerContext(
             new ArrayList<>(),
             new Holder<>(DriverParallelism.SINGLE),
             configuration.pragmas(),
             bigArrays,
             blockFactory,
+            foldCtx,
             settings
         );
 
@@ -406,7 +409,7 @@ public class LocalExecutionPlanner {
         PhysicalOperation source = plan(eval.child(), context);
 
         for (Alias field : eval.fields()) {
-            var evaluatorSupplier = EvalMapper.toEvaluator(field.child(), source.layout);
+            var evaluatorSupplier = EvalMapper.toEvaluator(context.foldCtx(), field.child(), source.layout);
             Layout.Builder layout = source.layout.builder();
             layout.append(field.toAttribute());
             source = source.with(new EvalOperatorFactory(evaluatorSupplier), layout.build());
@@ -427,7 +430,7 @@ public class LocalExecutionPlanner {
         source = source.with(
             new StringExtractOperator.StringExtractOperatorFactory(
                 patternNames,
-                EvalMapper.toEvaluator(expr, layout),
+                EvalMapper.toEvaluator(context.foldCtx(), expr, layout),
                 () -> (input) -> dissect.parser().parser().parse(input)
             ),
             layout
@@ -459,7 +462,7 @@ public class LocalExecutionPlanner {
         source = source.with(
             new ColumnExtractOperator.Factory(
                 types,
-                EvalMapper.toEvaluator(grok.inputExpression(), layout),
+                EvalMapper.toEvaluator(context.foldCtx(), grok.inputExpression(), layout),
                 () -> new GrokEvaluatorExtracter(grok.pattern().grok(), grok.pattern().pattern(), fieldToPos, fieldToType)
             ),
             layout
@@ -570,7 +573,7 @@ public class LocalExecutionPlanner {
         if (localSourceExec.indexMode() != IndexMode.LOOKUP) {
             throw new IllegalArgumentException("can't plan [" + join + "]");
         }
-        Map<String, IndexMode> indicesWithModes = localSourceExec.index().indexNameWithModes();
+        Map<String, IndexMode> indicesWithModes = localSourceExec.indexNameWithModes();
         if (indicesWithModes.size() != 1) {
             throw new IllegalArgumentException("can't plan [" + join + "], found more than 1 index");
         }
@@ -579,28 +582,35 @@ public class LocalExecutionPlanner {
             throw new IllegalArgumentException("can't plan [" + join + "], found index with mode [" + entry.getValue() + "]");
         }
         String indexName = entry.getKey();
-        List<Layout.ChannelAndType> matchFields = new ArrayList<>(join.leftFields().size());
-        for (Attribute m : join.leftFields()) {
-            Layout.ChannelAndType t = source.layout.get(m.id());
-            if (t == null) {
-                throw new IllegalArgumentException("can't plan [" + join + "][" + m + "]");
+        if (join.leftFields().size() != join.rightFields().size()) {
+            throw new IllegalArgumentException("can't plan [" + join + "]: mismatching left and right field count");
+        }
+        List<MatchConfig> matchFields = new ArrayList<>(join.leftFields().size());
+        for (int i = 0; i < join.leftFields().size(); i++) {
+            TypedAttribute left = (TypedAttribute) join.leftFields().get(i);
+            FieldAttribute right = (FieldAttribute) join.rightFields().get(i);
+            Layout.ChannelAndType input = source.layout.get(left.id());
+            if (input == null) {
+                throw new IllegalArgumentException("can't plan [" + join + "][" + left + "]");
             }
-            matchFields.add(t);
+            matchFields.add(new MatchConfig(right, input));
         }
         if (matchFields.size() != 1) {
-            throw new IllegalArgumentException("can't plan [" + join + "]");
+            throw new IllegalArgumentException("can't plan [" + join + "]: multiple join predicates are not supported");
         }
+        // TODO support multiple match fields, and support more than equality predicates
+        MatchConfig matchConfig = matchFields.getFirst();
 
         return source.with(
             new LookupFromIndexOperator.Factory(
                 sessionId,
                 parentTask,
                 context.queryPragmas().enrichMaxWorkers(),
-                matchFields.getFirst().channel(),
-                lookupFromIndexService,
-                matchFields.getFirst().type(),
+                matchConfig.channel(),
+                ctx -> lookupFromIndexService,
+                matchConfig.type(),
                 indexName,
-                join.leftFields().getFirst().name(),
+                matchConfig.fieldName(),
                 join.addedFields().stream().map(f -> (NamedExpression) f).toList(),
                 join.source()
             ),
@@ -608,8 +618,11 @@ public class LocalExecutionPlanner {
         );
     }
 
-    private ExpressionEvaluator.Factory toEvaluator(Expression exp, Layout layout) {
-        return EvalMapper.toEvaluator(exp, layout);
+    private record MatchConfig(String fieldName, int channel, DataType type) {
+        private MatchConfig(FieldAttribute match, Layout.ChannelAndType input) {
+            // Note, this handles TEXT fields with KEYWORD subfields
+            this(match.exactAttribute().name(), input.channel(), input.type());
+        }
     }
 
     private PhysicalOperation planLocal(LocalSourceExec localSourceExec, LocalExecutionPlannerContext context) {
@@ -666,18 +679,21 @@ public class LocalExecutionPlanner {
     private PhysicalOperation planFilter(FilterExec filter, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(filter.child(), context);
         // TODO: should this be extracted into a separate eval block?
-        return source.with(new FilterOperatorFactory(toEvaluator(filter.condition(), source.layout)), source.layout);
+        return source.with(
+            new FilterOperatorFactory(EvalMapper.toEvaluator(context.foldCtx(), filter.condition(), source.layout)),
+            source.layout
+        );
     }
 
     private PhysicalOperation planLimit(LimitExec limit, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(limit.child(), context);
-        return source.with(new Factory((Integer) limit.limit().fold()), source.layout);
+        return source.with(new Factory((Integer) limit.limit().fold(context.foldCtx)), source.layout);
     }
 
     private PhysicalOperation planRerank(RerankExec rerank, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(rerank.child(), context);
 
-        ExpressionEvaluator.Factory inputEvaluatorSupplier = EvalMapper.toEvaluator(rerank.input(), source.layout);
+        var inputEvaluatorSupplier = EvalMapper.toEvaluator(context.foldCtx(), rerank.input(), source.layout);
 
         String inferenceId = rerank.inferenceId();
         String queryText = rerank.queryText();
@@ -816,6 +832,7 @@ public class LocalExecutionPlanner {
         QueryPragmas queryPragmas,
         BigArrays bigArrays,
         BlockFactory blockFactory,
+        FoldContext foldCtx,
         Settings settings
     ) {
         void addDriverFactory(DriverFactory driverFactory) {

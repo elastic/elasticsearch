@@ -601,6 +601,7 @@ emp_no_bool:boolean
 testMatchWithSemanticText
 required_capability: match_function
 required_capability: semantic_text_type
+required_capability: semantic_text_field_caps
 
 from semantic_text
 | where match(semantic_text_field, "something")
@@ -608,7 +609,7 @@ from semantic_text
 | sort semantic_text_field asc
 ;
 
-semantic_text_field:semantic_text
+semantic_text_field:text
 all we have to decide is what to do with the time that is given to us
 be excellent to each other
 live long and prosper
@@ -617,32 +618,35 @@ live long and prosper
 testMatchWithSemanticTextAndKeyword
 required_capability: match_function
 required_capability: semantic_text_type
+required_capability: semantic_text_field_caps
 
 from semantic_text
 | where match(semantic_text_field, "something") AND match(host, "host1")
 | keep semantic_text_field, host
 ;
 
-semantic_text_field:semantic_text | host:keyword
-live long and prosper             | host1
+semantic_text_field:text | host:keyword
+live long and prosper    | host1
 ;
 
 testMatchWithSemanticTextMultiValueField
 required_capability: match_function
 required_capability: semantic_text_type
+required_capability: semantic_text_field_caps
 
 from semantic_text metadata _id
 | where match(st_multi_value, "something") AND match(host, "host1")
 | keep _id, st_multi_value
 ;
 
-_id: keyword | st_multi_value:semantic_text
+_id: keyword | st_multi_value:text
 1            | ["Hello there!", "This is a random value", "for testing purposes"]
 ;
 
 testMatchWithSemanticTextWithEvalsAndOtherFunctionsAndStats
 required_capability: match_function
 required_capability: semantic_text_type
+required_capability: semantic_text_field_caps
 
 from semantic_text
 | where qstr("description:some*")
@@ -659,12 +663,13 @@ testMatchWithSemanticTextAndKql
 required_capability: match_function
 required_capability: semantic_text_type
 required_capability: kql_function
+required_capability: semantic_text_field_caps
 
 from semantic_text
 | where kql("host:host1") AND match(semantic_text_field, "something")
 | KEEP host, semantic_text_field
 ;
 
-host:keyword | semantic_text_field:semantic_text
+host:keyword | semantic_text_field:text
 "host1"      | live long and prosper
 ;

@@ -43,6 +43,9 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.PlaceHolderFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TextSearchInfo;
+import org.elasticsearch.index.query.MatchBoolPrefixQueryBuilder;
+import org.elasticsearch.index.query.MatchPhrasePrefixQueryBuilder;
+import org.elasticsearch.index.query.MatchPhraseQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.ZeroTermsQueryOption;
 import org.elasticsearch.lucene.analysis.miscellaneous.DisableGraphAttribute;
@@ -63,24 +66,26 @@ public class MatchQueryParser {
         /**
          * The text is analyzed and terms are added to a boolean query.
          */
-        BOOLEAN(0),
+        BOOLEAN(0, org.elasticsearch.index.query.MatchQueryBuilder.NAME),
         /**
          * The text is analyzed and used as a phrase query.
          */
-        PHRASE(1),
+        PHRASE(1, MatchPhraseQueryBuilder.NAME),
         /**
          * The text is analyzed and used in a phrase query, with the last term acting as a prefix.
          */
-        PHRASE_PREFIX(2),
+        PHRASE_PREFIX(2, MatchPhrasePrefixQueryBuilder.NAME),
         /**
          * The text is analyzed, terms are added to a boolean query with the last term acting as a prefix.
          */
-        BOOLEAN_PREFIX(3);
+        BOOLEAN_PREFIX(3, MatchBoolPrefixQueryBuilder.NAME);
 
         private final int ordinal;
+        private final String queryName;
 
-        Type(int ordinal) {
+        Type(int ordinal, String queryName) {
             this.ordinal = ordinal;
+            this.queryName = queryName;
         }
 
         public static Type readFromStream(StreamInput in) throws IOException {
@@ -91,6 +96,10 @@ public class MatchQueryParser {
                 }
             }
             throw new ElasticsearchException("unknown serialized type [" + ord + "]");
+        }
+
+        public String getQueryName() {
+            return queryName;
         }
 
         @Override
@@ -207,11 +216,23 @@ public class MatchQueryParser {
             IllegalArgumentException iae;
             if (fieldType instanceof PlaceHolderFieldMapper.PlaceHolderFieldType) {
                 iae = new IllegalArgumentException(
-                    "Field [" + fieldType.name() + "] of type [" + fieldType.typeName() + "] in legacy index does not support match queries"
+                    "Field ["
+                        + fieldType.name()
+                        + "] of type ["
+                        + fieldType.typeName()
+                        + "] in legacy index does not support "
+                        + type.getQueryName()
+                        + " queries"
                 );
             } else {
                 iae = new IllegalArgumentException(
-                    "Field [" + fieldType.name() + "] of type [" + fieldType.typeName() + "] does not support match queries"
+                    "Field ["
+                        + fieldType.name()
+                        + "] of type ["
+                        + fieldType.typeName()
+                        + "] does not support "
+                        + type.getQueryName()
+                        + " queries"
                 );
             }
             if (lenient) {

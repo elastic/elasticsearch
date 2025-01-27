@@ -44,6 +44,7 @@ public class TransportExplainDataStreamLifecycleAction extends TransportMasterNo
     ExplainDataStreamLifecycleAction.Request,
     ExplainDataStreamLifecycleAction.Response> {
 
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final DataStreamLifecycleErrorStore errorStore;
     private final DataStreamGlobalRetentionSettings globalRetentionSettings;
 
@@ -64,10 +65,10 @@ public class TransportExplainDataStreamLifecycleAction extends TransportMasterNo
             threadPool,
             actionFilters,
             ExplainDataStreamLifecycleAction.Request::new,
-            indexNameExpressionResolver,
             ExplainDataStreamLifecycleAction.Response::new,
             threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.errorStore = dataLifecycleServiceErrorStore;
         this.globalRetentionSettings = globalRetentionSettings;
     }

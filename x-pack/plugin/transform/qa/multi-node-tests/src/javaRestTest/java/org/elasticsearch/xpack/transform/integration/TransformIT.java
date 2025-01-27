@@ -39,6 +39,7 @@ import java.io.IOException;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -50,6 +51,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
@@ -245,10 +247,8 @@ public class TransformIT extends TransformRestTestCase {
         assertAcknowledged(adminClient().performRequest(request));
 
         // index more docs so the checkpoint tries to run, wait until transform stops
-        assertBusy(() -> {
-            indexDoc(42, sourceIndexName);
-            assertEquals(TransformStats.State.WAITING.value(), getTransformState(transformId));
-        }, 30, TimeUnit.SECONDS);
+        indexDoc(42, sourceIndexName);
+        assertBusy(() -> { assertEquals(TransformStats.State.WAITING.value(), getTransformState(transformId)); }, 30, TimeUnit.SECONDS);
 
         // unblock index
         request = new Request("PUT", destIndexName + "/_settings");
@@ -260,6 +260,46 @@ public class TransformIT extends TransformRestTestCase {
         assertBusy(() -> {
             indexDoc(42, sourceIndexName);
             assertEquals(TransformStats.State.STARTED.value(), getTransformState(transformId));
+        }, 30, TimeUnit.SECONDS);
+
+        stopTransform(transformId);
+        deleteTransform(transformId);
+    }
+
+    public void testUnblockWithNewDestinationIndex() throws Exception {
+        var transformId = "transform-continuous-unblock-destination";
+        var sourceIndexName = "source-reviews";
+        var destIndexName = "destination-reviews-old";
+        var newDestIndexName = "destination-reviews-new";
+
+        // create transform & indices, wait until 1st checkpoint is finished
+        createReviewsIndex(newDestIndexName, 100, NUM_USERS, TransformIT::getUserIdForRow, TransformIT::getDateStringForRow);
+        createContinuousTransform(sourceIndexName, transformId, destIndexName);
+
+        // block destination index
+        Request request = new Request("PUT", destIndexName + "/_block/write");
+        assertAcknowledged(adminClient().performRequest(request));
+
+        // index more docs so the checkpoint tries to run, wait until transform stops
+        indexDoc(42, sourceIndexName);
+        assertBusy(() -> { assertEquals(TransformStats.State.WAITING.value(), getTransformState(transformId)); }, 30, TimeUnit.SECONDS);
+
+        // change destination index
+        var update = format("""
+            {
+                "description": "updated config",
+                "dest": {
+                   "index": "%s"
+                }
+            }
+            """, newDestIndexName);
+        updateConfig(transformId, update, true, RequestOptions.DEFAULT);
+
+        assertBusy(() -> {
+            assertThat(
+                getTransformState(transformId),
+                in(Set.of(TransformStats.State.STARTED.value(), TransformStats.State.INDEXING.value()))
+            );
         }, 30, TimeUnit.SECONDS);
 
         stopTransform(transformId);

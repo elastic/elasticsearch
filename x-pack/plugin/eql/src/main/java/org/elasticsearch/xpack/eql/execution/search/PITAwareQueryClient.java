@@ -7,12 +7,14 @@
 
 package org.elasticsearch.xpack.eql.execution.search;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.ClosePointInTimeRequest;
 import org.elasticsearch.action.search.ClosePointInTimeResponse;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.OpenPointInTimeRequest;
+import org.elasticsearch.action.search.OpenPointInTimeResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.TransportClosePointInTimeAction;
@@ -140,10 +142,33 @@ public class PITAwareQueryClient extends BasicQueryClient {
             .keepAlive(keepAlive)
             .allowPartialSearchResults(allowPartialSearchResults);
         request.indexFilter(filter);
-        client.execute(TransportOpenPointInTimeAction.TYPE, request, listener.delegateFailureAndWrap((l, r) -> {
-            pitId = r.getPointInTimeId();
-            runnable.run();
-        }));
+
+        client.execute(TransportOpenPointInTimeAction.TYPE, request, new ActionListener<>() {
+            @Override
+            public void onResponse(OpenPointInTimeResponse r) {
+                try {
+                    pitId = r.getPointInTimeId();
+                    runnable.run();
+                } catch (Exception e) {
+                    onFailure(e);
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                if (allowPartialSearchResults
+                    && e instanceof ElasticsearchStatusException
+                    && e.getMessage()
+                        .contains("The [allow_partial_search_results] parameter cannot be used while the cluster is still upgrading.")) {
+                    // This is for pre-8.16
+                    // We cannot use allow_partial_search_results during upgrades, so let's try without and hope to get no shard failures,
+                    // it's the best we can do, the query would fail anyway
+                    openPIT(listener, runnable, false);
+                } else {
+                    listener.onFailure(e);
+                }
+            }
+        });
     }
 
     @Override

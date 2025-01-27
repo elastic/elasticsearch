@@ -77,19 +77,19 @@ public class EqlSearchIT extends ESRestTestCase {
     }
 
     public void testEventsWithRequestToOldNodes() throws Exception {
-        assertEventsQueryOnNodes(bwcNodes);
+        assertEventsQueryOnNodes(bwcNodes, true);
     }
 
     public void testEventsWithRequestToUpgradedNodes() throws Exception {
-        assertEventsQueryOnNodes(newNodes);
+        assertEventsQueryOnNodes(newNodes, false);
     }
 
     public void testSequencesWithRequestToOldNodes() throws Exception {
-        assertSequncesQueryOnNodes(bwcNodes);
+        assertSequncesQueryOnNodes(bwcNodes, true);
     }
 
     public void testSequencesWithRequestToUpgradedNodes() throws Exception {
-        assertSequncesQueryOnNodes(newNodes);
+        assertSequncesQueryOnNodes(newNodes, false);
     }
 
     /**
@@ -268,7 +268,7 @@ public class EqlSearchIT extends ESRestTestCase {
         assertTrue(testedFunctions.containsAll(availableFunctions));
     }
 
-    private void assertEventsQueryOnNodes(List<TestNode> nodesList) throws Exception {
+    private void assertEventsQueryOnNodes(List<TestNode> nodesList, boolean oldNodes) throws Exception {
         final String event = randomEvent();
         Map<String, Object> expectedResponse = prepareEventsTestData(event);
         try (
@@ -278,12 +278,25 @@ public class EqlSearchIT extends ESRestTestCase {
             String filterPath = "filter_path=hits.events._source.@timestamp,hits.events._source.event_type,hits.events._source.sequence";
 
             Request request = new Request("POST", index + "/_eql/search?" + filterPath);
-            request.setJsonEntity("{\"query\":\"" + event + " where true\",\"size\":15}");
-            assertBusy(() -> { assertResponse(expectedResponse, runEql(client, request)); });
+            StringBuilder payload = new StringBuilder("{\"query\":\"" + event + " where true\",\"size\":15");
+            // Old versions don't support this option
+            if (oldNodes == false) {
+                if (randomBoolean()) {
+                    payload.append(", \"allow_partial_search_results\": " + randomBoolean());
+                }
+                if (randomBoolean()) {
+                    payload.append(", \"allow_partial_sequence_results\": " + randomBoolean());
+                }
+            }
+            payload.append("}");
+            request.setJsonEntity(payload.toString());
+            assertBusy(() -> {
+                assertResponse(expectedResponse, runEql(client, request));
+            });
         }
     }
 
-    private void assertSequncesQueryOnNodes(List<TestNode> nodesList) throws Exception {
+    private void assertSequncesQueryOnNodes(List<TestNode> nodesList, boolean oldNodes) throws Exception {
         Map<String, Object> expectedResponse = prepareSequencesTestData();
         try (
             RestClient client = buildClient(restClientSettings(), nodesList.stream().map(TestNode::publishAddress).toArray(HttpHost[]::new))
@@ -294,7 +307,19 @@ public class EqlSearchIT extends ESRestTestCase {
             String filter = "{\"range\":{\"@timestamp\":{\"gte\":\"1970-05-01\"}}}";
 
             Request request = new Request("POST", index + "/_eql/search?" + filterPath);
-            request.setJsonEntity("{\"query\":\"" + query + "\",\"filter\":" + filter + "}");
+
+            StringBuilder payload = new StringBuilder("{\"query\":\"" + query + "\",\"filter\":" + filter);
+            // Old versions don't support this option
+            if (oldNodes == false) {
+                if (randomBoolean()) {
+                    payload.append(", \"allow_partial_search_results\": " + randomBoolean());
+                }
+                if (randomBoolean()) {
+                    payload.append(", \"allow_partial_sequence_results\": " + randomBoolean());
+                }
+            }
+            payload.append("}");
+            request.setJsonEntity(payload.toString());
             assertBusy(() -> { assertResponse(expectedResponse, runEql(client, request)); });
         }
     }

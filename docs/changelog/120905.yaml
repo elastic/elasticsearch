@@ -1,0 +1,5 @@
+pr: 120905
+summary: Backport moving scoring in ES|QL out of snapshot into 8.x
+area: ES|QL
+type: enhancement
+issues: []

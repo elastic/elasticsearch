@@ -52,8 +52,7 @@ public class ResolveClusterActionRequest extends ActionRequest implements Indice
      */
     private boolean localIndicesRequested = false;
     private IndicesOptions indicesOptions;
-    // We mark this field as transient because it's only needed on the coordinator and does not need to be
-    // serialized.
+    // We mark this field as transient because it's only needed on the coordinator and does not need to be serialized.
     private transient TimeValue timeout;
 
     // true if the user did not provide any index expression - they only want cluster level info, not index matching

@@ -10,6 +10,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockRequest;
@@ -117,6 +118,11 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
         var destIndexName = generateDestIndexName(sourceIndexName);
         TaskId taskId = new TaskId(clusterService.localNode().getId(), task.getId());
         IndexMetadata sourceIndex = clusterService.state().getMetadata().index(sourceIndexName);
+        if (sourceIndex == null) {
+            listener.onFailure(new ResourceNotFoundException("source index [{}] does not exist", sourceIndexName));
+            return;
+        }
+
         Settings settingsBefore = sourceIndex.getSettings();
 
         var hasOldVersion = DeprecatedIndexPredicate.getReindexRequiredPredicate(clusterService.state().metadata(), false);

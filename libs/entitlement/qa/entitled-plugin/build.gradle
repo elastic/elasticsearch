@@ -11,19 +11,17 @@ import org.elasticsearch.gradle.internal.precommit.CheckForbiddenApisTask
 
 apply plugin: 'elasticsearch.base-internal-es-plugin'
 apply plugin: 'elasticsearch.build'
-apply plugin: 'elasticsearch.mrjar'
 
 esplugin {
-  name = 'entitlement-test-plugin'
-  description = 'A test plugin that invokes methods checked by entitlements'
-  classname = 'org.elasticsearch.entitlement.qa.test.EntitlementTestPlugin'
-  extendedPlugins = ['entitled']
+  name = 'entitled'
+  description = 'A utility plugin that provides access to functionality denied to the main test plugin'
+  classname = 'org.elasticsearch.entitlement.qa.entitled.EntitledPlugin'
 }
 
 dependencies {
   compileOnly project(':server')
   compileOnly project(':libs:logging')
-  compileOnly project(":libs:entitlement:qa:entitled-plugin")
+  compileOnly project(':libs:entitlement')
 }
 
 tasks.named("javadoc").configure {
@@ -33,3 +31,4 @@ tasks.named("javadoc").configure {
 tasks.withType(CheckForbiddenApisTask).configureEach {
   replaceSignatureFiles 'jdk-signatures'
 }
+

@@ -12,8 +12,6 @@ package org.elasticsearch.entitlement.runtime.policy;
 import org.elasticsearch.entitlement.runtime.policy.PolicyManager.ModuleEntitlements;
 import org.elasticsearch.entitlement.runtime.policy.agent.TestAgent;
 import org.elasticsearch.entitlement.runtime.policy.agent.inner.TestInnerAgent;
-import org.elasticsearch.entitlement.runtime.policy.notagent.NotAgent;
-import org.elasticsearch.entitlement.runtime.policy.notagent.NotAgentClassLoader;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.compiler.InMemoryJavaCompiler;
 import org.elasticsearch.test.jar.JarUtils;
@@ -22,8 +20,9 @@ import org.junit.BeforeClass;
 import java.io.IOException;
 import java.lang.module.Configuration;
 import java.lang.module.ModuleFinder;
+import java.net.URL;
+import java.net.URLClassLoader;
 import java.nio.file.Path;
-import java.security.SecureClassLoader;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -45,7 +44,7 @@ public class PolicyManagerTests extends ESTestCase {
     /**
      * A test agent package name for use in tests.
      */
-    private static String TEST_AGENTS_PACKAGE_NAME = "org.elasticsearch.entitlement.runtime.policy.agent";
+    private static final String TEST_AGENTS_PACKAGE_NAME = "org.elasticsearch.entitlement.runtime.policy.agent";
 
     /**
      * A module you can use for test cases that don't actually care about the
@@ -268,7 +267,9 @@ public class PolicyManagerTests extends ESTestCase {
     }
 
     public void testAgentsEntitlements() throws IOException, ClassNotFoundException {
-        var notAgentsClass = makeClassInItsOwnModule();
+        Path home = createTempDir();
+        Path unnamedJar = createMockPluginJarForUnnamedModule(home);
+        var notAgentClass = makeClassInItsOwnModule();
         var policyManager = new PolicyManager(
             createEmptyTestServerPolicy(),
             List.of(new CreateClassLoaderEntitlement()),
@@ -281,12 +282,13 @@ public class PolicyManagerTests extends ESTestCase {
         assertThat(agentsEntitlements.hasEntitlement(CreateClassLoaderEntitlement.class), is(true));
         agentsEntitlements = policyManager.getEntitlements(TestInnerAgent.class);
         assertThat(agentsEntitlements.hasEntitlement(CreateClassLoaderEntitlement.class), is(true));
-        ModuleEntitlements notAgentsEntitlements = policyManager.getEntitlements(notAgentsClass);
+        ModuleEntitlements notAgentsEntitlements = policyManager.getEntitlements(notAgentClass);
         assertThat(notAgentsEntitlements.hasEntitlement(CreateClassLoaderEntitlement.class), is(false));
-        NotAgentClassLoader notAgentClassLoader = new NotAgentClassLoader(getClass().getClassLoader());
-        Class<?> notAgentClass = notAgentClassLoader.getNotAgentClass();
-        notAgentsEntitlements = policyManager.getEntitlements(notAgentClass);
-        assertThat(notAgentsEntitlements.hasEntitlement(CreateClassLoaderEntitlement.class), is(false));
+        try (URLClassLoader classLoader = new URLClassLoader(new URL[] { unnamedJar.toUri().toURL() }, getClass().getClassLoader())) {
+            var unnamedNotAgentClass = classLoader.loadClass("q.B");
+            notAgentsEntitlements = policyManager.getEntitlements(unnamedNotAgentClass);
+            assertThat(notAgentsEntitlements.hasEntitlement(CreateClassLoaderEntitlement.class), is(false));
+        }
     }
 
     private static Class<?> makeClassInItsOwnModule() throws IOException, ClassNotFoundException {
@@ -327,6 +329,16 @@ public class PolicyManagerTests extends ESTestCase {
                 )
                 .toList()
         );
+    }
+
+    private static Path createMockPluginJarForUnnamedModule(Path home) throws IOException {
+        Path jar = home.resolve("unnamed-mock-plugin.jar");
+
+        Map<String, CharSequence> sources = Map.ofEntries(entry("q.B", "package q; public class B { }"));
+
+        var classToBytes = InMemoryJavaCompiler.compile(sources);
+        JarUtils.createJarWithEntries(jar, Map.ofEntries(entry("q/B.class", classToBytes.get("q.B"))));
+        return jar;
     }
 
     private static Path createMockPluginJar(Path home) throws IOException {

@@ -26,10 +26,10 @@ import org.elasticsearch.xpack.esql.session.EsqlSession;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.elasticsearch.xpack.esql.session.QueryBuilderResolver;
 import org.elasticsearch.xpack.esql.session.Result;
-import org.elasticsearch.xpack.esql.stats.Metrics;
-import org.elasticsearch.xpack.esql.stats.PlanningMetrics;
-import org.elasticsearch.xpack.esql.stats.PlanningMetricsManager;
-import org.elasticsearch.xpack.esql.stats.QueryMetric;
+import org.elasticsearch.xpack.esql.telemetry.Metrics;
+import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
+import org.elasticsearch.xpack.esql.telemetry.PlanTelemetryManager;
+import org.elasticsearch.xpack.esql.telemetry.QueryMetric;
 
 import static org.elasticsearch.action.ActionListener.wrap;
 
@@ -41,7 +41,7 @@ public class PlanExecutor {
     private final Mapper mapper;
     private final Metrics metrics;
     private final Verifier verifier;
-    private final PlanningMetricsManager planningMetricsManager;
+    private final PlanTelemetryManager planTelemetryManager;
 
     public PlanExecutor(IndexResolver indexResolver, MeterRegistry meterRegistry, XPackLicenseState licenseState) {
         this.indexResolver = indexResolver;
@@ -50,7 +50,7 @@ public class PlanExecutor {
         this.mapper = new Mapper();
         this.metrics = new Metrics(functionRegistry);
         this.verifier = new Verifier(metrics, licenseState);
-        this.planningMetricsManager = new PlanningMetricsManager(meterRegistry);
+        this.planTelemetryManager = new PlanTelemetryManager(meterRegistry);
     }
 
     public void esql(
@@ -65,7 +65,7 @@ public class PlanExecutor {
         QueryBuilderResolver queryBuilderResolver,
         ActionListener<Result> listener
     ) {
-        final PlanningMetrics planningMetrics = new PlanningMetrics();
+        final PlanTelemetry planTelemetry = new PlanTelemetry(functionRegistry);
         final var session = new EsqlSession(
             sessionId,
             cfg,
@@ -76,7 +76,7 @@ public class PlanExecutor {
             new LogicalPlanOptimizer(new LogicalOptimizerContext(cfg, foldContext)),
             mapper,
             verifier,
-            planningMetrics,
+            planTelemetry,
             indicesExpressionGrouper,
             queryBuilderResolver
         );
@@ -84,12 +84,12 @@ public class PlanExecutor {
         metrics.total(clientId);
 
         ActionListener<Result> executeListener = wrap(x -> {
-            planningMetricsManager.publish(planningMetrics, true);
+            planTelemetryManager.publish(planTelemetry, true);
             listener.onResponse(x);
         }, ex -> {
             // TODO when we decide if we will differentiate Kibana from REST, this String value will likely come from the request
             metrics.failed(clientId);
-            planningMetricsManager.publish(planningMetrics, false);
+            planTelemetryManager.publish(planTelemetry, false);
             listener.onFailure(ex);
         });
         // Wrap it in a listener so that if we have any exceptions during execution, the listener picks it up

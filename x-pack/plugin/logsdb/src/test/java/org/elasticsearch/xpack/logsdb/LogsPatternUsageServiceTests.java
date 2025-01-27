@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.Scheduler;
@@ -79,18 +80,22 @@ public class LogsPatternUsageServiceTests extends ESTestCase {
         }).when(client).execute(same(ClusterUpdateSettingsAction.INSTANCE), any(), any());
 
         var threadPool = mock(ThreadPool.class);
+        var scheduledCancellable = mock(Scheduler.ScheduledCancellable.class);
+        when(threadPool.schedule(any(), any(), any())).thenReturn(scheduledCancellable);
         var clusterState = DataStreamTestHelper.getClusterStateWithDataStreams(List.of(new Tuple<>("logs-app1-prod", 1)), List.of());
         Supplier<Metadata> metadataSupplier = clusterState::metadata;
 
         LogsPatternUsageService service = new LogsPatternUsageService(client, nodeSettings, threadPool, metadataSupplier);
-        service.isMaster = true;
+        service.onMaster();
         assertFalse(service.hasPriorLogsUsage);
-        assertNull(service.cancellable);
+        assertNotNull(service.cancellable);
+        assertEquals(service.nextWaitTime, TimeValue.timeValueMinutes(1));
         service.check();
         assertTrue(service.hasPriorLogsUsage);
         assertNull(service.cancellable);
+        assertEquals(service.nextWaitTime, TimeValue.timeValueMinutes(1));
 
-        verifyNoInteractions(threadPool);
+        verify(threadPool, times(1)).schedule(any(), any(), any());
         verify(client, times(1)).execute(same(ClusterUpdateSettingsAction.INSTANCE), any(), any());
     }
 
@@ -105,14 +110,16 @@ public class LogsPatternUsageServiceTests extends ESTestCase {
         Supplier<Metadata> metadataSupplier = clusterState::metadata;
 
         LogsPatternUsageService service = new LogsPatternUsageService(client, nodeSettings, threadPool, metadataSupplier);
-        service.isMaster = true;
+        service.onMaster();
         assertFalse(service.hasPriorLogsUsage);
-        assertNull(service.cancellable);
+        assertNotNull(service.cancellable);
+        assertEquals(service.nextWaitTime, TimeValue.timeValueMinutes(1));
         service.check();
         assertFalse(service.hasPriorLogsUsage);
         assertNotNull(service.cancellable);
+        assertEquals(service.nextWaitTime, TimeValue.timeValueMinutes(2));
 
-        verify(threadPool, times(1)).schedule(any(), any(), any());
+        verify(threadPool, times(2)).schedule(any(), any(), any());
         verifyNoInteractions(client);
     }
 

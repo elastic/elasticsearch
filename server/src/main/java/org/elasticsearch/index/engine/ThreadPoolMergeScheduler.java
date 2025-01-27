@@ -19,7 +19,6 @@ import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.RateLimitedIndexOutput;
-import org.apache.lucene.store.RateLimiter;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -31,8 +30,9 @@ import org.elasticsearch.index.merge.OnGoingMerge;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
-import java.util.HashSet;
+import java.util.HashMap;
 import java.util.Locale;
+import java.util.Map;
 import java.util.PriorityQueue;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -44,10 +44,9 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
     private final MergeSchedulerConfig config;
     private final Logger logger;
     private final MergeTracking mergeTracking;
-    private final ThreadLocal<MergeRateLimiter> onGoingMergeRateLimiter = new ThreadLocal<>();
     private final ThreadPoolMergeQueue threadPoolMergeQueue;
     private final PriorityQueue<MergeTask> backloggedMergeTasks = new PriorityQueue<>();
-    private final Set<MergeTask> currentlyRunningMergeTasks = new HashSet<>();
+    private final Map<MergePolicy.OneMerge, MergeTask> currentlyRunningMergeTasks = new HashMap<>();
     // set when incoming merges should be throttled (i.e. restrict the indexing rate)
     private final AtomicBoolean shouldThrottleIncomingMerges = new AtomicBoolean();
     // how many {@link MergeTask}s have kicked off (this is used to name them).
@@ -163,7 +162,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
             backloggedMergeTasks.add(mergeTask);
             return false;
         } else {
-            boolean added = currentlyRunningMergeTasks.add(mergeTask);
+            boolean added = currentlyRunningMergeTasks.put(mergeTask.onGoingMerge.getMerge(), mergeTask) != null;
             assert added : "starting merge task [" + mergeTask + "] registered as already running";
             return true;
         }
@@ -172,7 +171,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
     private void mergeDone(MergeTask mergeTask) {
         assert mergeTask.isRunning();
         synchronized (this) {
-            boolean removed = currentlyRunningMergeTasks.remove(mergeTask);
+            boolean removed = currentlyRunningMergeTasks.remove(mergeTask.onGoingMerge.getMerge()) != null;
             assert removed : "completed merge task [" + mergeTask + "] not registered as running";
             // when one merge is done, maybe a backlogged one can now execute
             enqueueBacklogged();
@@ -205,7 +204,10 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
         // Note: the rate limiter is only per thread. So, if there are multiple merge threads running
         // and throttling is required, each thread will be throttled independently.
         // The implication of this, is that the total IO rate could be higher than the target rate.
-        RateLimiter rateLimiter = onGoingMergeRateLimiter.get();
+        MergeTask mergeTask = currentlyRunningMergeTasks.get(merge);
+        if (mergeTask == null) {
+            throw new IllegalStateException("associated merge task for executing merge not found");
+        }
         return new FilterDirectory(in) {
             @Override
             public IndexOutput createOutput(String name, IOContext context) throws IOException {
@@ -216,7 +218,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
                 // somewhere that is failing to pass down the right IOContext:
                 assert context.context() == IOContext.Context.MERGE : "got context=" + context.context();
 
-                return new RateLimitedIndexOutput(rateLimiter, in.createOutput(name, context));
+                return new RateLimitedIndexOutput(mergeTask.rateLimiter, in.createOutput(name, context));
             }
         };
     }
@@ -272,7 +274,6 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
             }
             mergeStartTimeNS.set(System.nanoTime());
             try {
-                onGoingMergeRateLimiter.set(this.rateLimiter);
                 beforeMerge(onGoingMerge);
                 mergeTracking.mergeStarted(onGoingMerge);
                 if (verbose()) {
@@ -319,7 +320,6 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
                 }
                 afterMerge(onGoingMerge);
             } finally {
-                onGoingMergeRateLimiter.remove();
                 long tookMS = TimeValue.nsecToMSec(System.nanoTime() - mergeStartTimeNS.get());
                 try {
                     mergeTracking.mergeFinished(onGoingMerge.getMerge(), onGoingMerge, tookMS);

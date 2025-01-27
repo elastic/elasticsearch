@@ -358,7 +358,10 @@ public class EsqlCapabilities {
          * Support Least and Greatest functions on Date Nanos type
          */
         LEAST_GREATEST_FOR_DATENANOS(),
-
+        /**
+         * support date extract function for date nanos
+         */
+        DATE_NANOS_DATE_EXTRACT(),
         /**
          * Support add and subtract on date nanos
          */

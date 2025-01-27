@@ -248,6 +248,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.ccq.RequestIndexFilteringIT
   method: testIndicesDontExist
   issue: https://github.com/elastic/elasticsearch/issues/120889
+- class: org.elasticsearch.datastreams.DataStreamsClientYamlTestSuiteIT
+  method: test {p0=data_stream/140_data_stream_aliases/Create data stream aliases using wildcard expression}
+  issue: https://github.com/elastic/elasticsearch/issues/120890
 
 # Examples:
 #

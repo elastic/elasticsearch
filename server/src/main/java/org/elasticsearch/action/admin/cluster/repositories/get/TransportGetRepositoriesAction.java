@@ -46,7 +46,6 @@ public class TransportGetRepositoriesAction extends TransportMasterNodeReadActio
             threadPool,
             actionFilters,
             GetRepositoriesRequest::new,
-            indexNameExpressionResolver,
             GetRepositoriesResponse::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );

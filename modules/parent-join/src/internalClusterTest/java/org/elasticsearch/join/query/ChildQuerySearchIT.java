@@ -184,8 +184,9 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
         assertNoFailuresAndResponse(prepareSearch("test").setQuery(idsQuery().addIds("c1")), response -> {
             assertThat(response.getHits().getTotalHits().value(), equalTo(1L));
             assertThat(response.getHits().getAt(0).getId(), equalTo("c1"));
-            assertThat(extractValue("join_field.name", response.getHits().getAt(0).getSourceAsMap()), equalTo("child"));
-            assertThat(extractValue("join_field.parent", response.getHits().getAt(0).getSourceAsMap()), equalTo("p1"));
+            Map<String, Object> source = response.getHits().getAt(0).getSourceAsMap();
+            assertThat(extractValue("join_field.name", source), equalTo("child"));
+            assertThat(extractValue("join_field.parent", source), equalTo("p1"));
 
         });
 
@@ -197,11 +198,13 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
             response -> {
                 assertThat(response.getHits().getTotalHits().value(), equalTo(2L));
                 assertThat(response.getHits().getAt(0).getId(), anyOf(equalTo("c1"), equalTo("c2")));
-                assertThat(extractValue("join_field.name", response.getHits().getAt(0).getSourceAsMap()), equalTo("child"));
-                assertThat(extractValue("join_field.parent", response.getHits().getAt(0).getSourceAsMap()), equalTo("p1"));
+                Map<String, Object> source0 = response.getHits().getAt(0).getSourceAsMap();
+                assertThat(extractValue("join_field.name", source0), equalTo("child"));
+                assertThat(extractValue("join_field.parent", source0), equalTo("p1"));
                 assertThat(response.getHits().getAt(1).getId(), anyOf(equalTo("c1"), equalTo("c2")));
-                assertThat(extractValue("join_field.name", response.getHits().getAt(1).getSourceAsMap()), equalTo("child"));
-                assertThat(extractValue("join_field.parent", response.getHits().getAt(1).getSourceAsMap()), equalTo("p1"));
+                Map<String, Object> source1 = response.getHits().getAt(1).getSourceAsMap();
+                assertThat(extractValue("join_field.name", source1), equalTo("child"));
+                assertThat(extractValue("join_field.parent", source1), equalTo("p1"));
             }
         );
 

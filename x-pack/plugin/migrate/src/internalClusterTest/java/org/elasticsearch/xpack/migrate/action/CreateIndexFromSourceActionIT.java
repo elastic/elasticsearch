@@ -32,7 +32,6 @@ import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.xpack.migrate.action.ReindexDataStreamAction.REINDEX_DATA_STREAM_FEATURE_FLAG;
 
 public class CreateIndexFromSourceActionIT extends ESIntegTestCase {
 
@@ -42,8 +41,6 @@ public class CreateIndexFromSourceActionIT extends ESIntegTestCase {
     }
 
     public void testOldSettingsManuallyFiltered() throws Exception {
-        assumeTrue("requires the migration reindex feature flag", REINDEX_DATA_STREAM_FEATURE_FLAG.isEnabled());
-
         var numShards = randomIntBetween(1, 10);
         var staticSettings = Settings.builder()
             // setting to filter
@@ -77,8 +74,6 @@ public class CreateIndexFromSourceActionIT extends ESIntegTestCase {
     }
 
     public void testDestIndexCreated() throws Exception {
-        assumeTrue("requires the migration reindex feature flag", REINDEX_DATA_STREAM_FEATURE_FLAG.isEnabled());
-
         var sourceIndex = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
         indicesAdmin().create(new CreateIndexRequest(sourceIndex)).get();
 
@@ -96,8 +91,6 @@ public class CreateIndexFromSourceActionIT extends ESIntegTestCase {
     }
 
     public void testSettingsCopiedFromSource() throws Exception {
-        assumeTrue("requires the migration reindex feature flag", REINDEX_DATA_STREAM_FEATURE_FLAG.isEnabled());
-
         // start with a static setting
         var numShards = randomIntBetween(1, 10);
         var staticSettings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards).build();
@@ -122,8 +115,6 @@ public class CreateIndexFromSourceActionIT extends ESIntegTestCase {
     }
 
     public void testMappingsCopiedFromSource() {
-        assumeTrue("requires the migration reindex feature flag", REINDEX_DATA_STREAM_FEATURE_FLAG.isEnabled());
-
         var sourceIndex = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
         String mapping = """
             {
@@ -157,8 +148,6 @@ public class CreateIndexFromSourceActionIT extends ESIntegTestCase {
     }
 
     public void testSettingsOverridden() throws Exception {
-        assumeTrue("requires the migration reindex feature flag", REINDEX_DATA_STREAM_FEATURE_FLAG.isEnabled());
-
         var numShardsSource = randomIntBetween(1, 10);
         var numReplicasSource = randomIntBetween(0, 10);
         var sourceIndex = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
@@ -191,8 +180,6 @@ public class CreateIndexFromSourceActionIT extends ESIntegTestCase {
     }
 
     public void testSettingsNullOverride() throws Exception {
-        assumeTrue("requires the migration reindex feature flag", REINDEX_DATA_STREAM_FEATURE_FLAG.isEnabled());
-
         var sourceIndex = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
         var sourceSettings = Settings.builder()
             .put(IndexMetadata.SETTING_BLOCKS_WRITE, true)
@@ -222,9 +209,7 @@ public class CreateIndexFromSourceActionIT extends ESIntegTestCase {
         assertNull(destSettings.get(IndexMetadata.SETTING_BLOCKS_WRITE));
     }
 
-    public void testRemoveIndexBlocks() throws Exception {
-        assumeTrue("requires the migration reindex feature flag", REINDEX_DATA_STREAM_FEATURE_FLAG.isEnabled());
-
+    public void testRemoveIndexBlocksByDefault() throws Exception {
         var sourceIndex = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
 
         var sourceSettings = Settings.builder()
@@ -241,12 +226,10 @@ public class CreateIndexFromSourceActionIT extends ESIntegTestCase {
 
         // create from source
         var destIndex = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
-        assertAcked(
-            client().execute(
-                CreateIndexFromSourceAction.INSTANCE,
-                new CreateIndexFromSourceAction.Request(sourceIndex, destIndex, settingsOverride, Map.of(), true)
-            )
-        );
+
+        CreateIndexFromSourceAction.Request request = new CreateIndexFromSourceAction.Request(sourceIndex, destIndex);
+        request.settingsOverride(settingsOverride);
+        assertAcked(client().execute(CreateIndexFromSourceAction.INSTANCE, request));
 
         // assert settings overridden
         var settingsResponse = indicesAdmin().getSettings(new GetSettingsRequest().indices(destIndex)).actionGet();
@@ -259,8 +242,6 @@ public class CreateIndexFromSourceActionIT extends ESIntegTestCase {
     }
 
     public void testMappingsOverridden() {
-        assumeTrue("requires the migration reindex feature flag", REINDEX_DATA_STREAM_FEATURE_FLAG.isEnabled());
-
         var sourceIndex = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
         String sourceMapping = """
             {

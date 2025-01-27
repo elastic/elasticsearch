@@ -12,11 +12,13 @@ package org.elasticsearch.index.engine;
 import org.elasticsearch.index.engine.ThreadPoolMergeScheduler.MergeTask;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.PriorityBlockingQueue;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 public class ThreadPoolMergeQueue {
     /**
@@ -33,11 +35,13 @@ public class ThreadPoolMergeQueue {
     private static final double START_MB_PER_SEC = 20.0;
     private final AtomicInteger activeIOThrottledMergeTasksCount = new AtomicInteger();
     private final PriorityBlockingQueue<MergeTask> queuedMergeTasks = new PriorityBlockingQueue<>();
-    private final Set<MergeTask> currentlyRunningMergeTasks = new HashSet<>();
+    // the set of all merge tasks currently being executed by merge threads from the pool,
+    // in order to be able to update the IO throttle rate of merge tasks also after they have started (while executing)
+    private final Set<MergeTask> currentlyRunningMergeTasks = Collections.synchronizedSet(new HashSet<>());
     /**
      * Current IO write throttle rate, for all merge, across all merge schedulers (shards) on the node
      */
-    private double targetMBPerSec = START_MB_PER_SEC;
+    private final AtomicReference<Double> targetMBPerSec = new AtomicReference<>(START_MB_PER_SEC);
     private final ExecutorService executorService;
     private final int maxConcurrentMerges;
 
@@ -56,7 +60,7 @@ public class ThreadPoolMergeQueue {
 
     void executeNextMergeTask() {
         executorService.execute(() -> {
-            // one such task always executes a single merge task; this is important for merge queue statistics
+            // one such task always executes a SINGLE merge task; this is important for merge queue statistics
             while (true) {
                 MergeTask smallestMergeTask;
                 try {
@@ -77,20 +81,16 @@ public class ThreadPoolMergeQueue {
 
     private void runMergeTask(MergeTask mergeTask) {
         assert mergeTask.isRunning() == false;
-        synchronized (this) {
-            boolean added = currentlyRunningMergeTasks.add(mergeTask);
-            assert added : "failed to run merge task [" + mergeTask + "], it seems to already be running";
-        }
+        boolean added = currentlyRunningMergeTasks.add(mergeTask);
+        assert added : "starting merge task [" + mergeTask + "] registered as already running";
         try {
             if (mergeTask.supportsIOThrottling()) {
-                mergeTask.setIORateLimit(targetMBPerSec);
+                mergeTask.setIORateLimit(targetMBPerSec.get());
             }
             mergeTask.run();
         } finally {
-            synchronized (this) {
-                boolean removed = currentlyRunningMergeTasks.remove(mergeTask);
-                assert removed : "completed merge task [" + mergeTask + "] was not running";
-            }
+            boolean removed = currentlyRunningMergeTasks.remove(mergeTask);
+            assert removed : "completed merge task [" + mergeTask + "] not registered as running";
             if (mergeTask.supportsIOThrottling()) {
                 activeIOThrottledMergeTasksCount.decrementAndGet();
                 maybeUpdateTargetMBPerSec();
@@ -98,23 +98,27 @@ public class ThreadPoolMergeQueue {
         }
     }
 
-    // synchronized so that changes to the target IO rate and updates to the running merges' rates are atomic
-    private synchronized void maybeUpdateTargetMBPerSec() {
-        double newTargetMBPerSec = targetMBPerSec;
-        if (activeIOThrottledMergeTasksCount.get() < maxConcurrentMerges * 2 && targetMBPerSec > MIN_MERGE_MB_PER_SEC) {
-            newTargetMBPerSec = Math.max(MIN_MERGE_MB_PER_SEC, targetMBPerSec / 1.1);
-        } else if (activeIOThrottledMergeTasksCount.get() > maxConcurrentMerges * 4 && targetMBPerSec < MAX_MERGE_MB_PER_SEC) {
-            newTargetMBPerSec = Math.min(MAX_MERGE_MB_PER_SEC, targetMBPerSec * 1.1);
+    private void maybeUpdateTargetMBPerSec() {
+        double currentTargetMBPerSec = targetMBPerSec.get();
+        final double newTargetMBPerSec;
+        if (activeIOThrottledMergeTasksCount.get() < maxConcurrentMerges * 2 && currentTargetMBPerSec > MIN_MERGE_MB_PER_SEC) {
+            newTargetMBPerSec = Math.max(MIN_MERGE_MB_PER_SEC, currentTargetMBPerSec / 1.1);
+        } else if (activeIOThrottledMergeTasksCount.get() > maxConcurrentMerges * 4 && currentTargetMBPerSec < MAX_MERGE_MB_PER_SEC) {
+            newTargetMBPerSec = Math.min(MAX_MERGE_MB_PER_SEC, currentTargetMBPerSec * 1.1);
+        } else {
+            newTargetMBPerSec = currentTargetMBPerSec;
         }
-        if (newTargetMBPerSec != targetMBPerSec) {
-            targetMBPerSec = newTargetMBPerSec;
-            for (MergeTask mergeTask : currentlyRunningMergeTasks) {
-                mergeTask.setIORateLimit(targetMBPerSec);
-            }
+        if (newTargetMBPerSec != currentTargetMBPerSec && targetMBPerSec.compareAndSet(currentTargetMBPerSec, newTargetMBPerSec)) {
+            currentlyRunningMergeTasks.forEach(mergeTask -> {
+                if (mergeTask.supportsIOThrottling()) {
+                    mergeTask.setIORateLimit(newTargetMBPerSec);
+                }
+            });
         }
     }
 
+    // exposed for stats
     double getTargetMBPerSec() {
-        return targetMBPerSec;
+        return targetMBPerSec.get();
     }
 }

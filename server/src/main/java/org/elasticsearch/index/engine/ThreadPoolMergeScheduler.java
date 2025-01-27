@@ -43,7 +43,6 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
     private final ShardId shardId;
     private final MergeSchedulerConfig config;
     private final Logger logger;
-    // per-scheduler merge stats
     private final MergeTracking mergeTracking;
     private final ThreadLocal<MergeRateLimiter> onGoingMergeRateLimiter = new ThreadLocal<>();
     private final ThreadPoolMergeQueue threadPoolMergeQueue;
@@ -54,9 +53,6 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
     // how many {@link MergeTask}s have kicked off (this is used to name them).
     private final AtomicLong mergeTaskCount = new AtomicLong();
     private final AtomicLong mergeTaskDoneCount = new AtomicLong();
-    private int maxThreadCount;
-    private int maxMergeCount;
-    private boolean shouldIOThrottledMergeTasks;
 
     public ThreadPoolMergeScheduler(ShardId shardId, IndexSettings indexSettings, ThreadPoolMergeQueue threadPoolMergeQueue) {
         this.shardId = shardId;
@@ -67,9 +63,6 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
             () -> this.config.isAutoThrottle() ? threadPoolMergeQueue.getTargetMBPerSec() : Double.POSITIVE_INFINITY
         );
         this.threadPoolMergeQueue = threadPoolMergeQueue;
-        this.maxThreadCount = this.config.getMaxThreadCount();
-        this.maxMergeCount = this.config.getMaxMergeCount();
-        this.shouldIOThrottledMergeTasks = this.config.isAutoThrottle();
     }
 
     @Override
@@ -89,11 +82,9 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
 
     @Override
     public void refreshConfig() {
-        maxThreadCount = config.getMaxThreadCount();
-        maxMergeCount = config.getMaxMergeCount();
-        shouldIOThrottledMergeTasks = config.isAutoThrottle();
+        // if maxMergeCount changed, maybe we need to toggle merge task throttling
         checkMergeTaskThrottling();
-        // if maxThreadCount changed, maybe backlogged merges can now run
+        // if maxThreadCount changed, maybe some backlogged merges are now allowed to run
         enqueueBacklogged();
     }
 
@@ -142,7 +133,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
         long submittedMergesCount = mergeTaskCount.get();
         long doneMergesCount = mergeTaskDoneCount.get();
         int executingMergesCount = currentlyRunningMergeTasks.size();
-        int configuredMaxMergeCount = maxMergeCount;
+        int configuredMaxMergeCount = config.getMaxMergeCount();
         // both currently running and enqueued merge tasks are considered "active" for throttling purposes
         int activeMerges = (int) (submittedMergesCount - doneMergesCount);
         // maybe enable merge task throttling
@@ -161,19 +152,20 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
         return new MergeTask(
             mergeSource,
             merge,
-            isAutoThrottle && shouldIOThrottledMergeTasks,
+            isAutoThrottle && config.isAutoThrottle(),
             "Lucene Merge Task #" + mergeTaskCount.incrementAndGet() + " for shard " + shardId
         );
     }
 
+    // synchronized so that {@code #currentlyRunningMergeTasks} and {@code #backloggedMergeTasks} are modified atomically
     private synchronized boolean runNowOrBacklog(MergeTask mergeTask) {
         assert mergeTask.isRunning() == false;
-        if (currentlyRunningMergeTasks.size() >= maxThreadCount) {
+        if (currentlyRunningMergeTasks.size() >= config.getMaxThreadCount()) {
             backloggedMergeTasks.add(mergeTask);
             return false;
         } else {
             boolean added = currentlyRunningMergeTasks.add(mergeTask);
-            assert added : "'to run' merge task [" + mergeTask + "] seems to already be running";
+            assert added : "starting merge task [" + mergeTask + "] registered as already running";
             return true;
         }
     }
@@ -182,7 +174,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
         assert mergeTask.isRunning();
         synchronized (this) {
             boolean removed = currentlyRunningMergeTasks.remove(mergeTask);
-            assert removed : "merge task [" + mergeTask + "] was not running";
+            assert removed : "completed merge task [" + mergeTask + "] not registered as running";
             // when one merge is done, maybe a backlogged one can now execute
             enqueueBacklogged();
         }
@@ -191,7 +183,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
     }
 
     private synchronized void enqueueBacklogged() {
-        int maxBackloggedTasksToEnqueue = maxThreadCount - currentlyRunningMergeTasks.size();
+        int maxBackloggedTasksToEnqueue = config.getMaxThreadCount() - currentlyRunningMergeTasks.size();
         while (maxBackloggedTasksToEnqueue-- > 0) {
             MergeTask backloggedMergeTask = backloggedMergeTasks.poll();
             if (backloggedMergeTask == null) {

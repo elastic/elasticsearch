@@ -108,7 +108,7 @@ public final class Lucene86MetadataOnlyPointsReader extends PointsReader {
 
     @Override
     public void checkIntegrity() {
-  ;
+        ;
     }
 
     @Override

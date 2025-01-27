@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.NotMasterException;
+import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -844,13 +845,11 @@ public class ShardStateAction {
         }
 
         private static boolean assertRefreshBlockIsNotPresentWhenTheIndexIsSearchable(ClusterState clusterState) {
-            for (IndexMetadata index : clusterState.metadata()) {
-                assert clusterState.routingTable().index(index.getIndex()).readyForSearch(clusterState)
-                    && clusterState.blocks().hasIndexBlock(index.getIndex().getName(), INDEX_REFRESH_BLOCK) == false
-                    : "Index ["
-                        + index.getIndex()
-                        + "] is searchable but has an INDEX_REFRESH_BLOCK "
-                        + clusterState.routingTable().index(index.getIndex());
+            for (Map.Entry<String, Set<ClusterBlock>> indexBlock : clusterState.blocks().indices().entrySet()) {
+                if (indexBlock.getValue().contains(INDEX_REFRESH_BLOCK)) {
+                    assert clusterState.routingTable().index(indexBlock.getKey()).readyForSearch(clusterState) == false
+                        : "Index [" + indexBlock.getKey() + "] is searchable but has an INDEX_REFRESH_BLOCK";
+                }
             }
             return true;
         }

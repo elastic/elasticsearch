@@ -65,7 +65,6 @@ public class TransportPutSnapshotLifecycleAction extends TransportMasterNodeActi
             threadPool,
             actionFilters,
             PutSnapshotLifecycleAction.Request::new,
-            indexNameExpressionResolver,
             AcknowledgedResponse::readFrom,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );

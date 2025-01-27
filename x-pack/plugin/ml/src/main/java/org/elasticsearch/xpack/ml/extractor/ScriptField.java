@@ -22,7 +22,7 @@ public class ScriptField extends AbstractField {
     }
 
     @Override
-    public Object[] value(SearchHit hit) {
+    public Object[] value(SearchHit hit, SourceSupplier source) {
         return getFieldValue(hit);
     }
 

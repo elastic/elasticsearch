@@ -86,7 +86,7 @@ public class HeapAttackIT extends ESRestTestCase {
     public void testSortByManyLongsSuccess() throws IOException {
         initManyLongs();
         Response response = sortByManyLongs(500);
-        Map<?, ?> map = responseAsMap(response);
+        Map<String, Object> map = responseAsMap(response);
         ListMatcher columns = matchesList().item(matchesMap().entry("name", "a").entry("type", "long"))
             .item(matchesMap().entry("name", "b").entry("type", "long"));
         ListMatcher values = matchesList();
@@ -95,8 +95,7 @@ public class HeapAttackIT extends ESRestTestCase {
                 values = values.item(List.of(0, b));
             }
         }
-        MapMatcher mapMatcher = matchesMap();
-        assertMap(map, mapMatcher.entry("columns", columns).entry("values", values).entry("took", greaterThanOrEqualTo(0)));
+        assertResultMap(map, columns, values);
     }
 
     /**
@@ -236,11 +235,10 @@ public class HeapAttackIT extends ESRestTestCase {
     public void testGroupOnSomeLongs() throws IOException {
         initManyLongs();
         Response resp = groupOnManyLongs(200);
-        Map<?, ?> map = responseAsMap(resp);
+        Map<String, Object> map = responseAsMap(resp);
         ListMatcher columns = matchesList().item(matchesMap().entry("name", "MAX(a)").entry("type", "long"));
         ListMatcher values = matchesList().item(List.of(9));
-        MapMatcher mapMatcher = matchesMap();
-        assertMap(map, mapMatcher.entry("columns", columns).entry("values", values).entry("took", greaterThanOrEqualTo(0)));
+        assertResultMap(map, columns, values);
     }
 
     /**
@@ -249,11 +247,10 @@ public class HeapAttackIT extends ESRestTestCase {
     public void testGroupOnManyLongs() throws IOException {
         initManyLongs();
         Response resp = groupOnManyLongs(5000);
-        Map<?, ?> map = responseAsMap(resp);
+        Map<String, Object> map = responseAsMap(resp);
         ListMatcher columns = matchesList().item(matchesMap().entry("name", "MAX(a)").entry("type", "long"));
         ListMatcher values = matchesList().item(List.of(9));
-        MapMatcher mapMatcher = matchesMap();
-        assertMap(map, mapMatcher.entry("columns", columns).entry("values", values).entry("took", greaterThanOrEqualTo(0)));
+        assertResultMap(map, columns, values);
     }
 
     private Response groupOnManyLongs(int count) throws IOException {
@@ -279,12 +276,11 @@ public class HeapAttackIT extends ESRestTestCase {
     public void testSmallConcat() throws IOException {
         initSingleDocIndex();
         Response resp = concat(2);
-        Map<?, ?> map = responseAsMap(resp);
+        Map<String, Object> map = responseAsMap(resp);
         ListMatcher columns = matchesList().item(matchesMap().entry("name", "a").entry("type", "long"))
             .item(matchesMap().entry("name", "str").entry("type", "keyword"));
         ListMatcher values = matchesList().item(List.of(1, "1".repeat(100)));
-        MapMatcher mapMatcher = matchesMap();
-        assertMap(map, mapMatcher.entry("columns", columns).entry("values", values).entry("took", greaterThanOrEqualTo(0)));
+        assertResultMap(map, columns, values);
     }
 
     public void testHugeConcat() throws IOException {
@@ -465,7 +461,7 @@ public class HeapAttackIT extends ESRestTestCase {
     public void testManyEval() throws IOException {
         initManyLongs();
         Response resp = manyEval(1);
-        Map<?, ?> map = responseAsMap(resp);
+        Map<String, Object> map = responseAsMap(resp);
         ListMatcher columns = matchesList();
         columns = columns.item(matchesMap().entry("name", "a").entry("type", "long"));
         columns = columns.item(matchesMap().entry("name", "b").entry("type", "long"));
@@ -475,8 +471,7 @@ public class HeapAttackIT extends ESRestTestCase {
         for (int i = 0; i < 20; i++) {
             columns = columns.item(matchesMap().entry("name", "i0" + i).entry("type", "long"));
         }
-        MapMatcher mapMatcher = matchesMap();
-        assertMap(map, mapMatcher.entry("columns", columns).entry("values", hasSize(10_000)).entry("took", greaterThanOrEqualTo(0)));
+        assertResultMap(map, columns, hasSize(10_000));
     }
 
     public void testTooManyEval() throws IOException {
@@ -631,40 +626,46 @@ public class HeapAttackIT extends ESRestTestCase {
     public void testLookupExplosion() throws IOException {
         int sensorDataCount = 7500;
         int lookupEntries = 10000;
-        Map<?, ?> map = responseAsMap(lookupExplosion(sensorDataCount, lookupEntries));
+        Map<?, ?> map = lookupExplosion(sensorDataCount, lookupEntries);
         assertMap(map, matchesMap().extraOk().entry("values", List.of(List.of(sensorDataCount * lookupEntries))));
     }
 
     public void testLookupExplosionManyMatches() throws IOException {
-        assertCircuitBreaks(() -> lookupExplosion(8500, 10000));
+        assertCircuitBreaks(() -> {
+            Map<?, ?> result = lookupExplosion(8500, 10000);
+            logger.error("should have failed but got {}", result);
+        });
     }
 
-    private Response lookupExplosion(int sensorDataCount, int lookupEntries) throws IOException {
+    private Map<?, ?> lookupExplosion(int sensorDataCount, int lookupEntries) throws IOException {
         initSensorData(sensorDataCount, 1);
         initSensorLookup(lookupEntries, 1, i -> "73.9857 40.7484");
         StringBuilder query = startQuery();
         query.append("FROM sensor_data | LOOKUP JOIN sensor_lookup ON id | STATS COUNT(*)\"}");
-        return query(query.toString(), null);
+        return responseAsMap(query(query.toString(), null));
     }
 
     public void testEnrichExplosion() throws IOException {
         int sensorDataCount = 1000;
         int lookupEntries = 100;
-        Map<?, ?> map = responseAsMap(enrichExplosion(sensorDataCount, lookupEntries));
+        Map<?, ?> map = enrichExplosion(sensorDataCount, lookupEntries);
         assertMap(map, matchesMap().extraOk().entry("values", List.of(List.of(sensorDataCount))));
     }
 
     public void testEnrichExplosionManyMatches() throws IOException {
-        assertCircuitBreaks(() -> enrichExplosion(1000, 10000));
+        assertCircuitBreaks(() -> {
+            Map<?, ?> result = enrichExplosion(3000, 10000);
+            logger.error("should have failed but got {}", result);
+        });
     }
 
-    private Response enrichExplosion(int sensorDataCount, int lookupEntries) throws IOException {
+    private Map<?, ?> enrichExplosion(int sensorDataCount, int lookupEntries) throws IOException {
         initSensorData(sensorDataCount, 1);
         initSensorEnrich(lookupEntries, 1, i -> "73.9857 40.7484");
         try {
             StringBuilder query = startQuery();
             query.append("FROM sensor_data | ENRICH sensor ON id | STATS COUNT(*)\"}");
-            return query(query.toString(), null);
+            return responseAsMap(query(query.toString(), null));
         } finally {
             Request delete = new Request("DELETE", "/_enrich/policy/sensor");
             assertMap(responseAsMap(client().performRequest(delete)), matchesMap().entry("acknowledged", true));

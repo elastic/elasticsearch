@@ -53,7 +53,6 @@ public class TransportGetSecuritySettingsAction extends TransportMasterNodeActio
             threadPool,
             actionFilters,
             GetSecuritySettingsAction.Request::readFrom,
-            indexNameExpressionResolver,
             GetSecuritySettingsAction.Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );

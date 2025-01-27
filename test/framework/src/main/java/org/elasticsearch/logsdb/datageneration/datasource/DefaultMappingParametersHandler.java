@@ -60,8 +60,7 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
                     .collect(Collectors.toSet());
 
                 if (options.isEmpty() == false) {
-                    // TODO: re-enable once #120831 is resolved
-                    // injected.put("copy_to", ESTestCase.randomFrom(options));
+                    injected.put("copy_to", ESTestCase.randomFrom(options));
                 }
             }
 

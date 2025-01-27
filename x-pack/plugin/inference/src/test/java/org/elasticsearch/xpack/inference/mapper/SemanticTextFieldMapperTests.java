@@ -183,7 +183,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
 
     @Override
     public MappedFieldType getMappedFieldType() {
-        return new SemanticTextFieldMapper.SemanticTextFieldType("field", "fake-inference-id", null, null, null, false, Map.of());
+        return new SemanticTextFieldMapper.SemanticTextFieldType("field", "fake-inference-id", null, null, null, null, false, Map.of());
     }
 
     @Override
@@ -857,7 +857,8 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
                 null,
                 randomSemanticText.inference().chunks()
             ),
-            randomSemanticText.contentType()
+            randomSemanticText.contentType(),
+            SemanticTextFieldTests.generateRandomChunkingSettings()
         );
 
         MapperService mapperService = createMapperService(
@@ -901,7 +902,8 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             fieldName,
             List.of(),
             new SemanticTextField.InferenceResult(inferenceId, modelSettings, Map.of()),
-            XContentType.JSON
+            XContentType.JSON,
+            SemanticTextFieldTests.generateRandomChunkingSettings()
         );
         XContentBuilder builder = JsonXContent.contentBuilder().startObject();
         if (useLegacyFormat) {

@@ -124,8 +124,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
     private void submitNewMergeTask(MergeSource mergeSource, MergePolicy.OneMerge merge, MergeTrigger mergeTrigger) {
         MergeTask mergeTask = newMergeTask(mergeSource, merge, mergeTrigger);
         assert mergeTask.isRunning() == false;
-        threadPoolMergeQueue.enqueueMergeTask(mergeTask);
-        threadPoolMergeQueue.executeNextMergeTask();
+        threadPoolMergeQueue.submitMergeTask(mergeTask);
         checkMergeTaskThrottling();
     }
 

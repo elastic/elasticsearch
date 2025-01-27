@@ -49,6 +49,11 @@ public class ThreadPoolMergeQueue {
         this.maxConcurrentMerges = threadPool.info(ThreadPool.Names.MERGE).getMax();
     }
 
+    void submitMergeTask(MergeTask mergeTask) {
+        enqueueMergeTask(mergeTask);
+        executeNextMergeTask();
+    }
+
     void enqueueMergeTask(MergeTask mergeTask) {
         queuedMergeTasks.add(mergeTask);
         if (mergeTask.supportsIOThrottling()) {
@@ -57,7 +62,7 @@ public class ThreadPoolMergeQueue {
         }
     }
 
-    void executeNextMergeTask() {
+    private void executeNextMergeTask() {
         executorService.execute(() -> {
             // one such task always executes a SINGLE merge task; this is important for merge queue statistics
             while (true) {

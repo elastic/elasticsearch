@@ -17,6 +17,7 @@ import org.elasticsearch.action.support.broadcast.unpromotable.TransportBroadcas
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
+import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -29,6 +30,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_REFRESH_BLOCK;
 
@@ -91,7 +94,11 @@ public class TransportUnpromotableShardRefreshAction extends TransportBroadcastU
     }
 
     @Override
-    protected void beforeDispatchingRequestToUnpromotableShards(UnpromotableShardRefreshRequest request, ActionListener<Void> listener) {
+    protected void doExecute(Task task, UnpromotableShardRefreshRequest request, ActionListener<ActionResponse.Empty> listener) {
+        beforeDispatchingRequestToUnpromotableShards(request, listener.delegateFailure((l, unused) -> super.doExecute(task, request, l)));
+    }
+
+    private void beforeDispatchingRequestToUnpromotableShards(UnpromotableShardRefreshRequest request, ActionListener<Void> listener) {
         if (useRefreshBlock == false) {
             listener.onResponse(null);
             return;
@@ -117,12 +124,17 @@ public class TransportUnpromotableShardRefreshAction extends TransportBroadcastU
 
             @Override
             public void onTimeout(TimeValue timeout) {
-                listener.onFailure(new ElasticsearchTimeoutException("index refresh blocked, waiting for shard(s) to be started"));
+                listener.onFailure(
+                    new ElasticsearchTimeoutException(
+                        "shard refresh timed out waiting for index block to be removed",
+                        new ClusterBlockException(Map.of(request.shardId().getIndexName(), Set.of(INDEX_REFRESH_BLOCK)))
+                    )
+                );
             }
         }, clusterState -> isIndexBlockedForRefresh(request.shardId().getIndexName(), clusterState) == false);
     }
 
-    private boolean isIndexBlockedForRefresh(String index, ClusterState state) {
+    private static boolean isIndexBlockedForRefresh(String index, ClusterState state) {
         return state.blocks().hasIndexBlock(index, INDEX_REFRESH_BLOCK);
     }
 

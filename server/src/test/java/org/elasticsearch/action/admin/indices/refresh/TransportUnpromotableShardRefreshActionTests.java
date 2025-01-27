@@ -16,6 +16,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
+import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -95,7 +96,7 @@ public class TransportUnpromotableShardRefreshActionTests extends ESTestCase {
 
     public void testRespondOKToRefreshRequestBeforeShardIsCreated() {
         final var shardId = new ShardId(new Index(randomIdentifier(), randomUUID()), between(0, 3));
-        final var indexShardRoutingTable = createShardRoutingTableWithPrimaryAndSearchShards(shardId);
+        final var indexShardRoutingTable = createShardRoutingTableWithPrimaryAndSearchShards(shardId, true);
 
         final var request = new UnpromotableShardRefreshRequest(
             indexShardRoutingTable,
@@ -130,7 +131,8 @@ public class TransportUnpromotableShardRefreshActionTests extends ESTestCase {
 
     public void testActionWaitsUntilIndexRefreshBlocksAreCleared() {
         final var shardId = new ShardId(new Index(randomIdentifier(), randomUUID()), between(0, 3));
-        final var indexShardRoutingTable = createShardRoutingTableWithPrimaryAndSearchShards(shardId);
+        final var withSearchShards = randomBoolean();
+        final var indexShardRoutingTable = createShardRoutingTableWithPrimaryAndSearchShards(shardId, withSearchShards);
 
         final var indicesService = mock(IndicesService.class);
         final var unpromotableShardOperationExecuted = new AtomicBoolean(false);
@@ -170,7 +172,9 @@ public class TransportUnpromotableShardRefreshActionTests extends ESTestCase {
             indexShardRoutingTable,
             randomNonNegativeLong(),
             randomNonNegativeLong(),
-            randomBoolean()
+            randomBoolean(),
+            // Ensure that the request doesn't timeout
+            TimeValue.timeValueSeconds(15)
         );
         transportService.sendRequest(localNode, TransportUnpromotableShardRefreshAction.NAME, request, expectSuccess(future::onResponse));
 
@@ -194,12 +198,12 @@ public class TransportUnpromotableShardRefreshActionTests extends ESTestCase {
         }
 
         assertThat(safeGet(future), sameInstance(ActionResponse.Empty.INSTANCE));
-        assertThat(unpromotableShardOperationExecuted.get(), is(true));
+        assertThat(unpromotableShardOperationExecuted.get(), is(withSearchShards));
     }
 
     public void testActionWaitsUntilShardRefreshBlocksAreClearedMightTimeout() {
         final var shardId = new ShardId(new Index(randomIdentifier(), randomUUID()), between(0, 3));
-        final var indexShardRoutingTable = createShardRoutingTableWithPrimaryAndSearchShards(shardId);
+        final var indexShardRoutingTable = createShardRoutingTableWithPrimaryAndSearchShards(shardId, true);
 
         final IndicesService indicesService = mock(IndicesService.class);
         // Register the action
@@ -219,6 +223,7 @@ public class TransportUnpromotableShardRefreshActionTests extends ESTestCase {
                 ActionListener<ActionResponse.Empty> responseListener
             ) {
                 assert false : "Unexpected call";
+                throw new AssertionError("Unexpected call");
             }
         };
 
@@ -237,9 +242,9 @@ public class TransportUnpromotableShardRefreshActionTests extends ESTestCase {
             TimeValue.timeValueSeconds(5)
         );
         transportService.sendRequest(localNode, TransportUnpromotableShardRefreshAction.NAME, request, expectError(e -> {
-            final Throwable rootCause = e.getRootCause();
-            assertThat(rootCause, instanceOf(ElasticsearchTimeoutException.class));
-            assertThat(rootCause.getMessage(), containsString("index refresh blocked, waiting for shard(s) to be started"));
+            assertThat(e.getCause(), instanceOf(ElasticsearchTimeoutException.class));
+            assertThat(e.getCause().getMessage(), containsString("shard refresh timed out waiting for index block to be removed"));
+            assertThat(e.getRootCause(), instanceOf(ClusterBlockException.class));
             countDownLatch.countDown();
         }));
 
@@ -253,7 +258,7 @@ public class TransportUnpromotableShardRefreshActionTests extends ESTestCase {
         safeAwait(countDownLatch);
     }
 
-    private IndexShardRoutingTable createShardRoutingTableWithPrimaryAndSearchShards(ShardId shardId) {
+    private IndexShardRoutingTable createShardRoutingTableWithPrimaryAndSearchShards(ShardId shardId, boolean withSearchShards) {
         final var shardRouting = TestShardRouting.newShardRouting(
             shardId,
             randomUUID(),
@@ -261,14 +266,19 @@ public class TransportUnpromotableShardRefreshActionTests extends ESTestCase {
             ShardRoutingState.STARTED,
             ShardRouting.Role.INDEX_ONLY
         );
-        final var unpromotableShardRouting = TestShardRouting.newShardRouting(
-            shardId,
-            localNode.getId(),
-            false,
-            ShardRoutingState.INITIALIZING,
-            ShardRouting.Role.SEARCH_ONLY
-        );
-        return new IndexShardRoutingTable.Builder(shardId).addShard(shardRouting).addShard(unpromotableShardRouting).build();
+        final var indexShardRoutingTableBuilder = new IndexShardRoutingTable.Builder(shardId).addShard(shardRouting);
+
+        if (withSearchShards) {
+            final var unpromotableShardRouting = TestShardRouting.newShardRouting(
+                shardId,
+                localNode.getId(),
+                false,
+                ShardRoutingState.INITIALIZING,
+                ShardRouting.Role.SEARCH_ONLY
+            );
+            indexShardRoutingTableBuilder.addShard(unpromotableShardRouting);
+        }
+        return indexShardRoutingTableBuilder.build();
     }
 
     private TransportResponseHandler<ActionResponse.Empty> expectSuccess(Consumer<ActionResponse.Empty> onResponse) {

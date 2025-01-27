@@ -74,12 +74,12 @@ abstract class IdentifierBuilder extends AbstractBuilder {
             if (selectorString != null) {
                 IndexNameExpressionResolver.SelectorResolver.validateIndexSelectorString(indexPattern, selectorString);
             }
-            patterns.add(recombineExpression(clusterString, indexPattern, selectorString));
+            patterns.add(reassembleIndexName(clusterString, indexPattern, selectorString));
         });
         return Strings.collectionToDelimitedString(patterns, ",");
     }
 
-    private static String recombineExpression(String clusterString, String indexPattern, String selectorString) {
+    private static String reassembleIndexName(String clusterString, String indexPattern, String selectorString) {
         if (clusterString == null && selectorString == null) {
             return indexPattern;
         }

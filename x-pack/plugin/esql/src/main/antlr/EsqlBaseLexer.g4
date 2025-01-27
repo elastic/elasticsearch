@@ -279,10 +279,10 @@ FROM_PIPE : PIPE -> type(PIPE), popMode;
 FROM_OPENING_BRACKET : OPENING_BRACKET -> type(OPENING_BRACKET);
 FROM_CLOSING_BRACKET : CLOSING_BRACKET -> type(CLOSING_BRACKET);
 FROM_COLON : COLON -> type(COLON);
-FROM_SELECTOR : {this.isDevVersion()}? CAST_OP -> type(CAST_OP);
 FROM_COMMA : COMMA -> type(COMMA);
 FROM_ASSIGN : ASSIGN -> type(ASSIGN);
 METADATA : 'metadata';
+FROM_SELECTOR : {this.isDevVersion()}? CAST_OP -> type(CAST_OP);
 
 // in 8.14 ` were not allowed
 // this has been relaxed in 8.15 since " is used for quoting
@@ -609,10 +609,6 @@ CLOSING_METRICS_COLON
     : COLON -> type(COLON), popMode, pushMode(METRICS_MODE)
     ;
 
-CLOSING_METRICS_SELECTOR
-    : {this.isDevVersion()}? CAST_OP -> type(CAST_OP), popMode, pushMode(METRICS_MODE)
-    ;
-
 CLOSING_METRICS_COMMA
     : COMMA -> type(COMMA), popMode, pushMode(METRICS_MODE)
     ;
@@ -643,4 +639,8 @@ CLOSING_METRICS_BY
 
 CLOSING_METRICS_PIPE
     : PIPE -> type(PIPE), popMode
+    ;
+
+CLOSING_METRICS_SELECTOR
+    : {this.isDevVersion()}? CAST_OP -> type(CAST_OP), popMode, pushMode(METRICS_MODE)
     ;

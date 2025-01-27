@@ -1067,49 +1067,14 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             String time = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(System.currentTimeMillis());
             int i = 0;
             for (String dsName : dsNames) {
-                BulkResponse bulkItemResponses = client().prepareBulk()
-                    .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-                    .add(
-                        new IndexRequest(dsName).opType(DocWriteRequest.OpType.CREATE)
-                            .id("1")
-                            .source("@timestamp", time, "count", ++i * 1000)
-                    )
-                    .add(
-                        new IndexRequest(dsName).opType(DocWriteRequest.OpType.CREATE)
-                            .id("2")
-                            .source("@timestamp", time, "count", ++i * 1000)
-                    )
-                    .add(
-                        new IndexRequest(dsName).opType(DocWriteRequest.OpType.CREATE)
-                            .id("3")
-                            .source("@timestamp", time, "count", ++i * 1000)
-                    )
-                    .add(
-                        new IndexRequest(dsName).opType(DocWriteRequest.OpType.CREATE)
-                            .id("4")
-                            .source("@timestamp", time, "count", ++i * 1000)
-                    )
-                    .add(
-                        new IndexRequest(dsName).opType(DocWriteRequest.OpType.CREATE)
-                            .id("5")
-                            .source("@timestamp", time, "count", ++i * 1000)
-                    )
-                    .add(
-                        new IndexRequest(dsName).opType(DocWriteRequest.OpType.CREATE)
-                            .id("6")
-                            .source("@timestamp", time, "count", "garbage")
-                    )
-                    .add(
-                        new IndexRequest(dsName).opType(DocWriteRequest.OpType.CREATE)
-                            .id("7")
-                            .source("@timestamp", time, "count", "garbage")
-                    )
-                    .add(
-                        new IndexRequest(dsName).opType(DocWriteRequest.OpType.CREATE)
-                            .id("8")
-                            .source("@timestamp", time, "count", "garbage")
-                    )
-                    .get();
+                BulkRequestBuilder bulk = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+                for (String id : Arrays.asList("1", "2", "3", "4", "5")) {
+                    bulk.add(createDoc(dsName, id, time, ++i * 1000));
+                }
+                for (String id : Arrays.asList("6", "7", "8")) {
+                    bulk.add(createDoc(dsName, id, time, "garbage"));
+                }
+                BulkResponse bulkItemResponses = bulk.get();
                 assertThat(bulkItemResponses.hasFailures(), is(false));
                 ensureYellow(dsName);
                 deleteDataStreams.add(dsName);
@@ -1139,6 +1104,10 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
                 );
             }
         }
+    }
+
+    private static IndexRequest createDoc(String dsName, String id, String ts, Object count) {
+        return new IndexRequest(dsName).opType(DocWriteRequest.OpType.CREATE).id(id).source("@timestamp", ts, "count", count);
     }
 
     public void testOverlappingIndexPatterns() throws Exception {

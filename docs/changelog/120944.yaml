@@ -1,0 +1,5 @@
+pr: 120944
+summary: Aggregations cancellation after collection
+area: Aggregations
+type: bug
+issues: []

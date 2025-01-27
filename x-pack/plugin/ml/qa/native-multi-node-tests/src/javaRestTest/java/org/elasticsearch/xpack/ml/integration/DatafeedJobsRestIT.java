@@ -1297,6 +1297,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
                     }
                 ]
             }""");
+        createRollupRequest.setOptions(ROLLUP_REQUESTS_OPTIONS);
         client().performRequest(createRollupRequest);
         client().performRequest(new Request("POST", "/_rollup/job/" + rollupJobId + "/_start"));
 
@@ -1826,6 +1827,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
 
         String rollupJobId = "rollup-" + jobId;
         Request createRollupRequest = new Request("PUT", "/_rollup/job/" + rollupJobId);
+        createRollupRequest.setOptions(ROLLUP_REQUESTS_OPTIONS);
         createRollupRequest.setJsonEntity("""
             {
             "index_pattern": "airline-data-aggs",

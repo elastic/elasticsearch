@@ -25,8 +25,3 @@ tasks.named("yamlRestTestV7CompatTest").configure { enabled = false };
 tasks.named('yamlRestTest') {
   usesDefaultDistribution()
 }
-
-tasks.named('yamlRestCompatTest') {
-  usesDefaultDistribution()
-  systemProperty 'es.queryable_built_in_roles_enabled', 'false'
-}

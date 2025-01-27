@@ -47,7 +47,7 @@ public record HealthIndicatorResult(
             }
             if (diagnosis().isPresent()) {
                 // don't want to have a new chunk & nested iterator for this, so we start the object here
-                builder.startObject("diagnosis");
+                builder.startArray("diagnosis");
             }
             return builder;
         }),
@@ -55,7 +55,7 @@ public record HealthIndicatorResult(
                 .orElse(Collections.emptyIterator()),
             ChunkedToXContentHelper.chunk((b, p) -> {
                 if (diagnosis().isPresent()) {
-                    b.endObject();
+                    b.endArray();
                 }
                 return b.endObject();
             })

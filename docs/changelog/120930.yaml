@@ -1,0 +1,6 @@
+pr: 120930
+summary: Normalize negative scores for `text_similarity_reranker` retriever
+area: Ranking
+type: bug
+issues:
+ - 120201

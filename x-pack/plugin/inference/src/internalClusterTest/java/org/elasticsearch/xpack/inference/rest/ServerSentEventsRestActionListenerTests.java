@@ -26,7 +26,6 @@ import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -243,11 +242,7 @@ public class ServerSentEventsRestActionListenerTests extends ESIntegTestCase {
         @Override
         public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
             var randomString = randomUnicodeOfLengthBetween(2, 20);
-            return Iterators.concat(
-                ChunkedToXContentHelper.startObject(),
-                ChunkedToXContentHelper.field("delta", randomString),
-                ChunkedToXContentHelper.endObject()
-            );
+            return ChunkedToXContentHelper.chunk((b, p) -> b.startObject().field("delta", randomString).endObject());
         }
     }
 
@@ -280,7 +275,7 @@ public class ServerSentEventsRestActionListenerTests extends ESIntegTestCase {
 
         @Override
         public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-            return ChunkedToXContentHelper.field("result", randomUnicodeOfLengthBetween(2, 20));
+            return ChunkedToXContentHelper.chunk((b, p) -> b.field("result", randomUnicodeOfLengthBetween(2, 20)));
         }
     }
 

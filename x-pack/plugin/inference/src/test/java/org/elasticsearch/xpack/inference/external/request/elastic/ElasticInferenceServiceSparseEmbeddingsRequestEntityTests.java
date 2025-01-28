@@ -12,6 +12,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceUsageContext;
 
 import java.io.IOException;
 import java.util.List;
@@ -20,8 +21,11 @@ import static org.elasticsearch.xpack.inference.MatchersUtils.equalToIgnoringWhi
 
 public class ElasticInferenceServiceSparseEmbeddingsRequestEntityTests extends ESTestCase {
 
-    public void testToXContent_SingleInput() throws IOException {
-        var entity = new ElasticInferenceServiceSparseEmbeddingsRequestEntity(List.of("abc"));
+    public void testToXContent_SingleInput_UnspecifiedUsageContext() throws IOException {
+        var entity = new ElasticInferenceServiceSparseEmbeddingsRequestEntity(
+            List.of("abc"),
+            ElasticInferenceServiceUsageContext.UNSPECIFIED
+        );
         String xContentString = xContentEntityToString(entity);
         assertThat(xContentString, equalToIgnoringWhitespaceInJsonString("""
             {
@@ -29,8 +33,11 @@ public class ElasticInferenceServiceSparseEmbeddingsRequestEntityTests extends E
             }"""));
     }
 
-    public void testToXContent_MultipleInputs() throws IOException {
-        var entity = new ElasticInferenceServiceSparseEmbeddingsRequestEntity(List.of("abc", "def"));
+    public void testToXContent_MultipleInputs_UnspecifiedUsageContext() throws IOException {
+        var entity = new ElasticInferenceServiceSparseEmbeddingsRequestEntity(
+            List.of("abc", "def"),
+            ElasticInferenceServiceUsageContext.UNSPECIFIED
+        );
         String xContentString = xContentEntityToString(entity);
         assertThat(xContentString, equalToIgnoringWhitespaceInJsonString("""
             {
@@ -38,6 +45,28 @@ public class ElasticInferenceServiceSparseEmbeddingsRequestEntityTests extends E
                     "abc",
                     "def"
                 ]
+            }
+            """));
+    }
+
+    public void testToXContent_MultipleInputs_SearchUsageContext() throws IOException {
+        var entity = new ElasticInferenceServiceSparseEmbeddingsRequestEntity(List.of("abc"), ElasticInferenceServiceUsageContext.SEARCH);
+        String xContentString = xContentEntityToString(entity);
+        assertThat(xContentString, equalToIgnoringWhitespaceInJsonString("""
+            {
+                "input": ["abc"],
+                "usage_context": "search"
+            }
+            """));
+    }
+
+    public void testToXContent_MultipleInputs_IngestUsageContext() throws IOException {
+        var entity = new ElasticInferenceServiceSparseEmbeddingsRequestEntity(List.of("abc"), ElasticInferenceServiceUsageContext.INGEST);
+        String xContentString = xContentEntityToString(entity);
+        assertThat(xContentString, equalToIgnoringWhitespaceInJsonString("""
+            {
+                "input": ["abc"],
+                "usage_context": "ingest"
             }
             """));
     }

@@ -64,6 +64,14 @@ public class LocalRelation extends LeafPlan {
     }
 
     @Override
+    public String commandName() {
+        // this colud be an empty source, a lookup table or something else
+        // but it should not be present in a pre-analyzed plan
+        // maybe we sholud throw exception?
+        return "<local relation>";
+    }
+
+    @Override
     public boolean expressionsResolved() {
         return true;
     }

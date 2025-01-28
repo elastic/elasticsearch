@@ -149,6 +149,7 @@ import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.internal.SubSearchContext;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -256,8 +257,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
         return createAggregator(new AggregatorFactories.Builder().addAggregator(aggregationBuilder), context);
     }
 
-    private <A extends Aggregator> A createAggregator(AggregatorFactories.Builder builder, AggregationContext context)
-        throws IOException {
+    private <A extends Aggregator> A createAggregator(AggregatorFactories.Builder builder, AggregationContext context) throws IOException {
         Aggregator[] aggregators = builder.build(context, null).createTopLevelAggregators();
         assertThat(aggregators.length, equalTo(1));
         @SuppressWarnings("unchecked")
@@ -328,6 +328,56 @@ public abstract class AggregatorTestCase extends ESTestCase {
         boolean isInSortOrderExecutionRequired,
         MappedFieldType... fieldTypes
     ) {
+        return createAggregationContext(
+            searcher,
+            indexSettings,
+            query,
+            breakerService,
+            bytesToPreallocate,
+            maxBucket,
+            isInSortOrderExecutionRequired,
+            () -> false,
+            fieldTypes
+        );
+    }
+
+    /**
+     * Creates an aggregation context that will randomly report that the query has been cancelled
+     */
+    private AggregationContext createCancellingAggregationContext(
+        IndexSearcher searcher,
+        IndexSettings indexSettings,
+        Query query,
+        CircuitBreakerService breakerService,
+        long bytesToPreallocate,
+        int maxBucket,
+        boolean isInSortOrderExecutionRequired,
+        MappedFieldType... fieldTypes
+    ) {
+        return createAggregationContext(
+            searcher,
+            indexSettings,
+            query,
+            breakerService,
+            bytesToPreallocate,
+            maxBucket,
+            isInSortOrderExecutionRequired,
+            () -> ESTestCase.random().nextInt(20) == 0,
+            fieldTypes
+        );
+    }
+
+    private AggregationContext createAggregationContext(
+        IndexSearcher searcher,
+        IndexSettings indexSettings,
+        Query query,
+        CircuitBreakerService breakerService,
+        long bytesToPreallocate,
+        int maxBucket,
+        boolean isInSortOrderExecutionRequired,
+        Supplier<Boolean> isCancelled,
+        MappedFieldType... fieldTypes
+    ) {
         MappingLookup mappingLookup = MappingLookup.fromMappers(
             Mapping.EMPTY,
             Arrays.stream(fieldTypes).map(this::buildMockFieldMapper).collect(toList()),
@@ -390,7 +440,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
             bitsetFilterCache,
             randomInt(),
             () -> 0L,
-            () -> false,
+            isCancelled,
             q -> q,
             true,
             isInSortOrderExecutionRequired
@@ -517,9 +567,11 @@ public abstract class AggregatorTestCase extends ESTestCase {
         IndexSettings indexSettings = createIndexSettings();
         // First run it to find circuit breaker leaks on the aggregator
         runWithCrankyCircuitBreaker(indexSettings, searcher, aggTestConfig);
-        // Second run it to the end
         CircuitBreakerService breakerService = new NoneCircuitBreakerService();
-        return searchAndReduce(indexSettings, searcher, breakerService, aggTestConfig);
+        // Next, try with random cancellations, again looking for leaks
+        runWithCancellingConfig(indexSettings, searcher, breakerService, aggTestConfig);
+        // Finally, run it to the end
+        return searchAndReduce(indexSettings, searcher, breakerService, aggTestConfig, this::createAggregationContext);
     }
 
     /**
@@ -533,7 +585,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
         CircuitBreakerService crankyService = new CrankyCircuitBreakerService();
         for (int i = 0; i < 5; i++) {
             try {
-                searchAndReduce(indexSettings, searcher, crankyService, aggTestConfig);
+                searchAndReduce(indexSettings, searcher, crankyService, aggTestConfig, this::createAggregationContext);
             } catch (CircuitBreakingException e) {
                 // Circuit breaks from the cranky breaker are expected - it randomly fails, after all
                 assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
@@ -541,12 +593,43 @@ public abstract class AggregatorTestCase extends ESTestCase {
         }
     }
 
+    private void runWithCancellingConfig(
+        IndexSettings indexSettings,
+        IndexSearcher searcher,
+        CircuitBreakerService breakerService,
+        AggTestConfig aggTestConfig
+    ) throws IOException {
+        for (int i = 0; i < 5; i++) {
+            try {
+                searchAndReduce(indexSettings, searcher, breakerService, aggTestConfig, this::createCancellingAggregationContext);
+            } catch (TaskCancelledException e) {
+                // we don't want to expectThrows this because the randomizer might just never report cancellation,
+                // but it's also normal that it should throw here.
+            }
+        }
+    }
+
+    @FunctionalInterface
+    public interface AggregationcContextSupplier {
+        AggregationContext get(
+            IndexSearcher searcher,
+            IndexSettings indexSettings,
+            Query query,
+            CircuitBreakerService breakerService,
+            long bytesToPreallocate,
+            int maxBucket,
+            boolean isInSortOrderExecutionRequired,
+            MappedFieldType... fieldTypes
+        );
+    }
+
     @SuppressWarnings("unchecked")
     private <A extends InternalAggregation, C extends Aggregator> A searchAndReduce(
         IndexSettings indexSettings,
         IndexSearcher searcher,
         CircuitBreakerService breakerService,
-        AggTestConfig aggTestConfig
+        AggTestConfig aggTestConfig,
+        AggregationcContextSupplier contextSupplier
     ) throws IOException {
         Query query = aggTestConfig.query();
         AggregatorFactories.Builder builder = new AggregatorFactories.Builder().addAggregator(aggTestConfig.builder());
@@ -572,7 +655,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 subSearchers[searcherIDX] = new ShardSearcher(leave, compCTX);
             }
             for (ShardSearcher subSearcher : subSearchers) {
-                AggregationContext context = createAggregationContext(
+                AggregationContext context = contextSupplier.get(
                     subSearcher,
                     indexSettings,
                     query,
@@ -601,7 +684,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 }
             }
         } else {
-            AggregationContext context = createAggregationContext(
+            AggregationContext context = contextSupplier.get(
                 searcher,
                 indexSettings,
                 query,

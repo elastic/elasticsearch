@@ -602,7 +602,7 @@ public class EsqlCapabilities {
         /**
          * Support the "METADATA _score" directive to enable _score column.
          */
-        METADATA_SCORE(Build.current().isSnapshot()),
+        METADATA_SCORE,
 
         /**
          * Term function
@@ -637,7 +637,12 @@ public class EsqlCapabilities {
         /**
          * Disabled support for index aliases in lookup joins
          */
-        LOOKUP_JOIN_NO_ALIASES(JOIN_LOOKUP_V12.isEnabled());
+        LOOKUP_JOIN_NO_ALIASES(JOIN_LOOKUP_V12.isEnabled()),
+
+        /**
+         * Support match options in match function
+         */
+        MATCH_FUNCTION_OPTIONS;
 
         private final boolean enabled;
 

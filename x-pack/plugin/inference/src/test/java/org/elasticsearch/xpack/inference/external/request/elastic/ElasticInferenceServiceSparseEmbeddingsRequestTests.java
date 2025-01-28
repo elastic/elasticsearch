@@ -44,7 +44,7 @@ public class ElasticInferenceServiceSparseEmbeddingsRequestTests extends ESTestC
 
         assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
-        assertThat(requestMap.size(), equalTo(2));
+        assertThat(requestMap.size(), equalTo(3));
         assertThat(requestMap.get("input"), is(List.of(input)));
         assertThat(requestMap.get("model_id"), is(modelId));
         assertThat(requestMap.get("usage_context"), equalTo("search"));
@@ -115,8 +115,8 @@ public class ElasticInferenceServiceSparseEmbeddingsRequestTests extends ESTestC
         assertThat(inputTypeToUsageContext(InputType.CLUSTERING), equalTo(ElasticInferenceServiceUsageContext.UNSPECIFIED));
     }
 
-    public ElasticInferenceServiceSparseEmbeddingsRequest createRequest(String url, String input, InputType inputType) {
-        var embeddingsModel = ElasticInferenceServiceSparseEmbeddingsModelTests.createModel(url);
+    public ElasticInferenceServiceSparseEmbeddingsRequest createRequest(String url, String modelId, String input, InputType inputType) {
+        var embeddingsModel = ElasticInferenceServiceSparseEmbeddingsModelTests.createModel(url, modelId);
 
         return new ElasticInferenceServiceSparseEmbeddingsRequest(
             TruncatorTests.createTruncator(),

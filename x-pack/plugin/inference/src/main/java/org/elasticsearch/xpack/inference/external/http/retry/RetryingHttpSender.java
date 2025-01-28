@@ -35,7 +35,7 @@ import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_P
 
 public class RetryingHttpSender implements RequestSender {
 
-    static final int MAX_RETIES = 3;
+    public static final int MAX_RETIES = 3;
 
     private final HttpClient httpClient;
     private final ThrottlerManager throttlerManager;

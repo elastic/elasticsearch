@@ -1,7 +1,7 @@
 [[search-multiple-indices]]
 === Search multiple data streams and indices using a query
 
-There are two primary ways to search across multiple data streams and indices:
+There are two main methods for searching across multiple data streams and indices in {es}:
 
 * At the query level: Specify the indices directly in the search request path or use index patterns to target a group of indices.
 

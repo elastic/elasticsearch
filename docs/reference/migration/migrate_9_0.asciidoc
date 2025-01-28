@@ -95,7 +95,7 @@ The response contains the list of critical deprecation warnings in the `index_se
 
 [source,console-result]
 ------------------------------------------------------------
-...
+(...)
 "index_settings" : {
     ".ml-anomalies-shared" : [
       {
@@ -107,7 +107,7 @@ The response contains the list of critical deprecation warnings in the `index_se
       }
     ]
   },
-...
+(...)
 ------------------------------------------------------------
 // NOTCONSOLE
 

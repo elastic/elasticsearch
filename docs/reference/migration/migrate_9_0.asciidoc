@@ -351,7 +351,7 @@ The response contains the list of critical deprecation warnings in the `index_se
         "resolve_during_rolling_upgrade": false
       }
     ]
-  }
+  },
 (...)
 ------------------------------------------------------------
 // NOTCONSOLE

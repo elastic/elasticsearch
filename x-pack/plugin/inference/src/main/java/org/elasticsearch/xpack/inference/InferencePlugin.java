@@ -337,8 +337,8 @@ public class InferencePlugin extends Plugin
         components.add(inferenceStats);
 
         // Only add InferenceServiceNodeLocalRateLimitCalculator (which is a ClusterStateListener) for cluster aware rate limiting,
-        // if elastic inference service and the rate limiting feature flags are enabled
-        if (isElasticInferenceServiceEnabled() && INFERENCE_API_CLUSTER_AWARE_RATE_LIMITING_FEATURE_FLAG.isEnabled()) {
+        // if the rate limiting feature flags are enabled
+        if (INFERENCE_API_CLUSTER_AWARE_RATE_LIMITING_FEATURE_FLAG.isEnabled()) {
             components.add(new InferenceServiceNodeLocalRateLimitCalculator(services.clusterService(), serviceRegistry));
         }
 

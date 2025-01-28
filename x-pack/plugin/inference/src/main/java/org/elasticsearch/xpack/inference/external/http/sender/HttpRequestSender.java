@@ -105,7 +105,7 @@ public class HttpRequestSender implements Sender {
         }
     }
 
-    public void updateRateLimitDivisor(Integer rateLimitDivisor) {
+    public void updateRateLimitDivisor(int rateLimitDivisor) {
         service.updateRateLimitDivisor(rateLimitDivisor);
     }
 

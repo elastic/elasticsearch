@@ -23,4 +23,6 @@ public interface Sender extends Closeable {
         @Nullable TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     );
+
+    void updateRateLimitDivisor(int rateLimitDivisor);
 }

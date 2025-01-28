@@ -204,15 +204,9 @@ public class InferenceServiceNodeLocalRateLimitCalculator implements ClusterStat
         }
 
         SenderService senderService = (SenderService) service;
-
         Sender sender = senderService.getSender();
-        if ((sender instanceof HttpRequestSender) == false) {
-            return;
-        }
-
-        HttpRequestSender httpSender = (HttpRequestSender) sender;
         // TODO: this needs to take in service and task type as soon as multiple services/task types are supported
-        httpSender.updateRateLimitDivisor(responsibleNodes);
+        sender.updateRateLimitDivisor(responsibleNodes);
     }
 
     InferenceServiceRegistry serviceRegistry() {

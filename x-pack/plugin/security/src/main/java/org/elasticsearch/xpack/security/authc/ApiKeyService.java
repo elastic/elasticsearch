@@ -160,7 +160,7 @@ public class ApiKeyService implements Closeable {
 
     public static final Setting<String> STORED_HASH_ALGO_SETTING = XPackSettings.defaultStoredSecureTokenHashAlgorithmSetting(
         "xpack.security.authc.api_key.hashing.algorithm",
-        (s) -> Hasher.SSHA256.name()
+        (s) -> Hasher.PBKDF2.name()
     );
     public static final Setting<TimeValue> DELETE_TIMEOUT = Setting.timeSetting(
         "xpack.security.authc.api_key.delete.timeout",
@@ -265,9 +265,7 @@ public class ApiKeyService implements Closeable {
                     if (apiKeyDocCache != null) {
                         apiKeyDocCache.invalidate(keys);
                     }
-                    if (apiKeyAuthCache != null) {
-                        keys.forEach(apiKeyAuthCache::invalidate);
-                    }
+                    keys.forEach(apiKeyAuthCache::invalidate);
                 }
 
                 @Override
@@ -275,9 +273,7 @@ public class ApiKeyService implements Closeable {
                     if (apiKeyDocCache != null) {
                         apiKeyDocCache.invalidateAll();
                     }
-                    if (apiKeyAuthCache != null) {
-                        apiKeyAuthCache.invalidateAll();
-                    }
+                    apiKeyAuthCache.invalidateAll();
                 }
             });
             cacheInvalidatorRegistry.registerCacheInvalidator("api_key_doc", new CacheInvalidatorRegistry.CacheInvalidator() {
@@ -592,11 +588,9 @@ public class ApiKeyService implements Closeable {
                                     + "])";
                             assert indexResponse.getResult() == DocWriteResponse.Result.CREATED
                                 : "Index response was [" + indexResponse.getResult() + "]";
-                            if (apiKeyAuthCache != null) {
-                                final ListenableFuture<CachedApiKeyHashResult> listenableFuture = new ListenableFuture<>();
-                                listenableFuture.onResponse(new CachedApiKeyHashResult(true, apiKey));
-                                apiKeyAuthCache.put(request.getId(), listenableFuture);
-                            }
+                            final ListenableFuture<CachedApiKeyHashResult> listenableFuture = new ListenableFuture<>();
+                            listenableFuture.onResponse(new CachedApiKeyHashResult(true, apiKey));
+                            apiKeyAuthCache.put(request.getId(), listenableFuture);
                             listener.onResponse(new CreateApiKeyResponse(request.getName(), request.getId(), apiKey, expiration));
                         }, listener::onFailure))
                     )

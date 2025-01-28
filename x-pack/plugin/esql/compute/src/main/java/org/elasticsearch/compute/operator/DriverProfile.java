@@ -183,7 +183,7 @@ public class DriverProfile implements Writeable, ChunkedToXContentObject {
             return b;
         }),
             ChunkedToXContentHelper.array("operators", operators.iterator()),
-            Iterators.single((b, p) -> b.field("sleeps", sleeps)),
+            ChunkedToXContentHelper.chunk((b, p) -> b.field("sleeps", sleeps)),
             ChunkedToXContentHelper.endObject()
         );
     }

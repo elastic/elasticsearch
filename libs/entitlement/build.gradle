@@ -28,6 +28,9 @@ dependencies {
   }
 
   // guarding for intellij
+  if (sourceSets.findByName("main21")) {
+    main21CompileOnly project(path: ':libs:entitlement:bridge', configuration: 'java21')
+  }
   if (sourceSets.findByName("main23")) {
     main23CompileOnly project(path: ':libs:entitlement:bridge', configuration: 'java23')
   }

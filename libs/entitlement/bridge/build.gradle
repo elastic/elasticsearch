@@ -17,6 +17,9 @@ tasks.named('jar').configure {
   if (sourceSets.findByName("main23")) {
     from sourceSets.main23.output
   }
+  if (sourceSets.findByName("main21")) {
+    from sourceSets.main21.output
+  }
 }
 
 tasks.withType(CheckForbiddenApisTask).configureEach {

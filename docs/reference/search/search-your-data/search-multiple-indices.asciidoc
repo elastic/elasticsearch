@@ -45,7 +45,7 @@ GET /my-index-*/_search
 ----
 // TEST[setup:my_index]
 
-You can also remove a subset of indices from being searched. The request will retun data from all indices that start with `my-index-` while excluding results from `my-index-01`.
+You can exclude specific indices from a search. The request will retrieve data from all indices starting with `my-index-`, except for `my-index-01`.
 
 [source,console]
 ----

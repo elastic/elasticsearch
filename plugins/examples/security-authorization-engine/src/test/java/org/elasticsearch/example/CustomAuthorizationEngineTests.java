@@ -156,7 +156,7 @@ public class CustomAuthorizationEngineTests extends ESTestCase {
             PlainActionFuture<IndexAuthorizationResult> resultFuture = new PlainActionFuture<>();
             engine.authorizeIndexAction(requestInfo, authzInfo,
                 listener -> listener.onResponse(new ResolvedIndices(Collections.singletonList("index"), Collections.emptyList())),
-                indicesMap, resultFuture);
+                indicesMap, null, resultFuture);
             IndexAuthorizationResult result = resultFuture.actionGet();
             assertThat(result.isGranted(), is(false));
             IndicesAccessControl indicesAccessControl = result.getIndicesAccessControl();

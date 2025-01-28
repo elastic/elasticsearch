@@ -74,7 +74,7 @@ public class ElasticInferenceServiceCompletionModel extends ElasticInferenceServ
 
     }
 
-    ElasticInferenceServiceCompletionModel(
+    public ElasticInferenceServiceCompletionModel(
         String inferenceEntityId,
         TaskType taskType,
         String service,

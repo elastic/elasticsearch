@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.migrate.action;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
@@ -150,6 +151,15 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
         var indexReq = new IndexRequest(sourceIndex).source(jsonBuilder().startObject().field("field", "1").endObject());
         assertThrows(ClusterBlockException.class, () -> client().index(indexReq).actionGet());
         assertHitCount(prepareSearch(sourceIndex).setSize(0), 0);
+    }
+
+    public void testMissingSourceIndex() {
+        var nonExistentSourceIndex = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
+        assertThrows(
+            ResourceNotFoundException.class,
+            () -> client().execute(ReindexDataStreamIndexAction.INSTANCE, new ReindexDataStreamIndexAction.Request(nonExistentSourceIndex))
+                .actionGet()
+        );
     }
 
     public void testSettingsAddedBeforeReindex() throws Exception {

@@ -1578,7 +1578,6 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
                                "supported_task_types": ["text_embedding", "sparse_embedding", "rerank"]
                            },
                            "model_id": {
-                               "default_value": ".multilingual-e5-small",
                                "description": "The name of the model to use for the inference task.",
                                "label": "Model ID",
                                "required": true,

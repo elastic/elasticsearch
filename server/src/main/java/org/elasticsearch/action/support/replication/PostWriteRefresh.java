@@ -65,7 +65,7 @@ public class PostWriteRefresh {
                 }
             });
             case IMMEDIATE -> immediate(indexShard, listener.delegateFailureAndWrap((l, r) -> {
-                if (indexShard.getReplicationGroup().getRoutingTable().unpromotableShards().size() > 0) {
+                if (indexShard.getReplicationGroup().getRoutingTable().allUnpromotableShards().size() > 0) {
                     sendUnpromotableRequests(indexShard, r.generation(), true, l, postWriteRefreshTimeout);
                 } else {
                     l.onResponse(true);
@@ -136,7 +136,8 @@ public class PostWriteRefresh {
             indexShard.getReplicationGroup().getRoutingTable(),
             indexShard.getOperationPrimaryTerm(),
             generation,
-            true
+            true,
+            postWriteRefreshTimeout
         );
         transportService.sendRequest(
             transportService.getLocalNode(),

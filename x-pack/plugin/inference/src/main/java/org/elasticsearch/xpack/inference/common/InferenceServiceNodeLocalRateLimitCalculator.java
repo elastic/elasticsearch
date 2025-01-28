@@ -108,20 +108,9 @@ public class InferenceServiceNodeLocalRateLimitCalculator implements ClusterStat
     }
 
     public boolean isTaskTypeReroutingSupported(String serviceName, TaskType taskType) {
-        var rateLimitConfigs = SERVICE_NODE_LOCAL_RATE_LIMIT_CONFIGS.get(serviceName);
-
-        // We need to check this to make sure the service actually has a rate limit configuration
-        if (rateLimitConfigs == null) {
-            return false;
-        }
-
-        for (var rateLimitConfig : rateLimitConfigs) {
-            if (taskType.equals(rateLimitConfig.taskType())) {
-                return true;
-            }
-        }
-
-        return false;
+        return SERVICE_NODE_LOCAL_RATE_LIMIT_CONFIGS.getOrDefault(serviceName, Collections.emptyList())
+            .stream()
+            .anyMatch(rateLimitConfig -> taskType.equals(rateLimitConfig.taskType));
     }
 
     public RateLimitAssignment getRateLimitAssignment(String service, TaskType taskType) {

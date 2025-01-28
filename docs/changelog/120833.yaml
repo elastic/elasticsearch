@@ -1,0 +1,5 @@
+pr: 120833
+summary: Optimize `IngestCtxMap` construction
+area: Ingest Node
+type: enhancement
+issues: []

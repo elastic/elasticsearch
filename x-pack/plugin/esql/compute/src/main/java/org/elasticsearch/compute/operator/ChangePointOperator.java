@@ -137,6 +137,5 @@ public class ChangePointOperator implements Operator {
     }
 
     @Override
-    public void close() {
-    }
+    public void close() {}
 }

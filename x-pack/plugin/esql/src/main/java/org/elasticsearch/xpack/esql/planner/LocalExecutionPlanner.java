@@ -24,7 +24,6 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.EvalOperatorFactory;
 import org.elasticsearch.compute.operator.FilterOperator.FilterOperatorFactory;
-import org.elasticsearch.compute.operator.FilterScoringOperator;
 import org.elasticsearch.compute.operator.FilterScoringOperator.FilterScoringOperatorFactory;
 import org.elasticsearch.compute.operator.LocalSourceOperator;
 import org.elasticsearch.compute.operator.LocalSourceOperator.LocalSourceFactory;
@@ -672,19 +671,13 @@ public class LocalExecutionPlanner {
             usesScore
         );
 
-
         OperatorFactory operatorFactory;
         if (PlannerUtils.usesScoring(filter)) {
-            operatorFactory = new FilterScoringOperatorFactory(
-                evaluatorFactory);
+            operatorFactory = new FilterScoringOperatorFactory(evaluatorFactory);
         } else {
-            operatorFactory = new FilterOperatorFactory(
-                evaluatorFactory);
+            operatorFactory = new FilterOperatorFactory(evaluatorFactory);
         }
-        return source.with(
-            operatorFactory,
-            source.layout
-        );
+        return source.with(operatorFactory, source.layout);
     }
 
     private PhysicalOperation planLimit(LimitExec limit, LocalExecutionPlannerContext context) {

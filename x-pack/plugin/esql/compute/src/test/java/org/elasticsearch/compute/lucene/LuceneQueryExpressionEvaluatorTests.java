@@ -58,7 +58,14 @@ public class LuceneQueryExpressionEvaluatorTests extends ComputeTestCase {
     private static final String FIELD = "g";
 
     public void testDenseCollectorSmall() {
-        try (DenseCollector collector = new DenseCollector(blockFactory(), 0, 2)) {
+        try (
+            DenseCollector collector = new DenseCollector(
+                blockFactory(),
+                new LuceneQueryExpressionEvaluator.NonScoringDocScorerVectorProvider(blockFactory()),
+                0,
+                2
+            )
+        ) {
             collector.collect(0);
             collector.collect(1);
             collector.collect(2);
@@ -72,7 +79,14 @@ public class LuceneQueryExpressionEvaluatorTests extends ComputeTestCase {
     }
 
     public void testDenseCollectorSimple() {
-        try (DenseCollector collector = new DenseCollector(blockFactory(), 0, 10)) {
+        try (
+            DenseCollector collector = new DenseCollector(
+                blockFactory(),
+                new LuceneQueryExpressionEvaluator.NonScoringDocScorerVectorProvider(blockFactory()),
+                0,
+                10
+            )
+        ) {
             collector.collect(2);
             collector.collect(5);
             collector.finish();
@@ -89,7 +103,14 @@ public class LuceneQueryExpressionEvaluatorTests extends ComputeTestCase {
         int min = between(0, Integer.MAX_VALUE - length - 1);
         int max = min + length + 1;
         boolean[] expected = new boolean[length];
-        try (DenseCollector collector = new DenseCollector(blockFactory(), min, max)) {
+        try (
+            DenseCollector collector = new DenseCollector(
+                blockFactory(),
+                new LuceneQueryExpressionEvaluator.NonScoringDocScorerVectorProvider(blockFactory()),
+                min,
+                max
+            )
+        ) {
             for (int i = 0; i < length; i++) {
                 expected[i] = randomBoolean();
                 if (expected[i]) {
@@ -183,8 +204,8 @@ public class LuceneQueryExpressionEvaluatorTests extends ComputeTestCase {
             );
             LuceneQueryExpressionEvaluator luceneQueryEvaluator = new LuceneQueryExpressionEvaluator(
                 blockFactory,
-                new LuceneQueryExpressionEvaluator.ShardConfig[] { shard }
-
+                new LuceneQueryExpressionEvaluator.ShardConfig[] { shard },
+                new LuceneQueryExpressionEvaluator.NonScoringDocScorerVectorProvider(blockFactory)
             );
 
             List<Operator> operators = new ArrayList<>();

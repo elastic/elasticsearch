@@ -11,7 +11,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
@@ -285,12 +284,12 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
             assertThat(values.get(2).get(0), equalTo(6));
 
             // Matches full text query and non pushable query
-            assertThat((Double)values.get(0).get(1), greaterThan(2.0));
+            assertThat((Double) values.get(0).get(1), greaterThan(2.0));
             // Matches just non pushable query
-            assertThat((Double)values.get(1).get(1), equalTo(1));
+            assertThat((Double) values.get(1).get(1), equalTo(1.0));
             // Matches just full text query
-            assertThat((Double)values.get(2).get(1), lessThan(1.0));
-            assertThat((Double)values.get(2).get(1), greaterThan(0.0));
+            assertThat((Double) values.get(2).get(1), lessThan(1.0));
+            assertThat((Double) values.get(2).get(1), greaterThan(0.0));
         }
     }
 
@@ -312,11 +311,11 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
             assertThat(values.get(1).get(0), equalTo(6));
 
             // Matches the full text query and a non pushable query
-            assertThat((Double)values.get(0).get(1), greaterThan(1.0));
-            assertThat((Double)values.get(0).get(1), lessThan(2.0));
+            assertThat((Double) values.get(0).get(1), greaterThan(1.0));
+            assertThat((Double) values.get(0).get(1), lessThan(2.0));
             // Matches just the match function
-            assertThat((Double)values.get(1).get(1), lessThan(1.0));
-            assertThat((Double)values.get(1).get(1), greaterThan(0.0));
+            assertThat((Double) values.get(1).get(1), lessThan(1.0));
+            assertThat((Double) values.get(1).get(1), greaterThan(0.0));
         }
     }
 
@@ -340,11 +339,11 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
             var matchValues = getValuesList(respMatch);
             var qstrValues = getValuesList(respQstr);
             assertEquals(matchValues.size(), qstrValues.size());
-            for(int i = 0 ; i < matchValues.size(); i++) {
+            for (int i = 0; i < matchValues.size(); i++) {
                 // Compare ids
                 assertEquals(matchValues.get(i).get(0), qstrValues.get(i).get(0));
                 // Compare scores
-                assertThat((Double)matchValues.get(i).get(1), closeTo((Double) qstrValues.get(i).get(1), 0.01));
+                assertThat((Double) matchValues.get(i).get(1), closeTo((Double) qstrValues.get(i).get(1), 0.01));
             }
         }
     }

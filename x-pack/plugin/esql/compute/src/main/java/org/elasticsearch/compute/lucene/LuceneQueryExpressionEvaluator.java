@@ -25,6 +25,7 @@ import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasable;
@@ -45,12 +46,14 @@ public class LuceneQueryExpressionEvaluator implements EvalOperator.ExpressionEv
 
     private final BlockFactory blockFactory;
     private final ShardConfig[] shards;
+    private final DocScorerVectorProvider docScorerVectorProvider;
 
     private ShardState[] perShardState = EMPTY_SHARD_STATES;
 
-    public LuceneQueryExpressionEvaluator(BlockFactory blockFactory, ShardConfig[] shards) {
+    LuceneQueryExpressionEvaluator(BlockFactory blockFactory, ShardConfig[] shards, DocScorerVectorProvider docScorerVectorProvider) {
         this.blockFactory = blockFactory;
         this.shards = shards;
+        this.docScorerVectorProvider = docScorerVectorProvider;
     }
 
     @Override
@@ -65,6 +68,8 @@ public class LuceneQueryExpressionEvaluator implements EvalOperator.ExpressionEv
             }
         } catch (IOException e) {
             throw new UncheckedIOException(e);
+        } finally {
+            Releasables.closeExpectNoException(docScorerVectorProvider);
         }
     }
 
@@ -98,7 +103,7 @@ public class LuceneQueryExpressionEvaluator implements EvalOperator.ExpressionEv
      *     common.
      * </p>
      */
-    private BooleanVector evalSingleSegmentNonDecreasing(DocVector docs) throws IOException {
+    private Vector evalSingleSegmentNonDecreasing(DocVector docs) throws IOException {
         ShardState shardState = shardState(docs.shards().getInt(0));
         SegmentState segmentState = shardState.segmentState(docs.segments().getInt(0));
         int min = docs.docs().getInt(0);
@@ -124,31 +129,30 @@ public class LuceneQueryExpressionEvaluator implements EvalOperator.ExpressionEv
      *     the order that the {@link DocVector} came in.
      * </p>
      */
-    private BooleanVector evalSlow(DocVector docs) throws IOException {
+    private Vector evalSlow(DocVector docs) throws IOException {
         int[] map = docs.shardSegmentDocMapForwards();
         // Clear any state flags from the previous run
         int prevShard = -1;
         int prevSegment = -1;
         SegmentState segmentState = null;
-        try (BooleanVector.Builder builder = blockFactory.newBooleanVectorFixedBuilder(docs.getPositionCount())) {
-            for (int i = 0; i < docs.getPositionCount(); i++) {
-                int shard = docs.shards().getInt(docs.shards().getInt(map[i]));
-                int segment = docs.segments().getInt(map[i]);
-                if (segmentState == null || prevShard != shard || prevSegment != segment) {
-                    segmentState = shardState(shard).segmentState(segment);
-                    segmentState.initScorer(docs.docs().getInt(map[i]));
-                    prevShard = shard;
-                    prevSegment = segment;
-                }
-                if (segmentState.noMatch) {
-                    builder.appendBoolean(false);
-                } else {
-                    segmentState.scoreSingleDocWithScorer(builder, docs.docs().getInt(map[i]));
-                }
+        docScorerVectorProvider.init(docs.getPositionCount());
+        for (int i = 0; i < docs.getPositionCount(); i++) {
+            int shard = docs.shards().getInt(docs.shards().getInt(map[i]));
+            int segment = docs.segments().getInt(map[i]);
+            if (segmentState == null || prevShard != shard || prevSegment != segment) {
+                segmentState = shardState(shard).segmentState(segment);
+                segmentState.initScorer(docs.docs().getInt(map[i]));
+                prevShard = shard;
+                prevSegment = segment;
             }
-            try (BooleanVector outOfOrder = builder.build()) {
-                return outOfOrder.filter(docs.shardSegmentDocMapBackwards());
+            if (segmentState.noMatch) {
+                docScorerVectorProvider.scoreNoHit();
+            } else {
+                segmentState.scoreSingleDocWithScorer(docs.docs().getInt(map[i]));
             }
+        }
+        try (Vector outOfOrder = docScorerVectorProvider.build()) {
+            return outOfOrder.filter(docs.shardSegmentDocMapBackwards());
         }
     }
 
@@ -244,7 +248,7 @@ public class LuceneQueryExpressionEvaluator implements EvalOperator.ExpressionEv
                     return blockFactory.newConstantBooleanVector(false, length);
                 }
             }
-            try (DenseCollector collector = new DenseCollector(blockFactory, min, max)) {
+            try (DenseCollector collector = new DenseCollector(blockFactory, docScorerVectorProvider, min, max)) {
                 bulkScorer.score(collector, ctx.reader().getLiveDocs(), min, max + 1);
                 return collector.build();
             }
@@ -254,17 +258,16 @@ public class LuceneQueryExpressionEvaluator implements EvalOperator.ExpressionEv
          * Score a vector of doc ids using {@link Scorer}. If you have a dense range of
          * doc ids it'd be faster to use {@link #scoreDense}.
          */
-        BooleanVector scoreSparse(IntVector docs) throws IOException {
+        Vector scoreSparse(IntVector docs) throws IOException {
             initScorer(docs.getInt(0));
             if (noMatch) {
-                return blockFactory.newConstantBooleanVector(false, docs.getPositionCount());
+                return docScorerVectorProvider.noneMatch(docs.getPositionCount());
             }
-            try (BooleanVector.Builder builder = blockFactory.newBooleanVectorFixedBuilder(docs.getPositionCount())) {
-                for (int i = 0; i < docs.getPositionCount(); i++) {
-                    scoreSingleDocWithScorer(builder, docs.getInt(i));
-                }
-                return builder.build();
+            docScorerVectorProvider.init(docs.getPositionCount());
+            for (int i = 0; i < docs.getPositionCount(); i++) {
+                scoreSingleDocWithScorer(docs.getInt(i));
             }
+            return docScorerVectorProvider.build();
         }
 
         private void initScorer(int minDocId) throws IOException {
@@ -283,13 +286,17 @@ public class LuceneQueryExpressionEvaluator implements EvalOperator.ExpressionEv
             }
         }
 
-        private void scoreSingleDocWithScorer(BooleanVector.Builder builder, int doc) throws IOException {
+        private void scoreSingleDocWithScorer(int doc) throws IOException {
             if (scorer.iterator().docID() == doc) {
-                builder.appendBoolean(true);
+                docScorerVectorProvider.scoreHit(scorer);
             } else if (scorer.iterator().docID() > doc) {
-                builder.appendBoolean(false);
+                docScorerVectorProvider.scoreNoHit();
             } else {
-                builder.appendBoolean(scorer.iterator().advance(doc) == doc);
+                if (scorer.iterator().advance(doc) == doc) {
+                    docScorerVectorProvider.scoreHit(scorer);
+                } else {
+                    docScorerVectorProvider.scoreNoHit();
+                }
             }
         }
     }
@@ -305,17 +312,22 @@ public class LuceneQueryExpressionEvaluator implements EvalOperator.ExpressionEv
     static class DenseCollector implements LeafCollector, Releasable {
         private final BooleanVector.FixedBuilder builder;
         private final int max;
+        private final DocScorerVectorProvider docScorerVectorProvider;
+        private Scorable scorable;
 
         int next;
 
-        DenseCollector(BlockFactory blockFactory, int min, int max) {
+        DenseCollector(BlockFactory blockFactory, DocScorerVectorProvider docScorerVectorProvider, int min, int max) {
             this.builder = blockFactory.newBooleanVectorFixedBuilder(max - min + 1);
             this.max = max;
+            this.docScorerVectorProvider = docScorerVectorProvider;
             next = min;
         }
 
         @Override
-        public void setScorer(Scorable scorable) {}
+        public void setScorer(Scorable scorable) {
+            this.scorable = scorable;
+        }
 
         @Override
         public void collect(int doc) {
@@ -342,6 +354,62 @@ public class LuceneQueryExpressionEvaluator implements EvalOperator.ExpressionEv
         }
     }
 
+    private interface DocScorerVectorProvider extends Releasable {
+
+        Vector noneMatch(int docs);
+
+        void init(int numDocs);
+
+        void scoreHit(Scorable scorable);
+
+        void scoreNoHit();
+
+        Vector build();
+    }
+
+    static class NonScoringDocScorerVectorProvider implements DocScorerVectorProvider {
+
+        private final BlockFactory blockFactory;
+        private BooleanVector.Builder builder;
+
+        NonScoringDocScorerVectorProvider(BlockFactory blockFactory) {
+            this.blockFactory = blockFactory;
+        }
+
+        @Override
+        public Vector noneMatch(int docs) {
+            return blockFactory.newConstantBooleanVector(false, docs);
+        }
+
+        @Override
+        public void init(int numDocs) {
+            builder = blockFactory.newBooleanVectorFixedBuilder(numDocs);
+        }
+
+        @Override
+        public void scoreHit(Scorable scorable) {
+            assert builder != null : "init must be called before scoring";
+            builder.appendBoolean(true);
+        }
+
+        @Override
+        public void scoreNoHit() {
+            assert builder != null : "init must be called before scoring";
+            builder.appendBoolean(false);
+        }
+
+        @Override
+        public Vector build() {
+            assert builder != null : "init must be called before scoring";
+            return builder.build();
+        }
+
+        @Override
+        public void close() {
+            Releasables.closeExpectNoException(builder);
+        }
+    }
+
     public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
         private final ShardConfig[] shardConfigs;
 
@@ -351,7 +419,11 @@ public class LuceneQueryExpressionEvaluator implements EvalOperator.ExpressionEv
 
         @Override
         public EvalOperator.ExpressionEvaluator get(DriverContext context) {
-            return new LuceneQueryExpressionEvaluator(context.blockFactory(), shardConfigs);
+            return new LuceneQueryExpressionEvaluator(
+                context.blockFactory(),
+                shardConfigs,
+                new NonScoringDocScorerVectorProvider(context.blockFactory())
+            );
         }
     }
 }

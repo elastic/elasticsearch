@@ -37,7 +37,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
-import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 import org.elasticsearch.xpack.esql.querydsl.query.TranslationAwareExpressionQuery;
 
@@ -228,9 +227,9 @@ public abstract class FullTextFunction extends Function implements TranslationAw
             );
             checkFullTextFunctionsParents(condition, failures);
 
-//            if (PlannerUtils.usesScoring(plan)) {
-//                checkFullTextSearchDisjunctions(condition, failures);
-//            }
+            // if (PlannerUtils.usesScoring(plan)) {
+            // checkFullTextSearchDisjunctions(condition, failures);
+            // }
         } else {
             plan.forEachExpression(FullTextFunction.class, ftf -> {
                 failures.add(fail(ftf, "[{}] {} is only supported in WHERE commands", ftf.functionName(), ftf.functionType()));

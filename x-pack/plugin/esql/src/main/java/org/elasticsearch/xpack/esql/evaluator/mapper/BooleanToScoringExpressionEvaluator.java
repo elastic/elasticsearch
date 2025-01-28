@@ -8,54 +8,60 @@
 package org.elasticsearch.xpack.esql.evaluator.mapper;
 
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
-import org.elasticsearch.compute.data.DoubleVector;
+import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.core.Releasables;
 
 import static org.elasticsearch.compute.lucene.LuceneQueryExpressionScoringEvaluator.SCORE_FOR_FALSE;
 
 public class BooleanToScoringExpressionEvaluator implements EvalOperator.ExpressionEvaluator {
 
     private final EvalOperator.ExpressionEvaluator inner;
-    private final BlockFactory blockFactory;
+    private final DriverContext driverContext;
 
-    public BooleanToScoringExpressionEvaluator(EvalOperator.ExpressionEvaluator inner, BlockFactory blockFactory) {
+    public BooleanToScoringExpressionEvaluator(EvalOperator.ExpressionEvaluator inner, DriverContext driverContext) {
         this.inner = inner;
-        this.blockFactory = blockFactory;
+        this.driverContext = driverContext;
     }
 
     @Override
     public Block eval(Page page) {
-        Block innerBlock = inner.eval(page);
-        if ((innerBlock == null) || innerBlock.areAllValuesNull()) {
-            return innerBlock;
-        }
-
-        if (innerBlock instanceof BooleanBlock == false) {
-            throw new IllegalArgumentException("Unexpected block type: " + innerBlock.getClass());
-        }
-
-        BooleanBlock booleanBlock = (BooleanBlock) innerBlock;
-        int positionCount = booleanBlock.getPositionCount();
-        DoubleVector.FixedBuilder builder = blockFactory.newDoubleVectorFixedBuilder(positionCount);
-        for (int i = 0; i < positionCount; i++) {
-            boolean value = booleanBlock.getBoolean(i);
-            if (value) {
-                builder.appendDouble(1.0);
-            } else {
-                builder.appendDouble(SCORE_FOR_FALSE);
+        try (Block innerBlock = inner.eval(page)) {
+            if ((innerBlock == null) || innerBlock.areAllValuesNull()) {
+                return innerBlock;
             }
-        }
 
-        return builder.build().asBlock();
+            if (innerBlock instanceof BooleanBlock == false) {
+                throw new IllegalArgumentException("Unexpected block type: " + innerBlock.getClass());
+            }
+
+            return eval((BooleanBlock) innerBlock);
+        }
+    }
+
+    private DoubleBlock eval(BooleanBlock booleanBlock) {
+        int positionCount = booleanBlock.getPositionCount();
+
+        try (DoubleBlock.Builder builder = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
+            for (int i = 0; i < positionCount; i++) {
+                boolean value = booleanBlock.getBoolean(i);
+                if (value) {
+                    builder.appendDouble(1.0);
+                } else {
+                    builder.appendDouble(SCORE_FOR_FALSE);
+                }
+            }
+
+            return builder.build();
+        }
     }
 
     @Override
     public void close() {
-        inner.close();
+        Releasables.closeExpectNoException(inner);
     }
 
     public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
@@ -68,7 +74,7 @@ public class BooleanToScoringExpressionEvaluator implements EvalOperator.Express
 
         @Override
         public EvalOperator.ExpressionEvaluator get(DriverContext context) {
-            return new BooleanToScoringExpressionEvaluator(innerFactory.get(context), context.blockFactory());
+            return new BooleanToScoringExpressionEvaluator(innerFactory.get(context), context);
         }
     }
 }

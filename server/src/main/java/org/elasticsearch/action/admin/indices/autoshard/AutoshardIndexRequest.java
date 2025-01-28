@@ -35,7 +35,9 @@ public class AutoshardIndexRequest extends AcknowledgedRequest<AutoshardIndexReq
         indicesOptions = IndicesOptions.readIndicesOptions(in);
     }
 
-    public AutoshardIndexRequest() { super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT); }
+    public AutoshardIndexRequest() {
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
+    }
 
     public AutoshardIndexRequest(String index) {
         super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
@@ -45,7 +47,7 @@ public class AutoshardIndexRequest extends AcknowledgedRequest<AutoshardIndexReq
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        if (CollectionUtils.isEmpty(new String[] {index} )) {
+        if (CollectionUtils.isEmpty(new String[] { index })) {
             validationException = addValidationError("index is missing", validationException);
         }
         return validationException;

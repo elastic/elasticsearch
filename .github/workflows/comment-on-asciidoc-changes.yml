@@ -1,0 +1,20 @@
+---
+name: Comment on PR for .asciidoc changes
+
+on:
+  pull_request:
+    types:
+      - synchronize
+      - opened
+      - reopened
+    branches:
+      - main
+      - master
+      - "9.0"
+
+jobs:
+  comment-on-asciidoc-change:
+    permissions:
+      contents: read
+      pull-requests: write
+    uses: elastic/docs-builder/.github/workflows/comment-on-asciidoc-changes.yml@main

@@ -281,6 +281,8 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test171AdditionalCliOptionsAreForwarded
   issue: https://github.com/elastic/elasticsearch/issues/120925
+- class: org.elasticsearch.xpack.inference.InferenceGetServicesIT
+  issue: https://github.com/elastic/elasticsearch/issues/120986
 
 # Examples:
 #

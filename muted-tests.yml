@@ -283,6 +283,9 @@ tests:
 - class: org.elasticsearch.datastreams.DataStreamsClientYamlTestSuiteIT
   method: test {p0=data_stream/80_resolve_index_data_streams/Resolve index with hidden and closed indices}
   issue: https://github.com/elastic/elasticsearch/issues/120965
+- class: org.elasticsearch.datastreams.DataStreamsClientYamlTestSuiteIT
+  method: test {p0=data_stream/140_data_stream_aliases/Create data stream alias with filter}
+  issue: https://github.com/elastic/elasticsearch/issues/121014
 
 # Examples:
 #

@@ -11,7 +11,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
-import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
@@ -38,7 +37,7 @@ import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.core.expression.Expressions.asAttributes;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 
-public class Eval extends UnaryPlan implements GeneratingPlan<Eval>, PostAnalysisVerificationAware, TelemetryAware {
+public class Eval extends UnaryPlan implements GeneratingPlan<Eval>, PostAnalysisVerificationAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Eval", Eval::new);
 
     private final List<Alias> fields;
@@ -130,6 +129,11 @@ public class Eval extends UnaryPlan implements GeneratingPlan<Eval>, PostAnalysi
         }
 
         return newFieldsWithUpdatedRefs;
+    }
+
+    @Override
+    public String commandName() {
+        return "EVAL";
     }
 
     @Override

@@ -275,6 +275,12 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=nodes.stats/11_indices_metrics/indices mappings exact count test for indices level}
   issue: https://github.com/elastic/elasticsearch/issues/120950
+- class: org.elasticsearch.packaging.test.DockerTests
+  method: test071BindMountCustomPathWithDifferentUID
+  issue: https://github.com/elastic/elasticsearch/issues/120918
+- class: org.elasticsearch.packaging.test.DockerTests
+  method: test171AdditionalCliOptionsAreForwarded
+  issue: https://github.com/elastic/elasticsearch/issues/120925
 
 # Examples:
 #

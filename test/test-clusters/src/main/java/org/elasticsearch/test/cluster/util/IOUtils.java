@@ -56,7 +56,7 @@ public final class IOUtils {
     }
 
     /**
-     * Attempts to do a copy via linking, calling back to a normal copy if an exception is encountered.
+     * Attempts to do a copy via linking, falling back to a normal copy if an exception is encountered.
      *
      * @see #syncWithLinks(Path, Path)
      * @see #syncWithCopy(Path, Path)
@@ -71,11 +71,11 @@ public final class IOUtils {
             LOGGER.info("Failed to sync using hard links. Falling back to copy.", e);
             // ensure we get a clean copy
             try {
-                IOUtils.deleteWithRetry(destinationRoot);
+                deleteWithRetry(destinationRoot);
             } catch (IOException ex) {
                 throw new UncheckedIOException(ex);
             }
-            IOUtils.syncWithCopy(sourceRoot, destinationRoot);
+            syncWithCopy(sourceRoot, destinationRoot);
         }
     }
 

@@ -70,12 +70,13 @@ steps:
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed -Dscan.capture-file-fingerprints -Dtests.bwc.main.version=$$ES_VERSION -Dtests.bwc.refspec.main=$$ES_COMMIT luceneBwcTest
         timeout_in_minutes: 300
         matrix:
-          setup: { }
-          adjustments:
-            - with:
-                LUCENE_VERSION: "10.0.0"
-                ES_VERSION: "9.0.0"
-                ES_COMMIT: "b2cc9d9b8f00ee621f93ddca07ea9c671aab1578" # update to match last commit before lucene bump
+          setup:
+            LUCENE_VERSION:
+              - "10.0.0"
+            ES_VERSION:
+              - "9.0.0"
+            ES_COMMIT:
+              - "b2cc9d9b8f00ee621f93ddca07ea9c671aab1578" # update to match last commit before lucene bump
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004

@@ -18,6 +18,7 @@ import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
@@ -328,6 +329,19 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
               "roles" : ["remote_search"]
             }""");
         assertOK(adminClient().performRequest(putUserRequest));
+    }
+
+    private static String populateOtherUser() throws IOException {
+        String otherUser = REMOTE_SEARCH_USER + "_other";
+
+        final var putUserRequest = new Request("PUT", "/_security/user/" + otherUser);
+        putUserRequest.setJsonEntity("""
+            {
+              "password": "x-pack-test-password",
+              "roles" : ["remote_search"]
+            }""");
+        assertOK(adminClient().performRequest(putUserRequest));
+        return otherUser;
     }
 
     @After
@@ -715,7 +729,9 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
 
     @SuppressWarnings("unchecked")
     public void testCrossClusterEnrich() throws Exception {
-        configureRemoteCluster();
+        boolean isProxyMode = randomBoolean();
+        boolean skipUnavailable = randomBoolean();
+        configureRemoteCluster(REMOTE_CLUSTER_ALIAS, fulfillingCluster, false, isProxyMode, skipUnavailable);
         populateData();
         // Query cluster
         {
@@ -1198,7 +1214,116 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
         }
     }
 
+    public void testCrossClusterAsyncQuery() throws Exception {
+        assumeTrue("delay() is only available in snapshot builds", Build.current().isSnapshot());
+        configureRemoteCluster();
+        populateData();
+        String otherUser = populateOtherUser();
+
+        // Adding a delay there so that the async query is not completed before we check the status
+        Request request = esqlRequestAsync("""
+            FROM employees, *:employees
+            | SORT emp_id ASC
+            | LIMIT 10
+            | WHERE delay(10ms)
+            | KEEP emp_id, department""");
+        Response response = performRequestWithRemoteSearchUser(request);
+        assertOK(response);
+        Map<String, Object> responseAsMap = entityAsMap(response);
+        assumeTrue("Query finished too fast, can not test", (boolean) responseAsMap.get("is_running"));
+
+        String asyncId = (String) responseAsMap.get("id");
+        response = performRequestWithRemoteSearchUser(esqlAsyncGetRequest(asyncId));
+        assertOK(response);
+        responseAsMap = entityAsMap(response);
+        assertThat(responseAsMap.get("is_running"), equalTo(true));
+
+        // Other user can't see the async query
+        ResponseException error = expectThrows(
+            ResponseException.class,
+            () -> performRequestWithUser(esqlAsyncGetRequest(asyncId), otherUser)
+        );
+        assertThat(error.getResponse().getStatusLine().getStatusCode(), equalTo(404));
+        assertThat(error.getMessage(), containsString("resource_not_found_exception"));
+
+        // Clean up
+        response = performRequestWithRemoteSearchUser(esqlAsyncDeleteRequest(asyncId));
+        assertOK(response);
+    }
+
+    public void testCrossClusterAsyncQueryStop() throws Exception {
+        assumeTrue("delay() is only available in snapshot builds", Build.current().isSnapshot());
+        configureRemoteCluster();
+        populateData();
+        String otherUser = populateOtherUser();
+
+        // query remote cluster only
+        Request request = esqlRequestAsync("""
+            FROM employees, *:employees
+            | SORT emp_id ASC
+            | LIMIT 10
+            | WHERE delay(10ms)
+            | KEEP emp_id, department""");
+        Response response = performRequestWithRemoteSearchUser(request);
+        assertOK(response);
+        Map<String, Object> responseAsMap = entityAsMap(response);
+        assertThat(responseAsMap.get("is_running"), equalTo(true));
+        String asyncId = (String) responseAsMap.get("id");
+
+        response = performRequestWithRemoteSearchUser(esqlAsyncGetRequest(asyncId));
+        assertOK(response);
+        responseAsMap = entityAsMap(response);
+        assertThat(responseAsMap.get("is_running"), equalTo(true));
+
+        // Other user can't see the async query
+        ResponseException error = expectThrows(
+            ResponseException.class,
+            () -> performRequestWithUser(esqlAsyncStopRequest(asyncId), otherUser)
+        );
+        assertThat(error.getResponse().getStatusLine().getStatusCode(), equalTo(404));
+        assertThat(error.getMessage(), containsString("resource_not_found_exception"));
+
+        response = performRequestWithRemoteSearchUser(esqlAsyncStopRequest(asyncId));
+        assertOK(response);
+        responseAsMap = entityAsMap(response);
+        assertThat(responseAsMap.get("is_running"), equalTo(false));
+
+        // Clean up
+        response = performRequestWithRemoteSearchUser(esqlAsyncDeleteRequest(asyncId));
+        assertOK(response);
+    }
+
     protected Request esqlRequest(String command) throws IOException {
+        XContentBuilder body = getBody(command, null);
+        Request request = new Request("POST", "_query");
+        request.setJsonEntity(org.elasticsearch.common.Strings.toString(body));
+        return request;
+    }
+
+    protected Request esqlRequestAsync(String command) throws IOException {
+        XContentBuilder body = getBody(command, Map.of("wait_for_completion_timeout", "1ms"));
+        Request request = new Request("POST", "_query/async");
+        request.setJsonEntity(org.elasticsearch.common.Strings.toString(body));
+        return request;
+    }
+
+    protected Request esqlAsyncGetRequest(String asyncID) {
+        Request request = new Request("GET", "_query/async/" + asyncID);
+        request.addParameter("wait_for_completion_timeout", "1ms");
+        return request;
+    }
+
+    protected Request esqlAsyncStopRequest(String asyncID) {
+        Request request = new Request("POST", "_query/async/" + asyncID + "/stop");
+        return request;
+    }
+
+    protected Request esqlAsyncDeleteRequest(String asyncID) {
+        Request request = new Request("DELETE", "_query/async/" + asyncID);
+        return request;
+    }
+
+    private static XContentBuilder getBody(String command, @Nullable Map<String, String> extraParams) throws IOException {
         XContentBuilder body = JsonXContent.contentBuilder();
         body.startObject();
         body.field("query", command);
@@ -1224,16 +1349,28 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
                 body.endObject();
             }
         }
+        if (extraParams != null) {
+            extraParams.forEach((name, value) -> {
+                try {
+                    body.field(name, value);
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            });
+        }
         body.endObject();
-        Request request = new Request("POST", "_query");
-        request.setJsonEntity(org.elasticsearch.common.Strings.toString(body));
-        return request;
+        return body;
     }
 
     private Response performRequestWithRemoteSearchUser(final Request request) throws IOException {
         request.setOptions(
             RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", headerFromRandomAuthMethod(REMOTE_SEARCH_USER, PASS))
         );
+        return client().performRequest(request);
+    }
+
+    private Response performRequestWithUser(final Request request, String user) throws IOException {
+        request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", headerFromRandomAuthMethod(user, PASS)));
         return client().performRequest(request);
     }
 

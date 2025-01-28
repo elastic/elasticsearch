@@ -9,7 +9,9 @@
 
 package org.elasticsearch.ingest.geoip.direct;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.ingest.geoip.IngestGeoIpPlugin;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentParser;
@@ -20,6 +22,11 @@ import static org.elasticsearch.ingest.geoip.direct.DatabaseConfiguration.MAXMIN
 import static org.elasticsearch.ingest.geoip.direct.DatabaseConfigurationTests.randomDatabaseConfiguration;
 
 public class DatabaseConfigurationMetadataTests extends AbstractXContentSerializingTestCase<DatabaseConfigurationMetadata> {
+
+    @Override
+    protected NamedWriteableRegistry getNamedWriteableRegistry() {
+        return new NamedWriteableRegistry(new IngestGeoIpPlugin().getNamedWriteables());
+    }
 
     private String id;
 

@@ -20,8 +20,6 @@ import java.util.function.BiConsumer;
 
 public class IngestDocumentBridge extends StableBridgeAPI.Proxy<IngestDocument> {
 
-    public static String INGEST_KEY = IngestDocument.INGEST_KEY;
-
     public static IngestDocumentBridge wrap(final IngestDocument ingestDocument) {
         if (ingestDocument == null) {
             return null;

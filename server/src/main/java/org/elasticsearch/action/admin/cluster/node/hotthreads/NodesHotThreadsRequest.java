@@ -14,7 +14,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.monitor.jvm.HotThreads;
 
-public class NodesHotThreadsRequest extends BaseNodesRequest<NodesHotThreadsRequest> {
+public class NodesHotThreadsRequest extends BaseNodesRequest {
 
     final HotThreads.RequestOptions requestOptions;
 

@@ -29,6 +29,7 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.mocksocket.MockHttpServer;
+import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -164,11 +165,14 @@ public abstract class AbstractAzureServerTestCase extends ESTestCase {
                 .put(CONTAINER_SETTING.getKey(), CONTAINER)
                 .put(ACCOUNT_SETTING.getKey(), clientName)
                 .put(LOCATION_MODE_SETTING.getKey(), locationMode)
-                .put(MAX_SINGLE_PART_UPLOAD_SIZE_SETTING.getKey(), new ByteSizeValue(1, ByteSizeUnit.MB))
+                .put(MAX_SINGLE_PART_UPLOAD_SIZE_SETTING.getKey(), ByteSizeValue.of(1, ByteSizeUnit.MB))
                 .build()
         );
 
-        return new AzureBlobContainer(BlobPath.EMPTY, new AzureBlobStore(repositoryMetadata, service, BigArrays.NON_RECYCLING_INSTANCE));
+        return new AzureBlobContainer(
+            BlobPath.EMPTY,
+            new AzureBlobStore(repositoryMetadata, service, BigArrays.NON_RECYCLING_INSTANCE, RepositoriesMetrics.NOOP)
+        );
     }
 
     protected static byte[] randomBlobContent() {

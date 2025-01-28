@@ -68,6 +68,10 @@ public abstract class RuleExecutor<TreeType extends Node<TreeType>> {
             return name;
         }
 
+        public Batch<TreeType> with(Rule<?, TreeType>[] rules) {
+            return new Batch<>(name, limit, rules);
+        }
+
         public Rule<?, TreeType>[] rules() {
             return rules;
         }

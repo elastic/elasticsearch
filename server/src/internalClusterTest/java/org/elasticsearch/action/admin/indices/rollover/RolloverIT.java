@@ -316,7 +316,7 @@ public class RolloverIT extends ESIntegTestCase {
         final RolloverResponse response = indicesAdmin().prepareRolloverIndex("test_alias")
             .setConditions(
                 RolloverConditions.newBuilder()
-                    .addMaxIndexSizeCondition(new ByteSizeValue(10, ByteSizeUnit.MB))
+                    .addMaxIndexSizeCondition(ByteSizeValue.of(10, ByteSizeUnit.MB))
                     .addMaxIndexAgeCondition(TimeValue.timeValueHours(4))
             )
             .get();
@@ -330,7 +330,7 @@ public class RolloverIT extends ESIntegTestCase {
         assertThat(
             conditions,
             containsInAnyOrder(
-                new MaxSizeCondition(new ByteSizeValue(10, ByteSizeUnit.MB)).toString(),
+                new MaxSizeCondition(ByteSizeValue.of(10, ByteSizeUnit.MB)).toString(),
                 new MaxAgeCondition(TimeValue.timeValueHours(4)).toString()
             )
         );
@@ -447,7 +447,7 @@ public class RolloverIT extends ESIntegTestCase {
             final RolloverResponse response = indicesAdmin().prepareRolloverIndex("test_alias")
                 .setConditions(
                     RolloverConditions.newBuilder()
-                        .addMaxIndexSizeCondition(new ByteSizeValue(randomIntBetween(100, 50 * 1024), ByteSizeUnit.MB))
+                        .addMaxIndexSizeCondition(ByteSizeValue.of(randomIntBetween(100, 50 * 1024), ByteSizeUnit.MB))
                 )
                 .get();
             assertThat(response.getOldIndex(), equalTo("test-1"));
@@ -459,7 +459,7 @@ public class RolloverIT extends ESIntegTestCase {
 
         // A small max_size
         {
-            ByteSizeValue maxSizeValue = new ByteSizeValue(randomIntBetween(1, 20), ByteSizeUnit.BYTES);
+            ByteSizeValue maxSizeValue = ByteSizeValue.of(randomIntBetween(1, 20), ByteSizeUnit.BYTES);
             long beforeTime = client().threadPool().absoluteTimeInMillis() - 1000L;
             final RolloverResponse response = indicesAdmin().prepareRolloverIndex("test_alias")
                 .setConditions(RolloverConditions.newBuilder().addMaxIndexSizeCondition(maxSizeValue))
@@ -482,7 +482,7 @@ public class RolloverIT extends ESIntegTestCase {
             final RolloverResponse response = indicesAdmin().prepareRolloverIndex("test_alias")
                 .setConditions(
                     RolloverConditions.newBuilder()
-                        .addMaxIndexSizeCondition(new ByteSizeValue(randomNonNegativeLong(), ByteSizeUnit.BYTES))
+                        .addMaxIndexSizeCondition(ByteSizeValue.of(randomNonNegativeLong(), ByteSizeUnit.BYTES))
                         .addMinIndexDocsCondition(1L)
                 )
                 .get();
@@ -512,7 +512,7 @@ public class RolloverIT extends ESIntegTestCase {
             final RolloverResponse response = indicesAdmin().prepareRolloverIndex("test_alias")
                 .setConditions(
                     RolloverConditions.newBuilder()
-                        .addMaxPrimaryShardSizeCondition(new ByteSizeValue(randomIntBetween(100, 50 * 1024), ByteSizeUnit.MB))
+                        .addMaxPrimaryShardSizeCondition(ByteSizeValue.of(randomIntBetween(100, 50 * 1024), ByteSizeUnit.MB))
                 )
                 .get();
             assertThat(response.getOldIndex(), equalTo("test-1"));
@@ -524,7 +524,7 @@ public class RolloverIT extends ESIntegTestCase {
 
         // A small max_primary_shard_size
         {
-            ByteSizeValue maxPrimaryShardSizeCondition = new ByteSizeValue(randomIntBetween(1, 20), ByteSizeUnit.BYTES);
+            ByteSizeValue maxPrimaryShardSizeCondition = ByteSizeValue.of(randomIntBetween(1, 20), ByteSizeUnit.BYTES);
             long beforeTime = client().threadPool().absoluteTimeInMillis() - 1000L;
             final RolloverResponse response = indicesAdmin().prepareRolloverIndex("test_alias")
                 .setConditions(RolloverConditions.newBuilder().addMaxPrimaryShardSizeCondition(maxPrimaryShardSizeCondition))
@@ -547,7 +547,7 @@ public class RolloverIT extends ESIntegTestCase {
             final RolloverResponse response = indicesAdmin().prepareRolloverIndex("test_alias")
                 .setConditions(
                     RolloverConditions.newBuilder()
-                        .addMaxPrimaryShardSizeCondition(new ByteSizeValue(randomNonNegativeLong(), ByteSizeUnit.BYTES))
+                        .addMaxPrimaryShardSizeCondition(ByteSizeValue.of(randomNonNegativeLong(), ByteSizeUnit.BYTES))
                         .addMinIndexDocsCondition(1L)
                 )
                 .get();
@@ -649,9 +649,11 @@ public class RolloverIT extends ESIntegTestCase {
         final String openNonwriteIndex = "open-index-nonwrite";
         final String closedIndex = "closed-index-nonwrite";
         final String writeIndexPrefix = "write-index-";
-        assertAcked(prepareCreate(openNonwriteIndex).addAlias(new Alias(aliasName)).get());
-        assertAcked(prepareCreate(closedIndex).addAlias(new Alias(aliasName)).get());
-        assertAcked(prepareCreate(writeIndexPrefix + "000001").addAlias(new Alias(aliasName).writeIndex(true)).get());
+        assertAcked(
+            prepareCreate(openNonwriteIndex).addAlias(new Alias(aliasName)),
+            prepareCreate(closedIndex).addAlias(new Alias(aliasName)),
+            prepareCreate(writeIndexPrefix + "000001").addAlias(new Alias(aliasName).writeIndex(true))
+        );
         ensureGreen();
 
         index(closedIndex, null, "{\"foo\": \"bar\"}");
@@ -674,17 +676,18 @@ public class RolloverIT extends ESIntegTestCase {
         final String openNonwriteIndex = "open-index-nonwrite";
         final String closedIndex = "closed-index-nonwrite";
         final String writeIndexPrefix = "write-index-";
-        assertAcked(prepareCreate(openNonwriteIndex).addAlias(new Alias(aliasName)).get());
-        assertAcked(prepareCreate(closedIndex).addAlias(new Alias(aliasName)).get());
-        assertAcked(prepareCreate(writeIndexPrefix + "000001").addAlias(new Alias(aliasName).writeIndex(true)).get());
+        assertAcked(
+            prepareCreate(openNonwriteIndex).addAlias(new Alias(aliasName)),
+            prepareCreate(closedIndex).addAlias(new Alias(aliasName)),
+            prepareCreate(writeIndexPrefix + "000001").addAlias(new Alias(aliasName).writeIndex(true))
+        );
         ensureGreen(openNonwriteIndex, closedIndex, writeIndexPrefix + "000001");
         index(closedIndex, null, "{\"foo\": \"bar\"}");
         index(aliasName, null, "{\"foo\": \"bar\"}");
         index(aliasName, null, "{\"foo\": \"bar\"}");
         refresh(aliasName);
 
-        assertAcked(indicesAdmin().prepareClose(closedIndex).get());
-        assertAcked(indicesAdmin().prepareClose(writeIndexPrefix + "000001").get());
+        assertAcked(indicesAdmin().prepareClose(closedIndex, writeIndexPrefix + "000001").get());
         ensureGreen(aliasName);
 
         RolloverResponse rolloverResponse = indicesAdmin().prepareRolloverIndex(aliasName)
@@ -802,7 +805,7 @@ public class RolloverIT extends ESIntegTestCase {
 
         assertBusy(() -> {
             try {
-                indicesAdmin().prepareGetIndex().addIndices(writeIndexPrefix + "000002").get();
+                indicesAdmin().prepareGetIndex(TEST_REQUEST_TIMEOUT).addIndices(writeIndexPrefix + "000002").get();
             } catch (Exception e) {
                 logger.info("--> expecting second index to be created but it has not yet been created");
                 fail("expecting second index to exist");
@@ -821,7 +824,7 @@ public class RolloverIT extends ESIntegTestCase {
         });
 
         // We should *NOT* have a third index, it should have rolled over *exactly* once
-        expectThrows(Exception.class, indicesAdmin().prepareGetIndex().addIndices(writeIndexPrefix + "000003"));
+        expectThrows(Exception.class, indicesAdmin().prepareGetIndex(TEST_REQUEST_TIMEOUT).addIndices(writeIndexPrefix + "000003"));
     }
 
     public void testRolloverConcurrently() throws Exception {
@@ -863,7 +866,7 @@ public class RolloverIT extends ESIntegTestCase {
 
         for (int i = 0; i < numOfThreads; i++) {
             var aliasName = "test-" + i;
-            var response = indicesAdmin().getAliases(new GetAliasesRequest(aliasName)).get();
+            var response = indicesAdmin().getAliases(new GetAliasesRequest(TEST_REQUEST_TIMEOUT, aliasName)).get();
             List<Map.Entry<String, List<AliasMetadata>>> actual = response.getAliases().entrySet().stream().toList();
             List<Map.Entry<String, List<AliasMetadata>>> expected = new ArrayList<>(numberOfRolloversPerThread);
             int numOfIndices = numberOfRolloversPerThread + 1;

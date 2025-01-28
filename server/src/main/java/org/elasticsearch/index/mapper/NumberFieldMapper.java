@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.DoubleField;
 import org.apache.lucene.document.DoublePoint;
+import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FloatField;
 import org.apache.lucene.document.FloatPoint;
 import org.apache.lucene.document.IntField;
@@ -87,8 +88,6 @@ public class NumberFieldMapper extends FieldMapper {
     private static NumberFieldMapper toType(FieldMapper in) {
         return (NumberFieldMapper) in;
     }
-
-    private static final IndexVersion MINIMUM_COMPATIBILITY_VERSION = IndexVersion.fromId(5000099);
 
     public static final class Builder extends FieldMapper.DimensionBuilder {
 
@@ -585,7 +584,7 @@ public class NumberFieldMapper extends FieldMapper {
             public void addFields(LuceneDocument document, String name, Number value, boolean indexed, boolean docValued, boolean stored) {
                 final float f = value.floatValue();
                 if (indexed && docValued) {
-                    document.add(new FloatField(name, f));
+                    document.add(new FloatField(name, f, Field.Store.NO));
                 } else if (docValued) {
                     document.add(new SortedNumericDocValuesField(name, NumericUtils.floatToSortableInt(f)));
                 } else if (indexed) {
@@ -735,7 +734,7 @@ public class NumberFieldMapper extends FieldMapper {
             public void addFields(LuceneDocument document, String name, Number value, boolean indexed, boolean docValued, boolean stored) {
                 final double d = value.doubleValue();
                 if (indexed && docValued) {
-                    document.add(new DoubleField(name, d));
+                    document.add(new DoubleField(name, d, Field.Store.NO));
                 } else if (docValued) {
                     document.add(new SortedNumericDocValuesField(name, NumericUtils.doubleToSortableLong(d)));
                 } else if (indexed) {
@@ -1159,7 +1158,7 @@ public class NumberFieldMapper extends FieldMapper {
             public void addFields(LuceneDocument document, String name, Number value, boolean indexed, boolean docValued, boolean stored) {
                 final int i = value.intValue();
                 if (indexed && docValued) {
-                    document.add(new IntField(name, i));
+                    document.add(new IntField(name, i, Field.Store.NO));
                 } else if (docValued) {
                     document.add(new SortedNumericDocValuesField(name, i));
                 } else if (indexed) {
@@ -1306,7 +1305,7 @@ public class NumberFieldMapper extends FieldMapper {
             public void addFields(LuceneDocument document, String name, Number value, boolean indexed, boolean docValued, boolean stored) {
                 final long l = value.longValue();
                 if (indexed && docValued) {
-                    document.add(new LongField(name, l));
+                    document.add(new LongField(name, l, Field.Store.NO));
                 } else if (docValued) {
                     document.add(new SortedNumericDocValuesField(name, l));
                 } else if (indexed) {
@@ -1377,16 +1376,8 @@ public class NumberFieldMapper extends FieldMapper {
         NumberType(String name, NumericType numericType) {
             this.name = name;
             this.numericType = numericType;
-            this.parser = new TypeParser(
-                (n, c) -> new Builder(
-                    n,
-                    this,
-                    c.scriptCompiler(),
-                    c.getSettings(),
-                    c.indexVersionCreated(),
-                    c.getIndexSettings().getMode()
-                ),
-                MINIMUM_COMPATIBILITY_VERSION
+            this.parser = createTypeParserWithLegacySupport(
+                (n, c) -> new Builder(n, this, c.scriptCompiler(), c.getSettings(), c.indexVersionCreated(), c.getIndexSettings().getMode())
             );
         }
 
@@ -1990,7 +1981,7 @@ public class NumberFieldMapper extends FieldMapper {
      */
     public void indexValue(DocumentParserContext context, Number numericValue) {
         if (dimension && numericValue != null) {
-            context.getDimensions().addLong(fieldType().name(), numericValue.longValue()).validate(context.indexSettings());
+            context.getRoutingFields().addLong(fieldType().name(), numericValue.longValue());
         }
         fieldType().type.addFields(context.doc(), fieldType().name(), numericValue, indexed, hasDocValues, stored);
 
@@ -2039,7 +2030,7 @@ public class NumberFieldMapper extends FieldMapper {
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport() {
         if (hasDocValues) {
-            return new SyntheticSourceSupport.Native(type.syntheticFieldLoader(fullPath(), leafName(), ignoreMalformed.value()));
+            return new SyntheticSourceSupport.Native(() -> type.syntheticFieldLoader(fullPath(), leafName(), ignoreMalformed.value()));
         }
 
         return super.syntheticSourceSupport();

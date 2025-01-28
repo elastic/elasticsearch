@@ -1,5 +1,0 @@
-pr: 111969
-summary: "[Profiling] add `container.id` field to event index template"
-area: Application
-type: enhancement
-issues: []

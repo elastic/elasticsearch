@@ -91,7 +91,6 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
             threadPool,
             actionFilters,
             SnapshotsStatusRequest::new,
-            indexNameExpressionResolver,
             SnapshotsStatusResponse::new,
             // building the response is somewhat expensive for large snapshots, so we fork.
             threadPool.executor(ThreadPool.Names.SNAPSHOT_META)
@@ -141,10 +140,11 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
             for (int i = 0; i < currentSnapshots.size(); i++) {
                 snapshots[i] = currentSnapshots.get(i).snapshot();
             }
+            final var snapshotStatusRequest = new TransportNodesSnapshotsStatus.Request(nodesIds.toArray(Strings.EMPTY_ARRAY), snapshots);
+            snapshotStatusRequest.setTimeout(request.masterNodeTimeout().millis() < 0 ? null : request.masterNodeTimeout());
             client.executeLocally(
                 TransportNodesSnapshotsStatus.TYPE,
-                new TransportNodesSnapshotsStatus.Request(nodesIds.toArray(Strings.EMPTY_ARRAY)).snapshots(snapshots)
-                    .timeout(request.masterNodeTimeout().millis() < 0 ? null : request.masterNodeTimeout()),
+                snapshotStatusRequest,
                 // fork to snapshot meta since building the response is expensive for large snapshots
                 new RefCountAwareThreadedActionListener<>(
                     threadPool.executor(ThreadPool.Names.SNAPSHOT_META),

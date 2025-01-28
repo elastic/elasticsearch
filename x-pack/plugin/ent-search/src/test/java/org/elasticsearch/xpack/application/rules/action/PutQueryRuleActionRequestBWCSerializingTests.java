@@ -55,8 +55,6 @@ public class PutQueryRuleActionRequestBWCSerializingTests extends AbstractBWCSer
 
     @Override
     protected List<TransportVersion> bwcVersions() {
-        return getAllBWCVersions().stream()
-            .filter(v -> v.onOrAfter(TransportVersions.QUERY_RULE_CRUD_API_PUT))
-            .collect(Collectors.toList());
+        return getAllBWCVersions().stream().filter(v -> v.onOrAfter(TransportVersions.V_8_15_0)).collect(Collectors.toList());
     }
 }

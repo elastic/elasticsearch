@@ -24,7 +24,6 @@ import org.elasticsearch.action.update.UpdateResponseTests;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
@@ -34,10 +33,8 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
-import java.util.UUID;
 
 import static org.elasticsearch.ElasticsearchExceptionTests.assertDeepEquals;
 import static org.elasticsearch.ElasticsearchExceptionTests.randomExceptions;
@@ -93,28 +90,6 @@ public class BulkItemResponseTests extends ESTestCase {
         } else if (token == XContentParser.Token.START_ARRAY) {
             parser.skipChildren(); // skip potential inner arrays for forward compatibility
         }
-    }
-
-    public void testBulkItemResponseShouldContainTypeInV7CompatibilityMode() throws IOException {
-        BulkItemResponse bulkItemResponse = BulkItemResponse.success(
-            randomInt(),
-            DocWriteRequest.OpType.INDEX,
-            new IndexResponse(
-                new ShardId(randomAlphaOfLength(8), UUID.randomUUID().toString(), randomInt()),
-                randomAlphaOfLength(4),
-                randomNonNegativeLong(),
-                randomNonNegativeLong(),
-                randomNonNegativeLong(),
-                true
-            )
-        );
-        XContentBuilder xContentBuilder = bulkItemResponse.toXContent(
-            XContentBuilder.builder(JsonXContent.jsonXContent, RestApiVersion.V_7),
-            ToXContent.EMPTY_PARAMS
-        );
-
-        String json = BytesReference.bytes(xContentBuilder).utf8ToString();
-        assertThat(json, containsString("\"_type\":\"_doc\""));
     }
 
     public void testFailureToString() {

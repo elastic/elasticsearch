@@ -1,8 +1,6 @@
 [[rrf]]
 === Reciprocal rank fusion
 
-preview::["This functionality is in technical preview and may be changed or removed in a future release. The syntax will likely change before GA. Elastic will work to fix any issues, but features in technical preview are not subject to the support SLA of official GA features."]
-
 https://plg.uwaterloo.ca/~gvcormac/cormacksigir09-rrf.pdf[Reciprocal rank fusion (RRF)]
 is a method for combining multiple result sets with different relevance indicators into a single result set.
 RRF requires no tuning, and the different relevance indicators do not have to be related to each other to achieve high-quality results.
@@ -28,6 +26,12 @@ return score
 
 [[rrf-api]]
 ==== Reciprocal rank fusion API
+
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-search[Search APIs].
+--
 
 You can use RRF as part of a <<search-search, search>> to combine and rank documents using separate sets of top documents (result sets) from a combination of <<retriever, child retrievers>> using an
 <<rrf-retriever, RRF retriever>>.
@@ -95,19 +99,21 @@ The `rrf` retriever supports:
 
 * <<search-aggregations, aggregations>>
 * <<search-from-param, from>>
-
-The `rrf` retriever does not currently support:
-
-* <<search-api-scroll-query-param, scroll>>
-* <<search-api-pit, point in time>>
-* <<search-sort-param, sort>>
-* <<rescore, rescore>>
 * <<search-suggesters, suggesters>>
 * <<highlighting, highlighting>>
 * <<collapse-search-results, collapse>>
 * <<profiling-queries, profiling>>
 
+The `rrf` retriever does not currently support:
+
+* <<search-api-scroll-query-param, scroll>>
+* <<search-sort-param, sort>>
+* <<rescore, rescore>>
+
 Using unsupported features as part of a search with an `rrf` retriever results in an exception.
+
+IMPORTANT: It is best to avoid providing a <<search-api-pit, point in time>> as part of the request, as
+RRF creates one internally that is shared by all sub-retrievers to ensure consistent results.
 
 [[rrf-using-multiple-standard-retrievers]]
 ==== Reciprocal rank fusion using multiple standard retrievers
@@ -300,13 +306,12 @@ We have both the ranker's `score` and the `_rank` option to show our top-ranked 
             "value" : 5,
             "relation" : "eq"
         },
-        "max_score" : null,
+        "max_score" : ...,
         "hits" : [
             {
                 "_index" : "example-index",
                 "_id" : "3",
                 "_score" : 0.8333334,
-                "_rank" : 1,
                 "_source" : {
                     "integer" : 1,
                     "vector" : [
@@ -319,7 +324,6 @@ We have both the ranker's `score` and the `_rank` option to show our top-ranked 
                 "_index" : "example-index",
                 "_id" : "2",
                 "_score" : 0.5833334,
-                "_rank" : 2,
                 "_source" : {
                     "integer" : 2,
                     "vector" : [
@@ -332,7 +336,6 @@ We have both the ranker's `score` and the `_rank` option to show our top-ranked 
                 "_index" : "example-index",
                 "_id" : "4",
                 "_score" : 0.5,
-                "_rank" : 3,
                 "_source" : {
                     "integer" : 2,
                     "text" : "rrf rrf rrf rrf"
@@ -499,7 +502,6 @@ Working with the example above, and by adding `explain=true` to the search reque
             "_index": "example-index",
             "_id": "3",
             "_score": 0.8333334,
-            "_rank": 1,
             "_explanation":
             {
                 "value": 0.8333334,                                                                                                                                               <1>
@@ -608,7 +610,6 @@ The response would now include the named query in the explanation:
             "_index": "example-index",
             "_id": "3",
             "_score": 0.8333334,
-            "_rank": 1,
             "_explanation":
             {
                 "value": 0.8333334,
@@ -708,3 +709,99 @@ So for the same params as above, we would now have:
 
 * `from=0, size=2` would return [`1`, `5`] with ranks `[1, 2]`
 * `from=2, size=2` would return an empty result set as it would fall outside the available `rank_window_size` results.
+
+==== Aggregations in RRF
+
+The `rrf` retriever supports aggregations from all specified sub-retrievers. Important notes about aggregations:
+
+* They operate on the complete result set from all sub-retrievers
+* They are not limited by the `rank_window_size` parameter
+* They process the union of all matching documents
+
+For example, consider the following document set:
+[source,js]
+----
+{
+    "_id": 1, "termA": "foo",
+    "_id": 2, "termA": "foo", "termB": "bar",
+    "_id": 3, "termA": "aardvark", "termB": "bar",
+    "_id": 4, "termA": "foo", "termB": "bar"
+}
+----
+// NOTCONSOLE
+
+Perform a term aggregation on the `termA` field using an `rrf` retriever:
+[source,js]
+----
+{
+    "retriever": {
+        "rrf": {
+            "retrievers": [
+                {
+                    "standard": {
+                        "query": {
+                            "term": {
+                                "termB": "bar"
+                            }
+                        }
+                    }
+                },
+                {
+                    "standard": {
+                        "query": {
+                            "match_all": { }
+                        }
+                    }
+                }
+            ],
+            "rank_window_size": 1
+        }
+    },
+    "size": 1,
+    "aggs": {
+        "termA_agg": {
+            "terms": {
+                "field": "termA"
+            }
+        }
+    }
+}
+----
+// NOTCONSOLE
+
+The aggregation results will include *all* matching documents, regardless of `rank_window_size`.
+[source, js]
+----
+{
+    "foo": 3,
+    "aardvark": 1
+}
+
+----
+// NOTCONSOLE
+
+==== Highlighting in RRF
+
+Using the `rrf` retriever, you can add <<highlighting, highlight snippets>> to show relevant text snippets in your search results. Highlighted snippets are computed based
+on the matching text queries defined on the sub-retrievers.
+
+IMPORTANT: Highlighting on vector fields, using either the `knn` retriever or a `knn` query, is not supported.
+
+A more specific example of highlighting in RRF can also be found in the <<retrievers-examples-highlighting-retriever-results, retrievers examples>> page.
+
+==== Inner hits in RRF
+
+The `rrf` retriever supports <<inner-hits,inner hits>> functionality, allowing you to retrieve 
+related nested or parent/child documents alongside your main search results. Inner hits can be 
+specified as part of any nested sub-retriever and will be propagated to the top-level parent 
+retriever. Note that the inner hit computation will take place only at end of `rrf` retriever's 
+evaluation on the top matching documents, and not as part of the query execution of the nested 
+sub-retrievers.
+
+[IMPORTANT]
+====
+When defining multiple `inner_hits` sections across sub-retrievers:
+
+* Each `inner_hits` section must have a unique name
+* Names must be unique across all sub-retrievers in the search request
+====

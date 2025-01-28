@@ -64,7 +64,7 @@ public class BlobCacheMetrics {
             ),
             meterRegistry.registerDoubleHistogram(
                 "es.blob_cache.population.throughput.histogram",
-                "The throughput observed when populating the the cache",
+                "The throughput observed when populating the cache",
                 "MiB/second"
             ),
             meterRegistry.registerLongCounter(
@@ -96,7 +96,7 @@ public class BlobCacheMetrics {
         this.cachePopulationTime = cachePopulationTime;
     }
 
-    public static BlobCacheMetrics NOOP = new BlobCacheMetrics(TelemetryProvider.NOOP.getMeterRegistry());
+    public static final BlobCacheMetrics NOOP = new BlobCacheMetrics(TelemetryProvider.NOOP.getMeterRegistry());
 
     public LongCounter getCacheMissCounter() {
         return cacheMissCounter;
@@ -115,24 +115,16 @@ public class BlobCacheMetrics {
      *
      * @param bytesCopied The number of bytes copied
      * @param copyTimeNanos The time taken to copy the bytes in nanoseconds
-     * @param index The index being loaded
-     * @param shardId The ID of the shard being loaded
      * @param cachePopulationReason The reason for the cache being populated
      * @param cachePopulationSource The source from which the data is being loaded
      */
     public void recordCachePopulationMetrics(
         int bytesCopied,
         long copyTimeNanos,
-        String index,
-        int shardId,
         CachePopulationReason cachePopulationReason,
         CachePopulationSource cachePopulationSource
     ) {
         Map<String, Object> metricAttributes = Map.of(
-            INDEX_ATTRIBUTE_KEY,
-            index,
-            SHARD_ID_ATTRIBUTE_KEY,
-            shardId,
             CACHE_POPULATION_REASON_ATTRIBUTE_KEY,
             cachePopulationReason.name(),
             CACHE_POPULATION_SOURCE_ATTRIBUTE_KEY,

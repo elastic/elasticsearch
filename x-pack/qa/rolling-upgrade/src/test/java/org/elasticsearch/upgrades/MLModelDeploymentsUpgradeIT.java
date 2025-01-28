@@ -8,13 +8,11 @@
 package org.elasticsearch.upgrades;
 
 import org.apache.http.util.EntityUtils;
-import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.Strings;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.xcontent.XContentType;
 import org.junit.After;
 import org.junit.Before;
@@ -101,11 +99,6 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
     }
 
     public void testTrainedModelDeployment() throws Exception {
-        @UpdateForV9(owner = UpdateForV9.Owner.MACHINE_LEARNING) // upgrade will always be from v8, condition can be removed
-        var originalClusterAtLeastV8 = isOriginalClusterVersionAtLeast(Version.V_8_0_0);
-        // These tests assume the original cluster is v8 - testing for features on the _current_ cluster will break for NEW
-        assumeTrue("NLP model deployments added in 8.0", originalClusterAtLeastV8);
-
         final String modelId = "upgrade-deployment-test";
 
         switch (CLUSTER_TYPE) {
@@ -140,11 +133,6 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
     }
 
     public void testTrainedModelDeploymentStopOnMixedCluster() throws Exception {
-        @UpdateForV9(owner = UpdateForV9.Owner.MACHINE_LEARNING) // upgrade will always be from v8, condition can be removed
-        var originalClusterAtLeastV8 = isOriginalClusterVersionAtLeast(Version.V_8_0_0);
-        // These tests assume the original cluster is v8 - testing for features on the _current_ cluster will break for NEW
-        assumeTrue("NLP model deployments added in 8.0", originalClusterAtLeastV8);
-
         final String modelId = "upgrade-deployment-test-stop-mixed-cluster";
 
         switch (CLUSTER_TYPE) {

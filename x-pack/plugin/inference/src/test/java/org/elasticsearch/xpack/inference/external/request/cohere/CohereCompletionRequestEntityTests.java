@@ -22,7 +22,7 @@ import static org.hamcrest.CoreMatchers.is;
 public class CohereCompletionRequestEntityTests extends ESTestCase {
 
     public void testXContent_WritesAllFields() throws IOException {
-        var entity = new CohereCompletionRequestEntity(List.of("some input"), "model");
+        var entity = new CohereCompletionRequestEntity(List.of("some input"), "model", false);
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         entity.toXContent(builder, null);
@@ -33,7 +33,7 @@ public class CohereCompletionRequestEntityTests extends ESTestCase {
     }
 
     public void testXContent_DoesNotWriteModelIfNotSpecified() throws IOException {
-        var entity = new CohereCompletionRequestEntity(List.of("some input"), null);
+        var entity = new CohereCompletionRequestEntity(List.of("some input"), null, false);
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         entity.toXContent(builder, null);
@@ -44,10 +44,10 @@ public class CohereCompletionRequestEntityTests extends ESTestCase {
     }
 
     public void testXContent_ThrowsIfInputIsNull() {
-        expectThrows(NullPointerException.class, () -> new CohereCompletionRequestEntity(null, null));
+        expectThrows(NullPointerException.class, () -> new CohereCompletionRequestEntity(null, null, false));
     }
 
     public void testXContent_ThrowsIfMessageInInputIsNull() {
-        expectThrows(NullPointerException.class, () -> new CohereCompletionRequestEntity(List.of((String) null), null));
+        expectThrows(NullPointerException.class, () -> new CohereCompletionRequestEntity(List.of((String) null), null, false));
     }
 }

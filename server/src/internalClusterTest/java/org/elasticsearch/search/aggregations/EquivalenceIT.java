@@ -293,7 +293,7 @@ public class EquivalenceIT extends ESIntegTestCase {
                 ),
             response -> {
                 assertAllSuccessful(response);
-                assertEquals(numDocs, response.getHits().getTotalHits().value);
+                assertEquals(numDocs, response.getHits().getTotalHits().value());
 
                 final Terms longTerms = response.getAggregations().get("long");
                 final Terms doubleTerms = response.getAggregations().get("double");
@@ -413,7 +413,7 @@ public class EquivalenceIT extends ESIntegTestCase {
             ),
             response -> {
                 assertAllSuccessful(response);
-                assertEquals(numDocs, response.getHits().getTotalHits().value);
+                assertEquals(numDocs, response.getHits().getTotalHits().value());
             }
         );
     }

@@ -115,8 +115,7 @@ public class RemoteClusterNodesAction {
         }
 
         private void executeWithSystemContext(Request request, ThreadContext threadContext, ActionListener<Response> listener) {
-            try (var ignore = threadContext.stashContext()) {
-                threadContext.markAsSystemContext();
+            try (var ignore = threadContext.newEmptySystemContext()) {
                 if (request.remoteClusterServer) {
                     final NodesInfoRequest nodesInfoRequest = new NodesInfoRequest().clear()
                         .addMetrics(NodesInfoMetrics.Metric.REMOTE_CLUSTER_SERVER.metricName());

@@ -22,7 +22,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.features.FeatureService;
-import org.elasticsearch.health.HealthFeatures;
 import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksService;
@@ -43,6 +42,7 @@ import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNotNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -77,8 +77,8 @@ public class HealthNodeTaskExecutorTests extends ESTestCase {
         clusterService = createClusterService(threadPool);
         localNodeId = clusterService.localNode().getId();
         persistentTasksService = mock(PersistentTasksService.class);
-        featureService = new FeatureService(List.of(new HealthFeatures()));
         settings = Settings.builder().build();
+        featureService = new FeatureService(List.of());
         clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
     }
 
@@ -103,7 +103,7 @@ public class HealthNodeTaskExecutorTests extends ESTestCase {
                 eq("health-node"),
                 eq("health-node"),
                 eq(new HealthNodeTaskParams()),
-                eq(null),
+                isNotNull(),
                 any()
             )
         );
@@ -122,7 +122,7 @@ public class HealthNodeTaskExecutorTests extends ESTestCase {
             eq("health-node"),
             eq("health-node"),
             eq(new HealthNodeTaskParams()),
-            eq(null),
+            isNotNull(),
             any()
         );
     }
@@ -196,6 +196,7 @@ public class HealthNodeTaskExecutorTests extends ESTestCase {
                 localNodeId,
                 SingleNodeShutdownMetadata.builder()
                     .setNodeId(localNodeId)
+                    .setNodeEphemeralId(localNodeId)
                     .setReason("shutdown for a unit test")
                     .setType(type)
                     .setStartedAtMillis(randomNonNegativeLong())

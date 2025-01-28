@@ -5,10 +5,12 @@ _meta:
   managed: true
 template:
   settings:
-    codec: best_compression
-    mapping:
-      # apm@settings sets `ignore_malformed: true`, but we need
-      # to disable this for metrics since they use synthetic source,
-      # and this combination is incompatible with the
-      # aggregate_metric_double field type.
-      ignore_malformed: false
+    index:
+      codec: best_compression
+      mapping:
+        # apm@settings sets `ignore_malformed: true`, but we need
+        # to disable this for metrics since they use synthetic source,
+        # and this combination is incompatible with the
+        # aggregate_metric_double field type.
+        ignore_malformed: false
+        source.mode: synthetic

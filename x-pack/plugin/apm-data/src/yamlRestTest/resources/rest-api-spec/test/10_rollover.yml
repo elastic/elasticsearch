@@ -1,0 +1,51 @@
+---
+setup:
+  - do:
+      indices.put_index_template:
+        name: traces-low-prio
+        body:
+          data_stream: {}
+          index_patterns: ["traces-*"]
+          priority: 1
+
+---
+"Test data stream rollover on template installation":
+  - skip:
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/102360"
+
+  # Disable the apm-data plugin and delete the traces-apm@template index
+  # template so traces-low-prio takes effect.
+  - do:
+      cluster.put_settings:
+        body:
+          transient:
+            xpack.apm_data.registry.enabled: false
+  - do:
+      indices.delete_index_template:
+        name: traces-apm@template
+  - do:
+      indices.create_data_stream:
+        name: traces-apm-testing
+  - do:
+      indices.get_data_stream:
+        name: traces-apm-testing
+  - match: {data_streams.0.template: traces-low-prio}
+
+  # Re-enable the apm-data plugin, after which the traces-apm@template
+  # index template should be recreated and trigger a lazy rollover on
+  # the traces-apm-testing data stream.
+  - do:
+      cluster.put_settings:
+        body:
+          transient:
+            xpack.apm_data.registry.enabled: true
+  - do:
+      cluster.health:
+        wait_for_events: languid
+  - do:
+      indices.get_data_stream:
+        name: traces-apm-testing
+  - length: {data_streams: 1}
+  - match: {data_streams.0.template: traces-apm@template}
+  - match: {data_streams.0.rollover_on_write: true}
+

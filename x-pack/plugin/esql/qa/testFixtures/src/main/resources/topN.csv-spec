@@ -134,3 +134,37 @@ Otmar             |Herbst           |[-8.19, -1.9, -0.32]        |[-0.32, -1.90,
 null              |Swan             |-8.46                       |-8.46                        |-8                   |10034          
 Sanjiv            |Zschoche         |[-7.67, -3.25]              |[-3.25, -7.67]               |[-3, -8]             |10053
 ;
+
+sortingOnSwappedFields#[skip:-8.13.3, reason:fixed in 8.13]
+FROM employees
+| EVAL name = last_name, last_name = first_name, first_name = name
+| WHERE first_name > "B" AND last_name IS NOT NULL
+| SORT name
+| LIMIT 10
+| KEEP name, last_name, first_name
+;
+
+name:keyword | last_name:keyword | first_name:keyword
+Baek         | Premal            | Baek
+Bamford      | Parto             | Bamford
+Bernatsky    | Mokhtar           | Bernatsky
+Bernini      | Brendon           | Bernini
+Berztiss     | Yongqiao          | Berztiss
+Bierman      | Margareta         | Bierman
+Billingsley  | Breannda          | Billingsley
+Bouloucos    | Cristinel         | Bouloucos
+Brattka      | Charlene          | Brattka
+Bridgland    | Patricio          | Bridgland
+;
+
+sortingOnSwappedFieldsNoKeep#[skip:-8.13.3, reason:fixed in 8.13]
+// Note that this test requires all fields to be returned in order to test a specific code path in physical planning
+FROM employees
+| EVAL name = first_name, first_name = last_name, last_name = name
+| WHERE first_name == "Bernini" AND last_name == "Brendon"
+| SORT name
+;
+
+avg_worked_seconds:long | birth_date:date      | emp_no:i | gender:k | height:d | height.float:d     | height.half_float:d | height.scaled_float:d | hire_date:date       | is_rehired:bool      | job_positions:k     | languages:i | languages.byte:i | languages.long:l | languages.short:short | salary:i | salary_change:d | salary_change.int:i | salary_change.keyword:k | salary_change.long:l | still_hired:bool | name:k  | first_name:k | last_name:k
+349086555               | 1961-09-01T00:00:00Z | 10056    | F        | 1.57     | 1.5700000524520874 | 1.5703125           | 1.57                  | 1990-02-01T00:00:00Z | [false, false, true] | [Senior Team Lead]  | 2           | 2                | 2                | 2                     | 33370    | [-5.17, 10.99]  | [-5, 10]            | [-5.17, 10.99]          | [-5, 10]             | true             | Brendon | Bernini      | Brendon
+;

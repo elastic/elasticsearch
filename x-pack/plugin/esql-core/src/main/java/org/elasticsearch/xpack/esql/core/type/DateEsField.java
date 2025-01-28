@@ -12,6 +12,9 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import java.io.IOException;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.core.util.PlanStreamInput.readCachedStringWithVersionCheck;
+import static org.elasticsearch.xpack.esql.core.util.PlanStreamOutput.writeCachedStringWithVersionCheck;
+
 /**
  * Information about a field in an ES index with the {@code date} type
  */
@@ -26,12 +29,12 @@ public class DateEsField extends EsField {
     }
 
     protected DateEsField(StreamInput in) throws IOException {
-        this(in.readString(), DataType.DATETIME, in.readImmutableMap(EsField::readFrom), in.readBoolean());
+        this(readCachedStringWithVersionCheck(in), DataType.DATETIME, in.readImmutableMap(EsField::readFrom), in.readBoolean());
     }
 
     @Override
     public void writeContent(StreamOutput out) throws IOException {
-        out.writeString(getName());
+        writeCachedStringWithVersionCheck(out, getName());
         out.writeMap(getProperties(), (o, x) -> x.writeTo(out));
         out.writeBoolean(isAggregatable());
     }

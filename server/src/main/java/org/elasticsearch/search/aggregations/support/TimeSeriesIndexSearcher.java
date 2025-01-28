@@ -104,7 +104,7 @@ public class TimeSeriesIndexSearcher {
             Scorer scorer = weight.scorer(leaf);
             if (scorer != null) {
                 if (minimumScore != null) {
-                    scorer = new MinScoreScorer(weight, scorer, minimumScore);
+                    scorer = new MinScoreScorer(scorer, minimumScore);
                 }
                 LeafWalker leafWalker = new LeafWalker(leaf, scorer, bucketCollector, () -> tsidOrd[0]);
                 if (leafWalker.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {

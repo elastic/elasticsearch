@@ -34,7 +34,7 @@ public class LowerCaseTokenFilterFactory extends AbstractTokenFilterFactory impl
     private final String lang;
 
     LowerCaseTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
-        super(name, settings);
+        super(name);
         this.lang = settings.get("language", null);
     }
 

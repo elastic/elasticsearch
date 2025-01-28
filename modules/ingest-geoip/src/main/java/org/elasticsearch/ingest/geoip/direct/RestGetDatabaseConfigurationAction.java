@@ -26,7 +26,12 @@ public class RestGetDatabaseConfigurationAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(GET, "/_ingest/geoip/database"), new Route(GET, "/_ingest/geoip/database/{id}"));
+        return List.of(
+            new Route(GET, "/_ingest/ip_location/database"),
+            new Route(GET, "/_ingest/ip_location/database/{id}"),
+            new Route(GET, "/_ingest/geoip/database"),
+            new Route(GET, "/_ingest/geoip/database/{id}")
+        );
     }
 
     @Override

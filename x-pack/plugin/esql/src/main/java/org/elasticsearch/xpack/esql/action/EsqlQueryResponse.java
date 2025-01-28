@@ -114,7 +114,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         }
         boolean columnar = in.readBoolean();
         EsqlExecutionInfo executionInfo = null;
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_CCS_EXECUTION_INFO)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             executionInfo = in.readOptionalWriteable(EsqlExecutionInfo::new);
         }
         return new EsqlQueryResponse(columns, pages, profile, columnar, asyncExecutionId, isRunning, isAsync, executionInfo);
@@ -133,7 +133,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
             out.writeOptionalWriteable(profile);
         }
         out.writeBoolean(columnar);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_CCS_EXECUTION_INFO)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             out.writeOptionalWriteable(executionInfo);
         }
     }
@@ -187,7 +187,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
 
     private Iterator<? extends ToXContent> asyncPropertiesOrEmpty() {
         if (isAsync) {
-            return ChunkedToXContentHelper.singleChunk((builder, params) -> {
+            return ChunkedToXContentHelper.chunk((builder, params) -> {
                 if (asyncExecutionId != null) {
                     builder.field("id", asyncExecutionId);
                 }
@@ -206,10 +206,10 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
 
         Iterator<ToXContent> tookTime;
         if (executionInfo != null && executionInfo.overallTook() != null) {
-            tookTime = ChunkedToXContentHelper.singleChunk((builder, p) -> {
-                builder.field("took", executionInfo.overallTook().millis());
-                return builder;
-            });
+            tookTime = ChunkedToXContentHelper.chunk(
+                (builder, p) -> builder.field("took", executionInfo.overallTook().millis())
+                    .field(EsqlExecutionInfo.IS_PARTIAL_FIELD.getPreferredName(), executionInfo.isPartial())
+            );
         } else {
             tookTime = Collections.emptyIterator();
         }
@@ -221,12 +221,14 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
             )
             : ResponseXContentUtils.allColumns(columns, "columns");
         Iterator<? extends ToXContent> valuesIt = ResponseXContentUtils.columnValues(this.columns, this.pages, columnar, nullColumns);
-        Iterator<ToXContent> profileRender = profile == null
-            ? List.<ToXContent>of().iterator()
-            : ChunkedToXContentHelper.field("profile", profile, params);
-        Iterator<ToXContent> executionInfoRender = executionInfo == null || executionInfo.isCrossClusterSearch() == false
-            ? List.<ToXContent>of().iterator()
-            : ChunkedToXContentHelper.field("_clusters", executionInfo, params);
+        Iterator<ToXContent> profileRender = profile != null
+            ? ChunkedToXContentHelper.field("profile", profile, params)
+            : Collections.emptyIterator();
+        Iterator<ToXContent> executionInfoRender = executionInfo != null
+            && executionInfo.isCrossClusterSearch()
+            && executionInfo.includeCCSMetadata()
+                ? ChunkedToXContentHelper.field("_clusters", executionInfo, params)
+                : Collections.emptyIterator();
         return Iterators.concat(
             ChunkedToXContentHelper.startObject(),
             asyncPropertiesOrEmpty(),
@@ -239,7 +241,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         );
     }
 
-    private boolean[] nullColumns() {
+    public boolean[] nullColumns() {
         boolean[] nullColumns = new boolean[columns.size()];
         for (int c = 0; c < nullColumns.length; c++) {
             nullColumns[c] = allColumnsAreNull(c);

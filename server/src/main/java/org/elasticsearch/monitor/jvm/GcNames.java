@@ -15,8 +15,14 @@ public class GcNames {
     public static final String OLD = "old";
     public static final String SURVIVOR = "survivor";
 
+    private GcNames() {}
+
     /**
-     * Resolves the GC type by its memory pool name ({@link java.lang.management.MemoryPoolMXBean#getName()}.
+     * Resolves the memory area name by the memory pool name provided by {@link java.lang.management.MemoryPoolMXBean#getName()}
+     *
+     * @param poolName the name of the memory pool from {@link java.lang.management.MemoryPoolMXBean}
+     * @param defaultName the name to return if the pool name does not match any known memory area
+     * @return memory area name corresponding to the pool name or {@code defaultName} if no match is found
      */
     public static String getByMemoryPoolName(String poolName, String defaultName) {
         if ("Eden Space".equals(poolName)
@@ -40,6 +46,13 @@ public class GcNames {
         return defaultName;
     }
 
+    /**
+     * Resolves the GC type by the GC name provided by {@link java.lang.management.GarbageCollectorMXBean#getName()}
+     *
+     * @param gcName the name of the GC from {@link java.lang.management.GarbageCollectorMXBean}
+     * @param defaultName the name to return if the GC name does not match any known GC type
+     * @return GC type corresponding to the GC name or {@code defaultName} if no match is found
+     */
     public static String getByGcName(String gcName, String defaultName) {
         if ("Copy".equals(gcName) || "PS Scavenge".equals(gcName) || "ParNew".equals(gcName) || "G1 Young Generation".equals(gcName)) {
             return YOUNG;

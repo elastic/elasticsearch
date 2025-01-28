@@ -60,6 +60,13 @@ public class QueryPhase {
 
     public static void execute(SearchContext searchContext) throws QueryPhaseExecutionException {
         if (searchContext.queryPhaseRankShardContext() == null) {
+            if (searchContext.request().source() != null && searchContext.request().source().rankBuilder() != null) {
+                // if we have a RankBuilder provided, we want to fetch all rankWindowSize results
+                // and rerank the documents as per the RankBuilder's instructions.
+                // Pagination will take place later once they're all (re)ranked.
+                searchContext.size(searchContext.request().source().rankBuilder().rankWindowSize());
+                searchContext.from(0);
+            }
             executeQuery(searchContext);
         } else {
             executeRank(searchContext);
@@ -210,10 +217,11 @@ public class QueryPhase {
             queryResult.topDocs(queryPhaseResult.topDocsAndMaxScore(), queryPhaseResult.sortValueFormats());
             if (searcher.timeExceeded()) {
                 assert timeoutRunnable != null : "TimeExceededException thrown even though timeout wasn't set";
-                if (searchContext.request().allowPartialSearchResults() == false) {
-                    throw new SearchTimeoutException(searchContext.shardTarget(), "Time exceeded");
-                }
-                queryResult.searchTimedOut(true);
+                SearchTimeoutException.handleTimeout(
+                    searchContext.request().allowPartialSearchResults(),
+                    searchContext.shardTarget(),
+                    searchContext.queryResult()
+                );
             }
             if (searchContext.terminateAfter() != SearchContext.DEFAULT_TERMINATE_AFTER) {
                 queryResult.terminatedEarly(queryPhaseResult.terminatedAfter());
@@ -241,7 +249,7 @@ public class QueryPhase {
         }
         final Sort sort = sortAndFormats.sort;
         for (LeafReaderContext ctx : reader.leaves()) {
-            Sort indexSort = ctx.reader().getMetaData().getSort();
+            Sort indexSort = ctx.reader().getMetaData().sort();
             if (indexSort == null || Lucene.canEarlyTerminate(sort, indexSort) == false) {
                 return false;
             }

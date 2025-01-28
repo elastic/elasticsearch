@@ -62,7 +62,6 @@ public class TransportGetStatusAction extends TransportMasterNodeAction<GetStatu
             threadPool,
             actionFilters,
             GetStatusAction.Request::new,
-            indexNameExpressionResolver,
             GetStatusAction.Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
@@ -180,7 +179,7 @@ public class TransportGetStatusAction extends TransportMasterNodeAction<GetStatu
                 countRequest.source(searchSourceBuilder);
 
                 nodeClient.search(countRequest, ActionListener.wrap(searchResponse -> {
-                    boolean hasData = searchResponse.getHits().getTotalHits().value > 0;
+                    boolean hasData = searchResponse.getHits().getTotalHits().value() > 0;
                     listener.onResponse(
                         new GetStatusAction.Response(pluginEnabled, resourceManagementEnabled, resourcesCreated, anyPre891Data, hasData)
                     );

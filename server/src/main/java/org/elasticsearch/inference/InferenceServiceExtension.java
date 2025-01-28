@@ -10,6 +10,8 @@
 package org.elasticsearch.inference;
 
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.List;
@@ -21,7 +23,7 @@ public interface InferenceServiceExtension {
 
     List<Factory> getInferenceServiceFactories();
 
-    record InferenceServiceFactoryContext(Client client, ThreadPool threadPool) {}
+    record InferenceServiceFactoryContext(Client client, ThreadPool threadPool, ClusterService clusterService, Settings settings) {}
 
     interface Factory {
         /**

@@ -49,7 +49,7 @@ public class NetNewSystemIndexAliasIT extends ESIntegTestCase {
         }
         ensureGreen();
 
-        GetAliasesRequest getAliasesRequest = new GetAliasesRequest();
+        GetAliasesRequest getAliasesRequest = new GetAliasesRequest(TEST_REQUEST_TIMEOUT);
         GetAliasesResponse aliasResponse = indicesAdmin().getAliases(getAliasesRequest).get();
         assertThat(aliasResponse.getAliases().size(), is(0));
     }
@@ -89,7 +89,6 @@ public class NetNewSystemIndexAliasIT extends ESIntegTestCase {
                         .setPrimaryIndex(SYSTEM_INDEX_NAME)
                         .setDescription("Test system index")
                         .setOrigin(getClass().getName())
-                        .setVersionMetaKey("version")
                         .setMappings(builder)
                         .setSettings(SETTINGS)
                         .setType(SystemIndexDescriptor.Type.INTERNAL_MANAGED)

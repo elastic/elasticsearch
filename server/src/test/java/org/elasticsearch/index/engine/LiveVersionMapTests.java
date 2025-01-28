@@ -13,7 +13,6 @@ import org.apache.lucene.tests.util.RamUsageTester;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
-import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Tuple;
@@ -71,22 +70,16 @@ public class LiveVersionMapTests extends ESTestCase {
         }
         actualRamBytesUsed = RamUsageTester.ramUsed(map);
         estimatedRamBytesUsed = map.ramBytesUsed();
-        long tolerance;
-        if (Constants.JRE_IS_MINIMUM_JAVA9) {
-            // With Java 9, RamUsageTester computes the memory usage of maps as
-            // the memory usage of an array that would contain exactly all keys
-            // and values. This is an under-estimation of the actual memory
-            // usage since it ignores the impact of the load factor and of the
-            // linked list/tree that is used to resolve collisions. So we use a
-            // bigger tolerance.
-            // less than 50% off
-            tolerance = actualRamBytesUsed / 2;
-        } else {
-            // Java 8 is more accurate by doing reflection into the actual JDK classes
-            // so we give it a lower error bound.
-            // less than 25% off
-            tolerance = actualRamBytesUsed / 4;
-        }
+
+        // Since Java 9, RamUsageTester computes the memory usage of maps as
+        // the memory usage of an array that would contain exactly all keys
+        // and values. This is an under-estimation of the actual memory
+        // usage since it ignores the impact of the load factor and of the
+        // linked list/tree that is used to resolve collisions. So we use a
+        // bigger tolerance.
+        // less than 50% off
+        long tolerance = actualRamBytesUsed / 2;
+
         assertEquals(actualRamBytesUsed, estimatedRamBytesUsed, tolerance);
     }
 

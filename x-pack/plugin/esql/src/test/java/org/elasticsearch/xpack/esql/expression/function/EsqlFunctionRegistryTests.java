@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.expression.function;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.core.ParsingException;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.ScalarFunction;
@@ -19,12 +18,12 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.tree.SourceTests;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlConfigurationFunction;
+import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
-import java.util.function.Function;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomConfiguration;
@@ -258,9 +257,7 @@ public class EsqlFunctionRegistryTests extends ESTestCase {
         }
 
         @Override
-        public EvalOperator.ExpressionEvaluator.Factory toEvaluator(
-            Function<Expression, EvalOperator.ExpressionEvaluator.Factory> toEvaluator
-        ) {
+        public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
             return null;
         }
     }

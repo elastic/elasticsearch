@@ -51,7 +51,6 @@ import static org.elasticsearch.index.query.RangeQueryBuilder.LT_FIELD;
 
 /** A {@link FieldMapper} for indexing numeric and date ranges, and creating queries */
 public class RangeFieldMapper extends FieldMapper {
-    public static final NodeFeature NULL_VALUES_OFF_BY_ONE_FIX = new NodeFeature("mapper.range.null_values_off_by_one_fix");
     public static final NodeFeature DATE_RANGE_INDEXING_FIX = new NodeFeature("mapper.range.date_range_indexing_fix");
 
     public static final boolean DEFAULT_INCLUDE_UPPER = true;
@@ -59,6 +58,7 @@ public class RangeFieldMapper extends FieldMapper {
 
     public static class Defaults {
         public static final DateFormatter DATE_FORMATTER = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
+        public static final Locale LOCALE = DateFieldMapper.DEFAULT_LOCALE;
     }
 
     // this is private since it has a different default
@@ -83,7 +83,7 @@ public class RangeFieldMapper extends FieldMapper {
         private final Parameter<Locale> locale = new Parameter<>(
             "locale",
             false,
-            () -> Locale.ROOT,
+            () -> Defaults.LOCALE,
             (n, c, o) -> LocaleUtils.parse(o.toString()),
             m -> toType(m).locale,
             (xContentBuilder, n, v) -> xContentBuilder.field(n, v.toString()),
@@ -466,7 +466,7 @@ public class RangeFieldMapper extends FieldMapper {
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport() {
         if (hasDocValues) {
-            var loader = new BinaryDocValuesSyntheticFieldLoader(fullPath()) {
+            return new SyntheticSourceSupport.Native(() -> new BinaryDocValuesSyntheticFieldLoader(fullPath()) {
                 @Override
                 protected void writeValue(XContentBuilder b, BytesRef value) throws IOException {
                     List<Range> ranges = type.decodeRanges(value);
@@ -486,9 +486,7 @@ public class RangeFieldMapper extends FieldMapper {
                             b.endArray();
                     }
                 }
-            };
-
-            return new SyntheticSourceSupport.Native(loader);
+            });
         }
 
         return super.syntheticSourceSupport();

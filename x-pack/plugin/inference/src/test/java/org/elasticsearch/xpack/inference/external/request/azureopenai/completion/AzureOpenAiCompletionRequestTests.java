@@ -94,7 +94,7 @@ public class AzureOpenAiCompletionRequestTests extends ESTestCase {
             "id"
         );
 
-        return new AzureOpenAiCompletionRequest(List.of(input), completionModel);
+        return new AzureOpenAiCompletionRequest(List.of(input), completionModel, false);
     }
 
 }

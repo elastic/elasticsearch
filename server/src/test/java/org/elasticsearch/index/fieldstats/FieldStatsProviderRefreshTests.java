@@ -47,7 +47,7 @@ public class FieldStatsProviderRefreshTests extends ESSingleNodeTestCase {
                 .setSearchType(SearchType.QUERY_THEN_FETCH)
                 .setSize(0)
                 .setQuery(QueryBuilders.rangeQuery("s").gte("a").lte("g")),
-            r1 -> assertThat(r1.getHits().getTotalHits().value, equalTo(3L))
+            r1 -> assertThat(r1.getHits().getTotalHits().value(), equalTo(3L))
         );
         assertRequestCacheStats(0, 1);
 
@@ -57,7 +57,7 @@ public class FieldStatsProviderRefreshTests extends ESSingleNodeTestCase {
                 .setSearchType(SearchType.QUERY_THEN_FETCH)
                 .setSize(0)
                 .setQuery(QueryBuilders.rangeQuery("s").gte("a").lte("g")),
-            r2 -> assertThat(r2.getHits().getTotalHits().value, equalTo(3L))
+            r2 -> assertThat(r2.getHits().getTotalHits().value(), equalTo(3L))
         );
         assertRequestCacheStats(1, 1);
 
@@ -72,7 +72,7 @@ public class FieldStatsProviderRefreshTests extends ESSingleNodeTestCase {
                 .setSearchType(SearchType.QUERY_THEN_FETCH)
                 .setSize(0)
                 .setQuery(QueryBuilders.rangeQuery("s").gte("a").lte("g")),
-            r3 -> assertThat(r3.getHits().getTotalHits().value, equalTo(5L))
+            r3 -> assertThat(r3.getHits().getTotalHits().value(), equalTo(5L))
         );
         assertRequestCacheStats(1, 2);
     }

@@ -407,3 +407,24 @@ POST _aliases
 }
 ----
 // TEST[s/^/PUT my-index-2099.05.06-000001\n/]
+
+[discrete]
+[[remove-index]]
+=== Remove an index
+
+To remove an index, use the aliases API's `remove_index` action.
+
+[source,console]
+----
+POST _aliases
+{
+  "actions": [
+    {
+      "remove_index": {
+        "index": "my-index-2099.05.06-000001"
+      }
+    }
+  ]
+}
+----
+// TEST[s/^/PUT my-index-2099.05.06-000001\n/]

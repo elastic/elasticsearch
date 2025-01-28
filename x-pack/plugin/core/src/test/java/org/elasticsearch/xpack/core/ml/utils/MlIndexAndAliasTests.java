@@ -18,6 +18,7 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.internal.AdminClient;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ClusterAdminClient;
@@ -297,7 +298,7 @@ public class MlIndexAndAliasTests extends ESTestCase {
         assertThat(
             indicesAliasesRequest.getAliasActions(),
             contains(
-                AliasActions.add().alias(TEST_INDEX_ALIAS).index(FIRST_CONCRETE_INDEX).isHidden(true),
+                AliasActions.add().alias(TEST_INDEX_ALIAS).index(FIRST_CONCRETE_INDEX).isHidden(true).writeIndex(true),
                 AliasActions.remove().alias(TEST_INDEX_ALIAS).index(LEGACY_INDEX_WITHOUT_SUFFIX)
             )
         );
@@ -317,7 +318,7 @@ public class MlIndexAndAliasTests extends ESTestCase {
         IndicesAliasesRequest indicesAliasesRequest = aliasesRequestCaptor.getValue();
         assertThat(
             indicesAliasesRequest.getAliasActions(),
-            contains(AliasActions.add().alias(TEST_INDEX_ALIAS).index(expectedWriteIndexName).isHidden(true))
+            contains(AliasActions.add().alias(TEST_INDEX_ALIAS).index(expectedWriteIndexName).isHidden(true).writeIndex(true))
         );
     }
 
@@ -363,6 +364,11 @@ public class MlIndexAndAliasTests extends ESTestCase {
         assertThat(Stream.of(".a-000002", ".b-000001").max(comparator).get(), equalTo(".a-000002"));
     }
 
+    public void testLatestIndex() {
+        var names = new String[] { "index-000001", "index-000002", "index-000003" };
+        assertThat(MlIndexAndAlias.latestIndex(names), equalTo("index-000003"));
+    }
+
     private void createIndexAndAliasIfNecessary(ClusterState clusterState) {
         MlIndexAndAlias.createIndexAndAliasIfNecessary(
             client,
@@ -370,7 +376,8 @@ public class MlIndexAndAliasTests extends ESTestCase {
             TestIndexNameExpressionResolver.newInstance(),
             TEST_INDEX_PREFIX,
             TEST_INDEX_ALIAS,
-            TEST_REQUEST_TIMEOUT,
+            TimeValue.timeValueSeconds(30),
+            ActiveShardCount.DEFAULT,
             listener
         );
     }

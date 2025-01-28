@@ -133,6 +133,9 @@ public final class Pipeline {
             if (e != null) {
                 metrics.ingestFailed();
             }
+            // Reset the terminate status now that pipeline execution is complete (if this was executed as part of another pipeline, the
+            // outer pipeline should continue):
+            ingestDocument.resetTerminate();
             handler.accept(result, e);
         });
     }

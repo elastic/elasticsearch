@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.security.operator;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -165,6 +166,7 @@ public class OperatorPrivilegesIT extends ESRestTestCase {
 
     @SuppressWarnings("unchecked")
     public void testEveryActionIsEitherOperatorOnlyOrNonOperator() throws IOException {
+        assumeTrue("Exclude release builds due to maintenance burden around feature flags", Build.current().isSnapshot());
         final String message = "An action should be declared to be either operator-only in ["
             + DefaultOperatorOnlyRegistry.class.getName()
             + "] or non-operator in ["

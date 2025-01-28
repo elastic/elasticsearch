@@ -187,7 +187,8 @@ public class VersionStringFieldMapper extends FieldMapper {
                 matchFlags,
                 DEFAULT_PROVIDER,
                 maxDeterminizedStates,
-                method == null ? CONSTANT_SCORE_REWRITE : method
+                method == null ? CONSTANT_SCORE_REWRITE : method,
+                true
             ) {
 
                 @Override
@@ -402,7 +403,7 @@ public class VersionStringFieldMapper extends FieldMapper {
         return concat;
     }
 
-    public static DocValueFormat VERSION_DOCVALUE = new DocValueFormat() {
+    public static final DocValueFormat VERSION_DOCVALUE = new DocValueFormat() {
 
         @Override
         public String getWriteableName() {
@@ -435,19 +436,19 @@ public class VersionStringFieldMapper extends FieldMapper {
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport() {
-        var loader = new CompositeSyntheticFieldLoader(leafName(), fullPath(), new SortedSetDocValuesSyntheticFieldLoaderLayer(fullPath()) {
-            @Override
-            protected BytesRef convert(BytesRef value) {
-                return VersionEncoder.decodeVersion(value);
-            }
+        return new SyntheticSourceSupport.Native(
+            () -> new CompositeSyntheticFieldLoader(leafName(), fullPath(), new SortedSetDocValuesSyntheticFieldLoaderLayer(fullPath()) {
+                @Override
+                protected BytesRef convert(BytesRef value) {
+                    return VersionEncoder.decodeVersion(value);
+                }
 
-            @Override
-            protected BytesRef preserve(BytesRef value) {
-                // Convert copies the underlying bytes
-                return value;
-            }
-        });
-
-        return new SyntheticSourceSupport.Native(loader);
+                @Override
+                protected BytesRef preserve(BytesRef value) {
+                    // Convert copies the underlying bytes
+                    return value;
+                }
+            })
+        );
     }
 }

@@ -144,7 +144,7 @@ public class ExplainableScriptIT extends ESIntegTestCase {
             ),
             response -> {
                 SearchHits hits = response.getHits();
-                assertThat(hits.getTotalHits().value, equalTo(20L));
+                assertThat(hits.getTotalHits().value(), equalTo(20L));
                 int idCounter = 19;
                 for (SearchHit hit : hits.getHits()) {
                     assertThat(hit.getId(), equalTo(Integer.toString(idCounter)));

@@ -201,7 +201,10 @@ public class TimeSeriesIndexSearcherTests extends ESTestCase {
         BucketCollector collector = getBucketCollector(2 * DOC_COUNTS);
 
         // skip the first doc of segment 1 and 2
-        indexSearcher.search(SortedSetDocValuesField.newSlowSetQuery("_tsid", new BytesRef("tsid0"), new BytesRef("tsid1")), collector);
+        indexSearcher.search(
+            SortedSetDocValuesField.newSlowSetQuery("_tsid", List.of(new BytesRef("tsid0"), new BytesRef("tsid1"))),
+            collector
+        );
         collector.postCollection();
 
         reader.close();

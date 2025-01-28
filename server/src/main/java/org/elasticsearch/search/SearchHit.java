@@ -27,9 +27,9 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.SimpleRefCounted;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
+import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -104,7 +104,8 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
     private transient String index;
     private transient String clusterAlias;
 
-    private Map<String, Object> sourceAsMap;
+    // For asserting that the method #getSourceAsMap is called just once on the lifetime of this object
+    private boolean sourceAsMapCalled = false;
 
     private Map<String, SearchHits> innerHits;
 
@@ -142,7 +143,6 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
             null,
             null,
             null,
-            null,
             new HashMap<>(),
             new HashMap<>(),
             refCounted
@@ -166,7 +166,6 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
         SearchShardTarget shard,
         String index,
         String clusterAlias,
-        Map<String, Object> sourceAsMap,
         Map<String, SearchHits> innerHits,
         Map<String, DocumentField> documentFields,
         Map<String, DocumentField> metaFields,
@@ -188,7 +187,6 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
         this.shard = shard;
         this.index = index;
         this.clusterAlias = clusterAlias;
-        this.sourceAsMap = sourceAsMap;
         this.innerHits = innerHits;
         this.documentFields = documentFields;
         this.metaFields = metaFields;
@@ -279,7 +277,6 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
             shardTarget,
             index,
             clusterAlias,
-            null,
             innerHits,
             documentFields,
             metaFields,
@@ -447,7 +444,6 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
      */
     public SearchHit sourceRef(BytesReference source) {
         this.source = source;
-        this.sourceAsMap = null;
         return this;
     }
 
@@ -476,19 +472,18 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
     }
 
     /**
-     * The source of the document as a map (can be {@code null}).
+     * The source of the document as a map (can be {@code null}). This method is expected
+     * to be called at most once during the lifetime of the object as the generated map
+     * is expensive to generate and it does not get cache.
      */
     public Map<String, Object> getSourceAsMap() {
         assert hasReferences();
+        assert sourceAsMapCalled == false : "getSourceAsMap() called twice";
+        sourceAsMapCalled = true;
         if (source == null) {
             return null;
         }
-        if (sourceAsMap != null) {
-            return sourceAsMap;
-        }
-
-        sourceAsMap = Source.fromBytes(source).source();
-        return sourceAsMap;
+        return Source.fromBytes(source).source();
     }
 
     /**
@@ -515,6 +510,10 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
     public void addDocumentFields(Map<String, DocumentField> docFields, Map<String, DocumentField> metaFields) {
         this.documentFields.putAll(docFields);
         this.metaFields.putAll(metaFields);
+    }
+
+    public DocumentField removeDocumentField(String field) {
+        return documentFields.remove(field);
     }
 
     /**
@@ -754,7 +753,6 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
             shard,
             index,
             clusterAlias,
-            sourceAsMap,
             innerHits == null
                 ? null
                 : innerHits.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().asUnpooled())),
@@ -816,9 +814,6 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
         if (index != null) {
             builder.field(Fields._INDEX, RemoteClusterAware.buildRemoteIndexName(clusterAlias, index));
         }
-        if (builder.getRestApiVersion() == RestApiVersion.V_7 && metaFields.containsKey(MapperService.TYPE_FIELD_NAME) == false) {
-            builder.field(MapperService.TYPE_FIELD_NAME, MapperService.SINGLE_MAPPING_NAME);
-        }
         if (id != null) {
             builder.field(Fields._ID, id);
         }
@@ -851,7 +846,7 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
             }
             // _ignored is the only multi-valued meta field
             // TODO: can we avoid having an exception here?
-            if (field.getName().equals(IgnoredFieldMapper.NAME)) {
+            if (IgnoredFieldMapper.NAME.equals(field.getName()) || IgnoredSourceFieldMapper.NAME.equals(field.getName())) {
                 builder.field(field.getName(), field.getValues());
             } else {
                 builder.field(field.getName(), field.<Object>getValue());

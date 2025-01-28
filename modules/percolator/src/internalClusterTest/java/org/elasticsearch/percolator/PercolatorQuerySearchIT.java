@@ -1359,7 +1359,7 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
             """);
         indicesAdmin().prepareCreate("index1").setMapping(mappings).get();
         ensureGreen();
-        QueryBuilder knnVectorQueryBuilder = new KnnVectorQueryBuilder("my_vector", new float[] { 1, 1, 1, 1, 1 }, 10, 10, null);
+        QueryBuilder knnVectorQueryBuilder = new KnnVectorQueryBuilder("my_vector", new float[] { 1, 1, 1, 1, 1 }, 10, 10, null, null);
 
         IndexRequestBuilder indexRequestBuilder = prepareIndex("index1").setId("knn_query1")
             .setSource(jsonBuilder().startObject().field("my_query", knnVectorQueryBuilder).endObject());

@@ -22,46 +22,16 @@ public class DataStreamGlobalRetentionSettingsTests extends ESTestCase {
 
     public void testDefaults() {
         DataStreamGlobalRetentionSettings globalRetentionSettings = DataStreamGlobalRetentionSettings.create(
-            ClusterSettings.createBuiltInClusterSettings(),
-            DataStreamFactoryRetention.emptyFactoryRetention()
+            ClusterSettings.createBuiltInClusterSettings()
         );
 
         assertThat(globalRetentionSettings.getDefaultRetention(), nullValue());
         assertThat(globalRetentionSettings.getMaxRetention(), nullValue());
-
-        // Fallback to factory settings
-        TimeValue maxFactoryValue = randomPositiveTimeValue();
-        TimeValue defaultFactoryValue = randomPositiveTimeValue();
-        DataStreamGlobalRetentionSettings withFactorySettings = DataStreamGlobalRetentionSettings.create(
-            ClusterSettings.createBuiltInClusterSettings(),
-            new DataStreamFactoryRetention() {
-                @Override
-                public TimeValue getMaxRetention() {
-                    return maxFactoryValue;
-                }
-
-                @Override
-                public TimeValue getDefaultRetention() {
-                    return defaultFactoryValue;
-                }
-
-                @Override
-                public void init(ClusterSettings clusterSettings) {
-
-                }
-            }
-        );
-
-        assertThat(withFactorySettings.getDefaultRetention(), equalTo(defaultFactoryValue));
-        assertThat(withFactorySettings.getMaxRetention(), equalTo(maxFactoryValue));
     }
 
     public void testMonitorsDefaultRetention() {
         ClusterSettings clusterSettings = ClusterSettings.createBuiltInClusterSettings();
-        DataStreamGlobalRetentionSettings globalRetentionSettings = DataStreamGlobalRetentionSettings.create(
-            clusterSettings,
-            DataStreamFactoryRetention.emptyFactoryRetention()
-        );
+        DataStreamGlobalRetentionSettings globalRetentionSettings = DataStreamGlobalRetentionSettings.create(clusterSettings);
 
         // Test valid update
         TimeValue newDefaultRetention = TimeValue.timeValueDays(randomIntBetween(1, 10));
@@ -91,10 +61,7 @@ public class DataStreamGlobalRetentionSettingsTests extends ESTestCase {
 
     public void testMonitorsMaxRetention() {
         ClusterSettings clusterSettings = ClusterSettings.createBuiltInClusterSettings();
-        DataStreamGlobalRetentionSettings globalRetentionSettings = DataStreamGlobalRetentionSettings.create(
-            clusterSettings,
-            DataStreamFactoryRetention.emptyFactoryRetention()
-        );
+        DataStreamGlobalRetentionSettings globalRetentionSettings = DataStreamGlobalRetentionSettings.create(clusterSettings);
 
         // Test valid update
         TimeValue newMaxRetention = TimeValue.timeValueDays(randomIntBetween(10, 30));
@@ -121,7 +88,7 @@ public class DataStreamGlobalRetentionSettingsTests extends ESTestCase {
 
     public void testCombinationValidation() {
         ClusterSettings clusterSettings = ClusterSettings.createBuiltInClusterSettings();
-        DataStreamGlobalRetentionSettings.create(clusterSettings, DataStreamFactoryRetention.emptyFactoryRetention());
+        DataStreamGlobalRetentionSettings.create(clusterSettings);
 
         // Test invalid update
         Settings newInvalidSettings = Settings.builder()

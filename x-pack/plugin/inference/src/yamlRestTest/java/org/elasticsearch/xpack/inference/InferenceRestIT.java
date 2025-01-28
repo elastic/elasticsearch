@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
@@ -19,6 +20,7 @@ public class InferenceRestIT extends ESClientYamlSuiteTestCase {
 
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
+        .systemProperty("tests.seed", System.getProperty("tests.seed"))
         .setting("xpack.security.enabled", "false")
         .setting("xpack.security.http.ssl.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
@@ -28,6 +30,15 @@ public class InferenceRestIT extends ESClientYamlSuiteTestCase {
 
     public InferenceRestIT(final ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
+    }
+
+    @Override
+    protected Settings restClientSettings() {
+        var baseSettings = super.restClientSettings();
+        return Settings.builder()
+            .put(baseSettings)
+            .put(CLIENT_SOCKET_TIMEOUT, "300s")  // Long timeout for model download
+            .build();
     }
 
     @Override

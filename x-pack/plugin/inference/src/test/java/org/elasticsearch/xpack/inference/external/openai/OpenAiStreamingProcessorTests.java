@@ -111,12 +111,10 @@ public class OpenAiStreamingProcessorTests extends ESTestCase {
         item.offer(new ServerSentEvent(ServerSentEventField.DATA, "this isn't json"));
 
         var exception = onError(new OpenAiStreamingProcessor(), item);
-        assertThat(exception, instanceOf(IOException.class));
-        assertThat(exception.getMessage(), equalTo("Failed to parse event from inference provider."));
-        assertThat(exception.getCause(), instanceOf(XContentParseException.class));
+        assertThat(exception, instanceOf(XContentParseException.class));
     }
 
-    public void testEmptyResultsRequestsMoreData() {
+    public void testEmptyResultsRequestsMoreData() throws Exception {
         var emptyDeque = new ArrayDeque<ServerSentEvent>();
 
         var processor = new OpenAiStreamingProcessor();
@@ -133,9 +131,45 @@ public class OpenAiStreamingProcessorTests extends ESTestCase {
         verify(downstream, times(0)).onNext(any());
     }
 
-    public void testDoneMessageIsIgnored() {
+    public void testDoneMessageIsIgnored() throws Exception {
         var item = new ArrayDeque<ServerSentEvent>();
         item.offer(new ServerSentEvent(ServerSentEventField.DATA, "[DONE]"));
+
+        var processor = new OpenAiStreamingProcessor();
+
+        Flow.Subscriber<ChunkedToXContent> downstream = mock();
+        processor.subscribe(downstream);
+
+        Flow.Subscription upstream = mock();
+        processor.onSubscribe(upstream);
+
+        processor.next(item);
+
+        verify(upstream, times(1)).request(1);
+        verify(downstream, times(0)).onNext(any());
+    }
+
+    public void testInitialLlamaResponseIsIgnored() throws Exception {
+        var item = new ArrayDeque<ServerSentEvent>();
+        item.offer(new ServerSentEvent(ServerSentEventField.DATA, """
+            {
+                "id":"12345",
+                "object":"chat.completion.chunk",
+                "created":123456789,
+                "model":"Llama-2-7b-chat",
+                "system_fingerprint": "123456789",
+                "choices":[
+                    {
+                        "index":0,
+                        "delta":{
+                            "role":"assistant"
+                        },
+                        "logprobs":null,
+                        "finish_reason":null
+                    }
+                ]
+            }
+            """));
 
         var processor = new OpenAiStreamingProcessor();
 

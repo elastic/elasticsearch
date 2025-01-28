@@ -16,6 +16,7 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 
@@ -58,9 +59,10 @@ public final class DocIdSliceQuery extends SliceQuery {
 
         return new ConstantScoreWeight(this, boost) {
             @Override
-            public Scorer scorer(LeafReaderContext context) {
+            public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
                 DocIdSetIterator iterator = createIterator(context, sliceStart, sliceStart + sliceSize);
-                return new ConstantScoreScorer(this, boost, scoreMode, iterator);
+                Scorer scorer = new ConstantScoreScorer(boost, scoreMode, iterator);
+                return new DefaultScorerSupplier(scorer);
             }
 
             private static DocIdSetIterator createIterator(LeafReaderContext context, int sliceStart, int sliceEnd) {

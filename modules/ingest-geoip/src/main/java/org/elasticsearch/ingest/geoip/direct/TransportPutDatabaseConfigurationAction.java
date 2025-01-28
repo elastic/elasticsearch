@@ -75,7 +75,6 @@ public class TransportPutDatabaseConfigurationAction extends TransportMasterNode
             threadPool,
             actionFilters,
             Request::new,
-            indexNameExpressionResolver,
             AcknowledgedResponse::readFrom,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
@@ -89,6 +88,7 @@ public class TransportPutDatabaseConfigurationAction extends TransportMasterNode
     @Override
     protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<AcknowledgedResponse> listener) {
         final String id = request.getDatabase().id();
+
         updateDatabaseConfigurationTaskQueue.submitTask(
             Strings.format("update-geoip-database-configuration-[%s]", id),
             new UpdateDatabaseConfigurationTask(listener, request.getDatabase()),

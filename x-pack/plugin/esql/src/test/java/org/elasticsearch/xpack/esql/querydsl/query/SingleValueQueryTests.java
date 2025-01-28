@@ -232,7 +232,7 @@ public class SingleValueQueryTests extends MapperServiceTestCase {
 
         private List<IndexableField> docFor(int i, Iterable<Object> values) {
             List<IndexableField> fields = new ArrayList<>();
-            fields.add(new LongField("i", i));
+            fields.add(new LongField("i", i, Field.Store.NO));
             fields.add(new TextField("str", "the quick brown fox jumped over the lazy dog", Field.Store.NO));
             switch (fieldType) {
                 case "long", "integer", "short", "byte" -> {
@@ -270,7 +270,10 @@ public class SingleValueQueryTests extends MapperServiceTestCase {
             List<List<Object>> fieldValues = new ArrayList<>(100);
             for (int i = 0; i < 100; i++) {
                 iw.addDocument(
-                    List.of(new LongField("i", i), new TextField("str", "the quick brown fox jumped over the lazy dog", Field.Store.NO))
+                    List.of(
+                        new LongField("i", i, Field.Store.NO),
+                        new TextField("str", "the quick brown fox jumped over the lazy dog", Field.Store.NO)
+                    )
                 );
                 fieldValues.add(List.of());
             }

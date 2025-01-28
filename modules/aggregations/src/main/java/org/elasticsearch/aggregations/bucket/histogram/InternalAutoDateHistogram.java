@@ -99,8 +99,7 @@ public final class InternalAutoDateHistogram extends InternalMultiBucketAggregat
             return Instant.ofEpochMilli(key).atZone(ZoneOffset.UTC);
         }
 
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        private void bucketToXContent(XContentBuilder builder, Params params, DocValueFormat format) throws IOException {
             String keyAsString = format.format(key).toString();
             builder.startObject();
             if (format != DocValueFormat.RAW) {
@@ -110,7 +109,6 @@ public final class InternalAutoDateHistogram extends InternalMultiBucketAggregat
             builder.field(CommonFields.DOC_COUNT.getPreferredName(), docCount);
             aggregations.toXContentInternal(builder, params);
             builder.endObject();
-            return builder;
         }
 
         @Override
@@ -416,7 +414,7 @@ public final class InternalAutoDateHistogram extends InternalMultiBucketAggregat
 
         Bucket lastBucket = null;
         ListIterator<Bucket> iter = list.listIterator();
-        InternalAggregations reducedEmptySubAggs = InternalAggregations.reduce(List.of(bucketInfo.emptySubAggregations), reduceContext);
+        InternalAggregations reducedEmptySubAggs = InternalAggregations.reduce(bucketInfo.emptySubAggregations, reduceContext);
 
         // Add the empty buckets within the data,
         // e.g. if the data series is [1,2,3,7] there're 3 empty buckets that will be created for 4,5,6
@@ -597,7 +595,7 @@ public final class InternalAutoDateHistogram extends InternalMultiBucketAggregat
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         builder.startArray(CommonFields.BUCKETS.getPreferredName());
         for (Bucket bucket : buckets) {
-            bucket.toXContent(builder, params);
+            bucket.bucketToXContent(builder, params, format);
         }
         builder.endArray();
         builder.field("interval", getInterval().toString());

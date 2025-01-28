@@ -605,6 +605,60 @@ public class ServiceUtilsTests extends ESTestCase {
         assertThat(validation.validationErrors().get(1), is("[scope] does not contain the required setting [not_key]"));
     }
 
+    public void testExtractRequiredPositiveIntegerBetween_ReturnsValueWhenValueIsBetweenMinAndMax() {
+        var minValue = randomNonNegativeInt();
+        var maxValue = randomIntBetween(minValue + 2, minValue + 10);
+        testExtractRequiredPositiveIntegerBetween_Successful(minValue, maxValue, randomIntBetween(minValue + 1, maxValue - 1));
+    }
+
+    public void testExtractRequiredPositiveIntegerBetween_ReturnsValueWhenValueIsEqualToMin() {
+        var minValue = randomNonNegativeInt();
+        var maxValue = randomIntBetween(minValue + 1, minValue + 10);
+        testExtractRequiredPositiveIntegerBetween_Successful(minValue, maxValue, minValue);
+    }
+
+    public void testExtractRequiredPositiveIntegerBetween_ReturnsValueWhenValueIsEqualToMax() {
+        var minValue = randomNonNegativeInt();
+        var maxValue = randomIntBetween(minValue + 1, minValue + 10);
+        testExtractRequiredPositiveIntegerBetween_Successful(minValue, maxValue, maxValue);
+    }
+
+    private void testExtractRequiredPositiveIntegerBetween_Successful(int minValue, int maxValue, int actualValue) {
+        var validation = new ValidationException();
+        validation.addValidationError("previous error");
+        Map<String, Object> map = modifiableMap(Map.of("key", actualValue));
+        var parsedInt = ServiceUtils.extractRequiredPositiveIntegerBetween(map, "key", minValue, maxValue, "scope", validation);
+
+        assertThat(validation.validationErrors(), hasSize(1));
+        assertNotNull(parsedInt);
+        assertThat(parsedInt, is(actualValue));
+        assertTrue(map.isEmpty());
+    }
+
+    public void testExtractRequiredIntBetween_AddsErrorForValueBelowMin() {
+        var minValue = randomNonNegativeInt();
+        var maxValue = randomIntBetween(minValue, minValue + 10);
+        testExtractRequiredIntBetween_Unsuccessful(minValue, maxValue, minValue - 1);
+    }
+
+    public void testExtractRequiredIntBetween_AddsErrorForValueAboveMax() {
+        var minValue = randomNonNegativeInt();
+        var maxValue = randomIntBetween(minValue, minValue + 10);
+        testExtractRequiredIntBetween_Unsuccessful(minValue, maxValue, maxValue + 1);
+    }
+
+    private void testExtractRequiredIntBetween_Unsuccessful(int minValue, int maxValue, int actualValue) {
+        var validation = new ValidationException();
+        validation.addValidationError("previous error");
+        Map<String, Object> map = modifiableMap(Map.of("key", actualValue));
+        var parsedInt = ServiceUtils.extractRequiredPositiveIntegerBetween(map, "key", minValue, maxValue, "scope", validation);
+
+        assertThat(validation.validationErrors(), hasSize(2));
+        assertNull(parsedInt);
+        assertTrue(map.isEmpty());
+        assertThat(validation.validationErrors().get(1), containsString("Invalid value"));
+    }
+
     public void testExtractOptionalEnum_ReturnsNull_WhenFieldDoesNotExist() {
         var validation = new ValidationException();
         Map<String, Object> map = modifiableMap(Map.of("key", "value"));

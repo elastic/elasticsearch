@@ -187,11 +187,7 @@ public class LogTests extends AbstractScalarFunctionTestCase {
             )
         );
 
-        // Add null cases before the rest of the error cases, so messages are correct.
-        suppliers = anyNullIsNull(true, suppliers);
-
-        // Negative cases
-        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(suppliers, (v, p) -> "numeric"));
+        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
     }
 
     @Override

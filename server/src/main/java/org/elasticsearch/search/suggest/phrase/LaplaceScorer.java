@@ -36,7 +36,7 @@ final class LaplaceScorer extends WordScorer {
     @Override
     protected double scoreBigram(Candidate word, Candidate w_1) throws IOException {
         join(separator, spare, w_1.term, word.term);
-        return (alpha + frequency(spare.get())) / (w_1.termStats.totalTermFreq + alpha * numTerms);
+        return (alpha + frequency(spare.get())) / (w_1.termStats.totalTermFreq() + alpha * numTerms);
     }
 
     @Override

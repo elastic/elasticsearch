@@ -19,6 +19,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.VectorScorer;
 import org.apache.lucene.search.Weight;
 
@@ -70,12 +71,12 @@ public abstract class DenseVectorQuery extends Query {
         }
 
         @Override
-        public Scorer scorer(LeafReaderContext leafReaderContext) throws IOException {
-            VectorScorer vectorScorer = vectorScorer(leafReaderContext);
+        public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
+            VectorScorer vectorScorer = vectorScorer(context);
             if (vectorScorer == null) {
                 return null;
             }
-            return new DenseVectorScorer(this, vectorScorer);
+            return new DefaultScorerSupplier(new DenseVectorScorer(vectorScorer, boost));
         }
 
         @Override
@@ -178,11 +179,10 @@ public abstract class DenseVectorQuery extends Query {
         private final DocIdSetIterator iterator;
         private final float boost;
 
-        DenseVectorScorer(DenseVectorWeight weight, VectorScorer vectorScorer) {
-            super(weight);
+        DenseVectorScorer(VectorScorer vectorScorer, float boost) {
             this.vectorScorer = vectorScorer;
             this.iterator = vectorScorer.iterator();
-            this.boost = weight.boost;
+            this.boost = boost;
         }
 
         @Override

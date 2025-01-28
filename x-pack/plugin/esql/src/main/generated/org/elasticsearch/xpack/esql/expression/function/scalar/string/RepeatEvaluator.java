@@ -18,16 +18,16 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.expression.function.Warnings;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Repeat}.
  * This class is generated. Do not edit it.
  */
 public final class RepeatEvaluator implements EvalOperator.ExpressionEvaluator {
-  private final Warnings warnings;
+  private final Source source;
 
   private final BreakingBytesRefBuilder scratch;
 
@@ -37,14 +37,16 @@ public final class RepeatEvaluator implements EvalOperator.ExpressionEvaluator {
 
   private final DriverContext driverContext;
 
+  private Warnings warnings;
+
   public RepeatEvaluator(Source source, BreakingBytesRefBuilder scratch,
       EvalOperator.ExpressionEvaluator str, EvalOperator.ExpressionEvaluator number,
       DriverContext driverContext) {
+    this.source = source;
     this.scratch = scratch;
     this.str = str;
     this.number = number;
     this.driverContext = driverContext;
-    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override
@@ -74,7 +76,7 @@ public final class RepeatEvaluator implements EvalOperator.ExpressionEvaluator {
         }
         if (strBlock.getValueCount(p) != 1) {
           if (strBlock.getValueCount(p) > 1) {
-            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
           }
           result.appendNull();
           continue position;
@@ -85,7 +87,7 @@ public final class RepeatEvaluator implements EvalOperator.ExpressionEvaluator {
         }
         if (numberBlock.getValueCount(p) != 1) {
           if (numberBlock.getValueCount(p) > 1) {
-            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
           }
           result.appendNull();
           continue position;
@@ -93,7 +95,7 @@ public final class RepeatEvaluator implements EvalOperator.ExpressionEvaluator {
         try {
           result.appendBytesRef(Repeat.process(this.scratch, strBlock.getBytesRef(strBlock.getFirstValueIndex(p), strScratch), numberBlock.getInt(numberBlock.getFirstValueIndex(p))));
         } catch (IllegalArgumentException e) {
-          warnings.registerException(e);
+          warnings().registerException(e);
           result.appendNull();
         }
       }
@@ -108,7 +110,7 @@ public final class RepeatEvaluator implements EvalOperator.ExpressionEvaluator {
         try {
           result.appendBytesRef(Repeat.process(this.scratch, strVector.getBytesRef(p, strScratch), numberVector.getInt(p)));
         } catch (IllegalArgumentException e) {
-          warnings.registerException(e);
+          warnings().registerException(e);
           result.appendNull();
         }
       }
@@ -124,6 +126,18 @@ public final class RepeatEvaluator implements EvalOperator.ExpressionEvaluator {
   @Override
   public void close() {
     Releasables.closeExpectNoException(scratch, str, number);
+  }
+
+  private Warnings warnings() {
+    if (warnings == null) {
+      this.warnings = Warnings.createWarnings(
+              driverContext.warningsMode(),
+              source.source().getLineNumber(),
+              source.source().getColumnNumber(),
+              source.text()
+          );
+    }
+    return warnings;
   }
 
   static class Factory implements EvalOperator.ExpressionEvaluator.Factory {

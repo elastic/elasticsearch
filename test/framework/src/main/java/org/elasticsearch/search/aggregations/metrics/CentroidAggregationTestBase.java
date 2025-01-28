@@ -40,7 +40,7 @@ public abstract class CentroidAggregationTestBase extends AbstractGeoTestCase {
                 .addAggregation(centroidAgg(aggName()).field(SINGLE_VALUED_FIELD_NAME)),
             response -> {
                 CentroidAggregation geoCentroid = response.getAggregations().get(aggName());
-                assertThat(response.getHits().getTotalHits().value, equalTo(0L));
+                assertThat(response.getHits().getTotalHits().value(), equalTo(0L));
                 assertThat(geoCentroid, notNullValue());
                 assertThat(geoCentroid.getName(), equalTo(aggName()));
                 assertThat(geoCentroid.centroid(), equalTo(null));

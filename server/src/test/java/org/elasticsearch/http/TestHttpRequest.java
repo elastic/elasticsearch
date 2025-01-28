@@ -86,11 +86,6 @@ class TestHttpRequest implements HttpRequest {
     public void release() {}
 
     @Override
-    public HttpRequest releaseAndCopy() {
-        return this;
-    }
-
-    @Override
     public Exception getInboundException() {
         return null;
     }

@@ -488,6 +488,36 @@ public class EnterpriseGeoIpDownloaderTests extends ESTestCase {
         }
     }
 
+    public void testIpinfoUrls() {
+        // a 'free' database like 'asn' has 'free/' in the url (automatically)
+        final EnterpriseGeoIpDownloader.IpinfoDownload download = geoIpDownloader.new IpinfoDownload(
+            "asn", new DatabaseConfiguration.Ipinfo()
+        );
+
+        {
+            String url = "https://ipinfo.io/data/free/asn.mmdb";
+            assertThat(download.url("mmdb"), equalTo(url));
+        }
+        {
+            String url = "https://ipinfo.io/data/free/asn.mmdb/checksums";
+            assertThat(download.url("mmdb/checksums"), equalTo(url));
+        }
+
+        // but a non-'free' database like 'standard_asn' does not
+        final EnterpriseGeoIpDownloader.IpinfoDownload download2 = geoIpDownloader.new IpinfoDownload(
+            "standard_asn", new DatabaseConfiguration.Ipinfo()
+        );
+
+        {
+            String url = "https://ipinfo.io/data/standard_asn.mmdb";
+            assertThat(download2.url("mmdb"), equalTo(url));
+        }
+        {
+            String url = "https://ipinfo.io/data/standard_asn.mmdb/checksums";
+            assertThat(download2.url("mmdb/checksums"), equalTo(url));
+        }
+    }
+
     private static class MockClient extends NoOpClient {
 
         private final Map<ActionType<?>, BiConsumer<? extends ActionRequest, ? extends ActionListener<?>>> handlers = new HashMap<>();

@@ -27,13 +27,14 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 
+import static org.elasticsearch.core.Tuple.tuple;
 import static org.elasticsearch.test.ByteSizeEqualsMatcher.byteSizeEquals;
 
 public class EsIndexSerializationTests extends AbstractWireSerializingTestCase<EsIndex> {
     public static EsIndex randomEsIndex() {
         String name = randomAlphaOfLength(5);
         Map<String, EsField> mapping = randomMapping();
-        return new EsIndex(name, mapping, randomConcreteIndices());
+        return new EsIndex(name, mapping, randomIndexNameWithModes());
     }
 
     private static Map<String, EsField> randomMapping() {
@@ -45,18 +46,13 @@ public class EsIndexSerializationTests extends AbstractWireSerializingTestCase<E
         return result;
     }
 
-    private static Map<String, IndexMode> randomConcreteIndices() {
-        int size = between(0, 10);
-        Map<String, IndexMode> result = new HashMap<>(size);
-        while (result.size() < size) {
-            result.put(randomAlphaOfLength(5), randomFrom(IndexMode.values()));
-        }
-        return result;
+    public static Map<String, IndexMode> randomIndexNameWithModes() {
+        return randomMap(0, 10, () -> tuple(randomIdentifier(), randomFrom(IndexMode.values())));
     }
 
     @Override
     protected Writeable.Reader<EsIndex> instanceReader() {
-        return a -> new EsIndex(new PlanStreamInput(a, a.namedWriteableRegistry(), null));
+        return a -> EsIndex.readFrom(new PlanStreamInput(a, a.namedWriteableRegistry(), null));
     }
 
     @Override
@@ -77,7 +73,10 @@ public class EsIndexSerializationTests extends AbstractWireSerializingTestCase<E
         switch (between(0, 2)) {
             case 0 -> name = randomValueOtherThan(name, () -> randomAlphaOfLength(5));
             case 1 -> mapping = randomValueOtherThan(mapping, EsIndexSerializationTests::randomMapping);
-            case 2 -> indexedNameWithModes = randomValueOtherThan(indexedNameWithModes, EsIndexSerializationTests::randomConcreteIndices);
+            case 2 -> indexedNameWithModes = randomValueOtherThan(
+                indexedNameWithModes,
+                EsIndexSerializationTests::randomIndexNameWithModes
+            );
             default -> throw new IllegalArgumentException();
         }
         return new EsIndex(name, mapping, indexedNameWithModes);
@@ -135,11 +134,12 @@ public class EsIndexSerializationTests extends AbstractWireSerializingTestCase<E
      * See {@link #testManyTypeConflicts(boolean, ByteSizeValue)} for more.
      */
     public void testManyTypeConflicts() throws IOException {
-        testManyTypeConflicts(false, ByteSizeValue.ofBytes(991026));
+        testManyTypeConflicts(false, ByteSizeValue.ofBytes(916998));
         /*
          * History:
          *  953.7kb - shorten error messages for UnsupportedAttributes #111973
          *  967.7kb - cache EsFields #112008 (little overhead of the cache)
+         *  895.5kb - string serialization #112929
          */
     }
 
@@ -148,12 +148,13 @@ public class EsIndexSerializationTests extends AbstractWireSerializingTestCase<E
      * See {@link #testManyTypeConflicts(boolean, ByteSizeValue)} for more.
      */
     public void testManyTypeConflictsWithParent() throws IOException {
-        testManyTypeConflicts(true, ByteSizeValue.ofBytes(1374497));
+        testManyTypeConflicts(true, ByteSizeValue.ofBytes(1300467));
         /*
          * History:
          * 16.9mb - start
          *  1.8mb - shorten error messages for UnsupportedAttributes #111973
          *  1.3mb - cache EsFields #112008
+         *  1.2mb - string serialization #112929
          */
     }
 
@@ -178,6 +179,53 @@ public class EsIndexSerializationTests extends AbstractWireSerializingTestCase<E
         try (BytesStreamOutput out = new BytesStreamOutput(); var pso = new PlanStreamOutput(out, null)) {
             indexWithManyConflicts(withParent).writeTo(pso);
             assertThat(ByteSizeValue.ofBytes(out.bytes().length()), byteSizeEquals(expected));
+        }
+    }
+
+    public static EsIndex deeplyNestedIndex(int depth, int childrenPerLevel) {
+        String rootFieldName = "root";
+        Map<String, EsField> fields = Map.of(rootFieldName, fieldWithRecursiveChildren(depth, childrenPerLevel, rootFieldName));
+
+        return new EsIndex("deeply-nested", fields);
+    }
+
+    private static EsField fieldWithRecursiveChildren(int depth, int childrenPerLevel, String name) {
+        assert depth >= 1;
+
+        Map<String, EsField> children = new TreeMap<>();
+        String childName;
+        if (depth == 1) {
+            for (int i = 0; i < childrenPerLevel; i++) {
+                childName = "leaf" + i;
+                children.put(childName, new EsField(childName, DataType.KEYWORD, Map.of(), true));
+            }
+        } else {
+            for (int i = 0; i < childrenPerLevel; i++) {
+                childName = "level" + depth + "child" + i;
+                children.put(childName, fieldWithRecursiveChildren(depth - 1, childrenPerLevel, childName));
+            }
+        }
+
+        return new EsField(name, DataType.OBJECT, children, false);
+    }
+
+    /**
+     * Test de-/serialization and size on the wire for an index that has multiple levels of children:
+     * A single root with 9 children, each of which has 9 children etc. 6 levels deep.
+     */
+    public void testDeeplyNestedFields() throws IOException {
+        ByteSizeValue expectedSize = ByteSizeValue.ofBytes(9425494);
+        /*
+         * History:
+         *  9425494b - string serialization #112929
+         */
+
+        int depth = 6;
+        int childrenPerLevel = 9;
+
+        try (BytesStreamOutput out = new BytesStreamOutput(); var pso = new PlanStreamOutput(out, null)) {
+            deeplyNestedIndex(depth, childrenPerLevel).writeTo(pso);
+            assertThat(ByteSizeValue.ofBytes(out.bytes().length()), byteSizeEquals(expectedSize));
         }
     }
 }

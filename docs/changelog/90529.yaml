@@ -1,0 +1,26 @@
+pr: 90529
+summary: Output a consistent format when generating error json
+area: Infra/REST API
+type: "breaking"
+issues:
+ - 89387
+breaking:
+  title: Error JSON structure has changed when detailed errors are disabled
+  area: REST API
+  details: |-
+    This change modifies the JSON format of error messages returned to REST clients
+    when detailed messages are turned off.
+    Previously, JSON returned when an exception occurred, and `http.detailed_errors.enabled: false` was set,
+    just consisted of a single `"error"` text field with some basic information.
+    Setting `http.detailed_errors.enabled: true` (the default) changed this field
+    to an object with more detailed information.
+    With this change, non-detailed errors now have the same structure as detailed errors. `"error"` will now always
+    be an object with, at a minimum, a `"type"` and `"reason"` field. Additional fields are included when detailed
+    errors are enabled.
+    To use the previous structure for non-detailed errors, use the v8 REST API.
+  impact: |-
+    If you have set `http.detailed_errors.enabled: false` (the default is `true`)
+    the structure of JSON when any exceptions occur now matches the structure when
+    detailed errors are enabled.
+    To use the previous structure for non-detailed errors, use the v8 REST API.
+  notable: false

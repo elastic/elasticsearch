@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.date;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
-import java.time.ZoneId;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -16,32 +15,31 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.expression.function.Warnings;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link DateParse}.
  * This class is generated. Do not edit it.
  */
 public final class DateParseEvaluator implements EvalOperator.ExpressionEvaluator {
-  private final Warnings warnings;
+  private final Source source;
 
   private final EvalOperator.ExpressionEvaluator val;
 
   private final EvalOperator.ExpressionEvaluator formatter;
 
-  private final ZoneId zoneId;
-
   private final DriverContext driverContext;
 
+  private Warnings warnings;
+
   public DateParseEvaluator(Source source, EvalOperator.ExpressionEvaluator val,
-      EvalOperator.ExpressionEvaluator formatter, ZoneId zoneId, DriverContext driverContext) {
+      EvalOperator.ExpressionEvaluator formatter, DriverContext driverContext) {
+    this.source = source;
     this.val = val;
     this.formatter = formatter;
-    this.zoneId = zoneId;
     this.driverContext = driverContext;
-    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override
@@ -72,7 +70,7 @@ public final class DateParseEvaluator implements EvalOperator.ExpressionEvaluato
         }
         if (valBlock.getValueCount(p) != 1) {
           if (valBlock.getValueCount(p) > 1) {
-            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
           }
           result.appendNull();
           continue position;
@@ -83,15 +81,15 @@ public final class DateParseEvaluator implements EvalOperator.ExpressionEvaluato
         }
         if (formatterBlock.getValueCount(p) != 1) {
           if (formatterBlock.getValueCount(p) > 1) {
-            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
           }
           result.appendNull();
           continue position;
         }
         try {
-          result.appendLong(DateParse.process(valBlock.getBytesRef(valBlock.getFirstValueIndex(p), valScratch), formatterBlock.getBytesRef(formatterBlock.getFirstValueIndex(p), formatterScratch), this.zoneId));
+          result.appendLong(DateParse.process(valBlock.getBytesRef(valBlock.getFirstValueIndex(p), valScratch), formatterBlock.getBytesRef(formatterBlock.getFirstValueIndex(p), formatterScratch)));
         } catch (IllegalArgumentException e) {
-          warnings.registerException(e);
+          warnings().registerException(e);
           result.appendNull();
         }
       }
@@ -106,9 +104,9 @@ public final class DateParseEvaluator implements EvalOperator.ExpressionEvaluato
       BytesRef formatterScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         try {
-          result.appendLong(DateParse.process(valVector.getBytesRef(p, valScratch), formatterVector.getBytesRef(p, formatterScratch), this.zoneId));
+          result.appendLong(DateParse.process(valVector.getBytesRef(p, valScratch), formatterVector.getBytesRef(p, formatterScratch)));
         } catch (IllegalArgumentException e) {
-          warnings.registerException(e);
+          warnings().registerException(e);
           result.appendNull();
         }
       }
@@ -118,12 +116,24 @@ public final class DateParseEvaluator implements EvalOperator.ExpressionEvaluato
 
   @Override
   public String toString() {
-    return "DateParseEvaluator[" + "val=" + val + ", formatter=" + formatter + ", zoneId=" + zoneId + "]";
+    return "DateParseEvaluator[" + "val=" + val + ", formatter=" + formatter + "]";
   }
 
   @Override
   public void close() {
     Releasables.closeExpectNoException(val, formatter);
+  }
+
+  private Warnings warnings() {
+    if (warnings == null) {
+      this.warnings = Warnings.createWarnings(
+              driverContext.warningsMode(),
+              source.source().getLineNumber(),
+              source.source().getColumnNumber(),
+              source.text()
+          );
+    }
+    return warnings;
   }
 
   static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
@@ -133,24 +143,21 @@ public final class DateParseEvaluator implements EvalOperator.ExpressionEvaluato
 
     private final EvalOperator.ExpressionEvaluator.Factory formatter;
 
-    private final ZoneId zoneId;
-
     public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory val,
-        EvalOperator.ExpressionEvaluator.Factory formatter, ZoneId zoneId) {
+        EvalOperator.ExpressionEvaluator.Factory formatter) {
       this.source = source;
       this.val = val;
       this.formatter = formatter;
-      this.zoneId = zoneId;
     }
 
     @Override
     public DateParseEvaluator get(DriverContext context) {
-      return new DateParseEvaluator(source, val.get(context), formatter.get(context), zoneId, context);
+      return new DateParseEvaluator(source, val.get(context), formatter.get(context), context);
     }
 
     @Override
     public String toString() {
-      return "DateParseEvaluator[" + "val=" + val + ", formatter=" + formatter + ", zoneId=" + zoneId + "]";
+      return "DateParseEvaluator[" + "val=" + val + ", formatter=" + formatter + "]";
     }
   }
 }

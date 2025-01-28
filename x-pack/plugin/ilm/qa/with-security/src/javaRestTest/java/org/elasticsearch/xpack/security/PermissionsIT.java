@@ -45,7 +45,6 @@ import java.io.InputStream;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static java.util.Collections.singletonMap;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -225,8 +224,8 @@ public class PermissionsIT extends ESRestTestCase {
     }
 
     private void createNewSingletonPolicy(RestClient client, String policy, String phaseName, LifecycleAction action) throws IOException {
-        Phase phase = new Phase(phaseName, TimeValue.ZERO, singletonMap(action.getWriteableName(), action));
-        LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policy, singletonMap(phase.getName(), phase));
+        Phase phase = new Phase(phaseName, TimeValue.ZERO, Map.of(action.getWriteableName(), action));
+        LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policy, Map.of(phase.getName(), phase));
         XContentBuilder builder = jsonBuilder();
         lifecyclePolicy.toXContent(builder, null);
         final StringEntity entity = new StringEntity("{ \"policy\":" + Strings.toString(builder) + "}", ContentType.APPLICATION_JSON);

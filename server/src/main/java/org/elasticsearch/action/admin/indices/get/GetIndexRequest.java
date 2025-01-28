@@ -12,10 +12,10 @@ package org.elasticsearch.action.admin.indices.get;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.info.ClusterInfoRequest;
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.ArrayUtils;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -94,16 +94,8 @@ public class GetIndexRequest extends ClusterInfoRequest<GetIndexRequest> {
     private boolean humanReadable = false;
     private transient boolean includeDefaults = false;
 
-    public GetIndexRequest() {
-        super(
-            DataStream.isFailureStoreFeatureFlagEnabled()
-                ? IndicesOptions.builder(IndicesOptions.strictExpandOpen())
-                    .failureStoreOptions(
-                        IndicesOptions.FailureStoreOptions.builder().includeRegularIndices(true).includeFailureIndices(true)
-                    )
-                    .build()
-                : IndicesOptions.strictExpandOpen()
-        );
+    public GetIndexRequest(TimeValue masterTimeout) {
+        super(masterTimeout, IndicesOptions.strictExpandOpen());
     }
 
     public GetIndexRequest(StreamInput in) throws IOException {

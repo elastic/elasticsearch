@@ -40,7 +40,7 @@ class RequestBasedTaskRunner {
      * Else, offload to a new thread so we do not block another threadpool's thread.
      */
     public void requestNextRun() {
-        if (loopCount.getAndIncrement() == 0) {
+        if (isRunning.get() && loopCount.getAndIncrement() == 0) {
             var currentThreadPool = EsExecutors.executorName(Thread.currentThread().getName());
             if (executorServiceName.equalsIgnoreCase(currentThreadPool)) {
                 run();

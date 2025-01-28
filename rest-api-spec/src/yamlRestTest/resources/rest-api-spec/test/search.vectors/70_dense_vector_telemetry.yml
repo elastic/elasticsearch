@@ -21,13 +21,13 @@ setup:
                 element_type: byte
                 index_options:
                   type: hnsw
+                  m: 16
+                  ef_construction: 100
               vector2:
                 type: dense_vector
                 dims: 1024
                 index: true
                 similarity: dot_product
-                index_options:
-                  type: int8_hnsw
               vector3:
                 type: dense_vector
                 dims: 100

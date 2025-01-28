@@ -70,7 +70,7 @@ public final class IngestGeoIpMetadata implements Metadata.Custom {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ENTERPRISE_GEOIP_DOWNLOADER;
+        return TransportVersions.V_8_16_0;
     }
 
     public Map<String, DatabaseConfigurationMetadata> getDatabases() {
@@ -92,7 +92,7 @@ public final class IngestGeoIpMetadata implements Metadata.Custom {
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
-        return Iterators.concat(ChunkedToXContentHelper.xContentValuesMap(DATABASES_FIELD.getPreferredName(), databases));
+        return Iterators.concat(ChunkedToXContentHelper.xContentObjectFields(DATABASES_FIELD.getPreferredName(), databases));
     }
 
     @Override
@@ -139,7 +139,7 @@ public final class IngestGeoIpMetadata implements Metadata.Custom {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.ENTERPRISE_GEOIP_DOWNLOADER;
+            return TransportVersions.V_8_16_0;
         }
     }
 

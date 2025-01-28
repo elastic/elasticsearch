@@ -33,6 +33,7 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.lucene.util.automaton.MinimizationOperations;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.telemetry.apm.internal.APMAgentSettings;
 import org.elasticsearch.telemetry.tracing.TraceContext;
@@ -439,13 +440,13 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
             ? includeAutomaton
             : Operations.minus(includeAutomaton, excludeAutomaton, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
 
-        return new CharacterRunAutomaton(finalAutomaton);
+        return new CharacterRunAutomaton(MinimizationOperations.minimize(finalAutomaton, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT));
     }
 
     private static Automaton patternsToAutomaton(List<String> patterns) {
         final List<Automaton> automata = patterns.stream().map(s -> {
             final String regex = s.replace(".", "\\.").replace("*", ".*");
-            return new RegExp(regex).toAutomaton();
+            return new RegExp(regex, RegExp.ALL | RegExp.DEPRECATED_COMPLEMENT).toAutomaton();
         }).toList();
         if (automata.isEmpty()) {
             return null;

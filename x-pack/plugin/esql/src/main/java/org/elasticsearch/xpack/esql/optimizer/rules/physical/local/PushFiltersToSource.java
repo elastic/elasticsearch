@@ -8,51 +8,36 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.Expressions;
-import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
-import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
-import org.elasticsearch.xpack.esql.core.expression.function.scalar.UnaryScalarFunction;
-import org.elasticsearch.xpack.esql.core.expression.predicate.Predicates;
-import org.elasticsearch.xpack.esql.core.expression.predicate.Range;
-import org.elasticsearch.xpack.esql.core.expression.predicate.fulltext.MatchQueryPredicate;
-import org.elasticsearch.xpack.esql.core.expression.predicate.fulltext.StringQueryPredicate;
-import org.elasticsearch.xpack.esql.core.expression.predicate.logical.BinaryLogic;
-import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Not;
-import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.IsNotNull;
-import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.IsNull;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
-import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RegexMatch;
-import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.core.util.Queries;
-import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
-import org.elasticsearch.xpack.esql.expression.function.scalar.ip.CIDRMatch;
-import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesFunction;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
+import org.elasticsearch.xpack.esql.expression.predicate.Range;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InsensitiveBinaryComparison;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerRules;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
+import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
-import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.Predicate;
 
 import static java.util.Arrays.asList;
-import static org.elasticsearch.xpack.esql.core.expression.predicate.Predicates.splitAnd;
+import static org.elasticsearch.xpack.esql.expression.predicate.Predicates.splitAnd;
+import static org.elasticsearch.xpack.esql.planner.TranslatorHandler.TRANSLATOR_HANDLER;
 
 public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOptimizerRule<FilterExec, LocalPhysicalOptimizerContext> {
 
@@ -60,38 +45,85 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
     protected PhysicalPlan rule(FilterExec filterExec, LocalPhysicalOptimizerContext ctx) {
         PhysicalPlan plan = filterExec;
         if (filterExec.child() instanceof EsQueryExec queryExec) {
-            List<Expression> pushable = new ArrayList<>();
-            List<Expression> nonPushable = new ArrayList<>();
-            for (Expression exp : splitAnd(filterExec.condition())) {
-                (canPushToSource(exp, x -> LucenePushDownUtils.hasIdenticalDelegate(x, ctx.searchStats())) ? pushable : nonPushable).add(
-                    exp
-                );
-            }
-            // Combine GT, GTE, LT and LTE in pushable to Range if possible
-            List<Expression> newPushable = combineEligiblePushableToRange(pushable);
-            if (newPushable.size() > 0) { // update the executable with pushable conditions
-                Query queryDSL = PlannerUtils.TRANSLATOR_HANDLER.asQuery(Predicates.combineAnd(newPushable));
-                QueryBuilder planQuery = queryDSL.asBuilder();
-                var query = Queries.combine(Queries.Clause.FILTER, asList(queryExec.query(), planQuery));
-                queryExec = new EsQueryExec(
-                    queryExec.source(),
-                    queryExec.index(),
-                    queryExec.indexMode(),
-                    queryExec.output(),
-                    query,
-                    queryExec.limit(),
-                    queryExec.sorts(),
-                    queryExec.estimatedRowSize()
-                );
-                if (nonPushable.size() > 0) { // update filter with remaining non-pushable conditions
-                    plan = new FilterExec(filterExec.source(), queryExec, Predicates.combineAnd(nonPushable));
-                } else { // prune Filter entirely
-                    plan = queryExec;
-                }
-            } // else: nothing changes
+            plan = planFilterExec(filterExec, queryExec, ctx);
+        } else if (filterExec.child() instanceof EvalExec evalExec && evalExec.child() instanceof EsQueryExec queryExec) {
+            plan = planFilterExec(filterExec, evalExec, queryExec, ctx);
         }
-
         return plan;
+    }
+
+    private static PhysicalPlan planFilterExec(FilterExec filterExec, EsQueryExec queryExec, LocalPhysicalOptimizerContext ctx) {
+        List<Expression> pushable = new ArrayList<>();
+        List<Expression> nonPushable = new ArrayList<>();
+        for (Expression exp : splitAnd(filterExec.condition())) {
+            (canPushToSource(exp, LucenePushdownPredicates.from(ctx.searchStats())) ? pushable : nonPushable).add(exp);
+        }
+        return rewrite(filterExec, queryExec, pushable, nonPushable, List.of());
+    }
+
+    private static PhysicalPlan planFilterExec(
+        FilterExec filterExec,
+        EvalExec evalExec,
+        EsQueryExec queryExec,
+        LocalPhysicalOptimizerContext ctx
+    ) {
+        AttributeMap<Attribute> aliasReplacedBy = getAliasReplacedBy(evalExec);
+        List<Expression> pushable = new ArrayList<>();
+        List<Expression> nonPushable = new ArrayList<>();
+        for (Expression exp : splitAnd(filterExec.condition())) {
+            Expression resExp = exp.transformUp(ReferenceAttribute.class, r -> aliasReplacedBy.resolve(r, r));
+            (canPushToSource(resExp, LucenePushdownPredicates.from(ctx.searchStats())) ? pushable : nonPushable).add(exp);
+        }
+        // Replace field references with their actual field attributes
+        pushable.replaceAll(e -> e.transformDown(ReferenceAttribute.class, r -> aliasReplacedBy.resolve(r, r)));
+        return rewrite(filterExec, queryExec, pushable, nonPushable, evalExec.fields());
+    }
+
+    static AttributeMap<Attribute> getAliasReplacedBy(EvalExec evalExec) {
+        AttributeMap.Builder<Attribute> aliasReplacedByBuilder = AttributeMap.builder();
+        evalExec.fields().forEach(alias -> {
+            if (alias.child() instanceof Attribute attr) {
+                aliasReplacedByBuilder.put(alias.toAttribute(), attr);
+            }
+        });
+        return aliasReplacedByBuilder.build();
+    }
+
+    private static PhysicalPlan rewrite(
+        FilterExec filterExec,
+        EsQueryExec queryExec,
+        List<Expression> pushable,
+        List<Expression> nonPushable,
+        List<Alias> evalFields
+    ) {
+        // Combine GT, GTE, LT and LTE in pushable to Range if possible
+        List<Expression> newPushable = combineEligiblePushableToRange(pushable);
+        if (newPushable.size() > 0) { // update the executable with pushable conditions
+            Query queryDSL = TRANSLATOR_HANDLER.asQuery(Predicates.combineAnd(newPushable));
+            QueryBuilder planQuery = queryDSL.asBuilder();
+            var query = Queries.combine(Queries.Clause.FILTER, asList(queryExec.query(), planQuery));
+            queryExec = new EsQueryExec(
+                queryExec.source(),
+                queryExec.indexPattern(),
+                queryExec.indexMode(),
+                queryExec.indexNameWithModes(),
+                queryExec.output(),
+                query,
+                queryExec.limit(),
+                queryExec.sorts(),
+                queryExec.estimatedRowSize()
+            );
+            // If the eval contains other aliases, not just field attributes, we need to keep them in the plan
+            PhysicalPlan plan = evalFields.isEmpty() ? queryExec : new EvalExec(filterExec.source(), queryExec, evalFields);
+            if (nonPushable.size() > 0) {
+                // update filter with remaining non-pushable conditions
+                return new FilterExec(filterExec.source(), plan, Predicates.combineAnd(nonPushable));
+            } else {
+                // prune Filter entirely
+                return plan;
+            }
+        } // else: nothing changes
+        return filterExec;
     }
 
     private static List<Expression> combineEligiblePushableToRange(List<Expression> pushable) {
@@ -167,55 +199,17 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
         return changed ? CollectionUtils.combine(others, bcs, ranges) : pushable;
     }
 
-    public static boolean canPushToSource(Expression exp, Predicate<FieldAttribute> hasIdenticalDelegate) {
-        if (exp instanceof BinaryComparison bc) {
-            return isAttributePushable(bc.left(), bc, hasIdenticalDelegate) && bc.right().foldable();
-        } else if (exp instanceof InsensitiveBinaryComparison bc) {
-            return isAttributePushable(bc.left(), bc, hasIdenticalDelegate) && bc.right().foldable();
-        } else if (exp instanceof BinaryLogic bl) {
-            return canPushToSource(bl.left(), hasIdenticalDelegate) && canPushToSource(bl.right(), hasIdenticalDelegate);
-        } else if (exp instanceof In in) {
-            return isAttributePushable(in.value(), null, hasIdenticalDelegate) && Expressions.foldable(in.list());
-        } else if (exp instanceof Not not) {
-            return canPushToSource(not.field(), hasIdenticalDelegate);
-        } else if (exp instanceof UnaryScalarFunction usf) {
-            if (usf instanceof RegexMatch<?> || usf instanceof IsNull || usf instanceof IsNotNull) {
-                if (usf instanceof IsNull || usf instanceof IsNotNull) {
-                    if (usf.field() instanceof FieldAttribute fa && fa.dataType().equals(DataType.TEXT)) {
-                        return true;
-                    }
-                }
-                return isAttributePushable(usf.field(), usf, hasIdenticalDelegate);
-            }
-        } else if (exp instanceof CIDRMatch cidrMatch) {
-            return isAttributePushable(cidrMatch.ipField(), cidrMatch, hasIdenticalDelegate) && Expressions.foldable(cidrMatch.matches());
-        } else if (exp instanceof SpatialRelatesFunction bc) {
-            return bc.canPushToSource(LucenePushDownUtils::isAggregatable);
-        } else if (exp instanceof MatchQueryPredicate mqp) {
-            return mqp.field() instanceof FieldAttribute && DataType.isString(mqp.field().dataType());
-        } else if (exp instanceof StringQueryPredicate) {
-            return true;
-        } else if (exp instanceof FullTextFunction) {
-            return true;
-        }
-        return false;
+    /**
+     * Check if the given expression can be pushed down to the source.
+     * This version of the check is called when we do not have SearchStats available. It assumes no exact subfields for TEXT fields,
+     * and makes the indexed/doc-values check using the isAggregatable flag only, which comes from field-caps, represents the field state
+     * over the entire cluster (is not node specific), and has risks for indexed=false/doc_values=true fields.
+     */
+    public static boolean canPushToSource(Expression exp) {
+        return canPushToSource(exp, LucenePushdownPredicates.DEFAULT);
     }
 
-    private static boolean isAttributePushable(
-        Expression expression,
-        Expression operation,
-        Predicate<FieldAttribute> hasIdenticalDelegate
-    ) {
-        if (LucenePushDownUtils.isPushableFieldAttribute(expression, hasIdenticalDelegate)) {
-            return true;
-        }
-        if (expression instanceof MetadataAttribute ma && ma.searchable()) {
-            return operation == null
-                // no range or regex queries supported with metadata fields
-                || operation instanceof Equals
-                || operation instanceof NotEquals
-                || operation instanceof WildcardLike;
-        }
-        return false;
+    static boolean canPushToSource(Expression exp, LucenePushdownPredicates lucenePushdownPredicates) {
+        return exp instanceof TranslationAware aware && aware.translatable(lucenePushdownPredicates);
     }
 }

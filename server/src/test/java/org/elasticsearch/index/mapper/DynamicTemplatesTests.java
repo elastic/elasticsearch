@@ -21,8 +21,9 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.test.XContentTestUtils;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
@@ -666,17 +667,8 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
             {"foo": "41.12,-71.34", "bar": "41.12,-71.34"}
             """;
         ParsedDocument doc = mapperService.documentMapper()
-            .parse(
-                new SourceToParse(
-                    "1",
-                    new BytesArray(json),
-                    XContentType.JSON,
-                    null,
-                    Map.of("foo", "geo_point"),
-                    XContentMeteringParserDecorator.NOOP
-                )
-            );
-        assertThat(doc.rootDoc().getFields("foo"), hasSize(2));
+            .parse(new SourceToParse("1", new BytesArray(json), XContentType.JSON, null, Map.of("foo", "geo_point")));
+        assertThat(doc.rootDoc().getFields("foo"), hasSize(1));
         assertThat(doc.rootDoc().getFields("bar"), hasSize(1));
     }
 
@@ -1376,7 +1368,44 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
         );
     }
 
+    /**
+     * test that bad mapping is accepted for indices created before 8.0.0.
+     * We still need to test this in v9 because of N-2 read compatibility
+     */
+    public void testMalformedDynamicMapping_v7() throws IOException {
+        String mapping = """
+                {
+                    "_doc": {
+                        "dynamic_templates": [
+                            {
+                                "my_template": {
+                                    "mapping": {
+                                        "ignore_malformed": true,
+                                        "type": "keyword"
+                                    },
+                                    "path_match": "*"
+                                }
+                            }
+                        ]
+                    }
+                }
+            """;
+        MapperParsingException ex = expectThrows(MapperParsingException.class, () -> createMapperService(mapping));
+        assertThat(ex.getMessage(), containsString("dynamic template [my_template] has invalid content"));
+
+        // the previous exception should be ignored by indices with v7 index versions
+        IndexVersion indexVersion = IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersions.V_8_0_0);
+        Settings settings = Settings.builder().put("number_of_shards", 1).put("index.version.created", indexVersion).build();
+        MapperService mapperService = createMapperService(indexVersion, settings, () -> randomBoolean());
+        merge(mapperService, mapping);
+        assertWarnings(
+            "Parameter [ignore_malformed] is used in a dynamic template mapping and has no effect on type [keyword]. "
+                + "Usage will result in an error in future major versions and should be removed."
+        );
+    }
+
     public void testSubobjectsAutoFlatPaths() throws IOException {
+        assumeTrue("only test when feature flag for subobjects auto is enabled", ObjectMapper.SUB_OBJECTS_AUTO_FEATURE_FLAG.isEnabled());
         MapperService mapperService = createDynamicTemplateAutoSubobjects();
         ParsedDocument doc = mapperService.documentMapper().parse(source(b -> {
             b.field("foo.metric.count", 10);
@@ -1389,6 +1418,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
     }
 
     public void testSubobjectsAutoStructuredPaths() throws IOException {
+        assumeTrue("only test when feature flag for subobjects auto is enabled", ObjectMapper.SUB_OBJECTS_AUTO_FEATURE_FLAG.isEnabled());
         MapperService mapperService = createDynamicTemplateAutoSubobjects();
         ParsedDocument doc = mapperService.documentMapper().parse(source(b -> {
             b.startObject("foo");
@@ -1411,6 +1441,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
     }
 
     public void testSubobjectsAutoArrayOfObjects() throws IOException {
+        assumeTrue("only test when feature flag for subobjects auto is enabled", ObjectMapper.SUB_OBJECTS_AUTO_FEATURE_FLAG.isEnabled());
         MapperService mapperService = createDynamicTemplateAutoSubobjects();
         ParsedDocument doc = mapperService.documentMapper().parse(source(b -> {
             b.startObject("foo");
@@ -1444,6 +1475,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
     }
 
     public void testSubobjectAutoDynamicNested() throws IOException {
+        assumeTrue("only test when feature flag for subobjects auto is enabled", ObjectMapper.SUB_OBJECTS_AUTO_FEATURE_FLAG.isEnabled());
         DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
             b.startArray("dynamic_templates");
             {
@@ -1482,6 +1514,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
     }
 
     public void testRootSubobjectAutoDynamicNested() throws IOException {
+        assumeTrue("only test when feature flag for subobjects auto is enabled", ObjectMapper.SUB_OBJECTS_AUTO_FEATURE_FLAG.isEnabled());
         DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
             b.startArray("dynamic_templates");
             {
@@ -1515,6 +1548,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
     }
 
     public void testDynamicSubobjectsAutoDynamicFalse() throws Exception {
+        assumeTrue("only test when feature flag for subobjects auto is enabled", ObjectMapper.SUB_OBJECTS_AUTO_FEATURE_FLAG.isEnabled());
         // verify that we read the dynamic value properly from the parent mapper. DocumentParser#dynamicOrDefault splits the field
         // name where dots are found, but it does that only for the parent prefix e.g. metrics.service and not for the leaf suffix time.max
         DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
@@ -1578,6 +1612,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
     }
 
     public void testSubobjectsAutoWithInnerNestedFromDynamicTemplate() throws IOException {
+        assumeTrue("only test when feature flag for subobjects auto is enabled", ObjectMapper.SUB_OBJECTS_AUTO_FEATURE_FLAG.isEnabled());
         DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
             b.startArray("dynamic_templates");
             {
@@ -2045,6 +2080,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
     }
 
     public void testSubobjectsAutoFlattened() throws IOException {
+        assumeTrue("only test when feature flag for subobjects auto is enabled", ObjectMapper.SUB_OBJECTS_AUTO_FEATURE_FLAG.isEnabled());
         String mapping = """
             {
               "_doc": {

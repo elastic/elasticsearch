@@ -23,10 +23,12 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
+import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -98,6 +100,17 @@ public class NestedObjectMapper extends ObjectMapper {
             } else {
                 nestedTypePath = fullPath;
             }
+            if (sourceKeepMode.orElse(SourceKeepMode.NONE) == SourceKeepMode.ARRAYS) {
+                throw new MapperException(
+                    "parameter [ "
+                        + Mapper.SYNTHETIC_SOURCE_KEEP_PARAM
+                        + " ] can't be set to ["
+                        + SourceKeepMode.ARRAYS
+                        + "] for nested object ["
+                        + fullPath
+                        + "]"
+                );
+            }
             final Query nestedTypeFilter = NestedPathFieldMapper.filter(indexCreatedVersion, nestedTypePath);
             NestedMapperBuilderContext nestedContext = new NestedMapperBuilderContext(
                 context.buildFullName(leafName()),
@@ -115,7 +128,7 @@ public class NestedObjectMapper extends ObjectMapper {
                 buildMappers(nestedContext),
                 enabled,
                 dynamic,
-                storeArraySource,
+                sourceKeepMode,
                 includeInParent,
                 includeInRoot,
                 parentTypeFilter,
@@ -213,7 +226,7 @@ public class NestedObjectMapper extends ObjectMapper {
         Map<String, Mapper> mappers,
         Explicit<Boolean> enabled,
         ObjectMapper.Dynamic dynamic,
-        Explicit<Boolean> storeArraySource,
+        Optional<SourceKeepMode> sourceKeepMode,
         Explicit<Boolean> includeInParent,
         Explicit<Boolean> includeInRoot,
         Query parentTypeFilter,
@@ -222,7 +235,7 @@ public class NestedObjectMapper extends ObjectMapper {
         Function<Query, BitSetProducer> bitsetProducer,
         IndexSettings indexSettings
     ) {
-        super(name, fullPath, enabled, Optional.empty(), storeArraySource, dynamic, mappers);
+        super(name, fullPath, enabled, Optional.empty(), sourceKeepMode, dynamic, mappers);
         this.parentTypeFilter = parentTypeFilter;
         this.nestedTypePath = nestedTypePath;
         this.nestedTypeFilter = nestedTypeFilter;
@@ -230,6 +243,10 @@ public class NestedObjectMapper extends ObjectMapper {
         this.includeInRoot = includeInRoot;
         this.bitsetProducer = bitsetProducer;
         this.indexSettings = indexSettings;
+    }
+
+    public IndexSettings indexSettings() {
+        return indexSettings;
     }
 
     public Query parentTypeFilter() {
@@ -283,7 +300,7 @@ public class NestedObjectMapper extends ObjectMapper {
             Map.of(),
             enabled,
             dynamic,
-            storeArraySource,
+            sourceKeepMode,
             includeInParent,
             includeInRoot,
             parentTypeFilter,
@@ -310,8 +327,8 @@ public class NestedObjectMapper extends ObjectMapper {
         if (isEnabled() != Defaults.ENABLED) {
             builder.field("enabled", enabled.value());
         }
-        if (storeArraySource != Defaults.STORE_ARRAY_SOURCE) {
-            builder.field(STORE_ARRAY_SOURCE_PARAM, storeArraySource.value());
+        if (sourceKeepMode.isPresent()) {
+            builder.field(Mapper.SYNTHETIC_SOURCE_KEEP_PARAM, sourceKeepMode.get());
         }
         serializeMappers(builder, params);
         return builder.endObject();
@@ -359,7 +376,7 @@ public class NestedObjectMapper extends ObjectMapper {
             mergeResult.mappers(),
             mergeResult.enabled(),
             mergeResult.dynamic(),
-            mergeResult.trackArraySource(),
+            mergeResult.sourceKeepMode(),
             incInParent,
             incInRoot,
             parentTypeFilter,
@@ -392,16 +409,18 @@ public class NestedObjectMapper extends ObjectMapper {
     }
 
     @Override
-    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-        if (storeArraySource()) {
-            // IgnoredSourceFieldMapper integration takes care of writing the source for nested objects that enabled store_array_source.
+    SourceLoader.SyntheticFieldLoader syntheticFieldLoader(SourceFilter filter, Collection<Mapper> mappers, boolean isFragment) {
+        // IgnoredSourceFieldMapper integration takes care of writing the source for nested objects that enabled store_array_source.
+        if (sourceKeepMode.orElse(SourceKeepMode.NONE) == SourceKeepMode.ALL) {
+            // IgnoredSourceFieldMapper integration takes care of writing the source for the nested object.
             return SourceLoader.SyntheticFieldLoader.NOTHING;
         }
 
-        SourceLoader sourceLoader = new SourceLoader.Synthetic(() -> super.syntheticFieldLoader(mappers.values().stream(), true), NOOP);
+        SourceLoader sourceLoader = new SourceLoader.Synthetic(filter, () -> super.syntheticFieldLoader(filter, mappers, true), NOOP);
         // Some synthetic source use cases require using _ignored_source field
         var requiredStoredFields = IgnoredSourceFieldMapper.ensureLoaded(sourceLoader.requiredStoredFields(), indexSettings);
-        var storedFieldLoader = org.elasticsearch.index.fieldvisitor.StoredFieldLoader.create(false, requiredStoredFields);
+        // force sequential access since nested fields are indexed per block
+        var storedFieldLoader = org.elasticsearch.index.fieldvisitor.StoredFieldLoader.create(false, requiredStoredFields, true);
         return new NestedSyntheticFieldLoader(
             storedFieldLoader,
             sourceLoader,
@@ -492,6 +511,11 @@ public class NestedObjectMapper extends ObjectMapper {
         @Override
         public String fieldName() {
             return NestedObjectMapper.this.fullPath();
+        }
+
+        @Override
+        public void reset() {
+            children.clear();
         }
     }
 }

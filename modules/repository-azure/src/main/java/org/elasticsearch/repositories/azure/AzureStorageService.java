@@ -37,7 +37,7 @@ public class AzureStorageService {
      * The maximum size of a BlockBlob block.
      * See https://docs.microsoft.com/en-us/rest/api/storageservices/understanding-block-blobs--append-blobs--and-page-blobs
      */
-    public static ByteSizeValue MAX_BLOCK_SIZE = new ByteSizeValue(100, ByteSizeUnit.MB);
+    public static final ByteSizeValue MAX_BLOCK_SIZE = ByteSizeValue.of(100, ByteSizeUnit.MB);
 
     /**
      * The maximum number of blocks.
@@ -91,7 +91,7 @@ public class AzureStorageService {
         String clientName,
         LocationMode locationMode,
         OperationPurpose purpose,
-        AzureClientProvider.SuccessfulRequestHandler successfulRequestHandler
+        AzureClientProvider.RequestMetricsHandler requestMetricsHandler
     ) {
         final AzureStorageSettings azureStorageSettings = getClientSettings(clientName);
 
@@ -102,7 +102,7 @@ public class AzureStorageService {
             locationMode,
             retryOptions,
             proxyOptions,
-            successfulRequestHandler,
+            requestMetricsHandler,
             purpose
         );
     }

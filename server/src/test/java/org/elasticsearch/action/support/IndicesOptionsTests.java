@@ -10,7 +10,6 @@
 package org.elasticsearch.action.support;
 
 import org.elasticsearch.action.support.IndicesOptions.ConcreteTargetOptions;
-import org.elasticsearch.action.support.IndicesOptions.FailureStoreOptions;
 import org.elasticsearch.action.support.IndicesOptions.GatekeeperOptions;
 import org.elasticsearch.action.support.IndicesOptions.WildcardOptions;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -56,9 +55,7 @@ public class IndicesOptionsTests extends ESTestCase {
                         .ignoreThrottled(randomBoolean())
                         .allowAliasToMultipleIndices(randomBoolean())
                         .allowClosedIndices(randomBoolean())
-                )
-                .failureStoreOptions(
-                    FailureStoreOptions.builder().includeRegularIndices(randomBoolean()).includeFailureIndices(randomBoolean())
+                        .allowSelectors(randomBoolean())
                 )
                 .build();
 
@@ -344,10 +341,15 @@ public class IndicesOptionsTests extends ESTestCase {
             randomBoolean(),
             randomBoolean()
         );
-        GatekeeperOptions gatekeeperOptions = new GatekeeperOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean());
-        FailureStoreOptions failureStoreOptions = new IndicesOptions.FailureStoreOptions(randomBoolean(), randomBoolean());
+        GatekeeperOptions gatekeeperOptions = new GatekeeperOptions(
+            randomBoolean(),
+            randomBoolean(),
+            randomBoolean(),
+            randomBoolean(),
+            randomBoolean()
+        );
 
-        IndicesOptions indicesOptions = new IndicesOptions(concreteTargetOptions, wildcardOptions, gatekeeperOptions, failureStoreOptions);
+        IndicesOptions indicesOptions = new IndicesOptions(concreteTargetOptions, wildcardOptions, gatekeeperOptions);
 
         XContentType type = randomFrom(XContentType.values());
         BytesReference xContentBytes = toXContentBytes(indicesOptions, type);
@@ -362,7 +364,6 @@ public class IndicesOptionsTests extends ESTestCase {
         assertThat(map.get("ignore_unavailable"), equalTo(concreteTargetOptions.allowUnavailableTargets()));
         assertThat(map.get("allow_no_indices"), equalTo(wildcardOptions.allowEmptyExpressions()));
         assertThat(map.get("ignore_throttled"), equalTo(gatekeeperOptions.ignoreThrottled()));
-        assertThat(map.get("failure_store"), equalTo(failureStoreOptions.displayValue()));
     }
 
     public void testFromXContent() throws IOException {

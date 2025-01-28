@@ -20,10 +20,10 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
-import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.SearchContext;
@@ -81,7 +81,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
 
     private Boolean allowPartialSearchResults;
 
-    private Scroll scroll;
+    private TimeValue scrollKeepAlive;
 
     private int batchedReduceSize = DEFAULT_BATCHED_REDUCE_SIZE;
 
@@ -91,9 +91,6 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
     private Integer preFilterShardSize;
 
     private boolean ccsMinimizeRoundtrips;
-
-    @Nullable
-    private final Version minCompatibleShardNode;
 
     public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.strictExpandOpenAndForbidClosedIgnoreThrottled();
 
@@ -112,15 +109,10 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
     private boolean forceSyntheticSource = false;
 
     public SearchRequest() {
-        this((Version) null);
-    }
-
-    public SearchRequest(Version minCompatibleShardNode) {
         this.localClusterAlias = null;
         this.absoluteStartMillis = DEFAULT_ABSOLUTE_START_MILLIS;
         this.finalReduce = true;
-        this.minCompatibleShardNode = minCompatibleShardNode;
-        this.ccsMinimizeRoundtrips = minCompatibleShardNode == null;
+        this.ccsMinimizeRoundtrips = true;
     }
 
     /**
@@ -213,13 +205,12 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         this.preFilterShardSize = searchRequest.preFilterShardSize;
         this.requestCache = searchRequest.requestCache;
         this.routing = searchRequest.routing;
-        this.scroll = searchRequest.scroll;
+        this.scrollKeepAlive = searchRequest.scrollKeepAlive;
         this.searchType = searchRequest.searchType;
         this.source = searchRequest.source;
         this.localClusterAlias = localClusterAlias;
         this.absoluteStartMillis = absoluteStartMillis;
         this.finalReduce = finalReduce;
-        this.minCompatibleShardNode = searchRequest.minCompatibleShardNode;
         this.waitForCheckpoints = searchRequest.waitForCheckpoints;
         this.waitForCheckpointsTimeout = searchRequest.waitForCheckpointsTimeout;
         this.forceSyntheticSource = searchRequest.forceSyntheticSource;
@@ -237,7 +228,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         indices = in.readStringArray();
         routing = in.readOptionalString();
         preference = in.readOptionalString();
-        scroll = in.readOptionalWriteable(Scroll::new);
+        scrollKeepAlive = in.readOptionalTimeValue();
         source = in.readOptionalWriteable(SearchSourceBuilder::new);
         if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
             // types no longer relevant so ignore
@@ -263,10 +254,10 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             finalReduce = true;
         }
         ccsMinimizeRoundtrips = in.readBoolean();
-        if (in.readBoolean()) {
-            minCompatibleShardNode = Version.readVersion(in);
-        } else {
-            minCompatibleShardNode = null;
+        if ((in.getTransportVersion().before(TransportVersions.REMOVE_MIN_COMPATIBLE_SHARD_NODE)
+            || in.getTransportVersion().onOrAfter(TransportVersions.REVERT_REMOVE_MIN_COMPATIBLE_SHARD_NODE)) && in.readBoolean()) {
+            @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA)  // this can be removed (again) when the v9 transport version can diverge
+            Version v = Version.readVersion(in); // and drop on the floor
         }
         waitForCheckpoints = in.readMap(StreamInput::readLongArray);
         waitForCheckpointsTimeout = in.readTimeValue();
@@ -284,7 +275,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         out.writeStringArray(indices);
         out.writeOptionalString(routing);
         out.writeOptionalString(preference);
-        out.writeOptionalWriteable(scroll);
+        out.writeOptionalTimeValue(scrollKeepAlive);
         out.writeOptionalWriteable(source);
         if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
             // types not supported so send an empty array to previous versions
@@ -302,9 +293,9 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             out.writeBoolean(finalReduce);
         }
         out.writeBoolean(ccsMinimizeRoundtrips);
-        out.writeBoolean(minCompatibleShardNode != null);
-        if (minCompatibleShardNode != null) {
-            Version.writeVersion(minCompatibleShardNode, out);
+        if (out.getTransportVersion().before(TransportVersions.REMOVE_MIN_COMPATIBLE_SHARD_NODE)
+            || out.getTransportVersion().onOrAfter(TransportVersions.REVERT_REMOVE_MIN_COMPATIBLE_SHARD_NODE)) {
+            out.writeBoolean(false);
         }
         out.writeMap(waitForCheckpoints, StreamOutput::writeLongArray);
         out.writeTimeValue(waitForCheckpointsTimeout);
@@ -351,14 +342,6 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
                 validationException = addValidationError("[preference] cannot be used with point in time", validationException);
             }
         }
-        if (minCompatibleShardNode() != null) {
-            if (isCcsMinimizeRoundtrips()) {
-                validationException = addValidationError(
-                    "[ccs_minimize_roundtrips] cannot be [true] when setting a minimum compatible " + "shard version",
-                    validationException
-                );
-            }
-        }
         if (pointInTimeBuilder() != null && waitForCheckpoints.isEmpty() == false) {
             validationException = addValidationError("using [point in time] is not allowed with wait_for_checkpoints", validationException);
 
@@ -399,15 +382,6 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
      */
     long getAbsoluteStartMillis() {
         return absoluteStartMillis;
-    }
-
-    /**
-     * Returns the minimum compatible shard version the search request needs to run on. If the version is null, then there are no
-     * restrictions imposed on shards versions part of this search.
-     */
-    @Nullable
-    public Version minCompatibleShardNode() {
-        return minCompatibleShardNode;
     }
 
     /**
@@ -550,23 +524,16 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
     /**
      * If set, will enable scrolling of the search request.
      */
-    public Scroll scroll() {
-        return scroll;
-    }
-
-    /**
-     * If set, will enable scrolling of the search request.
-     */
-    public SearchRequest scroll(Scroll scroll) {
-        this.scroll = scroll;
-        return this;
+    public TimeValue scroll() {
+        return scrollKeepAlive;
     }
 
     /**
      * If set, will enable scrolling of the search request for the specified timeout.
      */
     public SearchRequest scroll(TimeValue keepAlive) {
-        return scroll(new Scroll(keepAlive));
+        this.scrollKeepAlive = keepAlive;
+        return this;
     }
 
     /**
@@ -706,7 +673,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
     }
 
     public int resolveTrackTotalHitsUpTo() {
-        return resolveTrackTotalHitsUpTo(scroll, source);
+        return resolveTrackTotalHitsUpTo(scrollKeepAlive, source);
     }
 
     /**
@@ -756,7 +723,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         return hasChanged ? new SearchRequest(this).source(source) : this;
     }
 
-    public static int resolveTrackTotalHitsUpTo(Scroll scroll, SearchSourceBuilder source) {
+    public static int resolveTrackTotalHitsUpTo(TimeValue scroll, SearchSourceBuilder source) {
         if (scroll != null) {
             // no matter what the value of track_total_hits is
             return SearchContext.TRACK_TOTAL_HITS_ACCURATE;
@@ -777,8 +744,8 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         Strings.arrayToDelimitedString(indices, ",", sb);
         sb.append("]");
         sb.append(", search_type[").append(searchType).append("]");
-        if (scroll != null) {
-            sb.append(", scroll[").append(scroll.keepAlive()).append("]");
+        if (scrollKeepAlive != null) {
+            sb.append(", scroll[").append(scrollKeepAlive).append("]");
         }
         if (source != null) {
             sb.append(", source[").append(source.toString(FORMAT_PARAMS)).append("]");
@@ -809,7 +776,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             && Objects.equals(preference, that.preference)
             && Objects.equals(source, that.source)
             && Objects.equals(requestCache, that.requestCache)
-            && Objects.equals(scroll, that.scroll)
+            && Objects.equals(scrollKeepAlive, that.scrollKeepAlive)
             && Objects.equals(batchedReduceSize, that.batchedReduceSize)
             && Objects.equals(maxConcurrentShardRequests, that.maxConcurrentShardRequests)
             && Objects.equals(preFilterShardSize, that.preFilterShardSize)
@@ -818,7 +785,6 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             && Objects.equals(localClusterAlias, that.localClusterAlias)
             && absoluteStartMillis == that.absoluteStartMillis
             && ccsMinimizeRoundtrips == that.ccsMinimizeRoundtrips
-            && Objects.equals(minCompatibleShardNode, that.minCompatibleShardNode)
             && forceSyntheticSource == that.forceSyntheticSource;
     }
 
@@ -831,7 +797,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             preference,
             source,
             requestCache,
-            scroll,
+            scrollKeepAlive,
             indicesOptions,
             batchedReduceSize,
             maxConcurrentShardRequests,
@@ -840,7 +806,6 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             localClusterAlias,
             absoluteStartMillis,
             ccsMinimizeRoundtrips,
-            minCompatibleShardNode,
             forceSyntheticSource
         );
     }
@@ -863,7 +828,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             + ", requestCache="
             + requestCache
             + ", scroll="
-            + scroll
+            + scrollKeepAlive
             + ", maxConcurrentShardRequests="
             + maxConcurrentShardRequests
             + ", batchedReduceSize="

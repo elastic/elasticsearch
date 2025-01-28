@@ -17,6 +17,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.recovery.RecoverySettings;
+import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -40,7 +41,8 @@ public class AzureRepositorySettingsTests extends ESTestCase {
             mock(AzureStorageService.class),
             BlobStoreTestUtil.mockClusterService(),
             MockBigArrays.NON_RECYCLING_INSTANCE,
-            new RecoverySettings(settings, new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))
+            new RecoverySettings(settings, new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
+            RepositoriesMetrics.NOOP
         );
         assertThat(azureRepository.getBlobStore(), is(nullValue()));
         return azureRepository;
@@ -131,7 +133,7 @@ public class AzureRepositorySettingsTests extends ESTestCase {
         // chunk size in settings
         int size = randomIntBetween(1, 256);
         azureRepository = azureRepository(Settings.builder().put("chunk_size", size + "mb").build());
-        assertEquals(new ByteSizeValue(size, ByteSizeUnit.MB), azureRepository.chunkSize());
+        assertEquals(ByteSizeValue.of(size, ByteSizeUnit.MB), azureRepository.chunkSize());
 
         // zero bytes is not allowed
         IllegalArgumentException e = expectThrows(

@@ -241,16 +241,23 @@ any issues, but features in technical preview are not subject to the support SLA
 of official GA features.
 
 `boolean` fields support <<synthetic-source,synthetic `_source`>> in their
-default configuration. Synthetic `_source` cannot be used together with
-<<copy-to,`copy_to`>> or with <<doc-values,`doc_values`>> disabled.
+default configuration.
 
-Synthetic source always sorts `boolean` fields. For example:
+Synthetic source may sort `boolean` field values. For example:
 [source,console,id=synthetic-source-boolean-example]
 ----
 PUT idx
 {
+  "settings": {
+    "index": {
+      "mapping": {
+        "source": {
+          "mode": "synthetic"
+        }
+      }
+    }
+  },
   "mappings": {
-    "_source": { "mode": "synthetic" },
     "properties": {
       "bool": { "type": "boolean" }
     }

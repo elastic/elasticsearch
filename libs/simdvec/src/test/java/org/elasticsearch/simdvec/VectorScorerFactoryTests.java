@@ -21,7 +21,7 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
-import org.apache.lucene.util.quantization.RandomAccessQuantizedByteVectorValues;
+import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
 import org.apache.lucene.util.quantization.ScalarQuantizer;
 
 import java.io.IOException;
@@ -431,14 +431,13 @@ public class VectorScorerFactoryTests extends AbstractVectorTestCase {
         }
     }
 
-    RandomAccessQuantizedByteVectorValues vectorValues(int dims, int size, IndexInput in, VectorSimilarityFunction sim) throws IOException {
+    QuantizedByteVectorValues vectorValues(int dims, int size, IndexInput in, VectorSimilarityFunction sim) throws IOException {
         var sq = new ScalarQuantizer(0.1f, 0.9f, (byte) 7);
         var slice = in.slice("values", 0, in.length());
         return new OffHeapQuantizedByteVectorValues.DenseOffHeapVectorValues(dims, size, sq, false, sim, null, slice);
     }
 
-    RandomVectorScorerSupplier luceneScoreSupplier(RandomAccessQuantizedByteVectorValues values, VectorSimilarityFunction sim)
-        throws IOException {
+    RandomVectorScorerSupplier luceneScoreSupplier(QuantizedByteVectorValues values, VectorSimilarityFunction sim) throws IOException {
         return new Lucene99ScalarQuantizedVectorScorer(null).getRandomVectorScorerSupplier(sim, values);
     }
 

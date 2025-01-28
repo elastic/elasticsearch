@@ -6,6 +6,12 @@
 
 beta::[]
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-connector[Connector APIs].
+--
+
 Creates an Elastic connector.
 Connectors are {es} integrations that bring content from third-party data sources, which can be deployed on {ecloud} or hosted on your own infrastructure:
 
@@ -116,7 +122,7 @@ PUT _connector/my-connector
   "name": "My Connector",
   "description": "My Connector to sync data to Elastic index from Google Drive",
   "service_type": "google_drive",
-  "language": "english"
+  "language": "en"
 }
 ----
 

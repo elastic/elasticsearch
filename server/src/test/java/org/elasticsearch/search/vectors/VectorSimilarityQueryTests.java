@@ -62,14 +62,14 @@ public class VectorSimilarityQueryTests extends ESTestCase {
                     new VectorSimilarityQuery(new KnnFloatVectorQuery("float_vector", new float[] { 1, 1, 1 }, 5), 3f, 0.25f),
                     5
                 );
-                assertThat(docs.totalHits.value, equalTo(5L));
+                assertThat(docs.totalHits.value(), equalTo(5L));
 
                 // Should match only 4
                 docs = searcher.search(
                     new VectorSimilarityQuery(new KnnFloatVectorQuery("float_vector", new float[] { 1, 1, 1 }, 5), 1f, 0.5f),
                     5
                 );
-                assertThat(docs.totalHits.value, equalTo(4L));
+                assertThat(docs.totalHits.value(), equalTo(4L));
             }
         }
     }
@@ -138,14 +138,14 @@ public class VectorSimilarityQueryTests extends ESTestCase {
                     new VectorSimilarityQuery(new KnnFloatVectorQuery("float_vector", new float[] { 1, 1, 1 }, 5), .8f, .9f),
                     5
                 );
-                assertThat(docs.totalHits.value, equalTo(5L));
+                assertThat(docs.totalHits.value(), equalTo(5L));
 
                 // Should match only 4
                 docs = searcher.search(
                     new VectorSimilarityQuery(new KnnFloatVectorQuery("float_vector", new float[] { 1, 1, 1 }, 5), .9f, 0.95f),
                     5
                 );
-                assertThat(docs.totalHits.value, equalTo(4L));
+                assertThat(docs.totalHits.value(), equalTo(4L));
             }
         }
     }

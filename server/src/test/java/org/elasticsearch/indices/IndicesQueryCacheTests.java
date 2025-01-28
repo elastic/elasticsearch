@@ -70,8 +70,9 @@ public class IndicesQueryCacheTests extends ESTestCase {
         public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
             return new ConstantScoreWeight(this, boost) {
                 @Override
-                public Scorer scorer(LeafReaderContext context) throws IOException {
-                    return new ConstantScoreScorer(this, score(), scoreMode, DocIdSetIterator.all(context.reader().maxDoc()));
+                public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
+                    Scorer scorer = new ConstantScoreScorer(score(), scoreMode, DocIdSetIterator.all(context.reader().maxDoc()));
+                    return new DefaultScorerSupplier(scorer);
                 }
 
                 @Override
@@ -349,15 +350,21 @@ public class IndicesQueryCacheTests extends ESTestCase {
         }
 
         @Override
-        public Scorer scorer(LeafReaderContext context) throws IOException {
-            scorerCalled = true;
-            return weight.scorer(context);
-        }
-
-        @Override
         public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
             scorerSupplierCalled = true;
-            return weight.scorerSupplier(context);
+            ScorerSupplier inScorerSupplier = weight.scorerSupplier(context);
+            return new ScorerSupplier() {
+                @Override
+                public Scorer get(long leadCost) throws IOException {
+                    scorerCalled = true;
+                    return inScorerSupplier.get(leadCost);
+                }
+
+                @Override
+                public long cost() {
+                    return inScorerSupplier.cost();
+                }
+            };
         }
 
         @Override

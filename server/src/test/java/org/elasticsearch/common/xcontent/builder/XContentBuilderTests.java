@@ -189,7 +189,7 @@ public class XContentBuilderTests extends ESTestCase {
         Calendar calendar = new GregorianCalendar(TimeZone.getTimeZone("UTC"), Locale.ROOT);
         String expectedCalendar = XContentElasticsearchExtension.DEFAULT_FORMATTER.format(calendar.toInstant());
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-        builder.startObject().timeField("date", date).endObject();
+        builder.startObject().timestampField("date", date).endObject();
         assertThat(Strings.toString(builder), equalTo("{\"date\":\"" + expectedDate + "\"}"));
 
         builder = XContentFactory.contentBuilder(XContentType.JSON);

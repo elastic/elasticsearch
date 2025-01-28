@@ -70,11 +70,12 @@ import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.lucene.grouping.TopFieldGroups;
-import org.elasticsearch.search.retriever.rankdoc.RankDocsSortField;
 import org.elasticsearch.search.sort.ShardDocSortField;
 
 import java.io.IOException;
@@ -88,8 +89,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.apache.lucene.util.Version.LUCENE_10_0_0;
+
 public class Lucene {
-    public static final String LATEST_CODEC = "Lucene912";
+    public static final String LATEST_CODEC = "Lucene100";
 
     public static final String SOFT_DELETES_FIELD = "__soft_deletes";
 
@@ -109,13 +112,6 @@ public class Lucene {
     public static final TopDocs EMPTY_TOP_DOCS = new TopDocs(TOTAL_HITS_EQUAL_TO_ZERO, EMPTY_SCORE_DOCS);
 
     private Lucene() {}
-
-    /**
-     * Reads the segments infos, failing if it fails to load
-     */
-    public static SegmentInfos readSegmentInfos(Directory directory) throws IOException {
-        return SegmentInfos.readLatestCommit(directory);
-    }
 
     /**
      * Returns an iterable that allows to iterate over all files in this segments info
@@ -141,20 +137,44 @@ public class Lucene {
     }
 
     /**
+     * Reads the segments infos, failing if it fails to load
+     */
+    public static SegmentInfos readSegmentInfos(Directory directory) throws IOException {
+        return SegmentInfos.readLatestCommit(directory, IndexVersions.MINIMUM_READONLY_COMPATIBLE.luceneVersion().major);
+    }
+
+    /**
      * Reads the segments infos from the given commit, failing if it fails to load
      */
     public static SegmentInfos readSegmentInfos(IndexCommit commit) throws IOException {
-        // Using commit.getSegmentsFileName() does NOT work here, have to
-        // manually create the segment filename
+        // Using commit.getSegmentsFileName() does NOT work here, have to manually create the segment filename
         String filename = IndexFileNames.fileNameFromGeneration(IndexFileNames.SEGMENTS, "", commit.getGeneration());
-        return SegmentInfos.readCommit(commit.getDirectory(), filename);
+        return readSegmentInfos(filename, commit.getDirectory());
     }
 
     /**
      * Reads the segments infos from the given segments file name, failing if it fails to load
      */
     private static SegmentInfos readSegmentInfos(String segmentsFileName, Directory directory) throws IOException {
-        return SegmentInfos.readCommit(directory, segmentsFileName);
+        // TODO Use readCommit(Directory directory, String segmentFileName, int minSupportedMajorVersion) once Lucene 10.1 is available
+        // and remove the try-catch block for IndexFormatTooOldException
+        assert IndexVersion.current().luceneVersion().equals(LUCENE_10_0_0) : "remove the try-catch block below";
+        try {
+            return SegmentInfos.readCommit(directory, segmentsFileName);
+        } catch (IndexFormatTooOldException e) {
+            try {
+                // Temporary workaround until Lucene 10.1 is available: try to leverage min. read-only compatibility to read the last commit
+                // and then check if this is the commit we want. This should always work for the case we are interested in (archive and
+                // searchable snapshots indices in N-2 version) as no newer commit should be ever written.
+                var segmentInfos = readSegmentInfos(directory);
+                if (segmentsFileName.equals(segmentInfos.getSegmentsFileName())) {
+                    return segmentInfos;
+                }
+            } catch (Exception suppressed) {
+                e.addSuppressed(suppressed);
+            }
+            throw e;
+        }
     }
 
     /**
@@ -393,8 +413,8 @@ public class Lucene {
     private static final Class<?> GEO_DISTANCE_SORT_TYPE_CLASS = LatLonDocValuesField.newDistanceSort("some_geo_field", 0, 0).getClass();
 
     public static void writeTotalHits(StreamOutput out, TotalHits totalHits) throws IOException {
-        out.writeVLong(totalHits.value);
-        out.writeEnum(totalHits.relation);
+        out.writeVLong(totalHits.value());
+        out.writeEnum(totalHits.relation());
     }
 
     public static void writeTopDocs(StreamOutput out, TopDocsAndMaxScore topDocs) throws IOException {
@@ -553,8 +573,6 @@ public class Lucene {
             return newSortField;
         } else if (sortField.getClass() == ShardDocSortField.class) {
             return new SortField(sortField.getField(), SortField.Type.LONG, sortField.getReverse());
-        } else if (sortField.getClass() == RankDocsSortField.class) {
-            return new SortField(sortField.getField(), SortField.Type.INT, sortField.getReverse());
         } else {
             return sortField;
         }

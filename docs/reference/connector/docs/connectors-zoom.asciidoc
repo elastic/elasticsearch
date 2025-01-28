@@ -63,18 +63,22 @@ To connect to Zoom you need to https://developers.zoom.us/docs/internal-apps/s2s
 6. Click on the "Create" button to create the app registration.
 7. After the registration is complete, you will be redirected to the app's overview page. Take note of the "App Credentials" value, as you'll need it later.
 8. Navigate to the "Scopes" section and click on the "Add Scopes" button.
-9. The following scopes need to be added to the app.
+9. The following granular scopes need to be added to the app.
 +
 [source,bash]
 ----
-user:read:admin
-meeting:read:admin
-chat_channel:read:admin
-recording:read:admin
-chat_message:read:admin
-report:read:admin
+user:read:list_users:admin
+meeting:read:list_meetings:admin
+meeting:read:list_past_participants:admin
+cloud_recording:read:list_user_recordings:admin
+team_chat:read:list_user_channels:admin
+team_chat:read:list_user_messages:admin
 ----
-
+[NOTE]
+====
+The connector requires a minimum scope of `user:read:list_users:admin` to ingest data into Elasticsearch.
+====
++
 10. Click on the "Done" button to add the selected scopes to your app.
 11. Navigate to the "Activation" section and input the necessary information to activate the app.
 
@@ -220,18 +224,22 @@ To connect to Zoom you need to https://developers.zoom.us/docs/internal-apps/s2s
 6. Click on the "Create" button to create the app registration.
 7. After the registration is complete, you will be redirected to the app's overview page. Take note of the "App Credentials" value, as you'll need it later.
 8. Navigate to the "Scopes" section and click on the "Add Scopes" button.
-9. The following scopes need to be added to the app.
+9. The following granular scopes need to be added to the app.
 +
 [source,bash]
 ----
-user:read:admin
-meeting:read:admin
-chat_channel:read:admin
-recording:read:admin
-chat_message:read:admin
-report:read:admin
+user:read:list_users:admin
+meeting:read:list_meetings:admin
+meeting:read:list_past_participants:admin
+cloud_recording:read:list_user_recordings:admin
+team_chat:read:list_user_channels:admin
+team_chat:read:list_user_messages:admin
 ----
-
+[NOTE]
+====
+The connector requires a minimum scope of `user:read:list_users:admin` to ingest data into Elasticsearch.
+====
++
 10. Click on the "Done" button to add the selected scopes to your app.
 11. Navigate to the "Activation" section and input the necessary information to activate the app.
 

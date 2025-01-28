@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.services.googlevertexai.rerank;
 
 import org.apache.http.client.utils.URIBuilder;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
@@ -26,8 +27,6 @@ import java.util.Map;
 import static org.elasticsearch.core.Strings.format;
 
 public class GoogleVertexAiRerankModel extends GoogleVertexAiModel {
-
-    private URI uri;
 
     public GoogleVertexAiRerankModel(
         String inferenceEntityId,
@@ -115,12 +114,8 @@ public class GoogleVertexAiRerankModel extends GoogleVertexAiModel {
         return (GoogleDiscoveryEngineRateLimitServiceSettings) super.rateLimitServiceSettings();
     }
 
-    public URI uri() {
-        return uri;
-    }
-
     @Override
-    public ExecutableAction accept(GoogleVertexAiActionVisitor visitor, Map<String, Object> taskSettings) {
+    public ExecutableAction accept(GoogleVertexAiActionVisitor visitor, Map<String, Object> taskSettings, InputType inputType) {
         return visitor.create(this, taskSettings);
     }
 

@@ -14,16 +14,20 @@ import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.NumericUtils;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.function.Consumer;
 
 import static java.util.Collections.singleton;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.stats;
 
 public class ExtendedStatsAggregatorTests extends AggregatorTestCase {
     private static final double TOLERANCE = 1e-5;
@@ -32,6 +36,37 @@ public class ExtendedStatsAggregatorTests extends AggregatorTestCase {
 
     public void testEmpty() throws IOException {
         MappedFieldType ft = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.LONG);
+        testCase(ft, iw -> {}, stats -> {
+            assertEquals(0d, stats.getCount(), 0);
+            assertEquals(0d, stats.getSum(), 0);
+            assertEquals(Float.NaN, stats.getAvg(), 0);
+            assertEquals(Double.POSITIVE_INFINITY, stats.getMin(), 0);
+            assertEquals(Double.NEGATIVE_INFINITY, stats.getMax(), 0);
+            assertEquals(Double.NaN, stats.getVariance(), 0);
+            assertEquals(Double.NaN, stats.getVariancePopulation(), 0);
+            assertEquals(Double.NaN, stats.getVarianceSampling(), 0);
+            assertEquals(Double.NaN, stats.getStdDeviation(), 0);
+            assertEquals(Double.NaN, stats.getStdDeviationPopulation(), 0);
+            assertEquals(Double.NaN, stats.getStdDeviationSampling(), 0);
+            assertEquals(0d, stats.getSumOfSquares(), 0);
+            assertFalse(AggregationInspectionHelper.hasValue(stats));
+        });
+    }
+
+    public void testEmptyDate() throws IOException {
+        DateFormatter.forPattern("epoch_millis");
+        final MappedFieldType ft = new DateFieldMapper.DateFieldType(
+            "field",
+            true,
+            true,
+            false,
+            true,
+            DateFormatter.forPattern("epoch_millis"),
+            DateFieldMapper.Resolution.MILLISECONDS,
+            null,
+            null,
+            Map.of()
+        );
         testCase(ft, iw -> {}, stats -> {
             assertEquals(0d, stats.getCount(), 0);
             assertEquals(0d, stats.getSum(), 0);

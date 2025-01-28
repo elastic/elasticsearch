@@ -66,7 +66,6 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.search.SearchResponseMetrics;
 import org.elasticsearch.search.DummyQueryBuilder;
-import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchShardTarget;
@@ -131,6 +130,7 @@ import static org.hamcrest.CoreMatchers.startsWith;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -486,7 +486,7 @@ public class TransportSearchActionTests extends ESTestCase {
                 threadPool
             );
             mockTransportServices[i] = remoteSeedTransport;
-            DiscoveryNode remoteSeedNode = remoteSeedTransport.getLocalDiscoNode();
+            DiscoveryNode remoteSeedNode = remoteSeedTransport.getLocalNode();
             knownNodes.add(remoteSeedNode);
             nodes[i] = remoteSeedNode;
             settingsBuilder.put("cluster.remote.remote" + i + ".seeds", remoteSeedNode.getAddress().toString());
@@ -1348,7 +1348,7 @@ public class TransportSearchActionTests extends ESTestCase {
             SearchRequestTests searchRequestTests = new SearchRequestTests();
             searchRequestTests.setUp();
             SearchRequest searchRequest = searchRequestTests.createSearchRequest();
-            searchRequest.scroll((Scroll) null);
+            searchRequest.scroll(null);
             searchRequest.searchType(SearchType.QUERY_THEN_FETCH);
             SearchSourceBuilder source = searchRequest.source();
             if (source != null) {
@@ -1367,7 +1367,7 @@ public class TransportSearchActionTests extends ESTestCase {
         {
             SearchRequest searchRequest = new SearchRequest();
             SearchSourceBuilder source = new SearchSourceBuilder();
-            source.knnSearch(List.of(new KnnSearchBuilder("field", new float[] { 1, 2, 3 }, 10, 50, null)));
+            source.knnSearch(List.of(new KnnSearchBuilder("field", new float[] { 1, 2, 3 }, 10, 50, null, null)));
             searchRequest.source(source);
 
             searchRequest.setCcsMinimizeRoundtrips(true);
@@ -1382,7 +1382,7 @@ public class TransportSearchActionTests extends ESTestCase {
             // If the search includes kNN, we should always use DFS_QUERY_THEN_FETCH
             SearchRequest searchRequest = new SearchRequest();
             SearchSourceBuilder source = new SearchSourceBuilder();
-            source.knnSearch(List.of(new KnnSearchBuilder("field", new float[] { 1, 2, 3 }, 10, 50, null)));
+            source.knnSearch(List.of(new KnnSearchBuilder("field", new float[] { 1, 2, 3 }, 10, 50, null, null)));
             searchRequest.source(source);
 
             TransportSearchAction.adjustSearchType(searchRequest, randomBoolean());
@@ -1744,7 +1744,9 @@ public class TransportSearchActionTests extends ESTestCase {
             NodeClient client = new NodeClient(settings, threadPool);
 
             SearchService searchService = mock(SearchService.class);
-            when(searchService.getRewriteContext(any(), any(), any())).thenReturn(new QueryRewriteContext(null, null, null, null, null));
+            when(searchService.getRewriteContext(any(), any(), any(), anyBoolean())).thenReturn(
+                new QueryRewriteContext(null, null, null, null, null, null)
+            );
             ClusterService clusterService = new ClusterService(
                 settings,
                 new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
@@ -1758,6 +1760,7 @@ public class TransportSearchActionTests extends ESTestCase {
                 new NoneCircuitBreakerService(),
                 transportService,
                 searchService,
+                null,
                 new SearchTransportService(transportService, client, null),
                 null,
                 clusterService,
@@ -1765,7 +1768,6 @@ public class TransportSearchActionTests extends ESTestCase {
                 new IndexNameExpressionResolver(threadPool.getThreadContext(), EmptySystemIndices.INSTANCE),
                 null,
                 null,
-                new SearchTransportAPMMetrics(TelemetryProvider.NOOP.getMeterRegistry()),
                 new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry()),
                 client,
                 new UsageService()

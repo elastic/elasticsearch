@@ -8,14 +8,14 @@ template:
     index:
       mode: logsdb
       sort:
-        field: [ "resource.attributes.host.name" ]
+        field: [ "resource.attributes.host.name", "@timestamp" ]
+        order: [ "asc", "desc" ]
   mappings:
     properties:
       attributes:
         type: passthrough
         dynamic: true
-        priority: 10
-        time_series_dimension: true
+        priority: 20
         properties:
           exception.type:
             type: keyword
@@ -40,13 +40,21 @@ template:
       log.level:
         type: alias
         path: severity_text
-      body_text:
-        type: match_only_text
+      event_name:
+        type: keyword
+      body:
+        type: object
+        properties:
+          text:
+            type: match_only_text
+          structured:
+            # this is used for complex bodies of log records (including events)
+            # using the flattened field type avoids mapping issues which can be caused by logs containing arbitrary JSON objects
+            # the tradeoff is that the flattened field type is currently not supported well by Kibana and has other limitations
+            type: flattened
       message:
         type: alias
-        path: body_text
-      body_structured:
-        type: flattened
+        path: body.text
       trace_id:
         type: keyword
       trace.id:

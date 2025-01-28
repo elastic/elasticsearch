@@ -16,6 +16,7 @@ import org.elasticsearch.xcontent.XContentLocation;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.parser.ParserUtils;
 import org.elasticsearch.xpack.esql.parser.QueryParam;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
@@ -28,9 +29,17 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
+import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xcontent.ObjectParser.ValueType.VALUE_OBJECT_ARRAY;
+import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.util.StringUtils.WILDCARD;
 import static org.elasticsearch.xpack.esql.core.util.StringUtils.isValidParamName;
+import static org.elasticsearch.xpack.esql.parser.ParserUtils.ParamClassification.IDENTIFIER;
+import static org.elasticsearch.xpack.esql.parser.ParserUtils.ParamClassification.PATTERN;
+import static org.elasticsearch.xpack.esql.parser.ParserUtils.ParamClassification.VALUE;
+import static org.elasticsearch.xpack.esql.parser.ParserUtils.paramClassifications;
 
 /** Static methods for parsing xcontent requests to transport requests. */
 final class RequestXContent {
@@ -70,6 +79,7 @@ final class RequestXContent {
     private static final ParseField LOCALE_FIELD = new ParseField("locale");
     private static final ParseField PROFILE_FIELD = new ParseField("profile");
     private static final ParseField ACCEPT_PRAGMA_RISKS = new ParseField("accept_pragma_risks");
+    private static final ParseField INCLUDE_CCS_METADATA_FIELD = new ParseField("include_ccs_metadata");
     static final ParseField TABLES_FIELD = new ParseField("tables");
 
     static final ParseField WAIT_FOR_COMPLETION_TIMEOUT = new ParseField("wait_for_completion_timeout");
@@ -94,6 +104,7 @@ final class RequestXContent {
         parser.declareBoolean(EsqlQueryRequest::columnar, COLUMNAR_FIELD);
         parser.declareObject(EsqlQueryRequest::filter, (p, c) -> AbstractQueryBuilder.parseTopLevelQuery(p), FILTER_FIELD);
         parser.declareBoolean(EsqlQueryRequest::acceptedPragmaRisks, ACCEPT_PRAGMA_RISKS);
+        parser.declareBoolean(EsqlQueryRequest::includeCCSMetadata, INCLUDE_CCS_METADATA_FIELD);
         parser.declareObject(
             EsqlQueryRequest::pragmas,
             (p, c) -> new QueryPragmas(Settings.builder().loadFromMap(p.map()).build()),
@@ -137,7 +148,7 @@ final class RequestXContent {
         XContentParser.Token token = p.currentToken();
 
         if (token == XContentParser.Token.START_ARRAY) {
-            Object value = null;
+            Object paramValue = null;
             DataType type = null;
             QueryParam currentParam = null;
             TempObjects param;
@@ -155,52 +166,63 @@ final class RequestXContent {
                         );
                     }
                     for (Map.Entry<String, Object> entry : param.fields.entrySet()) {
-                        String name = entry.getKey();
-                        if (isValidParamName(name) == false) {
-                            errors.add(
-                                new XContentParseException(
-                                    loc,
-                                    "["
-                                        + name
-                                        + "] is not a valid parameter name, "
-                                        + "a valid parameter name starts with a letter or underscore, "
-                                        + "and contains letters, digits and underscores only"
-                                )
-                            );
+                        ParserUtils.ParamClassification classification = null;
+                        paramValue = null;
+                        String paramName = entry.getKey();
+                        checkParamNameValidity(paramName, errors, loc);
+
+                        if (EsqlCapabilities.Cap.NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES_SIMPLIFIED_SYNTAX.isEnabled()
+                            && entry.getValue() instanceof Map<?, ?> value) {// parameter specified as a key:value pair
+                            checkParamValueSize(paramName, value, loc, errors);
+                            for (Object keyName : value.keySet()) {
+                                classification = getParamClassification(keyName.toString(), errors, loc);
+                                if (classification != null) {
+                                    paramValue = value.get(keyName);
+                                    checkParamValueValidity(classification, paramValue, loc, errors);
+                                }
+                            }
+                        } else {// parameter specifies as a value only
+                            paramValue = entry.getValue();
+                            classification = VALUE;
                         }
-                        type = DataType.fromJava(entry.getValue());
+                        type = DataType.fromJava(paramValue);
                         if (type == null) {
                             errors.add(new XContentParseException(loc, entry + " is not supported as a parameter"));
                         }
-                        currentParam = new QueryParam(name, entry.getValue(), type);
+                        currentParam = new QueryParam(
+                            paramName,
+                            paramValue,
+                            (classification == VALUE) ? type : DataType.NULL,
+                            classification
+                        );
                         namedParams.add(currentParam);
                     }
                 } else {
+                    paramValue = null;
                     if (token == XContentParser.Token.VALUE_STRING) {
-                        value = p.text();
+                        paramValue = p.text();
                         type = DataType.KEYWORD;
                     } else if (token == XContentParser.Token.VALUE_NUMBER) {
                         XContentParser.NumberType numberType = p.numberType();
                         if (numberType == XContentParser.NumberType.INT) {
-                            value = p.intValue();
+                            paramValue = p.intValue();
                             type = DataType.INTEGER;
                         } else if (numberType == XContentParser.NumberType.LONG) {
-                            value = p.longValue();
+                            paramValue = p.longValue();
                             type = DataType.LONG;
                         } else if (numberType == XContentParser.NumberType.DOUBLE) {
-                            value = p.doubleValue();
+                            paramValue = p.doubleValue();
                             type = DataType.DOUBLE;
                         }
                     } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
-                        value = p.booleanValue();
+                        paramValue = p.booleanValue();
                         type = DataType.BOOLEAN;
                     } else if (token == XContentParser.Token.VALUE_NULL) {
-                        value = null;
                         type = DataType.NULL;
                     } else {
                         errors.add(new XContentParseException(loc, token + " is not supported as a parameter"));
                     }
-                    currentParam = new QueryParam(null, value, type);
+                    currentParam = new QueryParam(null, paramValue, type, VALUE);
                     unNamedParams.add(currentParam);
                 }
             }
@@ -216,11 +238,110 @@ final class RequestXContent {
                 )
             );
         }
-        if (errors.size() > 0) {
+        if (errors.isEmpty() == false) {
             throw new XContentParseException(
-                "Failed to parse params: " + String.join("; ", errors.stream().map(ex -> ex.getMessage()).toArray(String[]::new))
+                "Failed to parse params: "
+                    + String.join("; ", errors.stream().map(XContentParseException::getMessage).toArray(String[]::new))
             );
         }
         return new QueryParams(namedParams.isEmpty() ? unNamedParams : namedParams);
+    }
+
+    private static void checkParamNameValidity(String name, List<XContentParseException> errors, XContentLocation loc) {
+        if (isValidParamName(name) == false) {
+            errors.add(
+                new XContentParseException(
+                    loc,
+                    "["
+                        + name
+                        + "] is not a valid parameter name, "
+                        + "a valid parameter name starts with a letter or underscore, "
+                        + "and contains letters, digits and underscores only"
+                )
+            );
+        }
+    }
+
+    private static void checkParamValueSize(
+        String paramName,
+        Map<?, ?> paramValue,
+        XContentLocation loc,
+        List<XContentParseException> errors
+    ) {
+        if (paramValue.size() == 1) {
+            return;
+        }
+        String errorMessage;
+        if (paramValue.isEmpty()) {
+            errorMessage = " has no valid param attribute";
+        } else {
+            errorMessage = " has multiple param attributes ["
+                + paramValue.keySet().stream().map(Object::toString).collect(Collectors.joining(", "))
+                + "]";
+        }
+        errors.add(
+            new XContentParseException(
+                loc,
+                "["
+                    + paramName
+                    + "]"
+                    + errorMessage
+                    + ", only one of "
+                    + Arrays.stream(ParserUtils.ParamClassification.values())
+                        .map(ParserUtils.ParamClassification::name)
+                        .collect(Collectors.joining(", "))
+                    + " can be defined in a param"
+            )
+        );
+    }
+
+    private static ParserUtils.ParamClassification getParamClassification(
+        String paramKeyName,
+        List<XContentParseException> errors,
+        XContentLocation loc
+    ) {
+        ParserUtils.ParamClassification paramType = paramClassifications.get(paramKeyName.toUpperCase(Locale.ROOT));
+        if (paramType == null) {
+            errors.add(
+                new XContentParseException(
+                    loc,
+                    "["
+                        + paramKeyName
+                        + "] is not a valid param attribute, a valid attribute is any of "
+                        + Arrays.stream(ParserUtils.ParamClassification.values())
+                            .map(ParserUtils.ParamClassification::name)
+                            .collect(Collectors.joining(", "))
+                )
+            );
+        }
+        return paramType;
+    }
+
+    private static void checkParamValueValidity(
+        ParserUtils.ParamClassification classification,
+        Object value,
+        XContentLocation loc,
+        List<XContentParseException> errors
+    ) {
+        // If a param is an "identifier" or a "pattern", validate it is a string.
+        // If a param is a "pattern", validate it contains *.
+        if (classification == IDENTIFIER || classification == PATTERN) {
+            if (DataType.fromJava(value) != KEYWORD
+                || (classification == PATTERN && value != null && value.toString().contains(WILDCARD) == false)) {
+                errors.add(
+                    new XContentParseException(
+                        loc,
+                        format(
+                            null,
+                            "[{}] is not a valid value for {} parameter, a valid value for {} parameter is a string{}",
+                            value,
+                            classification.name(),
+                            classification.name(),
+                            classification == PATTERN ? " and contains *" : ""
+                        )
+                    )
+                );
+            }
+        }
     }
 }

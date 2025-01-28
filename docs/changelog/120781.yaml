@@ -1,0 +1,5 @@
+pr: 120781
+summary: Add back `keep_alive` to `async_search.submit` rest-api-spec
+area: Search
+type: bug
+issues: []

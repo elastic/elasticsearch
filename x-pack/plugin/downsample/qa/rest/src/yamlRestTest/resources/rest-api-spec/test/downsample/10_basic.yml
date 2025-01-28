@@ -16,6 +16,7 @@ setup:
                 start_time: 2021-04-28T00:00:00Z
                 end_time: 2021-04-29T00:00:00Z
           mappings:
+            subobjects: false
             properties:
               "@timestamp":
                 type: date
@@ -106,6 +107,7 @@ setup:
                 start_time: 2021-04-28T00:00:00Z
                 end_time: 2021-04-29T00:00:00Z
           mappings:
+            subobjects: false
             properties:
               "@timestamp":
                 type: date
@@ -172,6 +174,7 @@ setup:
                 start_time: 2021-04-28T00:00:00Z
                 end_time: 2021-04-29T00:00:00Z
           mappings:
+            subobjects: false
             properties:
               "@timestamp":
                 type: date
@@ -237,6 +240,7 @@ setup:
                 start_time: 2021-04-28T00:00:00Z
                 end_time: 2021-04-29T00:00:00Z
           mappings:
+            subobjects: false
             properties:
               "@timestamp":
                 type: date
@@ -318,29 +322,29 @@ setup:
 
   - length: { hits.hits: 4 }
   - match:  { hits.hits.0._source._doc_count: 2 }
-  - match:  { hits.hits.0._source.k8s.pod.uid: df3145b3-0563-4d3b-a0f7-897eb2876ea9 }
+  - match:  { hits.hits.0._source.k8s\.pod\.uid: df3145b3-0563-4d3b-a0f7-897eb2876ea9 }
   - match:  { hits.hits.0._source.metricset: pod }
 
   - match:  { hits.hits.0._source.@timestamp: 2021-04-28T18:00:00.000Z }
-  - match:  { hits.hits.0._source.k8s.pod.multi-counter: 0 }
-  - match:  { hits.hits.0._source.k8s.pod.scaled-counter: 0.00 }
-  - match:  { hits.hits.0._source.k8s.pod.multi-gauge.min: 100 }
-  - match:  { hits.hits.0._source.k8s.pod.multi-gauge.max: 102 }
-  - match:  { hits.hits.0._source.k8s.pod.multi-gauge.sum: 607 }
-  - match:  { hits.hits.0._source.k8s.pod.multi-gauge.value_count: 6 }
-  - match: { hits.hits.0._source.k8s.pod.scaled-gauge.min: 100.0 }
-  - match: { hits.hits.0._source.k8s.pod.scaled-gauge.max: 101.0 }
-  - match: { hits.hits.0._source.k8s.pod.scaled-gauge.sum: 201.0 }
-  - match: { hits.hits.0._source.k8s.pod.scaled-gauge.value_count: 2 }
-  - match:  { hits.hits.0._source.k8s.pod.network.tx.min: 1434521831 }
-  - match:  { hits.hits.0._source.k8s.pod.network.tx.max: 1434577921 }
-  - match:  { hits.hits.0._source.k8s.pod.network.tx.value_count: 2 }
-  - match:  { hits.hits.0._source.k8s.pod.ip: "10.10.55.56" }
-  - match:  { hits.hits.0._source.k8s.pod.created_at: "2021-04-28T19:43:00.000Z" }
-  - match:  { hits.hits.0._source.k8s.pod.number_of_containers: 1 }
-  - match:  { hits.hits.0._source.k8s.pod.tags: ["backend", "test", "us-west2"] }
-  - match:  { hits.hits.0._source.k8s.pod.values: [1, 1, 2] }
-  - is_false: hits.hits.0._source.k8s.pod.running
+  - match:  { hits.hits.0._source.k8s\.pod\.multi-counter: 0 }
+  - match:  { hits.hits.0._source.k8s\.pod\.scaled-counter: 0.00 }
+  - match:  { hits.hits.0._source.k8s\.pod\.multi-gauge.min: 100 }
+  - match:  { hits.hits.0._source.k8s\.pod\.multi-gauge.max: 102 }
+  - match:  { hits.hits.0._source.k8s\.pod\.multi-gauge.sum: 607 }
+  - match:  { hits.hits.0._source.k8s\.pod\.multi-gauge.value_count: 6 }
+  - match: { hits.hits.0._source.k8s\.pod\.scaled-gauge.min: 100.0 }
+  - match: { hits.hits.0._source.k8s\.pod\.scaled-gauge.max: 101.0 }
+  - match: { hits.hits.0._source.k8s\.pod\.scaled-gauge.sum: 201.0 }
+  - match: { hits.hits.0._source.k8s\.pod\.scaled-gauge.value_count: 2 }
+  - match:  { hits.hits.0._source.k8s\.pod\.network\.tx.min: 1434521831 }
+  - match:  { hits.hits.0._source.k8s\.pod\.network\.tx.max: 1434577921 }
+  - match:  { hits.hits.0._source.k8s\.pod\.network\.tx.value_count: 2 }
+  - match:  { hits.hits.0._source.k8s\.pod\.ip: "10.10.55.56" }
+  - match:  { hits.hits.0._source.k8s\.pod\.created_at: "2021-04-28T19:43:00.000Z" }
+  - match:  { hits.hits.0._source.k8s\.pod\.number_of_containers: 1 }
+  - match:  { hits.hits.0._source.k8s\.pod\.tags: ["backend", "test", "us-west2"] }
+  - match:  { hits.hits.0._source.k8s\.pod\.values: [1, 1, 2] }
+  - is_false: hits.hits.0._source.k8s\.pod\.running
 
   # Assert rollup index settings
   - do:
@@ -362,21 +366,21 @@ setup:
   - match: { test-downsample.mappings.properties.@timestamp.type: date }
   - match: { test-downsample.mappings.properties.@timestamp.meta.fixed_interval: 1h }
   - match: { test-downsample.mappings.properties.@timestamp.meta.time_zone: UTC }
-  - match: { test-downsample.mappings.properties.k8s.properties.pod.properties.multi-gauge.type: aggregate_metric_double }
-  - match: { test-downsample.mappings.properties.k8s.properties.pod.properties.multi-gauge.metrics: [ "min", "max", "sum", "value_count" ] }
-  - match: { test-downsample.mappings.properties.k8s.properties.pod.properties.multi-gauge.default_metric: max }
-  - match: { test-downsample.mappings.properties.k8s.properties.pod.properties.multi-gauge.time_series_metric: gauge }
-  - match: { test-downsample.mappings.properties.k8s.properties.pod.properties.multi-counter.type: long }
-  - match: { test-downsample.mappings.properties.k8s.properties.pod.properties.multi-counter.time_series_metric: counter }
-  - match: { test-downsample.mappings.properties.k8s.properties.pod.properties.scaled-counter.type: scaled_float }
-  - match: { test-downsample.mappings.properties.k8s.properties.pod.properties.scaled-counter.scaling_factor: 100 }
-  - match: { test-downsample.mappings.properties.k8s.properties.pod.properties.scaled-counter.time_series_metric: counter }
-  - match: { test-downsample.mappings.properties.k8s.properties.pod.properties.scaled-gauge.type: aggregate_metric_double }
-  - match: { test-downsample.mappings.properties.k8s.properties.pod.properties.scaled-gauge.metrics: [ "min", "max", "sum", "value_count" ] }
-  - match: { test-downsample.mappings.properties.k8s.properties.pod.properties.scaled-gauge.default_metric: max }
-  - match: { test-downsample.mappings.properties.k8s.properties.pod.properties.scaled-gauge.time_series_metric: gauge }
-  - match: { test-downsample.mappings.properties.k8s.properties.pod.properties.uid.type: keyword }
-  - match: { test-downsample.mappings.properties.k8s.properties.pod.properties.uid.time_series_dimension: true }
+  - match: { test-downsample.mappings.properties.k8s\.pod\.multi-gauge.type: aggregate_metric_double }
+  - match: { test-downsample.mappings.properties.k8s\.pod\.multi-gauge.metrics: [ "min", "max", "sum", "value_count" ] }
+  - match: { test-downsample.mappings.properties.k8s\.pod\.multi-gauge.default_metric: max }
+  - match: { test-downsample.mappings.properties.k8s\.pod\.multi-gauge.time_series_metric: gauge }
+  - match: { test-downsample.mappings.properties.k8s\.pod\.multi-counter.type: long }
+  - match: { test-downsample.mappings.properties.k8s\.pod\.multi-counter.time_series_metric: counter }
+  - match: { test-downsample.mappings.properties.k8s\.pod\.scaled-counter.type: scaled_float }
+  - match: { test-downsample.mappings.properties.k8s\.pod\.scaled-counter.scaling_factor: 100 }
+  - match: { test-downsample.mappings.properties.k8s\.pod\.scaled-counter.time_series_metric: counter }
+  - match: { test-downsample.mappings.properties.k8s\.pod\.scaled-gauge.type: aggregate_metric_double }
+  - match: { test-downsample.mappings.properties.k8s\.pod\.scaled-gauge.metrics: [ "min", "max", "sum", "value_count" ] }
+  - match: { test-downsample.mappings.properties.k8s\.pod\.scaled-gauge.default_metric: max }
+  - match: { test-downsample.mappings.properties.k8s\.pod\.scaled-gauge.time_series_metric: gauge }
+  - match: { test-downsample.mappings.properties.k8s\.pod\.uid.type: keyword }
+  - match: { test-downsample.mappings.properties.k8s\.pod\.uid.time_series_dimension: true }
 
 
   # Assert source index has not been deleted
@@ -763,18 +767,18 @@ setup:
   - match: { test-downsample-2.mappings.properties.@timestamp.type: date }
   - match: { test-downsample-2.mappings.properties.@timestamp.meta.fixed_interval: 2h }
   - match: { test-downsample-2.mappings.properties.@timestamp.meta.time_zone: UTC }
-  - match: { test-downsample-2.mappings.properties.k8s.properties.pod.properties.multi-gauge.type: aggregate_metric_double }
-  - match: { test-downsample-2.mappings.properties.k8s.properties.pod.properties.multi-gauge.metrics: [ "min", "max", "sum", "value_count" ] }
-  - match: { test-downsample-2.mappings.properties.k8s.properties.pod.properties.multi-gauge.default_metric: max }
-  - match: { test-downsample-2.mappings.properties.k8s.properties.pod.properties.multi-gauge.time_series_metric: gauge }
-  - match: { test-downsample-2.mappings.properties.k8s.properties.pod.properties.multi-counter.type: long }
-  - match: { test-downsample-2.mappings.properties.k8s.properties.pod.properties.multi-counter.time_series_metric: counter }
-  - match: { test-downsample-2.mappings.properties.k8s.properties.pod.properties.uid.type: keyword }
-  - match: { test-downsample-2.mappings.properties.k8s.properties.pod.properties.uid.time_series_dimension: true }
-  - match: { test-downsample-2.mappings.properties.k8s.properties.pod.properties.network.properties.tx.type: aggregate_metric_double }
-  - match: { test-downsample-2.mappings.properties.k8s.properties.pod.properties.network.properties.tx.metrics: [ "min", "max", "sum", "value_count" ] }
-  - match: { test-downsample-2.mappings.properties.k8s.properties.pod.properties.network.properties.tx.default_metric: max }
-  - match: { test-downsample-2.mappings.properties.k8s.properties.pod.properties.network.properties.tx.time_series_metric: gauge }
+  - match: { test-downsample-2.mappings.properties.k8s\.pod\.multi-gauge.type: aggregate_metric_double }
+  - match: { test-downsample-2.mappings.properties.k8s\.pod\.multi-gauge.metrics: [ "min", "max", "sum", "value_count" ] }
+  - match: { test-downsample-2.mappings.properties.k8s\.pod\.multi-gauge.default_metric: max }
+  - match: { test-downsample-2.mappings.properties.k8s\.pod\.multi-gauge.time_series_metric: gauge }
+  - match: { test-downsample-2.mappings.properties.k8s\.pod\.multi-counter.type: long }
+  - match: { test-downsample-2.mappings.properties.k8s\.pod\.multi-counter.time_series_metric: counter }
+  - match: { test-downsample-2.mappings.properties.k8s\.pod\.uid.type: keyword }
+  - match: { test-downsample-2.mappings.properties.k8s\.pod\.uid.time_series_dimension: true }
+  - match: { test-downsample-2.mappings.properties.k8s\.pod\.network\.tx.type: aggregate_metric_double }
+  - match: { test-downsample-2.mappings.properties.k8s\.pod\.network\.tx.metrics: [ "min", "max", "sum", "value_count" ] }
+  - match: { test-downsample-2.mappings.properties.k8s\.pod\.network\.tx.default_metric: max }
+  - match: { test-downsample-2.mappings.properties.k8s\.pod\.network\.tx.time_series_metric: gauge }
 
   - do:
       search:
@@ -784,29 +788,29 @@ setup:
 
   - length: { hits.hits: 3 }
   - match: { hits.hits.0._source._doc_count: 4 }
-  - match: { hits.hits.0._source.k8s.pod.uid: df3145b3-0563-4d3b-a0f7-897eb2876ea9 }
+  - match: { hits.hits.0._source.k8s\.pod\.uid: df3145b3-0563-4d3b-a0f7-897eb2876ea9 }
   - match: { hits.hits.0._source.metricset: pod }
   - match: { hits.hits.0._source.@timestamp: 2021-04-28T18:00:00.000Z }
-  - match: { hits.hits.0._source.k8s.pod.multi-counter: 76 }
-  - match: { hits.hits.0._source.k8s.pod.multi-gauge.min: 95.0 }
-  - match: { hits.hits.0._source.k8s.pod.multi-gauge.max: 110.0 }
-  - match: { hits.hits.0._source.k8s.pod.multi-gauge.sum: 1209.0 }
-  - match: { hits.hits.0._source.k8s.pod.multi-gauge.value_count: 12 }
-  - match: { hits.hits.0._source.k8s.pod.network.tx.min: 1434521831 }
-  - match: { hits.hits.0._source.k8s.pod.network.tx.max: 1434595272 }
-  - match: { hits.hits.0._source.k8s.pod.network.tx.value_count: 4 }
-  - match: { hits.hits.0._source.k8s.pod.ip: "10.10.55.120" }
-  - match: { hits.hits.0._source.k8s.pod.created_at: "2021-04-28T19:45:00.000Z" }
-  - match: { hits.hits.0._source.k8s.pod.number_of_containers: 1 }
-  - match: { hits.hits.0._source.k8s.pod.tags: [ "backend", "test", "us-west1" ] }
-  - match: { hits.hits.0._source.k8s.pod.values: [ 1, 2, 3 ] }
+  - match: { hits.hits.0._source.k8s\.pod\.multi-counter: 76 }
+  - match: { hits.hits.0._source.k8s\.pod\.multi-gauge.min: 95.0 }
+  - match: { hits.hits.0._source.k8s\.pod\.multi-gauge.max: 110.0 }
+  - match: { hits.hits.0._source.k8s\.pod\.multi-gauge.sum: 1209.0 }
+  - match: { hits.hits.0._source.k8s\.pod\.multi-gauge.value_count: 12 }
+  - match: { hits.hits.0._source.k8s\.pod\.network\.tx.min: 1434521831 }
+  - match: { hits.hits.0._source.k8s\.pod\.network\.tx.max: 1434595272 }
+  - match: { hits.hits.0._source.k8s\.pod\.network\.tx.value_count: 4 }
+  - match: { hits.hits.0._source.k8s\.pod\.ip: "10.10.55.120" }
+  - match: { hits.hits.0._source.k8s\.pod\.created_at: "2021-04-28T19:45:00.000Z" }
+  - match: { hits.hits.0._source.k8s\.pod\.number_of_containers: 1 }
+  - match: { hits.hits.0._source.k8s\.pod\.tags: [ "backend", "test", "us-west1" ] }
+  - match: { hits.hits.0._source.k8s\.pod\.values: [ 1, 2, 3 ] }
 
-  - match: { hits.hits.1._source.k8s.pod.uid: 947e4ced-1786-4e53-9e0c-5c447e959507 }
+  - match: { hits.hits.1._source.k8s\.pod\.uid: 947e4ced-1786-4e53-9e0c-5c447e959507 }
   - match: { hits.hits.1._source.metricset: pod }
   - match: { hits.hits.1._source.@timestamp: 2021-04-28T18:00:00.000Z }
   - match: { hits.hits.1._source._doc_count: 2 }
 
-  - match: { hits.hits.2._source.k8s.pod.uid: 947e4ced-1786-4e53-9e0c-5c447e959507 }
+  - match: { hits.hits.2._source.k8s\.pod\.uid: 947e4ced-1786-4e53-9e0c-5c447e959507 }
   - match: { hits.hits.2._source.metricset: pod }
   - match: { hits.hits.2._source.@timestamp: 2021-04-28T20:00:00.000Z }
   - match: { hits.hits.2._source._doc_count: 2 }
@@ -890,16 +894,16 @@ setup:
   - match: { test-downsample-histogram.mappings.properties.@timestamp.type: date }
   - match: { test-downsample-histogram.mappings.properties.@timestamp.meta.fixed_interval: 1h }
   - match: { test-downsample-histogram.mappings.properties.@timestamp.meta.time_zone: UTC }
-  - match: { test-downsample-histogram.mappings.properties.k8s.properties.pod.properties.latency.type: histogram }
-  - match: { test-downsample-histogram.mappings.properties.k8s.properties.pod.properties.latency.time_series_metric: null }
-  - match: { test-downsample-histogram.mappings.properties.k8s.properties.pod.properties.empty-histogram.type: histogram }
-  - match: { test-downsample-histogram.mappings.properties.k8s.properties.pod.properties.empty-histogram.time_series_metric: null }
-  - match: { test-downsample-histogram.mappings.properties.k8s.properties.pod.properties.uid.type: keyword }
-  - match: { test-downsample-histogram.mappings.properties.k8s.properties.pod.properties.uid.time_series_dimension: true }
-  - match: { test-downsample-histogram.mappings.properties.k8s.properties.pod.properties.network.properties.tx.type: aggregate_metric_double }
-  - match: { test-downsample-histogram.mappings.properties.k8s.properties.pod.properties.network.properties.tx.metrics: [ "min", "max", "sum", "value_count" ] }
-  - match: { test-downsample-histogram.mappings.properties.k8s.properties.pod.properties.network.properties.tx.default_metric: max }
-  - match: { test-downsample-histogram.mappings.properties.k8s.properties.pod.properties.network.properties.tx.time_series_metric: gauge }
+  - match: { test-downsample-histogram.mappings.properties.k8s\.pod\.latency.type: histogram }
+  - match: { test-downsample-histogram.mappings.properties.k8s\.pod\.latency.time_series_metric: null }
+  - match: { test-downsample-histogram.mappings.properties.k8s\.pod\.empty-histogram.type: histogram }
+  - match: { test-downsample-histogram.mappings.properties.k8s\.pod\.empty-histogram.time_series_metric: null }
+  - match: { test-downsample-histogram.mappings.properties.k8s\.pod\.uid.type: keyword }
+  - match: { test-downsample-histogram.mappings.properties.k8s\.pod\.uid.time_series_dimension: true }
+  - match: { test-downsample-histogram.mappings.properties.k8s\.pod\.network\.tx.type: aggregate_metric_double }
+  - match: { test-downsample-histogram.mappings.properties.k8s\.pod\.network\.tx.metrics: [ "min", "max", "sum", "value_count" ] }
+  - match: { test-downsample-histogram.mappings.properties.k8s\.pod\.network\.tx.default_metric: max }
+  - match: { test-downsample-histogram.mappings.properties.k8s\.pod\.network\.tx.time_series_metric: gauge }
 
   - do:
       search:
@@ -910,64 +914,64 @@ setup:
   - length: { hits.hits: 4 }
 
   - match: { hits.hits.0._source._doc_count: 2 }
-  - match: { hits.hits.0._source.k8s.pod.uid: df3145b3-0563-4d3b-a0f7-897eb2876ea9 }
+  - match: { hits.hits.0._source.k8s\.pod\.uid: df3145b3-0563-4d3b-a0f7-897eb2876ea9 }
   - match: { hits.hits.0._source.metricset: pod }
   - match: { hits.hits.0._source.@timestamp: 2021-04-28T18:00:00.000Z }
-  - length: { hits.hits.0._source.k8s.pod.latency.counts: 4 }
-  - match: { hits.hits.0._source.k8s.pod.latency.counts.0: 2 }
-  - match: { hits.hits.0._source.k8s.pod.latency.counts.1: 2 }
-  - match: { hits.hits.0._source.k8s.pod.latency.counts.2: 8 }
-  - match: { hits.hits.0._source.k8s.pod.latency.counts.3: 8 }
-  - length: { hits.hits.0._source.k8s.pod.latency.values: 4 }
-  - match: { hits.hits.0._source.k8s.pod.latency.values.0: 1.0 }
-  - match: { hits.hits.0._source.k8s.pod.latency.values.1: 10.0 }
-  - match: { hits.hits.0._source.k8s.pod.latency.values.2: 100.0 }
-  - match: { hits.hits.0._source.k8s.pod.latency.values.3: 1000.0 }
+  - length: { hits.hits.0._source.k8s\.pod\.latency.counts: 4 }
+  - match: { hits.hits.0._source.k8s\.pod\.latency.counts.0: 2 }
+  - match: { hits.hits.0._source.k8s\.pod\.latency.counts.1: 2 }
+  - match: { hits.hits.0._source.k8s\.pod\.latency.counts.2: 8 }
+  - match: { hits.hits.0._source.k8s\.pod\.latency.counts.3: 8 }
+  - length: { hits.hits.0._source.k8s\.pod\.latency.values: 4 }
+  - match: { hits.hits.0._source.k8s\.pod\.latency.values.0: 1.0 }
+  - match: { hits.hits.0._source.k8s\.pod\.latency.values.1: 10.0 }
+  - match: { hits.hits.0._source.k8s\.pod\.latency.values.2: 100.0 }
+  - match: { hits.hits.0._source.k8s\.pod\.latency.values.3: 1000.0 }
 
   - match: { hits.hits.1._source._doc_count: 1 }
-  - match: { hits.hits.1._source.k8s.pod.uid: df3145b3-0563-4d3b-a0f7-897eb2876ea9 }
+  - match: { hits.hits.1._source.k8s\.pod\.uid: df3145b3-0563-4d3b-a0f7-897eb2876ea9 }
   - match: { hits.hits.1._source.metricset: pod }
   - match: { hits.hits.1._source.@timestamp: 2021-04-28T19:00:00.000Z }
-  - length: { hits.hits.1._source.k8s.pod.latency.counts: 4 }
-  - match: { hits.hits.1._source.k8s.pod.latency.counts.0: 4 }
-  - match: { hits.hits.1._source.k8s.pod.latency.counts.1: 5 }
-  - match: { hits.hits.1._source.k8s.pod.latency.counts.2: 4 }
-  - match: { hits.hits.1._source.k8s.pod.latency.counts.3: 13 }
-  - length: { hits.hits.1._source.k8s.pod.latency.values: 4 }
-  - match: { hits.hits.1._source.k8s.pod.latency.values.0: 1.0 }
-  - match: { hits.hits.1._source.k8s.pod.latency.values.1: 10.0 }
-  - match: { hits.hits.1._source.k8s.pod.latency.values.2: 100.0 }
-  - match: { hits.hits.1._source.k8s.pod.latency.values.3: 1000.0 }
+  - length: { hits.hits.1._source.k8s\.pod\.latency.counts: 4 }
+  - match: { hits.hits.1._source.k8s\.pod\.latency.counts.0: 4 }
+  - match: { hits.hits.1._source.k8s\.pod\.latency.counts.1: 5 }
+  - match: { hits.hits.1._source.k8s\.pod\.latency.counts.2: 4 }
+  - match: { hits.hits.1._source.k8s\.pod\.latency.counts.3: 13 }
+  - length: { hits.hits.1._source.k8s\.pod\.latency.values: 4 }
+  - match: { hits.hits.1._source.k8s\.pod\.latency.values.0: 1.0 }
+  - match: { hits.hits.1._source.k8s\.pod\.latency.values.1: 10.0 }
+  - match: { hits.hits.1._source.k8s\.pod\.latency.values.2: 100.0 }
+  - match: { hits.hits.1._source.k8s\.pod\.latency.values.3: 1000.0 }
 
   - match:  { hits.hits.2._source._doc_count: 2 }
-  - match:  { hits.hits.2._source.k8s.pod.uid: 947e4ced-1786-4e53-9e0c-5c447e959507 }
+  - match:  { hits.hits.2._source.k8s\.pod\.uid: 947e4ced-1786-4e53-9e0c-5c447e959507 }
   - match:  { hits.hits.2._source.metricset: pod }
   - match:  { hits.hits.2._source.@timestamp: 2021-04-28T18:00:00.000Z }
-  - length: { hits.hits.2._source.k8s.pod.latency.counts: 4 }
-  - match:  { hits.hits.2._source.k8s.pod.latency.counts.0: 8 }
-  - match:  { hits.hits.2._source.k8s.pod.latency.counts.1: 7 }
-  - match:  { hits.hits.2._source.k8s.pod.latency.counts.2: 10 }
-  - match:  { hits.hits.2._source.k8s.pod.latency.counts.3: 12 }
-  - length: { hits.hits.2._source.k8s.pod.latency.values: 4 }
-  - match:  { hits.hits.2._source.k8s.pod.latency.values.0: 1.0 }
-  - match:  { hits.hits.2._source.k8s.pod.latency.values.1: 2.0 }
-  - match:  { hits.hits.2._source.k8s.pod.latency.values.2: 5.0 }
-  - match:  { hits.hits.2._source.k8s.pod.latency.values.3: 10.0 }
+  - length: { hits.hits.2._source.k8s\.pod\.latency.counts: 4 }
+  - match:  { hits.hits.2._source.k8s\.pod\.latency.counts.0: 8 }
+  - match:  { hits.hits.2._source.k8s\.pod\.latency.counts.1: 7 }
+  - match:  { hits.hits.2._source.k8s\.pod\.latency.counts.2: 10 }
+  - match:  { hits.hits.2._source.k8s\.pod\.latency.counts.3: 12 }
+  - length: { hits.hits.2._source.k8s\.pod\.latency.values: 4 }
+  - match:  { hits.hits.2._source.k8s\.pod\.latency.values.0: 1.0 }
+  - match:  { hits.hits.2._source.k8s\.pod\.latency.values.1: 2.0 }
+  - match:  { hits.hits.2._source.k8s\.pod\.latency.values.2: 5.0 }
+  - match:  { hits.hits.2._source.k8s\.pod\.latency.values.3: 10.0 }
 
   - match:  { hits.hits.3._source._doc_count: 2 }
-  - match:  { hits.hits.3._source.k8s.pod.uid: 947e4ced-1786-4e53-9e0c-5c447e959507 }
+  - match:  { hits.hits.3._source.k8s\.pod\.uid: 947e4ced-1786-4e53-9e0c-5c447e959507 }
   - match:  { hits.hits.3._source.metricset: pod }
   - match:  { hits.hits.3._source.@timestamp: 2021-04-28T19:00:00.000Z }
-  - length: { hits.hits.3._source.k8s.pod.latency.counts: 4 }
-  - match:  { hits.hits.3._source.k8s.pod.latency.counts.0: 7 }
-  - match:  { hits.hits.3._source.k8s.pod.latency.counts.1: 15 }
-  - match:  { hits.hits.3._source.k8s.pod.latency.counts.2: 10 }
-  - match:  { hits.hits.3._source.k8s.pod.latency.counts.3: 10 }
-  - length: { hits.hits.3._source.k8s.pod.latency.values: 4 }
-  - match:  { hits.hits.3._source.k8s.pod.latency.values.0: 1.0 }
-  - match:  { hits.hits.3._source.k8s.pod.latency.values.1: 2.0 }
-  - match:  { hits.hits.3._source.k8s.pod.latency.values.2: 5.0 }
-  - match:  { hits.hits.3._source.k8s.pod.latency.values.3: 10.0 }
+  - length: { hits.hits.3._source.k8s\.pod\.latency.counts: 4 }
+  - match:  { hits.hits.3._source.k8s\.pod\.latency.counts.0: 7 }
+  - match:  { hits.hits.3._source.k8s\.pod\.latency.counts.1: 15 }
+  - match:  { hits.hits.3._source.k8s\.pod\.latency.counts.2: 10 }
+  - match:  { hits.hits.3._source.k8s\.pod\.latency.counts.3: 10 }
+  - length: { hits.hits.3._source.k8s\.pod\.latency.values: 4 }
+  - match:  { hits.hits.3._source.k8s\.pod\.latency.values.0: 1.0 }
+  - match:  { hits.hits.3._source.k8s\.pod\.latency.values.1: 2.0 }
+  - match:  { hits.hits.3._source.k8s\.pod\.latency.values.2: 5.0 }
+  - match:  { hits.hits.3._source.k8s\.pod\.latency.values.3: 10.0 }
 
 ---
 "Downsample date_nanos timestamp field using custom format":
@@ -988,6 +992,7 @@ setup:
                 start_time: 2023-02-23T00:00:00Z
                 end_time: 2023-02-24T00:00:00Z
           mappings:
+            subobjects: false
             properties:
               "@timestamp":
                 type: date_nanos
@@ -1048,19 +1053,19 @@ setup:
 
   - length: { hits.hits: 2 }
   - match: { hits.hits.0._source._doc_count: 3 }
-  - match: { hits.hits.0._source.k8s.pod.uid: 947e4ced-1786-4e53-9e0c-5c447e959507 }
+  - match: { hits.hits.0._source.k8s\.pod\.uid: 947e4ced-1786-4e53-9e0c-5c447e959507 }
   - match: { hits.hits.0._source.metricset: pod }
   - match: { hits.hits.0._source.@timestamp: 2023-02-23T12:00:00.000000000Z }
-  - match: { hits.hits.0._source.k8s.pod.value.min: 8.0 }
-  - match: { hits.hits.0._source.k8s.pod.value.max: 12.0 }
-  - match: { hits.hits.0._source.k8s.pod.value.sum: 30.0 }
+  - match: { hits.hits.0._source.k8s\.pod\.value.min: 8.0 }
+  - match: { hits.hits.0._source.k8s\.pod\.value.max: 12.0 }
+  - match: { hits.hits.0._source.k8s\.pod\.value.sum: 30.0 }
   - match: { hits.hits.1._source._doc_count: 1 }
-  - match: { hits.hits.1._source.k8s.pod.uid: 947e4ced-1786-4e53-9e0c-5c447e959507 }
+  - match: { hits.hits.1._source.k8s\.pod\.uid: 947e4ced-1786-4e53-9e0c-5c447e959507 }
   - match: { hits.hits.1._source.metricset: pod }
   - match: { hits.hits.1._source.@timestamp: 2023-02-23T13:00:00.000000000Z }
-  - match: { hits.hits.1._source.k8s.pod.value.min: 9.0 }
-  - match: { hits.hits.1._source.k8s.pod.value.max: 9.0 }
-  - match: { hits.hits.1._source.k8s.pod.value.sum: 9.0 }
+  - match: { hits.hits.1._source.k8s\.pod\.value.min: 9.0 }
+  - match: { hits.hits.1._source.k8s\.pod\.value.max: 9.0 }
+  - match: { hits.hits.1._source.k8s\.pod\.value.sum: 9.0 }
 
   - do:
       indices.get_mapping:
@@ -1090,6 +1095,7 @@ setup:
                 start_time: 2023-02-23T00:00:00Z
                 end_time: 2023-02-24T00:00:00Z
           mappings:
+            subobjects: false
             properties:
               "@timestamp":
                 type: date
@@ -1150,19 +1156,19 @@ setup:
 
   - length: { hits.hits: 2 }
   - match: { hits.hits.0._source._doc_count: 3 }
-  - match: { hits.hits.0._source.k8s.pod.uid: 947e4ced-1786-4e53-9e0c-5c447e959507 }
+  - match: { hits.hits.0._source.k8s\.pod\.uid: 947e4ced-1786-4e53-9e0c-5c447e959507 }
   - match: { hits.hits.0._source.metricset: pod }
   - match: { hits.hits.0._source.@timestamp: 2023-02-23T12:00:00.000Z }
-  - match: { hits.hits.0._source.k8s.pod.value.min: 8.0 }
-  - match: { hits.hits.0._source.k8s.pod.value.max: 12.0 }
-  - match: { hits.hits.0._source.k8s.pod.value.sum: 30.0 }
+  - match: { hits.hits.0._source.k8s\.pod\.value.min: 8.0 }
+  - match: { hits.hits.0._source.k8s\.pod\.value.max: 12.0 }
+  - match: { hits.hits.0._source.k8s\.pod\.value.sum: 30.0 }
   - match: { hits.hits.1._source._doc_count: 1 }
-  - match: { hits.hits.1._source.k8s.pod.uid: 947e4ced-1786-4e53-9e0c-5c447e959507 }
+  - match: { hits.hits.1._source.k8s\.pod\.uid: 947e4ced-1786-4e53-9e0c-5c447e959507 }
   - match: { hits.hits.1._source.metricset: pod }
   - match: { hits.hits.1._source.@timestamp: 2023-02-23T13:00:00.000Z }
-  - match: { hits.hits.1._source.k8s.pod.value.min: 9.0 }
-  - match: { hits.hits.1._source.k8s.pod.value.max: 9.0 }
-  - match: { hits.hits.1._source.k8s.pod.value.sum: 9.0 }
+  - match: { hits.hits.1._source.k8s\.pod\.value.min: 9.0 }
+  - match: { hits.hits.1._source.k8s\.pod\.value.max: 9.0 }
+  - match: { hits.hits.1._source.k8s\.pod\.value.sum: 9.0 }
 
   - do:
       indices.get_mapping:
@@ -1192,6 +1198,7 @@ setup:
                 start_time: 2023-02-23T00:00:00Z
                 end_time: 2023-02-27T00:00:00Z
           mappings:
+            subobjects: false
             properties:
               "@timestamp":
                 type: date
@@ -1251,33 +1258,33 @@ setup:
 
   - length: { hits.hits: 4 }
   - match: { hits.hits.0._source._doc_count: 1 }
-  - match: { hits.hits.0._source.k8s.pod.uid: 947e4ced-1786-4e53-9e0c-5c447e959507 }
+  - match: { hits.hits.0._source.k8s\.pod\.uid: 947e4ced-1786-4e53-9e0c-5c447e959507 }
   - match: { hits.hits.0._source.metricset: pod }
   - match: { hits.hits.0._source.@timestamp: 2023-02-23 }
-  - match: { hits.hits.0._source.k8s.pod.value.min: 10.0 }
-  - match: { hits.hits.0._source.k8s.pod.value.max: 10.0 }
-  - match: { hits.hits.0._source.k8s.pod.value.sum: 10.0 }
+  - match: { hits.hits.0._source.k8s\.pod\.value.min: 10.0 }
+  - match: { hits.hits.0._source.k8s\.pod\.value.max: 10.0 }
+  - match: { hits.hits.0._source.k8s\.pod\.value.sum: 10.0 }
   - match: { hits.hits.1._source._doc_count: 1 }
-  - match: { hits.hits.1._source.k8s.pod.uid: 947e4ced-1786-4e53-9e0c-5c447e959507 }
+  - match: { hits.hits.1._source.k8s\.pod\.uid: 947e4ced-1786-4e53-9e0c-5c447e959507 }
   - match: { hits.hits.1._source.metricset: pod }
   - match: { hits.hits.1._source.@timestamp: 2023-02-24 }
-  - match: { hits.hits.1._source.k8s.pod.value.min: 12.0 }
-  - match: { hits.hits.1._source.k8s.pod.value.max: 12.0 }
-  - match: { hits.hits.1._source.k8s.pod.value.sum: 12.0 }
+  - match: { hits.hits.1._source.k8s\.pod\.value.min: 12.0 }
+  - match: { hits.hits.1._source.k8s\.pod\.value.max: 12.0 }
+  - match: { hits.hits.1._source.k8s\.pod\.value.sum: 12.0 }
   - match: { hits.hits.2._source._doc_count: 1 }
-  - match: { hits.hits.2._source.k8s.pod.uid: 947e4ced-1786-4e53-9e0c-5c447e959507 }
+  - match: { hits.hits.2._source.k8s\.pod\.uid: 947e4ced-1786-4e53-9e0c-5c447e959507 }
   - match: { hits.hits.2._source.metricset: pod }
   - match: { hits.hits.2._source.@timestamp: 2023-02-25 }
-  - match: { hits.hits.2._source.k8s.pod.value.min: 8.0 }
-  - match: { hits.hits.2._source.k8s.pod.value.max: 8.0 }
-  - match: { hits.hits.2._source.k8s.pod.value.sum: 8.0 }
+  - match: { hits.hits.2._source.k8s\.pod\.value.min: 8.0 }
+  - match: { hits.hits.2._source.k8s\.pod\.value.max: 8.0 }
+  - match: { hits.hits.2._source.k8s\.pod\.value.sum: 8.0 }
   - match: { hits.hits.3._source._doc_count: 1 }
-  - match: { hits.hits.3._source.k8s.pod.uid: 947e4ced-1786-4e53-9e0c-5c447e959507 }
+  - match: { hits.hits.3._source.k8s\.pod\.uid: 947e4ced-1786-4e53-9e0c-5c447e959507 }
   - match: { hits.hits.3._source.metricset: pod }
   - match: { hits.hits.3._source.@timestamp: 2023-02-26 }
-  - match: { hits.hits.3._source.k8s.pod.value.min: 9.0 }
-  - match: { hits.hits.3._source.k8s.pod.value.max: 9.0 }
-  - match: { hits.hits.3._source.k8s.pod.value.sum: 9.0 }
+  - match: { hits.hits.3._source.k8s\.pod\.value.min: 9.0 }
+  - match: { hits.hits.3._source.k8s\.pod\.value.max: 9.0 }
+  - match: { hits.hits.3._source.k8s\.pod\.value.sum: 9.0 }
 
 ---
 "Downsample object field":
@@ -1304,48 +1311,48 @@ setup:
   - length: { hits.hits: 4 }
 
   - match: { hits.hits.0._source._doc_count: 2 }
-  - match: { hits.hits.0._source.k8s.pod.uid: df3145b3-0563-4d3b-a0f7-897eb2876ea9 }
+  - match: { hits.hits.0._source.k8s\.pod\.uid: df3145b3-0563-4d3b-a0f7-897eb2876ea9 }
   - match: { hits.hits.0._source.metricset: pod }
   - match: { hits.hits.0._source.@timestamp: "2021-04-28T18:00:00.000Z" }
-  - match: { hits.hits.0._source.k8s.pod.name: "dog" }
-  - match: { hits.hits.0._source.k8s.pod.value.min: 9.0 }
-  - match: { hits.hits.0._source.k8s.pod.value.max: 16.0 }
-  - match: { hits.hits.0._source.k8s.pod.value.sum: 25.0 }
-  - match: { hits.hits.0._source.k8s.pod.agent.id: "second" }
-  - match: { hits.hits.0._source.k8s.pod.agent.version: "2.1.7" }
+  - match: { hits.hits.0._source.k8s\.pod\.name: "dog" }
+  - match: { hits.hits.0._source.k8s\.pod\.value.min: 9.0 }
+  - match: { hits.hits.0._source.k8s\.pod\.value.max: 16.0 }
+  - match: { hits.hits.0._source.k8s\.pod\.value.sum: 25.0 }
+  - match: { hits.hits.0._source.k8s\.pod\.agent\.id: "second" }
+  - match: { hits.hits.0._source.k8s\.pod\.agent\.version: "2.1.7" }
 
   - match: { hits.hits.1._source._doc_count: 2 }
-  - match: { hits.hits.1._source.k8s.pod.uid: df3145b3-0563-4d3b-a0f7-897eb2876ea9 }
+  - match: { hits.hits.1._source.k8s\.pod\.uid: df3145b3-0563-4d3b-a0f7-897eb2876ea9 }
   - match: { hits.hits.1._source.metricset: pod }
   - match: { hits.hits.1._source.@timestamp: "2021-04-28T19:00:00.000Z" }
-  - match: { hits.hits.1._source.k8s.pod.name: "dog" }
-  - match: { hits.hits.1._source.k8s.pod.value.min: 17.0 }
-  - match: { hits.hits.1._source.k8s.pod.value.max: 25.0 }
-  - match: { hits.hits.1._source.k8s.pod.value.sum: 42.0 }
-  - match: { hits.hits.1._source.k8s.pod.agent.id: "second" }
-  - match: { hits.hits.1._source.k8s.pod.agent.version: "2.1.7" }
+  - match: { hits.hits.1._source.k8s\.pod\.name: "dog" }
+  - match: { hits.hits.1._source.k8s\.pod\.value.min: 17.0 }
+  - match: { hits.hits.1._source.k8s\.pod\.value.max: 25.0 }
+  - match: { hits.hits.1._source.k8s\.pod\.value.sum: 42.0 }
+  - match: { hits.hits.1._source.k8s\.pod\.agent\.id: "second" }
+  - match: { hits.hits.1._source.k8s\.pod\.agent\.version: "2.1.7" }
 
   - match: { hits.hits.2._source._doc_count: 2 }
-  - match: { hits.hits.2._source.k8s.pod.uid: 947e4ced-1786-4e53-9e0c-5c447e959507 }
+  - match: { hits.hits.2._source.k8s\.pod\.uid: 947e4ced-1786-4e53-9e0c-5c447e959507 }
   - match: { hits.hits.2._source.metricset: pod }
   - match: { hits.hits.2._source.@timestamp: "2021-04-28T18:00:00.000Z" }
-  - match: { hits.hits.2._source.k8s.pod.name: "cat" }
-  - match: { hits.hits.2._source.k8s.pod.value.min: 10.0 }
-  - match: { hits.hits.2._source.k8s.pod.value.max: 20.0 }
-  - match: { hits.hits.2._source.k8s.pod.value.sum: 30.0 }
-  - match: { hits.hits.2._source.k8s.pod.agent.id: "first" }
-  - match: { hits.hits.2._source.k8s.pod.agent.version: "2.0.4" }
+  - match: { hits.hits.2._source.k8s\.pod\.name: "cat" }
+  - match: { hits.hits.2._source.k8s\.pod\.value.min: 10.0 }
+  - match: { hits.hits.2._source.k8s\.pod\.value.max: 20.0 }
+  - match: { hits.hits.2._source.k8s\.pod\.value.sum: 30.0 }
+  - match: { hits.hits.2._source.k8s\.pod\.agent\.id: "first" }
+  - match: { hits.hits.2._source.k8s\.pod\.agent\.version: "2.0.4" }
 
   - match: { hits.hits.3._source._doc_count: 2 }
-  - match: { hits.hits.3._source.k8s.pod.uid: 947e4ced-1786-4e53-9e0c-5c447e959507 }
+  - match: { hits.hits.3._source.k8s\.pod\.uid: 947e4ced-1786-4e53-9e0c-5c447e959507 }
   - match: { hits.hits.3._source.metricset: pod }
   - match: { hits.hits.3._source.@timestamp: "2021-04-28T20:00:00.000Z" }
-  - match: { hits.hits.3._source.k8s.pod.name: "cat" }
-  - match: { hits.hits.3._source.k8s.pod.value.min: 12.0 }
-  - match: { hits.hits.3._source.k8s.pod.value.max: 15.0 }
-  - match: { hits.hits.3._source.k8s.pod.value.sum: 27.0 }
-  - match: { hits.hits.3._source.k8s.pod.agent.id: "first" }
-  - match: { hits.hits.3._source.k8s.pod.agent.version: "2.0.4" }
+  - match: { hits.hits.3._source.k8s\.pod\.name: "cat" }
+  - match: { hits.hits.3._source.k8s\.pod\.value.min: 12.0 }
+  - match: { hits.hits.3._source.k8s\.pod\.value.max: 15.0 }
+  - match: { hits.hits.3._source.k8s\.pod\.value.sum: 27.0 }
+  - match: { hits.hits.3._source.k8s\.pod\.agent\.id: "first" }
+  - match: { hits.hits.3._source.k8s\.pod\.agent\.version: "2.0.4" }
 
 ---
 "Downsample empty and missing labels":
@@ -1372,40 +1379,40 @@ setup:
   - length: { hits.hits: 3 }
 
   - match: { hits.hits.2._source._doc_count: 4 }
-  - match: { hits.hits.2._source.k8s.pod.uid: 947e4ced-1786-4e53-9e0c-5c447e959507 }
+  - match: { hits.hits.2._source.k8s\.pod\.uid: 947e4ced-1786-4e53-9e0c-5c447e959507 }
   - match: { hits.hits.2._source.metricset: pod }
   - match: { hits.hits.2._source.@timestamp: "2021-04-28T18:00:00.000Z" }
-  - match: { hits.hits.2._source.k8s.pod.name: "cat" }
-  - match: { hits.hits.2._source.k8s.pod.value.min: 10.0 }
-  - match: { hits.hits.2._source.k8s.pod.value.max: 40.0 }
-  - match: { hits.hits.2._source.k8s.pod.value.sum: 100.0 }
-  - match: { hits.hits.2._source.k8s.pod.value.value_count: 4 }
-  - match: { hits.hits.2._source.k8s.pod.label: "abc" }
-  - match: { hits.hits.2._source.k8s.pod.unmapped: "abc" }
+  - match: { hits.hits.2._source.k8s\.pod\.name: "cat" }
+  - match: { hits.hits.2._source.k8s\.pod\.value.min: 10.0 }
+  - match: { hits.hits.2._source.k8s\.pod\.value.max: 40.0 }
+  - match: { hits.hits.2._source.k8s\.pod\.value.sum: 100.0 }
+  - match: { hits.hits.2._source.k8s\.pod\.value.value_count: 4 }
+  - match: { hits.hits.2._source.k8s\.pod\.label: "abc" }
+  - match: { hits.hits.2._source.k8s\.pod\.unmapped: "abc" }
 
   - match: { hits.hits.1._source._doc_count: 4 }
-  - match: { hits.hits.1._source.k8s.pod.uid: 947e4ced-1786-4e53-9e0c-5c447e9597ab }
+  - match: { hits.hits.1._source.k8s\.pod\.uid: 947e4ced-1786-4e53-9e0c-5c447e9597ab }
   - match: { hits.hits.1._source.metricset: pod }
   - match: { hits.hits.1._source.@timestamp: "2021-04-28T18:00:00.000Z" }
-  - match: { hits.hits.1._source.k8s.pod.name: "cat" }
-  - match: { hits.hits.1._source.k8s.pod.value.min: 10.0 }
-  - match: { hits.hits.1._source.k8s.pod.value.max: 40.0 }
-  - match: { hits.hits.1._source.k8s.pod.value.sum: 100.0 }
-  - match: { hits.hits.1._source.k8s.pod.value.value_count: 4 }
-  - match: { hits.hits.1._source.k8s.pod.label: null }
-  - match: { hits.hits.1._source.k8s.pod.unmapped: null }
+  - match: { hits.hits.1._source.k8s\.pod\.name: "cat" }
+  - match: { hits.hits.1._source.k8s\.pod\.value.min: 10.0 }
+  - match: { hits.hits.1._source.k8s\.pod\.value.max: 40.0 }
+  - match: { hits.hits.1._source.k8s\.pod\.value.sum: 100.0 }
+  - match: { hits.hits.1._source.k8s\.pod\.value.value_count: 4 }
+  - match: { hits.hits.1._source.k8s\.pod\.label: null }
+  - match: { hits.hits.1._source.k8s\.pod\.unmapped: null }
 
   - match: { hits.hits.0._source._doc_count: 4 }
-  - match: { hits.hits.0._source.k8s.pod.uid: df3145b3-0563-4d3b-a0f7-897eb2876ea9 }
+  - match: { hits.hits.0._source.k8s\.pod\.uid: df3145b3-0563-4d3b-a0f7-897eb2876ea9 }
   - match: { hits.hits.0._source.metricset: pod }
   - match: { hits.hits.0._source.@timestamp: "2021-04-28T18:00:00.000Z" }
-  - match: { hits.hits.0._source.k8s.pod.name: "dog" }
-  - match: { hits.hits.0._source.k8s.pod.value.min: 10.0 }
-  - match: { hits.hits.0._source.k8s.pod.value.max: 40.0 }
-  - match: { hits.hits.0._source.k8s.pod.value.sum: 100.0 }
-  - match: { hits.hits.0._source.k8s.pod.value.value_count: 4 }
-  - match: { hits.hits.0._source.k8s.pod.label: "xyz" }
-  - match: { hits.hits.0._source.k8s.pod.unmapped: "xyz" }
+  - match: { hits.hits.0._source.k8s\.pod\.name: "dog" }
+  - match: { hits.hits.0._source.k8s\.pod\.value.min: 10.0 }
+  - match: { hits.hits.0._source.k8s\.pod\.value.max: 40.0 }
+  - match: { hits.hits.0._source.k8s\.pod\.value.sum: 100.0 }
+  - match: { hits.hits.0._source.k8s\.pod\.value.value_count: 4 }
+  - match: { hits.hits.0._source.k8s\.pod\.label: "xyz" }
+  - match: { hits.hits.0._source.k8s\.pod\.unmapped: "xyz" }
 
 
 ---
@@ -1427,6 +1434,7 @@ setup:
                 start_time: 2021-04-28T00:00:00Z
                 end_time: 2021-04-29T00:00:00Z
           mappings:
+            subobjects: false
             properties:
               "@timestamp":
                 type: date
@@ -1495,45 +1503,45 @@ setup:
 
   - match: { hits.hits.0._source._doc_count: 2 }
   - match: { hits.hits.0._source.metricset: pod }
-  - match: { hits.hits.0._source.k8s.pod.name: dog }
-  - match: { hits.hits.0._source.k8s.pod.value: 20 }
-  - match: { hits.hits.0._source.k8s.pod.uid: df3145b3-0563-4d3b-a0f7-897eb2876ea9 }
-  - match: { hits.hits.0._source.k8s.pod.label: foo }
+  - match: { hits.hits.0._source.k8s\.pod\.name: dog }
+  - match: { hits.hits.0._source.k8s\.pod\.value: 20 }
+  - match: { hits.hits.0._source.k8s\.pod\.uid: df3145b3-0563-4d3b-a0f7-897eb2876ea9 }
+  - match: { hits.hits.0._source.k8s\.pod\.label: foo }
   - match: { hits.hits.0._source.@timestamp: 2021-04-28T18:00:00.000Z }
 
   - match: { hits.hits.1._source._doc_count: 2 }
   - match: { hits.hits.1._source.metricset: pod }
-  - match: { hits.hits.1._source.k8s.pod.name: fox }
-  - match: { hits.hits.1._source.k8s.pod.value: 20 }
-  - match: { hits.hits.1._source.k8s.pod.uid: 7393ef8e-489c-11ee-be56-0242ac120002 }
-  - match: { hits.hits.1._source.k8s.pod.label: bar }
+  - match: { hits.hits.1._source.k8s\.pod\.name: fox }
+  - match: { hits.hits.1._source.k8s\.pod\.value: 20 }
+  - match: { hits.hits.1._source.k8s\.pod\.uid: 7393ef8e-489c-11ee-be56-0242ac120002 }
+  - match: { hits.hits.1._source.k8s\.pod\.label: bar }
   - match: { hits.hits.1._source.@timestamp: 2021-04-28T18:00:00.000Z }
 
   - match: { hits.hits.2._source._doc_count: 2 }
   - match: { hits.hits.2._source.metricset: pod }
-  - match: { hits.hits.2._source.k8s.pod.name: cat }
-  - match: { hits.hits.2._source.k8s.pod.value: 20 }
-  - match: { hits.hits.2._source.k8s.pod.uid: 947e4ced-1786-4e53-9e0c-5c447e959507 }
+  - match: { hits.hits.2._source.k8s\.pod\.name: cat }
+  - match: { hits.hits.2._source.k8s\.pod\.value: 20 }
+  - match: { hits.hits.2._source.k8s\.pod\.uid: 947e4ced-1786-4e53-9e0c-5c447e959507 }
   # NOTE: when downsampling a label field we propagate the last (most-recent timestamp-wise) non-null value,
   # ignoring/skipping null values. Here the last document has a value that hits ignore_above ("foofoo") and,
   # as a result, we propagate the value of the previous document ("foo")
-  - match: { hits.hits.2._source.k8s.pod.label: foo }
+  - match: { hits.hits.2._source.k8s\.pod\.label: foo }
   - match: { hits.hits.2._source.@timestamp: 2021-04-28T18:00:00.000Z }
 
   - match: { hits.hits.3._source._doc_count: 2 }
   - match: { hits.hits.3._source.metricset: pod }
-  - match: { hits.hits.3._source.k8s.pod.name: cow }
-  - match: { hits.hits.3._source.k8s.pod.value: 20 }
-  - match: { hits.hits.3._source.k8s.pod.uid: a81ef23a-489c-11ee-be56-0242ac120005 }
-  - match: { hits.hits.3._source.k8s.pod.label: null }
+  - match: { hits.hits.3._source.k8s\.pod\.name: cow }
+  - match: { hits.hits.3._source.k8s\.pod\.value: 20 }
+  - match: { hits.hits.3._source.k8s\.pod\.uid: a81ef23a-489c-11ee-be56-0242ac120005 }
+  - match: { hits.hits.3._source.k8s\.pod\.label: null }
   - match: { hits.hits.3._source.@timestamp: 2021-04-28T18:00:00.000Z }
 
   - do:
       indices.get_mapping:
         index: test-downsample-label-ignore-above
 
-  - match: { test-downsample-label-ignore-above.mappings.properties.k8s.properties.pod.properties.label.type: keyword }
-  - match: { test-downsample-label-ignore-above.mappings.properties.k8s.properties.pod.properties.label.ignore_above: 3 }
+  - match: { test-downsample-label-ignore-above.mappings.properties.k8s\.pod\.label.type: keyword }
+  - match: { test-downsample-label-ignore-above.mappings.properties.k8s\.pod\.label.ignore_above: 3 }
 
 ---
 "Downsample index with empty dimension":
@@ -1555,6 +1563,7 @@ setup:
                 start_time: 2021-04-28T00:00:00Z
                 end_time: 2021-04-29T00:00:00Z
           mappings:
+            subobjects: false
             properties:
               "@timestamp":
                 type: date
@@ -1612,11 +1621,11 @@ setup:
 
   - length: { hits.hits: 2 }
   - match: { hits.hits.0._source._doc_count: 3 }
-  - match: { hits.hits.0._source.k8s.pod.name: cat }
-  - match: { hits.hits.0._source.k8s.pod.empty: null }
+  - match: { hits.hits.0._source.k8s\.pod\.name: cat }
+  - match: { hits.hits.0._source.k8s\.pod\.empty: null }
   - match: { hits.hits.1._source._doc_count: 1 }
-  - match: { hits.hits.1._source.k8s.pod.name: cat }
-  - match: { hits.hits.1._source.k8s.pod.empty: "" }
+  - match: { hits.hits.1._source.k8s\.pod\.name: cat }
+  - match: { hits.hits.1._source.k8s\.pod\.empty: "" }
 
 ---
 "Downsample index with empty dimension on routing path":
@@ -1638,6 +1647,7 @@ setup:
                 start_time: 2021-04-28T00:00:00Z
                 end_time: 2021-04-29T00:00:00Z
           mappings:
+            subobjects: false
             properties:
               "@timestamp":
                 type: date
@@ -1695,8 +1705,8 @@ setup:
 
   - length: { hits.hits: 2 }
   - match: { hits.hits.0._source._doc_count: 3 }
-  - match: { hits.hits.0._source.k8s.pod.name: cat }
-  - match: { hits.hits.0._source.k8s.pod.empty: null }
+  - match: { hits.hits.0._source.k8s\.pod\.name: cat }
+  - match: { hits.hits.0._source.k8s\.pod\.empty: null }
   - match: { hits.hits.1._source._doc_count: 1 }
-  - match: { hits.hits.1._source.k8s.pod.name: cat }
-  - match: { hits.hits.1._source.k8s.pod.empty: "" }
+  - match: { hits.hits.1._source.k8s\.pod\.name: cat }
+  - match: { hits.hits.1._source.k8s\.pod\.empty: "" }

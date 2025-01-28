@@ -9,8 +9,6 @@
 
 package org.elasticsearch.xpack.inference.action;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
@@ -24,6 +22,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.inference.InferenceServiceRegistry;
+import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
@@ -46,7 +45,6 @@ public class TransportDeleteInferenceEndpointAction extends TransportMasterNodeA
 
     private final ModelRegistry modelRegistry;
     private final InferenceServiceRegistry serviceRegistry;
-    private static final Logger logger = LogManager.getLogger(TransportDeleteInferenceEndpointAction.class);
     private final Executor executor;
 
     @Inject
@@ -66,7 +64,6 @@ public class TransportDeleteInferenceEndpointAction extends TransportMasterNodeA
             threadPool,
             actionFilters,
             DeleteInferenceEndpointAction.Request::new,
-            indexNameExpressionResolver,
             DeleteInferenceEndpointAction.Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
@@ -91,7 +88,7 @@ public class TransportDeleteInferenceEndpointAction extends TransportMasterNodeA
         ClusterState state,
         ActionListener<DeleteInferenceEndpointAction.Response> masterListener
     ) {
-        SubscribableListener.<ModelRegistry.UnparsedModel>newForked(modelConfigListener -> {
+        SubscribableListener.<UnparsedModel>newForked(modelConfigListener -> {
             // Get the model from the registry
 
             modelRegistry.getModel(request.getInferenceEndpointId(), modelConfigListener);
@@ -117,7 +114,7 @@ public class TransportDeleteInferenceEndpointAction extends TransportMasterNodeA
 
             var service = serviceRegistry.getService(unparsedModel.service());
             if (service.isPresent()) {
-                service.get().stop(request.getInferenceEndpointId(), listener);
+                service.get().stop(unparsedModel, listener);
             } else {
                 listener.onFailure(
                     new ElasticsearchStatusException(
@@ -207,16 +204,11 @@ public class TransportDeleteInferenceEndpointAction extends TransportMasterNodeA
     }
 
     private static Set<String> endpointIsReferencedInIndex(final ClusterState state, final String inferenceEndpointId) {
-        Set<String> indexes = extractIndexesReferencingInferenceEndpoints(state.getMetadata(), Set.of(inferenceEndpointId));
-        return indexes;
+        return extractIndexesReferencingInferenceEndpoints(state.getMetadata(), Set.of(inferenceEndpointId));
     }
 
     private static Set<String> endpointIsReferencedInPipelines(final ClusterState state, final String inferenceEndpointId) {
-        Set<String> modelIdsReferencedByPipelines = InferenceProcessorInfoExtractor.pipelineIdsForResource(
-            state,
-            Set.of(inferenceEndpointId)
-        );
-        return modelIdsReferencedByPipelines;
+        return InferenceProcessorInfoExtractor.pipelineIdsForResource(state, Set.of(inferenceEndpointId));
     }
 
     @Override

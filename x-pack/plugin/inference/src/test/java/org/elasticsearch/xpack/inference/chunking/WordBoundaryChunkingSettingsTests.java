@@ -14,7 +14,6 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -28,19 +27,20 @@ public class WordBoundaryChunkingSettingsTests extends AbstractWireSerializingTe
 
     public void testOverlapNotProvided() {
         assertThrows(ValidationException.class, () -> {
-            WordBoundaryChunkingSettings.fromMap(buildChunkingSettingsMap(Optional.of(randomNonNegativeInt()), Optional.empty()));
+            WordBoundaryChunkingSettings.fromMap(buildChunkingSettingsMap(Optional.of(randomIntBetween(10, 300)), Optional.empty()));
         });
     }
 
     public void testInvalidInputsProvided() {
-        var chunkingSettingsMap = buildChunkingSettingsMap(Optional.of(randomNonNegativeInt()), Optional.of(randomNonNegativeInt()));
+        var maxChunkSize = randomIntBetween(10, 300);
+        var chunkingSettingsMap = buildChunkingSettingsMap(Optional.of(maxChunkSize), Optional.of(randomIntBetween(1, maxChunkSize / 2)));
         chunkingSettingsMap.put(randomAlphaOfLength(10), randomNonNegativeInt());
 
         assertThrows(ValidationException.class, () -> { WordBoundaryChunkingSettings.fromMap(chunkingSettingsMap); });
     }
 
     public void testOverlapGreaterThanHalfMaxChunkSize() {
-        var maxChunkSize = randomNonNegativeInt();
+        var maxChunkSize = randomIntBetween(10, 300);
         var overlap = randomIntBetween((maxChunkSize / 2) + 1, maxChunkSize);
         assertThrows(ValidationException.class, () -> {
             WordBoundaryChunkingSettings.fromMap(buildChunkingSettingsMap(Optional.of(maxChunkSize), Optional.of(overlap)));
@@ -48,7 +48,7 @@ public class WordBoundaryChunkingSettingsTests extends AbstractWireSerializingTe
     }
 
     public void testValidInputsProvided() {
-        int maxChunkSize = randomNonNegativeInt();
+        int maxChunkSize = randomIntBetween(10, 300);
         int overlap = randomIntBetween(1, maxChunkSize / 2);
         WordBoundaryChunkingSettings settings = WordBoundaryChunkingSettings.fromMap(
             buildChunkingSettingsMap(Optional.of(maxChunkSize), Optional.of(overlap))
@@ -75,29 +75,14 @@ public class WordBoundaryChunkingSettingsTests extends AbstractWireSerializingTe
 
     @Override
     protected WordBoundaryChunkingSettings createTestInstance() {
-        var maxChunkSize = randomNonNegativeInt();
+        var maxChunkSize = randomIntBetween(10, 300);
         return new WordBoundaryChunkingSettings(maxChunkSize, randomIntBetween(1, maxChunkSize / 2));
     }
 
     @Override
     protected WordBoundaryChunkingSettings mutateInstance(WordBoundaryChunkingSettings instance) throws IOException {
-        var valueToMutate = randomFrom(List.of(ChunkingSettingsOptions.MAX_CHUNK_SIZE, ChunkingSettingsOptions.OVERLAP));
-        var maxChunkSize = instance.maxChunkSize;
-        var overlap = instance.overlap;
-
-        if (valueToMutate.equals(ChunkingSettingsOptions.MAX_CHUNK_SIZE)) {
-            while (maxChunkSize == instance.maxChunkSize) {
-                maxChunkSize = randomNonNegativeInt();
-            }
-
-            if (overlap > maxChunkSize / 2) {
-                overlap = randomIntBetween(1, maxChunkSize / 2);
-            }
-        } else if (valueToMutate.equals(ChunkingSettingsOptions.OVERLAP)) {
-            while (overlap == instance.overlap) {
-                overlap = randomIntBetween(1, maxChunkSize / 2);
-            }
-        }
+        var maxChunkSize = randomValueOtherThan(instance.maxChunkSize, () -> randomIntBetween(10, 300));
+        var overlap = randomValueOtherThan(instance.overlap, () -> randomIntBetween(1, maxChunkSize / 2));
 
         return new WordBoundaryChunkingSettings(maxChunkSize, overlap);
     }

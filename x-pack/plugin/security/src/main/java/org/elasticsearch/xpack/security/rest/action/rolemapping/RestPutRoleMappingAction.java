@@ -10,7 +10,6 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -43,14 +42,7 @@ public class RestPutRoleMappingAction extends NativeRoleMappingBaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            Route.builder(POST, "/_security/role_mapping/{name}")
-                .replaces(POST, "/_xpack/security/role_mapping/{name}", RestApiVersion.V_7)
-                .build(),
-            Route.builder(PUT, "/_security/role_mapping/{name}")
-                .replaces(PUT, "/_xpack/security/role_mapping/{name}", RestApiVersion.V_7)
-                .build()
-        );
+        return List.of(new Route(POST, "/_security/role_mapping/{name}"), new Route(PUT, "/_security/role_mapping/{name}"));
     }
 
     @Override

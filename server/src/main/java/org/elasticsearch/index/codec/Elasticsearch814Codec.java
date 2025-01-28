@@ -67,7 +67,7 @@ public class Elasticsearch814Codec extends CodecService.DeduplicateFieldInfosCod
      */
     public Elasticsearch814Codec(Zstd814StoredFieldsFormat.Mode mode) {
         super("Elasticsearch814", lucene99Codec);
-        this.storedFieldsFormat = new Zstd814StoredFieldsFormat(mode);
+        this.storedFieldsFormat = mode.getFormat();
     }
 
     @Override

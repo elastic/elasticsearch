@@ -50,7 +50,6 @@ public class TransportDeleteSnapshotAction extends AcknowledgedTransportMasterNo
             threadPool,
             actionFilters,
             DeleteSnapshotRequest::new,
-            indexNameExpressionResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.snapshotsService = snapshotsService;
@@ -64,8 +63,7 @@ public class TransportDeleteSnapshotAction extends AcknowledgedTransportMasterNo
 
     @Override
     protected void doExecute(Task task, DeleteSnapshotRequest request, ActionListener<AcknowledgedResponse> listener) {
-        if (clusterService.state().getMinTransportVersion().before(TransportVersions.DELETE_SNAPSHOTS_ASYNC_ADDED)
-            && request.waitForCompletion() == false) {
+        if (clusterService.state().getMinTransportVersion().before(TransportVersions.V_8_15_0) && request.waitForCompletion() == false) {
             throw new UnsupportedOperationException("wait_for_completion parameter is not supported by all nodes in this cluster");
         }
         super.doExecute(task, request, listener);

@@ -94,7 +94,7 @@
  *                 {@link org.elasticsearch.common.io.stream.NamedWriteable#writeTo},
  *                 and a deserializing constructor. Then add an {@link org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry}
  *                 constant and add that constant to the list in
- *                 {@link org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction#getNamedWriteables}.
+ *                 {@link org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateWritables#getNamedWriteables}.
  *             </li>
  *             <li>
  *                 Do the same with {@link org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry}.

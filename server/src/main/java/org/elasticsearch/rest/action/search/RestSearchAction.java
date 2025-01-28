@@ -10,17 +10,14 @@
 package org.elasticsearch.rest.action.search;
 
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -30,7 +27,6 @@ import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
-import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.StoredFieldsContext;
@@ -58,8 +54,6 @@ import static org.elasticsearch.search.suggest.SuggestBuilders.termSuggestion;
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestSearchAction extends BaseRestHandler {
-    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestSearchAction.class);
-    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in search requests is deprecated.";
 
     /**
      * Indicates whether hits.total should be rendered as an integer or an object
@@ -89,9 +83,7 @@ public class RestSearchAction extends BaseRestHandler {
             new Route(GET, "/_search"),
             new Route(POST, "/_search"),
             new Route(GET, "/{index}/_search"),
-            new Route(POST, "/{index}/_search"),
-            Route.builder(GET, "/{index}/{type}/_search").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build(),
-            Route.builder(POST, "/{index}/{type}/_search").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build()
+            new Route(POST, "/{index}/_search")
         );
     }
 
@@ -102,13 +94,13 @@ public class RestSearchAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-
-        SearchRequest searchRequest;
-        if (request.hasParam("min_compatible_shard_node")) {
-            searchRequest = new SearchRequest(Version.fromString(request.param("min_compatible_shard_node")));
-        } else {
-            searchRequest = new SearchRequest();
+        if (client.threadPool() != null && client.threadPool().getThreadContext() != null) {
+            client.threadPool().getThreadContext().setErrorTraceTransportHeader(request);
         }
+        SearchRequest searchRequest = new SearchRequest();
+        // access the BwC param, but just drop it
+        // this might be set by old clients
+        request.param("min_compatible_shard_node");
         /*
          * We have to pull out the call to `source().size(size)` because
          * _update_by_query and _delete_by_query uses this same parsing
@@ -171,11 +163,6 @@ public class RestSearchAction extends BaseRestHandler {
         IntConsumer setSize,
         @Nullable SearchUsageHolder searchUsageHolder
     ) throws IOException {
-        if (request.getRestApiVersion() == RestApiVersion.V_7 && request.hasParam("type")) {
-            request.param("type");
-            deprecationLogger.compatibleCritical("search_with_types", TYPES_DEPRECATION_MESSAGE);
-        }
-
         if (searchRequest.source() == null) {
             searchRequest.source(new SearchSourceBuilder());
         }
@@ -218,7 +205,7 @@ public class RestSearchAction extends BaseRestHandler {
 
         String scroll = request.param("scroll");
         if (scroll != null) {
-            searchRequest.scroll(new Scroll(parseTimeValue(scroll, null, "scroll")));
+            searchRequest.scroll(parseTimeValue(scroll, null, "scroll"));
         }
         searchRequest.routing(request.param("routing"));
         searchRequest.preference(request.param("preference"));
@@ -252,19 +239,8 @@ public class RestSearchAction extends BaseRestHandler {
             searchSourceBuilder.from(request.paramAsInt("from", 0));
         }
         if (request.hasParam("size")) {
-            int size = request.paramAsInt("size", SearchService.DEFAULT_SIZE);
-            if (request.getRestApiVersion() == RestApiVersion.V_7 && size == -1) {
-                // we treat -1 as not-set, but deprecate it to be able to later remove this funny extra treatment
-                deprecationLogger.compatibleCritical(
-                    "search-api-size-1",
-                    "Using search size of -1 is deprecated and will be removed in future versions. "
-                        + "Instead, don't use the `size` parameter if you don't want to set it explicitly."
-                );
-            } else {
-                setSize.accept(size);
-            }
+            setSize.accept(request.paramAsInt("size", SearchService.DEFAULT_SIZE));
         }
-
         if (request.hasParam("explain")) {
             searchSourceBuilder.explain(request.paramAsBoolean("explain", null));
         }
@@ -445,8 +421,4 @@ public class RestSearchAction extends BaseRestHandler {
         return RESPONSE_PARAMS;
     }
 
-    @Override
-    public boolean allowsUnsafeBuffers() {
-        return true;
-    }
 }

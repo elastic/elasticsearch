@@ -12,6 +12,7 @@ import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
@@ -351,7 +352,7 @@ public class NestedIT extends ESIntegTestCase {
             prepareSearch("empty_bucket_idx").setQuery(matchAllQuery())
                 .addAggregation(histogram("histo").field("value").interval(1L).minDocCount(0).subAggregation(nested("nested", "nested"))),
             response -> {
-                assertThat(response.getHits().getTotalHits().value, equalTo(2L));
+                assertThat(response.getHits().getTotalHits().value(), equalTo(2L));
                 Histogram histo = response.getAggregations().get("histo");
                 assertThat(histo, Matchers.notNullValue());
                 Histogram.Bucket bucket = histo.getBuckets().get(1);
@@ -857,24 +858,22 @@ public class NestedIT extends ESIntegTestCase {
 
     public void testSyntheticSource() throws Exception {
         assertAcked(
-            prepareCreate("synthetic").setMapping(
-                jsonBuilder().startObject()
-                    .startObject("_source")
-                    .field("mode", "synthetic")
-                    .endObject()
-                    .startObject("properties")
-                    .startObject("nested")
-                    .field("type", "nested")
-                    .startObject("properties")
-                    .startObject("number")
-                    .field("type", "long")
-                    .field("ignore_malformed", true)
-                    .endObject()
-                    .endObject()
-                    .endObject()
-                    .endObject()
-                    .endObject()
-            )
+            prepareCreate("synthetic").setSettings(Settings.builder().put("index.mapping.source.mode", "synthetic").build())
+                .setMapping(
+                    jsonBuilder().startObject()
+                        .startObject("properties")
+                        .startObject("nested")
+                        .field("type", "nested")
+                        .startObject("properties")
+                        .startObject("number")
+                        .field("type", "long")
+                        .field("ignore_malformed", true)
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                )
         );
         ensureGreen("synthetic");
 

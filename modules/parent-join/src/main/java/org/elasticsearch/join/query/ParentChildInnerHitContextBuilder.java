@@ -20,8 +20,8 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopDocsCollector;
-import org.apache.lucene.search.TopFieldCollector;
-import org.apache.lucene.search.TopScoreDocCollector;
+import org.apache.lucene.search.TopFieldCollectorManager;
+import org.apache.lucene.search.TopScoreDocCollectorManager;
 import org.apache.lucene.search.TotalHitCountCollector;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.Weight;
@@ -137,12 +137,12 @@ class ParentChildInnerHitContextBuilder extends InnerHitContextBuilder {
                 TopDocsCollector<?> topDocsCollector;
                 MaxScoreCollector maxScoreCollector = null;
                 if (sort() != null) {
-                    topDocsCollector = TopFieldCollector.create(sort().sort, topN, Integer.MAX_VALUE);
+                    topDocsCollector = new TopFieldCollectorManager(sort().sort, topN, null, Integer.MAX_VALUE, false).newCollector();
                     if (trackScores()) {
                         maxScoreCollector = new MaxScoreCollector();
                     }
                 } else {
-                    topDocsCollector = TopScoreDocCollector.create(topN, Integer.MAX_VALUE);
+                    topDocsCollector = new TopScoreDocCollectorManager(topN, null, Integer.MAX_VALUE, false).newCollector();
                     maxScoreCollector = new MaxScoreCollector();
                 }
                 for (LeafReaderContext ctx : this.context.searcher().getIndexReader().leaves()) {

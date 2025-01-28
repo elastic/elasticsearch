@@ -18,6 +18,7 @@ import org.apache.lucene.queries.spans.SpanTermQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.FuzzyQuery;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PhraseQuery;
@@ -163,7 +164,7 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
                 // calculate expected minimumShouldMatch value
                 int optionalClauses = 0;
                 for (BooleanClause c : bq.clauses()) {
-                    if (c.getOccur() == BooleanClause.Occur.SHOULD) {
+                    if (c.occur() == BooleanClause.Occur.SHOULD) {
                         optionalClauses++;
                     }
                 }
@@ -527,9 +528,9 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
     public void testMaxBooleanClause() {
         MatchQueryParser query = new MatchQueryParser(createSearchExecutionContext());
         query.setAnalyzer(new MockGraphAnalyzer(createGiantGraph(40)));
-        expectThrows(BooleanQuery.TooManyClauses.class, () -> query.parse(Type.PHRASE, TEXT_FIELD_NAME, ""));
+        expectThrows(IndexSearcher.TooManyClauses.class, () -> query.parse(Type.PHRASE, TEXT_FIELD_NAME, ""));
         query.setAnalyzer(new MockGraphAnalyzer(createGiantGraphMultiTerms()));
-        expectThrows(BooleanQuery.TooManyClauses.class, () -> query.parse(Type.PHRASE, TEXT_FIELD_NAME, ""));
+        expectThrows(IndexSearcher.TooManyClauses.class, () -> query.parse(Type.PHRASE, TEXT_FIELD_NAME, ""));
     }
 
     private static class MockGraphAnalyzer extends Analyzer {
@@ -567,7 +568,7 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
     }
 
     /**
-     * Creates a graph token stream with {@link BooleanQuery#getMaxClauseCount()}
+     * Creates a graph token stream with {@link IndexSearcher#getMaxClauseCount()}
      * expansions at the last position.
      **/
     private static CannedBinaryTokenStream.BinaryToken[] createGiantGraphMultiTerms() {
@@ -578,7 +579,7 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
         tokens.add(new CannedBinaryTokenStream.BinaryToken(term1, 0, 2));
         tokens.add(new CannedBinaryTokenStream.BinaryToken(term2, 1, 1));
         tokens.add(new CannedBinaryTokenStream.BinaryToken(term2, 1, 1));
-        for (int i = 0; i < BooleanQuery.getMaxClauseCount(); i++) {
+        for (int i = 0; i < IndexSearcher.getMaxClauseCount(); i++) {
             tokens.add(new CannedBinaryTokenStream.BinaryToken(term1, 0, 1));
         }
         return tokens.toArray(new CannedBinaryTokenStream.BinaryToken[0]);

@@ -115,7 +115,7 @@ public class CombiIT extends ESIntegTestCase {
                 histogram("values").field("value1").interval(1).subAggregation(terms("names").field("name").collectMode(aggCollectionMode))
             ),
             response -> {
-                assertThat(response.getHits().getTotalHits().value, Matchers.equalTo(0L));
+                assertThat(response.getHits().getTotalHits().value(), Matchers.equalTo(0L));
                 Histogram values = response.getAggregations().get("values");
                 assertThat(values, notNullValue());
                 assertThat(values.getBuckets().isEmpty(), is(true));

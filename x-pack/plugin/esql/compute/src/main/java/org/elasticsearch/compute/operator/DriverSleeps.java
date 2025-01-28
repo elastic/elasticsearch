@@ -62,9 +62,9 @@ public record DriverSleeps(Map<String, Long> counts, List<Sleep> first, List<Sle
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field("reason", reason);
-            builder.timeField("sleep_millis", "sleep", sleep);
+            builder.timestampFieldsFromUnixEpochMillis("sleep_millis", "sleep", sleep);
             if (wake > 0) {
-                builder.timeField("wake_millis", "wake", wake);
+                builder.timestampFieldsFromUnixEpochMillis("wake_millis", "wake", wake);
             }
             return builder.endObject();
         }
@@ -76,7 +76,7 @@ public record DriverSleeps(Map<String, Long> counts, List<Sleep> first, List<Sle
     static final int RECORDS = 10;
 
     public static DriverSleeps read(StreamInput in) throws IOException {
-        if (in.getTransportVersion().before(TransportVersions.ESQL_PROFILE_SLEEPS)) {
+        if (in.getTransportVersion().before(TransportVersions.V_8_16_0)) {
             return empty();
         }
         return new DriverSleeps(
@@ -88,7 +88,7 @@ public record DriverSleeps(Map<String, Long> counts, List<Sleep> first, List<Sle
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().before(TransportVersions.ESQL_PROFILE_SLEEPS)) {
+        if (out.getTransportVersion().before(TransportVersions.V_8_16_0)) {
             return;
         }
         out.writeMap(counts, StreamOutput::writeVLong);

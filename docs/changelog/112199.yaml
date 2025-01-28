@@ -1,5 +1,0 @@
-pr: 112199
-summary: Support docvalues only query in shape field
-area: Geo
-type: enhancement
-issues: []

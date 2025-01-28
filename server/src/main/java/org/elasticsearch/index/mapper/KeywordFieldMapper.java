@@ -32,14 +32,12 @@ import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.apache.lucene.util.automaton.CompiledAutomaton.AUTOMATON_TYPE;
-import org.apache.lucene.util.automaton.MinimizationOperations;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -90,9 +88,6 @@ public final class KeywordFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "keyword";
 
-    static final NodeFeature KEYWORD_DIMENSION_IGNORE_ABOVE = new NodeFeature("mapper.keyword_dimension_ignore_above");
-    static final NodeFeature KEYWORD_NORMALIZER_SYNTHETIC_SOURCE = new NodeFeature("mapper.keyword_normalizer_synthetic_source");
-
     public static class Defaults {
         public static final FieldType FIELD_TYPE;
 
@@ -105,7 +100,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             FIELD_TYPE = freezeAndDeduplicateFieldType(ft);
         }
 
-        public static TextSearchInfo TEXT_SEARCH_INFO = new TextSearchInfo(
+        public static final TextSearchInfo TEXT_SEARCH_INFO = new TextSearchInfo(
             FIELD_TYPE,
             null,
             Lucene.KEYWORD_ANALYZER,
@@ -386,9 +381,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
     }
 
-    private static final IndexVersion MINIMUM_COMPATIBILITY_VERSION = IndexVersion.fromId(5000099);
-
-    public static final TypeParser PARSER = new TypeParser(Builder::new, MINIMUM_COMPATIBILITY_VERSION);
+    public static final TypeParser PARSER = createTypeParserWithLegacySupport(Builder::new);
 
     public static final class KeywordFieldType extends StringFieldType {
 
@@ -491,7 +484,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             if (isIndexed()) {
                 return super.termsQuery(values, context);
             } else {
-                BytesRef[] bytesRefs = values.stream().map(this::indexedValueForSearch).toArray(BytesRef[]::new);
+                Collection<BytesRef> bytesRefs = values.stream().map(this::indexedValueForSearch).toList();
                 return SortedSetDocValuesField.newSlowSetQuery(name(), bytesRefs);
             }
         }
@@ -597,7 +590,6 @@ public final class KeywordFieldMapper extends FieldMapper {
                 ? AutomatonQueries.caseInsensitivePrefix(prefix)
                 : Operations.concatenate(Automata.makeString(prefix), Automata.makeAnyString());
             assert a.isDeterministic();
-            a = MinimizationOperations.minimize(a, 0);
 
             CompiledAutomaton automaton = new CompiledAutomaton(a, true, true);
 
@@ -632,14 +624,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             if (hasDocValues()) {
                 return new BlockDocValuesReader.BytesRefsFromOrdsBlockLoader(name());
             }
-            if (isSyntheticSource) {
-                if (false == isStored()) {
-                    throw new IllegalStateException(
-                        "keyword field ["
-                            + name()
-                            + "] is only supported in synthetic _source index if it creates doc values or stored fields"
-                    );
-                }
+            if (isStored()) {
                 return new BlockStoredFieldsReader.BytesFromBytesRefsBlockLoader(name());
             }
             SourceValueFetcher fetcher = sourceValueFetcher(blContext.sourcePaths(name()));
@@ -953,7 +938,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         final BytesRef binaryValue = new BytesRef(value);
 
         if (fieldType().isDimension()) {
-            context.getDimensions().addString(fieldType().name(), binaryValue).validate(context.indexSettings());
+            context.getRoutingFields().addString(fieldType().name(), binaryValue);
         }
 
         // If the UTF8 encoding of the field value is bigger than the max length 32766, Lucene fill fail the indexing request and, to
@@ -1059,7 +1044,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         if (fieldType.stored() || hasDocValues) {
-            return new SyntheticSourceSupport.Native(syntheticFieldLoader(fullPath(), leafName()));
+            return new SyntheticSourceSupport.Native(() -> syntheticFieldLoader(fullPath(), leafName()));
         }
 
         return super.syntheticSourceSupport();

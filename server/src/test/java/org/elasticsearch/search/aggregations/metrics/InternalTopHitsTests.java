@@ -220,8 +220,8 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
         TotalHits.Relation relation = TotalHits.Relation.EQUAL_TO;
         for (int input = 0; input < inputs.size(); input++) {
             SearchHits internalHits = inputs.get(input).getHits();
-            totalHits += internalHits.getTotalHits().value;
-            if (internalHits.getTotalHits().relation == TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO) {
+            totalHits += internalHits.getTotalHits().value();
+            if (internalHits.getTotalHits().relation() == TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO) {
                 relation = TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO;
             }
             maxScore = max(maxScore, internalHits.getMaxScore());
@@ -379,14 +379,14 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
             case 2 -> size += between(1, 100);
             case 3 -> topDocs = new TopDocsAndMaxScore(
                 new TopDocs(
-                    new TotalHits(topDocs.topDocs.totalHits.value + between(1, 100), topDocs.topDocs.totalHits.relation),
+                    new TotalHits(topDocs.topDocs.totalHits.value() + between(1, 100), topDocs.topDocs.totalHits.relation()),
                     topDocs.topDocs.scoreDocs
                 ),
                 topDocs.maxScore + randomFloat()
             );
             case 4 -> {
                 TotalHits totalHits = new TotalHits(
-                    searchHits.getTotalHits().value + between(1, 100),
+                    searchHits.getTotalHits().value() + between(1, 100),
                     randomFrom(TotalHits.Relation.values())
                 );
                 searchHits = SearchHits.unpooled(searchHits.getHits(), totalHits, searchHits.getMaxScore() + randomFloat());

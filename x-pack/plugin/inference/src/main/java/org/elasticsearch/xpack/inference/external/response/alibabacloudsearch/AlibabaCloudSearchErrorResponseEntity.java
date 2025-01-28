@@ -14,20 +14,13 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
-import org.elasticsearch.xpack.inference.external.http.retry.ErrorMessage;
+import org.elasticsearch.xpack.inference.external.http.retry.ErrorResponse;
 
-public class AlibabaCloudSearchErrorResponseEntity implements ErrorMessage {
+public class AlibabaCloudSearchErrorResponseEntity extends ErrorResponse {
     private static final Logger logger = LogManager.getLogger(AlibabaCloudSearchErrorResponseEntity.class);
 
-    private final String errorMessage;
-
     private AlibabaCloudSearchErrorResponseEntity(String errorMessage) {
-        this.errorMessage = errorMessage;
-    }
-
-    @Override
-    public String getErrorMessage() {
-        return errorMessage;
+        super(errorMessage);
     }
 
     /**
@@ -44,9 +37,9 @@ public class AlibabaCloudSearchErrorResponseEntity implements ErrorMessage {
      *
      * @param response The error response
      * @return An error entity if the response is JSON with the above structure
-     * or null if the response does not contain the message field
+     * or {@link ErrorResponse#UNDEFINED_ERROR} if the message field wasn't found
      */
-    public static AlibabaCloudSearchErrorResponseEntity fromResponse(HttpResult response) {
+    public static ErrorResponse fromResponse(HttpResult response) {
         try (
             XContentParser jsonParser = XContentFactory.xContent(XContentType.JSON)
                 .createParser(XContentParserConfiguration.EMPTY, response.body())
@@ -64,6 +57,6 @@ public class AlibabaCloudSearchErrorResponseEntity implements ErrorMessage {
             // swallow the error
         }
 
-        return null;
+        return ErrorResponse.UNDEFINED_ERROR;
     }
 }

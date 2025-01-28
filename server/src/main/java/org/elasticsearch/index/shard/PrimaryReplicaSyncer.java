@@ -49,7 +49,7 @@ public class PrimaryReplicaSyncer {
     private final TransportService transportService;
     private final SyncAction syncAction;
 
-    public static final ByteSizeValue DEFAULT_CHUNK_SIZE = new ByteSizeValue(512, ByteSizeUnit.KB);
+    public static final ByteSizeValue DEFAULT_CHUNK_SIZE = ByteSizeValue.of(512, ByteSizeUnit.KB);
 
     private volatile ByteSizeValue chunkSize = DEFAULT_CHUNK_SIZE;
 
@@ -81,7 +81,7 @@ public class PrimaryReplicaSyncer {
             // Wrap translog snapshot to make it synchronized as it is accessed by different threads through SnapshotSender.
             // Even though those calls are not concurrent, snapshot.next() uses non-synchronized state and is not multi-thread-compatible
             // Also fail the resync early if the shard is shutting down
-            snapshot = indexShard.newChangesSnapshot("resync", startingSeqNo, Long.MAX_VALUE, false, false, true);
+            snapshot = indexShard.newChangesSnapshot("resync", startingSeqNo, Long.MAX_VALUE, false, false, true, chunkSize.getBytes());
             final Translog.Snapshot originalSnapshot = snapshot;
             final Translog.Snapshot wrappedSnapshot = new Translog.Snapshot() {
                 @Override

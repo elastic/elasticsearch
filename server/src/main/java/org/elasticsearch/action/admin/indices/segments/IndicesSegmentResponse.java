@@ -16,10 +16,8 @@ import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.ChunkedBroadcastResponse;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
@@ -80,9 +78,7 @@ public class IndicesSegmentResponse extends ChunkedBroadcastResponse {
                 getIndices().values().iterator(),
                 indexSegments -> Iterators.concat(
 
-                    ChunkedToXContentHelper.singleChunk(
-                        (builder, p) -> builder.startObject(indexSegments.getIndex()).startObject(Fields.SHARDS)
-                    ),
+                    ChunkedToXContentHelper.chunk((builder, p) -> builder.startObject(indexSegments.getIndex()).startObject(Fields.SHARDS)),
                     Iterators.flatMap(
                         indexSegments.iterator(),
                         indexSegment -> Iterators.concat(
@@ -92,7 +88,7 @@ public class IndicesSegmentResponse extends ChunkedBroadcastResponse {
                                 indexSegment.iterator(),
                                 shardSegments -> Iterators.concat(
 
-                                    ChunkedToXContentHelper.singleChunk((builder, p) -> {
+                                    ChunkedToXContentHelper.chunk((builder, p) -> {
                                         builder.startObject();
 
                                         builder.startObject(Fields.ROUTING);
@@ -114,15 +110,12 @@ public class IndicesSegmentResponse extends ChunkedBroadcastResponse {
                                         shardSegments.iterator(),
                                         segment -> Iterators.concat(
 
-                                            ChunkedToXContentHelper.singleChunk((builder, p) -> {
+                                            ChunkedToXContentHelper.chunk((builder, p) -> {
                                                 builder.startObject(segment.getName());
                                                 builder.field(Fields.GENERATION, segment.getGeneration());
                                                 builder.field(Fields.NUM_DOCS, segment.getNumDocs());
                                                 builder.field(Fields.DELETED_DOCS, segment.getDeletedDocs());
                                                 builder.humanReadableField(Fields.SIZE_IN_BYTES, Fields.SIZE, segment.getSize());
-                                                if (builder.getRestApiVersion() == RestApiVersion.V_7) {
-                                                    builder.humanReadableField(Fields.MEMORY_IN_BYTES, Fields.MEMORY, ByteSizeValue.ZERO);
-                                                }
                                                 builder.field(Fields.COMMITTED, segment.isCommitted());
                                                 builder.field(Fields.SEARCH, segment.isSearch());
                                                 if (segment.getVersion() != null) {
@@ -137,7 +130,7 @@ public class IndicesSegmentResponse extends ChunkedBroadcastResponse {
                                                 return builder;
                                             }),
                                             getSegmentSortChunks(segment.getSegmentSort()),
-                                            ChunkedToXContentHelper.singleChunk((builder, p) -> {
+                                            ChunkedToXContentHelper.chunk((builder, p) -> {
                                                 if (segment.attributes != null && segment.attributes.isEmpty() == false) {
                                                     builder.field("attributes", segment.attributes);
                                                 }
@@ -146,13 +139,13 @@ public class IndicesSegmentResponse extends ChunkedBroadcastResponse {
                                             })
                                         )
                                     ),
-                                    ChunkedToXContentHelper.singleChunk((builder, p) -> builder.endObject().endObject())
+                                    ChunkedToXContentHelper.chunk((builder, p) -> builder.endObject().endObject())
                                 )
                             ),
                             ChunkedToXContentHelper.endArray()
                         )
                     ),
-                    ChunkedToXContentHelper.singleChunk((builder, p) -> builder.endObject().endObject())
+                    ChunkedToXContentHelper.chunk((builder, p) -> builder.endObject().endObject())
                 )
             ),
             ChunkedToXContentHelper.endObject()

@@ -56,7 +56,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
         return false;
     }
 
-    private final IndexVersion version = IndexVersionUtils.randomCompatibleVersion(random());
+    private final IndexVersion version = IndexVersionUtils.randomCompatibleWriteVersion(random());
 
     private IndexRequestBuilder indexCity(String idx, String name, String... latLons) throws Exception {
         XContentBuilder source = jsonBuilder().startObject().field("city", name);
@@ -413,7 +413,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
                         )
                 ),
             response -> {
-                assertThat(response.getHits().getTotalHits().value, equalTo(2L));
+                assertThat(response.getHits().getTotalHits().value(), equalTo(2L));
                 Histogram histo = response.getAggregations().get("histo");
                 assertThat(histo, Matchers.notNullValue());
                 Histogram.Bucket bucket = histo.getBuckets().get(1);

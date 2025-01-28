@@ -35,13 +35,11 @@ public class LocateTests extends AbstractScalarFunctionTestCase {
         this.testCase = testCaseSupplier.get();
     }
 
-    private static final DataType[] STRING_TYPES = new DataType[] { DataType.KEYWORD, DataType.TEXT };
-
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
-        for (DataType strType : STRING_TYPES) {
-            for (DataType substrType : STRING_TYPES) {
+        for (DataType strType : DataType.stringTypes()) {
+            for (DataType substrType : DataType.stringTypes()) {
                 suppliers.add(
                     supplier(
                         "",
@@ -77,13 +75,6 @@ public class LocateTests extends AbstractScalarFunctionTestCase {
                 );
             }
         }
-
-        suppliers = errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers), (v, p) -> {
-            if (p == 0 || p == 1) {
-                return "string";
-            }
-            return "integer";
-        });
 
         // Here follows some non-randomized examples that we want to cover on every run
         suppliers.add(supplier("a tiger", "a t", null, 1));
@@ -135,7 +126,7 @@ public class LocateTests extends AbstractScalarFunctionTestCase {
         suppliers.add(supplier("🐱Meow!🐶Woof!", "Meow!🐶Woof!", 0, 2));
         suppliers.add(supplier("🐱Meow!🐶Woof!", "eow!🐶Woof!", 0, 3));
 
-        return parameterSuppliersFromTypedData(suppliers);
+        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
     }
 
     @Override

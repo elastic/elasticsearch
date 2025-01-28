@@ -1,6 +1,0 @@
-pr: 107936
-summary: Two empty mappings now are created equally
-area: Mapping
-type: bug
-issues:
- - 107031

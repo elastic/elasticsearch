@@ -61,7 +61,7 @@ public class GetQueryRulesetActionResponseBWCSerializingTests extends AbstractBW
                 rules.add(new QueryRule(rule.id(), rule.type(), newCriteria, rule.actions(), null));
             }
             return new GetQueryRulesetAction.Response(new QueryRuleset(instance.queryRuleset().id(), rules));
-        } else if (version.before(TransportVersions.QUERY_RULE_CRUD_API_PUT)) {
+        } else if (version.before(TransportVersions.V_8_15_0)) {
             List<QueryRule> rules = new ArrayList<>();
             for (QueryRule rule : instance.queryRuleset().rules()) {
                 rules.add(new QueryRule(rule.id(), rule.type(), rule.criteria(), rule.actions(), null));

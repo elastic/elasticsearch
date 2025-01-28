@@ -27,15 +27,10 @@ import static org.mockito.Mockito.when;
 public class IndexRoutingTableTests extends ESTestCase {
 
     public void testReadyForSearch() {
-        innerReadyForSearch(false);
-        innerReadyForSearch(true);
-    }
-
-    private void innerReadyForSearch(boolean fastRefresh) {
         Index index = new Index(randomIdentifier(), UUIDs.randomBase64UUID());
         ClusterState clusterState = mock(ClusterState.class, Mockito.RETURNS_DEEP_STUBS);
         when(clusterState.metadata().index(any(Index.class)).getSettings()).thenReturn(
-            Settings.builder().put(INDEX_FAST_REFRESH_SETTING.getKey(), fastRefresh).build()
+            Settings.builder().put(INDEX_FAST_REFRESH_SETTING.getKey(), randomBoolean()).build()
         );
         // 2 primaries that are search and index
         ShardId p1 = new ShardId(index, 0);
@@ -55,11 +50,7 @@ public class IndexRoutingTableTests extends ESTestCase {
         shardTable1 = new IndexShardRoutingTable(p1, List.of(getShard(p1, true, ShardRoutingState.STARTED, ShardRouting.Role.INDEX_ONLY)));
         shardTable2 = new IndexShardRoutingTable(p2, List.of(getShard(p2, true, ShardRoutingState.STARTED, ShardRouting.Role.INDEX_ONLY)));
         indexRoutingTable = new IndexRoutingTable(index, new IndexShardRoutingTable[] { shardTable1, shardTable2 });
-        if (fastRefresh) {
-            assertTrue(indexRoutingTable.readyForSearch(clusterState));
-        } else {
-            assertFalse(indexRoutingTable.readyForSearch(clusterState));
-        }
+        assertFalse(indexRoutingTable.readyForSearch(clusterState));
 
         // 2 unassigned primaries that are index only
         shardTable1 = new IndexShardRoutingTable(
@@ -91,11 +82,7 @@ public class IndexRoutingTableTests extends ESTestCase {
             )
         );
         indexRoutingTable = new IndexRoutingTable(index, new IndexShardRoutingTable[] { shardTable1, shardTable2 });
-        if (fastRefresh) {
-            assertTrue(indexRoutingTable.readyForSearch(clusterState));
-        } else {
-            assertFalse(indexRoutingTable.readyForSearch(clusterState));
-        }
+        assertFalse(indexRoutingTable.readyForSearch(clusterState));
 
         // 2 primaries that are index only with some replicas that are all available
         shardTable1 = new IndexShardRoutingTable(
@@ -118,8 +105,6 @@ public class IndexRoutingTableTests extends ESTestCase {
         assertTrue(indexRoutingTable.readyForSearch(clusterState));
 
         // 2 unassigned primaries that are index only with some replicas that are all available
-        // Fast refresh indices do not support replicas so this can not practically happen. If we add support we will want to ensure
-        // that readyForSearch allows for searching replicas when the index shard is not available.
         shardTable1 = new IndexShardRoutingTable(
             p1,
             List.of(
@@ -137,11 +122,7 @@ public class IndexRoutingTableTests extends ESTestCase {
             )
         );
         indexRoutingTable = new IndexRoutingTable(index, new IndexShardRoutingTable[] { shardTable1, shardTable2 });
-        if (fastRefresh) {
-            assertFalse(indexRoutingTable.readyForSearch(clusterState)); // if we support replicas for fast refreshes this needs to change
-        } else {
-            assertTrue(indexRoutingTable.readyForSearch(clusterState));
-        }
+        assertTrue(indexRoutingTable.readyForSearch(clusterState));
 
         // 2 primaries that are index only with at least 1 replica per primary that is available
         shardTable1 = new IndexShardRoutingTable(

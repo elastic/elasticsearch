@@ -36,7 +36,6 @@ import org.apache.lucene.index.TermState;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.store.ChecksumIndexInput;
-import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.RandomAccessInput;
@@ -142,12 +141,7 @@ public class ES85BloomFilterPostingsFormat extends PostingsFormat {
 
         FieldsReader(SegmentReadState state) throws IOException {
             boolean success = false;
-            try (
-                ChecksumIndexInput metaIn = state.directory.openChecksumInput(
-                    metaFile(state.segmentInfo, state.segmentSuffix),
-                    IOContext.READONCE
-                )
-            ) {
+            try (ChecksumIndexInput metaIn = state.directory.openChecksumInput(metaFile(state.segmentInfo, state.segmentSuffix))) {
                 CodecUtil.checkIndexHeader(
                     metaIn,
                     BLOOM_CODEC_NAME,

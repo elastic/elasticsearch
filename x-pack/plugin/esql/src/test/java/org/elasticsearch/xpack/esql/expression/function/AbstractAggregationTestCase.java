@@ -22,6 +22,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
@@ -40,6 +41,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -111,7 +113,8 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
                         testCase.getExpectedTypeError(),
                         null,
                         null,
-                        null
+                        null,
+                        testCase.canBuildEvaluator()
                     );
                 }));
             }
@@ -163,15 +166,7 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
             result = extractResultFromAggregator(aggregator, PlannerUtils.toElementType(testCase.expectedType()));
         }
 
-        assertThat(result, not(equalTo(Double.NaN)));
-        assert testCase.getMatcher().matches(Double.POSITIVE_INFINITY) == false;
-        assertThat(result, not(equalTo(Double.POSITIVE_INFINITY)));
-        assert testCase.getMatcher().matches(Double.NEGATIVE_INFINITY) == false;
-        assertThat(result, not(equalTo(Double.NEGATIVE_INFINITY)));
-        assertThat(result, testCase.getMatcher());
-        if (testCase.getExpectedWarnings() != null) {
-            assertWarnings(testCase.getExpectedWarnings());
-        }
+        assertTestCaseResultAndWarnings(result);
     }
 
     private void aggregateGroupingSingleMode(Expression expression) {
@@ -263,46 +258,32 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
             result = extractResultFromAggregator(aggregator, PlannerUtils.toElementType(testCase.expectedType()));
         }
 
-        assertThat(result, not(equalTo(Double.NaN)));
-        assert testCase.getMatcher().matches(Double.POSITIVE_INFINITY) == false;
-        assertThat(result, not(equalTo(Double.POSITIVE_INFINITY)));
-        assert testCase.getMatcher().matches(Double.NEGATIVE_INFINITY) == false;
-        assertThat(result, not(equalTo(Double.NEGATIVE_INFINITY)));
-        assertThat(result, testCase.getMatcher());
-        if (testCase.getExpectedWarnings() != null) {
-            assertWarnings(testCase.getExpectedWarnings());
-        }
+        assertTestCaseResultAndWarnings(result);
     }
 
     private void evaluate(Expression evaluableExpression) {
         assertTrue(evaluableExpression.foldable());
 
         if (testCase.foldingExceptionClass() != null) {
-            Throwable t = expectThrows(testCase.foldingExceptionClass(), evaluableExpression::fold);
+            Throwable t = expectThrows(testCase.foldingExceptionClass(), () -> evaluableExpression.fold(FoldContext.small()));
             assertThat(t.getMessage(), equalTo(testCase.foldingExceptionMessage()));
             return;
         }
 
-        Object result = evaluableExpression.fold();
+        Object result = evaluableExpression.fold(FoldContext.small());
         // Decode unsigned longs into BigIntegers
         if (testCase.expectedType() == DataType.UNSIGNED_LONG && result != null) {
             result = NumericUtils.unsignedLongAsBigInteger((Long) result);
         }
-        assertThat(result, not(equalTo(Double.NaN)));
-        assert testCase.getMatcher().matches(Double.POSITIVE_INFINITY) == false;
-        assertThat(result, not(equalTo(Double.POSITIVE_INFINITY)));
-        assert testCase.getMatcher().matches(Double.NEGATIVE_INFINITY) == false;
-        assertThat(result, not(equalTo(Double.NEGATIVE_INFINITY)));
-        assertThat(result, testCase.getMatcher());
-        if (testCase.getExpectedWarnings() != null) {
-            assertWarnings(testCase.getExpectedWarnings());
-        }
+        assertTestCaseResultAndWarnings(result);
     }
 
     private void resolveExpression(Expression expression, Consumer<Expression> onAggregator, Consumer<Expression> onEvaluableExpression) {
-        logger.info(
-            "Test Values: " + testCase.getData().stream().map(TestCaseSupplier.TypedData::toString).collect(Collectors.joining(","))
-        );
+        String valuesString = testCase.getData().stream().map(TestCaseSupplier.TypedData::toString).collect(Collectors.joining(","));
+        if (valuesString.length() > 200) {
+            valuesString = valuesString.substring(0, 200) + "...";
+        }
+        logger.info("Test Values: " + valuesString);
         if (testCase.getExpectedTypeError() != null) {
             assertTypeResolutionFailure(expression);
             return;
@@ -310,7 +291,7 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
         expression = resolveSurrogates(expression);
 
         // As expressions may be composed of multiple functions, we need to fold nulls bottom-up
-        expression = expression.transformUp(e -> new FoldNull().rule(e));
+        expression = expression.transformUp(e -> new FoldNull().rule(e, unboundLogicalOptimizerContext()));
         assertThat(expression.dataType(), equalTo(testCase.expectedType()));
 
         Expression.TypeResolution resolution = expression.typeResolved();

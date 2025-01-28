@@ -22,6 +22,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
+import org.elasticsearch.compute.data.BlockWritables;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
@@ -32,6 +33,7 @@ import org.elasticsearch.compute.operator.AbstractPageMappingOperator;
 import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.DriverSleeps;
 import org.elasticsearch.compute.operator.DriverStatus;
+import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
@@ -49,7 +51,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.xpack.esql.TestBlockFactory;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.versionfield.Version;
@@ -99,7 +100,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         return new NamedWriteableRegistry(
-            Stream.concat(Stream.of(AbstractPageMappingOperator.Status.ENTRY), Block.getNamedWriteables().stream()).toList()
+            Stream.concat(Stream.of(AbstractPageMappingOperator.Status.ENTRY), BlockWritables.getNamedWriteables().stream()).toList()
         );
     }
 
@@ -134,7 +135,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
     }
 
     EsqlExecutionInfo createExecutionInfo() {
-        EsqlExecutionInfo executionInfo = new EsqlExecutionInfo();
+        EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(true);
         executionInfo.overallTook(new TimeValue(5000));
         executionInfo.swapCluster(
             "",
@@ -147,6 +148,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 10,
                 3,
                 0,
+                null,
                 new TimeValue(4444L)
             )
         );
@@ -161,6 +163,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 12,
                 5,
                 0,
+                null,
                 new TimeValue(4999L)
             )
         );
@@ -193,7 +196,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 case INTEGER, COUNTER_INTEGER -> ((IntBlock.Builder) builder).appendInt(randomInt());
                 case DOUBLE, COUNTER_DOUBLE -> ((DoubleBlock.Builder) builder).appendDouble(randomDouble());
                 case KEYWORD -> ((BytesRefBlock.Builder) builder).appendBytesRef(new BytesRef(randomAlphaOfLength(10)));
-                case TEXT -> ((BytesRefBlock.Builder) builder).appendBytesRef(new BytesRef(randomAlphaOfLength(10000)));
+                case TEXT, SEMANTIC_TEXT -> ((BytesRefBlock.Builder) builder).appendBytesRef(new BytesRef(randomAlphaOfLength(10000)));
                 case IP -> ((BytesRefBlock.Builder) builder).appendBytesRef(
                     new BytesRef(InetAddressPoint.encode(randomIp(randomBoolean())))
                 );
@@ -201,7 +204,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 case BOOLEAN -> ((BooleanBlock.Builder) builder).appendBoolean(randomBoolean());
                 case UNSUPPORTED -> ((BytesRefBlock.Builder) builder).appendNull();
                 // TODO - add a random instant thing here?
-                case DATE_NANOS -> ((LongBlock.Builder) builder).appendLong(randomLong());
+                case DATE_NANOS -> ((LongBlock.Builder) builder).appendLong(randomNonNegativeLong());
                 case VERSION -> ((BytesRefBlock.Builder) builder).appendBytesRef(new Version(randomIdentifier()).toBytesRef());
                 case GEO_POINT -> ((BytesRefBlock.Builder) builder).appendBytesRef(GEO.asWkb(GeometryTestUtils.randomPoint()));
                 case CARTESIAN_POINT -> ((BytesRefBlock.Builder) builder).appendBytesRef(CARTESIAN.asWkb(ShapeTestUtils.randomPoint()));
@@ -236,7 +239,8 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
     protected EsqlQueryResponse mutateInstance(EsqlQueryResponse instance) {
         boolean allNull = true;
         for (ColumnInfoImpl info : instance.columns()) {
-            if (info.type() != DataType.NULL) {
+            // values inside NULL and UNSUPPORTED blocks cannot be mutated, because they are all null
+            if (info.type() != DataType.NULL && info.type() != DataType.UNSUPPORTED) {
                 allNull = false;
             }
         }
@@ -425,9 +429,9 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 }
             }
             if (clusterInfoMap.isEmpty()) {
-                return new EsqlExecutionInfo();
+                return new EsqlExecutionInfo(true);
             } else {
-                return new EsqlExecutionInfo(clusterInfoMap);
+                return new EsqlExecutionInfo(clusterInfoMap, true);
             }
         }
 
@@ -497,6 +501,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 successfulShardsFinal,
                 skippedShardsFinal,
                 failedShardsFinal,
+                null,
                 tookTimeValue
             );
         }
@@ -513,30 +518,66 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
         }
     }
 
+    public static int clusterDetailsSize(int numClusters) {
+        /* Example:
+        "_clusters" : {
+            "total" : 2,
+            "successful" : 2,
+            "running" : 0,
+            "skipped" : 0,
+            "partial" : 0,
+            "failed" : 0,
+            "details" : {
+                "(local)" : {
+                    "status" : "successful",
+                    "indices" : "logs-1",
+                    "took" : 4444,
+                    "_shards" : {
+                      "total" : 10,
+                      "successful" : 10,
+                      "skipped" : 3,
+                      "failed" : 0
+                    }
+                },
+                "remote1" : {
+                    "status" : "successful",
+                    "indices" : "remote1:logs-1",
+                    "took" : 4999,
+                    "_shards" : {
+                      "total" : 12,
+                      "successful" : 12,
+                      "skipped" : 5,
+                      "failed" : 0
+                    }
+                }
+            }
+         }
+         */
+        return numClusters * 4 + 1;
+    }
+
     public void testChunkResponseSizeColumnar() {
-        int sizeClusterDetails = 14;
         try (EsqlQueryResponse resp = randomResponse(true, null)) {
             int columnCount = resp.pages().get(0).getBlockCount();
             int bodySize = resp.pages().stream().mapToInt(p -> p.getPositionCount() * p.getBlockCount()).sum() + columnCount * 2;
-            assertChunkCount(resp, r -> 5 + sizeClusterDetails + bodySize);
+            assertChunkCount(resp, r -> 5 + clusterDetailsSize(resp.getExecutionInfo().clusterInfo.size()) + bodySize);
         }
 
         try (EsqlQueryResponse resp = randomResponseAsync(true, null, true)) {
             int columnCount = resp.pages().get(0).getBlockCount();
             int bodySize = resp.pages().stream().mapToInt(p -> p.getPositionCount() * p.getBlockCount()).sum() + columnCount * 2;
-            assertChunkCount(resp, r -> 6 + sizeClusterDetails + bodySize); // is_running
+            assertChunkCount(resp, r -> 6 + clusterDetailsSize(resp.getExecutionInfo().clusterInfo.size()) + bodySize); // is_running
         }
     }
 
     public void testChunkResponseSizeRows() {
-        int sizeClusterDetails = 14;
         try (EsqlQueryResponse resp = randomResponse(false, null)) {
-            int bodySize = resp.pages().stream().mapToInt(p -> p.getPositionCount()).sum();
-            assertChunkCount(resp, r -> 5 + sizeClusterDetails + bodySize);
+            int bodySize = resp.pages().stream().mapToInt(Page::getPositionCount).sum();
+            assertChunkCount(resp, r -> 5 + clusterDetailsSize(resp.getExecutionInfo().clusterInfo.size()) + bodySize);
         }
         try (EsqlQueryResponse resp = randomResponseAsync(false, null, true)) {
-            int bodySize = resp.pages().stream().mapToInt(p -> p.getPositionCount()).sum();
-            assertChunkCount(resp, r -> 6 + sizeClusterDetails + bodySize);
+            int bodySize = resp.pages().stream().mapToInt(Page::getPositionCount).sum();
+            assertChunkCount(resp, r -> 6 + clusterDetailsSize(resp.getExecutionInfo().clusterInfo.size()) + bodySize);
         }
     }
 
@@ -678,7 +719,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                             20021,
                             20000,
                             12,
-                            List.of(new DriverStatus.OperatorStatus("asdf", new AbstractPageMappingOperator.Status(10021, 10))),
+                            List.of(new DriverStatus.OperatorStatus("asdf", new AbstractPageMappingOperator.Status(10021, 10, 111, 222))),
                             DriverSleeps.empty()
                         )
                     )
@@ -717,7 +758,9 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                             "operator" : "asdf",
                             "status" : {
                               "process_nanos" : 10021,
-                              "pages_processed" : 10
+                              "pages_processed" : 10,
+                              "rows_received" : 111,
+                              "rows_emitted" : 222
                             }
                           }
                         ],
@@ -865,7 +908,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                     case LONG, COUNTER_LONG -> ((LongBlock.Builder) builder).appendLong(((Number) value).longValue());
                     case INTEGER, COUNTER_INTEGER -> ((IntBlock.Builder) builder).appendInt(((Number) value).intValue());
                     case DOUBLE, COUNTER_DOUBLE -> ((DoubleBlock.Builder) builder).appendDouble(((Number) value).doubleValue());
-                    case KEYWORD, TEXT -> ((BytesRefBlock.Builder) builder).appendBytesRef(new BytesRef(value.toString()));
+                    case KEYWORD, TEXT, SEMANTIC_TEXT -> ((BytesRefBlock.Builder) builder).appendBytesRef(new BytesRef(value.toString()));
                     case UNSUPPORTED -> ((BytesRefBlock.Builder) builder).appendNull();
                     case IP -> ((BytesRefBlock.Builder) builder).appendBytesRef(stringToIP(value.toString()));
                     case DATETIME -> {

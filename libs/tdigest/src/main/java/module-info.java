@@ -19,6 +19,7 @@
 
 module org.elasticsearch.tdigest {
     requires org.elasticsearch.base;
+    requires org.apache.lucene.core;
 
     exports org.elasticsearch.tdigest;
     exports org.elasticsearch.tdigest.arrays;

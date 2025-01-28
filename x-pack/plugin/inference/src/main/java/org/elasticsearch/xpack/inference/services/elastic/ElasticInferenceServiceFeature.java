@@ -11,10 +11,13 @@ import org.elasticsearch.common.util.FeatureFlag;
 
 /**
  * Elastic Inference Service (EIS) feature flag. When the feature is complete, this flag will be removed.
- * Enable feature via JVM option: `-Des.eis_feature_flag_enabled=true`.
+ * Enable feature via JVM option: `-Des.elastic_inference_service_feature_flag_enabled=true`.
  */
 public class ElasticInferenceServiceFeature {
 
-    public static final FeatureFlag ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG = new FeatureFlag("eis");
+    // TODO when we remove this also look in InferenceGetServicesIT and remove references to the deprecated URL setting
+    @Deprecated
+    public static final FeatureFlag DEPRECATED_ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG = new FeatureFlag("eis");
 
+    public static final FeatureFlag ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG = new FeatureFlag("elastic_inference_service");
 }

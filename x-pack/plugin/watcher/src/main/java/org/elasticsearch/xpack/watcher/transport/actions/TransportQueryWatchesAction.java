@@ -98,11 +98,11 @@ public class TransportQueryWatchesAction extends WatcherTransportAction<QueryWat
     }
 
     void transformResponse(SearchResponse searchResponse, ActionListener<QueryWatchesAction.Response> listener) {
-        assert searchResponse.getHits().getTotalHits().relation == TotalHits.Relation.EQUAL_TO;
+        assert searchResponse.getHits().getTotalHits().relation() == TotalHits.Relation.EQUAL_TO;
         List<QueryWatchesAction.Response.Item> items = Arrays.stream(searchResponse.getHits().getHits())
             .map(this::transformSearchHit)
             .toList();
-        listener.onResponse(new QueryWatchesAction.Response(searchResponse.getHits().getTotalHits().value, items));
+        listener.onResponse(new QueryWatchesAction.Response(searchResponse.getHits().getTotalHits().value(), items));
     }
 
     QueryWatchesAction.Response.Item transformSearchHit(SearchHit searchHit) {

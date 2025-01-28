@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -74,7 +75,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  *         can actually impersonate the user running the request.</li>
  *     <li>{@link #authorizeClusterAction(RequestInfo, AuthorizationInfo, ActionListener)} if the
  *         request is a cluster level operation.</li>
- *     <li>{@link #authorizeIndexAction(RequestInfo, AuthorizationInfo, AsyncSupplier, Map, ActionListener)} if
+ *     <li>{@link #authorizeIndexAction(RequestInfo, AuthorizationInfo, AsyncSupplier, Metadata, ActionListener)} if
  *         the request is a an index action. This method may be called multiple times for a single
  *         request as the request may be made up of sub-requests that also need to be authorized. The async supplier
  *         for resolved indices will invoke the
@@ -83,7 +84,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * </ol>
  * <br><p>
  * <em>NOTE:</em> the {@link #loadAuthorizedIndices(RequestInfo, AuthorizationInfo, Map, ActionListener)}
- * method may be called prior to {@link #authorizeIndexAction(RequestInfo, AuthorizationInfo, AsyncSupplier, Map, ActionListener)}
+ * method may be called prior to {@link #authorizeIndexAction(RequestInfo, AuthorizationInfo, AsyncSupplier, Metadata, ActionListener)}
  * in cases where wildcards need to be expanded.
  * </p><br>
  * Authorization engines can be called from various threads including network threads that should
@@ -157,7 +158,7 @@ public interface AuthorizationEngine {
      *                          from {@link #resolveAuthorizationInfo(RequestInfo, ActionListener)}
      * @param indicesAsyncSupplier the asynchronous supplier for the indices that this request is
      *                             attempting to operate on
-     * @param aliasOrIndexLookup a map of a string name to the cluster metadata specific to that
+     * @param metadata a map of a string name to the cluster metadata specific to that
      *                            alias or index
      * @param listener the listener to be notified of the authorization result
      */
@@ -165,7 +166,7 @@ public interface AuthorizationEngine {
         RequestInfo requestInfo,
         AuthorizationInfo authorizationInfo,
         AsyncSupplier<ResolvedIndices> indicesAsyncSupplier,
-        Map<String, IndexAbstraction> aliasOrIndexLookup,
+        Metadata metadata,
         ActionListener<IndexAuthorizationResult> listener
     );
 

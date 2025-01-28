@@ -472,7 +472,7 @@ You can run a group of YAML test by using wildcards:
   --tests "org.elasticsearch.test.rest.ClientYamlTestSuiteIT.test {yaml=index/*/*}"
 ---------------------------------------------------------------------------
 
-or 
+or
 
 ---------------------------------------------------------------------------
 ./gradlew :rest-api-spec:yamlRestTest \
@@ -564,8 +564,8 @@ Sometimes a backward compatibility change spans two versions.
 A common case is a new functionality that needs a BWC bridge in an unreleased versioned of a release branch (for example, 5.x).
 Another use case, since the introduction of serverless, is to test BWC against main in addition to the other released branches.
 To do so, specify the `bwc.refspec` remote and branch to use for the BWC build as `origin/main`.
-To test against main, you will also need to create a new version in link:./server/src/main/java/org/elasticsearch/Version.java[Version.java], 
-increment `elasticsearch` in link:./build-tools-internal/version.properties[version.properties], and hard-code the `project.version` for ml-cpp 
+To test against main, you will also need to create a new version in link:./server/src/main/java/org/elasticsearch/Version.java[Version.java],
+increment `elasticsearch` in link:./build-tools-internal/version.properties[version.properties], and hard-code the `project.version` for ml-cpp
 in link:./x-pack/plugin/ml/build.gradle[ml/build.gradle].
 
 In general, to test the changes, you can instruct Gradle to build the BWC version from another remote/branch combination instead of pulling the release branch from GitHub.
@@ -625,7 +625,7 @@ For specific YAML rest tests one can use
 For disabling entire types of tests for subprojects, one can use for example:
 
 ------------------------------------------------
-if (BuildParams.inFipsJvm){
+if (buildParams.inFipsJvm) {
   // This test cluster is using a BASIC license and FIPS 140 mode is not supported in BASIC
   tasks.named("javaRestTest").configure{enabled = false }
 }

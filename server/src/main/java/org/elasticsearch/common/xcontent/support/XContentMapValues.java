@@ -274,29 +274,22 @@ public class XContentMapValues {
      */
     public static Function<Map<String, Object>, Map<String, Object>> filter(String[] includes, String[] excludes) {
         CharacterRunAutomaton matchAllAutomaton = new CharacterRunAutomaton(Automata.makeAnyString());
-
-        CharacterRunAutomaton include;
-        if (includes == null || includes.length == 0) {
-            include = matchAllAutomaton;
-        } else {
-            Automaton includeA = Regex.simpleMatchToAutomaton(includes);
-            includeA = makeMatchDotsInFieldNames(includeA);
-            include = new CharacterRunAutomaton(includeA, MAX_DETERMINIZED_STATES);
-        }
-
-        Automaton excludeA;
-        if (excludes == null || excludes.length == 0) {
-            excludeA = Automata.makeEmpty();
-        } else {
-            excludeA = Regex.simpleMatchToAutomaton(excludes);
-            excludeA = makeMatchDotsInFieldNames(excludeA);
-        }
-        CharacterRunAutomaton exclude = new CharacterRunAutomaton(excludeA, MAX_DETERMINIZED_STATES);
+        CharacterRunAutomaton include = compileAutomaton(includes, matchAllAutomaton);
+        CharacterRunAutomaton exclude = compileAutomaton(excludes, new CharacterRunAutomaton(Automata.makeEmpty()));
 
         // NOTE: We cannot use Operations.minus because of the special case that
         // we want all sub properties to match as soon as an object matches
 
         return (map) -> filter(map, include, 0, exclude, 0, matchAllAutomaton);
+    }
+
+    public static CharacterRunAutomaton compileAutomaton(String[] patterns, CharacterRunAutomaton defaultValue) {
+        if (patterns == null || patterns.length == 0) {
+            return defaultValue;
+        }
+        var aut = Regex.simpleMatchToAutomaton(patterns);
+        aut = Operations.determinize(makeMatchDotsInFieldNames(aut), MAX_DETERMINIZED_STATES);
+        return new CharacterRunAutomaton(aut);
     }
 
     /** Make matches on objects also match dots in field names.

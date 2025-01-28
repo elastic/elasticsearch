@@ -53,8 +53,8 @@ https://docs.oracle.com/en/java/javase/17/security/java-cryptography-architectur
 https://docs.oracle.com/en/java/javase/17/security/java-secure-socket-extension-jsse-reference-guide.html[JSSE] implementation is required
 so that the JVM uses FIPS validated implementations of NIST recommended cryptographic algorithms.
 
-Elasticsearch has been tested with Bouncy Castle's https://repo1.maven.org/maven2/org/bouncycastle/bc-fips/1.0.2.4/bc-fips-1.0.2.4.jar[bc-fips 1.0.2.4]
-and https://repo1.maven.org/maven2/org/bouncycastle/bctls-fips/1.0.17/bctls-fips-1.0.17.jar[bctls-fips 1.0.17].
+Elasticsearch has been tested with Bouncy Castle's https://repo1.maven.org/maven2/org/bouncycastle/bc-fips/1.0.2.5/bc-fips-1.0.2.5.jar[bc-fips 1.0.2.5]
+and https://repo1.maven.org/maven2/org/bouncycastle/bctls-fips/1.0.19/bctls-fips-1.0.19.jar[bctls-fips 1.0.19].
 Please refer to the {es}
 https://www.elastic.co/support/matrix#matrix_jvm[JVM support matrix] for details on which combinations of JVM and security provider are supported in FIPS mode. Elasticsearch does not ship with a FIPS certified provider. It is the responsibility of the user
 to install and configure the security provider to ensure compliance with FIPS 140-2. Using a FIPS certified provider will ensure that only

@@ -14,7 +14,6 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -23,9 +22,7 @@ import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.InternalTestCluster;
 import org.junit.Assert;
-import org.junit.BeforeClass;
 
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
@@ -46,7 +43,6 @@ public class ClusterStatsRemoteIT extends AbstractMultiClustersTestCase {
     private static final String REMOTE2 = "cluster-b";
 
     private static final String INDEX_NAME = "demo";
-    private static final FeatureFlag CCS_TELEMETRY_FEATURE_FLAG = new FeatureFlag("ccs_telemetry");
 
     @Override
     protected boolean reuseClusters() {
@@ -54,18 +50,13 @@ public class ClusterStatsRemoteIT extends AbstractMultiClustersTestCase {
     }
 
     @Override
-    protected Collection<String> remoteClusterAlias() {
+    protected List<String> remoteClusterAlias() {
         return List.of(REMOTE1, REMOTE2);
     }
 
     @Override
     protected Map<String, Boolean> skipUnavailableForRemoteClusters() {
         return Map.of(REMOTE1, false, REMOTE2, true);
-    }
-
-    @BeforeClass
-    protected static void skipIfTelemetryDisabled() {
-        assumeTrue("Skipping test as CCS_TELEMETRY_FEATURE_FLAG is disabled", CCS_TELEMETRY_FEATURE_FLAG.isEnabled());
     }
 
     public void testRemoteClusterStats() throws ExecutionException, InterruptedException {

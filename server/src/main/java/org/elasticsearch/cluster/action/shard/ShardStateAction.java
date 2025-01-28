@@ -722,7 +722,7 @@ public class ShardStateAction {
                              */
                             IndexLongFieldRange newEventIngestedMillisRange = IndexLongFieldRange.UNKNOWN;
                             TransportVersion minTransportVersion = batchExecutionContext.initialState().getMinTransportVersion();
-                            if (minTransportVersion.onOrAfter(TransportVersions.EVENT_INGESTED_RANGE_IN_CLUSTER_STATE)) {
+                            if (minTransportVersion.onOrAfter(TransportVersions.V_8_15_0)) {
                                 newEventIngestedMillisRange = currentEventIngestedMillisRange.extendWithShardRange(
                                     startedShardEntry.shardId.id(),
                                     indexMetadata.getNumberOfShards(),
@@ -754,7 +754,7 @@ public class ShardStateAction {
                         metadataBuilder.put(
                             IndexMetadata.builder(metadataBuilder.getSafe(updatedTimeRangesEntry.getKey()))
                                 .timestampRange(timeRanges.timestampRange())
-                                .eventIngestedRange(timeRanges.eventIngestedRange(), maybeUpdatedState.getMinTransportVersion())
+                                .eventIngestedRange(timeRanges.eventIngestedRange())
                         );
                     }
                     maybeUpdatedState = ClusterState.builder(maybeUpdatedState).metadata(metadataBuilder).build();
@@ -827,7 +827,7 @@ public class ShardStateAction {
             primaryTerm = in.readVLong();
             this.message = in.readString();
             this.timestampRange = ShardLongFieldRange.readFrom(in);
-            if (in.getTransportVersion().onOrAfter(TransportVersions.EVENT_INGESTED_RANGE_IN_CLUSTER_STATE)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
                 this.eventIngestedRange = ShardLongFieldRange.readFrom(in);
             } else {
                 this.eventIngestedRange = ShardLongFieldRange.UNKNOWN;
@@ -858,7 +858,7 @@ public class ShardStateAction {
             out.writeVLong(primaryTerm);
             out.writeString(message);
             timestampRange.writeTo(out);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.EVENT_INGESTED_RANGE_IN_CLUSTER_STATE)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
                 eventIngestedRange.writeTo(out);
             }
         }

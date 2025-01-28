@@ -136,7 +136,6 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
             threadPool,
             actionFilters,
             StartDataFrameAnalyticsAction.Request::new,
-            indexNameExpressionResolver,
             NodeAcknowledgedResponse::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
@@ -223,7 +222,7 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
         );
 
         // Get start context
-        getStartContext(request.getId(), task, startContextListener);
+        getStartContext(request.getId(), task, startContextListener, request.masterNodeTimeout());
     }
 
     private void estimateMemoryUsageAndUpdateMemoryTracker(StartContext startContext, ActionListener<StartContext> listener) {
@@ -264,7 +263,7 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
 
     }
 
-    private void getStartContext(String id, Task task, ActionListener<StartContext> finalListener) {
+    private void getStartContext(String id, Task task, ActionListener<StartContext> finalListener, TimeValue masterTimeout) {
 
         ParentTaskAssigningClient parentTaskClient = new ParentTaskAssigningClient(client, task.getParentTaskId());
 
@@ -320,6 +319,7 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
             .<StartContext>andThen(
                 (l, startContext) -> MappingsMerger.mergeMappings(
                     parentTaskClient,
+                    masterTimeout,
                     startContext.config.getHeaders(),
                     startContext.config.getSource(),
                     l.map(ignored -> startContext)
@@ -433,7 +433,7 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
             TransportSearchAction.TYPE,
             destEmptySearch,
             ActionListener.wrap(searchResponse -> {
-                if (searchResponse.getHits().getTotalHits().value > 0) {
+                if (searchResponse.getHits().getTotalHits().value() > 0) {
                     listener.onFailure(ExceptionsHelper.badRequestException("dest index [{}] must be empty", destIndex));
                 } else {
                     listener.onResponse(startContext);

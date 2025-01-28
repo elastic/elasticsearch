@@ -13,10 +13,7 @@ import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
 import org.elasticsearch.action.termvectors.TermVectorsRequest;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.DeprecationRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
@@ -30,8 +27,6 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestMultiTermVectorsAction extends BaseRestHandler {
-    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestMultiTermVectorsAction.class);
-    static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in multi term vector requests is deprecated.";
 
     @Override
     public List<Route> routes() {
@@ -39,9 +34,7 @@ public class RestMultiTermVectorsAction extends BaseRestHandler {
             new Route(GET, "/_mtermvectors"),
             new Route(POST, "/_mtermvectors"),
             new Route(GET, "/{index}/_mtermvectors"),
-            new Route(POST, "/{index}/_mtermvectors"),
-            Route.builder(GET, "/{index}/{type}/_mtermvectors").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build(),
-            Route.builder(POST, "/{index}/{type}/_mtermvectors").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build()
+            new Route(POST, "/{index}/_mtermvectors")
         );
     }
 
@@ -52,10 +45,6 @@ public class RestMultiTermVectorsAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        if (request.getRestApiVersion() == RestApiVersion.V_7 && request.hasParam("type")) {
-            request.param("type");
-            deprecationLogger.compatibleCritical(DeprecationRestHandler.DEPRECATED_ROUTE_KEY, TYPES_DEPRECATION_MESSAGE);
-        }
         MultiTermVectorsRequest multiTermVectorsRequest = new MultiTermVectorsRequest();
         TermVectorsRequest template = new TermVectorsRequest().index(request.param("index"));
 

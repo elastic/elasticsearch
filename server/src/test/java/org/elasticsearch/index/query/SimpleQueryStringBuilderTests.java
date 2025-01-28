@@ -315,7 +315,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
     private static int shouldClauses(BooleanQuery query) {
         int result = 0;
         for (BooleanClause c : query.clauses()) {
-            if (c.getOccur() == BooleanClause.Occur.SHOULD) {
+            if (c.occur() == BooleanClause.Occur.SHOULD) {
                 result++;
             }
         }

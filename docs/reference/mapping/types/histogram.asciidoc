@@ -79,7 +79,7 @@ any issues, but features in technical preview are not subject to the support SLA
 of official GA features.
 
 `histogram` fields support <<synthetic-source,synthetic `_source`>> in their
-default configuration. Synthetic `_source` cannot be used together with <<copy-to,`copy_to`>>.
+default configuration.
 
 NOTE: To save space, zero-count buckets are not stored in the histogram doc values.
 As a result, when indexing a histogram field in an index with synthetic source enabled,

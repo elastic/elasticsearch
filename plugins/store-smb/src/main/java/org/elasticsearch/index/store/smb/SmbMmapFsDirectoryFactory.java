@@ -27,7 +27,6 @@ public final class SmbMmapFsDirectoryFactory extends FsDirectoryFactory {
         return new SmbDirectoryWrapper(
             setPreload(
                 new MMapDirectory(location, lockFactory),
-                lockFactory,
                 new HashSet<>(indexSettings.getValue(IndexModule.INDEX_STORE_PRE_LOAD_SETTING))
             )
         );

@@ -991,8 +991,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
                 true
             )
             .build();
-        IndicesAccessControl iac = role.indices()
-            .authorize("indices:data/read/search", Collections.singleton("test"), metadata.getIndicesLookup(), cache);
+        IndicesAccessControl iac = role.indices().authorize("indices:data/read/search", Collections.singleton("test"), metadata, cache);
         assertTrue(iac.getIndexPermissions("test").getFieldPermissions().grantsAccessTo("L1.foo"));
         assertFalse(iac.getIndexPermissions("test").getFieldPermissions().grantsAccessTo("L2.foo"));
         assertTrue(iac.getIndexPermissions("test").getFieldPermissions().grantsAccessTo("L3.foo"));
@@ -1158,7 +1157,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         assertHasRemoteIndexGroupsForClusters(forRemote, Set.of("*"), indexGroup("remote-idx-2-*"));
         assertValidRemoteClusterPermissions(role.remoteCluster(), new String[] { "remote-*" });
         assertThat(
-            role.remoteCluster().privilegeNames("remote-foobar", TransportVersion.current()),
+            role.remoteCluster().collapseAndRemoveUnsupportedPrivileges("remote-foobar", TransportVersion.current()),
             equalTo(RemoteClusterPermissions.getSupportedRemoteClusterPermissions().toArray(new String[0]))
         );
     }
@@ -1699,6 +1698,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             true,
             true,
             true,
+            null,
             null,
             null,
             null,
@@ -2305,18 +2305,15 @@ public class CompositeRolesStoreTests extends ESTestCase {
             .build();
         final var emptyCache = new FieldPermissionsCache(Settings.EMPTY);
         assertThat(
-            role.authorize(TransportSearchAction.TYPE.name(), Sets.newHashSet("index1"), indexMetadata.getIndicesLookup(), emptyCache)
-                .isGranted(),
+            role.authorize(TransportSearchAction.TYPE.name(), Sets.newHashSet("index1"), indexMetadata, emptyCache).isGranted(),
             is(false == emptyRemoteRole)
         );
         assertThat(
-            role.authorize(TransportCreateIndexAction.TYPE.name(), Sets.newHashSet("index1"), indexMetadata.getIndicesLookup(), emptyCache)
-                .isGranted(),
+            role.authorize(TransportCreateIndexAction.TYPE.name(), Sets.newHashSet("index1"), indexMetadata, emptyCache).isGranted(),
             is(false)
         );
         assertThat(
-            role.authorize(TransportSearchAction.TYPE.name(), Sets.newHashSet("index2"), indexMetadata.getIndicesLookup(), emptyCache)
-                .isGranted(),
+            role.authorize(TransportSearchAction.TYPE.name(), Sets.newHashSet("index2"), indexMetadata, emptyCache).isGranted(),
             is(false)
         );
     }
@@ -3321,12 +3318,12 @@ public class CompositeRolesStoreTests extends ESTestCase {
     }
 
     private void assertValidRemoteClusterPermissionsParent(RemoteClusterPermissions permissions, String[] aliases) {
-        assertTrue(permissions.hasPrivileges());
+        assertTrue(permissions.hasAnyPrivileges());
         for (String alias : aliases) {
-            assertTrue(permissions.hasPrivileges(alias));
-            assertFalse(permissions.hasPrivileges(randomValueOtherThan(alias, () -> randomAlphaOfLength(5))));
+            assertTrue(permissions.hasAnyPrivileges(alias));
+            assertFalse(permissions.hasAnyPrivileges(randomValueOtherThan(alias, () -> randomAlphaOfLength(5))));
             assertThat(
-                permissions.privilegeNames(alias, TransportVersion.current()),
+                permissions.collapseAndRemoveUnsupportedPrivileges(alias, TransportVersion.current()),
                 arrayContaining(RemoteClusterPermissions.getSupportedRemoteClusterPermissions().toArray(new String[0]))
             );
         }

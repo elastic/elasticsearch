@@ -145,7 +145,7 @@ public interface Evaluation extends ToXContentObject, NamedWriteable {
      */
     default void process(SearchResponse searchResponse) {
         Objects.requireNonNull(searchResponse);
-        if (searchResponse.getHits().getTotalHits().value == 0) {
+        if (searchResponse.getHits().getTotalHits().value() == 0) {
             String requiredFieldsString = String.join(", ", getRequiredFields());
             throw ExceptionsHelper.badRequestException("No documents found containing all the required fields [{}]", requiredFieldsString);
         }

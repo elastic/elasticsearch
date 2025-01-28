@@ -31,4 +31,10 @@ public class SpatialPushDownCartesianPointIT extends SpatialPushDownPointsTestCa
     protected String castingFunction() {
         return "TO_CARTESIANSHAPE";
     }
+
+    @Override
+    protected double searchDistance() {
+        // We search much larger distances for Cartesian, to ensure we actually get results from the much wider data range
+        return 1e12;
+    }
 }

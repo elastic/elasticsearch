@@ -190,8 +190,8 @@ public class NodesShutdownMetadata implements Metadata.Custom {
     }
 
     @Override
-    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
-        return ChunkedToXContentHelper.xContentValuesMap(NODES_FIELD.getPreferredName(), nodes);
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
+        return ChunkedToXContentHelper.xContentObjectFields(NODES_FIELD.getPreferredName(), nodes);
     }
 
     /**

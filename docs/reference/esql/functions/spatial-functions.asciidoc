@@ -8,19 +8,29 @@
 {esql} supports these spatial functions:
 
 // tag::spatial_list[]
-* experimental:[] <<esql-st_intersects>>
-* experimental:[] <<esql-st_disjoint>>
-* experimental:[] <<esql-st_contains>>
-* experimental:[] <<esql-st_within>>
-* experimental:[] <<esql-st_x>>
-* experimental:[] <<esql-st_y>>
-* experimental:[] <<esql-st_distance>>
+* <<esql-st_distance>>
+* <<esql-st_intersects>>
+* <<esql-st_disjoint>>
+* <<esql-st_contains>>
+* <<esql-st_within>>
+* <<esql-st_x>>
+* <<esql-st_y>>
+* experimental:[] <<esql-st_envelope>>
+* experimental:[] <<esql-st_xmax>>
+* experimental:[] <<esql-st_xmin>>
+* experimental:[] <<esql-st_ymax>>
+* experimental:[] <<esql-st_ymin>>
 // end::spatial_list[]
 
+include::layout/st_distance.asciidoc[]
 include::layout/st_intersects.asciidoc[]
 include::layout/st_disjoint.asciidoc[]
 include::layout/st_contains.asciidoc[]
 include::layout/st_within.asciidoc[]
 include::layout/st_x.asciidoc[]
 include::layout/st_y.asciidoc[]
-include::layout/st_distance.asciidoc[]
+include::layout/st_envelope.asciidoc[]
+include::layout/st_xmax.asciidoc[]
+include::layout/st_xmin.asciidoc[]
+include::layout/st_ymax.asciidoc[]
+include::layout/st_ymin.asciidoc[]

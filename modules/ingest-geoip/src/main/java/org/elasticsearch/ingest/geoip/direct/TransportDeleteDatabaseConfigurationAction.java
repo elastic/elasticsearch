@@ -73,7 +73,6 @@ public class TransportDeleteDatabaseConfigurationAction extends TransportMasterN
             threadPool,
             actionFilters,
             Request::new,
-            indexNameExpressionResolver,
             AcknowledgedResponse::readFrom,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
@@ -91,6 +90,8 @@ public class TransportDeleteDatabaseConfigurationAction extends TransportMasterN
         final IngestGeoIpMetadata geoIpMeta = state.metadata().custom(IngestGeoIpMetadata.TYPE, IngestGeoIpMetadata.EMPTY);
         if (geoIpMeta.getDatabases().containsKey(id) == false) {
             throw new ResourceNotFoundException("Database configuration not found: {}", id);
+        } else if (geoIpMeta.getDatabases().get(id).database().isReadOnly()) {
+            throw new IllegalArgumentException("Database " + id + " is read only");
         }
         deleteDatabaseConfigurationTaskQueue.submitTask(
             Strings.format("delete-geoip-database-configuration-[%s]", id),

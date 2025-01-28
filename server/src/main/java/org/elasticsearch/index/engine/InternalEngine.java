@@ -20,6 +20,7 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.LiveIndexWriterConfig;
 import org.apache.lucene.index.MergePolicy;
+import org.apache.lucene.index.MergeScheduler;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SoftDeletesRetentionMergePolicy;
@@ -139,7 +140,7 @@ public class InternalEngine extends Engine {
     private volatile long lastDeleteVersionPruneTimeMSec;
 
     private final Translog translog;
-    private final ElasticsearchConcurrentMergeScheduler mergeScheduler;
+    private final ElasticsearchMergeScheduler mergeScheduler;
 
     private final IndexWriter indexWriter;
 
@@ -248,11 +249,12 @@ public class InternalEngine extends Engine {
         Translog translog = null;
         ExternalReaderManager externalReaderManager = null;
         ElasticsearchReaderManager internalReaderManager = null;
-        EngineMergeScheduler scheduler = null;
+        MergeScheduler scheduler = null;
         boolean success = false;
         try {
             this.lastDeleteVersionPruneTimeMSec = engineConfig.getThreadPool().relativeTimeInMillis();
-            mergeScheduler = scheduler = new EngineMergeScheduler(engineConfig.getShardId(), engineConfig.getIndexSettings());
+            mergeScheduler = createMergeScheduler(engineConfig.getShardId(), engineConfig.getIndexSettings());
+            scheduler = mergeScheduler.getMergeScheduler();
             throttle = new IndexThrottle();
             try {
                 store.trimUnsafeCommits(config().getTranslogConfig().getTranslogPath());
@@ -264,7 +266,7 @@ public class InternalEngine extends Engine {
                 );
                 assert translog.getGeneration() != null;
                 this.translog = translog;
-                this.totalDiskSpace = new ByteSizeValue(Environment.getFileStore(translog.location()).getTotalSpace(), ByteSizeUnit.BYTES);
+                this.totalDiskSpace = ByteSizeValue.of(Environment.getFileStore(translog.location()).getTotalSpace(), ByteSizeUnit.BYTES);
                 this.lastCommittedSegmentInfos = store.readLastCommittedSegmentsInfo();
                 this.softDeletesPolicy = newSoftDeletesPolicy();
                 this.combinedDeletionPolicy = new CombinedDeletionPolicy(
@@ -383,7 +385,7 @@ public class InternalEngine extends Engine {
 
     @Nullable
     private CombinedDeletionPolicy.CommitsListener newCommitsListener() {
-        Engine.IndexCommitListener listener = engineConfig.getIndexCommitListener();
+        IndexCommitListener listener = engineConfig.getIndexCommitListener();
         if (listener != null) {
             final IndexCommitListener wrappedListener = Assertions.ENABLED ? assertingCommitsOrderListener(listener) : listener;
             return new CombinedDeletionPolicy.CommitsListener() {
@@ -659,7 +661,8 @@ public class InternalEngine extends Engine {
             translogDeletionPolicy,
             globalCheckpointSupplier,
             engineConfig.getPrimaryTermSupplier(),
-            persistedSequenceNumberConsumer
+            persistedSequenceNumberConsumer,
+            TranslogOperationAsserter.withEngineConfig(engineConfig)
         );
     }
 
@@ -816,7 +819,7 @@ public class InternalEngine extends Engine {
     ) throws IOException {
         assert get.isReadFromTranslog();
         translogGetCount.incrementAndGet();
-        final TranslogDirectoryReader inMemoryReader = new TranslogDirectoryReader(
+        final DirectoryReader inMemoryReader = TranslogDirectoryReader.create(
             shardId,
             index,
             mappingLookup,
@@ -824,7 +827,7 @@ public class InternalEngine extends Engine {
             config(),
             translogInMemorySegmentsCount::incrementAndGet
         );
-        final Engine.Searcher searcher = new Engine.Searcher(
+        final Searcher searcher = new Searcher(
             "realtime_get",
             ElasticsearchDirectoryReader.wrap(inMemoryReader, shardId),
             config().getSimilarity(),
@@ -841,7 +844,7 @@ public class InternalEngine extends Engine {
         Get get,
         MappingLookup mappingLookup,
         DocumentParser documentParser,
-        Function<Engine.Searcher, Engine.Searcher> searcherWrapper
+        Function<Searcher, Searcher> searcherWrapper
     ) {
         try (var ignored = acquireEnsureOpenRef()) {
             if (get.realtime()) {
@@ -875,7 +878,7 @@ public class InternalEngine extends Engine {
         Get get,
         MappingLookup mappingLookup,
         DocumentParser documentParser,
-        Function<Engine.Searcher, Engine.Searcher> searcherWrapper,
+        Function<Searcher, Searcher> searcherWrapper,
         boolean getFromSearcher
     ) {
         assert isDrainedForClose() == false;
@@ -1098,7 +1101,7 @@ public class InternalEngine extends Engine {
         return true;
     }
 
-    private boolean assertIncomingSequenceNumber(final Engine.Operation.Origin origin, final long seqNo) {
+    private boolean assertIncomingSequenceNumber(final Operation.Origin origin, final long seqNo) {
         if (origin == Operation.Origin.PRIMARY) {
             assert assertPrimaryIncomingSequenceNumber(origin, seqNo);
         } else {
@@ -1108,7 +1111,7 @@ public class InternalEngine extends Engine {
         return true;
     }
 
-    protected boolean assertPrimaryIncomingSequenceNumber(final Engine.Operation.Origin origin, final long seqNo) {
+    protected boolean assertPrimaryIncomingSequenceNumber(final Operation.Origin origin, final long seqNo) {
         // sequence number should not be set when operation origin is primary
         assert seqNo == SequenceNumbers.UNASSIGNED_SEQ_NO
             : "primary operations must never have an assigned sequence number but was [" + seqNo + "]";
@@ -2700,14 +2703,17 @@ public class InternalEngine extends Engine {
         iwc.setOpenMode(IndexWriterConfig.OpenMode.APPEND);
         iwc.setIndexDeletionPolicy(combinedDeletionPolicy);
         iwc.setInfoStream(TESTS_VERBOSE ? InfoStream.getDefault() : new LoggerInfoStream(logger));
-        iwc.setMergeScheduler(mergeScheduler);
+        iwc.setMergeScheduler(mergeScheduler.getMergeScheduler());
         // Give us the opportunity to upgrade old segments while performing
         // background merges
         MergePolicy mergePolicy = config().getMergePolicy();
         // always configure soft-deletes field so an engine with soft-deletes disabled can open a Lucene index with soft-deletes.
         iwc.setSoftDeletesField(Lucene.SOFT_DELETES_FIELD);
         mergePolicy = new RecoverySourcePruneMergePolicy(
-            SourceFieldMapper.RECOVERY_SOURCE_NAME,
+            engineConfig.getIndexSettings().isRecoverySourceSyntheticEnabled() ? null : SourceFieldMapper.RECOVERY_SOURCE_NAME,
+            engineConfig.getIndexSettings().isRecoverySourceSyntheticEnabled()
+                ? SourceFieldMapper.RECOVERY_SOURCE_SIZE_NAME
+                : SourceFieldMapper.RECOVERY_SOURCE_NAME,
             engineConfig.getIndexSettings().getMode() == IndexMode.TIME_SERIES,
             softDeletesPolicy::getRetentionQuery,
             new SoftDeletesRetentionMergePolicy(
@@ -2753,7 +2759,7 @@ public class InternalEngine extends Engine {
 
     /** A listener that warms the segments if needed when acquiring a new reader */
     static final class RefreshWarmerListener implements BiConsumer<ElasticsearchDirectoryReader, ElasticsearchDirectoryReader> {
-        private final Engine.Warmer warmer;
+        private final Warmer warmer;
         private final Logger logger;
         private final AtomicBoolean isEngineClosed;
 
@@ -2817,6 +2823,10 @@ public class InternalEngine extends Engine {
         return indexWriter.getConfig();
     }
 
+    protected ElasticsearchMergeScheduler createMergeScheduler(ShardId shardId, IndexSettings indexSettings) {
+        return new EngineMergeScheduler(shardId, indexSettings);
+    }
+
     private final class EngineMergeScheduler extends ElasticsearchConcurrentMergeScheduler {
         private final AtomicInteger numMergesInFlight = new AtomicInteger(0);
         private final AtomicBoolean isThrottling = new AtomicBoolean();
@@ -2827,7 +2837,7 @@ public class InternalEngine extends Engine {
 
         @Override
         public synchronized void beforeMerge(OnGoingMerge merge) {
-            int maxNumMerges = mergeScheduler.getMaxMergeCount();
+            int maxNumMerges = getMaxMergeCount();
             if (numMergesInFlight.incrementAndGet() > maxNumMerges) {
                 if (isThrottling.getAndSet(true) == false) {
                     logger.info("now throttling indexing: numMergesInFlight={}, maxNumMerges={}", numMergesInFlight, maxNumMerges);
@@ -2838,7 +2848,7 @@ public class InternalEngine extends Engine {
 
         @Override
         public synchronized void afterMerge(OnGoingMerge merge) {
-            int maxNumMerges = mergeScheduler.getMaxMergeCount();
+            int maxNumMerges = getMaxMergeCount();
             if (numMergesInFlight.decrementAndGet() < maxNumMerges) {
                 if (isThrottling.getAndSet(false)) {
                     logger.info("stop throttling indexing: numMergesInFlight={}, maxNumMerges={}", numMergesInFlight, maxNumMerges);
@@ -2876,23 +2886,27 @@ public class InternalEngine extends Engine {
 
         @Override
         protected void handleMergeException(final Throwable exc) {
-            engineConfig.getThreadPool().generic().execute(new AbstractRunnable() {
-                @Override
-                public void onFailure(Exception e) {
-                    logger.debug("merge failure action rejected", e);
-                }
-
-                @Override
-                protected void doRun() throws Exception {
-                    /*
-                     * We do this on another thread rather than the merge thread that we are initially called on so that we have complete
-                     * confidence that the call stack does not contain catch statements that would cause the error that might be thrown
-                     * here from being caught and never reaching the uncaught exception handler.
-                     */
-                    failEngine("merge failed", new MergePolicy.MergeException(exc));
-                }
-            });
+            mergeException(exc);
         }
+    }
+
+    protected void mergeException(final Throwable exc) {
+        engineConfig.getThreadPool().generic().execute(new AbstractRunnable() {
+            @Override
+            public void onFailure(Exception e) {
+                logger.debug("merge failure action rejected", e);
+            }
+
+            @Override
+            protected void doRun() throws Exception {
+                /*
+                 * We do this on another thread rather than the merge thread that we are initially called on so that we have complete
+                 * confidence that the call stack does not contain catch statements that would cause the error that might be thrown
+                 * here from being caught and never reaching the uncaught exception handler.
+                 */
+                failEngine("merge failed", new MergePolicy.MergeException(exc));
+            }
+        });
     }
 
     /**
@@ -3130,7 +3144,8 @@ public class InternalEngine extends Engine {
         long toSeqNo,
         boolean requiredFullRange,
         boolean singleConsumer,
-        boolean accessStats
+        boolean accessStats,
+        long maxChunkSize
     ) throws IOException {
         if (enableRecoverySource == false) {
             throw new IllegalStateException(
@@ -3143,16 +3158,32 @@ public class InternalEngine extends Engine {
         refreshIfNeeded(source, toSeqNo);
         Searcher searcher = acquireSearcher(source, SearcherScope.INTERNAL);
         try {
-            LuceneChangesSnapshot snapshot = new LuceneChangesSnapshot(
-                searcher,
-                LuceneChangesSnapshot.DEFAULT_BATCH_SIZE,
-                fromSeqNo,
-                toSeqNo,
-                requiredFullRange,
-                singleConsumer,
-                accessStats,
-                config().getIndexSettings().getIndexVersionCreated()
-            );
+            final Translog.Snapshot snapshot;
+            if (engineConfig.getIndexSettings().isRecoverySourceSyntheticEnabled()) {
+                snapshot = new LuceneSyntheticSourceChangesSnapshot(
+                    engineConfig.getMapperService(),
+                    searcher,
+                    SearchBasedChangesSnapshot.DEFAULT_BATCH_SIZE,
+                    maxChunkSize,
+                    fromSeqNo,
+                    toSeqNo,
+                    requiredFullRange,
+                    accessStats,
+                    config().getIndexSettings().getIndexVersionCreated()
+                );
+            } else {
+                snapshot = new LuceneChangesSnapshot(
+                    engineConfig.getMapperService(),
+                    searcher,
+                    SearchBasedChangesSnapshot.DEFAULT_BATCH_SIZE,
+                    fromSeqNo,
+                    toSeqNo,
+                    requiredFullRange,
+                    singleConsumer,
+                    accessStats,
+                    config().getIndexSettings().getIndexVersionCreated()
+                );
+            }
             searcher = null;
             return snapshot;
         } catch (Exception e) {

@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.core.security.authz.permission;
 
 import org.apache.lucene.util.automaton.Automaton;
-import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
@@ -215,7 +214,7 @@ public class ClusterPermission {
         @Override
         public final boolean implies(final PermissionCheck permissionCheck) {
             if (permissionCheck instanceof ActionBasedPermissionCheck) {
-                return Operations.subsetOf(((ActionBasedPermissionCheck) permissionCheck).automaton, this.automaton)
+                return Automatons.subsetOf(((ActionBasedPermissionCheck) permissionCheck).automaton, this.automaton)
                     && doImplies((ActionBasedPermissionCheck) permissionCheck);
             }
             return false;

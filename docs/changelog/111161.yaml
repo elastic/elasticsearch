@@ -1,6 +1,0 @@
-pr: 111161
-summary: Add support for templates when validating mappings in the simulate ingest
-  API
-area: Ingest Node
-type: enhancement
-issues: []

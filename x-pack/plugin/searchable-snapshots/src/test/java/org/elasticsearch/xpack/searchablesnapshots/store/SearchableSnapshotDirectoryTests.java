@@ -401,9 +401,9 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
             false, // no prewarming in this test because we want to ensure that files are accessed on purpose
             (directory, snapshotDirectory) -> {
                 for (String fileName : randomSubsetOf(Arrays.asList(snapshotDirectory.listAll()))) {
-                    final long checksum;
-                    try (IndexInput input = directory.openInput(fileName, Store.READONCE_CHECKSUM)) {
-                        checksum = CodecUtil.checksumEntireFile(input);
+                    final long expectedChecksum;
+                    try (IndexInput input = directory.openInput(fileName, IOContext.READONCE)) {
+                        expectedChecksum = CodecUtil.checksumEntireFile(input);
                     }
 
                     final long snapshotChecksum;
@@ -418,9 +418,9 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
                     }
 
                     assertThat(
-                        "Expected checksum [" + checksum + "] but got [" + snapshotChecksum + ']',
+                        "Expected checksum [" + expectedChecksum + "] but got [" + snapshotChecksum + ']',
                         snapshotChecksum,
-                        equalTo(checksum)
+                        equalTo(expectedChecksum)
                     );
                     assertThat(
                         "File [" + fileName + "] should have been read from heap",

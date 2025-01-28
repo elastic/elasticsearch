@@ -248,6 +248,7 @@ public class CancellableFanOutTests extends ESTestCase {
 
         final var itemsProcessed = new AtomicInteger();
         final var completionLatch = new CountDownLatch(1);
+        final var onCompletionCalled = new AtomicBoolean();
         new CancellableFanOut<String, String, String>() {
             @Override
             protected void sendItemRequest(String s, ActionListener<String> listener) {
@@ -261,6 +262,7 @@ public class CancellableFanOutTests extends ESTestCase {
                 assertCurrentThread(isProcessorThread);
                 assertEquals(s, response);
                 assertThat(itemsProcessed.incrementAndGet(), lessThanOrEqualTo(items.size()));
+                assertFalse(onCompletionCalled.get());
             }
 
             @Override
@@ -269,10 +271,12 @@ public class CancellableFanOutTests extends ESTestCase {
                 assertThat(e, instanceOf(ElasticsearchException.class));
                 assertEquals("sendItemRequest", e.getMessage());
                 assertThat(itemsProcessed.incrementAndGet(), lessThanOrEqualTo(items.size()));
+                assertFalse(onCompletionCalled.get());
             }
 
             @Override
             protected String onCompletion() {
+                assertTrue(onCompletionCalled.compareAndSet(false, true));
                 assertEquals(items.size(), itemsProcessed.get());
                 assertCurrentThread(anyOf(isTestThread, isProcessorThread));
                 if (randomBoolean()) {

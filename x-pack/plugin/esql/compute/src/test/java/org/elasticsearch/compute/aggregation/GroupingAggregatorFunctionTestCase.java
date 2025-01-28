@@ -14,7 +14,6 @@ import org.elasticsearch.compute.ConstantBooleanExpressionEvaluator;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.BlockTestUtils;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
@@ -25,8 +24,7 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.data.TestBlockFactory;
-import org.elasticsearch.compute.operator.CannedSourceOperator;
+import org.elasticsearch.compute.operator.AddGarbageRowsSourceOperator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.ForkingOperatorTestCase;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
@@ -34,6 +32,9 @@ import org.elasticsearch.compute.operator.NullInsertingSourceOperator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.PositionMergingSourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.test.BlockTestUtils;
+import org.elasticsearch.compute.test.CannedSourceOperator;
+import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -50,7 +51,7 @@ import java.util.stream.LongStream;
 import java.util.stream.Stream;
 
 import static java.util.stream.IntStream.range;
-import static org.elasticsearch.compute.data.BlockTestUtils.append;
+import static org.elasticsearch.compute.test.BlockTestUtils.append;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -87,21 +88,26 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
         return simpleWithMode(mode, Function.identity());
     }
 
+    protected List<Integer> channels(AggregatorMode mode) {
+        return mode.isInputPartial() ? range(1, 1 + aggregatorIntermediateBlockCount()).boxed().toList() : List.of(1);
+    }
+
     private Operator.OperatorFactory simpleWithMode(
         AggregatorMode mode,
         Function<AggregatorFunctionSupplier, AggregatorFunctionSupplier> wrap
     ) {
-        List<Integer> channels = mode.isInputPartial() ? range(1, 1 + aggregatorIntermediateBlockCount()).boxed().toList() : List.of(1);
         int emitChunkSize = between(100, 200);
 
-        AggregatorFunctionSupplier supplier = wrap.apply(aggregatorFunction(channels));
+        AggregatorFunctionSupplier supplier = wrap.apply(aggregatorFunction(channels(mode)));
         if (randomBoolean()) {
             supplier = chunkGroups(emitChunkSize, supplier);
         }
         return new HashAggregationOperator.HashAggregationOperatorFactory(
             List.of(new BlockHash.GroupSpec(0, ElementType.LONG)),
+            mode,
             List.of(supplier.groupingAggregatorFactory(mode)),
-            randomPageSize()
+            randomPageSize(),
+            null
         );
     }
 
@@ -160,11 +166,17 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
 
     @Override
     protected final void assertSimpleOutput(List<Page> input, List<Page> results) {
+        assertSimpleOutput(input, results, true);
+    }
+
+    private void assertSimpleOutput(List<Page> input, List<Page> results, boolean assertGroupCount) {
         SeenGroups seenGroups = seenGroups(input);
 
         assertThat(results, hasSize(1));
         assertThat(results.get(0).getBlockCount(), equalTo(2));
-        assertThat(results.get(0).getPositionCount(), equalTo(seenGroups.size()));
+        if (assertGroupCount) {
+            assertThat(results.get(0).getPositionCount(), equalTo(seenGroups.size()));
+        }
 
         Block groups = results.get(0).getBlock(0);
         Block result = results.get(0).getBlock(1);
@@ -392,6 +404,23 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
         List<Page> results = drive(factory.get(driverContext), input.iterator(), driverContext);
         assertThat(results, hasSize(1));
         assertSimpleOutput(origInput, results);
+    }
+
+    public void testSomeFiltered() {
+        Operator.OperatorFactory factory = simpleWithMode(
+            AggregatorMode.SINGLE,
+            agg -> new FilteredAggregatorFunctionSupplier(agg, AddGarbageRowsSourceOperator.filterFactory())
+        );
+        DriverContext driverContext = driverContext();
+        // Build the test data
+        List<Page> input = CannedSourceOperator.collectPages(simpleInput(driverContext.blockFactory(), 10));
+        List<Page> origInput = BlockTestUtils.deepCopyOf(input, TestBlockFactory.getNonBreakingInstance());
+        // Sprinkle garbage into it
+        input = CannedSourceOperator.collectPages(new AddGarbageRowsSourceOperator(new CannedSourceOperator(input.iterator())));
+        List<Page> results = drive(factory.get(driverContext), input.iterator(), driverContext);
+        assertThat(results, hasSize(1));
+
+        assertSimpleOutput(origInput, results, false);
     }
 
     /**

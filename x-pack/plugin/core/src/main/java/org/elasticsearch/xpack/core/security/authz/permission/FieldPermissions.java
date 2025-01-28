@@ -12,13 +12,13 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
-import org.apache.lucene.util.automaton.MinimizationOperations;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.lucene.util.automaton.MinimizationOperations;
 import org.elasticsearch.plugins.FieldPredicate;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.FieldSubsetReader;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition.FieldGrantExcludeGroup;
@@ -33,8 +33,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
-
-import static org.apache.lucene.util.automaton.Operations.subsetOf;
 
 /**
  * Stores patterns to fields which access is granted or denied to and maintains an automaton that can be used to check if permission is
@@ -178,7 +176,7 @@ public final class FieldPermissions implements Accountable, CacheKey {
         grantedFieldsAutomaton = MinimizationOperations.minimize(grantedFieldsAutomaton, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
         deniedFieldsAutomaton = MinimizationOperations.minimize(deniedFieldsAutomaton, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
 
-        if (subsetOf(deniedFieldsAutomaton, grantedFieldsAutomaton) == false) {
+        if (Automatons.subsetOf(deniedFieldsAutomaton, grantedFieldsAutomaton) == false) {
             throw new ElasticsearchSecurityException(
                 "Exceptions for field permissions must be a subset of the "
                     + "granted fields but "

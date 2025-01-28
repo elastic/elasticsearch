@@ -135,7 +135,7 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
                     maxScore = reduceAndFindMaxScore(aggregations, shardDocs);
                     reducedTopDocs = TopDocs.merge(from, size, shardDocs);
                 }
-                assert reducedTopDocs.totalHits.relation == Relation.EQUAL_TO;
+                assert reducedTopDocs.totalHits.relation() == Relation.EQUAL_TO;
 
                 return new InternalTopHits(
                     getName(),
@@ -235,6 +235,8 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
         } else if (tokens[0].equals(SCORE)) {
             return topHit.getScore();
         } else if (tokens[0].equals(SOURCE)) {
+            // Caching the map might help here but memory usage is a concern for this class
+            // This is dead code, pipeline aggregations do not support _source.field.
             Map<String, Object> sourceAsMap = topHit.getSourceAsMap();
             if (sourceAsMap != null) {
                 Object property = sourceAsMap.get(tokens[1]);
@@ -262,8 +264,8 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
         InternalTopHits other = (InternalTopHits) obj;
         if (from != other.from) return false;
         if (size != other.size) return false;
-        if (topDocs.topDocs.totalHits.value != other.topDocs.topDocs.totalHits.value) return false;
-        if (topDocs.topDocs.totalHits.relation != other.topDocs.topDocs.totalHits.relation) return false;
+        if (topDocs.topDocs.totalHits.value() != other.topDocs.topDocs.totalHits.value()) return false;
+        if (topDocs.topDocs.totalHits.relation() != other.topDocs.topDocs.totalHits.relation()) return false;
         if (topDocs.topDocs.scoreDocs.length != other.topDocs.topDocs.scoreDocs.length) return false;
         for (int d = 0; d < topDocs.topDocs.scoreDocs.length; d++) {
             ScoreDoc thisDoc = topDocs.topDocs.scoreDocs[d];
@@ -287,8 +289,8 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
         int hashCode = super.hashCode();
         hashCode = 31 * hashCode + Integer.hashCode(from);
         hashCode = 31 * hashCode + Integer.hashCode(size);
-        hashCode = 31 * hashCode + Long.hashCode(topDocs.topDocs.totalHits.value);
-        hashCode = 31 * hashCode + topDocs.topDocs.totalHits.relation.hashCode();
+        hashCode = 31 * hashCode + Long.hashCode(topDocs.topDocs.totalHits.value());
+        hashCode = 31 * hashCode + topDocs.topDocs.totalHits.relation().hashCode();
         for (int d = 0; d < topDocs.topDocs.scoreDocs.length; d++) {
             ScoreDoc doc = topDocs.topDocs.scoreDocs[d];
             hashCode = 31 * hashCode + doc.doc;

@@ -59,10 +59,6 @@ org.apache.lucene.util.Version#parseLeniently(java.lang.String)
 
 org.apache.lucene.index.NoMergePolicy#INSTANCE @ explicit use of NoMergePolicy risks forgetting to configure NoMergeScheduler; use org.elasticsearch.common.lucene.Lucene#indexWriterConfigWithNoMerging() instead.
 
-@defaultMessage Spawns a new thread which is solely under lucenes control use ThreadPool#relativeTimeInMillis instead
-org.apache.lucene.search.TimeLimitingCollector#getGlobalTimerThread()
-org.apache.lucene.search.TimeLimitingCollector#getGlobalCounter()
-
 @defaultMessage Don't interrupt threads use FutureUtils#cancel(Future<T>) instead
 java.util.concurrent.Future#cancel(boolean)
 
@@ -123,7 +119,7 @@ java.time.zone.ZoneRules#getStandardOffset(java.time.Instant)
 java.time.zone.ZoneRules#getDaylightSavings(java.time.Instant)
 java.time.zone.ZoneRules#isDaylightSavings(java.time.Instant)
 
-@defaultMessage Use logger methods with non-Object parameter
+@defaultMessage The first parameter to a log4j log statement should be a String, a log4j Supplier (not java.util.function.Supplier), or another object that log4j supports.
 org.apache.logging.log4j.Logger#trace(java.lang.Object)
 org.apache.logging.log4j.Logger#trace(java.lang.Object, java.lang.Throwable)
 org.apache.logging.log4j.Logger#debug(java.lang.Object)
@@ -159,10 +155,8 @@ org.elasticsearch.cluster.ClusterState#compatibilityVersions()
 
 @defaultMessage ClusterFeatures#nodeFeatures is for internal use only. Use FeatureService#clusterHasFeature to determine if a feature is present on the cluster.
 org.elasticsearch.cluster.ClusterFeatures#nodeFeatures()
-@defaultMessage ClusterFeatures#allNodeFeatures is for internal use only. Use FeatureService#clusterHasFeature to determine if a feature is present on the cluster.
-org.elasticsearch.cluster.ClusterFeatures#allNodeFeatures()
 @defaultMessage ClusterFeatures#clusterHasFeature is for internal use only. Use FeatureService#clusterHasFeature to determine if a feature is present on the cluster.
-org.elasticsearch.cluster.ClusterFeatures#clusterHasFeature(org.elasticsearch.features.NodeFeature)
+org.elasticsearch.cluster.ClusterFeatures#clusterHasFeature(org.elasticsearch.cluster.node.DiscoveryNodes, org.elasticsearch.features.NodeFeature)
 
 @defaultMessage Do not construct this records outside the source files they are declared in
 org.elasticsearch.cluster.SnapshotsInProgress$ShardSnapshotStatus#<init>(java.lang.String, org.elasticsearch.cluster.SnapshotsInProgress$ShardState, org.elasticsearch.repositories.ShardGeneration, java.lang.String, org.elasticsearch.repositories.ShardSnapshotResult)

@@ -1,21 +1,45 @@
 ---
-"Do not return metadata by default and produce deprecation warning":
-  - skip:
-      features: [ "allowed_warnings" ]
+"Do not return metadata by default and emit no warning":
+  - requires:
+      cluster_features: ["cluster.reroute.ignores_metric_param"]
+      reason: requires this feature
+
   - do:
       cluster.reroute: {}
-      allowed_warnings:
-        - "The [state] field in the response to the reroute API is deprecated and will be removed in a future version. Specify ?metric=none to adopt the future behaviour."
-  - is_false: state.metadata
+  - is_false: state
+
 ---
-"If requested return metadata and produce deprecation warning":
+"Do not return metadata with ?metric=none and produce deprecation warning":
+  - requires:
+      cluster_features: ["cluster.reroute.ignores_metric_param"]
+      reason: requires this feature
+
   - skip:
       features: [ "allowed_warnings" ]
+
+  - do:
+      cluster.reroute:
+        metric: none
+      allowed_warnings:
+        - >-
+          the [?metric] query parameter to the [POST /_cluster/reroute] API has no effect;
+          its use will be forbidden in a future version
+  - is_false: state
+
+---
+"Do not return metadata with ?metric=metadata and produce deprecation warning":
+  - requires:
+      cluster_features: ["cluster.reroute.ignores_metric_param"]
+      reason: requires this feature
+
+  - skip:
+      features: [ "allowed_warnings" ]
+
   - do:
       cluster.reroute:
         metric: metadata
       allowed_warnings:
-        - "The [state] field in the response to the reroute API is deprecated and will be removed in a future version. Specify ?metric=none to adopt the future behaviour."
-  - is_true: state.metadata
-  - is_false: state.nodes
-
+        - >-
+          the [?metric] query parameter to the [POST /_cluster/reroute] API has no effect;
+          its use will be forbidden in a future version
+  - is_false: state

@@ -1,6 +1,17 @@
-import org.elasticsearch.gradle.internal.info.BuildParams
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+plugins {
+  id 'idea'
+}
+
 import org.elasticsearch.gradle.internal.precommit.CheckForbiddenApisTask;
 import org.elasticsearch.gradle.internal.util.SourceDirectoryCommandLineArgumentProvider;
+import static org.elasticsearch.gradle.util.PlatformUtils.normalize
 
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
@@ -8,9 +19,9 @@ apply plugin: 'elasticsearch.string-templates'
 apply plugin: 'elasticsearch.publish'
 
 esplugin {
-  name 'x-pack-esql'
-  description 'The plugin that powers ESQL for Elasticsearch'
-  classname 'org.elasticsearch.xpack.esql.plugin.EsqlPlugin'
+  name = 'x-pack-esql'
+  description = 'The plugin that powers ESQL for Elasticsearch'
+  classname ='org.elasticsearch.xpack.esql.plugin.EsqlPlugin'
   extendedPlugins = ['x-pack-esql-core', 'lang-painless', 'x-pack-ml']
 }
 
@@ -23,10 +34,11 @@ dependencies {
   compileOnly project(':modules:lang-painless:spi')
   compileOnly project(xpackModule('esql-core'))
   compileOnly project(xpackModule('ml'))
+  implementation project(xpackModule('kql'))
   implementation project('compute')
   implementation project('compute:ann')
-  implementation project(':libs:elasticsearch-dissect')
-  implementation project(':libs:elasticsearch-grok')
+  implementation project(':libs:dissect')
+  implementation project(':libs:grok')
   implementation project('arrow')
 
   // Also contains a dummy processor to allow compilation with unused annotations.
@@ -39,24 +51,31 @@ dependencies {
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation project(path: xpackModule('enrich'))
   testImplementation project(path: xpackModule('spatial'))
+  testImplementation project(path: xpackModule('kql'))
 
   testImplementation project(path: ':modules:reindex')
   testImplementation project(path: ':modules:parent-join')
   testImplementation project(path: ':modules:analysis-common')
   testImplementation project(path: ':modules:ingest-common')
   testImplementation project(path: ':modules:legacy-geo')
+  testImplementation project(xpackModule('esql:compute:test'))
   testImplementation('net.nextencia:rrdiagram:0.9.4')
   testImplementation('org.webjars.npm:fontsource__roboto-mono:4.5.7')
 
   internalClusterTestImplementation project(":modules:mapper-extras")
 }
 
+def generatedPath = "src/main/generated"
 def projectDirectory = project.layout.projectDirectory
-def generatedSourceDir = projectDirectory.dir("src/main/generated")
+def generatedSourceDir = projectDirectory.dir(generatedPath)
 tasks.named("compileJava").configure {
   options.compilerArgumentProviders.add(new SourceDirectoryCommandLineArgumentProvider(generatedSourceDir))
   // IntelliJ sticks generated files here and we can't stop it....
-  exclude { it.file.toString().contains("src/main/generated-src/generated") }
+  exclude { normalize(it.file.toString()).contains("src/main/generated-src/generated") }
+}
+
+idea.module {
+  sourceDirs += file(generatedPath)
 }
 
 interface Injected {
@@ -64,7 +83,7 @@ interface Injected {
 }
 
 tasks.named("test").configure {
-  if (BuildParams.isCi() == false) {
+  if (buildParams.isCi() == false) {
     systemProperty 'generateDocs', true
     def injected = project.objects.newInstance(Injected)
     doFirst {
@@ -73,7 +92,6 @@ tasks.named("test").configure {
       }
     }
     File functionsFolder = file("build/testrun/test/temp/esql/functions")
-    File signatureFolder = file("build/testrun/test/temp/esql/functions/signature")
     File typesFolder = file("build/testrun/test/temp/esql/functions/types")
     def functionsDocFolder = file("${rootDir}/docs/reference/esql/functions")
     def effectiveProjectDir = projectDir
@@ -135,7 +153,7 @@ tasks.named("test").configure {
  *  Enable QA/rest integration tests for snapshot builds only   *
  *  TODO: Enable for all builds upon this feature release       *
  ****************************************************************/
-if (BuildParams.isSnapshotBuild()) {
+if (buildParams.isSnapshotBuild()) {
   addQaCheckDependencies(project)
 }
 
@@ -259,15 +277,16 @@ tasks.register("regen") {
   }
 }
 
-tasks.named("spotlessJava") { dependsOn stringTemplates }
+tasks.named("spotlessJava") { dependsOn "stringTemplates" }
 tasks.named('checkstyleMain').configure {
   excludes = [ "**/*.java.st" ]
-  exclude { it.file.toString().contains("src/main/generated-src/generated") }
-  exclude { it.file.toString().contains("src/main/generated") }
+  exclude { normalize(it.file.toString()).contains("src/main/generated-src/generated") }
+  exclude { normalize(it.file.toString()).contains("src/main/generated") }
 }
 
-def prop(Type, type, TYPE, BYTES, Array) {
+def prop(Name, Type, type, TYPE, BYTES, Array) {
   return [
+    "Name" : Name,
     "Type" : Type,
     "type" : type,
     "TYPE" : TYPE,
@@ -279,45 +298,21 @@ def prop(Type, type, TYPE, BYTES, Array) {
     "double" : type == "double" ? "true" : "",
     "BytesRef" : type == "BytesRef" ? "true" : "",
     "boolean" : type == "boolean" ? "true" : "",
+    "nanosMillis" : Name == "NanosMillis" ? "true" : "",
+    "millisNanos" : Name == "MillisNanos" ? "true" : "",
   ]
 }
 
 tasks.named('stringTemplates').configure {
-  var intProperties = prop("Int", "int", "INT", "Integer.BYTES", "IntArray")
-  var longProperties = prop("Long", "long", "LONG", "Long.BYTES", "LongArray")
-  var doubleProperties = prop("Double", "double", "DOUBLE", "Double.BYTES", "DoubleArray")
-  var bytesRefProperties = prop("BytesRef", "BytesRef", "BYTES_REF", "org.apache.lucene.util.RamUsageEstimator.NUM_BYTES_OBJECT_REF", "")
-  var booleanProperties = prop("Boolean", "boolean", "BOOLEAN", "Byte.BYTES", "BitArray")
-  // enrich
-  File enrichResultBuilderInput = file("src/main/java/org/elasticsearch/xpack/esql/enrich/X-EnrichResultBuilder.java.st")
-  template {
-    it.properties = intProperties
-    it.inputFile = enrichResultBuilderInput
-    it.outputFile = "org/elasticsearch/xpack/esql/enrich/EnrichResultBuilderForInt.java"
-  }
-  template {
-    it.properties = longProperties
-    it.inputFile = enrichResultBuilderInput
-    it.outputFile = "org/elasticsearch/xpack/esql/enrich/EnrichResultBuilderForLong.java"
-  }
-  template {
-    it.properties = doubleProperties
-    it.inputFile = enrichResultBuilderInput
-    it.outputFile = "org/elasticsearch/xpack/esql/enrich/EnrichResultBuilderForDouble.java"
-  }
-  template {
-    it.properties = bytesRefProperties
-    it.inputFile = enrichResultBuilderInput
-    it.outputFile = "org/elasticsearch/xpack/esql/enrich/EnrichResultBuilderForBytesRef.java"
-  }
-  template {
-    it.properties = booleanProperties
-    it.inputFile = enrichResultBuilderInput
-    it.outputFile = "org/elasticsearch/xpack/esql/enrich/EnrichResultBuilderForBoolean.java"
-  }
+  var intProperties = prop("Int", "Int", "int", "INT", "Integer.BYTES", "IntArray")
+  var longProperties = prop("Long", "Long", "long", "LONG", "Long.BYTES", "LongArray")
+  var nanosMillisProperties = prop("NanosMillis", "Long", "long", "LONG", "Long.BYTES", "LongArray")
+  var millisNanosProperties = prop("MillisNanos", "Long", "long", "LONG", "Long.BYTES", "LongArray")
+  var doubleProperties = prop("Double", "Double", "double", "DOUBLE", "Double.BYTES", "DoubleArray")
+  var bytesRefProperties = prop("BytesRef", "BytesRef", "BytesRef", "BYTES_REF", "org.apache.lucene.util.RamUsageEstimator.NUM_BYTES_OBJECT_REF", "")
+  var booleanProperties = prop("Boolean", "Boolean", "boolean", "BOOLEAN", "Byte.BYTES", "BitArray")
 
-
-  File inInputFile = file("src/main/java/org/elasticsearch/xpack/esql/expression/predicate/operator/comparison/InEvaluator.java.st")
+  File inInputFile = file("src/main/java/org/elasticsearch/xpack/esql/expression/predicate/operator/comparison/X-InEvaluator.java.st")
   template {
     it.properties = booleanProperties
     it.inputFile =  inInputFile
@@ -334,6 +329,16 @@ tasks.named('stringTemplates').configure {
     it.outputFile = "org/elasticsearch/xpack/esql/expression/predicate/operator/comparison/InLongEvaluator.java"
   }
   template {
+    it.properties = nanosMillisProperties
+    it.inputFile =  inInputFile
+    it.outputFile = "org/elasticsearch/xpack/esql/expression/predicate/operator/comparison/InNanosMillisEvaluator.java"
+  }
+  template {
+    it.properties = millisNanosProperties
+    it.inputFile =  inInputFile
+    it.outputFile = "org/elasticsearch/xpack/esql/expression/predicate/operator/comparison/InMillisNanosEvaluator.java"
+  }
+  template {
     it.properties = doubleProperties
     it.inputFile =  inInputFile
     it.outputFile = "org/elasticsearch/xpack/esql/expression/predicate/operator/comparison/InDoubleEvaluator.java"
@@ -342,5 +347,32 @@ tasks.named('stringTemplates').configure {
     it.properties = bytesRefProperties
     it.inputFile =  inInputFile
     it.outputFile = "org/elasticsearch/xpack/esql/expression/predicate/operator/comparison/InBytesRefEvaluator.java"
+  }
+
+  File coalesceInputFile = file("src/main/java/org/elasticsearch/xpack/esql/expression/function/scalar/nulls/X-CoalesceEvaluator.java.st")
+  template {
+    it.properties = booleanProperties
+    it.inputFile =  coalesceInputFile
+    it.outputFile = "org/elasticsearch/xpack/esql/expression/function/scalar/nulls/CoalesceBooleanEvaluator.java"
+  }
+  template {
+    it.properties = intProperties
+    it.inputFile =  coalesceInputFile
+    it.outputFile = "org/elasticsearch/xpack/esql/expression/function/scalar/nulls/CoalesceIntEvaluator.java"
+  }
+  template {
+    it.properties = longProperties
+    it.inputFile =  coalesceInputFile
+    it.outputFile = "org/elasticsearch/xpack/esql/expression/function/scalar/nulls/CoalesceLongEvaluator.java"
+  }
+  template {
+    it.properties = doubleProperties
+    it.inputFile =  coalesceInputFile
+    it.outputFile = "org/elasticsearch/xpack/esql/expression/function/scalar/nulls/CoalesceDoubleEvaluator.java"
+  }
+  template {
+    it.properties = bytesRefProperties
+    it.inputFile =  coalesceInputFile
+    it.outputFile = "org/elasticsearch/xpack/esql/expression/function/scalar/nulls/CoalesceBytesRefEvaluator.java"
   }
 }

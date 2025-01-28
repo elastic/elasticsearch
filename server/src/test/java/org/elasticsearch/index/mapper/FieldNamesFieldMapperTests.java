@@ -10,7 +10,9 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.termvectors.TermVectorsService;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -79,4 +81,38 @@ public class FieldNamesFieldMapperTests extends MetadataMapperTestCase {
         );
     }
 
+    /**
+     * disabling the _field_names should still work for indices before 8.0
+     */
+    public void testUsingEnabledBefore8() throws Exception {
+        DocumentMapper docMapper = createDocumentMapper(
+            IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersions.V_8_0_0),
+            topMapping(b -> b.startObject("_field_names").field("enabled", false).endObject())
+        );
+
+        assertWarnings(FieldNamesFieldMapper.ENABLED_DEPRECATION_MESSAGE);
+        FieldNamesFieldMapper fieldNamesMapper = docMapper.metadataMapper(FieldNamesFieldMapper.class);
+        assertFalse(fieldNamesMapper.fieldType().isEnabled());
+
+        ParsedDocument doc = docMapper.parse(source(b -> b.field("field", "value")));
+        assertNull(doc.rootDoc().get("_field_names"));
+    }
+
+    /**
+     * Merging the "_field_names" enabled setting is forbidden in 8.0, but we still want to tests the behavior on pre-8 indices
+     */
+    public void testMergingMappingsBefore8() throws Exception {
+        MapperService mapperService = createMapperService(
+            IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersions.V_8_0_0),
+            mapping(b -> {})
+        );
+
+        merge(mapperService, topMapping(b -> b.startObject("_field_names").field("enabled", false).endObject()));
+        assertFalse(mapperService.documentMapper().metadataMapper(FieldNamesFieldMapper.class).fieldType().isEnabled());
+        assertWarnings(FieldNamesFieldMapper.ENABLED_DEPRECATION_MESSAGE);
+
+        merge(mapperService, topMapping(b -> b.startObject("_field_names").field("enabled", true).endObject()));
+        assertTrue(mapperService.documentMapper().metadataMapper(FieldNamesFieldMapper.class).fieldType().isEnabled());
+        assertWarnings(FieldNamesFieldMapper.ENABLED_DEPRECATION_MESSAGE);
+    }
 }

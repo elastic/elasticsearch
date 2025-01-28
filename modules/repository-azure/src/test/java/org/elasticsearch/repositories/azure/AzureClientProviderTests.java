@@ -26,7 +26,7 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 public class AzureClientProviderTests extends ESTestCase {
-    private static final AzureClientProvider.SuccessfulRequestHandler EMPTY_CONSUMER = (purpose, method, url) -> {};
+    private static final AzureClientProvider.RequestMetricsHandler NOOP_HANDLER = (purpose, method, url, metrics) -> {};
 
     private ThreadPool threadPool;
     private AzureClientProvider azureClientProvider;
@@ -76,7 +76,7 @@ public class AzureClientProviderTests extends ESTestCase {
             locationMode,
             requestRetryOptions,
             null,
-            EMPTY_CONSUMER,
+            NOOP_HANDLER,
             randomFrom(OperationPurpose.values())
         );
     }
@@ -106,7 +106,7 @@ public class AzureClientProviderTests extends ESTestCase {
                 locationMode,
                 requestRetryOptions,
                 null,
-                EMPTY_CONSUMER,
+                NOOP_HANDLER,
                 randomFrom(OperationPurpose.values())
             )
         );

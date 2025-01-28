@@ -113,7 +113,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         } else {
             requireDataStream = false;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.FAILURE_STORE_LAZY_CREATION)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
             initializeFailureStore = in.readBoolean();
         } else {
             initializeFailureStore = true;
@@ -480,13 +480,19 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         return this;
     }
 
+    /**
+     * Returns whether the failure store should be initialized. N.B. If true, failure store index creation will be performed regardless of
+     * whether the template indicates that the failure store is enabled.
+     */
     public boolean isInitializeFailureStore() {
         return initializeFailureStore;
     }
 
     /**
      * Set whether this CreateIndexRequest should initialize the failure store on data stream creation. This can be necessary when, for
-     * example, a failure occurs while trying to ingest a document into a data stream that has to be auto-created.
+     * example, a failure occurs while trying to ingest a document into a data stream that has to be auto-created. N.B. If true, failure
+     * store index creation will be performed regardless of whether the template indicates that the failure store is enabled. It is the
+     * caller's responsibility to ensure that this is correct.
      */
     public CreateIndexRequest initializeFailureStore(boolean initializeFailureStore) {
         this.initializeFailureStore = initializeFailureStore;
@@ -518,7 +524,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
             out.writeBoolean(this.requireDataStream);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.FAILURE_STORE_LAZY_CREATION)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
             out.writeBoolean(this.initializeFailureStore);
         }
     }

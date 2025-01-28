@@ -33,7 +33,7 @@ import org.elasticsearch.action.datastreams.lifecycle.ErrorEntry;
 import org.elasticsearch.action.downsample.DownsampleAction;
 import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
-import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
@@ -49,6 +49,9 @@ import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionSettings;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.ResolvedExpression;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.SelectorResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -759,10 +762,8 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                 targetIndices.add(index);
             }
         }
-        if (withFailureStore
-            && DataStream.isFailureStoreFeatureFlagEnabled()
-            && dataStream.getFailureIndices().getIndices().isEmpty() == false) {
-            for (Index index : dataStream.getFailureIndices().getIndices()) {
+        if (withFailureStore && DataStream.isFailureStoreFeatureFlagEnabled() && dataStream.getFailureIndices().isEmpty() == false) {
+            for (Index index : dataStream.getFailureIndices()) {
                 if (dataStream.isIndexManagedByDataStreamLifecycle(index, indexMetadataSupplier)
                     && indicesToExcludeForRemainingRun.contains(index) == false) {
                     targetIndices.add(index);
@@ -817,7 +818,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
 
     @Nullable
     private Index maybeExecuteRollover(ClusterState state, DataStream dataStream, boolean rolloverFailureStore) {
-        Index currentRunWriteIndex = rolloverFailureStore ? dataStream.getFailureStoreWriteIndex() : dataStream.getWriteIndex();
+        Index currentRunWriteIndex = rolloverFailureStore ? dataStream.getWriteFailureIndex() : dataStream.getWriteIndex();
         if (currentRunWriteIndex == null) {
             return null;
         }
@@ -944,11 +945,6 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             if ((configuredFloorSegmentMerge == null || configuredFloorSegmentMerge.equals(targetMergePolicyFloorSegment) == false)
                 || (configuredMergeFactor == null || configuredMergeFactor.equals(targetMergePolicyFactor) == false)) {
                 UpdateSettingsRequest updateMergePolicySettingsRequest = new UpdateSettingsRequest();
-                updateMergePolicySettingsRequest.indicesOptions(
-                    IndicesOptions.builder(updateMergePolicySettingsRequest.indicesOptions())
-                        .failureStoreOptions(new IndicesOptions.FailureStoreOptions(true, true))
-                        .build()
-                );
                 updateMergePolicySettingsRequest.indices(indexName);
                 updateMergePolicySettingsRequest.settings(
                     Settings.builder()
@@ -998,8 +994,11 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
 
     private void rolloverDataStream(String writeIndexName, RolloverRequest rolloverRequest, ActionListener<Void> listener) {
         // "saving" the rollover target name here so we don't capture the entire request
-        String rolloverTarget = rolloverRequest.getRolloverTarget();
-        logger.trace("Data stream lifecycle issues rollover request for data stream [{}]", rolloverTarget);
+        ResolvedExpression resolvedRolloverTarget = SelectorResolver.parseExpression(
+            rolloverRequest.getRolloverTarget(),
+            rolloverRequest.indicesOptions()
+        );
+        logger.trace("Data stream lifecycle issues rollover request for data stream [{}]", rolloverRequest.getRolloverTarget());
         client.admin().indices().rolloverIndex(rolloverRequest, new ActionListener<>() {
             @Override
             public void onResponse(RolloverResponse rolloverResponse) {
@@ -1014,7 +1013,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                     logger.info(
                         "Data stream lifecycle successfully rolled over datastream [{}] due to the following met rollover "
                             + "conditions {}. The new index is [{}]",
-                        rolloverTarget,
+                        rolloverRequest.getRolloverTarget(),
                         metConditions,
                         rolloverResponse.getNewIndex()
                     );
@@ -1024,7 +1023,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
 
             @Override
             public void onFailure(Exception e) {
-                DataStream dataStream = clusterService.state().metadata().dataStreams().get(rolloverTarget);
+                DataStream dataStream = clusterService.state().metadata().dataStreams().get(resolvedRolloverTarget.resource());
                 if (dataStream == null || dataStream.getWriteIndex().getName().equals(writeIndexName) == false) {
                     // the data stream has another write index so no point in recording an error for the previous write index we were
                     // attempting to roll over
@@ -1407,11 +1406,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
     ) {
         RolloverRequest rolloverRequest = new RolloverRequest(dataStream, null).masterNodeTimeout(TimeValue.MAX_VALUE);
         if (rolloverFailureStore) {
-            rolloverRequest.setIndicesOptions(
-                IndicesOptions.builder(rolloverRequest.indicesOptions())
-                    .failureStoreOptions(opts -> opts.includeFailureIndices(true).includeRegularIndices(false))
-                    .build()
-            );
+            rolloverRequest.setRolloverTarget(IndexNameExpressionResolver.combineSelector(dataStream, IndexComponentSelector.FAILURES));
         }
         rolloverRequest.setConditions(rolloverConfiguration.resolveRolloverConditions(dataRetention));
         return rolloverRequest;

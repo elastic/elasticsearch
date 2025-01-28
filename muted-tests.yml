@@ -476,3 +476,14 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.RestEsqlIT
   method: testOutOfRangeComparisons {ASYNC}
   issue: https://github.com/elastic/elasticsearch/issues/121007
+- class: org.elasticsearch.xpack.security.authc.service.ServiceAccountIT
+  method: testAuthenticateShouldNotFallThroughInCaseOfFailure
+  issue: https://github.com/elastic/elasticsearch/issues/120902
+- class: org.elasticsearch.xpack.security.FileSettingsRoleMappingsRestartIT
+  method: testReservedStatePersistsOnRestart
+  issue: https://github.com/elastic/elasticsearch/issues/120923
+- class: org.elasticsearch.xpack.esql.qa.multi_node.RestEsqlIT
+  issue: https://github.com/elastic/elasticsearch/issues/120948
+- class: org.elasticsearch.datastreams.DataStreamsClientYamlTestSuiteIT
+  method: test {p0=data_stream/140_data_stream_aliases/Create data stream alias}
+  issue: https://github.com/elastic/elasticsearch/issues/120920

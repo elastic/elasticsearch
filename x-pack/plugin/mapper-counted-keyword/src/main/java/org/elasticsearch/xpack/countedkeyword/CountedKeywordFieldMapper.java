@@ -507,8 +507,9 @@ public class CountedKeywordFieldMapper extends FieldMapper {
             return super.syntheticSourceSupport();
         }
 
-        var loader = new CountedKeywordFieldSyntheticSourceLoader(fullPath(), countFieldMapper.fullPath(), leafName());
-        return new SyntheticSourceSupport.Native(loader);
+        return new SyntheticSourceSupport.Native(
+            () -> new CountedKeywordFieldSyntheticSourceLoader(fullPath(), countFieldMapper.fullPath(), leafName())
+        );
     }
 
 }

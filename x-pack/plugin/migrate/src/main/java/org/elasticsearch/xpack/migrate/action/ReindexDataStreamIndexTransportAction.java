@@ -10,8 +10,15 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
+import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
+import org.elasticsearch.action.admin.indices.close.TransportCloseIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.elasticsearch.action.admin.indices.open.OpenIndexAction;
+import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
+import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
 import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockRequest;
 import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockResponse;
 import org.elasticsearch.action.admin.indices.readonly.TransportAddIndexBlockAction;
@@ -117,6 +124,11 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
         var destIndexName = generateDestIndexName(sourceIndexName);
         TaskId taskId = new TaskId(clusterService.localNode().getId(), task.getId());
         IndexMetadata sourceIndex = clusterService.state().getMetadata().index(sourceIndexName);
+        if (sourceIndex == null) {
+            listener.onFailure(new ResourceNotFoundException("source index [{}] does not exist", sourceIndexName));
+            return;
+        }
+
         Settings settingsBefore = sourceIndex.getSettings();
 
         var hasOldVersion = DeprecatedIndexPredicate.getReindexRequiredPredicate(clusterService.state().metadata(), false);
@@ -139,16 +151,49 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
             listener.onFailure(new ElasticsearchException(errorMessage));
             return;
         }
-
+        final boolean wasClosed = isClosed(sourceIndex);
         SubscribableListener.<AcknowledgedResponse>newForked(l -> setBlockWrites(sourceIndexName, l, taskId))
+            .<OpenIndexResponse>andThen(l -> openIndexIfClosed(sourceIndexName, wasClosed, l, taskId))
             .<BroadcastResponse>andThen(l -> refresh(sourceIndexName, l, taskId))
             .<AcknowledgedResponse>andThen(l -> deleteDestIfExists(destIndexName, l, taskId))
             .<AcknowledgedResponse>andThen(l -> createIndex(sourceIndex, destIndexName, l, taskId))
             .<BulkByScrollResponse>andThen(l -> reindex(sourceIndexName, destIndexName, l, taskId))
             .<AcknowledgedResponse>andThen(l -> copyOldSourceSettingsToDest(settingsBefore, destIndexName, l, taskId))
             .<AcknowledgedResponse>andThen(l -> sanityCheck(sourceIndexName, destIndexName, l, taskId))
+            .<CloseIndexResponse>andThen(l -> closeIndexIfWasClosed(destIndexName, wasClosed, l, taskId))
             .andThenApply(ignored -> new ReindexDataStreamIndexAction.Response(destIndexName))
             .addListener(listener);
+    }
+
+    private void openIndexIfClosed(String indexName, boolean isClosed, ActionListener<OpenIndexResponse> listener, TaskId parentTaskId) {
+        if (isClosed) {
+            logger.debug("Opening index [{}]", indexName);
+            var request = new OpenIndexRequest(indexName);
+            request.setParentTask(parentTaskId);
+            client.execute(OpenIndexAction.INSTANCE, request, listener);
+        } else {
+            listener.onResponse(null);
+        }
+    }
+
+    private void closeIndexIfWasClosed(
+        String indexName,
+        boolean wasClosed,
+        ActionListener<CloseIndexResponse> listener,
+        TaskId parentTaskId
+    ) {
+        if (wasClosed) {
+            logger.debug("Closing index [{}]", indexName);
+            var request = new CloseIndexRequest(indexName);
+            request.setParentTask(parentTaskId);
+            client.execute(TransportCloseIndexAction.TYPE, request, listener);
+        } else {
+            listener.onResponse(null);
+        }
+    }
+
+    private static boolean isClosed(IndexMetadata indexMetadata) {
+        return indexMetadata.getState().equals(IndexMetadata.State.CLOSE);
     }
 
     private void setBlockWrites(String sourceIndexName, ActionListener<AcknowledgedResponse> listener, TaskId parentTaskId) {

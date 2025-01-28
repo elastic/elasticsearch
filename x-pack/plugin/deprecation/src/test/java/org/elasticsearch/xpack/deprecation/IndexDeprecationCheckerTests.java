@@ -46,6 +46,7 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
             .settings(settings(createdWith))
             .numberOfShards(1)
             .numberOfReplicas(0)
+            .state(randomBoolean() ? IndexMetadata.State.OPEN : IndexMetadata.State.CLOSE) // does not matter if its open or closed
             .build();
         ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
             .metadata(Metadata.builder().put(indexMetadata, true))

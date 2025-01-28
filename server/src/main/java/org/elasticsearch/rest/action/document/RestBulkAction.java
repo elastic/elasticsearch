@@ -31,6 +31,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
@@ -114,6 +115,7 @@ public class RestBulkAction extends BaseRestHandler {
             boolean defaultRequireDataStream = request.paramAsBoolean(DocWriteRequest.REQUIRE_DATA_STREAM, false);
             bulkRequest.timeout(request.paramAsTime("timeout", BulkShardRequest.DEFAULT_TIMEOUT));
             bulkRequest.setRefreshPolicy(request.param("refresh"));
+            bulkRequest.includeSourceOnError(RestUtils.getIncludeSourceOnError(request));
             ReleasableBytesReference content = request.requiredContent();
 
             try {
@@ -175,20 +177,21 @@ public class RestBulkAction extends BaseRestHandler {
         ChunkHandler(boolean allowExplicitIndex, RestRequest request, Supplier<IncrementalBulkService.Handler> handlerSupplier) {
             this.request = request;
             this.handlerSupplier = handlerSupplier;
-            this.parser = new BulkRequestParser(true, request.getRestApiVersion()).incrementalParser(
-                request.param("index"),
-                request.param("routing"),
-                FetchSourceContext.parseFromRestRequest(request),
-                request.param("pipeline"),
-                request.paramAsBoolean(DocWriteRequest.REQUIRE_ALIAS, false),
-                request.paramAsBoolean(DocWriteRequest.REQUIRE_DATA_STREAM, false),
-                request.paramAsBoolean("list_executed_pipelines", false),
-                allowExplicitIndex,
-                request.getXContentType(),
-                (indexRequest, type) -> items.add(indexRequest),
-                items::add,
-                items::add
-            );
+            this.parser = new BulkRequestParser(true, RestUtils.getIncludeSourceOnError(request), request.getRestApiVersion())
+                .incrementalParser(
+                    request.param("index"),
+                    request.param("routing"),
+                    FetchSourceContext.parseFromRestRequest(request),
+                    request.param("pipeline"),
+                    request.paramAsBoolean(DocWriteRequest.REQUIRE_ALIAS, false),
+                    request.paramAsBoolean(DocWriteRequest.REQUIRE_DATA_STREAM, false),
+                    request.paramAsBoolean("list_executed_pipelines", false),
+                    allowExplicitIndex,
+                    request.getXContentType(),
+                    (indexRequest, type) -> items.add(indexRequest),
+                    items::add,
+                    items::add
+                );
         }
 
         @Override

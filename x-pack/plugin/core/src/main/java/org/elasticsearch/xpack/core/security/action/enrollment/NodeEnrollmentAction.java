@@ -15,6 +15,6 @@ public final class NodeEnrollmentAction extends ActionType<NodeEnrollmentRespons
     public static final NodeEnrollmentAction INSTANCE = new NodeEnrollmentAction();
 
     private NodeEnrollmentAction() {
-        super(NAME, NodeEnrollmentResponse::new);
+        super(NAME);
     }
 }

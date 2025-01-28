@@ -5,6 +5,12 @@
 <titleabbrev>Delete model snapshots</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-ml-anomaly[{ml-cap}  {anomaly-detect} APIs].
+--
+
 Deletes an existing model snapshot.
 
 [[ml-delete-snapshot-request]]
@@ -30,11 +36,11 @@ the `model_snapshot_id` in the results from the get jobs API.
 
 `<job_id>`::
 (Required, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 
 `<snapshot_id>`::
 (Required, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=snapshot-id]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=snapshot-id]
 
 [[ml-delete-snapshot-example]]
 == {api-examples-title}

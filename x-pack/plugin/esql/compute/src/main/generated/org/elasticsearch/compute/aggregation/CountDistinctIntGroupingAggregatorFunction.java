@@ -10,7 +10,6 @@ import java.lang.String;
 import java.lang.StringBuilder;
 import java.util.List;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
@@ -34,23 +33,19 @@ public final class CountDistinctIntGroupingAggregatorFunction implements Groupin
 
   private final DriverContext driverContext;
 
-  private final BigArrays bigArrays;
-
   private final int precision;
 
   public CountDistinctIntGroupingAggregatorFunction(List<Integer> channels,
-      HllStates.GroupingState state, DriverContext driverContext, BigArrays bigArrays,
-      int precision) {
+      HllStates.GroupingState state, DriverContext driverContext, int precision) {
     this.channels = channels;
     this.state = state;
     this.driverContext = driverContext;
-    this.bigArrays = bigArrays;
     this.precision = precision;
   }
 
   public static CountDistinctIntGroupingAggregatorFunction create(List<Integer> channels,
-      DriverContext driverContext, BigArrays bigArrays, int precision) {
-    return new CountDistinctIntGroupingAggregatorFunction(channels, CountDistinctIntAggregator.initGrouping(bigArrays, precision), driverContext, bigArrays, precision);
+      DriverContext driverContext, int precision) {
+    return new CountDistinctIntGroupingAggregatorFunction(channels, CountDistinctIntAggregator.initGrouping(driverContext.bigArrays(), precision), driverContext, precision);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -81,6 +76,10 @@ public final class CountDistinctIntGroupingAggregatorFunction implements Groupin
         public void add(int positionOffset, IntVector groupIds) {
           addRawInput(positionOffset, groupIds, valuesBlock);
         }
+
+        @Override
+        public void close() {
+        }
       };
     }
     return new GroupingAggregatorFunction.AddInput() {
@@ -93,12 +92,16 @@ public final class CountDistinctIntGroupingAggregatorFunction implements Groupin
       public void add(int positionOffset, IntVector groupIds) {
         addRawInput(positionOffset, groupIds, valuesVector);
       }
+
+      @Override
+      public void close() {
+      }
     };
   }
 
   private void addRawInput(int positionOffset, IntVector groups, IntBlock values) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      int groupId = Math.toIntExact(groups.getInt(groupPosition));
+      int groupId = groups.getInt(groupPosition);
       if (values.isNull(groupPosition + positionOffset)) {
         continue;
       }
@@ -112,7 +115,7 @@ public final class CountDistinctIntGroupingAggregatorFunction implements Groupin
 
   private void addRawInput(int positionOffset, IntVector groups, IntVector values) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      int groupId = Math.toIntExact(groups.getInt(groupPosition));
+      int groupId = groups.getInt(groupPosition);
       CountDistinctIntAggregator.combine(state, groupId, values.getInt(groupPosition + positionOffset));
     }
   }
@@ -125,7 +128,7 @@ public final class CountDistinctIntGroupingAggregatorFunction implements Groupin
       int groupStart = groups.getFirstValueIndex(groupPosition);
       int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
-        int groupId = Math.toIntExact(groups.getInt(g));
+        int groupId = groups.getInt(g);
         if (values.isNull(groupPosition + positionOffset)) {
           continue;
         }
@@ -146,20 +149,29 @@ public final class CountDistinctIntGroupingAggregatorFunction implements Groupin
       int groupStart = groups.getFirstValueIndex(groupPosition);
       int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
-        int groupId = Math.toIntExact(groups.getInt(g));
+        int groupId = groups.getInt(g);
         CountDistinctIntAggregator.combine(state, groupId, values.getInt(groupPosition + positionOffset));
       }
     }
   }
 
   @Override
+  public void selectedMayContainUnseenGroups(SeenGroupIds seenGroupIds) {
+    state.enableGroupIdTracking(seenGroupIds);
+  }
+
+  @Override
   public void addIntermediateInput(int positionOffset, IntVector groups, Page page) {
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
     assert channels.size() == intermediateBlockCount();
-    BytesRefVector hll = page.<BytesRefBlock>getBlock(channels.get(0)).asVector();
+    Block hllUncast = page.getBlock(channels.get(0));
+    if (hllUncast.areAllValuesNull()) {
+      return;
+    }
+    BytesRefVector hll = ((BytesRefBlock) hllUncast).asVector();
     BytesRef scratch = new BytesRef();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      int groupId = Math.toIntExact(groups.getInt(groupPosition));
+      int groupId = groups.getInt(groupPosition);
       CountDistinctIntAggregator.combineIntermediate(state, groupId, hll.getBytesRef(groupPosition + positionOffset, scratch));
     }
   }

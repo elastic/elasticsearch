@@ -17,9 +17,9 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -146,16 +146,15 @@ public class TransportDeleteExpiredDataAction extends HandledTransportAction<
                 false,
                 true,
                 null,
-                ActionListener.wrap(
-                    jobBuilders -> threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME)
-                        .execute(ActionRunnable.wrap(listener, l -> {
+                listener.delegateFailureAndWrap(
+                    (delegate, jobBuilders) -> threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME)
+                        .execute(ActionRunnable.wrap(delegate, l -> {
                             List<Job> jobs = jobBuilders.stream().map(Job.Builder::build).collect(Collectors.toList());
                             String[] jobIds = jobs.stream().map(Job::getId).toArray(String[]::new);
                             request.setExpandedJobIds(jobIds);
                             List<MlDataRemover> dataRemovers = createDataRemovers(jobs, taskId, anomalyDetectionAuditor);
                             deleteExpiredData(request, dataRemovers, l, isTimedOutSupplier);
-                        })),
-                    listener::onFailure
+                        }))
                 )
             );
         }

@@ -71,7 +71,6 @@ import static java.util.Collections.singletonList;
 import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.xpack.ql.analyzer.AnalyzerRules.AnalyzerRule;
 import static org.elasticsearch.xpack.ql.analyzer.AnalyzerRules.BaseAnalyzerRule;
-import static org.elasticsearch.xpack.ql.analyzer.AnalyzerRules.maybeResolveAgainstList;
 import static org.elasticsearch.xpack.ql.analyzer.AnalyzerRules.resolveFunction;
 import static org.elasticsearch.xpack.ql.util.CollectionUtils.combine;
 
@@ -163,13 +162,7 @@ public final class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, Analy
     }
 
     private static Attribute resolveAgainstList(UnresolvedAttribute u, Collection<Attribute> attrList, boolean allowCompound) {
-        var matches = maybeResolveAgainstList(
-            u,
-            attrList,
-            allowCompound,
-            false,
-            (ua, na) -> AnalyzerRules.handleSpecialFields(ua, na, allowCompound)
-        );
+        var matches = AnalyzerRules.maybeResolveAgainstList(u, attrList, a -> AnalyzerRules.handleSpecialFields(u, a, allowCompound));
         return matches.isEmpty() ? null : matches.get(0);
     }
 
@@ -927,9 +920,7 @@ public final class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, Analy
         protected LogicalPlan rule(Filter f) {
             if (f.child() instanceof Project p) {
                 for (Expression n : p.projections()) {
-                    if (n instanceof Alias) {
-                        n = ((Alias) n).child();
-                    }
+                    n = Alias.unwrap(n);
                     // no literal or aggregates - it's a 'regular' projection
                     if (n.foldable() == false && Functions.isAggregate(n) == false
                     // folding might not work (it might wait for the optimizer)
@@ -1014,12 +1005,7 @@ public final class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, Analy
             Set<NamedExpression> missing = new LinkedHashSet<>();
 
             for (Expression filterAgg : from.collect(Functions::isAggregate)) {
-                if (Expressions.anyMatch(target.aggregates(), a -> {
-                    if (a instanceof Alias) {
-                        a = ((Alias) a).child();
-                    }
-                    return a.equals(filterAgg);
-                }) == false) {
+                if (Expressions.anyMatch(target.aggregates(), a -> Alias.unwrap(a).equals(filterAgg)) == false) {
                     missing.add(Expressions.wrapAsNamed(filterAgg));
                 }
             }
@@ -1066,12 +1052,7 @@ public final class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, Analy
                     List<NamedExpression> missing = new ArrayList<>();
 
                     for (Expression orderedAgg : aggs) {
-                        if (Expressions.anyMatch(a.aggregates(), e -> {
-                            if (e instanceof Alias) {
-                                e = ((Alias) e).child();
-                            }
-                            return e.equals(orderedAgg);
-                        }) == false) {
+                        if (Expressions.anyMatch(a.aggregates(), e -> Alias.unwrap(e).equals(orderedAgg)) == false) {
                             missing.add(Expressions.wrapAsNamed(orderedAgg));
                         }
                     }

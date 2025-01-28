@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.blobstore.url;
@@ -12,7 +13,6 @@ import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.BlobStoreException;
-import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.url.http.HttpURLBlobContainer;
 import org.elasticsearch.common.blobstore.url.http.URLHttpClient;
 import org.elasticsearch.common.blobstore.url.http.URLHttpClientSettings;
@@ -22,10 +22,8 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.CheckedFunction;
 
-import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URL;
-import java.util.Iterator;
 import java.util.List;
 
 /**
@@ -35,7 +33,7 @@ public class URLBlobStore implements BlobStore {
 
     static final Setting<ByteSizeValue> BUFFER_SIZE_SETTING = Setting.byteSizeSetting(
         "repositories.uri.buffer_size",
-        new ByteSizeValue(100, ByteSizeUnit.KB),
+        ByteSizeValue.of(100, ByteSizeUnit.KB),
         Setting.Property.NodeScope
     );
 
@@ -106,11 +104,6 @@ public class URLBlobStore implements BlobStore {
         } catch (MalformedURLException ex) {
             throw new BlobStoreException("malformed URL " + blobPath, ex);
         }
-    }
-
-    @Override
-    public void deleteBlobsIgnoringIfNotExists(OperationPurpose purpose, Iterator<String> blobNames) throws IOException {
-        throw new UnsupportedOperationException("Bulk deletes are not supported in URL repositories");
     }
 
     @Override

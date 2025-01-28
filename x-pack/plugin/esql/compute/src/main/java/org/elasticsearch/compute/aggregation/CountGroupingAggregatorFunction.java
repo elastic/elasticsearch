@@ -76,6 +76,9 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
                     public void add(int positionOffset, IntVector groupIds) {
                         addRawInput(positionOffset, groupIds, valuesBlock);
                     }
+
+                    @Override
+                    public void close() {}
                 };
             }
         }
@@ -89,6 +92,9 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
             public void add(int positionOffset, IntVector groupIds) {
                 addRawInput(groupIds);
             }
+
+            @Override
+            public void close() {}
         };
     }
 
@@ -136,7 +142,6 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
      */
     private void addRawInput(IntBlock groups) {
         for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-            // TODO remove the check one we don't emit null anymore
             if (groups.isNull(groupPosition)) {
                 continue;
             }
@@ -147,6 +152,11 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
                 state.increment(groupId, 1);
             }
         }
+    }
+
+    @Override
+    public void selectedMayContainUnseenGroups(SeenGroupIds seenGroupIds) {
+        state.enableGroupIdTracking(seenGroupIds);
     }
 
     @Override

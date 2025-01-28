@@ -33,6 +33,8 @@ public interface TextStructureFinderFactory {
      */
     boolean canCreateFromSample(List<String> explanation, String sample, double allowedFractionOfBadLines);
 
+    boolean canCreateFromMessages(List<String> explanation, List<String> messages, double allowedFractionOfBadMessages);
+
     /**
      * Create an object representing the structure of some text.
      * @param explanation List of reasons for making decisions.  May contain items when passed and new reasons
@@ -53,6 +55,13 @@ public interface TextStructureFinderFactory {
         String charsetName,
         Boolean hasByteOrderMarker,
         int lineMergeSizeLimit,
+        TextStructureOverrides overrides,
+        TimeoutChecker timeoutChecker
+    ) throws Exception;
+
+    TextStructureFinder createFromMessages(
+        List<String> explanation,
+        List<String> messages,
         TextStructureOverrides overrides,
         TimeoutChecker timeoutChecker
     ) throws Exception;

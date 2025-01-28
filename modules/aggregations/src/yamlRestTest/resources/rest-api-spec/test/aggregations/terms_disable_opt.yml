@@ -36,8 +36,8 @@ teardown:
 
 ---
 disable optimization:
-  - skip:
-      version: " - 7.13.1"
+  - requires:
+      cluster_features: ["gte_v7.13.2"]
       reason: setting to disable optimization added in 7.13.2
 
   - do:
@@ -65,8 +65,8 @@ disable optimization:
 
 ---
 enable optimization:
-  - skip:
-      version: " - 7.13.1"
+  - requires:
+      cluster_features: ["gte_v7.13.2"]
       reason: setting to disable optimization added in 7.13.2
 
   - do:
@@ -93,8 +93,8 @@ enable optimization:
 
 ---
 enabled by default:
-  - skip:
-      version: " - 7.13.1"
+  - requires:
+      cluster_features: ["gte_v7.13.2"]
       reason: setting to disable optimization added in 7.13.2
 
   - do:

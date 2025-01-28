@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket.terms;
@@ -86,12 +87,20 @@ public abstract class InternalMappedTerms<A extends InternalTerms<A, B>, B exten
         writeSize(shardSize, out);
         out.writeBoolean(showTermDocCountError);
         out.writeVLong(otherDocCount);
-        out.writeCollection(buckets);
+        out.writeVInt(buckets.size());
+        for (var bucket : buckets) {
+            bucket.writeTo(out, showTermDocCountError);
+        }
     }
 
     @Override
     protected void setDocCountError(long docCountError) {
         this.docCountError = docCountError;
+    }
+
+    @Override
+    protected boolean getShowDocCountError() {
+        return showTermDocCountError;
     }
 
     @Override
@@ -144,6 +153,6 @@ public abstract class InternalMappedTerms<A extends InternalTerms<A, B>, B exten
 
     @Override
     public final XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        return doXContentCommon(builder, params, docCountError, otherDocCount, buckets);
+        return doXContentCommon(builder, params, showTermDocCountError, docCountError, otherDocCount, buckets);
     }
 }

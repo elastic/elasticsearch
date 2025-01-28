@@ -10,8 +10,8 @@ import java.lang.String;
 import java.lang.StringBuilder;
 import java.util.List;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.DoubleBlock;
@@ -34,22 +34,19 @@ public final class CountDistinctDoubleAggregatorFunction implements AggregatorFu
 
   private final List<Integer> channels;
 
-  private final BigArrays bigArrays;
-
   private final int precision;
 
   public CountDistinctDoubleAggregatorFunction(DriverContext driverContext, List<Integer> channels,
-      HllStates.SingleState state, BigArrays bigArrays, int precision) {
+      HllStates.SingleState state, int precision) {
     this.driverContext = driverContext;
     this.channels = channels;
     this.state = state;
-    this.bigArrays = bigArrays;
     this.precision = precision;
   }
 
   public static CountDistinctDoubleAggregatorFunction create(DriverContext driverContext,
-      List<Integer> channels, BigArrays bigArrays, int precision) {
-    return new CountDistinctDoubleAggregatorFunction(driverContext, channels, CountDistinctDoubleAggregator.initSingle(bigArrays, precision), bigArrays, precision);
+      List<Integer> channels, int precision) {
+    return new CountDistinctDoubleAggregatorFunction(driverContext, channels, CountDistinctDoubleAggregator.initSingle(driverContext.bigArrays(), precision), precision);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -62,13 +59,29 @@ public final class CountDistinctDoubleAggregatorFunction implements AggregatorFu
   }
 
   @Override
-  public void addRawInput(Page page) {
+  public void addRawInput(Page page, BooleanVector mask) {
+    if (mask.allFalse()) {
+      // Entire page masked away
+      return;
+    }
+    if (mask.allTrue()) {
+      // No masking
+      DoubleBlock block = page.getBlock(channels.get(0));
+      DoubleVector vector = block.asVector();
+      if (vector != null) {
+        addRawVector(vector);
+      } else {
+        addRawBlock(block);
+      }
+      return;
+    }
+    // Some positions masked away, others kept
     DoubleBlock block = page.getBlock(channels.get(0));
     DoubleVector vector = block.asVector();
     if (vector != null) {
-      addRawVector(vector);
+      addRawVector(vector, mask);
     } else {
-      addRawBlock(block);
+      addRawBlock(block, mask);
     }
   }
 
@@ -78,8 +91,33 @@ public final class CountDistinctDoubleAggregatorFunction implements AggregatorFu
     }
   }
 
+  private void addRawVector(DoubleVector vector, BooleanVector mask) {
+    for (int i = 0; i < vector.getPositionCount(); i++) {
+      if (mask.getBoolean(i) == false) {
+        continue;
+      }
+      CountDistinctDoubleAggregator.combine(state, vector.getDouble(i));
+    }
+  }
+
   private void addRawBlock(DoubleBlock block) {
     for (int p = 0; p < block.getPositionCount(); p++) {
+      if (block.isNull(p)) {
+        continue;
+      }
+      int start = block.getFirstValueIndex(p);
+      int end = start + block.getValueCount(p);
+      for (int i = start; i < end; i++) {
+        CountDistinctDoubleAggregator.combine(state, block.getDouble(i));
+      }
+    }
+  }
+
+  private void addRawBlock(DoubleBlock block, BooleanVector mask) {
+    for (int p = 0; p < block.getPositionCount(); p++) {
+      if (mask.getBoolean(p) == false) {
+        continue;
+      }
       if (block.isNull(p)) {
         continue;
       }

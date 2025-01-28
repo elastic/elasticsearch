@@ -33,7 +33,6 @@ import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -50,6 +49,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchModule;
@@ -96,7 +96,7 @@ public class EnrichShardMultiSearchAction extends ActionType<MultiSearchResponse
     private static final String NAME = "indices:data/read/shard_multi_search";
 
     private EnrichShardMultiSearchAction() {
-        super(NAME, MultiSearchResponse::new);
+        super(NAME);
     }
 
     public static class Request extends SingleShardRequest<Request> {
@@ -303,22 +303,26 @@ public class EnrichShardMultiSearchAction extends ActionType<MultiSearchResponse
 
     private static SearchResponse createSearchResponse(TopDocs topDocs, SearchHit[] hits) {
         SearchHits searchHits = new SearchHits(hits, topDocs.totalHits, 0);
-        return new SearchResponse(
-            searchHits,
-            null,
-            null,
-            false,
-            null,
-            null,
-            0,
-            null,
-            1,
-            1,
-            0,
-            1L,
-            ShardSearchFailure.EMPTY_ARRAY,
-            SearchResponse.Clusters.EMPTY
-        );
+        try {
+            return new SearchResponse(
+                searchHits,
+                null,
+                null,
+                false,
+                null,
+                null,
+                0,
+                null,
+                1,
+                1,
+                0,
+                1L,
+                ShardSearchFailure.EMPTY_ARRAY,
+                SearchResponse.Clusters.EMPTY
+            );
+        } finally {
+            searchHits.decRef();
+        }
     }
 
 }

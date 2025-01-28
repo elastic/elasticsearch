@@ -1,13 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.indices;
 
-import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
+import org.elasticsearch.action.support.broadcast.BaseBroadcastResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.util.BigArrays;
@@ -81,7 +82,8 @@ public class IndexingMemoryControllerIT extends ESSingleNodeTestCase {
                 config.getLeafSorter(),
                 config.getRelativeTimeInNanosSupplier(),
                 config.getIndexCommitListener(),
-                config.isPromotableToPrimary()
+                config.isPromotableToPrimary(),
+                config.getMapperService()
             );
         }
 
@@ -99,7 +101,7 @@ public class IndexingMemoryControllerIT extends ESSingleNodeTestCase {
             prepareIndex("index").setId(Integer.toString(i)).setSource("field", "value").get();
         }
         // Force merge so we know all merges are done before we start deleting:
-        ForceMergeResponse r = client().admin().indices().prepareForceMerge().setMaxNumSegments(1).get();
+        BaseBroadcastResponse r = client().admin().indices().prepareForceMerge().setMaxNumSegments(1).get();
         assertNoFailures(r);
         final RefreshStats refreshStats = shard.refreshStats();
         for (int i = 0; i < 100; i++) {

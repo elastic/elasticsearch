@@ -27,6 +27,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
+import org.mockito.Mockito;
 import org.mockito.stubbing.Answer;
 
 import java.util.Map;
@@ -57,6 +58,7 @@ public class EmptyStateIndexRemoverTests extends ESTestCase {
         client = mock(Client.class);
         OriginSettingClient originSettingClient = MockOriginSettingClient.mockOriginSettingClient(client, ClientHelper.ML_ORIGIN);
         listener = mock(ActionListener.class);
+        when(listener.delegateFailureAndWrap(any())).thenCallRealMethod();
         deleteIndexRequestCaptor = ArgumentCaptor.forClass(DeleteIndexRequest.class);
 
         remover = new EmptyStateIndexRemover(originSettingClient, new TaskId("test", 0L));
@@ -66,6 +68,7 @@ public class EmptyStateIndexRemoverTests extends ESTestCase {
     public void verifyNoOtherInteractionsWithMocks() {
         verify(client).settings();
         verify(client, atLeastOnce()).threadPool();
+        verify(listener, Mockito.atLeast(0)).delegateFailureAndWrap(any());
         verifyNoMoreInteractions(client, listener);
     }
 

@@ -1,0 +1,25 @@
+---
+"Allocation stats":
+  - requires:
+      test_runner_features: [arbitrary_key]
+
+  - do:
+      nodes.info: {}
+  - set:
+      nodes._arbitrary_key_: node_id
+
+  - do:
+      nodes.stats:
+        metric: [ fs ]
+
+  - exists: nodes.$node_id.fs
+  - exists: nodes.$node_id.fs.data
+  - exists: nodes.$node_id.fs.data.0.path
+  - exists: nodes.$node_id.fs.data.0.mount
+  - exists: nodes.$node_id.fs.data.0.type
+  - exists: nodes.$node_id.fs.data.0.total_in_bytes
+  - exists: nodes.$node_id.fs.data.0.free_in_bytes
+  - exists: nodes.$node_id.fs.data.0.available_in_bytes
+  - exists: nodes.$node_id.fs.data.0.low_watermark_free_space_in_bytes
+  - exists: nodes.$node_id.fs.data.0.high_watermark_free_space_in_bytes
+  - exists: nodes.$node_id.fs.data.0.flood_stage_free_space_in_bytes

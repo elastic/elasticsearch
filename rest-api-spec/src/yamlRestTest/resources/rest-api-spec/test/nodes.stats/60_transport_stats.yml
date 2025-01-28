@@ -23,10 +23,10 @@
 
 ---
 "Transport handling time histogram":
-  - skip:
-      version: " - 8.0.99"
+  - requires:
+      cluster_features: ["gte_v8.1.0"]
       reason: "handling_time_histograms were added in 8.1"
-      features: [arbitrary_key]
+      test_runner_features: [arbitrary_key]
 
   - do:
       nodes.info: {}

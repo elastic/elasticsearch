@@ -7,9 +7,6 @@
 
 package org.elasticsearch.xpack.core.transform.transforms;
 
-import org.elasticsearch.TransportVersions;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
@@ -65,40 +62,5 @@ public class TransformStateTests extends AbstractXContentSerializingTestCase<Tra
     @Override
     protected Predicate<String> getRandomFieldsExcludeFilter() {
         return field -> field.isEmpty() == false;
-    }
-
-    public void testBackwardsSerialization() throws IOException {
-        TransformState state = new TransformState(
-            randomFrom(TransformTaskState.values()),
-            randomFrom(IndexerState.values()),
-            TransformIndexerPositionTests.randomTransformIndexerPosition(),
-            randomLongBetween(0, 10),
-            randomBoolean() ? null : randomAlphaOfLength(10),
-            randomBoolean() ? null : randomTransformProgress(),
-            randomBoolean() ? null : randomNodeAttributes(),
-            false,
-            randomBoolean() ? null : AuthorizationStateTests.randomAuthorizationState()
-        );
-        // auth_state will be null after BWC deserialization
-        TransformState expectedState = new TransformState(
-            state.getTaskState(),
-            state.getIndexerState(),
-            state.getPosition(),
-            state.getCheckpoint(),
-            state.getReason(),
-            state.getProgress(),
-            state.getNode(),
-            state.shouldStopAtNextCheckpoint(),
-            null
-        );
-        try (BytesStreamOutput output = new BytesStreamOutput()) {
-            output.setTransportVersion(TransportVersions.V_7_5_0);
-            state.writeTo(output);
-            try (StreamInput in = output.bytes().streamInput()) {
-                in.setTransportVersion(TransportVersions.V_7_5_0);
-                TransformState streamedState = new TransformState(in);
-                assertEquals(expectedState, streamedState);
-            }
-        }
     }
 }

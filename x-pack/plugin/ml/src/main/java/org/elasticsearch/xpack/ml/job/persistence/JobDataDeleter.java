@@ -10,12 +10,12 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.MultiSearchResponse;
@@ -23,7 +23,9 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.TransportMultiSearchAction;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -287,7 +289,7 @@ public class JobDataDeleter {
 
         AtomicReference<String[]> indexNames = new AtomicReference<>();
 
-        final ActionListener<AcknowledgedResponse> completionHandler = ActionListener.wrap(
+        final ActionListener<IndicesAliasesResponse> completionHandler = ActionListener.wrap(
             response -> finishedHandler.accept(response.isAcknowledged()),
             failureHandler
         );
@@ -295,7 +297,7 @@ public class JobDataDeleter {
         // Step 9. If we did not drop the indices and after DBQ state done, we delete the aliases
         ActionListener<BulkByScrollResponse> dbqHandler = ActionListener.wrap(bulkByScrollResponse -> {
             if (bulkByScrollResponse == null) { // no action was taken by DBQ, assume indices were deleted
-                completionHandler.onResponse(AcknowledgedResponse.TRUE);
+                completionHandler.onResponse(IndicesAliasesResponse.ACKNOWLEDGED_NO_ERRORS);
             } else {
                 if (bulkByScrollResponse.isTimedOut()) {
                     logger.warn("[{}] DeleteByQuery for indices [{}] timed out.", jobId, String.join(", ", indexNames.get()));
@@ -351,7 +353,7 @@ public class JobDataDeleter {
                     }
                 }
                 SearchResponse searchResponse = item.getResponse();
-                if (searchResponse.getHits().getTotalHits().value > 0 || indexNames.get()[i].equals(defaultSharedIndex)) {
+                if (searchResponse.getHits().getTotalHits().value() > 0 || indexNames.get()[i].equals(defaultSharedIndex)) {
                     needToRunDBQTemp = true;
                 } else {
                     indicesToDelete.add(indexNames.get()[i]);
@@ -451,7 +453,7 @@ public class JobDataDeleter {
     ) {
         assert indices.length > 0;
 
-        ActionListener<RefreshResponse> refreshListener = ActionListener.wrap(refreshResponse -> {
+        ActionListener<BroadcastResponse> refreshListener = ActionListener.wrap(refreshResponse -> {
             logger.info("[{}] running delete by query on [{}]", jobId, String.join(", ", indices));
             ConstantScoreQueryBuilder query = new ConstantScoreQueryBuilder(new TermQueryBuilder(Job.ID.getPreferredName(), jobId));
             DeleteByQueryRequest request = new DeleteByQueryRequest(indices).setQuery(query)
@@ -469,13 +471,15 @@ public class JobDataDeleter {
         executeAsyncWithOrigin(client, ML_ORIGIN, RefreshAction.INSTANCE, refreshRequest, refreshListener);
     }
 
-    private void deleteAliases(@SuppressWarnings("HiddenField") String jobId, ActionListener<AcknowledgedResponse> finishedHandler) {
+    private void deleteAliases(@SuppressWarnings("HiddenField") String jobId, ActionListener<IndicesAliasesResponse> finishedHandler) {
         final String readAliasName = AnomalyDetectorsIndex.jobResultsAliasedName(jobId);
         final String writeAliasName = AnomalyDetectorsIndex.resultsWriteAlias(jobId);
 
         // first find the concrete indices associated with the aliases
-        GetAliasesRequest aliasesRequest = new GetAliasesRequest().aliases(readAliasName, writeAliasName)
-            .indicesOptions(IndicesOptions.lenientExpandOpenHidden());
+        GetAliasesRequest aliasesRequest = new GetAliasesRequest(MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT).aliases(
+            readAliasName,
+            writeAliasName
+        ).indicesOptions(IndicesOptions.lenientExpandOpenHidden());
         executeAsyncWithOrigin(
             client.threadPool().getThreadContext(),
             ML_ORIGIN,
@@ -486,7 +490,7 @@ public class JobDataDeleter {
                 if (removeRequest == null) {
                     // don't error if the job's aliases have already been deleted - carry on and delete the
                     // rest of the job's data
-                    finishedHandler.onResponse(AcknowledgedResponse.TRUE);
+                    finishedHandler.onResponse(IndicesAliasesResponse.ACKNOWLEDGED_NO_ERRORS);
                     return;
                 }
                 executeAsyncWithOrigin(

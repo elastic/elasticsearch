@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.upgrades;
@@ -23,7 +24,6 @@ import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 
@@ -52,7 +52,7 @@ public class SystemIndexMigrationExecutor extends PersistentTasksExecutor<System
         MetadataCreateIndexService metadataCreateIndexService,
         IndexScopedSettings indexScopedSettings
     ) {
-        super(SYSTEM_INDEX_UPGRADE_TASK_NAME, ThreadPool.Names.GENERIC);
+        super(SYSTEM_INDEX_UPGRADE_TASK_NAME, clusterService.threadPool().generic());
         this.client = client;
         this.clusterService = clusterService;
         this.systemIndices = systemIndices;

@@ -1,15 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.node.tasks.list;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
@@ -19,12 +18,12 @@ import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.ListenableActionFuture;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.RemovedTaskListener;
 import org.elasticsearch.tasks.Task;
@@ -43,9 +42,7 @@ import static org.elasticsearch.core.TimeValue.timeValueSeconds;
 
 public class TransportListTasksAction extends TransportTasksAction<Task, ListTasksRequest, ListTasksResponse, TaskInfo> {
 
-    private static final Logger logger = LogManager.getLogger(TransportListTasksAction.class);
-
-    public static final ActionType<ListTasksResponse> TYPE = new ActionType<>("cluster:monitor/tasks/lists", ListTasksResponse::new);
+    public static final ActionType<ListTasksResponse> TYPE = new ActionType<>("cluster:monitor/tasks/lists");
 
     public static long waitForCompletionTimeout(TimeValue timeout) {
         if (timeout == null) {
@@ -64,7 +61,6 @@ public class TransportListTasksAction extends TransportTasksAction<Task, ListTas
             transportService,
             actionFilters,
             ListTasksRequest::new,
-            ListTasksResponse::new,
             TaskInfo::from,
             transportService.getThreadPool().executor(ThreadPool.Names.MANAGEMENT)
         );
@@ -132,7 +128,6 @@ public class TransportListTasksAction extends TransportTasksAction<Task, ListTas
                     }
                     processedTasks.add(task);
                 }
-                logger.trace("Matched {} tasks of all running {}", processedTasks, taskManager.getTasks().values());
             } catch (Exception e) {
                 allMatchedTasksRemovedListener.onFailure(e);
                 return;

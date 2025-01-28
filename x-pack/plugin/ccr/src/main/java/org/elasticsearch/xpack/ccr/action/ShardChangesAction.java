@@ -7,11 +7,11 @@
 package org.elasticsearch.xpack.ccr.action;
 
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.RemoteClusterActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.single.shard.SingleShardRequest;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
@@ -20,7 +20,6 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -39,6 +38,7 @@ import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RawIndexingDataTransportRequest;
 import org.elasticsearch.transport.TransportService;
@@ -62,9 +62,10 @@ public class ShardChangesAction extends ActionType<ShardChangesAction.Response> 
 
     public static final ShardChangesAction INSTANCE = new ShardChangesAction();
     public static final String NAME = "indices:data/read/xpack/ccr/shard_changes";
+    public static final RemoteClusterActionType<Response> REMOTE_TYPE = new RemoteClusterActionType<>(NAME, Response::new);
 
     private ShardChangesAction() {
-        super(NAME, ShardChangesAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends SingleShardRequest<Request> implements RawIndexingDataTransportRequest {
@@ -266,11 +267,7 @@ public class ShardChangesAction extends ActionType<ShardChangesAction.Response> 
             super(in);
             mappingVersion = in.readVLong();
             settingsVersion = in.readVLong();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_3_0)) {
-                aliasesVersion = in.readVLong();
-            } else {
-                aliasesVersion = 0;
-            }
+            aliasesVersion = in.readVLong();
             globalCheckpoint = in.readZLong();
             maxSeqNo = in.readZLong();
             maxSeqNoOfUpdatesOrDeletes = in.readZLong();
@@ -302,9 +299,7 @@ public class ShardChangesAction extends ActionType<ShardChangesAction.Response> 
         public void writeTo(final StreamOutput out) throws IOException {
             out.writeVLong(mappingVersion);
             out.writeVLong(settingsVersion);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_3_0)) {
-                out.writeVLong(aliasesVersion);
-            }
+            out.writeVLong(aliasesVersion);
             out.writeZLong(globalCheckpoint);
             out.writeZLong(maxSeqNo);
             out.writeZLong(maxSeqNoOfUpdatesOrDeletes);
@@ -562,7 +557,17 @@ public class ShardChangesAction extends ActionType<ShardChangesAction.Response> 
         long toSeqNo = Math.min(globalCheckpoint, (fromSeqNo + maxOperationCount) - 1);
         assert fromSeqNo <= toSeqNo : "invalid range from_seqno[" + fromSeqNo + "] > to_seqno[" + toSeqNo + "]";
         final List<Translog.Operation> operations = new ArrayList<>();
-        try (Translog.Snapshot snapshot = indexShard.newChangesSnapshot("ccr", fromSeqNo, toSeqNo, true, true, false)) {
+        try (
+            Translog.Snapshot snapshot = indexShard.newChangesSnapshot(
+                "ccr",
+                fromSeqNo,
+                toSeqNo,
+                true,
+                true,
+                false,
+                maxBatchSize.getBytes()
+            )
+        ) {
             Translog.Operation op;
             while ((op = snapshot.next()) != null) {
                 operations.add(op);

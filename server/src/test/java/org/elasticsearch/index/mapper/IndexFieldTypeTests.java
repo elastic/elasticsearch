@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.mapper;
 
@@ -16,14 +17,13 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;
 import java.util.function.Predicate;
 
 import static org.hamcrest.Matchers.containsString;
 
-public class IndexFieldTypeTests extends ESTestCase {
+public class IndexFieldTypeTests extends ConstantFieldTypeTestCase {
 
     public void testPrefixQuery() {
         MappedFieldType ft = IndexFieldMapper.IndexFieldType.INSTANCE;
@@ -49,6 +49,11 @@ public class IndexFieldTypeTests extends ESTestCase {
             () -> assertEquals(new MatchAllDocsQuery(), ft.regexpQuery("ind.x", 0, 0, 10, null, createContext()))
         );
         assertThat(e.getMessage(), containsString("Can only use regexp queries on keyword and text fields"));
+    }
+
+    @Override
+    public MappedFieldType getMappedFieldType() {
+        return IndexFieldMapper.IndexFieldType.INSTANCE;
     }
 
     private SearchExecutionContext createContext() {
@@ -79,7 +84,8 @@ public class IndexFieldTypeTests extends ESTestCase {
             indexNameMatcher,
             () -> true,
             null,
-            Collections.emptyMap()
+            Collections.emptyMap(),
+            MapperMetrics.NOOP
         );
     }
 }

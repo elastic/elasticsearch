@@ -7,7 +7,7 @@
 
 package org.elasticsearch.compute.aggregation;
 
-import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DoubleBlock;
@@ -32,8 +32,8 @@ public class PercentileDoubleAggregatorFunctionTests extends AggregatorFunctionT
     }
 
     @Override
-    protected AggregatorFunctionSupplier aggregatorFunction(BigArrays bigArrays, List<Integer> inputChannels) {
-        return new PercentileDoubleAggregatorFunctionSupplier(bigArrays, inputChannels, percentile);
+    protected AggregatorFunctionSupplier aggregatorFunction(List<Integer> inputChannels) {
+        return new PercentileDoubleAggregatorFunctionSupplier(inputChannels, percentile);
     }
 
     @Override
@@ -48,10 +48,11 @@ public class PercentileDoubleAggregatorFunctionTests extends AggregatorFunctionT
 
     @Override
     protected void assertSimpleOutput(List<Block> input, Block result) {
-        TDigestState td = TDigestState.create(QuantileStates.DEFAULT_COMPRESSION);
-        input.stream().flatMapToDouble(b -> allDoubles(b)).forEach(td::add);
-        double expected = td.quantile(percentile / 100);
-        double value = ((DoubleBlock) result).getDouble(0);
-        assertThat(value, closeTo(expected, expected * 0.1));
+        try (TDigestState td = TDigestState.create(newLimitedBreaker(ByteSizeValue.ofMb(100)), QuantileStates.DEFAULT_COMPRESSION)) {
+            input.stream().flatMapToDouble(b -> allDoubles(b)).forEach(td::add);
+            double expected = td.quantile(percentile / 100);
+            double value = ((DoubleBlock) result).getDouble(0);
+            assertThat(value, closeTo(expected, expected * 0.1));
+        }
     }
 }

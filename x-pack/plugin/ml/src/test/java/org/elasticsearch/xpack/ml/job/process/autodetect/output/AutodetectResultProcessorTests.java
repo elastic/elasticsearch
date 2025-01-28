@@ -63,6 +63,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 
+import static org.elasticsearch.common.util.concurrent.EsExecutors.DIRECT_EXECUTOR_SERVICE;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
@@ -102,6 +103,7 @@ public class AutodetectResultProcessorTests extends ESTestCase {
         executor = new Scheduler.SafeScheduledThreadPoolExecutor(1);
         client = mock(Client.class);
         ThreadPool threadPool = mock(ThreadPool.class);
+        when(threadPool.executor(any())).thenReturn(DIRECT_EXECUTOR_SERVICE);
         when(client.threadPool()).thenReturn(threadPool);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         auditor = mock(AnomalyDetectionAuditor.class);

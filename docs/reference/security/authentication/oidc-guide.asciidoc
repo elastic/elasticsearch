@@ -22,7 +22,7 @@ The OpenID Connect Provider (OP) is the entity in OpenID Connect that is respons
 authenticating the user and for granting the necessary tokens with the authentication and
 user information to be consumed by the Relying Parties.
 
-In order for the Elastic Stack to be able use your OpenID Connect Provider for authentication,
+In order for the Elastic Stack to be able to use your OpenID Connect Provider for authentication,
 a trust relationship needs to be established between the OP and the RP. In the OpenID Connect
 Provider, this means registering the RP as a client. OpenID Connect defines a dynamic client
 registration protocol but this is usually geared towards real-time client registration and
@@ -198,6 +198,7 @@ For instance
 bin/elasticsearch-keystore add xpack.security.authc.realms.oidc.oidc1.rp.client_secret
 ----
 
+NOTE: Changes to the `client_secret` requires a restart of the {es} nodes to pick up the change.
 
 NOTE: According to the OpenID Connect specification, the OP should also make their configuration
 available at a well known URL, which is the concatenation of their `Issuer` value with the

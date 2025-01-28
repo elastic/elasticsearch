@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.searchablesnapshots.cache.shared;
 
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -22,7 +23,6 @@ import org.elasticsearch.xpack.searchablesnapshots.BaseFrozenSearchableSnapshots
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
 import org.elasticsearch.xpack.searchablesnapshots.action.ClearSearchableSnapshotsCacheAction;
 import org.elasticsearch.xpack.searchablesnapshots.action.ClearSearchableSnapshotsCacheRequest;
-import org.elasticsearch.xpack.searchablesnapshots.action.ClearSearchableSnapshotsCacheResponse;
 import org.elasticsearch.xpack.searchablesnapshots.action.cache.TransportSearchableSnapshotsNodeCachesStatsAction;
 import org.elasticsearch.xpack.searchablesnapshots.action.cache.TransportSearchableSnapshotsNodeCachesStatsAction.NodeCachesStatsResponse;
 import org.elasticsearch.xpack.searchablesnapshots.action.cache.TransportSearchableSnapshotsNodeCachesStatsAction.NodesCachesStatsResponse;
@@ -117,14 +117,14 @@ public class NodesCachesStatsIntegTests extends BaseFrozenSearchableSnapshotsInt
 
         assertExecutorIsIdle(SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME);
 
-        final ClearSearchableSnapshotsCacheResponse clearCacheResponse = client().execute(
+        final BroadcastResponse clearCacheResponse = client().execute(
             ClearSearchableSnapshotsCacheAction.INSTANCE,
             new ClearSearchableSnapshotsCacheRequest(mountedIndex)
         ).actionGet();
         assertThat(clearCacheResponse.getSuccessfulShards(), greaterThan(0));
         assertThat(clearCacheResponse.getFailedShards(), equalTo(0));
 
-        final String[] dataNodesWithFrozenShards = clusterAdmin().prepareState()
+        final String[] dataNodesWithFrozenShards = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
             .get()
             .getState()
             .routingTable()
@@ -136,30 +136,34 @@ public class NodesCachesStatsIntegTests extends BaseFrozenSearchableSnapshotsInt
             .collect(toSet())
             .toArray(String[]::new);
 
-        final NodesCachesStatsResponse response = client().execute(
-            TransportSearchableSnapshotsNodeCachesStatsAction.TYPE,
-            new NodesRequest(dataNodesWithFrozenShards)
-        ).actionGet();
-        assertThat(
-            response.getNodes().stream().map(r -> r.getNode().getId()).collect(Collectors.toList()),
-            containsInAnyOrder(dataNodesWithFrozenShards)
-        );
-        assertThat(response.hasFailures(), equalTo(false));
+        // We've seen `getWrites` inexplicably return zero. `assertBusy` to test the theory of it being due
+        // to contention on the `LongAdder` at `SharedBlobCacheService#writeCount`.
+        assertBusy(() -> {
+            final NodesCachesStatsResponse response = client().execute(
+                TransportSearchableSnapshotsNodeCachesStatsAction.TYPE,
+                new NodesRequest(dataNodesWithFrozenShards)
+            ).actionGet();
+            assertThat(
+                response.getNodes().stream().map(r -> r.getNode().getId()).collect(Collectors.toList()),
+                containsInAnyOrder(dataNodesWithFrozenShards)
+            );
+            assertThat(response.hasFailures(), equalTo(false));
 
-        for (NodeCachesStatsResponse nodeCachesStats : response.getNodes()) {
-            if (nodeCachesStats.getNumRegions() > 0) {
-                assertThat(nodeCachesStats.getWrites(), greaterThan(0L));
-                assertThat(nodeCachesStats.getBytesWritten(), greaterThan(0L));
-                assertThat(nodeCachesStats.getReads(), greaterThan(0L));
-                assertThat(nodeCachesStats.getBytesRead(), greaterThan(0L));
-                assertThat(nodeCachesStats.getEvictions(), greaterThan(0L));
-            } else {
-                assertThat(nodeCachesStats.getWrites(), equalTo(0L));
-                assertThat(nodeCachesStats.getBytesWritten(), equalTo(0L));
-                assertThat(nodeCachesStats.getReads(), equalTo(0L));
-                assertThat(nodeCachesStats.getBytesRead(), equalTo(0L));
-                assertThat(nodeCachesStats.getEvictions(), equalTo(0L));
+            for (NodeCachesStatsResponse nodeCachesStats : response.getNodes()) {
+                if (nodeCachesStats.getNumRegions() > 0) {
+                    assertThat(nodeCachesStats.getWrites(), greaterThan(0L));
+                    assertThat(nodeCachesStats.getBytesWritten(), greaterThan(0L));
+                    assertThat(nodeCachesStats.getReads(), greaterThan(0L));
+                    assertThat(nodeCachesStats.getBytesRead(), greaterThan(0L));
+                    assertThat(nodeCachesStats.getEvictions(), greaterThan(0L));
+                } else {
+                    assertThat(nodeCachesStats.getWrites(), equalTo(0L));
+                    assertThat(nodeCachesStats.getBytesWritten(), equalTo(0L));
+                    assertThat(nodeCachesStats.getReads(), equalTo(0L));
+                    assertThat(nodeCachesStats.getBytesRead(), equalTo(0L));
+                    assertThat(nodeCachesStats.getEvictions(), equalTo(0L));
+                }
             }
-        }
+        });
     }
 }

@@ -6,6 +6,12 @@
 <titleabbrev>Infer trained model deployment</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-ml-trained-model[{ml-cap} trained model APIs].
+--
+
 Evaluates a trained model.
 
 deprecated::[8.3.0,Replaced by <<infer-trained-model>>.]
@@ -31,7 +37,7 @@ deprecated::[8.3.0,Replaced by <<infer-trained-model>>.]
 
 `<model_id>`::
 (Required, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-id-or-alias]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=model-id-or-alias]
 
 [[infer-trained-model-deployment-query-params]]
 == {api-query-parms-title}

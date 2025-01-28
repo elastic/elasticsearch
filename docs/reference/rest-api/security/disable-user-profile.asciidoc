@@ -5,6 +5,12 @@
 <titleabbrev>Disable user profile</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-security[Security APIs].
+--
+
 NOTE: The user profile feature is designed only for use by {kib} and
 Elastic’s {observability}, {ents}, and {elastic-sec} solutions. Individual
 users and external applications should not call this API directly. Elastic reserves
@@ -45,7 +51,7 @@ To re-enable a disabled user profile, use the
 [[security-api-disable-user-profile-query-params]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=refresh]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=refresh]
 
 
 

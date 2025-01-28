@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.test.fixtures.testcontainers;
@@ -16,7 +17,6 @@ import org.slf4j.LoggerFactory;
 import org.testcontainers.DockerClientFactory;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.output.Slf4jLogConsumer;
-import org.testcontainers.images.builder.ImageFromDockerfile;
 
 import java.io.File;
 import java.io.IOException;
@@ -27,6 +27,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Future;
 import java.util.stream.Collectors;
 
 public abstract class DockerEnvironmentAwareTestContainer extends GenericContainer<DockerEnvironmentAwareTestContainer>
@@ -56,16 +57,22 @@ public abstract class DockerEnvironmentAwareTestContainer extends GenericContain
         }
     }
 
-    public DockerEnvironmentAwareTestContainer(ImageFromDockerfile imageFromDockerfile) {
-        super(imageFromDockerfile);
+    public DockerEnvironmentAwareTestContainer(Future<String> image) {
+        super(image);
     }
 
     @Override
     public void start() {
         Assume.assumeFalse("Docker support excluded on OS", EXCLUDED_OS);
         Assume.assumeTrue("Docker probing succesful", DOCKER_PROBING_SUCCESSFUL);
-        withLogConsumer(new Slf4jLogConsumer(logger()));
+        withLogConsumer(new Slf4jLogConsumer(LOGGER));
         super.start();
+    }
+
+    @Override
+    public void stop() {
+        LOGGER.info("Stopping container {}", getContainerId());
+        super.stop();
     }
 
     @Override
@@ -115,7 +122,7 @@ public abstract class DockerEnvironmentAwareTestContainer extends GenericContain
     }
 
     private static List<String> getLinuxExclusionList() {
-        File exclusionsFile = new File(DOCKER_ON_LINUX_EXCLUSIONS_FILE);
+        File exclusionsFile = new File(System.getProperty("workspace.dir"), DOCKER_ON_LINUX_EXCLUSIONS_FILE);
         if (exclusionsFile.exists()) {
             try {
                 return Files.readAllLines(exclusionsFile.toPath())

@@ -58,9 +58,9 @@ final class IntArrayState extends AbstractArrayState implements GroupingAggregat
 
     Block toValuesBlock(org.elasticsearch.compute.data.IntVector selected, DriverContext driverContext) {
         if (false == trackingGroupIds()) {
-            try (IntVector.Builder builder = driverContext.blockFactory().newIntVectorFixedBuilder(selected.getPositionCount())) {
+            try (var builder = driverContext.blockFactory().newIntVectorFixedBuilder(selected.getPositionCount())) {
                 for (int i = 0; i < selected.getPositionCount(); i++) {
-                    builder.appendInt(values.get(selected.getInt(i)));
+                    builder.appendInt(i, values.get(selected.getInt(i)));
                 }
                 return builder.build().asBlock();
             }
@@ -106,7 +106,7 @@ final class IntArrayState extends AbstractArrayState implements GroupingAggregat
                 } else {
                     valuesBuilder.appendInt(0); // TODO can we just use null?
                 }
-                hasValueBuilder.appendBoolean(hasValue(group));
+                hasValueBuilder.appendBoolean(i, hasValue(group));
             }
             blocks[offset + 0] = valuesBuilder.build();
             blocks[offset + 1] = hasValueBuilder.build().asBlock();

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common;
@@ -56,7 +57,7 @@ public class IndexNameGeneratorTests extends ESTestCase {
             String indexSuffix = generateValidIndexSuffix(() -> UUIDs.randomBase64UUID().toLowerCase(Locale.ROOT));
             assertThat(indexSuffix, notNullValue());
             assertThat(indexSuffix.length(), greaterThanOrEqualTo(1));
-            assertThat(indexSuffix.matches(ILLEGAL_INDEXNAME_CHARS_REGEX), is(false));
+            assertThat(ILLEGAL_INDEXNAME_CHARS_REGEX.matcher(indexSuffix).find(), is(false));
         }
 
         {
@@ -140,7 +141,6 @@ public class IndexNameGeneratorTests extends ESTestCase {
                 validationException.validationErrors(),
                 containsInAnyOrder("the index name we generated [" + generatedIndexName + "] already exists")
             );
-            ;
         }
 
         {

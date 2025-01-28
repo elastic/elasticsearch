@@ -164,8 +164,8 @@ Now it's time to create an inference pipeline.
 
 1. From the overview page for your `search-photo-comments` index in "Search", click the *Pipelines* tab.
 By default, Elasticsearch does not create any index-specific ingest pipelines.
-2. Because we want to customize these pipelines, we need to *Copy and customize* the `ent-search-generic-ingestion` ingest pipeline.
-Find this option above the settings for the `ent-search-generic-ingestion` ingest pipeline.
+2. Because we want to customize these pipelines, we need to *Copy and customize* the `search-default-ingestion` ingest pipeline.
+Find this option above the settings for the `search-default-ingestion` ingest pipeline.
 This will create two new index-specific ingest pipelines.
 
 Next, we'll add an inference pipeline.
@@ -256,4 +256,3 @@ In this guide, we covered how to:
 * {ml-docs}/ml-nlp-deploy-models.html[Deploying a model ML guide^]
 * {ml-docs}/ml-nlp-import-model.html#ml-nlp-authentication[Eland Authentication methods^]
 * <<ingest-pipeline-search-inference-add-inference-processors,Adding inference pipelines>>
-// * <<elser-text-expansion,Using ELSER for text expansion>>

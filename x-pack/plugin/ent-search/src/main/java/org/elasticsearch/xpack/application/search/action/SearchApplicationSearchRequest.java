@@ -42,7 +42,7 @@ public class SearchApplicationSearchRequest extends ActionRequest implements Ind
     public SearchApplicationSearchRequest(StreamInput in) throws IOException {
         super(in);
         this.name = in.readString();
-        this.queryParams = in.readMap();
+        this.queryParams = in.readGenericMap();
     }
 
     public SearchApplicationSearchRequest(String name) {

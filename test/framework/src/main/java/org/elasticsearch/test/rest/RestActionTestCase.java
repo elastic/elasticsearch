@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.test.rest;
@@ -13,11 +14,12 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.telemetry.tracing.Tracer;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpNodeClient;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -44,7 +46,7 @@ public abstract class RestActionTestCase extends ESTestCase {
     public void setUpController() {
         threadPool = createThreadPool();
         verifyingClient = new VerifyingClient(threadPool);
-        controller = new RestController(null, verifyingClient, new NoneCircuitBreakerService(), new UsageService(), Tracer.NOOP);
+        controller = new RestController(null, verifyingClient, new NoneCircuitBreakerService(), new UsageService(), TelemetryProvider.NOOP);
     }
 
     @After
@@ -64,10 +66,12 @@ public abstract class RestActionTestCase extends ESTestCase {
      * Sends the given request to the test controller in {@link #controller()}.
      */
     protected void dispatchRequest(RestRequest request) {
-        FakeRestChannel channel = new FakeRestChannel(request, false, 1);
+        FakeRestChannel channel = new FakeRestChannel(request, true, 1);
         ThreadContext threadContext = verifyingClient.threadPool().getThreadContext();
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             controller.dispatchRequest(request, channel, threadContext);
+        } finally {
+            Releasables.close(channel.capturedResponse());
         }
     }
 
@@ -154,7 +158,7 @@ public abstract class RestActionTestCase extends ESTestCase {
         ) {
             @SuppressWarnings("unchecked") // Callers are responsible for lining this up
             Response response = (Response) executeLocallyVerifier.get().apply(action, request);
-            listener.onResponse(response);
+            ActionListener.respondAndRelease(listener, response);
             return request.createTask(
                 taskIdGenerator.incrementAndGet(),
                 "transport",

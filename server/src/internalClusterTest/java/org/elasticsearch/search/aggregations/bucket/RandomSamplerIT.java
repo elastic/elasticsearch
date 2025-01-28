@@ -1,14 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.sampler.random.InternalRandomSampler;
 import org.elasticsearch.search.aggregations.bucket.sampler.random.RandomSamplerAggregationBuilder;
@@ -19,10 +21,13 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.IntStream;
 
 import static org.elasticsearch.search.aggregations.AggregationBuilders.avg;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponses;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.lessThan;
 
@@ -82,6 +87,56 @@ public class RandomSamplerIT extends ESIntegTestCase {
         }
         indexRandom(true, builders);
         ensureSearchable();
+        // Force merge to ensure segment consistency as any segment merging can change which particular documents
+        // are sampled
+        assertNoFailures(indicesAdmin().prepareForceMerge("idx").setMaxNumSegments(1).get());
+    }
+
+    public void testRandomSamplerConsistentSeed() {
+        double[] sampleMonotonicValue = new double[1];
+        double[] sampleNumericValue = new double[1];
+        long[] sampledDocCount = new long[1];
+        double tolerance = 1e-14;
+        // initialize the values
+        assertResponse(
+            prepareSearch("idx").setPreference("shard:0")
+                .addAggregation(
+                    new RandomSamplerAggregationBuilder("sampler").setProbability(PROBABILITY)
+                        .setSeed(0)
+                        .subAggregation(avg("mean_monotonic").field(MONOTONIC_VALUE))
+                        .subAggregation(avg("mean_numeric").field(NUMERIC_VALUE))
+                        .setShardSeed(42)
+                ),
+            response -> {
+                InternalRandomSampler sampler = response.getAggregations().get("sampler");
+                sampleMonotonicValue[0] = ((Avg) sampler.getAggregations().get("mean_monotonic")).getValue();
+                sampleNumericValue[0] = ((Avg) sampler.getAggregations().get("mean_numeric")).getValue();
+                sampledDocCount[0] = sampler.getDocCount();
+            }
+        );
+
+        assertResponses(response -> {
+            InternalRandomSampler sampler = response.getAggregations().get("sampler");
+            double monotonicValue = ((Avg) sampler.getAggregations().get("mean_monotonic")).getValue();
+            double numericValue = ((Avg) sampler.getAggregations().get("mean_numeric")).getValue();
+            long docCount = sampler.getDocCount();
+            assertEquals(monotonicValue, sampleMonotonicValue[0], tolerance);
+            assertEquals(numericValue, sampleNumericValue[0], tolerance);
+            assertEquals(docCount, sampledDocCount[0]);
+        },
+            IntStream.rangeClosed(0, NUM_SAMPLE_RUNS - 1)
+                .mapToObj(
+                    num -> prepareSearch("idx").setPreference("shard:0")
+                        .addAggregation(
+                            new RandomSamplerAggregationBuilder("sampler").setProbability(PROBABILITY)
+                                .setSeed(0)
+                                .subAggregation(avg("mean_monotonic").field(MONOTONIC_VALUE))
+                                .subAggregation(avg("mean_numeric").field(NUMERIC_VALUE))
+                                .setShardSeed(42)
+                        )
+                )
+                .toArray(SearchRequestBuilder[]::new)
+        );
     }
 
     public void testRandomSampler() {

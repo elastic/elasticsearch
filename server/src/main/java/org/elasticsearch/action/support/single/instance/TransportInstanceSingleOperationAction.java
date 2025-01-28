@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.support.single.instance;
@@ -11,8 +12,10 @@ package org.elasticsearch.action.support.single.instance;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
@@ -25,7 +28,6 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -37,12 +39,12 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
-import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.concurrent.Executor;
 
 import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.EXCLUDED_DATA_STREAMS_KEY;
 
@@ -57,6 +59,7 @@ public abstract class TransportInstanceSingleOperationAction<
 
     final String shardActionName;
 
+    @SuppressWarnings("this-escape")
     protected TransportInstanceSingleOperationAction(
         String actionName,
         ThreadPool threadPool,
@@ -72,7 +75,7 @@ public abstract class TransportInstanceSingleOperationAction<
         this.transportService = transportService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.shardActionName = actionName + "[s]";
-        transportService.registerRequestHandler(shardActionName, EsExecutors.DIRECT_EXECUTOR_SERVICE, request, new ShardTransportHandler());
+        transportService.registerRequestHandler(shardActionName, EsExecutors.DIRECT_EXECUTOR_SERVICE, request, this::handleShardRequest);
     }
 
     @Override
@@ -80,7 +83,7 @@ public abstract class TransportInstanceSingleOperationAction<
         new AsyncSingleAction(request, listener).start();
     }
 
-    protected abstract String executor(ShardId shardId);
+    protected abstract Executor executor(ShardId shardId);
 
     protected abstract void shardOperation(Request request, ActionListener<Response> listener);
 
@@ -257,26 +260,9 @@ public abstract class TransportInstanceSingleOperationAction<
         }
     }
 
-    private class ShardTransportHandler implements TransportRequestHandler<Request> {
-
-        @Override
-        public void messageReceived(final Request request, final TransportChannel channel, Task task) throws Exception {
-            threadPool.executor(executor(request.shardId)).execute(new AbstractRunnable() {
-                @Override
-                public void onFailure(Exception e) {
-                    try {
-                        channel.sendResponse(e);
-                    } catch (Exception inner) {
-                        inner.addSuppressed(e);
-                        logger.warn("failed to send response for " + shardActionName, inner);
-                    }
-                }
-
-                @Override
-                protected void doRun() {
-                    shardOperation(request, ActionListener.wrap(channel::sendResponse, this::onFailure));
-                }
-            });
-        }
+    private void handleShardRequest(Request request, TransportChannel channel, Task task) {
+        executor(request.shardId).execute(
+            ActionRunnable.wrap(new ChannelActionListener<Response>(channel), l -> shardOperation(request, l))
+        );
     }
 }

@@ -27,12 +27,13 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.document.DocumentField;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
@@ -43,8 +44,9 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.XPackField;
+import org.elasticsearch.xpack.core.common.time.RemainingTime;
+import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.action.CreateTrainedModelAssignmentAction;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
@@ -69,6 +71,7 @@ import org.elasticsearch.xpack.ml.notifications.InferenceAuditor;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 import org.elasticsearch.xpack.ml.utils.TaskRetriever;
 
+import java.time.Instant;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -108,7 +111,6 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
         XPackLicenseState licenseState,
         IndexNameExpressionResolver indexNameExpressionResolver,
         TrainedModelAssignmentService trainedModelAssignmentService,
-        NamedXContentRegistry xContentRegistry,
         MlMemoryTracker memoryTracker,
         InferenceAuditor auditor
     ) {
@@ -119,7 +121,6 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
             threadPool,
             actionFilters,
             StartTrainedModelDeploymentAction.Request::new,
-            indexNameExpressionResolver,
             CreateTrainedModelAssignmentAction.Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
@@ -137,6 +138,7 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
         ClusterState state,
         ActionListener<CreateTrainedModelAssignmentAction.Response> listener
     ) throws Exception {
+        var remainingTime = RemainingTime.from(Instant::now, request.getTimeout());
         logger.debug(() -> "[" + request.getDeploymentId() + "] received deploy request for model [" + request.getModelId() + "]");
         if (MachineLearningField.ML_API_FEATURE.check(licenseState) == false) {
             listener.onFailure(LicenseUtils.newComplianceException(XPackField.MACHINE_LEARNING));
@@ -181,17 +183,17 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
         AtomicLong perAllocationMemoryBytes = new AtomicLong();
 
         ActionListener<CreateTrainedModelAssignmentAction.Response> waitForDeploymentToStart = ActionListener.wrap(
-            modelAssignment -> waitForDeploymentState(request.getDeploymentId(), request.getTimeout(), request.getWaitForState(), listener),
+            modelAssignment -> waitForDeploymentState(request, remainingTime.get(), listener),
             e -> {
                 logger.warn(
                     () -> "[" + request.getDeploymentId() + "] creating new assignment for model [" + request.getModelId() + "] failed",
                     e
                 );
-                if (ExceptionsHelper.unwrapCause(e) instanceof ResourceAlreadyExistsException) {
+                if (ExceptionsHelper.unwrapCause(e) instanceof ResourceAlreadyExistsException resourceAlreadyExistsException) {
                     e = new ElasticsearchStatusException(
                         "Cannot start deployment [{}] because it has already been started",
                         RestStatus.CONFLICT,
-                        e,
+                        resourceAlreadyExistsException,
                         request.getDeploymentId()
                     );
                 }
@@ -204,7 +206,7 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
                 modelIdAndSizeInBytes.v1(),
                 request.getDeploymentId(),
                 modelIdAndSizeInBytes.v2(),
-                request.getNumberOfAllocations(),
+                request.computeNumberOfAllocations(),
                 request.getThreadsPerAllocation(),
                 request.getQueueCapacity(),
                 Optional.ofNullable(request.getCacheSize()).orElse(ByteSizeValue.ofBytes(modelIdAndSizeInBytes.v2())),
@@ -216,19 +218,24 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
             memoryTracker.refresh(
                 persistentTasks,
                 ActionListener.wrap(
-                    aVoid -> trainedModelAssignmentService.createNewModelAssignment(taskParams, waitForDeploymentToStart),
+                    aVoid -> trainedModelAssignmentService.createNewModelAssignment(
+                        new CreateTrainedModelAssignmentAction.Request(taskParams, request.getAdaptiveAllocationsSettings()),
+                        waitForDeploymentToStart
+                    ),
                     listener::onFailure
                 )
             );
         }, listener::onFailure);
 
+        GetTrainedModelsAction.Request getModelWithDeploymentId = new GetTrainedModelsAction.Request(request.getDeploymentId());
+
         ActionListener<GetTrainedModelsAction.Response> getModelListener = ActionListener.wrap(getModelResponse -> {
             if (getModelResponse.getResources().results().size() > 1) {
                 listener.onFailure(
                     ExceptionsHelper.badRequestException(
-                        "cannot deploy more than one models at the same time; [{}] matches [{}] models]",
+                        "cannot deploy more than one model at the same time; [{}] matches models [{}]",
                         request.getModelId(),
-                        getModelResponse.getResources().results().size()
+                        getModelResponse.getResources().results().stream().map(TrainedModelConfig::getModelId).toList()
                     )
                 );
                 return;
@@ -254,59 +261,75 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
                 return;
             }
 
-            // If the model id isn't the same id as the deployment id
-            // check there isn't another model with deployment id
-            if (request.getModelId().equals(request.getDeploymentId()) == false) {
-                GetTrainedModelsAction.Request getModelWithDeploymentId = new GetTrainedModelsAction.Request(request.getDeploymentId());
-                client.execute(
-                    GetTrainedModelsAction.INSTANCE,
-                    getModelWithDeploymentId,
-                    ActionListener.wrap(
-                        response -> listener.onFailure(
-                            ExceptionsHelper.badRequestException(
-                                "Deployment id [{}] is the same as an another model which is not the model being deployed. "
-                                    + "Deployment id can be the same as the model being deployed but cannot match a different model",
-                                request.getDeploymentId(),
-                                request.getModelId()
-                            )
-                        ),
-                        error -> {
-                            if (ExceptionsHelper.unwrapCause(error) instanceof ResourceNotFoundException) {
-                                // no name clash, continue with the deployment
-                                checkFullModelDefinitionIsPresent(
-                                    client,
-                                    trainedModelConfig,
-                                    true,
-                                    request.getTimeout(),
-                                    modelSizeListener
-                                );
-                            } else {
-                                listener.onFailure(error);
-                            }
-                        }
+            ActionListener<GetTrainedModelsAction.Response> checkDeploymentIdDoesntAlreadyExist = ActionListener.wrap(
+                response -> listener.onFailure(
+                    ExceptionsHelper.badRequestException(
+                        "Deployment id [{}] is the same as an another model which is not the model being deployed. "
+                            + "Deployment id can be the same as the model being deployed but cannot match a different model",
+                        request.getDeploymentId(),
+                        request.getModelId()
                     )
-                );
+                ),
+                error -> {
+                    if (ExceptionsHelper.unwrapCause(error) instanceof ResourceNotFoundException) {
+                        // no name clash, continue with the deployment
+                        checkFullModelDefinitionIsPresent(client, trainedModelConfig, true, remainingTime.get(), modelSizeListener);
+                    } else {
+                        listener.onFailure(error);
+                    }
+                }
+            );
+
+            // If the model id isn't the same id as the deployment id
+            // check there isn't another model with that deployment id
+            if (request.getModelId().equals(request.getDeploymentId()) == false) {
+                client.execute(GetTrainedModelsAction.INSTANCE, getModelWithDeploymentId, checkDeploymentIdDoesntAlreadyExist);
             } else {
-                checkFullModelDefinitionIsPresent(client, trainedModelConfig, true, request.getTimeout(), modelSizeListener);
+                checkFullModelDefinitionIsPresent(client, trainedModelConfig, true, remainingTime.get(), modelSizeListener);
             }
 
         }, listener::onFailure);
 
+        ActionListener<GetInferenceModelAction.Response> getInferenceModelListener = ActionListener.wrap((getInferenceModelResponse) -> {
+            if (getInferenceModelResponse.getEndpoints().isEmpty() == false) {
+                listener.onFailure(
+                    ExceptionsHelper.badRequestException(Messages.MODEL_ID_MATCHES_EXISTING_MODEL_IDS_BUT_MUST_NOT, request.getModelId())
+                );
+            } else {
+                getTrainedModelRequestExecution(request, getModelListener);
+            }
+        }, error -> {
+            if (ExceptionsHelper.unwrapCause(error) instanceof ResourceNotFoundException) {
+                // no name clash, continue with the deployment
+                getTrainedModelRequestExecution(request, getModelListener);
+            } else {
+                listener.onFailure(error);
+            }
+        });
+
+        GetInferenceModelAction.Request getModelRequest = new GetInferenceModelAction.Request(request.getModelId(), TaskType.ANY);
+        client.execute(GetInferenceModelAction.INSTANCE, getModelRequest, getInferenceModelListener);
+    }
+
+    private void getTrainedModelRequestExecution(
+        StartTrainedModelDeploymentAction.Request request,
+        ActionListener<GetTrainedModelsAction.Response> getModelListener
+    ) {
         GetTrainedModelsAction.Request getModelRequest = new GetTrainedModelsAction.Request(request.getModelId());
         client.execute(GetTrainedModelsAction.INSTANCE, getModelRequest, getModelListener);
     }
 
     private void waitForDeploymentState(
-        String deploymentId,
-        TimeValue timeout,
-        AllocationStatus.State state,
+        StartTrainedModelDeploymentAction.Request request,
+        TimeValue remainingTime,
         ActionListener<CreateTrainedModelAssignmentAction.Response> listener
     ) {
-        DeploymentStartedPredicate predicate = new DeploymentStartedPredicate(deploymentId, state);
+        var deploymentId = request.getDeploymentId();
+        DeploymentStartedPredicate predicate = new DeploymentStartedPredicate(deploymentId, request.getWaitForState());
         trainedModelAssignmentService.waitForAssignmentCondition(
             deploymentId,
             predicate,
-            timeout,
+            remainingTime,
             new TrainedModelAssignmentService.WaitForAssignmentListener() {
                 @Override
                 public void onResponse(TrainedModelAssignment assignment) {
@@ -321,6 +344,18 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
                 @Override
                 public void onFailure(Exception e) {
                     listener.onFailure(e);
+                }
+
+                @Override
+                public void onTimeout(TimeValue timeout) {
+                    onFailure(
+                        new ElasticsearchStatusException(
+                            "Timed out after [{}] waiting for model deployment to start. "
+                                + "Use the trained model stats API to track the state of the deployment.",
+                            RestStatus.REQUEST_TIMEOUT,
+                            request.getTimeout() // use the full request timeout in the error message
+                        )
+                    );
                 }
             }
         );
@@ -559,21 +594,29 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
         String modelId,
         ActionListener<Runnable> nextStepListener
     ) {
-        TaskRetriever.getDownloadTaskInfo(mlOriginClient, modelId, timeout != null, ActionListener.wrap(taskInfo -> {
-            if (taskInfo == null) {
-                nextStepListener.onResponse(null);
-            } else {
-                failOrRespondWith0(
-                    () -> new ElasticsearchStatusException(
-                        Messages.getMessage(Messages.MODEL_DOWNLOAD_IN_PROGRESS, modelId),
-                        RestStatus.REQUEST_TIMEOUT
-                    ),
-                    errorIfDefinitionIsMissing,
-                    modelId,
-                    failureListener
-                );
-            }
-        }, failureListener::onFailure), timeout);
+        // check task is present, do not wait for completion
+        TaskRetriever.getDownloadTaskInfo(
+            mlOriginClient,
+            modelId,
+            timeout != null,
+            timeout,
+            () -> Messages.getMessage(Messages.MODEL_DOWNLOAD_IN_PROGRESS, modelId),
+            ActionListener.wrap(taskInfo -> {
+                if (taskInfo == null) {
+                    nextStepListener.onResponse(null);
+                } else {
+                    failOrRespondWith0(
+                        () -> new ElasticsearchStatusException(
+                            Messages.getMessage(Messages.MODEL_DOWNLOAD_IN_PROGRESS, modelId),
+                            RestStatus.REQUEST_TIMEOUT
+                        ),
+                        errorIfDefinitionIsMissing,
+                        modelId,
+                        failureListener
+                    );
+                }
+            }, failureListener::onFailure)
+        );
     }
 
     private static void failOrRespondWith0(
@@ -627,7 +670,11 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
                 deploymentId
             ).orElse(null);
             if (trainedModelAssignment == null) {
-                // Something weird happened, it should NEVER be null...
+                // The assignment may be null if it was stopped by another action while waiting
+                this.exception = new ElasticsearchStatusException(
+                    "Error waiting for the model deployment to start. The trained model assignment was removed while waiting",
+                    RestStatus.BAD_REQUEST
+                );
                 logger.trace(() -> format("[%s] assignment was null while waiting for state [%s]", deploymentId, waitForState));
                 return true;
             }

@@ -1,18 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.aggregations.bucket.adjacency;
 
 import org.elasticsearch.aggregations.bucket.AggregationMultiBucketAggregationTestCase;
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.xcontent.ContextParser;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -21,11 +20,6 @@ import java.util.Map;
 import java.util.TreeMap;
 
 public class InternalAdjacencyMatrixTests extends AggregationMultiBucketAggregationTestCase<InternalAdjacencyMatrix> {
-
-    @Override
-    protected Map.Entry<String, ContextParser<Object, Aggregation>> getParser() {
-        return Map.entry(AdjacencyMatrixAggregationBuilder.NAME, (p, c) -> ParsedAdjacencyMatrix.fromXContent(p, (String) c));
-    }
 
     private List<String> keys;
 
@@ -92,11 +86,6 @@ public class InternalAdjacencyMatrixTests extends AggregationMultiBucketAggregat
             actualCounts.compute(bucket.getKeyAsString(), (key, oldValue) -> (oldValue == null ? 0 : oldValue) + bucket.getDocCount());
         }
         assertEquals(expectedCounts, actualCounts);
-    }
-
-    @Override
-    protected Class<ParsedAdjacencyMatrix> implementationClass() {
-        return ParsedAdjacencyMatrix.class;
     }
 
     @Override

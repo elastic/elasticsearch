@@ -18,16 +18,18 @@ import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateReque
 import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
 import org.elasticsearch.action.datastreams.DeleteDataStreamAction.Request;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.IndicesOptions.Option;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.indices.ExecutorNames;
 import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.indices.SystemIndexDescriptor;
@@ -58,9 +60,9 @@ import org.elasticsearch.xpack.fleet.rest.RestPostSecretsAction;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Collection;
-import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.core.ClientHelper.FLEET_ORIGIN;
@@ -75,14 +77,13 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
     public static final String FLEET_SECRETS_INDEX_NAME = ".fleet-secrets";
 
     private static final int CURRENT_INDEX_VERSION = 7;
-    private static final String VERSION_KEY = "version";
     private static final String MAPPING_VERSION_VARIABLE = "fleet.version";
     private static final List<String> ALLOWED_PRODUCTS = List.of("kibana", "fleet");
-    private static final int FLEET_ACTIONS_MAPPINGS_VERSION = 1;
-    private static final int FLEET_AGENTS_MAPPINGS_VERSION = 1;
-    private static final int FLEET_ENROLLMENT_API_KEYS_MAPPINGS_VERSION = 1;
+    private static final int FLEET_ACTIONS_MAPPINGS_VERSION = 2;
+    private static final int FLEET_AGENTS_MAPPINGS_VERSION = 2;
+    private static final int FLEET_ENROLLMENT_API_KEYS_MAPPINGS_VERSION = 2;
     private static final int FLEET_SECRETS_MAPPINGS_VERSION = 1;
-    private static final int FLEET_POLICIES_MAPPINGS_VERSION = 1;
+    private static final int FLEET_POLICIES_MAPPINGS_VERSION = 2;
     private static final int FLEET_POLICIES_LEADER_MAPPINGS_VERSION = 1;
     private static final int FLEET_SERVERS_MAPPINGS_VERSION = 1;
     private static final int FLEET_ARTIFACTS_MAPPINGS_VERSION = 1;
@@ -138,7 +139,6 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
             .setType(Type.EXTERNAL_MANAGED)
             .setAllowedElasticProductOrigins(ALLOWED_PRODUCTS)
             .setOrigin(FLEET_ORIGIN)
-            .setVersionMetaKey(VERSION_KEY)
             .setMappings(request.mappings())
             .setSettings(request.settings())
             .setPrimaryIndex(".fleet-actions-" + CURRENT_INDEX_VERSION)
@@ -156,7 +156,6 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
             .setType(Type.EXTERNAL_MANAGED)
             .setAllowedElasticProductOrigins(ALLOWED_PRODUCTS)
             .setOrigin(FLEET_ORIGIN)
-            .setVersionMetaKey(VERSION_KEY)
             .setMappings(request.mappings())
             .setSettings(request.settings())
             .setPrimaryIndex(".fleet-agents-" + CURRENT_INDEX_VERSION)
@@ -177,7 +176,6 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
             .setType(Type.EXTERNAL_MANAGED)
             .setAllowedElasticProductOrigins(ALLOWED_PRODUCTS)
             .setOrigin(FLEET_ORIGIN)
-            .setVersionMetaKey(VERSION_KEY)
             .setMappings(request.mappings())
             .setSettings(request.settings())
             .setPrimaryIndex(".fleet-enrollment-api-keys-" + CURRENT_INDEX_VERSION)
@@ -193,7 +191,6 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
         return SystemIndexDescriptor.builder()
             .setType(Type.INTERNAL_MANAGED)
             .setOrigin(FLEET_ORIGIN)
-            .setVersionMetaKey(VERSION_KEY)
             .setMappings(request.mappings())
             .setSettings(request.settings())
             .setPrimaryIndex(FLEET_SECRETS_INDEX_NAME + "-" + CURRENT_INDEX_VERSION)
@@ -211,7 +208,6 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
             .setType(Type.EXTERNAL_MANAGED)
             .setAllowedElasticProductOrigins(ALLOWED_PRODUCTS)
             .setOrigin(FLEET_ORIGIN)
-            .setVersionMetaKey(VERSION_KEY)
             .setMappings(request.mappings())
             .setSettings(request.settings())
             .setPrimaryIndex(".fleet-policies-" + CURRENT_INDEX_VERSION)
@@ -229,7 +225,6 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
             .setType(Type.EXTERNAL_MANAGED)
             .setAllowedElasticProductOrigins(ALLOWED_PRODUCTS)
             .setOrigin(FLEET_ORIGIN)
-            .setVersionMetaKey(VERSION_KEY)
             .setMappings(request.mappings())
             .setSettings(request.settings())
             .setPrimaryIndex(".fleet-policies-leader-" + CURRENT_INDEX_VERSION)
@@ -247,7 +242,6 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
             .setType(Type.EXTERNAL_MANAGED)
             .setAllowedElasticProductOrigins(ALLOWED_PRODUCTS)
             .setOrigin(FLEET_ORIGIN)
-            .setVersionMetaKey(VERSION_KEY)
             .setMappings(request.mappings())
             .setSettings(request.settings())
             .setPrimaryIndex(".fleet-servers-" + CURRENT_INDEX_VERSION)
@@ -265,7 +259,6 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
             .setType(Type.EXTERNAL_MANAGED)
             .setAllowedElasticProductOrigins(ALLOWED_PRODUCTS)
             .setOrigin(FLEET_ORIGIN)
-            .setVersionMetaKey(VERSION_KEY)
             .setMappings(request.mappings())
             .setSettings(request.settings())
             .setPrimaryIndex(".fleet-artifacts-" + CURRENT_INDEX_VERSION)
@@ -299,12 +292,14 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
         if (dataStreamDescriptors.isEmpty() == false) {
             try {
                 Request request = new Request(
+                    TimeValue.THIRTY_SECONDS /* TODO should we wait longer? */,
                     dataStreamDescriptors.stream().map(SystemDataStreamDescriptor::getDataStreamName).toArray(String[]::new)
                 );
-                EnumSet<Option> options = request.indicesOptions().options();
-                options.add(Option.IGNORE_UNAVAILABLE);
-                options.add(Option.ALLOW_NO_INDICES);
-                request.indicesOptions(new IndicesOptions(options, request.indicesOptions().expandWildcards()));
+                request.indicesOptions(
+                    IndicesOptions.builder(request.indicesOptions())
+                        .concreteTargetOptions(IndicesOptions.ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS)
+                        .build()
+                );
 
                 client.execute(
                     DeleteDataStreamAction.INSTANCE,
@@ -354,17 +349,19 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
     @Override
     public List<RestHandler> getRestHandlers(
         Settings settings,
+        NamedWriteableRegistry namedWriteableRegistry,
         RestController restController,
         ClusterSettings clusterSettings,
         IndexScopedSettings indexScopedSettings,
         SettingsFilter settingsFilter,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        Supplier<DiscoveryNodes> nodesInCluster
+        Supplier<DiscoveryNodes> nodesInCluster,
+        Predicate<NodeFeature> clusterSupportsFeature
     ) {
         return List.of(
             new RestGetGlobalCheckpointsAction(),
-            new RestFleetSearchAction(restController.getSearchUsageHolder()),
-            new RestFleetMultiSearchAction(settings, restController.getSearchUsageHolder()),
+            new RestFleetSearchAction(restController.getSearchUsageHolder(), clusterSupportsFeature),
+            new RestFleetMultiSearchAction(settings, restController.getSearchUsageHolder(), clusterSupportsFeature),
             new RestGetSecretsAction(),
             new RestPostSecretsAction(),
             new RestDeleteSecretsAction()

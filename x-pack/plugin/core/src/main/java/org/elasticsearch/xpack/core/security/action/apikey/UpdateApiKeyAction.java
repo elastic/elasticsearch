@@ -15,6 +15,6 @@ public final class UpdateApiKeyAction extends ActionType<UpdateApiKeyResponse> {
     public static final UpdateApiKeyAction INSTANCE = new UpdateApiKeyAction();
 
     private UpdateApiKeyAction() {
-        super(NAME, UpdateApiKeyResponse::new);
+        super(NAME);
     }
 }

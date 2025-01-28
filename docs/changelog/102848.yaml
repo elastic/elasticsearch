@@ -1,5 +1,0 @@
-pr: 102848
-summary: Decref `SharedBytes.IO` after read is done not before
-area: Snapshot/Restore
-type: bug
-issues: []

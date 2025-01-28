@@ -11,7 +11,6 @@ import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.action.search.SearchRequest;
@@ -21,6 +20,7 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.search.TransportClearScrollAction;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.search.TransportSearchScrollAction;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -77,6 +77,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -162,12 +163,12 @@ public class WatcherServiceTests extends ESTestCase {
         ClusterState clusterState = csBuilder.build();
 
         // response setup, successful refresh response
-        RefreshResponse refreshResponse = mock(RefreshResponse.class);
+        BroadcastResponse refreshResponse = mock(BroadcastResponse.class);
         when(refreshResponse.getSuccessfulShards()).thenReturn(
             clusterState.getMetadata().getIndices().get(Watch.INDEX).getNumberOfShards()
         );
         doAnswer(invocation -> {
-            ActionListener<RefreshResponse> listener = (ActionListener<RefreshResponse>) invocation.getArguments()[2];
+            ActionListener<BroadcastResponse> listener = (ActionListener<BroadcastResponse>) invocation.getArguments()[2];
             listener.onResponse(refreshResponse);
             return null;
         }).when(client).execute(eq(RefreshAction.INSTANCE), any(RefreshRequest.class), anyActionListener());
@@ -196,7 +197,7 @@ public class WatcherServiceTests extends ESTestCase {
         SearchHit[] hits = new SearchHit[count];
         for (int i = 0; i < count; i++) {
             String id = String.valueOf(i);
-            SearchHit hit = new SearchHit(1, id);
+            SearchHit hit = SearchHit.unpooled(1, id);
             hit.version(1L);
             hit.shard(new SearchShardTarget("nodeId", new ShardId(watchIndex, 0), "whatever"));
             hits[i] = hit;
@@ -212,7 +213,7 @@ public class WatcherServiceTests extends ESTestCase {
             when(watch.status()).thenReturn(watchStatus);
             when(parser.parse(eq(id), eq(true), any(), eq(XContentType.JSON), anyLong(), anyLong())).thenReturn(watch);
         }
-        SearchHits searchHits = new SearchHits(hits, new TotalHits(count, TotalHits.Relation.EQUAL_TO), 1.0f);
+        SearchHits searchHits = SearchHits.unpooled(hits, new TotalHits(count, TotalHits.Relation.EQUAL_TO), 1.0f);
         doAnswer(invocation -> {
             ActionListener<SearchResponse> listener = (ActionListener<SearchResponse>) invocation.getArguments()[2];
             ActionListener.respondAndRelease(
@@ -349,10 +350,36 @@ public class WatcherServiceTests extends ESTestCase {
         ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("_name"));
         csBuilder.metadata(Metadata.builder());
 
-        service.reload(csBuilder.build(), "whatever");
+        service.reload(csBuilder.build(), "whatever", exception -> {});
         verify(executionService).clearExecutionsAndQueue(any());
         verify(executionService, never()).pause(any());
         verify(triggerService).pauseExecution();
+    }
+
+    // the trigger service should not start unless watches are loaded successfully
+    public void testReloadingWatcherDoesNotStartTriggerServiceIfFailingToLoadWatches() {
+        ExecutionService executionService = mock(ExecutionService.class);
+        TriggerService triggerService = mock(TriggerService.class);
+        WatcherService service = new WatcherService(
+            Settings.EMPTY,
+            triggerService,
+            mock(TriggeredWatchStore.class),
+            executionService,
+            mock(WatchParser.class),
+            client,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        ) {
+            @Override
+            void stopExecutor() {}
+        };
+
+        ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("_name"));
+        Metadata metadata = spy(Metadata.builder().build());
+        when(metadata.getIndicesLookup()).thenThrow(RuntimeException.class); // simulate exception in WatcherService's private loadWatches()
+
+        service.reload(csBuilder.metadata(metadata).build(), "whatever", exception -> {});
+        verify(triggerService).pauseExecution();
+        verify(triggerService, never()).start(any());
     }
 
     private static DiscoveryNode newNode() {

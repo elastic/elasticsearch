@@ -2,7 +2,7 @@
 [[rollup-understanding-groups]]
 === Understanding groups
 
-deprecated::[8.11.0,"Rollups will be removed in a future version. Use <<downsampling,downsampling>> instead."]
+deprecated::[8.11.0,"Rollups will be removed in a future version. Please <<rollup-migrating-to-downsampling,migrate>> to <<downsampling,downsampling>> instead."]
 
 To preserve flexibility, Rollup Jobs are defined based on how future queries may need to use the data. Traditionally, systems force
 the admin to make decisions about what metrics to rollup and on what interval. E.g. The average of `cpu_time` on an hourly basis. This

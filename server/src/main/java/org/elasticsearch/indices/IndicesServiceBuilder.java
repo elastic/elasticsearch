@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices;
@@ -22,14 +23,19 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.gateway.MetaStateService;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.SlowLogFieldProvider;
+import org.elasticsearch.index.SlowLogFields;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.engine.EngineFactory;
+import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperRegistry;
+import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.plugins.PluginsService;
-import org.elasticsearch.plugins.internal.DocumentParsingObserver;
+import org.elasticsearch.plugins.internal.InternalSearchPlugin;
+import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.internal.ShardSearchRequest;
@@ -43,7 +49,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Function;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 public class IndicesServiceBuilder {
@@ -73,7 +78,25 @@ public class IndicesServiceBuilder {
     Map<String, IndexStorePlugin.SnapshotCommitSupplier> snapshotCommitSuppliers = Map.of();
     @Nullable
     CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException> requestCacheKeyDifferentiator;
-    Supplier<DocumentParsingObserver> documentParsingObserverSupplier;
+    MapperMetrics mapperMetrics;
+    List<SearchOperationListener> searchOperationListener = List.of();
+    QueryRewriteInterceptor queryRewriteInterceptor = null;
+    SlowLogFieldProvider slowLogFieldProvider = new SlowLogFieldProvider() {
+        @Override
+        public SlowLogFields create(IndexSettings indexSettings) {
+            return new SlowLogFields() {
+                @Override
+                public Map<String, String> indexFields() {
+                    return Map.of();
+                }
+
+                @Override
+                public Map<String, String> searchFields() {
+                    return Map.of();
+                }
+            };
+        }
+    };
 
     public IndicesServiceBuilder settings(Settings settings) {
         this.settings = settings;
@@ -172,8 +195,22 @@ public class IndicesServiceBuilder {
         return this;
     }
 
-    public IndicesServiceBuilder documentParsingObserverSupplier(Supplier<DocumentParsingObserver> documentParsingObserverSupplier) {
-        this.documentParsingObserverSupplier = documentParsingObserverSupplier;
+    public IndicesServiceBuilder mapperMetrics(MapperMetrics mapperMetrics) {
+        this.mapperMetrics = mapperMetrics;
+        return this;
+    }
+
+    public List<SearchOperationListener> searchOperationListeners() {
+        return searchOperationListener;
+    }
+
+    public IndicesServiceBuilder searchOperationListeners(List<SearchOperationListener> searchOperationListener) {
+        this.searchOperationListener = searchOperationListener;
+        return this;
+    }
+
+    public IndicesServiceBuilder slowLogFieldProvider(SlowLogFieldProvider slowLogFieldProvider) {
+        this.slowLogFieldProvider = slowLogFieldProvider;
         return this;
     }
 
@@ -200,7 +237,9 @@ public class IndicesServiceBuilder {
         Objects.requireNonNull(recoveryStateFactories);
         Objects.requireNonNull(indexFoldersDeletionListeners);
         Objects.requireNonNull(snapshotCommitSuppliers);
-        Objects.requireNonNull(documentParsingObserverSupplier);
+        Objects.requireNonNull(mapperMetrics);
+        Objects.requireNonNull(searchOperationListener);
+        Objects.requireNonNull(slowLogFieldProvider);
 
         // collect engine factory providers from plugins
         engineFactoryProviders = pluginsService.filterPlugins(EnginePlugin.class)
@@ -226,6 +265,27 @@ public class IndicesServiceBuilder {
             .map(IndexStorePlugin::getSnapshotCommitSuppliers)
             .flatMap(m -> m.entrySet().stream())
             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+
+        var queryRewriteInterceptors = pluginsService.filterPlugins(InternalSearchPlugin.class)
+            .map(InternalSearchPlugin::getQueryRewriteInterceptors)
+            .flatMap(List::stream)
+            .collect(Collectors.toMap(QueryRewriteInterceptor::getQueryName, interceptor -> {
+                if (interceptor.getQueryName() == null) {
+                    throw new IllegalArgumentException("QueryRewriteInterceptor [" + interceptor.getClass().getName() + "] requires name");
+                }
+                return interceptor;
+            }, (a, b) -> {
+                throw new IllegalStateException(
+                    "Conflicting rewrite interceptors ["
+                        + a.getQueryName()
+                        + "] found in ["
+                        + a.getClass().getName()
+                        + "] and ["
+                        + b.getClass().getName()
+                        + "]"
+                );
+            }));
+        queryRewriteInterceptor = QueryRewriteInterceptor.multi(queryRewriteInterceptors);
 
         return new IndicesService(this);
     }

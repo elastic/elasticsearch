@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.upgrades;
@@ -18,22 +19,17 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
-import org.elasticsearch.core.Tuple;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.TreeMap;
-import java.util.stream.Collectors;
 
 /**
  * Holds the results of the most recent attempt to migrate system indices. Updated by {@link SystemIndexMigrator} as it finishes each
@@ -43,25 +39,7 @@ public class FeatureMigrationResults implements Metadata.Custom {
     public static final String TYPE = "system_index_migration";
     public static final TransportVersion MIGRATION_ADDED_VERSION = TransportVersions.V_8_0_0;
 
-    private static final ParseField RESULTS_FIELD = new ParseField("results");
-
-    @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<FeatureMigrationResults, Void> PARSER = new ConstructingObjectParser<>(TYPE, a -> {
-        final Map<String, SingleFeatureMigrationResult> statuses = ((List<Tuple<String, SingleFeatureMigrationResult>>) a[0]).stream()
-            .collect(Collectors.toMap(Tuple::v1, Tuple::v2));
-        return new FeatureMigrationResults(statuses);
-    });
-
-    static {
-        PARSER.declareNamedObjects(
-            ConstructingObjectParser.constructorArg(),
-            (p, c, n) -> new Tuple<>(n, SingleFeatureMigrationResult.fromXContent(p)),
-            v -> {
-                throw new IllegalArgumentException("ordered " + RESULTS_FIELD.getPreferredName() + " are not supported");
-            },
-            RESULTS_FIELD
-        );
-    }
+    static final ParseField RESULTS_FIELD = new ParseField("results");
 
     private final Map<String, SingleFeatureMigrationResult> featureStatuses;
 
@@ -80,11 +58,7 @@ public class FeatureMigrationResults implements Metadata.Custom {
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
-        return ChunkedToXContentHelper.xContentValuesMap(RESULTS_FIELD.getPreferredName(), featureStatuses);
-    }
-
-    public static FeatureMigrationResults fromXContent(XContentParser parser) {
-        return PARSER.apply(parser, null);
+        return ChunkedToXContentHelper.xContentObjectFields(RESULTS_FIELD.getPreferredName(), featureStatuses);
     }
 
     /**

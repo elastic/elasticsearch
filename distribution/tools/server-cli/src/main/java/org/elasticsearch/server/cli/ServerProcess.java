@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.server.cli;
@@ -61,16 +62,21 @@ public class ServerProcess {
      */
     public synchronized void detach() throws IOException {
         errorPump.drain();
-        IOUtils.close(jvmProcess.getOutputStream(), jvmProcess.getInputStream(), jvmProcess.getErrorStream());
-        detached = true;
+        try {
+            IOUtils.close(jvmProcess.getOutputStream(), jvmProcess.getInputStream(), jvmProcess.getErrorStream(), errorPump);
+        } finally {
+            detached = true;
+        }
     }
 
     /**
      * Waits for the subprocess to exit.
      */
-    public int waitFor() {
+    public int waitFor() throws IOException {
         errorPump.drain();
-        return nonInterruptible(jvmProcess::waitFor);
+        int exitCode = nonInterruptible(jvmProcess::waitFor);
+        errorPump.close();
+        return exitCode;
     }
 
     /**
@@ -81,13 +87,22 @@ public class ServerProcess {
      *
      * <p> Note that if {@link #detach()} has been called, this method is a no-op.
      */
-    public synchronized void stop() {
+    public synchronized void stop() throws IOException {
         if (detached) {
             return;
         }
 
         sendShutdownMarker();
         waitFor(); // ignore exit code, we are already shutting down
+    }
+
+    /**
+     * Stop the subprocess, sending a SIGKILL.
+     */
+    public void forceStop() throws IOException {
+        assert detached == false;
+        jvmProcess.destroyForcibly();
+        waitFor();
     }
 
     private void sendShutdownMarker() {

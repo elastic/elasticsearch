@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.basic;
@@ -12,10 +13,10 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.Priority;
@@ -50,7 +51,7 @@ public class TransportSearchFailuresIT extends ESIntegTestCase {
         for (int i = 0; i < 100; i++) {
             index(client(), Integer.toString(i), "test", i);
         }
-        RefreshResponse refreshResponse = indicesAdmin().refresh(new RefreshRequest("test")).actionGet();
+        BroadcastResponse refreshResponse = indicesAdmin().refresh(new RefreshRequest("test")).actionGet();
         assertThat(refreshResponse.getTotalShards(), equalTo(test.totalNumShards));
         assertThat(refreshResponse.getSuccessfulShards(), equalTo(test.numPrimaries));
         assertThat(refreshResponse.getFailedShards(), equalTo(0));
@@ -74,13 +75,13 @@ public class TransportSearchFailuresIT extends ESIntegTestCase {
 
         allowNodes("test", 2);
         assertThat(
-            clusterAdmin().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForNodes(">=2").get().isTimedOut(),
+            clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForEvents(Priority.LANGUID).setWaitForNodes(">=2").get().isTimedOut(),
             equalTo(false)
         );
 
         logger.info("Running Cluster Health");
         ClusterHealthResponse clusterHealth = clusterAdmin().health(
-            new ClusterHealthRequest("test").waitForYellowStatus()
+            new ClusterHealthRequest(TEST_REQUEST_TIMEOUT, "test").waitForYellowStatus()
                 .waitForNoRelocatingShards(true)
                 .waitForEvents(Priority.LANGUID)
                 .waitForActiveShards(test.totalNumShards)

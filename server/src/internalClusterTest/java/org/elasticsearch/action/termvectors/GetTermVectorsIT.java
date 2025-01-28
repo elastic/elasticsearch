@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.termvectors;
@@ -16,7 +17,9 @@ import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
+import org.elasticsearch.action.admin.cluster.shards.TransportClusterSearchShardsAction;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.Strings;
@@ -43,7 +46,6 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertRequestBuilderThrows;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -420,7 +422,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
             for (TestConfig test : testConfigs) {
                 TermVectorsRequestBuilder request = getRequestForConfig(test);
                 if (test.expectedException != null) {
-                    assertRequestBuilderThrows(request, test.expectedException);
+                    expectThrows(test.expectedException, request);
                     continue;
                 }
 
@@ -529,8 +531,10 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
     public void testDuelWithAndWithoutTermVectors() throws IOException, ExecutionException, InterruptedException {
         // setup indices
         String[] indexNames = new String[] { "with_tv", "without_tv" };
-        assertAcked(prepareCreate(indexNames[0]).setMapping("field1", "type=text,term_vector=with_positions_offsets,analyzer=keyword"));
-        assertAcked(prepareCreate(indexNames[1]).setMapping("field1", "type=text,term_vector=no,analyzer=keyword"));
+        assertAcked(
+            prepareCreate(indexNames[1]).setMapping("field1", "type=text,term_vector=no,analyzer=keyword"),
+            prepareCreate(indexNames[0]).setMapping("field1", "type=text,term_vector=with_positions_offsets,analyzer=keyword")
+        );
         ensureGreen();
 
         // index documents with and without term vectors
@@ -985,7 +989,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
         List<String> tags = new ArrayList<>();
         for (int i = 0; i < numDocs; i++) {
             tags.add("tag_" + i);
-            builders.add(prepareIndex("test").setId(i + "").setSource("tags", tags));
+            builders.add(prepareIndex("test").setId(i + "").setSource("tags", List.copyOf(tags)));
         }
         indexRandom(true, builders);
 
@@ -1014,7 +1018,10 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
         indexRandom(true, prepareIndex("test").setId("1").setSource("field1", "random permutation"));
 
         // Get search shards
-        ClusterSearchShardsResponse searchShardsResponse = clusterAdmin().prepareSearchShards("test").get();
+        ClusterSearchShardsResponse searchShardsResponse = safeExecute(
+            TransportClusterSearchShardsAction.TYPE,
+            new ClusterSearchShardsRequest(TEST_REQUEST_TIMEOUT, "test")
+        );
         List<Integer> shardIds = Arrays.stream(searchShardsResponse.getGroups()).map(s -> s.getShardId().id()).toList();
 
         // request termvectors of artificial document from each shard
@@ -1069,9 +1076,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
                     "type=text,term_vector=with_positions_offsets,analyzer=my_analyzer",
                     "field2",
                     "type=text,term_vector=with_positions_offsets,analyzer=keyword"
-                )
-        );
-        assertAcked(
+                ),
             prepareCreate(indexNames[1]).setSettings(builder.build())
                 .setMapping("field1", "type=keyword,normalizer=my_normalizer", "field2", "type=keyword")
         );

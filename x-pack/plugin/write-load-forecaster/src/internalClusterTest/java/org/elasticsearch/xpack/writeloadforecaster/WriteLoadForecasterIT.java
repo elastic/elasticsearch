@@ -12,7 +12,7 @@ import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
-import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.index.IndexRequest;
@@ -151,8 +151,8 @@ public class WriteLoadForecasterIT extends ESIntegTestCase {
 
         assertAcked(
             client().execute(
-                PutComposableIndexTemplateAction.INSTANCE,
-                new PutComposableIndexTemplateAction.Request("my-template").indexTemplate(
+                TransportPutComposableIndexTemplateAction.TYPE,
+                new TransportPutComposableIndexTemplateAction.Request("my-template").indexTemplate(
                     ComposableIndexTemplate.builder()
                         .indexPatterns(List.of("logs-*"))
                         .template(new Template(indexSettings, null, null))
@@ -161,7 +161,12 @@ public class WriteLoadForecasterIT extends ESIntegTestCase {
                 )
             )
         );
-        assertAcked(client().execute(CreateDataStreamAction.INSTANCE, new CreateDataStreamAction.Request(dataStreamName)).actionGet());
+        assertAcked(
+            client().execute(
+                CreateDataStreamAction.INSTANCE,
+                new CreateDataStreamAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, dataStreamName)
+            ).actionGet()
+        );
 
         final int numberOfRollovers = randomIntBetween(5, 10);
         for (int i = 0; i < numberOfRollovers; i++) {

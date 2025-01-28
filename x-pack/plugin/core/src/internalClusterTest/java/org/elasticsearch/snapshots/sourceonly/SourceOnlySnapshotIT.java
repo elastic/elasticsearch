@@ -144,14 +144,14 @@ public class SourceOnlySnapshotIT extends AbstractSnapshotIntegTestCase {
         assertMappings(sourceIdx, requireRouting, true);
         SearchPhaseExecutionException e = expectThrows(
             SearchPhaseExecutionException.class,
-            () -> prepareSearch(sourceIdx).setQuery(QueryBuilders.idsQuery().addIds("" + randomIntBetween(0, builders.length))).get()
+            prepareSearch(sourceIdx).setQuery(QueryBuilders.idsQuery().addIds("" + randomIntBetween(0, builders.length)))
         );
         assertTrue(e.toString().contains("_source only indices can't be searched or filtered"));
         // can-match phase pre-filters access to non-existing field
         assertHitCount(prepareSearch(sourceIdx).setQuery(QueryBuilders.termQuery("field1", "bar")), 0);
         // make sure deletes do not work
         String idToDelete = "" + randomIntBetween(0, builders.length);
-        expectThrows(ClusterBlockException.class, () -> client().prepareDelete(sourceIdx, idToDelete).setRouting("r" + idToDelete).get());
+        expectThrows(ClusterBlockException.class, client().prepareDelete(sourceIdx, idToDelete).setRouting("r" + idToDelete));
         internalCluster().ensureAtLeastNumDataNodes(2);
         setReplicaCount(1, sourceIdx);
         ensureGreen(sourceIdx);
@@ -197,7 +197,7 @@ public class SourceOnlySnapshotIT extends AbstractSnapshotIntegTestCase {
     }
 
     private static void assertMappings(String sourceIdx, boolean requireRouting, boolean useNested) throws IOException {
-        GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings(sourceIdx).get();
+        GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings(TEST_REQUEST_TIMEOUT, sourceIdx).get();
         MappingMetadata mapping = getMappingsResponse.getMappings().get(sourceIdx);
         String nested = useNested ? """
             ,"incorrect":{"type":"object"},"nested":{"type":"nested","properties":{"value":{"type":"long"}}}""" : "";
@@ -274,10 +274,10 @@ public class SourceOnlySnapshotIT extends AbstractSnapshotIntegTestCase {
         };
         assertResponse(prepareSearch(index).addSort(SeqNoFieldMapper.NAME, SortOrder.ASC).setSize(numDocsExpected), searchResponse -> {
             assertConsumer.accept(searchResponse, sourceHadDeletions);
-            assertEquals(numDocsExpected, searchResponse.getHits().getTotalHits().value);
+            assertEquals(numDocsExpected, searchResponse.getHits().getTotalHits().value());
         });
         SearchResponse searchResponse = prepareSearch(index).addSort(SeqNoFieldMapper.NAME, SortOrder.ASC)
-            .setScroll("1m")
+            .setScroll(TimeValue.timeValueMinutes(1))
             .slice(new SliceBuilder(SeqNoFieldMapper.NAME, randomIntBetween(0, 1), 2))
             .setSize(randomIntBetween(1, 10))
             .get();
@@ -349,14 +349,26 @@ public class SourceOnlySnapshotIT extends AbstractSnapshotIntegTestCase {
         logger.info("--> delete index and stop the data node");
         assertAcked(client().admin().indices().prepareDelete(sourceIdx).get());
         internalCluster().stopRandomDataNode();
-        assertFalse(clusterAdmin().prepareHealth().setTimeout("30s").setWaitForNodes("1").get().isTimedOut());
+        assertFalse(
+            clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
+                .setTimeout(TimeValue.timeValueSeconds(30))
+                .setWaitForNodes("1")
+                .get()
+                .isTimedOut()
+        );
 
         final String newDataNode = internalCluster().startDataOnlyNode();
         logger.info("--> start a new data node " + newDataNode);
-        assertFalse(clusterAdmin().prepareHealth().setTimeout("30s").setWaitForNodes("2").get().isTimedOut());
+        assertFalse(
+            clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
+                .setTimeout(TimeValue.timeValueSeconds(30))
+                .setWaitForNodes("2")
+                .get()
+                .isTimedOut()
+        );
 
         logger.info("--> restore the index and ensure all shards are allocated");
-        RestoreSnapshotResponse restoreResponse = clusterAdmin().prepareRestoreSnapshot(repo, snapshot)
+        RestoreSnapshotResponse restoreResponse = clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, repo, snapshot)
             .setWaitForCompletion(true)
             .setIndices(sourceIdx)
             .get();

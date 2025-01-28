@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.repositories.azure;
 
@@ -44,6 +45,7 @@ import java.util.stream.Collectors;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
 import static org.elasticsearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCase.randomBytes;
+import static org.elasticsearch.test.hamcrest.OptionalMatchers.isPresentWith;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -133,8 +135,7 @@ public class AzureBlobContainerRetriesTests extends AbstractAzureServerTestCase 
                         final int rangeStart = getRangeStart(exchange);
                         assertThat(rangeStart, lessThan(bytes.length));
                         final Optional<Integer> rangeEnd = getRangeEnd(exchange);
-                        assertThat(rangeEnd.isPresent(), is(true));
-                        assertThat(rangeEnd.get(), greaterThanOrEqualTo(rangeStart));
+                        assertThat(rangeEnd, isPresentWith(greaterThanOrEqualTo(rangeStart)));
                         final int length = (rangeEnd.get() - rangeStart) + 1;
                         assertThat(length, lessThanOrEqualTo(bytes.length - rangeStart));
                         exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");

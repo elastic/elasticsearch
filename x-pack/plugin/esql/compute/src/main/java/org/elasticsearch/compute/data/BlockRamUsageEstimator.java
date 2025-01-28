@@ -23,6 +23,12 @@ public final class BlockRamUsageEstimator {
 
     /** Returns the size in bytes used by the bitset. Otherwise, returns 0 if null. Not exact, but good enough */
     public static long sizeOfBitSet(@Nullable BitSet bitset) {
-        return bitset == null ? 0 : BITSET_BASE_RAM_USAGE + (bitset.size() / Byte.SIZE);
+        return bitset == null ? 0 : sizeOfBitSet(bitset.size());
+    }
+
+    public static long sizeOfBitSet(long size) {
+        // BitSet is normally made up of words, represented by longs. So we need to divide and round up.
+        long wordCount = (size + Long.SIZE - 1) / Long.SIZE;
+        return BITSET_BASE_RAM_USAGE + wordCount * Long.BYTES;
     }
 }

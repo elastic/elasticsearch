@@ -16,12 +16,12 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -92,6 +92,14 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
                 searchRequest
             );
             searchAction.execute(searchTask, searchRequest, searchTask.getSearchProgressActionListener());
+
+            ActionListener<AsyncSearchResponse> submitListenerWithHeaders = submitListener.map(response -> {
+                threadContext.addResponseHeader(AsyncExecutionId.ASYNC_EXECUTION_IS_RUNNING_HEADER, response.isRunning() ? "?1" : "?0");
+                if (response.getId() != null) {
+                    threadContext.addResponseHeader(AsyncExecutionId.ASYNC_EXECUTION_ID_HEADER, response.getId());
+                }
+                return response;
+            });
             searchTask.addCompletionListener(new ActionListener<>() {
                 @Override
                 public void onResponse(AsyncSearchResponse searchResponse) {
@@ -103,42 +111,65 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
                             // creates the fallback response if the node crashes/restarts in the middle of the request
                             // TODO: store intermediate results ?
                             AsyncSearchResponse initialResp = searchResponse.clone(searchResponse.getId());
-                            store.createResponse(docId, searchTask.getOriginHeaders(), initialResp, new ActionListener<>() {
-                                @Override
-                                public void onResponse(DocWriteResponse r) {
-                                    if (searchResponse.isRunning()) {
-                                        try {
-                                            // store the final response on completion unless the submit is cancelled
-                                            searchTask.addCompletionListener(
-                                                finalResponse -> onFinalResponse(searchTask, finalResponse, () -> {})
-                                            );
-                                        } finally {
-                                            submitListener.onResponse(searchResponse);
+                            searchResponse.mustIncRef();
+                            try {
+                                store.createResponse(
+                                    docId,
+                                    searchTask.getOriginHeaders(),
+                                    initialResp,
+                                    ActionListener.runAfter(new ActionListener<>() {
+                                        @Override
+                                        public void onResponse(DocWriteResponse r) {
+                                            if (searchResponse.isRunning()) {
+                                                try {
+                                                    // store the final response on completion unless the submit is cancelled
+                                                    searchTask.addCompletionListener(
+                                                        finalResponse -> onFinalResponse(searchTask, finalResponse, () -> {})
+                                                    );
+                                                } finally {
+                                                    submitListenerWithHeaders.onResponse(searchResponse);
+                                                }
+                                            } else {
+                                                searchResponse.mustIncRef();
+                                                onFinalResponse(
+                                                    searchTask,
+                                                    searchResponse,
+                                                    () -> ActionListener.respondAndRelease(submitListenerWithHeaders, searchResponse)
+                                                );
+                                            }
                                         }
-                                    } else {
-                                        onFinalResponse(searchTask, searchResponse, () -> submitListener.onResponse(searchResponse));
-                                    }
-                                }
 
-                                @Override
-                                public void onFailure(Exception exc) {
-                                    onFatalFailure(
-                                        searchTask,
-                                        exc,
-                                        searchResponse.isRunning(),
-                                        "fatal failure: unable to store initial response",
-                                        submitListener
-                                    );
-                                }
-                            });
+                                        @Override
+                                        public void onFailure(Exception exc) {
+                                            onFatalFailure(
+                                                searchTask,
+                                                exc,
+                                                searchResponse.isRunning(),
+                                                "fatal failure: unable to store initial response",
+                                                submitListenerWithHeaders
+                                            );
+                                        }
+                                    }, searchResponse::decRef)
+                                );
+                            } finally {
+                                initialResp.decRef();
+                            }
                         } catch (Exception exc) {
-                            onFatalFailure(searchTask, exc, searchResponse.isRunning(), "fatal failure: generic error", submitListener);
+                            onFatalFailure(
+                                searchTask,
+                                exc,
+                                searchResponse.isRunning(),
+                                "fatal failure: generic error",
+                                submitListenerWithHeaders
+                            );
                         }
                     } else {
-                        // the task completed within the timeout so the response is sent back to the user
-                        // with a null id since nothing was stored on the cluster.
-                        taskManager.unregister(searchTask);
-                        submitListener.onResponse(searchResponse.clone(null));
+                        try (searchTask) {
+                            // the task completed within the timeout so the response is sent back to the user
+                            // with a null id since nothing was stored on the cluster.
+                            taskManager.unregister(searchTask);
+                            ActionListener.respondAndRelease(submitListenerWithHeaders, searchResponse.clone(null));
+                        }
                     }
                 }
 
@@ -146,7 +177,7 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
                 public void onFailure(Exception exc) {
                     // this will only ever be called if there is an issue scheduling the thread that executes
                     // the completion listener once the wait for completion timeout expires.
-                    onFatalFailure(searchTask, exc, true, "fatal failure: addCompletionListener", submitListener);
+                    onFatalFailure(searchTask, exc, true, "fatal failure: addCompletionListener", submitListenerWithHeaders);
                 }
             }, request.getWaitForCompletionTimeout());
         }
@@ -192,19 +223,21 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
         ActionListener<AsyncSearchResponse> listener
     ) {
         if (shouldCancel && task.isCancelled() == false) {
-            task.cancelTask(() -> {
-                try {
-                    task.addCompletionListener(finalResponse -> taskManager.unregister(task));
-                } finally {
-                    listener.onFailure(error);
-                }
-            }, cancelReason);
+            task.cancelTask(() -> closeTaskAndFail(task, error, listener), cancelReason);
         } else {
-            try {
-                task.addCompletionListener(finalResponse -> taskManager.unregister(task));
-            } finally {
-                listener.onFailure(error);
-            }
+            closeTaskAndFail(task, error, listener);
+        }
+    }
+
+    private void closeTaskAndFail(AsyncSearchTask task, Exception error, ActionListener<AsyncSearchResponse> listener) {
+        try {
+            task.addCompletionListener(finalResponse -> {
+                try (task) {
+                    taskManager.unregister(task);
+                }
+            });
+        } finally {
+            listener.onFailure(error);
         }
     }
 
@@ -214,7 +247,9 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
             threadContext.getResponseHeaders(),
             response,
             ActionListener.running(() -> {
-                taskManager.unregister(searchTask);
+                try (searchTask) {
+                    taskManager.unregister(searchTask);
+                }
                 nextAction.run();
             })
         );

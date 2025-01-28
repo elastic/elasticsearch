@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.core.security.action.oidc;
 
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -16,11 +15,11 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import java.io.IOException;
 
 public class OpenIdConnectAuthenticateResponse extends ActionResponse {
-    private String principal;
-    private String accessTokenString;
-    private String refreshTokenString;
-    private TimeValue expiresIn;
-    private Authentication authentication;
+    private final String principal;
+    private final String accessTokenString;
+    private final String refreshTokenString;
+    private final TimeValue expiresIn;
+    private final Authentication authentication;
 
     public OpenIdConnectAuthenticateResponse(
         Authentication authentication,
@@ -34,17 +33,6 @@ public class OpenIdConnectAuthenticateResponse extends ActionResponse {
         this.refreshTokenString = refreshTokenString;
         this.expiresIn = expiresIn;
         this.authentication = authentication;
-    }
-
-    public OpenIdConnectAuthenticateResponse(StreamInput in) throws IOException {
-        super(in);
-        principal = in.readString();
-        accessTokenString = in.readString();
-        refreshTokenString = in.readString();
-        expiresIn = in.readTimeValue();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_11_0)) {
-            authentication = new Authentication(in);
-        }
     }
 
     public String getPrincipal() {

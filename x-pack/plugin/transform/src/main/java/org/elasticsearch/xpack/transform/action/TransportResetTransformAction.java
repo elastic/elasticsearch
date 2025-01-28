@@ -23,16 +23,17 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
+import org.elasticsearch.xpack.core.transform.TransformMetadata;
 import org.elasticsearch.xpack.core.transform.action.ResetTransformAction;
 import org.elasticsearch.xpack.core.transform.action.ResetTransformAction.Request;
 import org.elasticsearch.xpack.core.transform.action.StopTransformAction;
@@ -55,6 +56,7 @@ public class TransportResetTransformAction extends AcknowledgedTransportMasterNo
 
     private static final Logger logger = LogManager.getLogger(TransportResetTransformAction.class);
 
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final TransformConfigManager transformConfigManager;
     private final TransformAuditor auditor;
     private final Client client;
@@ -81,11 +83,11 @@ public class TransportResetTransformAction extends AcknowledgedTransportMasterNo
             threadPool,
             actionFilters,
             Request::new,
-            indexNameExpressionResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
-        this.transformConfigManager = transformServices.getConfigManager();
-        this.auditor = transformServices.getAuditor();
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
+        this.transformConfigManager = transformServices.configManager();
+        this.auditor = transformServices.auditor();
         this.client = Objects.requireNonNull(client);
         this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings)
             ? new SecurityContext(settings, threadPool.getThreadContext())
@@ -96,6 +98,16 @@ public class TransportResetTransformAction extends AcknowledgedTransportMasterNo
 
     @Override
     protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<AcknowledgedResponse> listener) {
+        if (TransformMetadata.upgradeMode(state)) {
+            listener.onFailure(
+                new ElasticsearchStatusException(
+                    "Cannot reset any Transform while the Transform feature is upgrading.",
+                    RestStatus.CONFLICT
+                )
+            );
+            return;
+        }
+
         final boolean transformIsRunning = TransformTask.getTransformTask(request.getId(), state) != null;
         if (transformIsRunning && request.isForce() == false) {
             listener.onFailure(
@@ -110,7 +122,7 @@ public class TransportResetTransformAction extends AcknowledgedTransportMasterNo
         // <4> Reset transform
         ActionListener<TransformUpdater.UpdateResult> updateTransformListener = ActionListener.wrap(
             unusedUpdateResult -> transformConfigManager.resetTransform(request.getId(), ActionListener.wrap(resetResponse -> {
-                logger.debug("[{}] reset transform", request.getId());
+                logger.info("[{}] reset transform", request.getId());
                 auditor.info(request.getId(), "Reset transform.");
                 listener.onResponse(AcknowledgedResponse.of(resetResponse));
             }, listener::onFailure)),
@@ -135,7 +147,7 @@ public class TransportResetTransformAction extends AcknowledgedTransportMasterNo
                     false, // defer validation
                     false, // dry run
                     false, // check access
-                    request.timeout(),
+                    request.ackTimeout(),
                     destIndexSettings,
                     updateTransformListener
                 );
@@ -154,7 +166,14 @@ public class TransportResetTransformAction extends AcknowledgedTransportMasterNo
             stopTransformActionListener.onResponse(null);
             return;
         }
-        StopTransformAction.Request stopTransformRequest = new StopTransformAction.Request(request.getId(), true, false, null, true, false);
+        StopTransformAction.Request stopTransformRequest = new StopTransformAction.Request(
+            request.getId(),
+            true,
+            request.isForce(),
+            null,
+            true,
+            false
+        );
         executeAsyncWithOrigin(client, TRANSFORM_ORIGIN, StopTransformAction.INSTANCE, stopTransformRequest, stopTransformActionListener);
     }
 

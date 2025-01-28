@@ -107,7 +107,8 @@ public class StateStreamerTests extends ESTestCase {
             hits[i++] = hit;
         }
         SearchHits searchHits = new SearchHits(hits, null, (float) 0.0);
-        when(searchResponse.getHits()).thenReturn(searchHits);
+        when(searchResponse.getHits()).thenReturn(searchHits.asUnpooled());
+        searchHits.decRef();
         return searchResponse;
     }
 

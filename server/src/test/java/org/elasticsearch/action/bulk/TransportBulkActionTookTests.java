@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.bulk;
@@ -20,15 +21,16 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.DataStreamFailureStoreSettings;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.indices.EmptySystemIndices;
@@ -49,7 +51,7 @@ import org.junit.BeforeClass;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.Map;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongSupplier;
@@ -140,12 +142,11 @@ public class TransportBulkActionTookTests extends ESTestCase {
                     BulkRequest bulkRequest,
                     long startTimeNanos,
                     ActionListener<BulkResponse> listener,
-                    String executorName,
-                    AtomicArray<BulkItemResponse> responses,
-                    Map<String, IndexNotFoundException> indicesThatCannotBeCreated
+                    Executor executor,
+                    AtomicArray<BulkItemResponse> responses
                 ) {
                     expected.set(1000000);
-                    super.executeBulk(task, bulkRequest, startTimeNanos, listener, executorName, responses, indicesThatCannotBeCreated);
+                    super.executeBulk(task, bulkRequest, startTimeNanos, listener, executor, responses);
                 }
             };
         } else {
@@ -165,13 +166,12 @@ public class TransportBulkActionTookTests extends ESTestCase {
                     BulkRequest bulkRequest,
                     long startTimeNanos,
                     ActionListener<BulkResponse> listener,
-                    String executorName,
-                    AtomicArray<BulkItemResponse> responses,
-                    Map<String, IndexNotFoundException> indicesThatCannotBeCreated
+                    Executor executor,
+                    AtomicArray<BulkItemResponse> responses
                 ) {
                     long elapsed = spinForAtLeastOneMillisecond();
                     expected.set(elapsed);
-                    super.executeBulk(task, bulkRequest, startTimeNanos, listener, executorName, responses, indicesThatCannotBeCreated);
+                    super.executeBulk(task, bulkRequest, startTimeNanos, listener, executor, responses);
                 }
             };
         }
@@ -252,7 +252,9 @@ public class TransportBulkActionTookTests extends ESTestCase {
                 indexNameExpressionResolver,
                 new IndexingPressure(Settings.EMPTY),
                 EmptySystemIndices.INSTANCE,
-                relativeTimeProvider
+                relativeTimeProvider,
+                FailureStoreMetrics.NOOP,
+                DataStreamFailureStoreSettings.create(ClusterSettings.createBuiltInClusterSettings())
             );
         }
     }

@@ -101,8 +101,8 @@ public class ConnectorCustomSchedule implements Writeable, ToXContentObject {
         PARSER.declareString(constructorArg(), INTERVAL_FIELD);
         PARSER.declareField(
             optionalConstructorArg(),
-            (p, c) -> p.currentToken() == XContentParser.Token.VALUE_NULL ? null : Instant.parse(p.text()),
-            ConnectorSyncInfo.LAST_SYNCED_FIELD,
+            (p, c) -> ConnectorUtils.parseNullableInstant(p, LAST_SYNCED_FIELD.getPreferredName()),
+            LAST_SYNCED_FIELD,
             ObjectParser.ValueType.STRING_OR_NULL
         );
         PARSER.declareString(constructorArg(), NAME_FIELD);
@@ -140,7 +140,7 @@ public class ConnectorCustomSchedule implements Writeable, ToXContentObject {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeWriteable(configurationOverrides);
         out.writeBoolean(enabled);
-        out.writeString(interval.toString());
+        out.writeString(interval.expression());
         out.writeOptionalInstant(lastSynced);
         out.writeString(name);
     }

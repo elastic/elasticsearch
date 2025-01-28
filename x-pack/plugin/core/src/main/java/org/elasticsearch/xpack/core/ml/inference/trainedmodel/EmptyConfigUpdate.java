@@ -30,13 +30,13 @@ public class EmptyConfigUpdate implements InferenceConfigUpdate {
     public EmptyConfigUpdate(StreamInput in) {}
 
     @Override
-    public String getResultsField() {
-        return null;
+    public boolean isEmpty() {
+        return true;
     }
 
     @Override
-    public InferenceConfig apply(InferenceConfig originalConfig) {
-        return originalConfig;
+    public String getResultsField() {
+        return null;
     }
 
     @Override
@@ -71,7 +71,7 @@ public class EmptyConfigUpdate implements InferenceConfigUpdate {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_7_9_0;
+        return TransportVersions.ZERO;
     }
 
     public static class Builder implements InferenceConfigUpdate.Builder<Builder, EmptyConfigUpdate> {

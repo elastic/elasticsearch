@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper.flattened;
@@ -21,8 +22,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
-
-import static org.apache.lucene.index.SortedSetDocValues.NO_MORE_ORDS;
 
 public class KeyedFlattenedLeafFieldDataTests extends ESTestCase {
     private LeafOrdinalsFieldData delegate;
@@ -120,7 +119,8 @@ public class KeyedFlattenedLeafFieldDataTests extends ESTestCase {
         docValues.advanceExact(0);
 
         int retrievedOrds = 0;
-        for (long ord = docValues.nextOrd(); ord != NO_MORE_ORDS; ord = docValues.nextOrd()) {
+        for (int i = 0; i < docValues.docValueCount(); i++) {
+            long ord = docValues.nextOrd();
             assertTrue(0 <= ord && ord < 10);
             retrievedOrds++;
 
@@ -164,10 +164,6 @@ public class KeyedFlattenedLeafFieldDataTests extends ESTestCase {
             return 0;
         }
 
-        @Override
-        public void close() {
-            // Nothing to do.
-        }
     }
 
     private static final ToScriptFieldFactory<SortedSetDocValues> MOCK_TO_SCRIPT_FIELD = (dv, n) -> new DelegateDocValuesField(
@@ -193,9 +189,7 @@ public class KeyedFlattenedLeafFieldDataTests extends ESTestCase {
 
         @Override
         public long nextOrd() {
-            if (index == documentOrds.length) {
-                return NO_MORE_ORDS;
-            }
+            assertTrue(index < documentOrds.length);
             return documentOrds[index++];
         }
 

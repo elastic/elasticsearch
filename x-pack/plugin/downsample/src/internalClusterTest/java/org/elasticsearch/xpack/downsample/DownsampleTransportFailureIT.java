@@ -242,7 +242,7 @@ public class DownsampleTransportFailureIT extends ESIntegTestCase {
     private void assertIndexExists(final String nodeName, final String indexName) {
         final GetIndexResponse getIndexResponse = client(nodeName).admin()
             .indices()
-            .prepareGetIndex()
+            .prepareGetIndex(TEST_REQUEST_TIMEOUT)
             .addIndices(indexName)
             .addFeatures(GetIndexRequest.Feature.values())
             .get();
@@ -255,7 +255,7 @@ public class DownsampleTransportFailureIT extends ESIntegTestCase {
             "Index [" + indexName + "] was not deleted",
             () -> client(nodeName).admin()
                 .indices()
-                .prepareGetIndex()
+                .prepareGetIndex(TEST_REQUEST_TIMEOUT)
                 .addIndices(indexName)
                 .addFeatures(GetIndexRequest.Feature.values())
                 .get()
@@ -267,6 +267,7 @@ public class DownsampleTransportFailureIT extends ESIntegTestCase {
         // GIVEN
 
         final DownsampleAction.Request downsampleRequest = new DownsampleAction.Request(
+            TEST_REQUEST_TIMEOUT,
             SOURCE_INDEX_NAME,
             TARGET_INDEX_NAME,
             WAIT_TIMEOUT,
@@ -294,6 +295,7 @@ public class DownsampleTransportFailureIT extends ESIntegTestCase {
         // GIVEN
         final MockTransportService coordinator = MockTransportService.getInstance(testCluster.coordinator);
         final DownsampleAction.Request downsampleRequest = new DownsampleAction.Request(
+            TEST_REQUEST_TIMEOUT,
             SOURCE_INDEX_NAME,
             TARGET_INDEX_NAME,
             WAIT_TIMEOUT,

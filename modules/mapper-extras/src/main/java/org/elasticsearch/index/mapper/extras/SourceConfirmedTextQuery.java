@@ -1,17 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper.extras;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInvertState;
-import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermStates;
@@ -35,6 +34,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.search.TwoPhaseIterator;
@@ -267,7 +267,7 @@ public final class SourceConfirmedTextQuery extends Query {
 
             @Override
             public Explanation explain(LeafReaderContext context, int doc) throws IOException {
-                RuntimePhraseScorer scorer = scorer(context);
+                RuntimePhraseScorer scorer = (RuntimePhraseScorer) scorerSupplier(context).get(0);
                 if (scorer == null) {
                     return Explanation.noMatch("No matching phrase");
                 }
@@ -287,32 +287,47 @@ public final class SourceConfirmedTextQuery extends Query {
             }
 
             @Override
-            public RuntimePhraseScorer scorer(LeafReaderContext context) throws IOException {
-                final Scorer approximationScorer = approximationWeight != null ? approximationWeight.scorer(context) : null;
-                if (approximationScorer == null) {
+            public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
+                ScorerSupplier approximationSupplier = approximationWeight != null ? approximationWeight.scorerSupplier(context) : null;
+                if (approximationSupplier == null) {
                     return null;
                 }
-                final DocIdSetIterator approximation = approximationScorer.iterator();
-                final LeafSimScorer leafSimScorer = new LeafSimScorer(simScorer, context.reader(), field, scoreMode.needsScores());
-                final CheckedIntFunction<List<Object>, IOException> valueFetcher = valueFetcherProvider.apply(context);
-                return new RuntimePhraseScorer(this, approximation, leafSimScorer, valueFetcher, field, in);
+                return new ScorerSupplier() {
+                    @Override
+                    public Scorer get(long leadCost) throws IOException {
+                        final Scorer approximationScorer = approximationSupplier.get(leadCost);
+                        final DocIdSetIterator approximation = approximationScorer.iterator();
+                        final LeafSimScorer leafSimScorer = new LeafSimScorer(simScorer, context.reader(), field, scoreMode.needsScores());
+                        final CheckedIntFunction<List<Object>, IOException> valueFetcher = valueFetcherProvider.apply(context);
+                        return new RuntimePhraseScorer(approximation, leafSimScorer, valueFetcher, field, in);
+                    }
+
+                    @Override
+                    public long cost() {
+                        return approximationSupplier.cost();
+                    }
+                };
             }
 
             @Override
             public Matches matches(LeafReaderContext context, int doc) throws IOException {
-                FieldInfo fi = context.reader().getFieldInfos().fieldInfo(field);
-                if (fi == null) {
+                var terms = context.reader().terms(field);
+                if (terms == null) {
                     return null;
                 }
-                // Some highlighters will already have reindexed the source with positions and offsets,
+                // Some highlighters will already have re-indexed the source with positions and offsets,
                 // so rather than doing it again we check to see if this data is available on the
                 // current context and if so delegate directly to the inner query
-                if (fi.getIndexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS) > 0) {
+                if (terms.hasOffsets()) {
                     Weight innerWeight = in.createWeight(searcher, ScoreMode.COMPLETE_NO_SCORES, 1);
                     return innerWeight.matches(context, doc);
                 }
-                RuntimePhraseScorer scorer = scorer(context);
-                if (scorer == null || scorer.iterator().advance(doc) != doc) {
+                RuntimePhraseScorer scorer = (RuntimePhraseScorer) scorerSupplier(context).get(0L);
+                if (scorer == null) {
+                    return null;
+                }
+                final TwoPhaseIterator twoPhase = scorer.twoPhaseIterator();
+                if (twoPhase.approximation().advance(doc) != doc || scorer.twoPhaseIterator().matches() == false) {
                     return null;
                 }
                 return scorer.matches();
@@ -321,25 +336,24 @@ public final class SourceConfirmedTextQuery extends Query {
     }
 
     private class RuntimePhraseScorer extends Scorer {
-
         private final LeafSimScorer scorer;
         private final CheckedIntFunction<List<Object>, IOException> valueFetcher;
         private final String field;
         private final Query query;
         private final TwoPhaseIterator twoPhase;
 
+        private final MemoryIndexEntry cacheEntry = new MemoryIndexEntry();
+
         private int doc = -1;
         private float freq;
 
         private RuntimePhraseScorer(
-            Weight weight,
             DocIdSetIterator approximation,
             LeafSimScorer scorer,
             CheckedIntFunction<List<Object>, IOException> valueFetcher,
             String field,
             Query query
         ) {
-            super(weight);
             this.scorer = scorer;
             this.valueFetcher = valueFetcher;
             this.field = field;
@@ -357,7 +371,6 @@ public final class SourceConfirmedTextQuery extends Query {
                     // Defaults to a high-ish value so that it likely runs last.
                     return 10_000f;
                 }
-
             };
         }
 
@@ -394,35 +407,35 @@ public final class SourceConfirmedTextQuery extends Query {
             return freq;
         }
 
-        private float computeFreq() throws IOException {
-            MemoryIndex index = new MemoryIndex();
-            index.setSimilarity(FREQ_SIMILARITY);
-            List<Object> values = valueFetcher.apply(docID());
-            float frequency = 0;
-            for (Object value : values) {
-                if (value == null) {
-                    continue;
+        private MemoryIndex getOrCreateMemoryIndex() throws IOException {
+            if (cacheEntry.docID != docID()) {
+                cacheEntry.docID = docID();
+                cacheEntry.memoryIndex = new MemoryIndex(true, false);
+                cacheEntry.memoryIndex.setSimilarity(FREQ_SIMILARITY);
+                List<Object> values = valueFetcher.apply(docID());
+                for (Object value : values) {
+                    if (value == null) {
+                        continue;
+                    }
+                    cacheEntry.memoryIndex.addField(field, value.toString(), indexAnalyzer);
                 }
-                index.addField(field, value.toString(), indexAnalyzer);
-                frequency += index.search(query);
-                index.reset();
             }
-            return frequency;
+            return cacheEntry.memoryIndex;
+        }
+
+        private float computeFreq() throws IOException {
+            return getOrCreateMemoryIndex().search(query);
         }
 
         private Matches matches() throws IOException {
-            MemoryIndex index = new MemoryIndex(true, false);
-            List<Object> values = valueFetcher.apply(docID());
-            for (Object value : values) {
-                if (value == null) {
-                    continue;
-                }
-                index.addField(field, value.toString(), indexAnalyzer);
-            }
-            IndexSearcher searcher = index.createSearcher();
+            IndexSearcher searcher = getOrCreateMemoryIndex().createSearcher();
             Weight w = searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1);
             return w.matches(searcher.getLeafContexts().get(0), 0);
         }
     }
 
+    private static class MemoryIndexEntry {
+        private int docID = -1;
+        private MemoryIndex memoryIndex;
+    }
 }

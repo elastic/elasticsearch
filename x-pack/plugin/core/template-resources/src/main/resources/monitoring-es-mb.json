@@ -8,6 +8,21 @@
         "@timestamp": {
           "type": "date"
         },
+        "cluster_settings": {
+          "properties": {
+            "cluster": {
+              "properties": {
+                "metadata": {
+                  "properties": {
+                    "display_name": {
+                      "type": "keyword"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
         "elasticsearch": {
           "properties": {
             "cluster": {
@@ -81,6 +96,13 @@
                         "store": {
                           "properties": {
                             "size": {
+                              "properties": {
+                                "bytes": {
+                                  "type": "long"
+                                }
+                              }
+                            },
+                            "total_data_set_size": {
                               "properties": {
                                 "bytes": {
                                   "type": "long"
@@ -603,6 +625,13 @@
                         "store": {
                           "properties": {
                             "size": {
+                              "properties": {
+                                "bytes": {
+                                  "type": "long"
+                                }
+                              }
+                            },
+                            "total_data_set_size": {
                               "properties": {
                                 "bytes": {
                                   "type": "long"
@@ -1238,6 +1267,9 @@
                       "properties": {
                         "size_in_bytes": {
                           "type": "long"
+                        },
+                        "total_data_set_size_in_bytes": {
+                          "type": "long"
                         }
                       }
                     },
@@ -1395,6 +1427,9 @@
                         },
                         "size_in_bytes": {
                           "type": "long"
+                        },
+                        "total_data_set_size_in_bytes": {
+                          "type": "long"
                         }
                       }
                     },
@@ -1470,9 +1505,6 @@
                 "hidden": {
                   "type": "boolean"
                 },
-                "created": {
-                  "type": "long"
-                },
                 "name": {
                   "ignore_above": 1024,
                   "type": "keyword"
@@ -1482,6 +1514,17 @@
                   "type": "keyword"
                 },
                 "status": {
+                  "ignore_above": 1024,
+                  "type": "keyword"
+                },
+                "tier_preference": {
+                  "ignore_above": 1024,
+                  "type": "keyword"
+                },
+                "creation_date": {
+                  "type": "date"
+                },
+                "version": {
                   "ignore_above": 1024,
                   "type": "keyword"
                 },
@@ -1692,6 +1735,13 @@
                                   "type": "long"
                                 }
                               }
+                            },
+                            "total_data_set_size": {
+                              "properties": {
+                                "bytes": {
+                                  "type": "long"
+                                }
+                              }
                             }
                           }
                         },
@@ -1811,6 +1861,13 @@
                         "store": {
                           "properties": {
                             "size": {
+                              "properties": {
+                                "bytes": {
+                                  "type": "long"
+                                }
+                              }
+                            },
+                            "total_data_set_size": {
                               "properties": {
                                 "bytes": {
                                   "type": "long"
@@ -2317,6 +2374,13 @@
           "properties": {
             "indices": {
               "properties": {
+                "shards_stats": {
+                  "properties": {
+                    "total_count": {
+                      "type": "long"
+                    }
+                  }
+                },
                 "shards": {
                   "properties": {
                     "total": {
@@ -2408,6 +2472,104 @@
                 "total_time_in_millis": {
                   "path": "elasticsearch.index.recovery.total_time.ms",
                   "type": "alias"
+                }
+              }
+            }
+          }
+        },
+        "indexing_pressure": {
+          "properties": {
+            "memory": {
+              "properties": {
+                "current": {
+                  "properties": {
+                    "all": {
+                      "properties": {
+                        "bytes": {
+                          "type": "long"
+                        }
+                      }
+                    },
+                    "combined_coordinating_and_primary": {
+                      "properties": {
+                        "bytes": {
+                          "type": "long"
+                        }
+                      }
+                    },
+                    "coordinating": {
+                      "properties": {
+                        "bytes": {
+                          "type": "long"
+                        }
+                      }
+                    },
+                    "primary": {
+                      "properties": {
+                        "bytes": {
+                          "type": "long"
+                        }
+                      }
+                    },
+                    "replica": {
+                      "properties": {
+                        "bytes": {
+                          "type": "long"
+                        }
+                      }
+                    }
+                  }
+                },
+                "limit_in_bytes": {
+                  "type": "long"
+                },
+                "total": {
+                  "properties": {
+                    "all": {
+                      "properties": {
+                        "bytes": {
+                          "type": "long"
+                        }
+                      }
+                    },
+                    "combined_coordinating_and_primary": {
+                      "properties": {
+                        "bytes": {
+                          "type": "long"
+                        }
+                      }
+                    },
+                    "coordinating": {
+                      "properties": {
+                        "bytes": {
+                          "type": "long"
+                        },
+                        "rejections": {
+                          "type": "long"
+                        }
+                      }
+                    },
+                    "primary": {
+                      "properties": {
+                        "bytes": {
+                          "type": "long"
+                        },
+                        "rejections": {
+                          "type": "long"
+                        }
+                      }
+                    },
+                    "replica": {
+                      "properties": {
+                        "bytes": {
+                          "type": "long"
+                        },
+                        "rejections": {
+                          "type": "long"
+                        }
+                      }
+                    }
+                  }
                 }
               }
             }

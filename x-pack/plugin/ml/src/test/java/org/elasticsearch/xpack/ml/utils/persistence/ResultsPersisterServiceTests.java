@@ -10,10 +10,10 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
-import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
@@ -60,6 +61,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
@@ -263,7 +265,7 @@ public class ResultsPersisterServiceTests extends ESTestCase {
         doAnswerWithResponses(
             new BulkResponse(new BulkItemResponse[] { BULK_ITEM_RESPONSE_FAILURE, BULK_ITEM_RESPONSE_SUCCESS }, 0L),
             new BulkResponse(new BulkItemResponse[0], 0L)
-        ).when(client).execute(eq(BulkAction.INSTANCE), any(), any());
+        ).when(client).execute(eq(TransportBulkAction.TYPE), any(), any());
 
         BulkRequest bulkRequest = new BulkRequest();
         bulkRequest.add(INDEX_REQUEST_FAILURE);
@@ -274,7 +276,7 @@ public class ResultsPersisterServiceTests extends ESTestCase {
         resultsPersisterService.bulkIndexWithRetry(bulkRequest, JOB_ID, () -> true, lastMessage::set);
 
         ArgumentCaptor<BulkRequest> captor = ArgumentCaptor.forClass(BulkRequest.class);
-        verify(client, times(2)).execute(eq(BulkAction.INSTANCE), captor.capture(), any());
+        verify(client, times(2)).execute(eq(TransportBulkAction.TYPE), captor.capture(), any());
 
         List<BulkRequest> requests = captor.getAllValues();
 
@@ -294,7 +296,7 @@ public class ResultsPersisterServiceTests extends ESTestCase {
         doAnswerWithResponses(
             new BulkResponse(new BulkItemResponse[] { irrecoverable, BULK_ITEM_RESPONSE_SUCCESS }, 0L),
             new BulkResponse(new BulkItemResponse[0], 0L)
-        ).when(client).execute(eq(BulkAction.INSTANCE), any(), any());
+        ).when(client).execute(eq(TransportBulkAction.TYPE), any(), any());
 
         BulkRequest bulkRequest = new BulkRequest();
         bulkRequest.add(INDEX_REQUEST_FAILURE);
@@ -305,7 +307,7 @@ public class ResultsPersisterServiceTests extends ESTestCase {
             () -> resultsPersisterService.bulkIndexWithRetry(bulkRequest, JOB_ID, () -> true, (s) -> {})
         );
 
-        verify(client).execute(eq(BulkAction.INSTANCE), any(), any());
+        verify(client).execute(eq(TransportBulkAction.TYPE), any(), any());
         assertThat(ex.getMessage(), containsString("experienced failure that cannot be automatically retried."));
     }
 
@@ -313,7 +315,7 @@ public class ResultsPersisterServiceTests extends ESTestCase {
         doAnswerWithResponses(
             new BulkResponse(new BulkItemResponse[] { BULK_ITEM_RESPONSE_FAILURE, BULK_ITEM_RESPONSE_SUCCESS }, 0L),
             new BulkResponse(new BulkItemResponse[0], 0L)
-        ).when(client).execute(eq(BulkAction.INSTANCE), any(), any());
+        ).when(client).execute(eq(TransportBulkAction.TYPE), any(), any());
 
         BulkRequest bulkRequest = new BulkRequest();
         bulkRequest.add(INDEX_REQUEST_FAILURE);
@@ -325,7 +327,7 @@ public class ResultsPersisterServiceTests extends ESTestCase {
             ElasticsearchException.class,
             () -> resultsPersisterService.bulkIndexWithRetry(bulkRequest, JOB_ID, () -> false, lastMessage::set)
         );
-        verify(client, times(1)).execute(eq(BulkAction.INSTANCE), any(), any());
+        verify(client, times(1)).execute(eq(TransportBulkAction.TYPE), any(), any());
 
         assertThat(lastMessage.get(), is(nullValue()));
     }
@@ -335,7 +337,7 @@ public class ResultsPersisterServiceTests extends ESTestCase {
         resultsPersisterService.setMaxFailureRetries(maxFailureRetries);
 
         doAnswer(withResponse(new BulkResponse(new BulkItemResponse[] { BULK_ITEM_RESPONSE_FAILURE }, 0L))).when(client)
-            .execute(eq(BulkAction.INSTANCE), any(), any());
+            .execute(eq(TransportBulkAction.TYPE), any(), any());
 
         BulkRequest bulkRequest = new BulkRequest();
         bulkRequest.add(INDEX_REQUEST_FAILURE);
@@ -346,7 +348,7 @@ public class ResultsPersisterServiceTests extends ESTestCase {
             ElasticsearchException.class,
             () -> resultsPersisterService.bulkIndexWithRetry(bulkRequest, JOB_ID, () -> true, lastMessage::set)
         );
-        verify(client, times(maxFailureRetries + 1)).execute(eq(BulkAction.INSTANCE), any(), any());
+        verify(client, times(maxFailureRetries + 1)).execute(eq(TransportBulkAction.TYPE), any(), any());
 
         assertThat(lastMessage.get(), containsString("failed to index after [10] attempts. Will attempt again"));
     }
@@ -355,7 +357,7 @@ public class ResultsPersisterServiceTests extends ESTestCase {
         doAnswerWithResponses(
             new BulkResponse(new BulkItemResponse[] { BULK_ITEM_RESPONSE_FAILURE, BULK_ITEM_RESPONSE_SUCCESS }, 0L),
             new BulkResponse(new BulkItemResponse[0], 0L)
-        ).when(client).execute(eq(BulkAction.INSTANCE), any(), any());
+        ).when(client).execute(eq(TransportBulkAction.TYPE), any(), any());
 
         BulkRequest bulkRequest = new BulkRequest();
         bulkRequest.add(INDEX_REQUEST_FAILURE);
@@ -366,13 +368,41 @@ public class ResultsPersisterServiceTests extends ESTestCase {
         resultsPersisterService.bulkIndexWithRetry(bulkRequest, JOB_ID, () -> true, lastMessage::set);
 
         ArgumentCaptor<BulkRequest> captor = ArgumentCaptor.forClass(BulkRequest.class);
-        verify(client, times(2)).execute(eq(BulkAction.INSTANCE), captor.capture(), any());
+        verify(client, times(2)).execute(eq(TransportBulkAction.TYPE), captor.capture(), any());
 
         List<BulkRequest> requests = captor.getAllValues();
 
         assertThat(requests.get(0).numberOfActions(), equalTo(2));
         assertThat(requests.get(1).numberOfActions(), equalTo(1));
         assertThat(lastMessage.get(), containsString("failed to index after [1] attempts. Will attempt again"));
+    }
+
+    public void testBuildNewRequestFromFailures_resetsId() {
+        var bulkRequest = new BulkRequest();
+        var indexRequestAutoGeneratedId = new IndexRequest("index-foo");
+        indexRequestAutoGeneratedId.autoGenerateId();
+        var autoGenId = indexRequestAutoGeneratedId.id();
+        var plainIndexRequest = new IndexRequest("index-foo2").id("id-set");
+
+        bulkRequest.add(indexRequestAutoGeneratedId);
+        bulkRequest.add(plainIndexRequest);
+
+        var bulkResponse = mock(BulkResponse.class);
+
+        var failed = mock(BulkItemResponse.class);
+        when(failed.isFailed()).thenReturn(Boolean.TRUE);
+        when(failed.getId()).thenReturn(autoGenId);
+
+        var sucessful = mock(BulkItemResponse.class);
+        when(sucessful.isFailed()).thenReturn(Boolean.FALSE);
+
+        when(bulkResponse.getItems()).thenReturn(new BulkItemResponse[] { failed, sucessful });
+
+        var modifiedRequestForRetry = ResultsPersisterService.buildNewRequestFromFailures(bulkRequest, bulkResponse);
+        assertThat(modifiedRequestForRetry.requests(), hasSize(1)); // only the failed item is in the new request
+        assertThat(modifiedRequestForRetry.requests().get(0), instanceOf(IndexRequest.class));
+        var ir = (IndexRequest) modifiedRequestForRetry.requests().get(0);
+        assertEquals(ir.getAutoGeneratedTimestamp(), -1L); // failed request was reset
     }
 
     private static <Response> Stubber doAnswerWithResponses(Response response1, Response response2) {
@@ -399,6 +429,7 @@ public class ResultsPersisterServiceTests extends ESTestCase {
 
     public static ResultsPersisterService buildResultsPersisterService(OriginSettingClient client) {
         ThreadPool tp = mock(ThreadPool.class);
+        when(tp.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         ClusterSettings clusterSettings = new ClusterSettings(
             Settings.EMPTY,
             new HashSet<>(
@@ -408,7 +439,8 @@ public class ResultsPersisterServiceTests extends ESTestCase {
                     OperationRouting.USE_ADAPTIVE_REPLICA_SELECTION_SETTING,
                     ClusterService.USER_DEFINED_METADATA,
                     ResultsPersisterService.PERSIST_RESULTS_MAX_RETRIES,
-                    ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING
+                    ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
+                    ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_THREAD_DUMP_TIMEOUT_SETTING
                 )
             )
         );

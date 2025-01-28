@@ -122,11 +122,12 @@ public class QuestionAnsweringConfigUpdateTests extends AbstractNlpConfigUpdateT
                 originalConfig.getResultsField()
             ),
             equalTo(
-                new QuestionAnsweringConfigUpdate.Builder().setQuestion("Are you my mother?")
-                    .setNumTopClasses(4)
-                    .setMaxAnswerLength(40)
-                    .build()
-                    .apply(originalConfig)
+                originalConfig.apply(
+                    new QuestionAnsweringConfigUpdate.Builder().setQuestion("Are you my mother?")
+                        .setNumTopClasses(4)
+                        .setMaxAnswerLength(40)
+                        .build()
+                )
             )
         );
         assertThat(
@@ -139,10 +140,9 @@ public class QuestionAnsweringConfigUpdateTests extends AbstractNlpConfigUpdateT
                 "updated-field"
             ),
             equalTo(
-                new QuestionAnsweringConfigUpdate.Builder().setQuestion("Are you my mother?")
-                    .setResultsField("updated-field")
-                    .build()
-                    .apply(originalConfig)
+                originalConfig.apply(
+                    new QuestionAnsweringConfigUpdate.Builder().setQuestion("Are you my mother?").setResultsField("updated-field").build()
+                )
             )
         );
 
@@ -158,10 +158,11 @@ public class QuestionAnsweringConfigUpdateTests extends AbstractNlpConfigUpdateT
                 originalConfig.getResultsField()
             ),
             equalTo(
-                new QuestionAnsweringConfigUpdate.Builder().setQuestion("Are you my mother?")
-                    .setTokenizationUpdate(createTokenizationUpdate(originalConfig.getTokenization(), truncate, null))
-                    .build()
-                    .apply(originalConfig)
+                originalConfig.apply(
+                    new QuestionAnsweringConfigUpdate.Builder().setQuestion("Are you my mother?")
+                        .setTokenizationUpdate(createTokenizationUpdate(originalConfig.getTokenization(), truncate, null))
+                        .build()
+                )
             )
         );
     }

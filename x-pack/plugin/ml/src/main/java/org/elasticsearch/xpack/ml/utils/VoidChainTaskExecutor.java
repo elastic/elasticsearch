@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.ml.utils;
 
+import org.elasticsearch.core.Predicates;
+
 import java.util.concurrent.ExecutorService;
 import java.util.function.Predicate;
 
@@ -16,7 +18,7 @@ import java.util.function.Predicate;
 public class VoidChainTaskExecutor extends TypedChainTaskExecutor<Void> {
 
     public VoidChainTaskExecutor(ExecutorService executorService, boolean shortCircuit) {
-        this(executorService, (a) -> true, (e) -> shortCircuit);
+        this(executorService, Predicates.always(), shortCircuit ? Predicates.always() : Predicates.never());
     }
 
     VoidChainTaskExecutor(

@@ -1,14 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.transport;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
@@ -23,6 +23,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.CountDown;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -182,7 +183,7 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
                     connectionManager.getCredentialsManager()
                 ),
                 actualProfile.getHandshakeTimeout(),
-                cn -> true,
+                Predicates.always(),
                 listener.map(resp -> {
                     ClusterName remote = resp.getClusterName();
                     if (remoteClusterName.compareAndSet(null, remote)) {
@@ -302,6 +303,7 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
                     new VersionInformation(
                         Version.CURRENT.minimumCompatibilityVersion(),
                         IndexVersions.MINIMUM_COMPATIBLE,
+                        IndexVersions.MINIMUM_READONLY_COMPATIBLE,
                         IndexVersion.current()
                     )
                 );
@@ -353,11 +355,7 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
 
         private ProxyModeInfo(StreamInput input) throws IOException {
             address = input.readString();
-            if (input.getTransportVersion().onOrAfter(TransportVersions.V_7_7_0)) {
-                serverName = input.readString();
-            } else {
-                serverName = null;
-            }
+            serverName = input.readString();
             maxSocketConnections = input.readVInt();
             numSocketsConnected = input.readVInt();
         }
@@ -374,9 +372,7 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(address);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_7_0)) {
-                out.writeString(serverName);
-            }
+            out.writeString(serverName);
             out.writeVInt(maxSocketConnections);
             out.writeVInt(numSocketsConnected);
         }

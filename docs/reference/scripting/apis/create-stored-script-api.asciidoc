@@ -4,6 +4,12 @@
 <titleabbrev>Create or update stored script</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-script[Script APIs].
+--
+
 Creates or updates a <<script-stored-scripts,stored script>> or
 <<search-template,search template>>.
 
@@ -67,7 +73,7 @@ the API immediately compiles the script or template in this context.
 If you specify both this and the `<context>` request path parameter, the API
 uses the request path parameter.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 [role="child_attributes"]
 [[create-stored-script-api-request-body]]

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices.recovery;
@@ -43,7 +44,7 @@ public class StartRecoveryRequest extends TransportRequest {
         targetAllocationId = in.readString();
         sourceNode = new DiscoveryNode(in);
         targetNode = new DiscoveryNode(in);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.WAIT_FOR_CLUSTER_STATE_IN_RECOVERY_ADDED)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X)) {
             clusterStateVersion = in.readVLong();
         } else {
             clusterStateVersion = 0L; // bwc: do not wait for cluster state to be applied
@@ -164,7 +165,7 @@ public class StartRecoveryRequest extends TransportRequest {
         out.writeString(targetAllocationId);
         sourceNode.writeTo(out);
         targetNode.writeTo(out);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.WAIT_FOR_CLUSTER_STATE_IN_RECOVERY_ADDED)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X)) {
             out.writeVLong(clusterStateVersion);
         } // else bwc: just omit it, the receiver doesn't wait for a cluster state anyway
         metadataSnapshot.writeTo(out);
@@ -173,5 +174,27 @@ public class StartRecoveryRequest extends TransportRequest {
         if (out.getTransportVersion().onOrAfter(RecoverySettings.SNAPSHOT_FILE_DOWNLOAD_THROTTLING_SUPPORTED_TRANSPORT_VERSION)) {
             out.writeBoolean(canDownloadSnapshotFiles);
         }
+    }
+
+    @Override
+    public String toString() {
+        return "StartRecoveryRequest{"
+            + "shardId="
+            + shardId
+            + ", targetNode="
+            + targetNode.descriptionWithoutAttributes()
+            + ", recoveryId="
+            + recoveryId
+            + ", targetAllocationId='"
+            + targetAllocationId
+            + "', clusterStateVersion="
+            + clusterStateVersion
+            + ", primaryRelocation="
+            + primaryRelocation
+            + ", startingSeqNo="
+            + startingSeqNo
+            + ", canDownloadSnapshotFiles="
+            + canDownloadSnapshotFiles
+            + '}';
     }
 }

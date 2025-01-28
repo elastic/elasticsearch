@@ -12,14 +12,13 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.UnicodeUtil;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractScalarFunctionTestCase;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
-import org.hamcrest.Matcher;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
@@ -32,46 +31,59 @@ public class LengthTests extends AbstractScalarFunctionTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        return parameterSuppliersFromTypedData(List.of(new TestCaseSupplier("length basic test", () -> {
+        List<TestCaseSupplier> cases = new ArrayList<>();
+        cases.addAll(List.of(new TestCaseSupplier("length basic test", List.of(DataType.KEYWORD), () -> {
             BytesRef value = new BytesRef(randomAlphaOfLength(between(0, 10000)));
             return new TestCaseSupplier.TestCase(
-                List.of(new TestCaseSupplier.TypedData(value, DataTypes.KEYWORD, "f")),
+                List.of(new TestCaseSupplier.TypedData(value, DataType.KEYWORD, "f")),
                 "LengthEvaluator[val=Attribute[channel=0]]",
-                DataTypes.INTEGER,
+                DataType.INTEGER,
                 equalTo(UnicodeUtil.codePointCount(value))
             );
-        }),
-            new TestCaseSupplier("empty string", () -> makeTestCase("", 0)),
-            new TestCaseSupplier("single ascii character", () -> makeTestCase("a", 1)),
-            new TestCaseSupplier("ascii string", () -> makeTestCase("clump", 5)),
-            new TestCaseSupplier("3 bytes, 1 code point", () -> makeTestCase("☕", 1)),
-            new TestCaseSupplier("6 bytes, 2 code points", () -> makeTestCase("❗️", 2)),
-            new TestCaseSupplier("100 random alpha", () -> makeTestCase(randomAlphaOfLength(100), 100)),
-            new TestCaseSupplier("100 random code points", () -> makeTestCase(randomUnicodeOfCodepointLength(100), 100))
-        ));
+        })));
+        cases.addAll(makeTestCases("empty string", () -> "", 0));
+        cases.addAll(makeTestCases("single ascii character", () -> "a", 1));
+        cases.addAll(makeTestCases("ascii string", () -> "clump", 5));
+        cases.addAll(makeTestCases("3 bytes, 1 code point", () -> "☕", 1));
+        cases.addAll(makeTestCases("6 bytes, 2 code points", () -> "❗️", 2));
+        cases.addAll(makeTestCases("100 random alpha", () -> randomAlphaOfLength(100), 100));
+        cases.addAll(makeTestCases("100 random code points", () -> randomUnicodeOfCodepointLength(100), 100));
+        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, cases);
     }
 
-    private static TestCaseSupplier.TestCase makeTestCase(String text, int expectedLength) {
-        return new TestCaseSupplier.TestCase(
-            List.of(new TestCaseSupplier.TypedData(new BytesRef(text), DataTypes.KEYWORD, "f")),
-            "LengthEvaluator[val=Attribute[channel=0]]",
-            DataTypes.INTEGER,
-            equalTo(expectedLength)
+    private static List<TestCaseSupplier> makeTestCases(String title, Supplier<String> text, int expectedLength) {
+        return List.of(
+            new TestCaseSupplier(
+                title + " with keyword",
+                List.of(DataType.KEYWORD),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(new TestCaseSupplier.TypedData(new BytesRef(text.get()), DataType.KEYWORD, "f")),
+                    "LengthEvaluator[val=Attribute[channel=0]]",
+                    DataType.INTEGER,
+                    equalTo(expectedLength)
+                )
+            ),
+            new TestCaseSupplier(
+                title + " with text",
+                List.of(DataType.TEXT),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(new TestCaseSupplier.TypedData(new BytesRef(text.get()), DataType.TEXT, "f")),
+                    "LengthEvaluator[val=Attribute[channel=0]]",
+                    DataType.INTEGER,
+                    equalTo(expectedLength)
+                )
+            ),
+            new TestCaseSupplier(
+                title + " with semantic_text",
+                List.of(DataType.SEMANTIC_TEXT),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(new TestCaseSupplier.TypedData(new BytesRef(text.get()), DataType.SEMANTIC_TEXT, "f")),
+                    "LengthEvaluator[val=Attribute[channel=0]]",
+                    DataType.INTEGER,
+                    equalTo(expectedLength)
+                )
+            )
         );
-    }
-
-    @Override
-    protected DataType expectedType(List<DataType> argTypes) {
-        return DataTypes.INTEGER;
-    }
-
-    private Matcher<Object> resultsMatcher(List<TestCaseSupplier.TypedData> typedData) {
-        return equalTo(UnicodeUtil.codePointCount((BytesRef) typedData.get(0).data()));
-    }
-
-    @Override
-    protected List<ArgumentSpec> argSpec() {
-        return List.of(required(strings()));
     }
 
     @Override

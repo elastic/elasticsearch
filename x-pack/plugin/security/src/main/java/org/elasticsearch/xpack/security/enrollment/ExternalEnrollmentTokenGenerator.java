@@ -72,7 +72,7 @@ public class ExternalEnrollmentTokenGenerator extends BaseEnrollmentTokenGenerat
         final String fingerprint = getHttpsCaFingerprint(sslService);
         final String apiKey = getApiKeyCredentials(user, password, action, baseUrl);
         final Tuple<List<String>, String> httpInfo = getNodeInfo(user, password, baseUrl);
-        return new EnrollmentToken(apiKey, fingerprint, httpInfo.v2(), httpInfo.v1());
+        return new EnrollmentToken(apiKey, fingerprint, httpInfo.v1());
     }
 
     private static HttpResponse.HttpResponseBuilder responseBuilder(InputStream is) throws IOException {
@@ -88,11 +88,11 @@ public class ExternalEnrollmentTokenGenerator extends BaseEnrollmentTokenGenerat
     }
 
     protected static URL createAPIKeyUrl(URL baseUrl) throws MalformedURLException, URISyntaxException {
-        return new URL(baseUrl, (baseUrl.toURI().getPath() + "/_security/api_key").replaceAll("/+", "/"));
+        return new URL(baseUrl, (baseUrl.toURI().getPath() + "/_security/api_key").replaceAll("//+", "/"));
     }
 
     protected static URL getHttpInfoUrl(URL baseUrl) throws MalformedURLException, URISyntaxException {
-        return new URL(baseUrl, (baseUrl.toURI().getPath() + "/_nodes/_local/http").replaceAll("/+", "/"));
+        return new URL(baseUrl, (baseUrl.toURI().getPath() + "/_nodes/_local/http").replaceAll("//+", "/"));
     }
 
     @SuppressWarnings("unchecked")

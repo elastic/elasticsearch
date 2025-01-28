@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search;
@@ -11,11 +12,11 @@ package org.elasticsearch.search;
 import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.node.MockNode;
-import org.elasticsearch.node.ResponseCollectorService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.fetch.FetchPhase;
@@ -41,6 +42,7 @@ public class MockSearchService extends SearchService {
     private static final Map<ReaderContext, Throwable> ACTIVE_SEARCH_CONTEXTS = new ConcurrentHashMap<>();
 
     private Consumer<ReaderContext> onPutContext = context -> {};
+    private Consumer<ReaderContext> onRemoveContext = context -> {};
 
     private Consumer<SearchContext> onCreateSearchContext = context -> {};
 
@@ -80,7 +82,6 @@ public class MockSearchService extends SearchService {
         ScriptService scriptService,
         BigArrays bigArrays,
         FetchPhase fetchPhase,
-        ResponseCollectorService responseCollectorService,
         CircuitBreakerService circuitBreakerService,
         ExecutorSelector executorSelector,
         Tracer tracer
@@ -92,7 +93,6 @@ public class MockSearchService extends SearchService {
             scriptService,
             bigArrays,
             fetchPhase,
-            responseCollectorService,
             circuitBreakerService,
             executorSelector,
             tracer
@@ -110,6 +110,7 @@ public class MockSearchService extends SearchService {
     protected ReaderContext removeReaderContext(long id) {
         final ReaderContext removed = super.removeReaderContext(id);
         if (removed != null) {
+            onRemoveContext.accept(removed);
             removeActiveContext(removed);
         }
         return removed;
@@ -117,6 +118,10 @@ public class MockSearchService extends SearchService {
 
     public void setOnPutContext(Consumer<ReaderContext> onPutContext) {
         this.onPutContext = onPutContext;
+    }
+
+    public void setOnRemoveContext(Consumer<ReaderContext> onRemoveContext) {
+        this.onRemoveContext = onRemoveContext;
     }
 
     public void setOnCreateSearchContext(Consumer<SearchContext> onCreateSearchContext) {
@@ -138,6 +143,14 @@ public class MockSearchService extends SearchService {
             searchContext.close();
             throw e;
         }
+        return searchContext;
+    }
+
+    @Override
+    public SearchContext createSearchContext(ShardSearchRequest request, TimeValue timeout) throws IOException {
+        SearchContext searchContext = super.createSearchContext(request, timeout);
+        onPutContext.accept(searchContext.readerContext());
+        searchContext.addReleasable(() -> onRemoveContext.accept(searchContext.readerContext()));
         return searchContext;
     }
 

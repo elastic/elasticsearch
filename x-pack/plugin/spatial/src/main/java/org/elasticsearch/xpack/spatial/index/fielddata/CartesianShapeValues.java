@@ -13,9 +13,11 @@ import org.apache.lucene.geo.XYPoint;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.geometry.utils.GeometryValidator;
 import org.elasticsearch.geometry.utils.StandardValidator;
+import org.elasticsearch.lucene.spatial.CartesianShapeIndexer;
+import org.elasticsearch.lucene.spatial.CoordinateEncoder;
+import org.elasticsearch.lucene.spatial.GeometryDocValueReader;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.xpack.spatial.common.CartesianPoint;
-import org.elasticsearch.xpack.spatial.index.mapper.CartesianShapeIndexer;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.CartesianShapeValuesSourceType;
 
 import java.io.IOException;
@@ -25,7 +27,7 @@ import java.io.IOException;
  */
 public abstract class CartesianShapeValues extends ShapeValues<CartesianShapeValues.CartesianShapeValue> {
 
-    public static CartesianShapeValues EMPTY = new CartesianShapeValues() {
+    public static final CartesianShapeValues EMPTY = new CartesianShapeValues() {
         private final CartesianShapeValuesSourceType DEFAULT_VALUES_SOURCE_TYPE = CartesianShapeValuesSourceType.instance();
 
         @Override

@@ -13,6 +13,6 @@ public class GetAsyncSearchAction extends ActionType<AsyncSearchResponse> {
     public static final String NAME = "indices:data/read/async_search/get";
 
     private GetAsyncSearchAction() {
-        super(NAME, AsyncSearchResponse::new);
+        super(NAME);
     }
 }

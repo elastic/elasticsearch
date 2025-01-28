@@ -8,12 +8,12 @@
 package org.elasticsearch.compute.operator;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.test.OperatorTestCase;
+import org.hamcrest.Matcher;
 
 import java.util.List;
 import java.util.Map;
@@ -41,7 +41,7 @@ public class StringExtractOperatorTests extends OperatorTestCase {
     }
 
     @Override
-    protected Operator.OperatorFactory simple(BigArrays bigArrays) {
+    protected Operator.OperatorFactory simple() {
         Supplier<Function<String, Map<String, String>>> expEval = () -> new FirstWord("test");
         return new StringExtractOperator.StringExtractOperatorFactory(
             new String[] { "test" },
@@ -61,12 +61,12 @@ public class StringExtractOperatorTests extends OperatorTestCase {
     }
 
     @Override
-    protected String expectedDescriptionOfSimple() {
-        return "StringExtractOperator[fields=[test]]";
+    protected Matcher<String> expectedDescriptionOfSimple() {
+        return equalTo("StringExtractOperator[fields=[test]]");
     }
 
     @Override
-    protected String expectedToStringOfSimple() {
+    protected Matcher<String> expectedToStringOfSimple() {
         return expectedDescriptionOfSimple();
     }
 
@@ -82,11 +82,6 @@ public class StringExtractOperatorTests extends OperatorTestCase {
                 pos++;
             }
         }
-    }
-
-    @Override
-    protected ByteSizeValue memoryLimitForSimple() {
-        return ByteSizeValue.ofKb(15);
     }
 
     public void testMultivalueDissectInput() {

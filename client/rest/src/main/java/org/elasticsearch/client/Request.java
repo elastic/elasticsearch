@@ -67,7 +67,7 @@ public final class Request {
     /**
      * Add a query string parameter.
      * @param name the name of the url parameter. Must not be null.
-     * @param value the value of the url url parameter. If {@code null} then
+     * @param value the value of the url parameter. If {@code null} then
      *      the parameter is sent as {@code name} rather than {@code name=value}
      * @throws IllegalArgumentException if a parameter with that name has
      *      already been set

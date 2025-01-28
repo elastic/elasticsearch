@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.slice;
 
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.ClosePointInTimeRequest;
@@ -19,10 +21,9 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.TransportClosePointInTimeAction;
 import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.search.Scroll;
-import org.elasticsearch.search.SearchException;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.sort.ShardDocSortField;
@@ -41,6 +42,7 @@ import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -94,14 +96,14 @@ public class SearchSliceIT extends ESIntegTestCase {
             int fetchSize = randomIntBetween(10, 100);
             // test _doc sort
             SearchRequestBuilder request = prepareSearch("test").setQuery(matchAllQuery())
-                .setScroll(new Scroll(TimeValue.timeValueSeconds(10)))
+                .setScroll(TimeValue.timeValueSeconds(10))
                 .setSize(fetchSize)
                 .addSort(SortBuilders.fieldSort("_doc"));
             assertSearchSlicesWithScroll(request, field, max, numDocs);
 
             // test numeric sort
             request = prepareSearch("test").setQuery(matchAllQuery())
-                .setScroll(new Scroll(TimeValue.timeValueSeconds(10)))
+                .setScroll(TimeValue.timeValueSeconds(10))
                 .addSort(SortBuilders.fieldSort("random_int"))
                 .setSize(fetchSize);
             assertSearchSlicesWithScroll(request, field, max, numDocs);
@@ -114,11 +116,11 @@ public class SearchSliceIT extends ESIntegTestCase {
         setupIndex(totalDocs, numShards);
 
         assertResponse(prepareSearch("test").setQuery(matchAllQuery()).setPreference("_shards:1,4").setSize(0), sr -> {
-            int numDocs = (int) sr.getHits().getTotalHits().value;
+            int numDocs = (int) sr.getHits().getTotalHits().value();
             int max = randomIntBetween(2, numShards * 3);
             int fetchSize = randomIntBetween(10, 100);
             SearchRequestBuilder request = prepareSearch("test").setQuery(matchAllQuery())
-                .setScroll(new Scroll(TimeValue.timeValueSeconds(10)))
+                .setScroll(TimeValue.timeValueSeconds(10))
                 .setSize(fetchSize)
                 .setPreference("_shards:1,4")
                 .addSort(SortBuilders.fieldSort("_doc"));
@@ -126,11 +128,11 @@ public class SearchSliceIT extends ESIntegTestCase {
         });
 
         assertResponse(prepareSearch("test").setQuery(matchAllQuery()).setRouting("foo", "bar").setSize(0), sr -> {
-            int numDocs = (int) sr.getHits().getTotalHits().value;
+            int numDocs = (int) sr.getHits().getTotalHits().value();
             int max = randomIntBetween(2, numShards * 3);
             int fetchSize = randomIntBetween(10, 100);
             SearchRequestBuilder request = prepareSearch("test").setQuery(matchAllQuery())
-                .setScroll(new Scroll(TimeValue.timeValueSeconds(10)))
+                .setScroll(TimeValue.timeValueSeconds(10))
                 .setSize(fetchSize)
                 .setRouting("foo", "bar")
                 .addSort(SortBuilders.fieldSort("_doc"));
@@ -144,11 +146,11 @@ public class SearchSliceIT extends ESIntegTestCase {
                 .addAliasAction(IndicesAliasesRequest.AliasActions.add().index("test").alias("alias3").routing("baz"))
         );
         assertResponse(prepareSearch("alias1", "alias3").setQuery(matchAllQuery()).setSize(0), sr -> {
-            int numDocs = (int) sr.getHits().getTotalHits().value;
+            int numDocs = (int) sr.getHits().getTotalHits().value();
             int max = randomIntBetween(2, numShards * 3);
             int fetchSize = randomIntBetween(10, 100);
             SearchRequestBuilder request = prepareSearch("alias1", "alias3").setQuery(matchAllQuery())
-                .setScroll(new Scroll(TimeValue.timeValueSeconds(10)))
+                .setScroll(TimeValue.timeValueSeconds(10))
                 .setSize(fetchSize)
                 .addSort(SortBuilders.fieldSort("_doc"));
             assertSearchSlicesWithScroll(request, "_id", max, numDocs);
@@ -163,7 +165,7 @@ public class SearchSliceIT extends ESIntegTestCase {
             SearchResponse searchResponse = request.slice(sliceBuilder).get();
             try {
                 totalResults += searchResponse.getHits().getHits().length;
-                int expectedSliceResults = (int) searchResponse.getHits().getTotalHits().value;
+                int expectedSliceResults = (int) searchResponse.getHits().getTotalHits().value();
                 int numSliceResults = searchResponse.getHits().getHits().length;
                 String scrollId = searchResponse.getScrollId();
                 for (SearchHit hit : searchResponse.getHits().getHits()) {
@@ -173,7 +175,7 @@ public class SearchSliceIT extends ESIntegTestCase {
                     searchResponse.decRef();
                     searchResponse = client().prepareSearchScroll("test")
                         .setScrollId(scrollId)
-                        .setScroll(new Scroll(TimeValue.timeValueSeconds(10)))
+                        .setScroll(TimeValue.timeValueSeconds(10))
                         .get();
                     scrollId = searchResponse.getScrollId();
                     totalResults += searchResponse.getHits().getHits().length;
@@ -204,7 +206,7 @@ public class SearchSliceIT extends ESIntegTestCase {
             // Open point-in-time reader
             OpenPointInTimeRequest request = new OpenPointInTimeRequest("test").keepAlive(TimeValue.timeValueSeconds(10));
             OpenPointInTimeResponse response = client().execute(TransportOpenPointInTimeAction.TYPE, request).actionGet();
-            String pointInTimeId = response.getPointInTimeId();
+            BytesReference pointInTimeId = response.getPointInTimeId();
 
             // Test sort on document IDs
             assertSearchSlicesWithPointInTime(field, ShardDocSortField.NAME, pointInTimeId, max, numDocs);
@@ -216,7 +218,13 @@ public class SearchSliceIT extends ESIntegTestCase {
         }
     }
 
-    private void assertSearchSlicesWithPointInTime(String sliceField, String sortField, String pointInTimeId, int numSlice, int numDocs) {
+    private void assertSearchSlicesWithPointInTime(
+        String sliceField,
+        String sortField,
+        BytesReference pointInTimeId,
+        int numSlice,
+        int numDocs
+    ) {
         int totalResults = 0;
         List<String> keys = new ArrayList<>();
         for (int id = 0; id < numSlice; id++) {
@@ -229,7 +237,7 @@ public class SearchSliceIT extends ESIntegTestCase {
 
             SearchResponse searchResponse = request.get();
             try {
-                int expectedSliceResults = (int) searchResponse.getHits().getTotalHits().value;
+                int expectedSliceResults = (int) searchResponse.getHits().getTotalHits().value();
 
                 while (true) {
                     int numHits = searchResponse.getHits().getHits().length;
@@ -261,10 +269,10 @@ public class SearchSliceIT extends ESIntegTestCase {
         setupIndex(0, 1);
         SearchPhaseExecutionException exc = expectThrows(
             SearchPhaseExecutionException.class,
-            () -> prepareSearch("test").setQuery(matchAllQuery())
-                .setScroll(new Scroll(TimeValue.timeValueSeconds(10)))
+            prepareSearch("test").setQuery(matchAllQuery())
+                .setScroll(TimeValue.timeValueSeconds(10))
                 .slice(new SliceBuilder("invalid_random_int", 0, 10))
-                .get()
+
         );
         Throwable rootCause = findRootCause(exc);
         assertThat(rootCause.getClass(), equalTo(IllegalArgumentException.class));
@@ -272,10 +280,9 @@ public class SearchSliceIT extends ESIntegTestCase {
 
         exc = expectThrows(
             SearchPhaseExecutionException.class,
-            () -> prepareSearch("test").setQuery(matchAllQuery())
-                .setScroll(new Scroll(TimeValue.timeValueSeconds(10)))
+            prepareSearch("test").setQuery(matchAllQuery())
+                .setScroll(TimeValue.timeValueSeconds(10))
                 .slice(new SliceBuilder("invalid_random_kw", 0, 10))
-                .get()
         );
         rootCause = findRootCause(exc);
         assertThat(rootCause.getClass(), equalTo(IllegalArgumentException.class));
@@ -284,13 +291,11 @@ public class SearchSliceIT extends ESIntegTestCase {
 
     public void testInvalidQuery() throws Exception {
         setupIndex(0, 1);
-        SearchPhaseExecutionException exc = expectThrows(
-            SearchPhaseExecutionException.class,
-            () -> prepareSearch().setQuery(matchAllQuery()).slice(new SliceBuilder("invalid_random_int", 0, 10)).get()
+        ActionRequestValidationException exc = expectThrows(
+            ActionRequestValidationException.class,
+            prepareSearch().setQuery(matchAllQuery()).slice(new SliceBuilder("invalid_random_int", 0, 10))
         );
-        Throwable rootCause = findRootCause(exc);
-        assertThat(rootCause.getClass(), equalTo(SearchException.class));
-        assertThat(rootCause.getMessage(), equalTo("[slice] can only be used with [scroll] or [point-in-time] requests"));
+        assertThat(exc.getMessage(), containsString("[slice] can only be used with [scroll] or [point-in-time] requests"));
     }
 
     private Throwable findRootCause(Exception e) {

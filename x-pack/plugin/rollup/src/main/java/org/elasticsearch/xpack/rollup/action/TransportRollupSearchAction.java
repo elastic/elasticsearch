@@ -22,7 +22,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -39,6 +38,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
@@ -95,7 +95,7 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
         ClusterService clusterService,
         IndexNameExpressionResolver resolver
     ) {
-        super(RollupSearchAction.NAME, actionFilters, transportService.getTaskManager());
+        super(RollupSearchAction.NAME, actionFilters, transportService.getTaskManager(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.client = client;
         this.registry = registry;
         this.bigArrays = bigArrays;
@@ -128,7 +128,8 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
                         bigArrays,
                         scriptService,
                         ((CancellableTask) task)::isCancelled,
-                        request.source().aggregations()
+                        request.source().aggregations(),
+                        b -> {}
                     );
                 }
 
@@ -154,14 +155,16 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
     ) throws Exception {
         if (rollupContext.hasLiveIndices() && rollupContext.hasRollupIndices()) {
             // Both
-            return RollupResponseTranslator.combineResponses(msearchResponse.getResponses(), reduceContextBuilder);
+            return RollupResponseTranslator.combineResponses(msearchResponse, reduceContextBuilder);
         } else if (rollupContext.hasLiveIndices()) {
             // Only live
             assert msearchResponse.getResponses().length == 1;
-            return RollupResponseTranslator.verifyResponse(msearchResponse.getResponses()[0]);
+            var res = RollupResponseTranslator.verifyResponse(msearchResponse.getResponses()[0]);
+            res.mustIncRef();
+            return res;
         } else if (rollupContext.hasRollupIndices()) {
             // Only rollup
-            return RollupResponseTranslator.translateResponse(msearchResponse.getResponses(), reduceContextBuilder);
+            return RollupResponseTranslator.translateResponse(msearchResponse, reduceContextBuilder);
         }
         throw new RuntimeException("MSearch response was empty, cannot unroll RollupSearch results");
     }
@@ -452,6 +455,9 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
                         channel.sendResponse(response);
                     } catch (Exception e) {
                         onFailure(e);
+                    } finally {
+                        // TODO - avoid the implicit incref elsewhere and then replace this whole thing with a ChannelActionListener
+                        response.decRef();
                     }
                 }
 

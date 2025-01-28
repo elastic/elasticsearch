@@ -23,7 +23,6 @@ import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.block.ClusterBlockException;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
@@ -63,17 +62,15 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent {
 
     static final int MAX_IN_FLIGHT_CACHE_FILLS = Integer.MAX_VALUE;
 
-    private final ClusterService clusterService;
     private final Semaphore inFlightCacheFills;
     private final AtomicBoolean closed;
     private final Client client;
     private final String index;
 
-    public BlobStoreCacheService(ClusterService clusterService, Client client, String index) {
+    public BlobStoreCacheService(Client client, String index) {
         this.client = new OriginSettingClient(client, SEARCHABLE_SNAPSHOTS_ORIGIN);
         this.inFlightCacheFills = new Semaphore(MAX_IN_FLIGHT_CACHE_FILLS);
         this.closed = new AtomicBoolean(false);
-        this.clusterService = clusterService;
         this.index = index;
     }
 

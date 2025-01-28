@@ -7,22 +7,30 @@
 
 package org.elasticsearch.xpack.application.connector.syncjob;
 
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.application.EnterpriseSearchModuleTestUtils;
 import org.elasticsearch.xpack.application.connector.ConnectorTestUtils;
 import org.elasticsearch.xpack.application.connector.syncjob.action.CancelConnectorSyncJobAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.CheckInConnectorSyncJobAction;
+import org.elasticsearch.xpack.application.connector.syncjob.action.ClaimConnectorSyncJobAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.DeleteConnectorSyncJobAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.GetConnectorSyncJobAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.ListConnectorSyncJobsAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.PostConnectorSyncJobAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.UpdateConnectorSyncJobErrorAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.UpdateConnectorSyncJobIngestionStatsAction;
-import org.elasticsearch.xpack.application.search.SearchApplicationTestUtils;
 
+import java.io.IOException;
 import java.time.Instant;
+import java.util.Collections;
+import java.util.Map;
 
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLengthBetween;
+import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomInstantBetween;
 import static org.elasticsearch.test.ESTestCase.randomInt;
@@ -65,6 +73,30 @@ public class ConnectorSyncJobTestUtils {
             .build();
     }
 
+    private static BytesReference convertSyncJobToBytesReference(ConnectorSyncJob syncJob) {
+        try {
+            return XContentHelper.toXContent((builder, params) -> {
+                syncJob.toInnerXContent(builder, params);
+                return builder;
+            }, XContentType.JSON, null, false);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private static Map<String, Object> convertSyncJobToGenericMap(ConnectorSyncJob syncJob) {
+        return XContentHelper.convertToMap(convertSyncJobToBytesReference(syncJob), true, XContentType.JSON).v2();
+    }
+
+    public static ConnectorSyncJobSearchResult getRandomSyncJobSearchResult() {
+        ConnectorSyncJob syncJob = getRandomConnectorSyncJob();
+
+        return new ConnectorSyncJobSearchResult.Builder().setId(randomAlphaOfLength(10))
+            .setResultMap(convertSyncJobToGenericMap(syncJob))
+            .setResultBytes(convertSyncJobToBytesReference(syncJob))
+            .build();
+    }
+
     public static ConnectorSyncJobTriggerMethod getRandomConnectorSyncJobTriggerMethod() {
         ConnectorSyncJobTriggerMethod[] values = ConnectorSyncJobTriggerMethod.values();
         return values[randomInt(values.length - 1)];
@@ -95,6 +127,13 @@ public class ConnectorSyncJobTestUtils {
         );
     }
 
+    public static PostConnectorSyncJobAction.Request getRandomPostConnectorSyncJobActionRequest(
+        String connectorId,
+        ConnectorSyncJobType jobType
+    ) {
+        return new PostConnectorSyncJobAction.Request(connectorId, jobType, randomFrom(ConnectorSyncJobTriggerMethod.values()));
+    }
+
     public static PostConnectorSyncJobAction.Response getRandomPostConnectorSyncJobActionResponse() {
         return new PostConnectorSyncJobAction.Response(randomAlphaOfLength(10));
     }
@@ -121,7 +160,8 @@ public class ConnectorSyncJobTestUtils {
             randomNonNegativeLong(),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
-            randomInstantBetween(lowerBoundInstant, upperBoundInstant)
+            randomInstantBetween(lowerBoundInstant, upperBoundInstant),
+            randomMap(2, 3, () -> new Tuple<>(randomAlphaOfLength(4), randomAlphaOfLength(4)))
         );
     }
 
@@ -137,7 +177,8 @@ public class ConnectorSyncJobTestUtils {
             randomNonNegativeLong(),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
-            randomInstantBetween(lowerBoundInstant, upperBoundInstant)
+            randomInstantBetween(lowerBoundInstant, upperBoundInstant),
+            randomMap(2, 3, () -> new Tuple<>(randomAlphaOfLength(4), randomAlphaOfLength(4)))
         );
     }
 
@@ -146,14 +187,23 @@ public class ConnectorSyncJobTestUtils {
     }
 
     public static GetConnectorSyncJobAction.Response getRandomGetConnectorSyncJobResponse() {
-        return new GetConnectorSyncJobAction.Response(getRandomConnectorSyncJob());
+        return new GetConnectorSyncJobAction.Response(getRandomSyncJobSearchResult());
     }
 
     public static ListConnectorSyncJobsAction.Request getRandomListConnectorSyncJobsActionRequest() {
         return new ListConnectorSyncJobsAction.Request(
-            SearchApplicationTestUtils.randomPageParams(),
+            EnterpriseSearchModuleTestUtils.randomPageParams(),
             randomAlphaOfLength(10),
-            ConnectorTestUtils.getRandomSyncStatus()
+            ConnectorTestUtils.getRandomSyncStatus(),
+            Collections.singletonList(ConnectorTestUtils.getRandomSyncJobType())
+        );
+    }
+
+    public static ClaimConnectorSyncJobAction.Request getRandomClaimConnectorSyncJobActionRequest() {
+        return new ClaimConnectorSyncJobAction.Request(
+            randomAlphaOfLength(10),
+            randomAlphaOfLengthBetween(10, 100),
+            randomBoolean() ? Map.of("test", "123") : null
         );
     }
 }

@@ -8,6 +8,8 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 
 /**
@@ -22,7 +24,6 @@ public final class BytesRefVectorBlock extends AbstractVectorBlock implements By
      * @param vector considered owned by the current block; must not be used in any other {@code Block}
      */
     BytesRefVectorBlock(BytesRefVector vector) {
-        super(vector.getPositionCount(), vector.blockFactory());
         this.vector = vector;
     }
 
@@ -32,12 +33,22 @@ public final class BytesRefVectorBlock extends AbstractVectorBlock implements By
     }
 
     @Override
+    public OrdinalBytesRefBlock asOrdinals() {
+        var ordinals = vector.asOrdinals();
+        if (ordinals != null) {
+            return ordinals.asBlock();
+        } else {
+            return null;
+        }
+    }
+
+    @Override
     public BytesRef getBytesRef(int valueIndex, BytesRef dest) {
         return vector.getBytesRef(valueIndex, dest);
     }
 
     @Override
-    public int getTotalValueCount() {
+    public int getPositionCount() {
         return vector.getPositionCount();
     }
 
@@ -49,6 +60,22 @@ public final class BytesRefVectorBlock extends AbstractVectorBlock implements By
     @Override
     public BytesRefBlock filter(int... positions) {
         return vector.filter(positions).asBlock();
+    }
+
+    @Override
+    public BytesRefBlock keepMask(BooleanVector mask) {
+        return vector.keepMask(mask);
+    }
+
+    @Override
+    public ReleasableIterator<? extends BytesRefBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
+        return vector.lookup(positions, targetBlockSize);
+    }
+
+    @Override
+    public BytesRefBlock expand() {
+        incRef();
+        return this;
     }
 
     @Override

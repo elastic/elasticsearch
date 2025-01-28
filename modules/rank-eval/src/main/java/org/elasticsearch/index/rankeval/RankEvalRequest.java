@@ -1,14 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.rankeval;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
@@ -45,9 +45,7 @@ public final class RankEvalRequest extends ActionRequest implements IndicesReque
         rankingEvaluationSpec = new RankEvalSpec(in);
         indices = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_6_0)) {
-            searchType = SearchType.fromId(in.readByte());
-        }
+        searchType = SearchType.fromId(in.readByte());
     }
 
     RankEvalRequest() {}
@@ -126,9 +124,7 @@ public final class RankEvalRequest extends ActionRequest implements IndicesReque
         rankingEvaluationSpec.writeTo(out);
         out.writeStringArray(indices);
         indicesOptions.writeIndicesOptions(out);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_6_0)) {
-            out.writeByte(searchType.id());
-        }
+        out.writeByte(searchType.id());
     }
 
     @Override

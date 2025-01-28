@@ -19,7 +19,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xpack.core.XPackFeatureSet;
+import org.elasticsearch.xpack.core.XPackFeatureUsage;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
@@ -216,8 +216,8 @@ public class SecurityInfoTransportActionTests extends ESTestCase {
         SecurityFeatureSetUsage securityUsage = (SecurityFeatureSetUsage) future.get().getUsage();
         BytesStreamOutput out = new BytesStreamOutput();
         securityUsage.writeTo(out);
-        XPackFeatureSet.Usage serializedUsage = new SecurityFeatureSetUsage(out.bytes().streamInput());
-        for (XPackFeatureSet.Usage usage : Arrays.asList(securityUsage, serializedUsage)) {
+        XPackFeatureUsage serializedUsage = new SecurityFeatureSetUsage(out.bytes().streamInput());
+        for (XPackFeatureUsage usage : Arrays.asList(securityUsage, serializedUsage)) {
             assertThat(usage, is(notNullValue()));
             assertThat(usage.name(), is(XPackField.SECURITY));
             assertThat(usage.enabled(), is(enabled));
@@ -318,7 +318,7 @@ public class SecurityInfoTransportActionTests extends ESTestCase {
         }
     }
 
-    private XContentSource getXContentSource(XPackFeatureSet.Usage usage) throws IOException {
+    private XContentSource getXContentSource(XPackFeatureUsage usage) throws IOException {
         XContentSource source;
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             usage.toXContent(builder, ToXContent.EMPTY_PARAMS);

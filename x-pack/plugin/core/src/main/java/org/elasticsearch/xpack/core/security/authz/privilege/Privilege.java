@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.core.security.authz.privilege;
 
 import org.apache.lucene.util.automaton.Automaton;
-import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 
@@ -84,13 +83,13 @@ public class Privilege {
     /**
      * Sorts the map of privileges from least-privilege to most-privilege
      */
-    static <T extends Privilege> SortedMap<String, T> sortByAccessLevel(Map<String, T> privileges) {
+    public static <T extends Privilege> SortedMap<String, T> sortByAccessLevel(Map<String, T> privileges) {
         // How many other privileges is this privilege a subset of. Those with a higher count are considered to be a lower privilege
         final Map<String, Long> subsetCount = Maps.newMapWithExpectedSize(privileges.size());
         privileges.forEach(
             (name, priv) -> subsetCount.put(
                 name,
-                privileges.values().stream().filter(p2 -> p2 != priv && Operations.subsetOf(priv.automaton, p2.automaton)).count()
+                privileges.values().stream().filter(p2 -> p2 != priv && Automatons.subsetOf(priv.automaton, p2.automaton)).count()
             )
         );
 

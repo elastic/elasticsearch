@@ -22,6 +22,7 @@ public class UnsignedLongScriptDocValues extends ScriptDocValues<Long> {
     @Override
     public Long get(int index) {
         throwIfEmpty();
+        throwIfBeyondLength(index);
         return supplier.getInternal(index);
     }
 

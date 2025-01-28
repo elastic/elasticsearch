@@ -271,6 +271,7 @@ public class ExpiredModelSnapshotsRemoverTests extends ESTestCase {
 
         long retentionDays = 3L;
         ActionListener<AbstractExpiredJobDataRemover.CutoffDetails> cutoffListener = mock(ActionListener.class);
+        when(cutoffListener.delegateFailureAndWrap(any())).thenCallRealMethod();
         createExpiredModelSnapshotsRemover(Collections.emptyIterator()).calcCutoffEpochMs("job-1", retentionDays, cutoffListener);
 
         long dayInMills = 60 * 60 * 24 * 1000;

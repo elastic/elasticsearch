@@ -1,17 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.http;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Cancellable;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -28,8 +31,11 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.tasks.Task;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -55,7 +61,7 @@ import static org.hamcrest.Matchers.not;
  */
 public abstract class BlockedSearcherRestCancellationTestCase extends HttpSmokeTestCase {
 
-    private static final Setting<Boolean> BLOCK_SEARCHER_SETTING = Setting.boolSetting(
+    protected static final Setting<Boolean> BLOCK_SEARCHER_SETTING = Setting.boolSetting(
         "index.block_searcher",
         false,
         Setting.Property.IndexScope
@@ -75,6 +81,10 @@ public abstract class BlockedSearcherRestCancellationTestCase extends HttpSmokeT
 
         createIndex("test", Settings.builder().put(BLOCK_SEARCHER_SETTING.getKey(), true).build());
         ensureGreen("test");
+
+        assert request.getOptions().containsHeader(Task.X_OPAQUE_ID_HTTP_HEADER) == false;
+        final var opaqueId = getTestClass().getSimpleName() + "-" + getTestName() + "-" + randomUUID();
+        request.setOptions(request.getOptions().toBuilder().addHeader(Task.X_OPAQUE_ID_HTTP_HEADER, opaqueId));
 
         final List<Semaphore> searcherBlocks = new ArrayList<>();
         for (final IndicesService indicesService : internalCluster().getInstances(IndicesService.class)) {
@@ -96,7 +106,8 @@ public abstract class BlockedSearcherRestCancellationTestCase extends HttpSmokeT
             }
 
             final PlainActionFuture<Response> future = new PlainActionFuture<>();
-            logger.info("--> sending request");
+            logger.info("--> sending request, opaque id={}", opaqueId);
+
             final Cancellable cancellable = getRestClient().performRequestAsync(request, wrapAsRestResponseListener(future));
 
             awaitTaskWithPrefix(actionPrefix);
@@ -108,7 +119,7 @@ public abstract class BlockedSearcherRestCancellationTestCase extends HttpSmokeT
             cancellable.cancel();
             expectThrows(CancellationException.class, future::actionGet);
 
-            assertAllCancellableTasksAreCancelled(actionPrefix);
+            assertAllCancellableTasksAreCancelled(actionPrefix, opaqueId);
         } finally {
             Releasables.close(releasables);
         }
@@ -134,6 +145,12 @@ public abstract class BlockedSearcherRestCancellationTestCase extends HttpSmokeT
 
     private static class SearcherBlockingEngine extends ReadOnlyEngine {
 
+        // using a specialized logger for this case because and "logger" means "Engine#logger"
+        // (relates investigation into https://github.com/elastic/elasticsearch/issues/88201)
+        private static final Logger blockedSearcherRestCancellationTestCaseLogger = LogManager.getLogger(
+            BlockedSearcherRestCancellationTestCase.class
+        );
+
         final Semaphore searcherBlock = new Semaphore(1);
 
         SearcherBlockingEngine(EngineConfig config) {
@@ -142,12 +159,36 @@ public abstract class BlockedSearcherRestCancellationTestCase extends HttpSmokeT
 
         @Override
         public Searcher acquireSearcher(String source, SearcherScope scope, Function<Searcher, Searcher> wrapper) throws EngineException {
+            if (blockedSearcherRestCancellationTestCaseLogger.isDebugEnabled()) {
+                blockedSearcherRestCancellationTestCaseLogger.debug(
+                    Strings.format(
+                        "in acquireSearcher for shard [%s] on thread [%s], availablePermits=%d",
+                        config().getShardId(),
+                        Thread.currentThread().getName(),
+                        searcherBlock.availablePermits()
+                    ),
+                    new ElasticsearchException("stack trace")
+                );
+            }
+
             try {
                 searcherBlock.acquire();
             } catch (InterruptedException e) {
                 throw new AssertionError(e);
             }
             searcherBlock.release();
+
+            if (blockedSearcherRestCancellationTestCaseLogger.isDebugEnabled()) {
+                blockedSearcherRestCancellationTestCaseLogger.debug(
+                    Strings.format(
+                        "continuing in acquireSearcher for shard [%s] on thread [%s], availablePermits=%d",
+                        config().getShardId(),
+                        Thread.currentThread().getName(),
+                        searcherBlock.availablePermits()
+                    )
+                );
+            }
+
             return super.acquireSearcher(source, scope, wrapper);
         }
     }

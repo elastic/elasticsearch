@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.test.cluster.local;
@@ -14,8 +15,15 @@ import org.elasticsearch.test.cluster.MutableSettingsProvider;
 import org.elasticsearch.test.cluster.util.Version;
 
 import java.io.InputStream;
+import java.util.List;
 
 public interface LocalClusterHandle extends ClusterHandle {
+
+    /**
+     * Returns the number of nodes that are part of this cluster.
+     */
+    int getNumNodes();
+
     /**
      * Stops the node at a given index.
      * @param index of the node to stop
@@ -46,6 +54,11 @@ public interface LocalClusterHandle extends ClusterHandle {
      * @return cluster node TCP transport endpoints
      */
     String getTransportEndpoints();
+
+    /**
+     * @return a list of all available TCP transport endpoints, which may be empty if none of the nodes in this cluster are started.
+     */
+    List<String> getAvailableTransportEndpoints();
 
     /**
      * Returns the TCP transport endpoint for the node at the given index. If this method is called on an unstarted cluster, the cluster

@@ -7,6 +7,12 @@
 <titleabbrev>Delete {dfeeds}</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-ml-anomaly[{ml-cap}  {anomaly-detect} APIs].
+--
+
 Deletes an existing {dfeed}.
 
 [[ml-delete-datafeed-request]]
@@ -27,7 +33,7 @@ can delete it.
 
 `<feed_id>`::
 (Required, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=datafeed-id]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=datafeed-id]
 
 [[ml-delete-datafeed-query-parms]]
 == {api-query-parms-title}

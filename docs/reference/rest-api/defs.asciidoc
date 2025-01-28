@@ -8,4 +8,4 @@ to {security-features}.
   * <<role-mapping-resources,Role mappings>>
 
 
-include::{es-repo-dir}/rest-api/security/role-mapping-resources.asciidoc[]
+include::{es-ref-dir}/rest-api/security/role-mapping-resources.asciidoc[]

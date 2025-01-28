@@ -21,6 +21,7 @@ package org.elasticsearch.index.codec.postings;
 
 import org.apache.lucene.codecs.MultiLevelSkipListReader;
 import org.apache.lucene.store.IndexInput;
+import org.elasticsearch.index.codec.ForUtil;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -53,8 +54,8 @@ import java.util.Arrays;
  * <p>Therefore, we'll trim df before passing it to the interface. see trim(int)
  */
 class ES812SkipReader extends MultiLevelSkipListReader {
-    private long[] docPointer;
-    private long[] posPointer;
+    private final long[] docPointer;
+    private final long[] posPointer;
     private long[] payPointer;
     private int[] posBufferUpto;
     private int[] payloadByteUpto;

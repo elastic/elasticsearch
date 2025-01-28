@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.geo;
@@ -410,18 +411,14 @@ public class GeoUtils {
      */
     public static GeoPoint parseGeoPoint(XContentParser parser, final boolean ignoreZValue, final EffectivePoint effectivePoint)
         throws IOException, ElasticsearchParseException {
-        return geoPointParser.parsePoint(parser, ignoreZValue, value -> {
-            GeoPoint point = new GeoPoint();
-            point.resetFromString(value, ignoreZValue, effectivePoint);
-            return point;
-        }, value -> {
-            GeoPoint point = new GeoPoint();
-            point.parseGeoHash(value, effectivePoint);
-            return point;
-        });
+        return geoPointParser.parsePoint(
+            parser,
+            ignoreZValue,
+            value -> new GeoPoint().resetFromString(value, ignoreZValue, effectivePoint)
+        );
     }
 
-    private static GenericPointParser<GeoPoint> geoPointParser = new GenericPointParser<>("geo_point", "lon", "lat", true) {
+    private static final GenericPointParser<GeoPoint> geoPointParser = new GenericPointParser<>("geo_point", "lon", "lat") {
 
         @Override
         public void assertZValue(boolean ignoreZValue, double zValue) {

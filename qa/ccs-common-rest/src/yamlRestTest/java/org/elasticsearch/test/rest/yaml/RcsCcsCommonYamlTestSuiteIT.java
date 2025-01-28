@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.test.rest.yaml;
@@ -15,7 +16,6 @@ import org.apache.http.HttpHost;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.tests.util.TimeUnits;
-import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -32,6 +32,7 @@ import org.elasticsearch.test.cluster.local.LocalClusterConfigProvider;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
+import org.elasticsearch.test.rest.TestFeatureService;
 import org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT.TestCandidateAwareClient;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -44,8 +45,11 @@ import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Predicate;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT.CCS_APIS;
@@ -87,6 +91,7 @@ public class RcsCcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         .setting("xpack.security.remote_cluster_server.ssl.enabled", "false")
         .setting("xpack.security.remote_cluster_client.ssl.enabled", "false")
         .feature(FeatureFlag.TIME_SERIES_MODE)
+        .feature(FeatureFlag.SUB_OBJECTS_AUTO_ENABLED)
         .user("test_admin", "x-pack-test-password");
 
     private static ElasticsearchCluster fulfillingCluster = ElasticsearchCluster.local()
@@ -243,6 +248,7 @@ public class RcsCcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     private static void configureRemoteCluster() throws IOException {
         final Settings.Builder builder = Settings.builder();
+        builder.put("cluster.remote." + REMOTE_CLUSTER_NAME + ".skip_unavailable", "false");
         if (randomBoolean()) {
             builder.put("cluster.remote." + REMOTE_CLUSTER_NAME + ".mode", "proxy")
                 .put("cluster.remote." + REMOTE_CLUSTER_NAME + ".proxy_address", fulfillingCluster.getRemoteClusterServerEndpoint(0));
@@ -271,29 +277,55 @@ public class RcsCcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
     protected ClientYamlTestExecutionContext createRestTestExecutionContext(
         ClientYamlTestCandidate clientYamlTestCandidate,
         ClientYamlTestClient clientYamlTestClient,
-        final Version esVersion,
-        final Predicate<String> clusterFeaturesPredicate,
-        final String os
+        final Set<String> nodesVersions,
+        final TestFeatureService testFeatureService,
+        final Set<String> osSet
     ) {
-        // depending on the API called, we either return the client running against the "write" or the "search" cluster here
+        try {
+            // Ensure the test specific initialization is run by calling it explicitly (@Before annotations on base-derived class may
+            // be called in a different order)
+            initSearchClient();
+            // Reconcile and provide unified features, os, version(s), based on both clientYamlTestClient and searchYamlTestClient
+            var searchOs = readOsFromNodesInfo(adminSearchClient);
+            var searchNodeVersions = readVersionsFromNodesInfo(adminSearchClient);
+            var semanticNodeVersions = searchNodeVersions.stream()
+                .map(ESRestTestCase::parseLegacyVersion)
+                .flatMap(Optional::stream)
+                .collect(Collectors.toSet());
+            final TestFeatureService searchTestFeatureService = createTestFeatureService(
+                getClusterStateFeatures(adminSearchClient),
+                semanticNodeVersions
+            );
+            final TestFeatureService combinedTestFeatureService = (featureId, any) -> {
+                boolean adminFeature = testFeatureService.clusterHasFeature(featureId, any);
+                boolean searchFeature = searchTestFeatureService.clusterHasFeature(featureId, any);
+                return any ? adminFeature || searchFeature : adminFeature && searchFeature;
+            };
 
-        // TODO: reconcile and provide unified features, os, version(s), based on both clientYamlTestClient and searchYamlTestClient
-        return new ClientYamlTestExecutionContext(
-            clientYamlTestCandidate,
-            clientYamlTestClient,
-            randomizeContentType(),
-            esVersion,
-            ESRestTestCase::clusterHasFeature,
-            os
-        ) {
-            protected ClientYamlTestClient clientYamlTestClient(String apiName) {
-                if (CCS_APIS.contains(apiName)) {
-                    return searchYamlTestClient;
-                } else {
-                    return super.clientYamlTestClient(apiName);
+            final Set<String> combinedOsSet = Stream.concat(osSet.stream(), Stream.of(searchOs)).collect(Collectors.toSet());
+            final Set<String> combinedNodeVersions = Stream.concat(nodesVersions.stream(), searchNodeVersions.stream())
+                .collect(Collectors.toSet());
+
+            return new ClientYamlTestExecutionContext(
+                clientYamlTestCandidate,
+                clientYamlTestClient,
+                randomizeContentType(),
+                combinedNodeVersions,
+                combinedTestFeatureService,
+                combinedOsSet
+            ) {
+                // depending on the API called, we either return the client running against the "write" or the "search" cluster here
+                protected ClientYamlTestClient clientYamlTestClient(String apiName) {
+                    if (CCS_APIS.contains(apiName)) {
+                        return searchYamlTestClient;
+                    } else {
+                        return super.clientYamlTestClient(apiName);
+                    }
                 }
-            }
-        };
+            };
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     @AfterClass

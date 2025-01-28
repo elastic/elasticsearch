@@ -22,7 +22,10 @@ public class ListConnectorActionResponseBWCSerializingTests extends AbstractBWCW
 
     @Override
     protected ListConnectorAction.Response createTestInstance() {
-        return new ListConnectorAction.Response(randomList(10, ConnectorTestUtils::getRandomConnector), randomLongBetween(0, 100));
+        return new ListConnectorAction.Response(
+            randomList(10, ConnectorTestUtils::getRandomConnectorSearchResult),
+            randomLongBetween(0, 100)
+        );
     }
 
     @Override

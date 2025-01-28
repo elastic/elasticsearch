@@ -5,6 +5,12 @@
 <titleabbrev>Flush jobs</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-ml-anomaly[{ml-cap}  {anomaly-detect} APIs].
+--
+
 Forces any buffered data to be processed by the job.
 
 [[ml-flush-job-request]]
@@ -36,7 +42,7 @@ opened again before analyzing further data.
 
 `<job_id>`::
 (Required, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 
 [[ml-flush-job-query-parms]]
 == {api-query-parms-title}

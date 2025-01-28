@@ -74,7 +74,7 @@ public class MockClientBuilder {
         PlainActionFuture<ClusterHealthResponse> actionFuture = mock(PlainActionFuture.class);
         ClusterHealthRequestBuilder clusterHealthRequestBuilder = mock(ClusterHealthRequestBuilder.class);
 
-        when(clusterAdminClient.prepareHealth()).thenReturn(clusterHealthRequestBuilder);
+        when(clusterAdminClient.prepareHealth(any())).thenReturn(clusterHealthRequestBuilder);
         when(clusterHealthRequestBuilder.setWaitForYellowStatus()).thenReturn(clusterHealthRequestBuilder);
         when(clusterHealthRequestBuilder.execute()).thenReturn(actionFuture);
         when(actionFuture.actionGet()).thenReturn(mock(ClusterHealthResponse.class));
@@ -137,7 +137,8 @@ public class MockClientBuilder {
 
         SearchResponse response = mock(SearchResponse.class);
         SearchHits searchHits = new SearchHits(hits, new TotalHits(hits.length, TotalHits.Relation.EQUAL_TO), 0.0f);
-        when(response.getHits()).thenReturn(searchHits);
+        when(response.getHits()).thenReturn(searchHits.asUnpooled());
+        searchHits.decRef();
 
         doAnswer(new Answer<Void>() {
             @Override
@@ -176,7 +177,8 @@ public class MockClientBuilder {
 
         SearchResponse response = mock(SearchResponse.class);
         SearchHits searchHits = new SearchHits(hits, new TotalHits(hits.length, TotalHits.Relation.EQUAL_TO), 0.0f);
-        when(response.getHits()).thenReturn(searchHits);
+        when(response.getHits()).thenReturn(searchHits.asUnpooled());
+        searchHits.decRef();
 
         doAnswer(new Answer<Void>() {
             @Override

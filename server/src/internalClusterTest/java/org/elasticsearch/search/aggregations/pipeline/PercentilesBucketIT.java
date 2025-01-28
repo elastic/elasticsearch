@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.pipeline;
@@ -32,7 +33,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.core.IsNull.notNullValue;
 
-public class PercentilesBucketIT extends BucketMetricsPipeLineAggregationTestCase<PercentilesBucket> {
+public class PercentilesBucketIT extends BucketMetricsPipeLineAggregationTestCase<InternalPercentilesBucket> {
 
     private static final double[] PERCENTS = { 0.0, 1.0, 25.0, 50.0, 75.0, 99.0, 100.0 };
 
@@ -46,7 +47,7 @@ public class PercentilesBucketIT extends BucketMetricsPipeLineAggregationTestCas
         IntToDoubleFunction bucketValues,
         Function<Integer, String> bucketKeys,
         int numBuckets,
-        PercentilesBucket pipelineBucket
+        InternalPercentilesBucket pipelineBucket
     ) {
         double[] values = new double[numBuckets];
         for (int i = 0; i < numBuckets; ++i) {
@@ -62,7 +63,7 @@ public class PercentilesBucketIT extends BucketMetricsPipeLineAggregationTestCas
     }
 
     @Override
-    protected double getNestedMetric(PercentilesBucket bucket) {
+    protected double getNestedMetric(InternalPercentilesBucket bucket) {
         return bucket.percentile(50);
     }
 

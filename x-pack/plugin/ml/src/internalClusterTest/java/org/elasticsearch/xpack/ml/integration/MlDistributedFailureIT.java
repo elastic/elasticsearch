@@ -28,7 +28,6 @@ import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.persistent.PersistentTaskResponse;
 import org.elasticsearch.persistent.PersistentTasksClusterService;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
 import org.elasticsearch.persistent.UpdatePersistentTaskStatusAction;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -136,7 +135,12 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
             Settings masterDataPathSettings = internalCluster().dataPathSettings(internalCluster().getMasterName());
             internalCluster().stopCurrentMasterNode();
             assertBusy(() -> {
-                ClusterState state = client(mlAndDataNode).admin().cluster().prepareState().setLocal(true).get().getState();
+                ClusterState state = client(mlAndDataNode).admin()
+                    .cluster()
+                    .prepareState(TEST_REQUEST_TIMEOUT)
+                    .setLocal(true)
+                    .get()
+                    .getState();
                 assertNull(state.nodes().getMasterNodeId());
             });
             logger.info("Restarting dedicated master node");
@@ -304,6 +308,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         }
 
         UpdatePersistentTaskStatusAction.Request updatePersistentTaskStatusRequest = new UpdatePersistentTaskStatusAction.Request(
+            TEST_REQUEST_TIMEOUT,
             task.getId(),
             task.getAllocationId(),
             DatafeedState.STOPPING
@@ -719,15 +724,19 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         // https://github.com/elastic/elasticsearch/pull/50907 - now that the cluster state is stored
         // in a Lucene index it can take a while to update when there are many updates in quick
         // succession, like we see in internal cluster tests of node failure scenarios
-        assertBusy(() -> {
-            ClusterState clusterState = clusterAdmin().prepareState().get().getState();
-            List<PersistentTask<?>> tasks = findTasks(clusterState, Set.of(DATAFEED_TASK_NAME, JOB_TASK_NAME));
-            assertNotNull(tasks);
-            assertEquals("Expected 2 tasks, but got [" + tasks + "]", 2, tasks.size());
-            for (PersistentTask<?> task : tasks) {
-                assertFalse(needsReassignment(task.getAssignment(), clusterState.nodes()));
+        awaitClusterState(state -> {
+            List<PersistentTasksCustomMetadata.PersistentTask<?>> tasks = findTasks(state, Set.of(DATAFEED_TASK_NAME, JOB_TASK_NAME));
+            if (tasks == null || tasks.size() != 2) {
+                return false;
             }
-
+            for (PersistentTasksCustomMetadata.PersistentTask<?> task : tasks) {
+                if (needsReassignment(task.getAssignment(), state.nodes())) {
+                    return false;
+                }
+            }
+            return true;
+        });
+        assertBusy(() -> {
             GetJobsStatsAction.Request jobStatsRequest = new GetJobsStatsAction.Request(jobId);
             JobStats jobStats = client().execute(GetJobsStatsAction.INSTANCE, jobStatsRequest).actionGet().getResponse().results().get(0);
             assertEquals(JobState.OPENED, jobStats.getState());
@@ -759,7 +768,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
             prepareSearch().setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN)
                 .setQuery(QueryBuilders.idsQuery().addIds(DataCounts.documentId(jobId))),
             searchResponse -> {
-                if (searchResponse.getHits().getTotalHits().value != 1) {
+                if (searchResponse.getHits().getTotalHits().value() != 1) {
                     setOnce.set(new DataCounts(jobId));
                     return;
                 }

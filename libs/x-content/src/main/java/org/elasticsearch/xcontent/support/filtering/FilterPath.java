@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.xcontent.support.filtering;
@@ -167,19 +168,13 @@ public class FilterPath {
             }
 
             if (splitPosition > 0) {
-                String field = findEscapes
-                    ? filter.substring(0, splitPosition).replaceAll("\\\\.", ".")
-                    : filter.substring(0, splitPosition);
-                BuildNode child = node.children.get(field);
-                if (child == null) {
-                    child = new BuildNode(false);
-                    node.children.put(field, child);
-                }
+                String field = findEscapes ? filter.substring(0, splitPosition).replace("\\.", ".") : filter.substring(0, splitPosition);
+                BuildNode child = node.children.computeIfAbsent(field, f -> new BuildNode(false));
                 if (false == child.isFinalNode) {
                     insertNode(filter.substring(splitPosition + 1), child);
                 }
             } else {
-                String field = findEscapes ? filter.replaceAll("\\\\.", ".") : filter;
+                String field = findEscapes ? filter.replace("\\.", ".") : filter;
                 node.children.put(field, new BuildNode(true));
             }
         }

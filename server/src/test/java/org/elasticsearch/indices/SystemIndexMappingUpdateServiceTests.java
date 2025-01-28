@@ -1,16 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
+import org.elasticsearch.action.admin.indices.mapping.put.TransportPutMappingAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
@@ -53,6 +54,7 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -72,7 +74,6 @@ public class SystemIndexMappingUpdateServiceTests extends ESTestCase {
         .setIndexFormat(6)
         .setSettings(getSettings())
         .setMappings(getMappings())
-        .setVersionMetaKey("version")
         .setOrigin("FAKE_ORIGIN")
         .build();
 
@@ -101,7 +102,6 @@ public class SystemIndexMappingUpdateServiceTests extends ESTestCase {
             .setMappings(getMappings())
             .setSettings(getSettings())
             .setIndexFormat(6)
-            .setVersionMetaKey("version")
             .setOrigin("FAKE_ORIGIN")
             .build();
 
@@ -135,7 +135,6 @@ public class SystemIndexMappingUpdateServiceTests extends ESTestCase {
             .setMappings(getMappings())
             .setSettings(getSettings())
             .setIndexFormat(6)
-            .setVersionMetaKey("version")
             .setOrigin("FAKE_ORIGIN")
             .build();
         SystemIndexDescriptor d2 = SystemIndexDescriptor.builder()
@@ -144,7 +143,6 @@ public class SystemIndexMappingUpdateServiceTests extends ESTestCase {
             .setMappings(getMappings())
             .setSettings(getSettings())
             .setIndexFormat(6)
-            .setVersionMetaKey("version")
             .setOrigin("FAKE_ORIGIN")
             .build();
 
@@ -207,8 +205,18 @@ public class SystemIndexMappingUpdateServiceTests extends ESTestCase {
         );
     }
 
-    // TODO[wrb]: add test where we have the old mappings version but not the new one
-    // Is this where we "placeholder" a "distant future" version string?
+    /**
+     * Check that the manager will try to upgrade indices when we have the old mappings version but not the new one
+     */
+    public void testManagerProcessesIndicesWithOldMappingsVersion() {
+        assertThat(
+            SystemIndexMappingUpdateService.getUpgradeStatus(
+                markShardsAvailable(createClusterState(Strings.toString(getMappings("1.0.0", null)))),
+                DESCRIPTOR
+            ),
+            equalTo(UpgradeStatus.NEEDS_MAPPINGS_UPDATE)
+        );
+    }
 
     /**
      * Check that the manager will try to upgrade indices where their mappings are out-of-date.
@@ -258,7 +266,7 @@ public class SystemIndexMappingUpdateServiceTests extends ESTestCase {
 
         manager.clusterChanged(event(markShardsAvailable(createClusterState(Strings.toString(getMappings("1.0.0", 4))))));
 
-        verify(client, times(1)).execute(any(PutMappingAction.class), any(PutMappingRequest.class), any());
+        verify(client, times(1)).execute(same(TransportPutMappingAction.TYPE), any(PutMappingRequest.class), any());
     }
 
     /**

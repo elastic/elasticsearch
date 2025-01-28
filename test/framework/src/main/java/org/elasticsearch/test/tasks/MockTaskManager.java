@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.test.tasks;
@@ -13,6 +14,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.tasks.RemovedTaskListener;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskAwareRequest;
 import org.elasticsearch.tasks.TaskManager;
@@ -34,6 +36,12 @@ public class MockTaskManager extends TaskManager {
 
     public static final Setting<Boolean> USE_MOCK_TASK_MANAGER_SETTING = Setting.boolSetting(
         "tests.mock.taskmanager.enabled",
+        false,
+        Property.NodeScope
+    );
+
+    public static final Setting<Boolean> SPY_TASK_MANAGER_SETTING = Setting.boolSetting(
+        "tests.spy.taskmanager.enabled",
         false,
         Property.NodeScope
     );
@@ -83,5 +91,17 @@ public class MockTaskManager extends TaskManager {
 
     public void removeListener(MockTaskManagerListener listener) {
         listeners.remove(listener);
+    }
+
+    @Override
+    public void registerRemovedTaskListener(RemovedTaskListener removedTaskListener) {
+        super.registerRemovedTaskListener(removedTaskListener);
+        for (MockTaskManagerListener listener : listeners) {
+            try {
+                listener.onRemovedTaskListenerRegistered(removedTaskListener);
+            } catch (Exception e) {
+                logger.warn("failed to notify task manager listener about a registered removed task listener", e);
+            }
+        }
     }
 }

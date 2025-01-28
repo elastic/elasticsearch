@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action;
@@ -85,7 +86,7 @@ public class DocWriteResponseTests extends ESTestCase {
         ) {
             // DocWriteResponse is abstract so we have to sneak a subclass in here to test it.
         };
-        response.setShardInfo(new ShardInfo(1, 1));
+        response.setShardInfo(ShardInfo.allSuccessful(1));
         response.setForcedRefresh(false);
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
             response.toXContent(builder, ToXContent.EMPTY_PARAMS);
@@ -113,13 +114,6 @@ public class DocWriteResponseTests extends ESTestCase {
         ) {
             // DocWriteResponse is abstract so we have to sneak a subclass in here to test it.
         };
-        try (XContentBuilder builder = XContentBuilder.builder(JsonXContent.jsonXContent, RestApiVersion.V_7)) {
-            response.toXContent(builder, ToXContent.EMPTY_PARAMS);
-
-            try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
-                assertThat(parser.map(), hasEntry(MapperService.TYPE_FIELD_NAME, MapperService.SINGLE_MAPPING_NAME));
-            }
-        }
 
         try (XContentBuilder builder = XContentBuilder.builder(JsonXContent.jsonXContent, RestApiVersion.V_8)) {
             response.toXContent(builder, ToXContent.EMPTY_PARAMS);

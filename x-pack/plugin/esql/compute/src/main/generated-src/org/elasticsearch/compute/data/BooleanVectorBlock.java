@@ -7,6 +7,8 @@
 
 package org.elasticsearch.compute.data;
 
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 
 /**
@@ -21,7 +23,6 @@ public final class BooleanVectorBlock extends AbstractVectorBlock implements Boo
      * @param vector considered owned by the current block; must not be used in any other {@code Block}
      */
     BooleanVectorBlock(BooleanVector vector) {
-        super(vector.getPositionCount(), vector.blockFactory());
         this.vector = vector;
     }
 
@@ -31,12 +32,18 @@ public final class BooleanVectorBlock extends AbstractVectorBlock implements Boo
     }
 
     @Override
+    public ToMask toMask() {
+        vector.incRef();
+        return new ToMask(vector, false);
+    }
+
+    @Override
     public boolean getBoolean(int valueIndex) {
         return vector.getBoolean(valueIndex);
     }
 
     @Override
-    public int getTotalValueCount() {
+    public int getPositionCount() {
         return vector.getPositionCount();
     }
 
@@ -48,6 +55,22 @@ public final class BooleanVectorBlock extends AbstractVectorBlock implements Boo
     @Override
     public BooleanBlock filter(int... positions) {
         return vector.filter(positions).asBlock();
+    }
+
+    @Override
+    public BooleanBlock keepMask(BooleanVector mask) {
+        return vector.keepMask(mask);
+    }
+
+    @Override
+    public ReleasableIterator<? extends BooleanBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
+        return vector.lookup(positions, targetBlockSize);
+    }
+
+    @Override
+    public BooleanBlock expand() {
+        incRef();
+        return this;
     }
 
     @Override

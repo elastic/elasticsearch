@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -32,6 +33,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.indices.AssociatedIndexDescriptor;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.license.XPackLicenseState;
@@ -46,22 +48,26 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry.Entry;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.action.SetResetModeActionRequest;
+import org.elasticsearch.xpack.core.action.SetUpgradeModeActionRequest;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
+import org.elasticsearch.xpack.core.transform.TransformMetadata;
 import org.elasticsearch.xpack.core.transform.TransformNamedXContentProvider;
 import org.elasticsearch.xpack.core.transform.action.DeleteTransformAction;
 import org.elasticsearch.xpack.core.transform.action.GetCheckpointAction;
 import org.elasticsearch.xpack.core.transform.action.GetCheckpointNodeAction;
 import org.elasticsearch.xpack.core.transform.action.GetTransformAction;
+import org.elasticsearch.xpack.core.transform.action.GetTransformNodeStatsAction;
 import org.elasticsearch.xpack.core.transform.action.GetTransformStatsAction;
 import org.elasticsearch.xpack.core.transform.action.PreviewTransformAction;
 import org.elasticsearch.xpack.core.transform.action.PutTransformAction;
 import org.elasticsearch.xpack.core.transform.action.ResetTransformAction;
 import org.elasticsearch.xpack.core.transform.action.ScheduleNowTransformAction;
 import org.elasticsearch.xpack.core.transform.action.SetResetModeAction;
+import org.elasticsearch.xpack.core.transform.action.SetTransformUpgradeModeAction;
 import org.elasticsearch.xpack.core.transform.action.StartTransformAction;
 import org.elasticsearch.xpack.core.transform.action.StopTransformAction;
 import org.elasticsearch.xpack.core.transform.action.UpdateTransformAction;
@@ -72,12 +78,14 @@ import org.elasticsearch.xpack.transform.action.TransportDeleteTransformAction;
 import org.elasticsearch.xpack.transform.action.TransportGetCheckpointAction;
 import org.elasticsearch.xpack.transform.action.TransportGetCheckpointNodeAction;
 import org.elasticsearch.xpack.transform.action.TransportGetTransformAction;
+import org.elasticsearch.xpack.transform.action.TransportGetTransformNodeStatsAction;
 import org.elasticsearch.xpack.transform.action.TransportGetTransformStatsAction;
 import org.elasticsearch.xpack.transform.action.TransportPreviewTransformAction;
 import org.elasticsearch.xpack.transform.action.TransportPutTransformAction;
 import org.elasticsearch.xpack.transform.action.TransportResetTransformAction;
 import org.elasticsearch.xpack.transform.action.TransportScheduleNowTransformAction;
 import org.elasticsearch.xpack.transform.action.TransportSetTransformResetModeAction;
+import org.elasticsearch.xpack.transform.action.TransportSetTransformUpgradeModeAction;
 import org.elasticsearch.xpack.transform.action.TransportStartTransformAction;
 import org.elasticsearch.xpack.transform.action.TransportStopTransformAction;
 import org.elasticsearch.xpack.transform.action.TransportUpdateTransformAction;
@@ -91,15 +99,18 @@ import org.elasticsearch.xpack.transform.persistence.TransformInternalIndex;
 import org.elasticsearch.xpack.transform.rest.action.RestCatTransformAction;
 import org.elasticsearch.xpack.transform.rest.action.RestDeleteTransformAction;
 import org.elasticsearch.xpack.transform.rest.action.RestGetTransformAction;
+import org.elasticsearch.xpack.transform.rest.action.RestGetTransformNodeStatsAction;
 import org.elasticsearch.xpack.transform.rest.action.RestGetTransformStatsAction;
 import org.elasticsearch.xpack.transform.rest.action.RestPreviewTransformAction;
 import org.elasticsearch.xpack.transform.rest.action.RestPutTransformAction;
 import org.elasticsearch.xpack.transform.rest.action.RestResetTransformAction;
 import org.elasticsearch.xpack.transform.rest.action.RestScheduleNowTransformAction;
+import org.elasticsearch.xpack.transform.rest.action.RestSetTransformUpgradeModeAction;
 import org.elasticsearch.xpack.transform.rest.action.RestStartTransformAction;
 import org.elasticsearch.xpack.transform.rest.action.RestStopTransformAction;
 import org.elasticsearch.xpack.transform.rest.action.RestUpdateTransformAction;
 import org.elasticsearch.xpack.transform.rest.action.RestUpgradeTransformsAction;
+import org.elasticsearch.xpack.transform.telemetry.TransformMeterRegistry;
 import org.elasticsearch.xpack.transform.transforms.TransformPersistentTasksExecutor;
 import org.elasticsearch.xpack.transform.transforms.scheduling.TransformScheduler;
 
@@ -110,6 +121,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 
@@ -127,10 +139,19 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
 
     private final Settings settings;
     private final SetOnce<TransformServices> transformServices = new SetOnce<>();
+    private final SetOnce<TransformConfigAutoMigration> transformConfigAutoMigration = new SetOnce<>();
     private final TransformExtension transformExtension = new DefaultTransformExtension();
 
     public static final Integer DEFAULT_INITIAL_MAX_PAGE_SEARCH_SIZE = Integer.valueOf(500);
     public static final TimeValue DEFAULT_TRANSFORM_FREQUENCY = TimeValue.timeValueSeconds(60);
+
+    /**
+     * Hard-coded timeout used for {@link org.elasticsearch.action.support.master.MasterNodeRequest#masterNodeTimeout()} for requests to
+     * the master node from transforms code. Wherever possible, prefer to use a user-controlled timeout instead of this.
+     *
+     * @see <a href="https://github.com/elastic/elasticsearch/issues/107984">#107984</a>
+     */
+    public static final TimeValue HARD_CODED_TRANSFORM_MASTER_NODE_TIMEOUT = TimeValue.THIRTY_SECONDS;
 
     public static final int DEFAULT_FAILURE_RETRIES = 10;
     // How many times the transform task can retry on a non-critical failure.
@@ -164,14 +185,55 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
     }
 
     @Override
+    public void prepareForIndicesMigration(ClusterService clusterService, Client client, ActionListener<Map<String, Object>> listener) {
+        if (TransformMetadata.upgradeMode(clusterService.state())) {
+            // Transform is already in upgrade mode, so nothing will write to the Transform system indices during their upgrade
+            listener.onResponse(Map.of("already_in_upgrade_mode", true));
+            return;
+        }
+
+        // Enable Transform upgrade mode before upgrading the system indices to ensure nothing writes to them during the upgrade
+        var originClient = new OriginSettingClient(client, TRANSFORM_ORIGIN);
+        originClient.execute(
+            SetTransformUpgradeModeAction.INSTANCE,
+            new SetUpgradeModeActionRequest(true),
+            listener.delegateFailureAndWrap((l, r) -> l.onResponse(Map.of("already_in_upgrade_mode", false)))
+        );
+    }
+
+    @Override
+    public void indicesMigrationComplete(
+        Map<String, Object> preUpgradeMetadata,
+        ClusterService clusterService,
+        Client client,
+        ActionListener<Boolean> listener
+    ) {
+        var wasAlreadyInUpgradeMode = (boolean) preUpgradeMetadata.getOrDefault("already_in_upgrade_mode", false);
+        if (wasAlreadyInUpgradeMode) {
+            // Transform was already in upgrade mode before system indices upgrade started - we shouldn't disable it
+            listener.onResponse(true);
+            return;
+        }
+
+        var originClient = new OriginSettingClient(client, TRANSFORM_ORIGIN);
+        originClient.execute(
+            SetTransformUpgradeModeAction.INSTANCE,
+            new SetUpgradeModeActionRequest(false),
+            listener.delegateFailureAndWrap((l, r) -> l.onResponse(r.isAcknowledged()))
+        );
+    }
+
+    @Override
     public List<RestHandler> getRestHandlers(
         final Settings unused,
+        NamedWriteableRegistry namedWriteableRegistry,
         final RestController restController,
         final ClusterSettings clusterSettings,
         final IndexScopedSettings indexScopedSettings,
         final SettingsFilter settingsFilter,
         final IndexNameExpressionResolver indexNameExpressionResolver,
-        final Supplier<DiscoveryNodes> nodesInCluster
+        final Supplier<DiscoveryNodes> nodesInCluster,
+        Predicate<NodeFeature> clusterSupportsFeature
     ) {
 
         return Arrays.asList(
@@ -186,7 +248,9 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
             new RestCatTransformAction(),
             new RestUpgradeTransformsAction(),
             new RestResetTransformAction(),
-            new RestScheduleNowTransformAction()
+            new RestScheduleNowTransformAction(),
+            new RestGetTransformNodeStatsAction(),
+            new RestSetTransformUpgradeModeAction()
         );
     }
 
@@ -206,6 +270,8 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
             new ActionHandler<>(UpgradeTransformsAction.INSTANCE, TransportUpgradeTransformsAction.class),
             new ActionHandler<>(ResetTransformAction.INSTANCE, TransportResetTransformAction.class),
             new ActionHandler<>(ScheduleNowTransformAction.INSTANCE, TransportScheduleNowTransformAction.class),
+            new ActionHandler<>(GetTransformNodeStatsAction.INSTANCE, TransportGetTransformNodeStatsAction.class),
+            new ActionHandler<>(SetTransformUpgradeModeAction.INSTANCE, TransportSetTransformUpgradeModeAction.class),
 
             // internal, no rest endpoint
             new ActionHandler<>(ValidateTransformAction.INSTANCE, TransportValidateTransformAction.class),
@@ -250,13 +316,21 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
             getTransformExtension().getMinFrequency()
         );
         scheduler.start();
+        var clusterStateListener = new TransformClusterStateListener(clusterService, client);
+        var transformNode = new TransformNode(clusterStateListener);
 
-        transformServices.set(new TransformServices(configManager, checkpointService, auditor, scheduler));
+        transformServices.set(new TransformServices(configManager, checkpointService, auditor, scheduler, transformNode));
+
+        var transformMeterRegistry = TransformMeterRegistry.create(services.telemetryProvider().getMeterRegistry());
+        transformConfigAutoMigration.set(
+            new TransformConfigAutoMigration(configManager, auditor, transformMeterRegistry, services.threadPool())
+        );
 
         return List.of(
             transformServices.get(),
-            new TransformClusterStateListener(clusterService, client),
-            new TransformExtensionHolder(getTransformExtension())
+            clusterStateListener,
+            new TransformExtensionHolder(getTransformExtension()),
+            transformConfigAutoMigration.get()
         );
     }
 
@@ -270,6 +344,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
     ) {
         // the transform services should have been created
         assert transformServices.get() != null;
+        assert transformConfigAutoMigration.get() != null;
 
         return List.of(
             new TransformPersistentTasksExecutor(
@@ -278,8 +353,9 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
                 threadPool,
                 clusterService,
                 settingsModule.getSettings(),
-                getTransformExtension().getTransformInternalIndexAdditionalSettings(),
-                expressionResolver
+                getTransformExtension(),
+                expressionResolver,
+                transformConfigAutoMigration.get()
             )
         );
     }
@@ -318,7 +394,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
     @Override
     public void close() {
         if (transformServices.get() != null) {
-            transformServices.get().getScheduler().stop();
+            transformServices.get().scheduler().stop();
         }
     }
 
@@ -402,7 +478,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
             SystemIndexPlugin.super.cleanUpFeature(clusterService, client, unsetResetModeListener);
         }, unsetResetModeListener::onFailure);
 
-        ActionListener<StopTransformAction.Response> afterStoppingTransforms = ActionListener.wrap(stopTransformsResponse -> {
+        ActionListener<StopTransformAction.Response> afterForceStoppingTransforms = ActionListener.wrap(stopTransformsResponse -> {
             if (stopTransformsResponse.isAcknowledged()
                 && stopTransformsResponse.getTaskFailures().isEmpty()
                 && stopTransformsResponse.getNodeFailures().isEmpty()) {
@@ -437,12 +513,31 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
             }
         }, unsetResetModeListener::onFailure);
 
+        ActionListener<StopTransformAction.Response> afterStoppingTransforms = ActionListener.wrap(
+            afterForceStoppingTransforms::onResponse,
+            e -> {
+                logger.info("Error while trying to stop the transforms, will try again with force=true", e);
+                StopTransformAction.Request forceStopTransformsRequest = new StopTransformAction.Request(
+                    Metadata.ALL,
+                    true,
+                    // Set force=true to make sure all the transforms persistent tasks are stopped.
+                    true,
+                    null,
+                    true,
+                    false
+                );
+                client.execute(StopTransformAction.INSTANCE, forceStopTransformsRequest, afterForceStoppingTransforms);
+            }
+        );
+
         ActionListener<AcknowledgedResponse> afterResetModeSet = ActionListener.wrap(response -> {
             StopTransformAction.Request stopTransformsRequest = new StopTransformAction.Request(
                 Metadata.ALL,
                 true,
-                true,
-                null,
+                // Set force=false in order to let transforms finish gracefully.
+                false,
+                // Do not give it too much time. If there is a problem, there will be another try with force=true.
+                TimeValue.timeValueSeconds(10),
                 true,
                 false
             );

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.support.replication;
@@ -161,7 +162,7 @@ public class PostWriteRefreshTests extends IndexShardTestCase {
                 new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "message"),
                 ShardRouting.Role.SEARCH_ONLY
             );
-            when(routingTable.unpromotableShards()).thenReturn(List.of(shardRouting));
+            when(routingTable.allUnpromotableShards()).thenReturn(List.of(shardRouting));
             when(routingTable.shardId()).thenReturn(shardId);
             WriteRequest.RefreshPolicy policy = randomFrom(WriteRequest.RefreshPolicy.IMMEDIATE, WriteRequest.RefreshPolicy.WAIT_UNTIL);
             postWriteRefresh.refreshShard(policy, primary, result.getTranslogLocation(), f, postWriteRefreshTimeout);
@@ -237,9 +238,9 @@ public class PostWriteRefreshTests extends IndexShardTestCase {
             );
             // Randomly test scenarios with and without unpromotables
             if (randomBoolean()) {
-                when(routingTable.unpromotableShards()).thenReturn(Collections.emptyList());
+                when(routingTable.allUnpromotableShards()).thenReturn(Collections.emptyList());
             } else {
-                when(routingTable.unpromotableShards()).thenReturn(List.of(shardRouting));
+                when(routingTable.allUnpromotableShards()).thenReturn(List.of(shardRouting));
             }
             WriteRequest.RefreshPolicy policy = WriteRequest.RefreshPolicy.WAIT_UNTIL;
             postWriteRefresh.refreshShard(policy, primary, null, f, postWriteRefreshTimeout);

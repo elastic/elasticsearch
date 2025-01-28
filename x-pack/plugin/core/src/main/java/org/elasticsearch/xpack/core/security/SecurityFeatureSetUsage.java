@@ -11,14 +11,14 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.XPackFeatureSet;
+import org.elasticsearch.xpack.core.XPackFeatureUsage;
 import org.elasticsearch.xpack.core.XPackField;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
 
-public class SecurityFeatureSetUsage extends XPackFeatureSet.Usage {
+public class SecurityFeatureSetUsage extends XPackFeatureUsage {
 
     private static final String REALMS_XFIELD = "realms";
     private static final String ROLES_XFIELD = "roles";
@@ -52,31 +52,29 @@ public class SecurityFeatureSetUsage extends XPackFeatureSet.Usage {
 
     public SecurityFeatureSetUsage(StreamInput in) throws IOException {
         super(in);
-        realmsUsage = in.readMap();
-        rolesStoreUsage = in.readMap();
-        sslUsage = in.readMap();
+        realmsUsage = in.readGenericMap();
+        rolesStoreUsage = in.readGenericMap();
+        sslUsage = in.readGenericMap();
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_2_0)) {
-            tokenServiceUsage = in.readMap();
-            apiKeyServiceUsage = in.readMap();
+            tokenServiceUsage = in.readGenericMap();
+            apiKeyServiceUsage = in.readGenericMap();
         }
-        auditUsage = in.readMap();
-        ipFilterUsage = in.readMap();
-        anonymousUsage = in.readMap();
-        roleMappingStoreUsage = in.readMap();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_5_0)) {
-            fips140Usage = in.readMap();
-        }
+        auditUsage = in.readGenericMap();
+        ipFilterUsage = in.readGenericMap();
+        anonymousUsage = in.readGenericMap();
+        roleMappingStoreUsage = in.readGenericMap();
+        fips140Usage = in.readGenericMap();
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_11_0)) {
-            operatorPrivilegesUsage = in.readMap();
+            operatorPrivilegesUsage = in.readGenericMap();
         }
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_2_0)) {
-            domainsUsage = in.readMap();
+            domainsUsage = in.readGenericMap();
         }
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_5_0)) {
-            userProfileUsage = in.readMap();
+            userProfileUsage = in.readGenericMap();
         }
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            remoteClusterServerUsage = in.readMap();
+            remoteClusterServerUsage = in.readGenericMap();
         }
     }
 
@@ -116,7 +114,7 @@ public class SecurityFeatureSetUsage extends XPackFeatureSet.Usage {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_7_0_0;
+        return TransportVersions.ZERO;
     }
 
     @Override
@@ -133,9 +131,7 @@ public class SecurityFeatureSetUsage extends XPackFeatureSet.Usage {
         out.writeGenericMap(ipFilterUsage);
         out.writeGenericMap(anonymousUsage);
         out.writeGenericMap(roleMappingStoreUsage);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_5_0)) {
-            out.writeGenericMap(fips140Usage);
-        }
+        out.writeGenericMap(fips140Usage);
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_11_0)) {
             out.writeGenericMap(operatorPrivilegesUsage);
         }

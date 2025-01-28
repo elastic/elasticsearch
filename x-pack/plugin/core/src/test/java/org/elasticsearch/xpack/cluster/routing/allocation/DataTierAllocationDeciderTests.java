@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.cluster.routing.allocation;
 
 import joptsimple.internal.Strings;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
@@ -39,7 +38,6 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
@@ -203,7 +201,16 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
                     )
                 );
             }
+        }
+        {
+            final var state = clusterStateWithIndexAndNodes("data_warm", DiscoveryNodes.builder().add(DATA_NODE).build(), null);
 
+            assertAllocationDecision(
+                state,
+                DATA_NODE,
+                Decision.Type.YES,
+                "index has a preference for tiers [data_warm] and node has tier [data]"
+            );
         }
     }
 
@@ -752,27 +759,15 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
             SingleNodeShutdownMetadata.Type.REPLACE,
             SingleNodeShutdownMetadata.Type.REMOVE
         );
+        var builder = SingleNodeShutdownMetadata.builder()
+            .setNodeId(nodeId)
+            .setNodeEphemeralId(nodeId)
+            .setType(type)
+            .setReason(this.getTestName());
         return switch (type) {
-            case REMOVE -> SingleNodeShutdownMetadata.builder()
-                .setNodeId(nodeId)
-                .setType(type)
-                .setReason(this.getTestName())
-                .setStartedAtMillis(randomNonNegativeLong())
-                .build();
-            case REPLACE -> SingleNodeShutdownMetadata.builder()
-                .setNodeId(nodeId)
-                .setType(type)
-                .setTargetNodeName(randomAlphaOfLength(10))
-                .setReason(this.getTestName())
-                .setStartedAtMillis(randomNonNegativeLong())
-                .build();
-            case SIGTERM -> SingleNodeShutdownMetadata.builder()
-                .setNodeId(nodeId)
-                .setType(type)
-                .setGracePeriod(TimeValue.parseTimeValue(randomTimeValue(), this.getTestName()))
-                .setReason(this.getTestName())
-                .setStartedAtMillis(randomNonNegativeLong())
-                .build();
+            case REMOVE -> builder.setStartedAtMillis(randomNonNegativeLong()).build();
+            case REPLACE -> builder.setTargetNodeName(randomAlphaOfLength(10)).setStartedAtMillis(randomNonNegativeLong()).build();
+            case SIGTERM -> builder.setGracePeriod(randomTimeValue()).setStartedAtMillis(randomNonNegativeLong()).build();
             case RESTART -> throw new AssertionError("bad randomization, this method only generates removal type shutdowns");
         };
     }
@@ -896,8 +891,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
                 .build(),
             1,
             ByteSizeValue.ONE,
-            ByteSizeValue.ONE,
-            Version.CURRENT
+            ByteSizeValue.ONE
         );
     }
 
@@ -1013,6 +1007,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
                 nodeId,
                 SingleNodeShutdownMetadata.builder()
                     .setNodeId(nodeId)
+                    .setNodeEphemeralId(nodeId)
                     .setType(SingleNodeShutdownMetadata.Type.RESTART)
                     .setReason(this.getTestName())
                     .setStartedAtMillis(randomNonNegativeLong())

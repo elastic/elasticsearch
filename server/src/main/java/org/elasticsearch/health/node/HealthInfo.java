@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.health.node;
@@ -23,27 +24,34 @@ import static org.elasticsearch.health.node.DataStreamLifecycleHealthInfo.NO_DSL
  * This class wraps all the data returned by the health node.
  * @param diskInfoByNode A Map of node id to DiskHealthInfo for that node
  * @param dslHealthInfo The data stream lifecycle health information
+ * @param repositoriesInfoByNode A Map of node id to RepositoriesHealthInfo for that node
  */
-public record HealthInfo(Map<String, DiskHealthInfo> diskInfoByNode, @Nullable DataStreamLifecycleHealthInfo dslHealthInfo)
-    implements
-        Writeable {
+public record HealthInfo(
+    Map<String, DiskHealthInfo> diskInfoByNode,
+    @Nullable DataStreamLifecycleHealthInfo dslHealthInfo,
+    Map<String, RepositoriesHealthInfo> repositoriesInfoByNode
+) implements Writeable {
 
-    public static final HealthInfo EMPTY_HEALTH_INFO = new HealthInfo(Map.of(), NO_DSL_ERRORS);
+    public static final HealthInfo EMPTY_HEALTH_INFO = new HealthInfo(Map.of(), NO_DSL_ERRORS, Map.of());
 
     public HealthInfo(StreamInput input) throws IOException {
         this(
             input.readMap(DiskHealthInfo::new),
-            input.getTransportVersion().onOrAfter(TransportVersions.HEALTH_INFO_ENRICHED_WITH_DSL_STATUS)
+            input.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)
                 ? input.readOptionalWriteable(DataStreamLifecycleHealthInfo::new)
-                : null
+                : null,
+            input.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0) ? input.readMap(RepositoriesHealthInfo::new) : Map.of()
         );
     }
 
     @Override
     public void writeTo(StreamOutput output) throws IOException {
         output.writeMap(diskInfoByNode, StreamOutput::writeWriteable);
-        if (output.getTransportVersion().onOrAfter(TransportVersions.HEALTH_INFO_ENRICHED_WITH_DSL_STATUS)) {
+        if (output.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             output.writeOptionalWriteable(dslHealthInfo);
+        }
+        if (output.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
+            output.writeMap(repositoriesInfoByNode, StreamOutput::writeWriteable);
         }
     }
 }

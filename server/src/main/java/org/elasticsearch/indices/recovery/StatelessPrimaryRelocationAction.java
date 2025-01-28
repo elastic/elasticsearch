@@ -1,14 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices.recovery;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
@@ -23,7 +23,7 @@ import java.util.Objects;
 
 public class StatelessPrimaryRelocationAction {
 
-    public static final ActionType<ActionResponse.Empty> TYPE = ActionType.emptyResponse(
+    public static final ActionType<ActionResponse.Empty> TYPE = new ActionType<>(
         "internal:index/shard/recovery/stateless_primary_relocation"
     );
 
@@ -49,11 +49,7 @@ public class StatelessPrimaryRelocationAction {
             shardId = new ShardId(in);
             targetNode = new DiscoveryNode(in);
             targetAllocationId = in.readString();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.WAIT_FOR_CLUSTER_STATE_IN_RECOVERY_ADDED)) {
-                clusterStateVersion = in.readVLong();
-            } else {
-                clusterStateVersion = 0L; // temporary bwc: do not wait for cluster state to be applied
-            }
+            clusterStateVersion = in.readVLong();
         }
 
         @Override
@@ -68,9 +64,7 @@ public class StatelessPrimaryRelocationAction {
             shardId.writeTo(out);
             targetNode.writeTo(out);
             out.writeString(targetAllocationId);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.WAIT_FOR_CLUSTER_STATE_IN_RECOVERY_ADDED)) {
-                out.writeVLong(clusterStateVersion);
-            } // temporary bwc: just omit it, the receiver doesn't wait for a cluster state anyway
+            out.writeVLong(clusterStateVersion);
         }
 
         public long recoveryId() {
@@ -108,6 +102,22 @@ public class StatelessPrimaryRelocationAction {
         @Override
         public int hashCode() {
             return Objects.hash(recoveryId, shardId, targetNode, targetAllocationId, clusterStateVersion);
+        }
+
+        @Override
+        public String toString() {
+            return "Request{"
+                + "shardId="
+                + shardId
+                + ", targetNode="
+                + targetNode.descriptionWithoutAttributes()
+                + ", recoveryId="
+                + recoveryId
+                + ", targetAllocationId='"
+                + targetAllocationId
+                + "', clusterStateVersion="
+                + clusterStateVersion
+                + '}';
         }
     }
 }

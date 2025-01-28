@@ -4,6 +4,12 @@
 <titleabbrev>Create or update pipeline</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-ingest[Ingest APIs].
+--
+
 Creates or updates an <<ingest,ingest pipeline>>. Changes made using this API
 take effect immediately.
 
@@ -59,7 +65,7 @@ See also <<pipelines-for-fleet-elastic-agent>>.
 version. If specified and the update is successful, the pipeline's
 version is incremented.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 [[put-pipeline-api-request-body]]
 ==== {api-request-body-title}

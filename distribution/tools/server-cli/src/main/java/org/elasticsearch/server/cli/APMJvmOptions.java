@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.server.cli;
@@ -79,7 +80,8 @@ class APMJvmOptions {
         "application_packages", "org.elasticsearch,org.apache.lucene",
         "metrics_interval", "120s",
         "breakdown_metrics", "false",
-        "central_config", "false"
+        "central_config", "false",
+        "transaction_sample_rate", "0.2"
         );
     // end::noformat
 
@@ -181,11 +183,13 @@ class APMJvmOptions {
         return "-javaagent:" + agentJar + "=c=" + tmpPropertiesFile;
     }
 
-    private static void extractSecureSettings(SecureSettings secrets, Map<String, String> propertiesMap) {
+    // package private for testing
+    static void extractSecureSettings(SecureSettings secrets, Map<String, String> propertiesMap) {
         final Set<String> settingNames = secrets.getSettingNames();
         for (String key : List.of("api_key", "secret_token")) {
-            if (settingNames.contains("tracing.apm." + key)) {
-                try (SecureString token = secrets.getString("tracing.apm." + key)) {
+            String prefix = "telemetry.";
+            if (settingNames.contains(prefix + key)) {
+                try (SecureString token = secrets.getString(prefix + key)) {
                     propertiesMap.put(key, token.toString());
                 }
             }
@@ -215,11 +219,35 @@ class APMJvmOptions {
     static Map<String, String> extractApmSettings(Settings settings) throws UserException {
         final Map<String, String> propertiesMap = new HashMap<>();
 
-        final Settings agentSettings = settings.getByPrefix("tracing.apm.agent.");
-        agentSettings.keySet().forEach(key -> propertiesMap.put(key, String.valueOf(agentSettings.get(key))));
+        final String telemetryAgentPrefix = "telemetry.agent.";
 
+        final Settings telemetryAgentSettings = settings.getByPrefix(telemetryAgentPrefix);
+        telemetryAgentSettings.keySet().forEach(key -> propertiesMap.put(key, String.valueOf(telemetryAgentSettings.get(key))));
+
+        StringJoiner globalLabels = extractGlobalLabels(telemetryAgentPrefix, propertiesMap, settings);
+        if (globalLabels.length() > 0) {
+            propertiesMap.put("global_labels", globalLabels.toString());
+        }
+
+        // These settings must not be changed
+        for (String key : STATIC_CONFIG.keySet()) {
+            if (propertiesMap.containsKey(key)) {
+                throw new UserException(
+                    ExitCodes.CONFIG,
+                    "Do not set a value for [telemetry.agent." + key + "], as this is configured automatically by Elasticsearch"
+                );
+            }
+        }
+
+        CONFIG_DEFAULTS.forEach(propertiesMap::putIfAbsent);
+
+        propertiesMap.putAll(STATIC_CONFIG);
+        return propertiesMap;
+    }
+
+    private static StringJoiner extractGlobalLabels(String prefix, Map<String, String> propertiesMap, Settings settings) {
         // special handling of global labels, the agent expects them in format: key1=value1,key2=value2
-        final Settings globalLabelsSettings = settings.getByPrefix("tracing.apm.agent.global_labels.");
+        final Settings globalLabelsSettings = settings.getByPrefix(prefix + "global_labels.");
         final StringJoiner globalLabels = new StringJoiner(",");
 
         for (var globalLabel : globalLabelsSettings.keySet()) {
@@ -234,25 +262,7 @@ class APMJvmOptions {
                 globalLabels.add(String.join("=", globalLabel, globalLabelValue));
             }
         }
-
-        if (globalLabels.length() > 0) {
-            propertiesMap.put("global_labels", globalLabels.toString());
-        }
-
-        // These settings must not be changed
-        for (String key : STATIC_CONFIG.keySet()) {
-            if (propertiesMap.containsKey(key)) {
-                throw new UserException(
-                    ExitCodes.CONFIG,
-                    "Do not set a value for [tracing.apm.agent." + key + "], as this is configured automatically by Elasticsearch"
-                );
-            }
-        }
-
-        CONFIG_DEFAULTS.forEach(propertiesMap::putIfAbsent);
-
-        propertiesMap.putAll(STATIC_CONFIG);
-        return propertiesMap;
+        return globalLabels;
     }
 
     // package private for testing

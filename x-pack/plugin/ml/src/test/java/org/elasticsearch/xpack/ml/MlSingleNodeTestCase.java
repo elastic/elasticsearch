@@ -9,9 +9,10 @@ package org.elasticsearch.xpack.ml;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateAction;
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateRequest;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
@@ -27,6 +28,7 @@ import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -111,7 +113,7 @@ public abstract class MlSingleNodeTestCase extends ESSingleNodeTestCase {
     public void tearDown() throws Exception {
         try {
             logger.trace("[{}#{}]: ML-specific after test cleanup", getTestClass().getSimpleName(), getTestName());
-            client().execute(ResetFeatureStateAction.INSTANCE, new ResetFeatureStateRequest()).actionGet();
+            client().execute(ResetFeatureStateAction.INSTANCE, new ResetFeatureStateRequest(TEST_REQUEST_TIMEOUT)).actionGet();
         } finally {
             super.tearDown();
         }
@@ -119,10 +121,11 @@ public abstract class MlSingleNodeTestCase extends ESSingleNodeTestCase {
 
     protected void waitForMlTemplates() throws Exception {
         // block until the templates are installed
-        assertBusy(() -> {
-            ClusterState state = clusterAdmin().prepareState().get().getState();
-            assertTrue("Timed out waiting for the ML templates to be installed", MachineLearning.criticalTemplatesInstalled(state));
-        });
+        ClusterServiceUtils.awaitClusterState(
+            logger,
+            MachineLearning::criticalTemplatesInstalled,
+            getInstanceFromNode(ClusterService.class)
+        );
     }
 
     protected <T> void blockingCall(Consumer<ActionListener<T>> function, AtomicReference<T> response, AtomicReference<Exception> error)
@@ -157,6 +160,7 @@ public abstract class MlSingleNodeTestCase extends ESSingleNodeTestCase {
 
     protected static ThreadPool mockThreadPool() {
         ThreadPool tp = mock(ThreadPool.class);
+        when(tp.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         ExecutorService executor = mock(ExecutorService.class);
         doAnswer(invocationOnMock -> {
             ((Runnable) invocationOnMock.getArguments()[0]).run();

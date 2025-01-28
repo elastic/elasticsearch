@@ -7,7 +7,6 @@
 
 package org.elasticsearch.compute.aggregation;
 
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
@@ -20,7 +19,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 import java.util.List;
 
 public class CountAggregatorFunction implements AggregatorFunction {
-    public static AggregatorFunctionSupplier supplier(BigArrays bigArrays, List<Integer> channels) {
+    public static AggregatorFunctionSupplier supplier(List<Integer> channels) {
         return new AggregatorFunctionSupplier() {
             @Override
             public AggregatorFunction aggregator(DriverContext driverContext) {
@@ -53,7 +52,7 @@ public class CountAggregatorFunction implements AggregatorFunction {
     private final boolean countAll;
 
     public static CountAggregatorFunction create(List<Integer> inputChannels) {
-        return new CountAggregatorFunction(inputChannels, new LongState());
+        return new CountAggregatorFunction(inputChannels, new LongState(0));
     }
 
     private CountAggregatorFunction(List<Integer> channels, LongState state) {
@@ -73,11 +72,37 @@ public class CountAggregatorFunction implements AggregatorFunction {
     }
 
     @Override
-    public void addRawInput(Page page) {
+    public void addRawInput(Page page, BooleanVector mask) {
         Block block = page.getBlock(blockIndex());
         LongState state = this.state;
-        int count = countAll ? block.getPositionCount() : block.getTotalValueCount();
+        int count;
+        if (mask.isConstant()) {
+            if (mask.getBoolean(0) == false) {
+                return;
+            }
+            count = countAll ? block.getPositionCount() : block.getTotalValueCount();
+        } else {
+            count = countMasked(block, mask);
+        }
         state.longValue(state.longValue() + count);
+    }
+
+    private int countMasked(Block block, BooleanVector mask) {
+        int count = 0;
+        if (countAll) {
+            for (int p = 0; p < block.getPositionCount(); p++) {
+                if (mask.getBoolean(p)) {
+                    count++;
+                }
+            }
+            return count;
+        }
+        for (int p = 0; p < block.getPositionCount(); p++) {
+            if (mask.getBoolean(p)) {
+                count += block.getValueCount(p);
+            }
+        }
+        return count;
     }
 
     @Override

@@ -16,6 +16,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.geometry.utils.GeographyValidator;
 import org.elasticsearch.geometry.utils.GeometryValidator;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
+import org.elasticsearch.lucene.spatial.CoordinateEncoder;
+import org.elasticsearch.lucene.spatial.GeometryDocValueReader;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSourceType;
 
@@ -26,7 +28,7 @@ import java.io.IOException;
  */
 public abstract class GeoShapeValues extends ShapeValues<GeoShapeValues.GeoShapeValue> {
 
-    public static GeoShapeValues EMPTY = new GeoShapeValues() {
+    public static final GeoShapeValues EMPTY = new GeoShapeValues() {
         private final GeoShapeValuesSourceType DEFAULT_VALUES_SOURCE_TYPE = GeoShapeValuesSourceType.instance();
 
         @Override

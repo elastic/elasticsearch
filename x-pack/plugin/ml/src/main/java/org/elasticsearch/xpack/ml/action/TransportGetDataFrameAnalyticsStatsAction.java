@@ -22,10 +22,10 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortBuilders;
@@ -96,7 +96,6 @@ public class TransportGetDataFrameAnalyticsStatsAction extends TransportTasksAct
             transportService,
             actionFilters,
             GetDataFrameAnalyticsStatsAction.Request::new,
-            GetDataFrameAnalyticsStatsAction.Response::new,
             in -> new QueryPage<>(in, GetDataFrameAnalyticsStatsAction.Response.Stats::new),
             transportService.getThreadPool().executor(ThreadPool.Names.MANAGEMENT)
         );

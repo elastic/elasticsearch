@@ -1,27 +1,37 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.collect;
 
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.core.Assertions;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiPredicate;
+import java.util.function.Predicate;
 import java.util.function.ToIntFunction;
 import java.util.stream.IntStream;
+
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.is;
 
 public class IteratorsTests extends ESTestCase {
     public void testConcatentation() {
@@ -213,6 +223,94 @@ public class IteratorsTests extends ESTestCase {
         final var index = new AtomicInteger();
         Iterators.map(Iterators.forArray(array), i -> i * 2)
             .forEachRemaining(i -> assertEquals(array[index.getAndIncrement()] * 2, (long) i));
+        assertEquals(array.length, index.get());
+    }
+
+    public void testFilter() {
+        assertSame(Collections.emptyIterator(), Iterators.filter(Collections.emptyIterator(), i -> fail(null, "not called")));
+
+        final var array = randomIntegerArray();
+        assertSame(Collections.emptyIterator(), Iterators.filter(Iterators.forArray(array), i -> false));
+
+        final var threshold = array.length > 0 && randomBoolean() ? randomFrom(array) : randomIntBetween(0, 1000);
+        final Predicate<Integer> predicate = i -> i <= threshold;
+        final var expectedResults = Arrays.stream(array).filter(predicate).toList();
+        final var index = new AtomicInteger();
+        Iterators.filter(Iterators.forArray(array), predicate)
+            .forEachRemaining(i -> assertEquals(expectedResults.get(index.getAndIncrement()), i));
+
+        if (Assertions.ENABLED) {
+            final var predicateCalled = new AtomicBoolean();
+            final var inputIterator = Iterators.forArray(new Object[] { null });
+            expectThrows(AssertionError.class, () -> Iterators.filter(inputIterator, i -> predicateCalled.compareAndSet(false, true)));
+            assertFalse(predicateCalled.get());
+        }
+    }
+
+    public void testLimit() {
+        var result = Iterators.limit(Collections.emptyIterator(), 10);
+        assertThat(result.hasNext(), is(false));
+        assertThat(Iterators.toList(result), is(empty()));
+
+        var values = List.of(1, 2, 3);
+        result = Iterators.limit(values.iterator(), 10);
+        assertThat(result.hasNext(), is(true));
+        assertThat(Iterators.toList(result), contains(1, 2, 3));
+
+        result = Iterators.limit(values.iterator(), 2);
+        assertThat(result.hasNext(), is(true));
+        assertThat(Iterators.toList(result), contains(1, 2));
+
+        result = Iterators.limit(values.iterator(), 0);
+        assertThat(result.hasNext(), is(false));
+        assertThat(Iterators.toList(result), is(empty()));
+    }
+
+    public void testFailFast() {
+        final var array = randomIntegerArray();
+        assertEmptyIterator(Iterators.failFast(Iterators.forArray(array), () -> true));
+
+        final var index = new AtomicInteger();
+        Iterators.failFast(Iterators.forArray(array), () -> false).forEachRemaining(i -> assertEquals(array[index.getAndIncrement()], i));
+        assertEquals(array.length, index.get());
+
+        final var isFailing = new AtomicBoolean();
+        index.set(0);
+        Iterators.failFast(Iterators.concat(Iterators.forArray(array), new Iterator<>() {
+            @Override
+            public boolean hasNext() {
+                isFailing.set(true);
+                return true;
+            }
+
+            @Override
+            public Integer next() {
+                return 0;
+            }
+        }), isFailing::get).forEachRemaining(i -> assertEquals(array[index.getAndIncrement()], i));
+        assertEquals(array.length, index.get());
+    }
+
+    public void testEnumerate() {
+        assertEmptyIterator(Iterators.enumerate(Iterators.concat(), Tuple::new));
+
+        final var array = randomIntegerArray();
+        final var index = new AtomicInteger();
+        Iterators.enumerate(Iterators.forArray(array), Tuple::new).forEachRemaining(t -> {
+            int idx = index.getAndIncrement();
+            assertEquals(idx, t.v1().intValue());
+            assertEquals(array[idx], t.v2());
+        });
+        assertEquals(array.length, index.get());
+    }
+
+    public void testSupplier() {
+        assertEmptyIterator(Iterators.fromSupplier(() -> null));
+
+        final var array = randomIntegerArray();
+        final var index = new AtomicInteger();
+        final var queue = new LinkedList<>(Arrays.asList(array));
+        Iterators.fromSupplier(queue::pollFirst).forEachRemaining(i -> assertEquals(array[index.getAndIncrement()], i));
         assertEquals(array.length, index.get());
     }
 

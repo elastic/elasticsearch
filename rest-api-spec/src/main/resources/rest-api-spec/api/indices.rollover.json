@@ -58,6 +58,11 @@
       "wait_for_active_shards":{
         "type":"string",
         "description":"Set the number of active shards to wait for on the newly created rollover index before the operation returns."
+      },
+      "lazy":{
+        "type":"boolean",
+        "default":"false",
+        "description":"If set to true, the rollover action will only mark a data stream to signal that it needs to be rolled over at the next write. Only allowed on data streams."
       }
     },
     "body":{

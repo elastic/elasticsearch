@@ -8,32 +8,35 @@
 package org.elasticsearch.compute.aggregation;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.compute.ConstantBooleanExpressionEvaluator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.BlockTestUtils;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.data.TestBlockFactory;
+import org.elasticsearch.compute.operator.AddGarbageRowsSourceOperator;
 import org.elasticsearch.compute.operator.AggregationOperator;
-import org.elasticsearch.compute.operator.CannedSourceOperator;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.ForkingOperatorTestCase;
 import org.elasticsearch.compute.operator.NullInsertingSourceOperator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.PositionMergingSourceOperator;
-import org.elasticsearch.compute.operator.TestResultPageSinkOperator;
+import org.elasticsearch.compute.test.BlockTestUtils;
+import org.elasticsearch.compute.test.CannedSourceOperator;
+import org.elasticsearch.compute.test.TestBlockFactory;
+import org.elasticsearch.compute.test.TestResultPageSinkOperator;
+import org.hamcrest.Matcher;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Function;
 import java.util.stream.DoubleStream;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
@@ -44,10 +47,10 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
 public abstract class AggregatorFunctionTestCase extends ForkingOperatorTestCase {
-    protected abstract AggregatorFunctionSupplier aggregatorFunction(BigArrays bigArrays, List<Integer> inputChannels);
+    protected abstract AggregatorFunctionSupplier aggregatorFunction(List<Integer> inputChannels);
 
     protected final int aggregatorIntermediateBlockCount() {
-        try (var agg = aggregatorFunction(nonBreakingBigArrays(), List.of()).aggregator(driverContext())) {
+        try (var agg = aggregatorFunction(List.of()).aggregator(driverContext())) {
             return agg.intermediateBlockCount();
         }
     }
@@ -57,23 +60,35 @@ public abstract class AggregatorFunctionTestCase extends ForkingOperatorTestCase
     protected abstract void assertSimpleOutput(List<Block> input, Block result);
 
     @Override
-    protected Operator.OperatorFactory simpleWithMode(BigArrays bigArrays, AggregatorMode mode) {
+    protected Operator.OperatorFactory simpleWithMode(AggregatorMode mode) {
+        return simpleWithMode(mode, Function.identity());
+    }
+
+    private Operator.OperatorFactory simpleWithMode(
+        AggregatorMode mode,
+        Function<AggregatorFunctionSupplier, AggregatorFunctionSupplier> wrap
+    ) {
         List<Integer> channels = mode.isInputPartial() ? range(0, aggregatorIntermediateBlockCount()).boxed().toList() : List.of(0);
-        return new AggregationOperator.AggregationOperatorFactory(
-            List.of(aggregatorFunction(bigArrays, channels).aggregatorFactory(mode)),
-            mode
+        AggregatorFunctionSupplier supplier = aggregatorFunction(channels);
+        Aggregator.Factory factory = wrap.apply(supplier).aggregatorFactory(mode);
+        return new AggregationOperator.AggregationOperatorFactory(List.of(factory), mode);
+    }
+
+    @Override
+    protected final Matcher<String> expectedDescriptionOfSimple() {
+        return equalTo("AggregationOperator[mode = SINGLE, aggs = " + expectedDescriptionOfAggregator() + "]");
+    }
+
+    @Override
+    protected final Matcher<String> expectedToStringOfSimple() {
+        return equalTo(
+            "AggregationOperator[aggregators=[Aggregator[aggregatorFunction=" + expectedToStringOfSimpleAggregator() + ", mode=SINGLE]]]"
         );
     }
 
-    @Override
-    protected final String expectedDescriptionOfSimple() {
-        return "AggregationOperator[mode = SINGLE, aggs = " + expectedDescriptionOfAggregator() + "]";
-    }
-
-    @Override
-    protected final String expectedToStringOfSimple() {
+    protected String expectedToStringOfSimpleAggregator() {
         String type = getClass().getSimpleName().replace("Tests", "");
-        return "AggregationOperator[aggregators=[Aggregator[aggregatorFunction=" + type + "[channels=[0]], mode=SINGLE]]]";
+        return type + "[channels=[0]]";
     }
 
     @Override
@@ -84,12 +99,6 @@ public abstract class AggregatorFunctionTestCase extends ForkingOperatorTestCase
 
         Block result = results.get(0).getBlock(0);
         assertSimpleOutput(input.stream().map(p -> p.<Block>getBlock(0)).toList(), result);
-    }
-
-    @Override
-    protected ByteSizeValue memoryLimitForSimple() {
-        // This is a super conservative limit that should cause all aggs to break
-        return ByteSizeValue.ofBytes(20);
     }
 
     public final void testIgnoresNulls() {
@@ -104,7 +113,7 @@ public abstract class AggregatorFunctionTestCase extends ForkingOperatorTestCase
             Driver d = new Driver(
                 driverContext,
                 new NullInsertingSourceOperator(new CannedSourceOperator(input.iterator()), blockFactory),
-                List.of(simple(nonBreakingBigArrays().withCircuitBreaking()).get(driverContext)),
+                List.of(simple().get(driverContext)),
                 new TestResultPageSinkOperator(results::add),
                 () -> {}
             )
@@ -122,7 +131,7 @@ public abstract class AggregatorFunctionTestCase extends ForkingOperatorTestCase
             new PositionMergingSourceOperator(simpleInput(driverContext.blockFactory(), end), blockFactory)
         );
         List<Page> origInput = BlockTestUtils.deepCopyOf(input, TestBlockFactory.getNonBreakingInstance());
-        assertSimpleOutput(origInput, drive(simple(BigArrays.NON_RECYCLING_INSTANCE).get(driverContext), input.iterator(), driverContext));
+        assertSimpleOutput(origInput, drive(simple().get(driverContext), input.iterator(), driverContext));
     }
 
     public final void testMultivaluedWithNulls() {
@@ -136,25 +145,22 @@ public abstract class AggregatorFunctionTestCase extends ForkingOperatorTestCase
             )
         );
         List<Page> origInput = BlockTestUtils.deepCopyOf(input, TestBlockFactory.getNonBreakingInstance());
-        assertSimpleOutput(origInput, drive(simple(BigArrays.NON_RECYCLING_INSTANCE).get(driverContext), input.iterator(), driverContext));
+        assertSimpleOutput(origInput, drive(simple().get(driverContext), input.iterator(), driverContext));
     }
 
     public final void testEmptyInput() {
         DriverContext driverContext = driverContext();
-        List<Page> results = drive(
-            simple(nonBreakingBigArrays().withCircuitBreaking()).get(driverContext),
-            List.<Page>of().iterator(),
-            driverContext
-        );
+        List<Page> results = drive(simple().get(driverContext), List.<Page>of().iterator(), driverContext);
 
         assertThat(results, hasSize(1));
+        assertOutputFromEmpty(results.get(0).getBlock(0));
     }
 
     public final void testEmptyInputInitialFinal() {
         DriverContext driverContext = driverContext();
         var operators = List.of(
-            simpleWithMode(nonBreakingBigArrays().withCircuitBreaking(), AggregatorMode.INITIAL).get(driverContext),
-            simpleWithMode(nonBreakingBigArrays().withCircuitBreaking(), AggregatorMode.FINAL).get(driverContext)
+            simpleWithMode(AggregatorMode.INITIAL).get(driverContext),
+            simpleWithMode(AggregatorMode.FINAL).get(driverContext)
         );
         List<Page> results = drive(operators, List.<Page>of().iterator(), driverContext);
         assertThat(results, hasSize(1));
@@ -163,9 +169,9 @@ public abstract class AggregatorFunctionTestCase extends ForkingOperatorTestCase
     public final void testEmptyInputInitialIntermediateFinal() {
         DriverContext driverContext = driverContext();
         var operators = List.of(
-            simpleWithMode(nonBreakingBigArrays().withCircuitBreaking(), AggregatorMode.INITIAL).get(driverContext),
-            simpleWithMode(nonBreakingBigArrays().withCircuitBreaking(), AggregatorMode.INTERMEDIATE).get(driverContext),
-            simpleWithMode(nonBreakingBigArrays().withCircuitBreaking(), AggregatorMode.FINAL).get(driverContext)
+            simpleWithMode(AggregatorMode.INITIAL).get(driverContext),
+            simpleWithMode(AggregatorMode.INTERMEDIATE).get(driverContext),
+            simpleWithMode(AggregatorMode.FINAL).get(driverContext)
         );
         List<Page> results = drive(operators, List.<Page>of().iterator(), driverContext);
 
@@ -173,10 +179,51 @@ public abstract class AggregatorFunctionTestCase extends ForkingOperatorTestCase
         assertOutputFromEmpty(results.get(0).getBlock(0));
     }
 
+    public void testAllFiltered() {
+        Operator.OperatorFactory factory = simpleWithMode(
+            AggregatorMode.SINGLE,
+            agg -> new FilteredAggregatorFunctionSupplier(agg, ConstantBooleanExpressionEvaluator.factory(false))
+        );
+        DriverContext driverContext = driverContext();
+        List<Page> input = CannedSourceOperator.collectPages(simpleInput(driverContext.blockFactory(), 10));
+        List<Page> results = drive(factory.get(driverContext), input.iterator(), driverContext);
+        assertThat(results, hasSize(1));
+        assertOutputFromEmpty(results.get(0).getBlock(0));
+    }
+
+    public void testNoneFiltered() {
+        Operator.OperatorFactory factory = simpleWithMode(
+            AggregatorMode.SINGLE,
+            agg -> new FilteredAggregatorFunctionSupplier(agg, ConstantBooleanExpressionEvaluator.factory(true))
+        );
+        DriverContext driverContext = driverContext();
+        List<Page> input = CannedSourceOperator.collectPages(simpleInput(driverContext.blockFactory(), 10));
+        List<Page> origInput = BlockTestUtils.deepCopyOf(input, TestBlockFactory.getNonBreakingInstance());
+        List<Page> results = drive(factory.get(driverContext), input.iterator(), driverContext);
+        assertThat(results, hasSize(1));
+        assertSimpleOutput(origInput, results);
+    }
+
+    public void testSomeFiltered() {
+        Operator.OperatorFactory factory = simpleWithMode(
+            AggregatorMode.SINGLE,
+            agg -> new FilteredAggregatorFunctionSupplier(agg, AddGarbageRowsSourceOperator.filterFactory())
+        );
+        DriverContext driverContext = driverContext();
+        // Build the test data
+        List<Page> input = CannedSourceOperator.collectPages(simpleInput(driverContext.blockFactory(), 10));
+        List<Page> origInput = BlockTestUtils.deepCopyOf(input, TestBlockFactory.getNonBreakingInstance());
+        // Sprinkle garbage into it
+        input = CannedSourceOperator.collectPages(new AddGarbageRowsSourceOperator(new CannedSourceOperator(input.iterator())));
+        List<Page> results = drive(factory.get(driverContext), input.iterator(), driverContext);
+        assertThat(results, hasSize(1));
+        assertSimpleOutput(origInput, results);
+    }
+
     // Returns an intermediate state that is equivalent to what the local execution planner will emit
     // if it determines that certain shards have no relevant data.
-    final List<Page> nullIntermediateState(BlockFactory blockFactory) {
-        try (var agg = aggregatorFunction(nonBreakingBigArrays(), List.of()).aggregator(driverContext())) {
+    List<Page> nullIntermediateState(BlockFactory blockFactory) {
+        try (var agg = aggregatorFunction(List.of()).aggregator(driverContext())) {
             var method = agg.getClass().getMethod("intermediateStateDesc");
             @SuppressWarnings("unchecked")
             List<IntermediateStateDesc> intermediateStateDescs = (List<IntermediateStateDesc>) method.invoke(null);
@@ -198,8 +245,8 @@ public abstract class AggregatorFunctionTestCase extends ForkingOperatorTestCase
         BlockFactory blockFactory = driverContext.blockFactory();
         List<Page> input = nullIntermediateState(blockFactory);
         var operators = List.of(
-            simpleWithMode(nonBreakingBigArrays().withCircuitBreaking(), AggregatorMode.INTERMEDIATE).get(driverContext),
-            simpleWithMode(nonBreakingBigArrays().withCircuitBreaking(), AggregatorMode.FINAL).get(driverContext)
+            simpleWithMode(AggregatorMode.INTERMEDIATE).get(driverContext),
+            simpleWithMode(AggregatorMode.FINAL).get(driverContext)
         );
         List<Page> results = drive(operators, input.iterator(), driverContext);
         assertThat(results, hasSize(1));
@@ -235,6 +282,11 @@ public abstract class AggregatorFunctionTestCase extends ForkingOperatorTestCase
     protected static Stream<Boolean> allBooleans(Block input) {
         BooleanBlock b = (BooleanBlock) input;
         return allValueOffsets(b).mapToObj(i -> b.getBoolean(i));
+    }
+
+    protected static Stream<Float> allFloats(Block input) {
+        FloatBlock b = (FloatBlock) input;
+        return allValueOffsets(b).mapToObj(b::getFloat);
     }
 
     protected static DoubleStream allDoubles(Block input) {

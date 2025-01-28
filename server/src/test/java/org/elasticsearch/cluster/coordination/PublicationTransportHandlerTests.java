@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.cluster.coordination;
 
@@ -27,7 +28,6 @@ import org.elasticsearch.cluster.service.BatchSummary;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.compress.Compressor;
 import org.elasticsearch.common.compress.CompressorFactory;
-import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -147,7 +147,7 @@ public class PublicationTransportHandlerTests extends ESTestCase {
                 in = request.bytes().streamInput();
                 final Compressor compressor = CompressorFactory.compressor(request.bytes());
                 if (compressor != null) {
-                    in = new InputStreamStreamInput(compressor.threadLocalInputStream(in));
+                    in = compressor.threadLocalStreamInput(in);
                 }
                 in.setTransportVersion(version);
                 return in.readBoolean() == false;
@@ -459,6 +459,7 @@ public class PublicationTransportHandlerTests extends ESTestCase {
                 new PublishRequest(clusterState0),
                 ActionListener.running(() -> assertTrue(completed.compareAndSet(false, true)))
             );
+            deterministicTaskQueue.runAllRunnableTasks();
             assertTrue(completed.getAndSet(false));
             receivedState0 = receivedStateRef.getAndSet(null);
             assertEquals(clusterState0.stateUUID(), receivedState0.stateUUID());
@@ -500,6 +501,7 @@ public class PublicationTransportHandlerTests extends ESTestCase {
                 new PublishRequest(clusterState1),
                 ActionListener.running(() -> assertTrue(completed.compareAndSet(false, true)))
             );
+            deterministicTaskQueue.runAllRunnableTasks();
             assertTrue(completed.getAndSet(false));
             var receivedState1 = receivedStateRef.getAndSet(null);
             assertEquals(clusterState1.stateUUID(), receivedState1.stateUUID());

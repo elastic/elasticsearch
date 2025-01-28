@@ -1,14 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest;
 
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentType;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 
@@ -1017,6 +1021,29 @@ public class IngestDocumentTests extends ESTestCase {
         }
     }
 
+    public void testCopyConstructorWithExecutedPipelines() {
+        /*
+         * This is similar to the first part of testCopyConstructor, except that we're executing a pipeilne, and running the
+         * assertions inside the processor so that we can test that executedPipelines is correct.
+         */
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
+        TestProcessor processor = new TestProcessor(ingestDocument1 -> {
+            assertThat(ingestDocument1.getPipelineStack().size(), equalTo(1));
+            IngestDocument copy = new IngestDocument(ingestDocument1);
+            assertThat(ingestDocument1.getSourceAndMetadata(), not(sameInstance(copy.getSourceAndMetadata())));
+            assertThat(ingestDocument1.getCtxMap(), not(sameInstance(copy.getCtxMap())));
+            assertThat(ingestDocument1.getCtxMap().getMetadata(), not(sameInstance(copy.getCtxMap().getMetadata())));
+            assertIngestDocument(ingestDocument1, copy);
+            assertThat(copy.getPipelineStack(), equalTo(ingestDocument1.getPipelineStack()));
+        });
+        Pipeline pipeline = new Pipeline("pipeline1", "test pipeline", 1, Map.of(), new CompoundProcessor(processor));
+        ingestDocument.executePipeline(pipeline, (ingestDocument1, exception) -> {
+            assertNotNull(ingestDocument1);
+            assertNull(exception);
+        });
+        assertThat(processor.getInvokedCounter(), equalTo(1));
+    }
+
     public void testCopyConstructorWithZonedDateTime() {
         ZoneId timezone = ZoneId.of("Europe/London");
 
@@ -1103,5 +1130,48 @@ public class IngestDocumentTests extends ESTestCase {
         // an index cycle cannot be introduced, however
         assertFalse(ingestDocument.updateIndexHistory(index1));
         assertThat(ingestDocument.getIndexHistory(), Matchers.contains(index1, index2));
+    }
+
+    public void testSourceHashMapIsNotCopied() {
+        // an ingest document's ctxMap will, as an optimization, just use the passed-in map reference
+        {
+            Map<String, Object> source = new HashMap<>(Map.of("foo", 1));
+            IngestDocument document = new IngestDocument("index", "id", 1, null, null, source);
+            assertThat(document.getSource(), sameInstance(source));
+            assertThat(document.getCtxMap().getSource(), sameInstance(source));
+        }
+
+        {
+            Map<String, Object> source = XContentHelper.convertToMap(new BytesArray("{ \"foo\": 1 }"), false, XContentType.JSON).v2();
+            IngestDocument document = new IngestDocument("index", "id", 1, null, null, source);
+            assertThat(document.getSource(), sameInstance(source));
+            assertThat(document.getCtxMap().getSource(), sameInstance(source));
+        }
+
+        {
+            Map<String, Object> source = Map.of("foo", 1);
+            IngestDocument document = new IngestDocument("index", "id", 1, null, null, source);
+            assertThat(document.getSource(), sameInstance(source));
+            assertThat(document.getCtxMap().getSource(), sameInstance(source));
+        }
+
+        // a cloned ingest document will copy the map, though
+        {
+            Map<String, Object> source = Map.of("foo", 1);
+            IngestDocument document1 = new IngestDocument("index", "id", 1, null, null, source);
+            document1.getIngestMetadata().put("bar", 2);
+            IngestDocument document2 = new IngestDocument(document1);
+            assertThat(document2.getCtxMap().getMetadata(), equalTo(document1.getCtxMap().getMetadata()));
+            assertThat(document2.getSource(), not(sameInstance(source)));
+            assertThat(document2.getCtxMap().getMetadata(), equalTo(document1.getCtxMap().getMetadata()));
+            assertThat(document2.getCtxMap().getSource(), not(sameInstance(source)));
+
+            // it also copies these other nearby maps
+            assertThat(document2.getIngestMetadata(), equalTo(document1.getIngestMetadata()));
+            assertThat(document2.getIngestMetadata(), not(sameInstance(document1.getIngestMetadata())));
+
+            assertThat(document2.getCtxMap().getMetadata(), not(sameInstance(document1.getCtxMap().getMetadata())));
+            assertThat(document2.getCtxMap().getMetadata(), not(sameInstance(document1.getCtxMap().getMetadata())));
+        }
     }
 }

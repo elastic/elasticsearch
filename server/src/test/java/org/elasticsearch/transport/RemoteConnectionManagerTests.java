@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.transport;
 
@@ -28,10 +29,10 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
+import static org.elasticsearch.test.hamcrest.OptionalMatchers.isPresentWith;
 import static org.elasticsearch.transport.RemoteClusterService.REMOTE_CLUSTER_HANDSHAKE_ACTION_NAME;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
 import static org.hamcrest.core.IsInstanceOf.instanceOf;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
@@ -101,6 +102,21 @@ public class RemoteConnectionManagerTests extends ESTestCase {
         assertThat(proxyNodes, containsInAnyOrder("node-2"));
     }
 
+    public void testDisconnectedException() {
+        assertEquals(
+            "Unable to connect to [remote-cluster]",
+            expectThrows(ConnectTransportException.class, remoteConnectionManager::getAnyRemoteConnection).getMessage()
+        );
+
+        assertEquals(
+            "Unable to connect to [remote-cluster]",
+            expectThrows(
+                ConnectTransportException.class,
+                () -> remoteConnectionManager.getConnection(DiscoveryNodeUtils.create("node-1", address))
+            ).getMessage()
+        );
+    }
+
     public void testResolveRemoteClusterAlias() throws ExecutionException, InterruptedException {
         DiscoveryNode remoteNode1 = DiscoveryNodeUtils.create("remote-node-1", address);
         PlainActionFuture<Void> future = new PlainActionFuture<>();
@@ -166,8 +182,7 @@ public class RemoteConnectionManagerTests extends ESTestCase {
         final Optional<RemoteConnectionManager.RemoteClusterAliasWithCredentials> actual = RemoteConnectionManager
             .resolveRemoteClusterAliasWithCredentials(wrappedConnection);
 
-        assertThat(actual.isPresent(), is(true));
-        assertThat(actual.get(), equalTo(new RemoteConnectionManager.RemoteClusterAliasWithCredentials(clusterAlias, credentials)));
+        assertThat(actual, isPresentWith(new RemoteConnectionManager.RemoteClusterAliasWithCredentials(clusterAlias, credentials)));
     }
 
     private static class TestRemoteConnection extends CloseableConnection {

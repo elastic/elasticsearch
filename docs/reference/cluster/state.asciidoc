@@ -4,6 +4,12 @@
 <titleabbrev>Cluster state</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-cluster[Cluster APIs].
+--
+
 Returns an internal representation of the cluster state for debugging or
 diagnostic purposes.
 
@@ -115,15 +121,15 @@ Defaults to `true`.
     that are open, closed or both. Available options: `open`, `closed`, `none`, 
     `all`.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=flat-settings]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=flat-settings]
     
 `ignore_unavailable`::
     (Optional, Boolean) If `true`, unavailable indices (missing or closed) will 
     be ignored.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=local]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=local]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
 `wait_for_metadata_version`::
     (Optional, integer) Waits for the metadata version to be equal or greater 

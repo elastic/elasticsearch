@@ -46,6 +46,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.ExecutionException;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.security.authc.ldap.support.LdapUtils.attributesToSearchFor;
 import static org.elasticsearch.xpack.security.authc.ldap.support.LdapUtils.createFilter;
@@ -102,7 +103,8 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
             groupResolver,
             metadataResolver,
             domainDN,
-            threadPool
+            threadPool,
+            this::getBindRequest
         );
         downLevelADAuthenticator = new DownLevelADAuthenticator(
             config,
@@ -117,7 +119,8 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
             ldapPort,
             ldapsPort,
             gcLdapPort,
-            gcLdapsPort
+            gcLdapsPort,
+            this::getBindRequest
         );
         upnADAuthenticator = new UpnADAuthenticator(
             config,
@@ -127,7 +130,8 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
             groupResolver,
             metadataResolver,
             domainDN,
-            threadPool
+            threadPool,
+            this::getBindRequest
         );
 
     }
@@ -187,7 +191,7 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
         }
         try {
             final LDAPConnection connection = LdapUtils.privilegedConnect(serverSet::getConnection);
-            LdapUtils.maybeForkThenBind(connection, bindCredentials, true, threadPool, new AbstractRunnable() {
+            LdapUtils.maybeForkThenBind(connection, getBindRequest(), true, threadPool, new AbstractRunnable() {
 
                 @Override
                 public void onFailure(Exception e) {
@@ -257,7 +261,7 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
     ADAuthenticator getADAuthenticator(String username) {
         if (username.indexOf('\\') > 0) {
             return downLevelADAuthenticator;
-        } else if (username.indexOf("@") > 0) {
+        } else if (username.indexOf('@') > 0) {
             return upnADAuthenticator;
         }
         return defaultADAuthenticator;
@@ -274,8 +278,7 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
         final String userSearchDN;
         final LdapSearchScope userSearchScope;
         final String userSearchFilter;
-        final String bindDN;
-        final SecureString bindPassword;
+        final Supplier<SimpleBindRequest> bindRequestSupplier;
         final ThreadPool threadPool;
 
         ADAuthenticator(
@@ -288,7 +291,8 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
             String domainDN,
             Setting.AffixSetting<String> userSearchFilterSetting,
             String defaultUserSearchFilter,
-            ThreadPool threadPool
+            ThreadPool threadPool,
+            Supplier<SimpleBindRequest> bindRequestSupplier
         ) {
             this.realm = realm;
             this.timeout = timeout;
@@ -296,11 +300,7 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
             this.logger = logger;
             this.groupsResolver = groupsResolver;
             this.metadataResolver = metadataResolver;
-            this.bindDN = getBindDN(realm);
-            this.bindPassword = realm.getSetting(
-                PoolingSessionFactorySettings.SECURE_BIND_PASSWORD,
-                () -> realm.getSetting(PoolingSessionFactorySettings.LEGACY_BIND_PASSWORD)
-            );
+            this.bindRequestSupplier = bindRequestSupplier;
             this.threadPool = threadPool;
             userSearchDN = realm.getSetting(ActiveDirectorySessionFactorySettings.AD_USER_SEARCH_BASEDN_SETTING, () -> domainDN);
             userSearchScope = LdapSearchScope.resolve(
@@ -348,10 +348,10 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
                             }, e -> { listener.onFailure(e); }));
                         }
                     };
-                    if (bindDN.isEmpty()) {
+                    final SimpleBindRequest bind = bindRequestSupplier.get();
+                    if (bind.getBindDN().isEmpty()) {
                         searchRunnable.run();
                     } else {
-                        final SimpleBindRequest bind = new SimpleBindRequest(bindDN, CharArrays.toUtf8Bytes(bindPassword.getChars()));
                         LdapUtils.maybeForkThenBind(connection, bind, true, threadPool, searchRunnable);
                     }
                 }
@@ -423,7 +423,8 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
             GroupsResolver groupsResolver,
             LdapMetadataResolver metadataResolver,
             String domainDN,
-            ThreadPool threadPool
+            ThreadPool threadPool,
+            Supplier<SimpleBindRequest> bindRequestSupplier
         ) {
             super(
                 realm,
@@ -435,7 +436,8 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
                 domainDN,
                 ActiveDirectorySessionFactorySettings.AD_USER_SEARCH_FILTER_SETTING,
                 "(&(objectClass=user)(|(sAMAccountName={0})(userPrincipalName={0}@" + domainName(realm) + ")))",
-                threadPool
+                threadPool,
+                bindRequestSupplier
             );
             domainName = domainName(realm);
         }
@@ -503,7 +505,8 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
             int ldapPort,
             int ldapsPort,
             int gcLdapPort,
-            int gcLdapsPort
+            int gcLdapsPort,
+            Supplier<SimpleBindRequest> bindRequestSupplier
         ) {
             super(
                 config,
@@ -515,7 +518,8 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
                 domainDN,
                 ActiveDirectorySessionFactorySettings.AD_DOWN_LEVEL_USER_SEARCH_FILTER_SETTING,
                 DOWN_LEVEL_FILTER,
-                threadPool
+                threadPool,
+                bindRequestSupplier
             );
             this.domainDN = domainDN;
             this.sslService = sslService;
@@ -605,10 +609,9 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
                         )
                     );
                     final byte[] passwordBytes = CharArrays.toUtf8Bytes(password.getChars());
-                    final boolean bindAsAuthenticatingUser = this.bindDN.isEmpty();
-                    final SimpleBindRequest bind = bindAsAuthenticatingUser
-                        ? new SimpleBindRequest(username, passwordBytes)
-                        : new SimpleBindRequest(bindDN, CharArrays.toUtf8Bytes(bindPassword.getChars()));
+                    final SimpleBindRequest bindRequest = bindRequestSupplier.get();
+                    final boolean bindAsAuthenticatingUser = bindRequest.getBindDN().isEmpty();
+                    final SimpleBindRequest bind = bindAsAuthenticatingUser ? new SimpleBindRequest(username, passwordBytes) : bindRequest;
                     ActionRunnable<String> body = new ActionRunnable<>(listener) {
                         @Override
                         protected void doRun() throws Exception {
@@ -695,7 +698,6 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
      */
     static class UpnADAuthenticator extends ADAuthenticator {
         static final String UPN_USER_FILTER = "(&(objectClass=user)(userPrincipalName={1}))";
-        private final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(logger.getName());
 
         UpnADAuthenticator(
             RealmConfig config,
@@ -705,7 +707,8 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
             GroupsResolver groupsResolver,
             LdapMetadataResolver metadataResolver,
             String domainDN,
-            ThreadPool threadPool
+            ThreadPool threadPool,
+            Supplier<SimpleBindRequest> bindRequestSupplier
         ) {
             super(
                 config,
@@ -717,16 +720,21 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
                 domainDN,
                 ActiveDirectorySessionFactorySettings.AD_UPN_USER_SEARCH_FILTER_SETTING,
                 UPN_USER_FILTER,
-                threadPool
+                threadPool,
+                bindRequestSupplier
             );
             if (userSearchFilter.contains("{0}")) {
-                deprecationLogger.warn(
-                    DeprecationCategory.SECURITY,
-                    "ldap_settings",
-                    "The use of the account name variable {0} in the setting ["
-                        + RealmSettings.getFullSettingKey(config, ActiveDirectorySessionFactorySettings.AD_UPN_USER_SEARCH_FILTER_SETTING)
-                        + "] has been deprecated and will be removed in a future version!"
-                );
+                DeprecationLogger.getLogger(logger.getName())
+                    .warn(
+                        DeprecationCategory.SECURITY,
+                        "ldap_settings",
+                        "The use of the account name variable {0} in the setting ["
+                            + RealmSettings.getFullSettingKey(
+                                config,
+                                ActiveDirectorySessionFactorySettings.AD_UPN_USER_SEARCH_FILTER_SETTING
+                            )
+                            + "] has been deprecated and will be removed in a future version!"
+                    );
             }
         }
 

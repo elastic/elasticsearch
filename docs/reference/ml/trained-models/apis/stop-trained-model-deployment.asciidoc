@@ -6,6 +6,12 @@
 <titleabbrev>Stop trained model deployment</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-ml-trained-model[{ml-cap} trained model APIs].
+--
+
 Stops a trained model deployment.
 
 [[stop-trained-model-deployment-request]]
@@ -29,7 +35,7 @@ Deployment is required only for trained models that have a PyTorch `model_type`.
 
 `<deployment_id>`::
 (Required, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=deployment-id]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=deployment-id]
 
 
 [[stop-trained-model-deployment-query-params]]
@@ -37,7 +43,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=deployment-id]
 
 `allow_no_match`::
 (Optional, Boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=allow-no-match-deployments]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=allow-no-match-deployments]
 
 `force`::
 (Optional, Boolean) If true, the deployment is stopped even if it or one of its

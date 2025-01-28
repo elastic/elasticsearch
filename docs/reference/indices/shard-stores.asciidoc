@@ -4,6 +4,12 @@
 <titleabbrev>Index shard stores</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-indices[Index APIs].
+--
+
 Retrieves store information
 about replica shards in one or more indices.
 For data streams, the API retrieves store
@@ -58,15 +64,15 @@ and indices, omit this parameter or use `*` or `_all`.
 [[index-shard-stores-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
 +
 Defaults to `true`.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 +
 Defaults to `open`.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
 
 `status`::
 +

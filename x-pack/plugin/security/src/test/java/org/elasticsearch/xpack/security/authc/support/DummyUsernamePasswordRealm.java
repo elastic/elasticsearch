@@ -27,12 +27,7 @@ public final class DummyUsernamePasswordRealm extends UsernamePasswordRealm {
 
     public DummyUsernamePasswordRealm(RealmConfig config) {
         super(config);
-        initRealmRef(
-            Map.of(
-                new RealmConfig.RealmIdentifier(config.type(), config.name()),
-                new Authentication.RealmRef(config.name(), config.type(), Node.NODE_NAME_SETTING.get(config.settings()))
-            )
-        );
+        setRealmRef(new Authentication.RealmRef(config.name(), config.type(), Node.NODE_NAME_SETTING.get(config.settings())));
         this.users = new HashMap<>();
     }
 

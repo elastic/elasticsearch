@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.cluster.coordination;
 
@@ -12,7 +13,7 @@ import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.ReferenceDocs;
-import org.elasticsearch.common.logging.ChunkedLoggingStreamTests;
+import org.elasticsearch.common.logging.ChunkedLoggingStreamTestUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.core.TimeValue;
@@ -259,14 +260,14 @@ public class LagDetectorTests extends ESTestCase {
         final var expectedBody = randomUnicodeOfLengthBetween(1, 20000);
         assertEquals(
             expectedBody,
-            ChunkedLoggingStreamTests.getDecodedLoggedBody(
+            ChunkedLoggingStreamTestUtils.getDecodedLoggedBody(
                 LogManager.getLogger(LOGGER_NAME),
                 Level.DEBUG,
                 "hot threads from node ["
                     + node.descriptionWithoutAttributes()
                     + "] lagging at version [1] despite commit of cluster state version [2]",
                 ReferenceDocs.LAGGING_NODE_TROUBLESHOOTING,
-                new LagDetector.HotThreadsLoggingTask(node, 1, 2, expectedBody)::run
+                new LagDetector.HotThreadsLoggingTask(node, 1, 2, expectedBody, () -> {})::run
             ).utf8ToString()
         );
     }

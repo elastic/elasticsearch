@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.reindex;
@@ -19,6 +20,7 @@ import org.elasticsearch.test.AbstractMultiClustersTestCase;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
@@ -34,8 +36,13 @@ public class CrossClusterReindexIT extends AbstractMultiClustersTestCase {
     }
 
     @Override
-    protected Collection<String> remoteClusterAlias() {
+    protected List<String> remoteClusterAlias() {
         return List.of(REMOTE_CLUSTER);
+    }
+
+    @Override
+    protected Map<String, Boolean> skipUnavailableForRemoteClusters() {
+        return Map.of(REMOTE_CLUSTER, false);
     }
 
     @Override
@@ -63,7 +70,7 @@ public class CrossClusterReindexIT extends AbstractMultiClustersTestCase {
             final TotalHits totalHits = SearchResponseUtils.getTotalHits(
                 client(LOCAL_CLUSTER).prepareSearch("desc-index-001").setQuery(new MatchAllQueryBuilder()).setSize(1000)
             );
-            return totalHits.relation == TotalHits.Relation.EQUAL_TO && totalHits.value == docsNumber;
+            return totalHits.relation() == TotalHits.Relation.EQUAL_TO && totalHits.value() == docsNumber;
         }));
     }
 
@@ -78,7 +85,7 @@ public class CrossClusterReindexIT extends AbstractMultiClustersTestCase {
             final TotalHits totalHits = SearchResponseUtils.getTotalHits(
                 client(LOCAL_CLUSTER).prepareSearch("test-index-001").setQuery(new MatchAllQueryBuilder()).setSize(1000)
             );
-            return totalHits.relation == TotalHits.Relation.EQUAL_TO && totalHits.value == docsNumber;
+            return totalHits.relation() == TotalHits.Relation.EQUAL_TO && totalHits.value() == docsNumber;
         }));
     }
 
@@ -107,7 +114,7 @@ public class CrossClusterReindexIT extends AbstractMultiClustersTestCase {
                 final TotalHits totalHits = SearchResponseUtils.getTotalHits(
                     client(LOCAL_CLUSTER).prepareSearch("test-index-001").setQuery(new MatchAllQueryBuilder()).setSize(1000)
                 );
-                return totalHits.relation == TotalHits.Relation.EQUAL_TO && totalHits.value == docsNumber;
+                return totalHits.relation() == TotalHits.Relation.EQUAL_TO && totalHits.value() == docsNumber;
             }));
         }
     }
@@ -139,7 +146,7 @@ public class CrossClusterReindexIT extends AbstractMultiClustersTestCase {
             final TotalHits totalHits = SearchResponseUtils.getTotalHits(
                 client(LOCAL_CLUSTER).prepareSearch("desc-index-001").setQuery(new MatchAllQueryBuilder()).setSize(1000)
             );
-            return totalHits.relation == TotalHits.Relation.EQUAL_TO && totalHits.value == docsNumber;
+            return totalHits.relation() == TotalHits.Relation.EQUAL_TO && totalHits.value() == docsNumber;
         }));
     }
 
@@ -155,7 +162,7 @@ public class CrossClusterReindexIT extends AbstractMultiClustersTestCase {
             final TotalHits totalHits = SearchResponseUtils.getTotalHits(
                 client(LOCAL_CLUSTER).prepareSearch("desc-index-001").setQuery(new MatchAllQueryBuilder()).setSize(1000)
             );
-            return totalHits.relation == TotalHits.Relation.EQUAL_TO && totalHits.value == docsNumber;
+            return totalHits.relation() == TotalHits.Relation.EQUAL_TO && totalHits.value() == docsNumber;
         }));
     }
 

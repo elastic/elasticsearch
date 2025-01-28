@@ -174,7 +174,7 @@ public class SearchInputTests extends ESTestCase {
         XContentParser parser = createParser(builder);
         parser.nextToken();
 
-        SearchInputFactory factory = new SearchInputFactory(Settings.EMPTY, client, xContentRegistry(), scriptService);
+        SearchInputFactory factory = new SearchInputFactory(Settings.EMPTY, client, xContentRegistry(), nf -> false, scriptService);
 
         SearchInput searchInput = factory.parseInput("_id", parser);
         assertEquals(SearchInput.TYPE, searchInput.type());
@@ -211,7 +211,7 @@ public class SearchInputTests extends ESTestCase {
 
             parser.nextToken(); // advance past the first starting object
 
-            SearchInputFactory factory = new SearchInputFactory(Settings.EMPTY, client, xContentRegistry(), scriptService);
+            SearchInputFactory factory = new SearchInputFactory(Settings.EMPTY, client, xContentRegistry(), nf -> false, scriptService);
             SearchInput input = factory.parseInput("my-watch", parser);
             assertThat(input.getRequest(), is(not(nullValue())));
             assertThat(input.getRequest().getSearchSource(), is(BytesArray.EMPTY));
@@ -228,6 +228,6 @@ public class SearchInputTests extends ESTestCase {
 
     private WatcherSearchTemplateService watcherSearchTemplateService() {
         SearchModule module = new SearchModule(Settings.EMPTY, Collections.emptyList());
-        return new WatcherSearchTemplateService(scriptService, new NamedXContentRegistry(module.getNamedXContents()));
+        return new WatcherSearchTemplateService(scriptService, new NamedXContentRegistry(module.getNamedXContents()), nf -> false);
     }
 }

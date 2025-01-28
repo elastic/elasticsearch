@@ -57,6 +57,7 @@ import static org.hamcrest.Matchers.nullValue;
  */
 public class JobsAndModelsIT extends BaseMlIntegTestCase {
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/103588")
     public void testCluster_GivenAnomalyDetectionJobAndTrainedModelDeployment_ShouldNotAllocateBothOnSameNode() throws Exception {
         // This test starts 2 ML nodes and then starts an anomaly detection job and a
         // trained model deployment that do not both fit in one node. We then proceed

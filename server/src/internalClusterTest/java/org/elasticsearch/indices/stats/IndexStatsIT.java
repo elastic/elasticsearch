@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices.stats;
@@ -13,7 +14,6 @@ import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
-import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
@@ -31,6 +31,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -237,7 +238,7 @@ public class IndexStatsIT extends ESIntegTestCase {
                 .setMapping("field", "type=text,fielddata=true")
         );
         ensureGreen();
-        clusterAdmin().prepareHealth().setWaitForGreenStatus().get();
+        clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForGreenStatus().get();
         prepareIndex("test").setId("1").setSource("field", "value1").get();
         prepareIndex("test").setId("2").setSource("field", "value2").get();
         indicesAdmin().prepareRefresh().get();
@@ -834,7 +835,8 @@ public class IndexStatsIT extends ESIntegTestCase {
             Flag.Bulk,
             Flag.Shards,
             Flag.Mappings,
-            Flag.DenseVector };
+            Flag.DenseVector,
+            Flag.SparseVector };
 
         assertThat(flags.length, equalTo(Flag.values().length));
         for (int i = 0; i < flags.length; i++) {
@@ -1000,6 +1002,7 @@ public class IndexStatsIT extends ESIntegTestCase {
                 // We don't actually expose shards in IndexStats, but this test fails if it isn't handled
                 builder.request().flags().set(Flag.Shards, set);
             case DenseVector -> builder.setDenseVector(set);
+            case SparseVector -> builder.setSparseVector(set);
             default -> fail("new flag? " + flag);
         }
     }
@@ -1046,6 +1049,8 @@ public class IndexStatsIT extends ESIntegTestCase {
                 return response.getNodeMappings() != null;
             case DenseVector:
                 return response.getDenseVectorStats() != null;
+            case SparseVector:
+                return response.getSparseVectorStats() != null;
             default:
                 fail("new flag? " + flag);
                 return false;
@@ -1138,7 +1143,7 @@ public class IndexStatsIT extends ESIntegTestCase {
         });
         flush("index");
         logger.info("--> force merging to a single segment");
-        ForceMergeResponse forceMergeResponse = indicesAdmin().prepareForceMerge("index").setFlush(true).setMaxNumSegments(1).get();
+        BroadcastResponse forceMergeResponse = indicesAdmin().prepareForceMerge("index").setFlush(true).setMaxNumSegments(1).get();
         assertAllSuccessful(forceMergeResponse);
         logger.info("--> refreshing");
         refresh();

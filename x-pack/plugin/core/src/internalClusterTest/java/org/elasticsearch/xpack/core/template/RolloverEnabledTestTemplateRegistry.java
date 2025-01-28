@@ -53,7 +53,7 @@ public class RolloverEnabledTestTemplateRegistry extends IndexTemplateRegistry {
     }
 
     @Override
-    protected boolean applyRolloverAfterTemplateV2Upgrade() {
+    protected boolean applyRolloverAfterTemplateV2Update() {
         return true;
     }
 

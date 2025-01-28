@@ -26,6 +26,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.ingest.PipelineConfiguration;
@@ -88,6 +89,7 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
     public void setUpVariables() {
         ThreadPool tp = mock(ThreadPool.class);
         when(tp.generic()).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        when(tp.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         client = mock(Client.class);
         Settings settings = Settings.builder().put("node.name", "InferenceProcessorFactoryTests_node").build();
         ClusterSettings clusterSettings = new ClusterSettings(
@@ -98,7 +100,8 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
                     MasterService.MASTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
                     OperationRouting.USE_ADAPTIVE_REPLICA_SELECTION_SETTING,
                     ClusterService.USER_DEFINED_METADATA,
-                    ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING
+                    ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
+                    ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_THREAD_DUMP_TIMEOUT_SETTING
                 )
             )
         );

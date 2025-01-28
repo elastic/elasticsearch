@@ -13,6 +13,7 @@ import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
@@ -23,12 +24,12 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.RemoteClusterLicenseChecker;
 import org.elasticsearch.license.XPackLicenseState;
@@ -126,7 +127,6 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
             threadPool,
             actionFilters,
             StartDatafeedAction.Request::new,
-            indexNameExpressionResolver,
             NodeAcknowledgedResponse::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
@@ -190,6 +190,13 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
             return;
         }
 
+        // The datafeed will run its with the configured headers,
+        // preserve the response headers.
+        var responseHeaderPreservingListener = ContextPreservingActionListener.wrapPreservingContext(
+            listener,
+            threadPool.getThreadContext()
+        );
+
         AtomicReference<DatafeedConfig> datafeedConfigHolder = new AtomicReference<>();
         PersistentTasksCustomMetadata tasks = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
 
@@ -197,7 +204,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
             new ActionListener<>() {
                 @Override
                 public void onResponse(PersistentTasksCustomMetadata.PersistentTask<StartDatafeedAction.DatafeedParams> persistentTask) {
-                    waitForDatafeedStarted(persistentTask.getId(), params, listener);
+                    waitForDatafeedStarted(persistentTask.getId(), params, responseHeaderPreservingListener);
                 }
 
                 @Override
@@ -209,7 +216,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                             RestStatus.CONFLICT
                         );
                     }
-                    listener.onFailure(e);
+                    responseHeaderPreservingListener.onFailure(e);
                 }
             };
 
@@ -228,9 +235,9 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                     ),
                     ActionListener.wrap(response -> {
                         if (response.isSuccess() == false) {
-                            listener.onFailure(createUnlicensedError(params.getDatafeedId(), response));
+                            responseHeaderPreservingListener.onFailure(createUnlicensedError(params.getDatafeedId(), response));
                         } else if (remoteClusterClient == false) {
-                            listener.onFailure(
+                            responseHeaderPreservingListener.onFailure(
                                 ExceptionsHelper.badRequestException(
                                     Messages.getMessage(
                                         Messages.DATAFEED_NEEDS_REMOTE_CLUSTER_SEARCH,
@@ -254,7 +261,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                             createDataExtractor(task, job, datafeedConfigHolder.get(), params, waitForTaskListener);
                         }
                     },
-                        e -> listener.onFailure(
+                        e -> responseHeaderPreservingListener.onFailure(
                             createUnknownLicenseError(
                                 params.getDatafeedId(),
                                 RemoteClusterLicenseChecker.remoteIndices(params.getDatafeedIndices()),
@@ -273,7 +280,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
             validate(job, datafeedConfigHolder.get(), tasks, xContentRegistry);
             auditDeprecations(datafeedConfigHolder.get(), job, auditor, xContentRegistry);
             createDataExtractor.accept(job);
-        }, listener::onFailure);
+        }, responseHeaderPreservingListener::onFailure);
 
         ActionListener<DatafeedConfig.Builder> datafeedListener = ActionListener.wrap(datafeedBuilder -> {
             DatafeedConfig datafeedConfig = datafeedBuilder.build();
@@ -283,7 +290,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
             datafeedConfigHolder.set(datafeedConfig);
 
             jobConfigProvider.getJob(datafeedConfig.getJobId(), null, jobListener);
-        }, listener::onFailure);
+        }, responseHeaderPreservingListener::onFailure);
 
         datafeedConfigProvider.getDatafeedConfig(params.getDatafeedId(), null, datafeedListener);
     }
@@ -310,7 +317,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         throw ExceptionsHelper.badRequestException(
             Messages.getMessage(
                 REMOTE_CLUSTERS_TRANSPORT_TOO_OLD,
-                minVersion.toString(),
+                minVersion.toReleaseVersion(),
                 reason,
                 Strings.collectionToCommaDelimitedString(clustersTooOld)
             )
@@ -337,6 +344,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                     MlTasks.datafeedTaskId(params.getDatafeedId()),
                     MlTasks.DATAFEED_TASK_NAME,
                     params,
+                    MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT,
                     listener
                 ),
                 listener::onFailure
@@ -399,28 +407,32 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         Exception exception,
         ActionListener<NodeAcknowledgedResponse> listener
     ) {
-        persistentTasksService.sendRemoveRequest(persistentTask.getId(), new ActionListener<>() {
-            @Override
-            public void onResponse(PersistentTasksCustomMetadata.PersistentTask<?> task) {
-                // We succeeded in cancelling the persistent task, but the
-                // problem that caused us to cancel it is the overall result
-                listener.onFailure(exception);
-            }
+        persistentTasksService.sendRemoveRequest(
+            persistentTask.getId(),
+            MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT,
+            new ActionListener<>() {
+                @Override
+                public void onResponse(PersistentTasksCustomMetadata.PersistentTask<?> task) {
+                    // We succeeded in cancelling the persistent task, but the
+                    // problem that caused us to cancel it is the overall result
+                    listener.onFailure(exception);
+                }
 
-            @Override
-            public void onFailure(Exception e) {
-                logger.error(
-                    "["
-                        + persistentTask.getParams().getDatafeedId()
-                        + "] Failed to cancel persistent task that could "
-                        + "not be assigned due to ["
-                        + exception.getMessage()
-                        + "]",
-                    e
-                );
-                listener.onFailure(exception);
+                @Override
+                public void onFailure(Exception e) {
+                    logger.error(
+                        "["
+                            + persistentTask.getParams().getDatafeedId()
+                            + "] Failed to cancel persistent task that could "
+                            + "not be assigned due to ["
+                            + exception.getMessage()
+                            + "]",
+                        e
+                    );
+                    listener.onFailure(exception);
+                }
             }
-        });
+        );
     }
 
     private static ElasticsearchStatusException createUnlicensedError(
@@ -465,8 +477,12 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         private final DatafeedRunner datafeedRunner;
         private final IndexNameExpressionResolver resolver;
 
-        public StartDatafeedPersistentTasksExecutor(DatafeedRunner datafeedRunner, IndexNameExpressionResolver resolver) {
-            super(MlTasks.DATAFEED_TASK_NAME, MachineLearning.UTILITY_THREAD_POOL_NAME);
+        public StartDatafeedPersistentTasksExecutor(
+            DatafeedRunner datafeedRunner,
+            IndexNameExpressionResolver resolver,
+            ThreadPool threadPool
+        ) {
+            super(MlTasks.DATAFEED_TASK_NAME, threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME));
             this.datafeedRunner = datafeedRunner;
             this.resolver = resolver;
         }

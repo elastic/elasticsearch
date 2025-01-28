@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices.store;
@@ -24,7 +25,6 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -42,6 +42,7 @@ import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
@@ -59,12 +60,13 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
     TransportNodesListShardStoreMetadata.Request,
     TransportNodesListShardStoreMetadata.NodesStoreFilesMetadata,
     TransportNodesListShardStoreMetadata.NodeRequest,
-    TransportNodesListShardStoreMetadata.NodeStoreFilesMetadata> {
+    TransportNodesListShardStoreMetadata.NodeStoreFilesMetadata,
+    Void> {
 
     private static final Logger logger = LogManager.getLogger(TransportNodesListShardStoreMetadata.class);
 
     public static final String ACTION_NAME = "internal:cluster/nodes/indices/shard/store";
-    public static final ActionType<NodesStoreFilesMetadata> TYPE = new ActionType<>(ACTION_NAME, Writeable.Reader.localOnly());
+    public static final ActionType<NodesStoreFilesMetadata> TYPE = new ActionType<>(ACTION_NAME);
 
     private final Settings settings;
     private final IndicesService indicesService;
@@ -257,26 +259,13 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
                 .orElse(-1L);
         }
 
-        /**
-         * @return commit sync id if exists, else null
-         */
-        public String syncId() {
-            return metadataSnapshot.getSyncId();
-        }
-
         @Override
         public String toString() {
-            return "StoreFilesMetadata{"
-                + ", metadataSnapshot{size="
-                + metadataSnapshot.size()
-                + ", syncId="
-                + metadataSnapshot.getSyncId()
-                + "}"
-                + '}';
+            return "StoreFilesMetadata{" + ", metadataSnapshot{size=" + metadataSnapshot.size() + "}" + '}';
         }
     }
 
-    public static class Request extends BaseNodesRequest<Request> {
+    public static class Request extends BaseNodesRequest {
 
         private final ShardId shardId;
         @Nullable
@@ -300,11 +289,6 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
         @Nullable
         public String getCustomDataPath() {
             return customDataPath;
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            TransportAction.localOnly();
         }
     }
 
@@ -381,10 +365,6 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
 
         public StoreFilesMetadata storeFilesMetadata() {
             return storeFilesMetadata;
-        }
-
-        public static NodeStoreFilesMetadata readListShardStoreNodeOperationResponse(StreamInput in) throws IOException {
-            return new NodeStoreFilesMetadata(in, null);
         }
 
         @Override

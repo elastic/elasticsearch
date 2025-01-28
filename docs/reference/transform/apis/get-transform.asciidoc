@@ -6,6 +6,12 @@
 <titleabbrev>Get {transforms}</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-transform[{transform-cap} APIs].
+--
+
 Retrieves configuration information for {transforms}.
 
 [[get-transform-request]]
@@ -40,14 +46,14 @@ specifying `*` as the `<transform_id>`, or by omitting the `<transform_id>`.
 
 `<transform_id>`::
 (Optional, string)
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-id-wildcard]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=transform-id-wildcard]
 
 [[get-transform-query-parms]]
 == {api-query-parms-title}
 
 `allow_no_match`::
 (Optional, Boolean)
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-match-transforms1]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=allow-no-match-transforms1]
 
 `exclude_generated`::
 (Optional, Boolean)
@@ -57,11 +63,11 @@ and then added to another cluster. Default is false.
 
 `from`::
 (Optional, integer)
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=from-transforms]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=from-transforms]
 
 `size`::
 (Optional, integer)
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=size-transforms]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=size-transforms]
 
 
 

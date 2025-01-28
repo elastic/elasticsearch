@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.datastreams.lifecycle;
 
@@ -14,7 +15,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateResponse.ResetFeatureStateStatus;
 import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.IndicesOptions.Option;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
@@ -46,7 +46,6 @@ import org.junit.After;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Collection;
-import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 
@@ -202,12 +201,10 @@ public class CrudSystemDataStreamLifecycleIT extends ESIntegTestCase {
                         ComposableIndexTemplate.builder()
                             .indexPatterns(List.of(".test-data-stream"))
                             .template(
-                                new Template(
-                                    Settings.EMPTY,
-                                    mappings,
-                                    null,
-                                    DataStreamLifecycle.newBuilder().dataRetention(randomMillisUpToYear9999()).build()
-                                )
+                                Template.builder()
+                                    .settings(Settings.EMPTY)
+                                    .mappings(mappings)
+                                    .lifecycle(DataStreamLifecycle.newBuilder().dataRetention(randomMillisUpToYear9999()).build())
                             )
                             .dataStreamTemplate(new DataStreamTemplate())
                             .build(),
@@ -235,12 +232,14 @@ public class CrudSystemDataStreamLifecycleIT extends ESIntegTestCase {
         public void cleanUpFeature(ClusterService clusterService, Client client, ActionListener<ResetFeatureStateStatus> listener) {
             Collection<SystemDataStreamDescriptor> dataStreamDescriptors = getSystemDataStreamDescriptors();
             final DeleteDataStreamAction.Request request = new DeleteDataStreamAction.Request(
+                TEST_REQUEST_TIMEOUT,
                 dataStreamDescriptors.stream().map(SystemDataStreamDescriptor::getDataStreamName).toList().toArray(Strings.EMPTY_ARRAY)
             );
-            EnumSet<Option> options = request.indicesOptions().options();
-            options.add(Option.IGNORE_UNAVAILABLE);
-            options.add(Option.ALLOW_NO_INDICES);
-            request.indicesOptions(new IndicesOptions(options, request.indicesOptions().expandWildcards()));
+            request.indicesOptions(
+                IndicesOptions.builder(request.indicesOptions())
+                    .concreteTargetOptions(IndicesOptions.ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS)
+                    .build()
+            );
             try {
                 client.execute(
                     DeleteDataStreamAction.INSTANCE,

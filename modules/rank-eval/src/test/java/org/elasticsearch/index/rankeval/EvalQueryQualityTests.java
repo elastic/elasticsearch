@@ -1,19 +1,22 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.rankeval;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
@@ -31,7 +34,48 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXC
 
 public class EvalQueryQualityTests extends ESTestCase {
 
-    private static NamedWriteableRegistry namedWritableRegistry = new NamedWriteableRegistry(new RankEvalPlugin().getNamedWriteables());
+    private static final NamedWriteableRegistry namedWritableRegistry = new NamedWriteableRegistry(
+        new RankEvalPlugin().getNamedWriteables()
+    );
+
+    private static final ObjectParser<ParsedEvalQueryQuality, Void> PARSER = new ObjectParser<>(
+        "eval_query_quality",
+        true,
+        ParsedEvalQueryQuality::new
+    );
+
+    private static final class ParsedEvalQueryQuality {
+        double evaluationResult;
+        MetricDetail optionalMetricDetails;
+        List<RatedSearchHit> ratedHits = new ArrayList<>();
+    }
+
+    static {
+        PARSER.declareDouble((obj, value) -> obj.evaluationResult = value, EvalQueryQuality.METRIC_SCORE_FIELD);
+        PARSER.declareObject(
+            (obj, value) -> obj.optionalMetricDetails = value,
+            (p, c) -> parseMetricDetail(p),
+            EvalQueryQuality.METRIC_DETAILS_FIELD
+        );
+        PARSER.declareObjectArray(
+            (obj, list) -> obj.ratedHits = list,
+            (p, c) -> RatedSearchHitTests.parseInstance(p),
+            EvalQueryQuality.HITS_FIELD
+        );
+    }
+
+    public static EvalQueryQuality parseInstance(XContentParser parser, String queryId) {
+        var evalQuality = PARSER.apply(parser, null);
+        return new EvalQueryQuality(queryId, evalQuality.evaluationResult, evalQuality.ratedHits, evalQuality.optionalMetricDetails);
+    }
+
+    private static MetricDetail parseMetricDetail(XContentParser parser) throws IOException {
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser);
+        MetricDetail metricDetail = parser.namedObject(MetricDetail.class, parser.currentName(), null);
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser);
+        return metricDetail;
+    }
 
     @SuppressWarnings("resource")
     @Override
@@ -93,7 +137,7 @@ public class EvalQueryQualityTests extends ESTestCase {
             ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser);
             String queryId = parser.currentName();
             ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
-            parsedItem = EvalQueryQuality.fromXContent(parser, queryId);
+            parsedItem = parseInstance(parser, queryId);
             ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.currentToken(), parser);
             ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser);
             assertNull(parser.nextToken());

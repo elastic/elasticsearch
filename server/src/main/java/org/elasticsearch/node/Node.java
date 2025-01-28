@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.node;
@@ -12,7 +13,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchTimeoutException;
-import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.bootstrap.BootstrapContext;
 import org.elasticsearch.client.internal.Client;
@@ -28,10 +28,10 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.version.CompatibilityVersions;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleComponent;
-import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.NodeAndClusterIdStateListener;
 import org.elasticsearch.common.network.NetworkAddress;
@@ -45,6 +45,7 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.env.BuildVersion;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.NodeMetadata;
@@ -58,14 +59,17 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
 import org.elasticsearch.indices.store.IndicesStore;
+import org.elasticsearch.injection.guice.Injector;
 import org.elasticsearch.monitor.fs.FsHealthService;
 import org.elasticsearch.monitor.jvm.JvmInfo;
+import org.elasticsearch.monitor.metrics.IndicesMetrics;
 import org.elasticsearch.monitor.metrics.NodeMetrics;
 import org.elasticsearch.node.internal.TerminationHandler;
 import org.elasticsearch.plugins.ClusterCoordinationPlugin;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.MetadataUpgrader;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.PluginsLoader;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.readiness.ReadinessService;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -98,7 +102,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.FutureTask;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
@@ -168,6 +171,7 @@ public class Node implements Closeable {
     private final LocalNodeFactory localNodeFactory;
     private final NodeService nodeService;
     private final TerminationHandler terminationHandler;
+
     // for testing
     final NamedWriteableRegistry namedWriteableRegistry;
     final NamedXContentRegistry namedXContentRegistry;
@@ -177,8 +181,8 @@ public class Node implements Closeable {
      *
      * @param environment         the initial environment for this node, which will be added to by plugins
      */
-    public Node(Environment environment) {
-        this(NodeConstruction.prepareConstruction(environment, new NodeServiceProvider(), true));
+    public Node(Environment environment, PluginsLoader pluginsLoader) {
+        this(NodeConstruction.prepareConstruction(environment, pluginsLoader, new NodeServiceProvider(), true));
     }
 
     /**
@@ -322,14 +326,13 @@ public class Node implements Closeable {
         // TODO: Do not expect that the legacy metadata file is always present https://github.com/elastic/elasticsearch/issues/95211
         if (Assertions.ENABLED && DiscoveryNode.isStateless(settings()) == false) {
             try {
-                assert injector.getInstance(MetaStateService.class).loadFullState().v1().isEmpty();
                 final NodeMetadata nodeMetadata = NodeMetadata.FORMAT.loadLatestState(
                     logger,
                     NamedXContentRegistry.EMPTY,
                     nodeEnvironment.nodeDataPaths()
                 );
                 assert nodeMetadata != null;
-                assert nodeMetadata.nodeVersion().equals(Version.CURRENT);
+                assert nodeMetadata.nodeVersion().equals(BuildVersion.current());
                 assert nodeMetadata.nodeId().equals(localNodeFactory.getNode().getId());
             } catch (IOException e) {
                 assert false : e;
@@ -347,10 +350,6 @@ public class Node implements Closeable {
 
         final FileSettingsService fileSettingsService = injector.getInstance(FileSettingsService.class);
         fileSettingsService.start();
-        // if we are using the readiness service, listen for the file settings being applied
-        if (ReadinessService.enabled(environment)) {
-            fileSettingsService.addFileChangedListener(injector.getInstance(ReadinessService.class));
-        }
 
         clusterService.addStateApplier(transportService.getTaskManager());
         // start after transport service so the local disco is known
@@ -389,7 +388,12 @@ public class Node implements Closeable {
 
                     @Override
                     public void onTimeout(TimeValue timeout) {
-                        logger.warn("timed out while waiting for initial discovery state - timeout: {}", initialStateTimeout);
+                        logger.warn(
+                            "timed out after [{}={}] while waiting for initial discovery state; for troubleshooting guidance see [{}]",
+                            INITIAL_STATE_TIMEOUT_SETTING.getKey(),
+                            initialStateTimeout,
+                            ReferenceDocs.DISCOVERY_TROUBLESHOOTING
+                        );
                         latch.countDown();
                     }
                 }, state -> state.nodes().getMasterNodeId() != null, initialStateTimeout);
@@ -397,6 +401,7 @@ public class Node implements Closeable {
                 try {
                     latch.await();
                 } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
                     throw new ElasticsearchTimeoutException("Interrupted while waiting for initial discovery state");
                 }
             }
@@ -421,6 +426,8 @@ public class Node implements Closeable {
         }
 
         injector.getInstance(NodeMetrics.class).start();
+        injector.getInstance(IndicesMetrics.class).start();
+        injector.getInstance(HealthPeriodicLogger.class).start();
 
         logger.info("started {}", transportService.getLocalNode());
 
@@ -445,6 +452,8 @@ public class Node implements Closeable {
         if (ReadinessService.enabled(environment)) {
             stopIfStarted(ReadinessService.class);
         }
+        // We stop the health periodic logger first since certain checks won't be possible anyway
+        stopIfStarted(HealthPeriodicLogger.class);
         stopIfStarted(FileSettingsService.class);
         injector.getInstance(ResourceWatcherService.class).close();
         stopIfStarted(HttpServerTransport.class);
@@ -466,6 +475,7 @@ public class Node implements Closeable {
         stopIfStarted(SearchService.class);
         stopIfStarted(TransportService.class);
         stopIfStarted(NodeMetrics.class);
+        stopIfStarted(IndicesMetrics.class);
 
         pluginLifecycleComponents.forEach(Node::stopIfStarted);
         // we should stop this last since it waits for resources to get released
@@ -535,6 +545,7 @@ public class Node implements Closeable {
         toClose.add(() -> stopWatch.stop().start("transport"));
         toClose.add(injector.getInstance(TransportService.class));
         toClose.add(injector.getInstance(NodeMetrics.class));
+        toClose.add(injector.getInstance(IndicesMetrics.class));
         if (ReadinessService.enabled(environment)) {
             toClose.add(injector.getInstance(ReadinessService.class));
         }
@@ -574,24 +585,13 @@ public class Node implements Closeable {
      * Invokes hooks to prepare this node to be closed. This should be called when Elasticsearch receives a request to shut down
      * gracefully from the underlying operating system, before system resources are closed. This method will block
      * until the node is ready to shut down.
-     *
+     * <p>
      * Note that this class is part of infrastructure to react to signals from the operating system - most graceful shutdown
      * logic should use Node Shutdown, see {@link org.elasticsearch.cluster.metadata.NodesShutdownMetadata}.
      */
     public void prepareForClose() {
-        HttpServerTransport httpServerTransport = injector.getInstance(HttpServerTransport.class);
-        FutureTask<Void> stopper = new FutureTask<>(httpServerTransport::close, null);
-        new Thread(stopper, "http-server-transport-stop").start();
-
-        if (terminationHandler != null) {
-            terminationHandler.handleTermination();
-        }
-
-        try {
-            stopper.get();
-        } catch (Exception e) {
-            logger.warn("unexpected exception while waiting for http server to close", e);
-        }
+        injector.getInstance(ShutdownPrepareService.class)
+            .prepareForShutdown(injector.getInstance(TransportService.class).getTaskManager());
     }
 
     /**

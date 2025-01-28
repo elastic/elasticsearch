@@ -1,26 +1,25 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.document;
 
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRequest;
-import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheResponse;
-import org.elasticsearch.action.admin.indices.flush.FlushResponse;
-import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
+import org.elasticsearch.action.support.broadcast.BaseBroadcastResponse;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -63,7 +62,7 @@ public class DocumentActionsIT extends ESIntegTestCase {
         assertThat(indexResponse.getIndex(), equalTo(getConcreteIndexName()));
         assertThat(indexResponse.getId(), equalTo("1"));
         logger.info("Refreshing");
-        RefreshResponse refreshResponse = refresh();
+        BroadcastResponse refreshResponse = refresh();
         assertThat(refreshResponse.getSuccessfulShards(), equalTo(numShards.totalNumShards));
 
         logger.info("--> index exists?");
@@ -72,7 +71,7 @@ public class DocumentActionsIT extends ESIntegTestCase {
         assertThat(indexExists("test1234565"), equalTo(false));
 
         logger.info("Clearing cache");
-        ClearIndicesCacheResponse clearIndicesCacheResponse = indicesAdmin().clearCache(
+        BroadcastResponse clearIndicesCacheResponse = indicesAdmin().clearCache(
             new ClearIndicesCacheRequest("test").fieldDataCache(true).queryCache(true)
         ).actionGet();
         assertNoFailures(clearIndicesCacheResponse);
@@ -80,7 +79,7 @@ public class DocumentActionsIT extends ESIntegTestCase {
 
         logger.info("Force Merging");
         waitForRelocation(ClusterHealthStatus.GREEN);
-        ForceMergeResponse mergeResponse = forceMerge();
+        BaseBroadcastResponse mergeResponse = forceMerge();
         assertThat(mergeResponse.getSuccessfulShards(), equalTo(numShards.totalNumShards));
 
         GetResponse getResult;
@@ -130,7 +129,7 @@ public class DocumentActionsIT extends ESIntegTestCase {
         client().index(new IndexRequest("test").id("2").source(source("2", "test2"))).actionGet();
 
         logger.info("Flushing");
-        FlushResponse flushResult = indicesAdmin().prepareFlush("test").get();
+        BroadcastResponse flushResult = indicesAdmin().prepareFlush("test").get();
         assertThat(flushResult.getSuccessfulShards(), equalTo(numShards.totalNumShards));
         assertThat(flushResult.getFailedShards(), equalTo(0));
         logger.info("Refreshing");
@@ -153,7 +152,7 @@ public class DocumentActionsIT extends ESIntegTestCase {
         for (int i = 0; i < 5; i++) {
             // test successful
             assertNoFailuresAndResponse(prepareSearch("test").setSize(0).setQuery(matchAllQuery()), countResponse -> {
-                assertThat(countResponse.getHits().getTotalHits().value, equalTo(2L));
+                assertThat(countResponse.getHits().getTotalHits().value(), equalTo(2L));
                 assertThat(countResponse.getSuccessfulShards(), equalTo(numShards.numPrimaries));
                 assertThat(countResponse.getFailedShards(), equalTo(0));
             });
@@ -165,7 +164,7 @@ public class DocumentActionsIT extends ESIntegTestCase {
                     countResponse.getShardFailures() == null ? 0 : countResponse.getShardFailures().length,
                     equalTo(0)
                 );
-                assertThat(countResponse.getHits().getTotalHits().value, equalTo(2L));
+                assertThat(countResponse.getHits().getTotalHits().value(), equalTo(2L));
                 assertThat(countResponse.getSuccessfulShards(), equalTo(numShards.numPrimaries));
                 assertThat(countResponse.getFailedShards(), equalTo(0));
             });
@@ -220,7 +219,7 @@ public class DocumentActionsIT extends ESIntegTestCase {
         assertThat(bulkResponse.getItems()[5].getIndex(), equalTo(getConcreteIndexName()));
 
         waitForRelocation(ClusterHealthStatus.GREEN);
-        RefreshResponse refreshResponse = indicesAdmin().prepareRefresh("test").get();
+        BroadcastResponse refreshResponse = indicesAdmin().prepareRefresh("test").get();
         assertNoFailures(refreshResponse);
         assertThat(refreshResponse.getSuccessfulShards(), equalTo(numShards.totalNumShards));
 

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.metadata;
@@ -89,7 +90,7 @@ public class DataStreamMetadata implements Metadata.Custom {
 
     public DataStreamMetadata(StreamInput in) throws IOException {
         this(
-            in.readImmutableOpenMap(StreamInput::readString, DataStream::new),
+            in.readImmutableOpenMap(StreamInput::readString, DataStream::read),
             in.readImmutableOpenMap(StreamInput::readString, DataStreamAlias::new)
         );
     }
@@ -217,7 +218,7 @@ public class DataStreamMetadata implements Metadata.Custom {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_7_7_0;
+        return TransportVersions.ZERO;
     }
 
     @Override
@@ -233,7 +234,7 @@ public class DataStreamMetadata implements Metadata.Custom {
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
         return Iterators.concat(
-            ChunkedToXContentHelper.xContentValuesMap(DATA_STREAM.getPreferredName(), dataStreams),
+            ChunkedToXContentHelper.xContentObjectFields(DATA_STREAM.getPreferredName(), dataStreams),
             ChunkedToXContentHelper.startObject(DATA_STREAM_ALIASES.getPreferredName()),
             dataStreamAliases.values().iterator(),
             ChunkedToXContentHelper.endObject()
@@ -265,7 +266,7 @@ public class DataStreamMetadata implements Metadata.Custom {
     static class DataStreamMetadataDiff implements NamedDiff<Metadata.Custom> {
 
         private static final DiffableUtils.DiffableValueReader<String, DataStream> DS_DIFF_READER = new DiffableUtils.DiffableValueReader<>(
-            DataStream::new,
+            DataStream::read,
             DataStream::readDiffFrom
         );
 
@@ -314,7 +315,7 @@ public class DataStreamMetadata implements Metadata.Custom {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.V_7_7_0;
+            return TransportVersions.ZERO;
         }
     }
 }

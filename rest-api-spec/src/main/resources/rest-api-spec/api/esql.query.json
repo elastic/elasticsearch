@@ -4,7 +4,7 @@
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/esql-query-api.html",
       "description":"Executes an ESQL request"
     },
-    "stability":"experimental",
+    "stability":"stable",
     "visibility":"public",
     "headers":{
       "accept": [ "application/json"],
@@ -29,10 +29,15 @@
         "type":"string",
         "description":"The character to use between values within a CSV row. Only valid for the csv format.",
         "default":false
+      },
+      "drop_null_columns": {
+        "type": "boolean",
+        "description": "Should entirely null columns be removed from the results? Their name and type will be returning in a new `all_columns` section.",
+        "default": false
       }
     },
     "body":{
-      "description":"Use the `query` element to start a query. Use `time_zone` to specify an execution time zone and `columnar` to format the answer.",
+      "description":"Use the `query` element to start a query. Use `columnar` to format the answer.",
       "required":true
     }
   }

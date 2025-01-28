@@ -14,7 +14,6 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -22,22 +21,24 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.data.TestBlockBuilder;
-import org.elasticsearch.compute.data.TestBlockFactory;
-import org.elasticsearch.compute.operator.CannedSourceOperator;
+import org.elasticsearch.compute.operator.CountingCircuitBreaker;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
-import org.elasticsearch.compute.operator.OperatorTestCase;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
-import org.elasticsearch.compute.operator.SequenceLongBlockSourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.TupleBlockSourceOperator;
+import org.elasticsearch.compute.test.CannedSourceOperator;
+import org.elasticsearch.compute.test.OperatorTestCase;
+import org.elasticsearch.compute.test.SequenceLongBlockSourceOperator;
+import org.elasticsearch.compute.test.TestBlockBuilder;
+import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.ListMatcher;
 import org.elasticsearch.xpack.versionfield.Version;
+import org.hamcrest.Matcher;
 
 import java.lang.reflect.Field;
 import java.net.InetAddress;
@@ -58,18 +59,21 @@ import java.util.stream.LongStream;
 
 import static java.util.Comparator.naturalOrder;
 import static java.util.Comparator.reverseOrder;
-import static org.elasticsearch.compute.data.BlockTestUtils.append;
-import static org.elasticsearch.compute.data.BlockTestUtils.randomValue;
-import static org.elasticsearch.compute.data.BlockTestUtils.readInto;
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.elasticsearch.compute.data.ElementType.BOOLEAN;
 import static org.elasticsearch.compute.data.ElementType.BYTES_REF;
+import static org.elasticsearch.compute.data.ElementType.COMPOSITE;
 import static org.elasticsearch.compute.data.ElementType.DOUBLE;
+import static org.elasticsearch.compute.data.ElementType.FLOAT;
 import static org.elasticsearch.compute.data.ElementType.INT;
 import static org.elasticsearch.compute.data.ElementType.LONG;
 import static org.elasticsearch.compute.operator.topn.TopNEncoder.DEFAULT_SORTABLE;
 import static org.elasticsearch.compute.operator.topn.TopNEncoder.DEFAULT_UNSORTABLE;
 import static org.elasticsearch.compute.operator.topn.TopNEncoder.UTF8;
+import static org.elasticsearch.compute.operator.topn.TopNEncoderTests.randomPointAsWKB;
+import static org.elasticsearch.compute.test.BlockTestUtils.append;
+import static org.elasticsearch.compute.test.BlockTestUtils.randomValue;
+import static org.elasticsearch.compute.test.BlockTestUtils.readInto;
 import static org.elasticsearch.core.Tuple.tuple;
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
@@ -77,6 +81,7 @@ import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
@@ -123,7 +128,7 @@ public class TopNOperatorTests extends OperatorTestCase {
     );
 
     @Override
-    protected TopNOperator.TopNOperatorFactory simple(BigArrays bigArrays) {
+    protected TopNOperator.TopNOperatorFactory simple() {
         return new TopNOperator.TopNOperatorFactory(
             4,
             List.of(LONG),
@@ -134,15 +139,19 @@ public class TopNOperatorTests extends OperatorTestCase {
     }
 
     @Override
-    protected String expectedDescriptionOfSimple() {
-        return "TopNOperator[count=4, elementTypes=[LONG], encoders=[DefaultUnsortable], "
-            + "sortOrders=[SortOrder[channel=0, asc=true, nullsFirst=false]]]";
+    protected Matcher<String> expectedDescriptionOfSimple() {
+        return equalTo(
+            "TopNOperator[count=4, elementTypes=[LONG], encoders=[DefaultUnsortable], "
+                + "sortOrders=[SortOrder[channel=0, asc=true, nullsFirst=false]]]"
+        );
     }
 
     @Override
-    protected String expectedToStringOfSimple() {
-        return "TopNOperator[count=0/4, elementTypes=[LONG], encoders=[DefaultUnsortable], "
-            + "sortOrders=[SortOrder[channel=0, asc=true, nullsFirst=false]]]";
+    protected Matcher<String> expectedToStringOfSimple() {
+        return equalTo(
+            "TopNOperator[count=0/4, elementTypes=[LONG], encoders=[DefaultUnsortable], "
+                + "sortOrders=[SortOrder[channel=0, asc=true, nullsFirst=false]]]"
+        );
     }
 
     @Override
@@ -175,15 +184,6 @@ public class TopNOperatorTests extends OperatorTestCase {
                 .toArray(),
             equalTo(topN)
         );
-    }
-
-    @Override
-    protected ByteSizeValue memoryLimitForSimple() {
-        /*
-         * 775 causes us to blow up while collecting values and 780 doesn't
-         * trip the breaker.
-         */
-        return ByteSizeValue.ofBytes(775);
     }
 
     public void testRamBytesUsed() {
@@ -331,6 +331,21 @@ public class TopNOperatorTests extends OperatorTestCase {
         );
     }
 
+    public void testCompareFloats() {
+        BlockFactory blockFactory = blockFactory();
+        testCompare(
+            new Page(
+                blockFactory.newFloatBlockBuilder(2).appendFloat(-Float.MAX_VALUE).appendFloat(randomFloatBetween(-1000, -1, true)).build(),
+                blockFactory.newFloatBlockBuilder(2).appendFloat(randomFloatBetween(-1000, -1, true)).appendFloat(0.0f).build(),
+                blockFactory.newFloatBlockBuilder(2).appendFloat(0).appendFloat(randomFloatBetween(1, 1000, true)).build(),
+                blockFactory.newFloatBlockBuilder(2).appendFloat(randomLongBetween(1, 1000)).appendFloat(Float.MAX_VALUE).build(),
+                blockFactory.newFloatBlockBuilder(2).appendFloat(0.0f).appendFloat(Float.MAX_VALUE).build()
+            ),
+            FLOAT,
+            DEFAULT_SORTABLE
+        );
+    }
+
     public void testCompareDoubles() {
         BlockFactory blockFactory = blockFactory();
         testCompare(
@@ -440,7 +455,7 @@ public class TopNOperatorTests extends OperatorTestCase {
             sortOrders,
             page
         );
-        TopNOperator.Row row = new TopNOperator.Row(nonBreakingBigArrays().breakerService().getBreaker("request"), sortOrders);
+        TopNOperator.Row row = new TopNOperator.Row(nonBreakingBigArrays().breakerService().getBreaker("request"), sortOrders, 0, 0);
         rf.row(position, row);
         return row;
     }
@@ -505,7 +520,7 @@ public class TopNOperatorTests extends OperatorTestCase {
         encoders.add(DEFAULT_SORTABLE);
 
         for (ElementType e : ElementType.values()) {
-            if (e == ElementType.UNKNOWN) {
+            if (e == ElementType.UNKNOWN || e == COMPOSITE) {
                 continue;
             }
             elementTypes.add(e);
@@ -577,7 +592,7 @@ public class TopNOperatorTests extends OperatorTestCase {
 
         for (int type = 0; type < blocksCount; type++) {
             ElementType e = randomFrom(ElementType.values());
-            if (e == ElementType.UNKNOWN) {
+            if (e == ElementType.UNKNOWN || e == COMPOSITE) {
                 continue;
             }
             elementTypes.add(e);
@@ -955,6 +970,7 @@ public class TopNOperatorTests extends OperatorTestCase {
         Set<TopNOperator.SortOrder> uniqueOrders = new LinkedHashSet<>(sortingByColumns);
         List<List<List<Object>>> expectedValues = new ArrayList<>(rows);
         List<Block> blocks = new ArrayList<>(blocksCount);
+        boolean[] validSortKeys = new boolean[blocksCount];
         List<ElementType> elementTypes = new ArrayList<>(blocksCount);
         List<TopNEncoder> encoders = new ArrayList<>(blocksCount);
 
@@ -964,26 +980,35 @@ public class TopNOperatorTests extends OperatorTestCase {
 
         for (int type = 0; type < blocksCount; type++) {
             ElementType e = randomValueOtherThanMany(
-                t -> t == ElementType.UNKNOWN || t == ElementType.DOC,
+                t -> t == ElementType.UNKNOWN || t == ElementType.DOC || t == COMPOSITE,
                 () -> randomFrom(ElementType.values())
             );
             elementTypes.add(e);
+            validSortKeys[type] = true;
             try (Block.Builder builder = e.newBlockBuilder(rows, driverContext().blockFactory())) {
                 List<Object> previousValue = null;
                 Function<ElementType, Object> randomValueSupplier = (blockType) -> randomValue(blockType);
                 if (e == BYTES_REF) {
                     if (rarely()) {
-                        if (randomBoolean()) {
-                            // deal with IP fields (BytesRef block) like ES does and properly encode the ip addresses
-                            randomValueSupplier = (blockType) -> new BytesRef(InetAddressPoint.encode(randomIp(randomBoolean())));
-                            // use the right BytesRef encoder (don't touch the bytes)
-                            encoders.add(TopNEncoder.IP);
-                        } else {
-                            // create a valid Version
-                            randomValueSupplier = (blockType) -> randomVersion().toBytesRef();
-                            // use the right BytesRef encoder (don't touch the bytes)
-                            encoders.add(TopNEncoder.VERSION);
-                        }
+                        randomValueSupplier = switch (randomInt(2)) {
+                            case 0 -> {
+                                // Simulate ips
+                                encoders.add(TopNEncoder.IP);
+                                yield (blockType) -> new BytesRef(InetAddressPoint.encode(randomIp(randomBoolean())));
+                            }
+                            case 1 -> {
+                                // Simulate version fields
+                                encoders.add(TopNEncoder.VERSION);
+                                yield (blockType) -> randomVersion().toBytesRef();
+                            }
+                            case 2 -> {
+                                // Simulate geo_shape and geo_point
+                                encoders.add(DEFAULT_UNSORTABLE);
+                                validSortKeys[type] = false;
+                                yield (blockType) -> randomPointAsWKB();
+                            }
+                            default -> throw new UnsupportedOperationException();
+                        };
                     } else {
                         encoders.add(UTF8);
                     }
@@ -1032,10 +1057,16 @@ public class TopNOperatorTests extends OperatorTestCase {
             }
         }
 
-        // simulate the LogicalPlanOptimizer.PruneRedundantSortClauses by eliminating duplicate sorting columns (same column, same asc/desc,
-        // same "nulls" handling)
-        while (uniqueOrders.size() < sortingByColumns) {
-            int column = randomIntBetween(0, blocksCount - 1);
+        /*
+         * Build sort keys, making sure not to include duplicates. This could
+         * build fewer than the desired sort columns, but it's more important
+         * to make sure that we don't include dups
+         * (to simulate LogicalPlanOptimizer.PruneRedundantSortClauses) and
+         * not to include sort keys that simulate geo objects. Those aren't
+         * sortable at all.
+         */
+        for (int i = 0; i < sortingByColumns; i++) {
+            int column = randomValueOtherThanMany(c -> false == validSortKeys[c], () -> randomIntBetween(0, blocksCount - 1));
             uniqueOrders.add(new TopNOperator.SortOrder(column, randomBoolean(), randomBoolean()));
         }
 
@@ -1386,6 +1417,39 @@ public class TopNOperatorTests extends OperatorTestCase {
             )
         ) {
             op.addInput(new Page(blockFactory().newIntArrayVector(new int[] { 1 }, 1).asBlock()));
+        }
+    }
+
+    public void testRowResizes() {
+        int columns = 1000;
+        int rows = 1000;
+        CountingCircuitBreaker breaker = new CountingCircuitBreaker(
+            new MockBigArrays.LimitedBreaker(CircuitBreaker.REQUEST, ByteSizeValue.ofGb(1))
+        );
+        List<ElementType> types = Collections.nCopies(columns, INT);
+        List<TopNEncoder> encoders = Collections.nCopies(columns, DEFAULT_UNSORTABLE);
+        try (
+            TopNOperator op = new TopNOperator(
+                driverContext().blockFactory(),
+                breaker,
+                10,
+                types,
+                encoders,
+                List.of(new TopNOperator.SortOrder(0, randomBoolean(), randomBoolean())),
+                randomPageSize()
+            )
+        ) {
+            int[] blockValues = IntStream.range(0, rows).toArray();
+            Block block = blockFactory().newIntArrayVector(blockValues, rows).asBlock();
+            Block[] blocks = new Block[1000];
+            for (int i = 0; i < 1000; i++) {
+                blocks[i] = block;
+                block.incRef();
+            }
+            block.decRef();
+            op.addInput(new Page(blocks));
+
+            assertThat(breaker.getMemoryRequestCount(), is(94L));
         }
     }
 

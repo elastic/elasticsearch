@@ -1,7 +1,0 @@
-pr: 103601
-summary: Introduce Elasticsearch `PostingFormat` based on Lucene 90 positing format
-  using PFOR
-area: Search
-type: bug
-issues:
- - 103002

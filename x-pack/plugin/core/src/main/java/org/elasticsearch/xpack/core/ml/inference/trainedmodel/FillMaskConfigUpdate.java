@@ -109,41 +109,6 @@ public class FillMaskConfigUpdate extends NlpConfigUpdate implements NamedXConte
     }
 
     @Override
-    public InferenceConfig apply(InferenceConfig originalConfig) {
-        if (originalConfig instanceof FillMaskConfig == false) {
-            throw ExceptionsHelper.badRequestException(
-                "Inference config of type [{}] can not be updated with a request of type [{}]",
-                originalConfig.getName(),
-                getName()
-            );
-        }
-
-        FillMaskConfig fillMaskConfig = (FillMaskConfig) originalConfig;
-        if (isNoop(fillMaskConfig)) {
-            return originalConfig;
-        }
-
-        FillMaskConfig.Builder builder = new FillMaskConfig.Builder(fillMaskConfig);
-        if (numTopClasses != null) {
-            builder.setNumTopClasses(numTopClasses);
-        }
-        if (resultsField != null) {
-            builder.setResultsField(resultsField);
-        }
-        if (tokenizationUpdate != null) {
-            builder.setTokenization(tokenizationUpdate.apply(fillMaskConfig.getTokenization()));
-
-        }
-        return builder.build();
-    }
-
-    boolean isNoop(FillMaskConfig originalConfig) {
-        return (this.numTopClasses == null || this.numTopClasses == originalConfig.getNumTopClasses())
-            && (this.resultsField == null || this.resultsField.equals(originalConfig.getResultsField()))
-            && super.isNoop();
-    }
-
-    @Override
     public boolean isSupported(InferenceConfig config) {
         return config instanceof FillMaskConfig;
     }

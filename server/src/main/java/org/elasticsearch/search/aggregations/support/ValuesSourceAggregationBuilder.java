@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations.support;
 
@@ -12,7 +13,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
-import org.elasticsearch.search.aggregations.AggregationInitializationException;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.xcontent.AbstractObjectParser;
@@ -119,9 +119,7 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
         protected LeafOnly(LeafOnly<AB> clone, Builder factoriesBuilder, Map<String, Object> metadata) {
             super(clone, factoriesBuilder, metadata);
             if (factoriesBuilder.count() > 0) {
-                throw new AggregationInitializationException(
-                    "Aggregator [" + name + "] of type [" + getType() + "] cannot accept sub-aggregations"
-                );
+                throw new IllegalArgumentException("Aggregator [" + name + "] of type [" + getType() + "] cannot accept sub-aggregations");
             }
         }
 
@@ -134,9 +132,7 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
 
         @Override
         public final AB subAggregations(Builder subFactories) {
-            throw new AggregationInitializationException(
-                "Aggregator [" + name + "] of type [" + getType() + "] cannot accept sub-aggregations"
-            );
+            throw new IllegalArgumentException("Aggregator [" + name + "] of type [" + getType() + "] cannot accept sub-aggregations");
         }
 
         @Override
@@ -192,7 +188,6 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
     private String format = null;
     private Object missing = null;
     private ZoneId timeZone = null;
-    protected ValuesSourceConfig config;
 
     protected ValuesSourceAggregationBuilder(String name) {
         super(name);
@@ -209,7 +204,6 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
         this.format = clone.format;
         this.missing = clone.missing;
         this.timeZone = clone.timeZone;
-        this.config = clone.config;
         this.script = clone.script;
     }
 

@@ -5,7 +5,13 @@
 <titleabbrev>Deprecation info</titleabbrev>
 ++++
 
-include::{es-repo-dir}/migration/apis/shared-migration-apis-tip.asciidoc[]
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-migration[Migration APIs].
+--
+
+include::{es-ref-dir}/migration/apis/shared-migration-apis-tip.asciidoc[]
 
 The deprecation API is to be used to retrieve information about different
 cluster, node, and index level settings that use deprecated features that will

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.test.fixture;
@@ -222,7 +223,7 @@ public abstract class AbstractHttpFixture extends ExternalResource {
             final Map<String, String> params = new HashMap<>();
             if (uri.getQuery() != null && uri.getQuery().length() > 0) {
                 for (String param : uri.getQuery().split("&")) {
-                    int i = param.indexOf("=");
+                    int i = param.indexOf('=');
                     if (i > 0) {
                         params.put(param.substring(0, i), param.substring(i + 1));
                     } else {

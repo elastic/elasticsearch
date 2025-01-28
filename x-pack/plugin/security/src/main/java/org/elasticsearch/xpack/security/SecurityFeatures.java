@@ -7,16 +7,17 @@
 
 package org.elasticsearch.xpack.security;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
-import org.elasticsearch.xpack.security.support.SecuritySystemIndices;
 
-import java.util.Map;
+import java.util.Set;
+
+import static org.elasticsearch.xpack.security.support.QueryableBuiltInRolesSynchronizer.QUERYABLE_BUILT_IN_ROLES_FEATURE;
 
 public class SecurityFeatures implements FeatureSpecification {
+
     @Override
-    public Map<NodeFeature, Version> getHistoricalFeatures() {
-        return Map.of(SecuritySystemIndices.SECURITY_PROFILE_ORIGIN_FEATURE, SecuritySystemIndices.VERSION_SECURITY_PROFILE_ORIGIN);
+    public Set<NodeFeature> getFeatures() {
+        return Set.of(QUERYABLE_BUILT_IN_ROLES_FEATURE);
     }
 }

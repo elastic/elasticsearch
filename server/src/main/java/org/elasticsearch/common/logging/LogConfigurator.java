@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.logging;
@@ -128,6 +129,21 @@ public class LogConfigurator {
         configureESLogging();
         configure(environment.settings(), environment.configFile(), environment.logsFile(), useConsole);
         initializeStatics();
+        // creates a permanent status logger that can watch for StatusLogger events and forward to a real logger
+        configureStatusLoggerForwarder();
+    }
+
+    private static void configureStatusLoggerForwarder() {
+        // the real logger is lazily retrieved here since logging won't yet be setup during clinit of this class
+        var logger = LogManager.getLogger("StatusLogger");
+        var listener = new StatusConsoleListener(Level.WARN) {
+            @Override
+            public void log(StatusData data) {
+                logger.log(data.getLevel(), data.getMessage(), data.getThrowable());
+                super.log(data);
+            }
+        };
+        StatusLogger.getLogger().registerListener(listener);
     }
 
     public static void configureESLogging() {

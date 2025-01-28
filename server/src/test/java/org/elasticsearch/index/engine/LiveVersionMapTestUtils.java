@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.engine;
@@ -59,6 +60,14 @@ public class LiveVersionMapTestUtils {
 
     public static void pruneTombstones(LiveVersionMap map, long maxTimestampToPrune, long maxSeqNoToPrune) {
         map.pruneTombstones(maxTimestampToPrune, maxSeqNoToPrune);
+    }
+
+    public static long reclaimableRefreshRamBytes(LiveVersionMap map) {
+        return map.reclaimableRefreshRamBytes();
+    }
+
+    public static long refreshingBytes(LiveVersionMap map) {
+        return map.getRefreshingBytes();
     }
 
     public static IndexVersionValue randomIndexVersionValue() {

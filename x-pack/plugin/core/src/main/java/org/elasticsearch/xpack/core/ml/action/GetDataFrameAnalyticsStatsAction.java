@@ -49,7 +49,7 @@ public class GetDataFrameAnalyticsStatsAction extends ActionType<GetDataFrameAna
     public static final String NAME = "cluster:monitor/xpack/ml/data_frame/analytics/stats/get";
 
     private GetDataFrameAnalyticsStatsAction() {
-        super(NAME, GetDataFrameAnalyticsStatsAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends BaseTasksRequest<Request> {
@@ -356,7 +356,7 @@ public class GetDataFrameAnalyticsStatsAction extends ActionType<GetDataFrameAna
             }
         }
 
-        private QueryPage<Stats> stats;
+        private final QueryPage<Stats> stats;
 
         public Response(QueryPage<Stats> stats) {
             this(Collections.emptyList(), Collections.emptyList(), stats);

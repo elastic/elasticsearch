@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.data;
 
+import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.BitSet;
@@ -35,7 +36,7 @@ public class BooleanBlockEqualityTests extends ESTestCase {
             new BooleanArrayBlock(
                 new boolean[] {},
                 0,
-                new int[] {},
+                new int[] { 0 },
                 BitSet.valueOf(new byte[] { 0b00 }),
                 randomFrom(Block.MvOrdering.values()),
                 blockFactory
@@ -43,7 +44,7 @@ public class BooleanBlockEqualityTests extends ESTestCase {
             new BooleanArrayBlock(
                 new boolean[] { randomBoolean() },
                 0,
-                new int[] {},
+                new int[] { 0 },
                 BitSet.valueOf(new byte[] { 0b00 }),
                 randomFrom(Block.MvOrdering.values()),
                 blockFactory

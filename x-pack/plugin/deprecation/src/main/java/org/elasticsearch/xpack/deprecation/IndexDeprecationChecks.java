@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.deprecation;
 
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.time.DateFormatter;
@@ -13,11 +14,12 @@ import org.elasticsearch.common.time.LegacyFormatNames;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.engine.frozen.FrozenEngine;
+import org.elasticsearch.xpack.core.deprecation.DeprecatedIndexPredicate;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -30,23 +32,46 @@ import java.util.function.Function;
  */
 public class IndexDeprecationChecks {
 
-    static DeprecationIssue oldIndicesCheck(IndexMetadata indexMetadata) {
+    static DeprecationIssue oldIndicesCheck(IndexMetadata indexMetadata, ClusterState clusterState) {
         // TODO: this check needs to be revised. It's trivially true right now.
         IndexVersion currentCompatibilityVersion = indexMetadata.getCompatibilityVersion();
-        if (currentCompatibilityVersion.before(IndexVersions.V_7_0_0)) {
+        // We intentionally exclude indices that are in data streams because they will be picked up by DataStreamDeprecationChecks
+        if (DeprecatedIndexPredicate.reindexRequired(indexMetadata, false) && isNotDataStreamIndex(indexMetadata, clusterState)) {
             return new DeprecationIssue(
                 DeprecationIssue.Level.CRITICAL,
-                "Old index with a compatibility version < 7.0",
-                "https://www.elastic.co/guide/en/elasticsearch/reference/master/" + "breaking-changes-8.0.html",
-                "This index has version: " + currentCompatibilityVersion,
+                "Old index with a compatibility version < 9.0",
+                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-9.0.html",
+                "This index has version: " + currentCompatibilityVersion.toReleaseVersion(),
                 false,
-                null
+                Collections.singletonMap("reindex_required", true)
             );
         }
         return null;
     }
 
-    static DeprecationIssue translogRetentionSettingCheck(IndexMetadata indexMetadata) {
+    static DeprecationIssue ignoredOldIndicesCheck(IndexMetadata indexMetadata, ClusterState clusterState) {
+        IndexVersion currentCompatibilityVersion = indexMetadata.getCompatibilityVersion();
+        // We intentionally exclude indices that are in data streams because they will be picked up by DataStreamDeprecationChecks
+        if (DeprecatedIndexPredicate.reindexRequired(indexMetadata, true) && isNotDataStreamIndex(indexMetadata, clusterState)) {
+            return new DeprecationIssue(
+                DeprecationIssue.Level.WARNING,
+                "Old index with a compatibility version < 9.0 Has Been Ignored",
+                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-9.0.html",
+                "This read-only index has version: "
+                    + currentCompatibilityVersion.toReleaseVersion()
+                    + " and will be supported as read-only in 9.0",
+                false,
+                Collections.singletonMap("reindex_required", true)
+            );
+        }
+        return null;
+    }
+
+    private static boolean isNotDataStreamIndex(IndexMetadata indexMetadata, ClusterState clusterState) {
+        return clusterState.metadata().findDataStreams(indexMetadata.getIndex().getName()).isEmpty();
+    }
+
+    static DeprecationIssue translogRetentionSettingCheck(IndexMetadata indexMetadata, ClusterState clusterState) {
         final boolean softDeletesEnabled = IndexSettings.INDEX_SOFT_DELETES_SETTING.get(indexMetadata.getSettings());
         if (softDeletesEnabled) {
             if (IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.exists(indexMetadata.getSettings())
@@ -73,7 +98,7 @@ public class IndexDeprecationChecks {
         return null;
     }
 
-    static DeprecationIssue checkIndexDataPath(IndexMetadata indexMetadata) {
+    static DeprecationIssue checkIndexDataPath(IndexMetadata indexMetadata, ClusterState clusterState) {
         if (IndexMetadata.INDEX_DATA_PATH_SETTING.exists(indexMetadata.getSettings())) {
             final String message = String.format(
                 Locale.ROOT,
@@ -88,7 +113,7 @@ public class IndexDeprecationChecks {
         return null;
     }
 
-    static DeprecationIssue storeTypeSettingCheck(IndexMetadata indexMetadata) {
+    static DeprecationIssue storeTypeSettingCheck(IndexMetadata indexMetadata, ClusterState clusterState) {
         final String storeType = IndexModule.INDEX_STORE_TYPE_SETTING.get(indexMetadata.getSettings());
         if (IndexModule.Type.SIMPLEFS.match(storeType)) {
             return new DeprecationIssue(
@@ -105,7 +130,7 @@ public class IndexDeprecationChecks {
         return null;
     }
 
-    static DeprecationIssue frozenIndexSettingCheck(IndexMetadata indexMetadata) {
+    static DeprecationIssue frozenIndexSettingCheck(IndexMetadata indexMetadata, ClusterState clusterState) {
         Boolean isIndexFrozen = FrozenEngine.INDEX_FROZEN.get(indexMetadata.getSettings());
         if (Boolean.TRUE.equals(isIndexFrozen)) {
             String indexName = indexMetadata.getIndex().getName();
@@ -195,7 +220,7 @@ public class IndexDeprecationChecks {
         return issues;
     }
 
-    static DeprecationIssue deprecatedCamelCasePattern(IndexMetadata indexMetadata) {
+    static DeprecationIssue deprecatedCamelCasePattern(IndexMetadata indexMetadata, ClusterState clusterState) {
         List<String> fields = new ArrayList<>();
         fieldLevelMappingIssue(
             indexMetadata,

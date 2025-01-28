@@ -11,20 +11,26 @@ import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 
+import java.util.Locale;
+
+/**
+ * Extracts sort keys for top-n from their {@link BooleanBlock}s.
+ * This class is generated. Edit {@code X-KeyExtractor.java.st} instead.
+ */
 abstract class KeyExtractorForBoolean implements KeyExtractor {
     static KeyExtractorForBoolean extractorFor(TopNEncoder encoder, boolean ascending, byte nul, byte nonNul, BooleanBlock block) {
         BooleanVector v = block.asVector();
         if (v != null) {
-            return new KeyExtractorForBoolean.ForVector(encoder, nul, nonNul, v);
+            return new KeyExtractorForBoolean.FromVector(encoder, nul, nonNul, v);
         }
         if (ascending) {
             return block.mvSortedAscending()
-                ? new KeyExtractorForBoolean.MinForAscending(encoder, nul, nonNul, block)
-                : new KeyExtractorForBoolean.MinForUnordered(encoder, nul, nonNul, block);
+                ? new KeyExtractorForBoolean.MinFromAscendingBlock(encoder, nul, nonNul, block)
+                : new KeyExtractorForBoolean.MinFromUnorderedBlock(encoder, nul, nonNul, block);
         }
         return block.mvSortedAscending()
-            ? new KeyExtractorForBoolean.MaxForAscending(encoder, nul, nonNul, block)
-            : new KeyExtractorForBoolean.MaxForUnordered(encoder, nul, nonNul, block);
+            ? new KeyExtractorForBoolean.MaxFromAscendingBlock(encoder, nul, nonNul, block)
+            : new KeyExtractorForBoolean.MaxFromUnorderedBlock(encoder, nul, nonNul, block);
     }
 
     private final byte nul;
@@ -47,10 +53,15 @@ abstract class KeyExtractorForBoolean implements KeyExtractor {
         return 1;
     }
 
-    static class ForVector extends KeyExtractorForBoolean {
+    @Override
+    public final String toString() {
+        return String.format(Locale.ROOT, "KeyExtractorForBoolean%s(%s, %s)", getClass().getSimpleName(), nul, nonNul);
+    }
+
+    static class FromVector extends KeyExtractorForBoolean {
         private final BooleanVector vector;
 
-        ForVector(TopNEncoder encoder, byte nul, byte nonNul, BooleanVector vector) {
+        FromVector(TopNEncoder encoder, byte nul, byte nonNul, BooleanVector vector) {
             super(encoder, nul, nonNul);
             this.vector = vector;
         }
@@ -61,10 +72,10 @@ abstract class KeyExtractorForBoolean implements KeyExtractor {
         }
     }
 
-    static class MinForAscending extends KeyExtractorForBoolean {
+    static class MinFromAscendingBlock extends KeyExtractorForBoolean {
         private final BooleanBlock block;
 
-        MinForAscending(TopNEncoder encoder, byte nul, byte nonNul, BooleanBlock block) {
+        MinFromAscendingBlock(TopNEncoder encoder, byte nul, byte nonNul, BooleanBlock block) {
             super(encoder, nul, nonNul);
             this.block = block;
         }
@@ -78,10 +89,10 @@ abstract class KeyExtractorForBoolean implements KeyExtractor {
         }
     }
 
-    static class MaxForAscending extends KeyExtractorForBoolean {
+    static class MaxFromAscendingBlock extends KeyExtractorForBoolean {
         private final BooleanBlock block;
 
-        MaxForAscending(TopNEncoder encoder, byte nul, byte nonNul, BooleanBlock block) {
+        MaxFromAscendingBlock(TopNEncoder encoder, byte nul, byte nonNul, BooleanBlock block) {
             super(encoder, nul, nonNul);
             this.block = block;
         }
@@ -95,10 +106,10 @@ abstract class KeyExtractorForBoolean implements KeyExtractor {
         }
     }
 
-    static class MinForUnordered extends KeyExtractorForBoolean {
+    static class MinFromUnorderedBlock extends KeyExtractorForBoolean {
         private final BooleanBlock block;
 
-        MinForUnordered(TopNEncoder encoder, byte nul, byte nonNul, BooleanBlock block) {
+        MinFromUnorderedBlock(TopNEncoder encoder, byte nul, byte nonNul, BooleanBlock block) {
             super(encoder, nul, nonNul);
             this.block = block;
         }
@@ -120,10 +131,10 @@ abstract class KeyExtractorForBoolean implements KeyExtractor {
         }
     }
 
-    static class MaxForUnordered extends KeyExtractorForBoolean {
+    static class MaxFromUnorderedBlock extends KeyExtractorForBoolean {
         private final BooleanBlock block;
 
-        MaxForUnordered(TopNEncoder encoder, byte nul, byte nonNul, BooleanBlock block) {
+        MaxFromUnorderedBlock(TopNEncoder encoder, byte nul, byte nonNul, BooleanBlock block) {
             super(encoder, nul, nonNul);
             this.block = block;
         }

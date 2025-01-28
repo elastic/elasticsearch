@@ -2,6 +2,12 @@
 [[async-search]]
 === Async search
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-search[Search APIs].
+--
+
 The async search API let you asynchronously execute a search request, monitor
 its progress, and retrieve partial results as they become available.
 
@@ -137,14 +143,16 @@ nor search requests that only include the <<search-suggesters,suggest section>>.
 WARNING: By default, {es} doesn't allow to store an async search response
 larger than 10Mb, and an attempt to do this results in an error. The maximum
 allowed size for a stored async search response can be set by changing the
-`search.max_async_search_response_size` cluster level setting.
+`search.max_async_search_response_size` (<<dynamic-cluster-setting,Dynamic>>) cluster level setting.
 
 [[get-async-search]]
 ==== Get async search
 
 The get async search API retrieves the results of a previously submitted async
-search request given its id. If the {es} {security-features} are enabled, the
-access to the results of a specific async search is restricted to
+search request given its id.
+
+If the {es} {security-features} are enabled, the access to the results of a
+specific async search is restricted to only
 <<can-access-resources-check,the user or API key that submitted it>>.
 
 [source,console,id=get-async-search-date-histogram-example]
@@ -235,9 +243,17 @@ its saved results are deleted.
 ==== Get async search status
 
 The get async search status API, without retrieving search results, shows only
-the status of a previously submitted async search request given its `id`. If the
-{es} {security-features} are enabled, the access to the get async search status
-API is restricted to the <<built-in-roles, monitoring_user role>>.
+the status of a previously submitted async search request given its `id`.
+
+If the {es} {security-features} are enabled, the access to the status of a
+specific async search is restricted to:
+
+* The <<can-access-resources-check,user or API key that submitted>> the original async search request.
+* Users that have the `monitor` cluster privilege or higher.
+
+You can also specify how long the async search needs to be available through the
+`keep_alive` parameter, which defaults to `5d` (five days). Ongoing async
+searches and any saved search results are deleted after this period.
 
 [source,console,id=get-async-search-status-example]
 --------------------------------------------------
@@ -329,5 +345,5 @@ DELETE /_async_search/FmRldE8zREVEUzA2ZVpUeGs2ejJFUFEaMkZ5QTVrSTZSaVN3WlNFVmtlWH
 If the {es} {security-features} are enabled, the deletion of a specific async
 search is restricted to:
 
-  * The authenticated user that submitted the original search request.
-  * Users that have the `cancel_task` cluster privilege.
+  * The <<can-access-resources-check,user or API key that submitted>> the original async search request.
+  * Users that have the `cancel_task` cluster privilege or higher.

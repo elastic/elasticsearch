@@ -47,6 +47,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
 import static org.elasticsearch.common.xcontent.XContentHelper.convertToJson;
 import static org.elasticsearch.common.xcontent.XContentHelper.stripWhitespace;
 import static org.elasticsearch.xpack.core.ilm.CheckShrinkReadyStepTests.randomUnassignedInfo;
@@ -388,10 +389,24 @@ public class IndexStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestC
         commonStats.getStore().add(new StoreStats(++iota, no, no));
         commonStats.getRefresh().add(new RefreshStats(no, ++iota, no, ++iota, (int) no));
 
-        final IndexingStats.Stats indexingStats = new IndexingStats.Stats(++iota, ++iota, no, no, no, no, no, no, false, ++iota, no, no);
+        final IndexingStats.Stats indexingStats = new IndexingStats.Stats(
+            ++iota,
+            ++iota,
+            no,
+            no,
+            no,
+            no,
+            no,
+            no,
+            no,
+            false,
+            ++iota,
+            no,
+            no
+        );
         commonStats.getIndexing().add(new IndexingStats(indexingStats));
 
-        final SearchStats.Stats searchStats = new SearchStats.Stats(++iota, ++iota, no, no, no, no, no, no, no, no, no, no);
+        final SearchStats.Stats searchStats = new SearchStats.Stats(++iota, ++iota, no, no, no, no, no, no, no, no, no, no, no, no);
         commonStats.getSearch().add(new SearchStats(searchStats, no, null));
 
         final SegmentsStats segmentsStats = new SegmentsStats();
@@ -464,7 +479,7 @@ public class IndexStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestC
                     state = ShardRoutingState.UNASSIGNED;
                 }
 
-                shard.addShard(TestShardRouting.newShardRouting(shardId, nodeId, null, true, state, unassignedInfo));
+                shard.addShard(shardRoutingBuilder(shardId, nodeId, true, state).withUnassignedInfo(unassignedInfo).build());
 
                 // mark all as unassigned
                 for (int j = 0; j < replicas; ++j) {

@@ -76,12 +76,6 @@ public class TextExpansionConfig implements NlpConfig {
         this.vocabularyConfig = Optional.ofNullable(vocabularyConfig)
             .orElse(new VocabularyConfig(InferenceIndexConstants.nativeDefinitionStore()));
         this.tokenization = tokenization == null ? Tokenization.createDefault() : tokenization;
-        if (this.tokenization instanceof BertTokenization == false) {
-            throw ExceptionsHelper.badRequestException(
-                "text expansion models must be configured with BERT tokenizer, [{}] given",
-                this.tokenization.getName()
-            );
-        }
         this.resultsField = resultsField;
     }
 
@@ -119,6 +113,22 @@ public class TextExpansionConfig implements NlpConfig {
     public boolean isTargetTypeSupported(TargetType targetType) {
         // TargetType relates to boosted tree models
         return false;
+    }
+
+    @Override
+    public InferenceConfig apply(InferenceConfigUpdate update) {
+        if (update instanceof TextExpansionConfigUpdate configUpdate) {
+            return new TextExpansionConfig(
+                vocabularyConfig,
+                configUpdate.tokenizationUpdate == null ? tokenization : configUpdate.tokenizationUpdate.apply(tokenization),
+                Optional.ofNullable(configUpdate.getResultsField()).orElse(resultsField)
+            );
+        } else if (update instanceof TokenizationConfigUpdate tokenizationUpdate) {
+            var updatedTokenization = getTokenization().updateWindowSettings(tokenizationUpdate.getSpanSettings());
+            return new TextExpansionConfig(vocabularyConfig, updatedTokenization, resultsField);
+        } else {
+            throw incompatibleUpdateException(update.getName());
+        }
     }
 
     @Override

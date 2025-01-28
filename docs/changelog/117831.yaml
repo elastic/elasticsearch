@@ -1,0 +1,5 @@
+pr: 117831
+summary: Fix/QueryBuilderBWCIT_muted_test
+area: Search
+type: bug
+issues: []

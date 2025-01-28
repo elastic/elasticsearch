@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.create;
@@ -16,8 +17,8 @@ import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
-import org.elasticsearch.action.admin.indices.template.delete.DeleteComposableIndexTemplateAction;
-import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.delete.TransportDeleteComposableIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
@@ -66,7 +67,12 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
     @After
     public void afterEach() throws Exception {
         assertAcked(indicesAdmin().prepareDeleteTemplate("*").get());
-        assertAcked(client().execute(DeleteComposableIndexTemplateAction.INSTANCE, new DeleteComposableIndexTemplateAction.Request("*")));
+        assertAcked(
+            client().execute(
+                TransportDeleteComposableIndexTemplateAction.TYPE,
+                new TransportDeleteComposableIndexTemplateAction.Request("*")
+            )
+        );
     }
 
     @Override
@@ -109,7 +115,7 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
 
         // Check that a non-primary system index is not assigned as the write index for the alias
         final GetAliasesResponse getAliasesResponse = indicesAdmin().getAliases(
-            new GetAliasesRequest().indicesOptions(IndicesOptions.strictExpandHidden())
+            new GetAliasesRequest(TEST_REQUEST_TIMEOUT).indicesOptions(IndicesOptions.strictExpandHidden())
         ).actionGet();
 
         assertThat(getAliasesResponse.getAliases().size(), equalTo(1));
@@ -210,8 +216,8 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
             .build();
         assertAcked(
             client().execute(
-                PutComposableIndexTemplateAction.INSTANCE,
-                new PutComposableIndexTemplateAction.Request("test-composable-template").indexTemplate(cit)
+                TransportPutComposableIndexTemplateAction.TYPE,
+                new TransportPutComposableIndexTemplateAction.Request("test-composable-template").indexTemplate(cit)
             )
         );
 
@@ -229,8 +235,8 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
 
         assertAcked(
             client().execute(
-                DeleteComposableIndexTemplateAction.INSTANCE,
-                new DeleteComposableIndexTemplateAction.Request("test-composable-template")
+                TransportDeleteComposableIndexTemplateAction.TYPE,
+                new TransportDeleteComposableIndexTemplateAction.Request("test-composable-template")
             )
         );
     }
@@ -256,8 +262,8 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
 
         assertAcked(
             client().execute(
-                DeleteComposableIndexTemplateAction.INSTANCE,
-                new DeleteComposableIndexTemplateAction.Request("test-composable-template")
+                TransportDeleteComposableIndexTemplateAction.TYPE,
+                new TransportDeleteComposableIndexTemplateAction.Request("test-composable-template")
             )
         );
     }
@@ -316,7 +322,7 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
      */
     private void assertAliases(String concreteIndex) {
         final GetAliasesResponse getAliasesResponse = indicesAdmin().getAliases(
-            new GetAliasesRequest().indicesOptions(IndicesOptions.strictExpandHidden())
+            new GetAliasesRequest(TEST_REQUEST_TIMEOUT).indicesOptions(IndicesOptions.strictExpandHidden())
         ).actionGet();
 
         assertThat(getAliasesResponse.getAliases().size(), equalTo(1));
@@ -328,7 +334,7 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
     private void assertHasAliases(Set<String> aliasNames, String name, String primaryName, int aliasCount) throws InterruptedException,
         java.util.concurrent.ExecutionException {
         final GetAliasesResponse getAliasesResponse = indicesAdmin().getAliases(
-            new GetAliasesRequest().indicesOptions(IndicesOptions.strictExpandHidden())
+            new GetAliasesRequest(TEST_REQUEST_TIMEOUT).indicesOptions(IndicesOptions.strictExpandHidden())
         ).get();
 
         assertThat(getAliasesResponse.getAliases().size(), equalTo(1));
@@ -351,8 +357,9 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
      * Fetch the mappings and settings for {@link TestSystemIndexDescriptor#INDEX_NAME} and verify that they match the expected values.
      */
     private void assertMappingsAndSettings(String expectedMappings, String concreteIndex) {
-        final GetMappingsResponse getMappingsResponse = indicesAdmin().getMappings(new GetMappingsRequest().indices(INDEX_NAME))
-            .actionGet();
+        final GetMappingsResponse getMappingsResponse = indicesAdmin().getMappings(
+            new GetMappingsRequest(TEST_REQUEST_TIMEOUT).indices(INDEX_NAME)
+        ).actionGet();
 
         final Map<String, MappingMetadata> mappings = getMappingsResponse.getMappings();
         assertThat(

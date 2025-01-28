@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.snapshots;
 
@@ -11,7 +12,6 @@ import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStats;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
-import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse;
@@ -20,6 +20,7 @@ import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.settings.Settings;
@@ -112,7 +113,7 @@ public class BlobStoreIncrementalityIT extends AbstractSnapshotIntegTestCase {
 
         final String snapshot3 = "snap-3";
         logger.info("--> creating snapshot 3");
-        clusterAdmin().prepareCreateSnapshot(repo, snapshot3).setIndices(indexName).setWaitForCompletion(true).get();
+        clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repo, snapshot3).setIndices(indexName).setWaitForCompletion(true).get();
 
         logger.info("--> Shutting down new primary node [{}]", newPrimary);
         stopNode(newPrimary);
@@ -120,7 +121,7 @@ public class BlobStoreIncrementalityIT extends AbstractSnapshotIntegTestCase {
 
         final String snapshot4 = "snap-4";
         logger.info("--> creating snapshot 4");
-        clusterAdmin().prepareCreateSnapshot(repo, snapshot4).setIndices(indexName).setWaitForCompletion(true).get();
+        clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repo, snapshot4).setIndices(indexName).setWaitForCompletion(true).get();
 
         assertTwoIdenticalShardSnapshots(repo, indexName, snapshot3, snapshot4);
 
@@ -156,15 +157,15 @@ public class BlobStoreIncrementalityIT extends AbstractSnapshotIntegTestCase {
         createRepository(repo, "fs");
 
         logger.info("--> creating snapshot 1");
-        clusterAdmin().prepareCreateSnapshot(repo, snapshot1).setIndices(indexName).setWaitForCompletion(true).get();
+        clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repo, snapshot1).setIndices(indexName).setWaitForCompletion(true).get();
 
         logger.info("--> force merging down to a single segment");
-        final ForceMergeResponse forceMergeResponse = indicesAdmin().prepareForceMerge(indexName).setMaxNumSegments(1).setFlush(true).get();
+        final BroadcastResponse forceMergeResponse = indicesAdmin().prepareForceMerge(indexName).setMaxNumSegments(1).setFlush(true).get();
         assertThat(forceMergeResponse.getFailedShards(), is(0));
 
         final String snapshot2 = "snap-2";
         logger.info("--> creating snapshot 2");
-        clusterAdmin().prepareCreateSnapshot(repo, snapshot2).setIndices(indexName).setWaitForCompletion(true).get();
+        clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repo, snapshot2).setIndices(indexName).setWaitForCompletion(true).get();
 
         logger.info("--> asserting that the two snapshots refer to different files in the repository");
         final SnapshotStats secondSnapshotShardStatus = getStats(repo, snapshot2).getIndices().get(indexName).getShards().get(0).getStats();
@@ -220,7 +221,7 @@ public class BlobStoreIncrementalityIT extends AbstractSnapshotIntegTestCase {
         }, 30L, TimeUnit.SECONDS);
 
         final SnapshotInfo after = createFullSnapshot(repoName, "snapshot-after");
-        final int incrementalFileCount = clusterAdmin().prepareSnapshotStatus()
+        final int incrementalFileCount = clusterAdmin().prepareSnapshotStatus(TEST_REQUEST_TIMEOUT)
             .setRepository(repoName)
             .setSnapshots(after.snapshotId().getName())
             .get()
@@ -252,12 +253,12 @@ public class BlobStoreIncrementalityIT extends AbstractSnapshotIntegTestCase {
     }
 
     private SnapshotStatus getStats(String repository, String snapshot) {
-        return clusterAdmin().prepareSnapshotStatus(repository).setSnapshots(snapshot).get().getSnapshots().get(0);
+        return clusterAdmin().prepareSnapshotStatus(TEST_REQUEST_TIMEOUT, repository).setSnapshots(snapshot).get().getSnapshots().get(0);
     }
 
     private void ensureRestoreSingleShardSuccessfully(String repo, String indexName, String snapshot, String indexSuffix) {
         logger.info("--> restoring [{}]", snapshot);
-        final RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot(repo, snapshot)
+        final RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, repo, snapshot)
             .setIndices(indexName)
             .setRenamePattern("(.+)")
             .setRenameReplacement("$1" + indexSuffix)

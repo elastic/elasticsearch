@@ -12,15 +12,16 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.ElasticsearchRoleRestrictionException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.AliasesRequest;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
-import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.bulk.SimulateBulkAction;
+import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.delete.TransportDeleteAction;
 import org.elasticsearch.action.get.TransportMultiGetAction;
 import org.elasticsearch.action.index.TransportIndexAction;
@@ -31,7 +32,9 @@ import org.elasticsearch.action.search.TransportClosePointInTimeAction;
 import org.elasticsearch.action.search.TransportMultiSearchAction;
 import org.elasticsearch.action.search.TransportSearchScrollAction;
 import org.elasticsearch.action.termvectors.MultiTermVectorsAction;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.regex.Regex;
@@ -39,11 +42,14 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CachedSupplier;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.xpack.core.async.DeleteAsyncResultAction;
+import org.elasticsearch.xpack.core.async.TransportDeleteAsyncResultAction;
 import org.elasticsearch.xpack.core.eql.EqlAsyncActionNames;
+import org.elasticsearch.xpack.core.esql.EsqlAsyncActionNames;
 import org.elasticsearch.xpack.core.search.action.GetAsyncSearchAction;
+import org.elasticsearch.xpack.core.search.action.GetAsyncStatusAction;
 import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchAction;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyRequest;
@@ -81,6 +87,7 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeRes
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.NamedClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.Privilege;
+import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.support.StringMatcher;
 import org.elasticsearch.xpack.core.sql.SqlAsyncActionNames;
 import org.elasticsearch.xpack.security.action.user.TransportChangePasswordAction;
@@ -124,6 +131,19 @@ public class RBACEngine implements AuthorizationEngine {
     private static final String DELETE_SUB_REQUEST_REPLICA = TransportDeleteAction.NAME + "[r]";
 
     private static final Logger logger = LogManager.getLogger(RBACEngine.class);
+
+    private static final Set<String> SCROLL_RELATED_ACTIONS = Set.of(
+        TransportSearchScrollAction.TYPE.name(),
+        SearchTransportService.FETCH_ID_SCROLL_ACTION_NAME,
+        SearchTransportService.QUERY_FETCH_SCROLL_ACTION_NAME,
+        SearchTransportService.QUERY_SCROLL_ACTION_NAME,
+        SearchTransportService.FREE_CONTEXT_ACTION_NAME,
+        SearchTransportService.FREE_CONTEXT_SCROLL_ACTION_NAME,
+        TransportClearScrollAction.NAME,
+        "indices:data/read/sql/close_cursor",
+        SearchTransportService.CLEAR_SCROLL_CONTEXTS_ACTION_NAME
+    );
+
     private final Settings settings;
     private final CompositeRolesStore rolesStore;
     private final FieldPermissionsCache fieldPermissionsCache;
@@ -185,6 +205,10 @@ public class RBACEngine implements AuthorizationEngine {
             if (role.checkClusterAction(requestInfo.getAction(), requestInfo.getRequest(), requestInfo.getAuthentication())) {
                 listener.onResponse(AuthorizationResult.granted());
             } else if (checkSameUserPermissions(requestInfo.getAction(), requestInfo.getRequest(), requestInfo.getAuthentication())) {
+                listener.onResponse(AuthorizationResult.granted());
+            } else if (GetAsyncStatusAction.NAME.equals(requestInfo.getAction()) && role.checkIndicesAction(SubmitAsyncSearchAction.NAME)) {
+                // Users who are allowed to submit async searches are allowed to check the status of those searches
+                // Search ownership will be checked by AsyncSearchSecurity
                 listener.onResponse(AuthorizationResult.granted());
             } else {
                 listener.onResponse(AuthorizationResult.deny());
@@ -251,7 +275,7 @@ public class RBACEngine implements AuthorizationEngine {
 
     private static boolean shouldAuthorizeIndexActionNameOnly(String action, TransportRequest request) {
         switch (action) {
-            case BulkAction.NAME:
+            case TransportBulkAction.NAME:
             case SimulateBulkAction.NAME:
             case TransportIndexAction.NAME:
             case TransportDeleteAction.NAME:
@@ -294,7 +318,7 @@ public class RBACEngine implements AuthorizationEngine {
         RequestInfo requestInfo,
         AuthorizationInfo authorizationInfo,
         AsyncSupplier<ResolvedIndices> indicesAsyncSupplier,
-        Map<String, IndexAbstraction> aliasOrIndexLookup,
+        Metadata metadata,
         ActionListener<IndexAuthorizationResult> listener
     ) {
         final String action = requestInfo.getAction();
@@ -311,7 +335,7 @@ public class RBACEngine implements AuthorizationEngine {
             // need to validate that the action is allowed and then move on
             listener.onResponse(role.checkIndicesAction(action) ? IndexAuthorizationResult.EMPTY : IndexAuthorizationResult.DENIED);
         } else if (request instanceof IndicesRequest == false) {
-            if (isScrollRelatedAction(action)) {
+            if (SCROLL_RELATED_ACTIONS.contains(action)) {
                 // scroll is special
                 // some APIs are indices requests that are not actually associated with indices. For example,
                 // search scroll request, is categorized under the indices context, but doesn't hold indices names
@@ -398,7 +422,19 @@ public class RBACEngine implements AuthorizationEngine {
                                 .stream()
                                 .allMatch(IndicesAliasesRequest.AliasActions::expandAliasesWildcards))
                         : "expanded wildcards for local indices OR the request should not expand wildcards at all";
-                    delegateListener.onResponse(buildIndicesAccessControl(action, role, resolvedIndices, aliasOrIndexLookup));
+
+                    IndexAuthorizationResult result = buildIndicesAccessControl(action, role, resolvedIndices, metadata);
+                    if (requestInfo.getAuthentication().isCrossClusterAccess()
+                        && request instanceof IndicesRequest.RemoteClusterShardRequest shardsRequest
+                        && shardsRequest.shards() != null) {
+                        for (ShardId shardId : shardsRequest.shards()) {
+                            if (shardId != null && shardIdAuthorized(shardsRequest, shardId, result.getIndicesAccessControl()) == false) {
+                                listener.onResponse(IndexAuthorizationResult.DENIED);
+                                return;
+                            }
+                        }
+                    }
+                    delegateListener.onResponse(result);
                 }
             }));
         } else {
@@ -406,8 +442,31 @@ public class RBACEngine implements AuthorizationEngine {
         }
     }
 
+    private static boolean shardIdAuthorized(IndicesRequest request, ShardId shardId, IndicesAccessControl accessControl) {
+        var shardIdAccessPermissions = accessControl.getIndexPermissions(shardId.getIndexName());
+        if (shardIdAccessPermissions != null) {
+            return true;
+        }
+
+        logger.warn(
+            Strings.format(
+                "bad request of type [%s], request's stated indices %s are authorized but specified internal shard "
+                    + "ID %s is not authorized",
+                request.getClass().getCanonicalName(),
+                request.indices(),
+                shardId
+            )
+        );
+        return false;
+    }
+
     private static boolean allowsRemoteIndices(TransportRequest transportRequest) {
-        return transportRequest instanceof IndicesRequest.Replaceable replaceable && replaceable.allowsRemoteIndices();
+        // TODO this may need to change. See https://github.com/elastic/elasticsearch/issues/105598
+        if (transportRequest instanceof IndicesRequest.SingleIndexNoWildcards single) {
+            return single.allowsRemoteIndices();
+        } else {
+            return transportRequest instanceof IndicesRequest.Replaceable replaceable && replaceable.allowsRemoteIndices();
+        }
     }
 
     private static boolean isChildActionAuthorizedByParentOnLocalNode(RequestInfo requestInfo, AuthorizationInfo authorizationInfo) {
@@ -471,7 +530,12 @@ public class RBACEngine implements AuthorizationEngine {
                 + Arrays.stream(indices).filter(Regex::isSimpleMatchPattern).toList();
 
         // Check if the parent context has already successfully authorized access to the child's indices
-        return Arrays.stream(indices).allMatch(indicesAccessControl::hasIndexPermissions);
+        for (String index : indices) {
+            if (indicesAccessControl.hasIndexPermissions(index) == false) {
+                return false;
+            }
+        }
+        return true;
     }
 
     @Override
@@ -507,7 +571,7 @@ public class RBACEngine implements AuthorizationEngine {
                 Automaton existingPermissions = permissionMap.computeIfAbsent(entry.getKey(), role::allowedActionsMatcher);
                 for (String alias : entry.getValue()) {
                     Automaton newNamePermissions = permissionMap.computeIfAbsent(alias, role::allowedActionsMatcher);
-                    if (Operations.subsetOf(newNamePermissions, existingPermissions) == false) {
+                    if (Automatons.subsetOf(newNamePermissions, existingPermissions) == false) {
                         listener.onResponse(AuthorizationResult.deny());
                         return;
                     }
@@ -684,12 +748,13 @@ public class RBACEngine implements AuthorizationEngine {
     @Override
     public void getRoleDescriptorsIntersectionForRemoteCluster(
         final String remoteClusterAlias,
+        final TransportVersion remoteClusterVersion,
         final AuthorizationInfo authorizationInfo,
         final ActionListener<RoleDescriptorsIntersection> listener
     ) {
         if (authorizationInfo instanceof RBACAuthorizationInfo rbacAuthzInfo) {
             final Role role = rbacAuthzInfo.getRole();
-            listener.onResponse(role.getRoleDescriptorsIntersectionForRemoteCluster(remoteClusterAlias));
+            listener.onResponse(role.getRoleDescriptorsIntersectionForRemoteCluster(remoteClusterAlias, remoteClusterVersion));
         } else {
             listener.onFailure(
                 new IllegalArgumentException("unsupported authorization info: " + authorizationInfo.getClass().getSimpleName())
@@ -756,7 +821,15 @@ public class RBACEngine implements AuthorizationEngine {
             runAs = runAsPrivilege.name();
         }
 
-        return new GetUserPrivilegesResponse(cluster, conditionalCluster, indices, application, runAs, remoteIndices);
+        return new GetUserPrivilegesResponse(
+            cluster,
+            conditionalCluster,
+            indices,
+            application,
+            runAs,
+            remoteIndices,
+            userRole.remoteCluster()
+        );
     }
 
     private static GetUserPrivilegesResponse.Indices toIndices(final IndicesPermission.Group group) {
@@ -809,6 +882,10 @@ public class RBACEngine implements AuthorizationEngine {
                             for (Index index : indexAbstraction.getIndices()) {
                                 indicesAndAliases.add(index.getName());
                             }
+                            // TODO: We need to limit if a data stream's failure indices should return here.
+                            for (Index index : ((DataStream) indexAbstraction).getFailureIndices()) {
+                                indicesAndAliases.add(index.getName());
+                            }
                         }
                     }
                 }
@@ -841,12 +918,12 @@ public class RBACEngine implements AuthorizationEngine {
         String action,
         Role role,
         ResolvedIndices resolvedIndices,
-        Map<String, IndexAbstraction> aliasAndIndexLookup
+        Metadata metadata
     ) {
         final IndicesAccessControl accessControl = role.authorize(
             action,
             Sets.newHashSet(resolvedIndices.getLocal()),
-            aliasAndIndexLookup,
+            metadata,
             fieldPermissionsCache
         );
         return new IndexAuthorizationResult(accessControl);
@@ -947,22 +1024,13 @@ public class RBACEngine implements AuthorizationEngine {
         }
     }
 
-    private static boolean isScrollRelatedAction(String action) {
-        return action.equals(TransportSearchScrollAction.TYPE.name())
-            || action.equals(SearchTransportService.FETCH_ID_SCROLL_ACTION_NAME)
-            || action.equals(SearchTransportService.QUERY_FETCH_SCROLL_ACTION_NAME)
-            || action.equals(SearchTransportService.QUERY_SCROLL_ACTION_NAME)
-            || action.equals(SearchTransportService.FREE_CONTEXT_SCROLL_ACTION_NAME)
-            || action.equals(TransportClearScrollAction.NAME)
-            || action.equals("indices:data/read/sql/close_cursor")
-            || action.equals(SearchTransportService.CLEAR_SCROLL_CONTEXTS_ACTION_NAME);
-    }
-
     private static boolean isAsyncRelatedAction(String action) {
         return action.equals(SubmitAsyncSearchAction.NAME)
             || action.equals(GetAsyncSearchAction.NAME)
-            || action.equals(DeleteAsyncResultAction.NAME)
+            || action.equals(TransportDeleteAsyncResultAction.TYPE.name())
             || action.equals(EqlAsyncActionNames.EQL_ASYNC_GET_RESULT_ACTION_NAME)
+            || action.equals(EsqlAsyncActionNames.ESQL_ASYNC_GET_RESULT_ACTION_NAME)
+            || action.equals(EsqlAsyncActionNames.ESQL_ASYNC_STOP_ACTION_NAME)
             || action.equals(SqlAsyncActionNames.SQL_ASYNC_GET_RESULT_ACTION_NAME);
     }
 

@@ -172,7 +172,8 @@ public class BatchedDocumentsIteratorTests extends ESTestCase {
             SearchHits searchHits = createHits(hits);
             SearchResponse searchResponse = mock(SearchResponse.class);
             when(searchResponse.getScrollId()).thenReturn(SCROLL_ID);
-            when(searchResponse.getHits()).thenReturn(searchHits);
+            when(searchResponse.getHits()).thenReturn(searchHits.asUnpooled());
+            searchHits.decRef();
             return searchResponse;
         }
 
@@ -189,7 +190,7 @@ public class BatchedDocumentsIteratorTests extends ESTestCase {
             assertThat(searchRequests.size(), equalTo(1));
             SearchRequest searchRequest = searchRequests.get(0);
             assertThat(searchRequest.indices(), equalTo(new String[] { indexName }));
-            assertThat(searchRequest.scroll().keepAlive(), equalTo(TimeValue.timeValueMinutes(5)));
+            assertThat(searchRequest.scroll(), equalTo(TimeValue.timeValueMinutes(5)));
             assertThat(searchRequest.source().query(), equalTo(QueryBuilders.matchAllQuery()));
             assertThat(searchRequest.source().trackTotalHitsUpTo(), is(SearchContext.TRACK_TOTAL_HITS_ACCURATE));
         }
@@ -199,7 +200,7 @@ public class BatchedDocumentsIteratorTests extends ESTestCase {
             assertThat(searchScrollRequests.size(), equalTo(expectedCount));
             for (SearchScrollRequest request : searchScrollRequests) {
                 assertThat(request.scrollId(), equalTo(scrollId));
-                assertThat(request.scroll().keepAlive(), equalTo(TimeValue.timeValueMinutes(5)));
+                assertThat(request.scroll(), equalTo(TimeValue.timeValueMinutes(5)));
             }
         }
     }

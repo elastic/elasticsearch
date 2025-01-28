@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.health;
@@ -27,13 +28,11 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
-import java.util.concurrent.ExecutionException;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.common.util.CollectionUtils.appendToCopy;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.instanceOf;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
 public class GetHealthActionIT extends ESIntegTestCase {
@@ -172,16 +171,10 @@ public class GetHealthActionIT extends ESIntegTestCase {
             testIndicator(client, ilmIndicatorStatus, true);
 
             // Next, test that if we ask for a nonexistent indicator, we get an exception
-            {
-                ExecutionException exception = expectThrows(
-                    ExecutionException.class,
-                    () -> client.execute(
-                        GetHealthAction.INSTANCE,
-                        new GetHealthAction.Request(NONEXISTENT_INDICATOR_NAME, randomBoolean(), 1000)
-                    ).get()
-                );
-                assertThat(exception.getCause(), instanceOf(ResourceNotFoundException.class));
-            }
+            expectThrows(
+                ResourceNotFoundException.class,
+                client.execute(GetHealthAction.INSTANCE, new GetHealthAction.Request(NONEXISTENT_INDICATOR_NAME, randomBoolean(), 1000))
+            );
 
             // Check health api stats
             {

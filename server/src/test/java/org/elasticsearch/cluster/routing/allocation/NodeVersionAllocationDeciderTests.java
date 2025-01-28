@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing.allocation;
@@ -32,7 +33,6 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingHelper;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
-import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
@@ -69,6 +69,7 @@ import static org.elasticsearch.cluster.routing.RoutingNodesHelper.shardsWithSta
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
+import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -217,14 +218,12 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
                 for (int j = nodes.size(); j < numNodes; j++) {
                     if (frequently()) {
                         if (randomBoolean()) {
-                            nodes.add(
-                                newNode("node" + (nodeIdx++), VersionUtils.getPreviousVersion(), IndexVersionUtils.getPreviousVersion())
-                            );
+                            nodes.add(newNode("node" + (nodeIdx++), VersionUtils.getPreviousVersion(), IndexVersion.current()));
                         } else {
                             nodes.add(newNode("node" + (nodeIdx++), Version.CURRENT, IndexVersion.current()));
                         }
                     } else {
-                        nodes.add(newNode("node" + (nodeIdx++), VersionUtils.randomVersion(random()), IndexVersionUtils.randomVersion()));
+                        nodes.add(newNode("node" + (nodeIdx++), VersionUtils.randomVersion(random()), IndexVersion.current()));
                     }
                 }
             }
@@ -270,9 +269,9 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(clusterState)
             .nodes(
                 DiscoveryNodes.builder()
-                    .add(newNode("old0", VersionUtils.getPreviousVersion(), IndexVersionUtils.getPreviousVersion()))
-                    .add(newNode("old1", VersionUtils.getPreviousVersion(), IndexVersionUtils.getPreviousVersion()))
-                    .add(newNode("old2", VersionUtils.getPreviousVersion(), IndexVersionUtils.getPreviousVersion()))
+                    .add(newNode("old0", VersionUtils.getPreviousVersion(), IndexVersion.current()))
+                    .add(newNode("old1", VersionUtils.getPreviousVersion(), IndexVersion.current()))
+                    .add(newNode("old2", VersionUtils.getPreviousVersion(), IndexVersion.current()))
             )
             .build();
         clusterState = stabilize(clusterState, service);
@@ -280,8 +279,8 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(clusterState)
             .nodes(
                 DiscoveryNodes.builder()
-                    .add(newNode("old0", VersionUtils.getPreviousVersion(), IndexVersionUtils.getPreviousVersion()))
-                    .add(newNode("old1", VersionUtils.getPreviousVersion(), IndexVersionUtils.getPreviousVersion()))
+                    .add(newNode("old0", VersionUtils.getPreviousVersion(), IndexVersion.current()))
+                    .add(newNode("old1", VersionUtils.getPreviousVersion(), IndexVersion.current()))
                     .add(newNode("new0"))
             )
             .build();
@@ -291,7 +290,7 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(clusterState)
             .nodes(
                 DiscoveryNodes.builder()
-                    .add(newNode("node0", VersionUtils.getPreviousVersion(), IndexVersionUtils.getPreviousVersion()))
+                    .add(newNode("node0", VersionUtils.getPreviousVersion(), IndexVersion.current()))
                     .add(newNode("new1"))
                     .add(newNode("new0"))
             )
@@ -321,11 +320,11 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
         final DiscoveryNode newNode = DiscoveryNodeUtils.builder("newNode").roles(MASTER_DATA_ROLES).build();
         final DiscoveryNode oldNode1 = DiscoveryNodeUtils.builder("oldNode1")
             .roles(MASTER_DATA_ROLES)
-            .version(VersionUtils.getPreviousVersion(), IndexVersions.MINIMUM_COMPATIBLE, IndexVersionUtils.getPreviousVersion())
+            .version(VersionUtils.getPreviousVersion(), IndexVersions.MINIMUM_COMPATIBLE, IndexVersion.current())
             .build();
         final DiscoveryNode oldNode2 = DiscoveryNodeUtils.builder("oldNode2")
             .roles(MASTER_DATA_ROLES)
-            .version(VersionUtils.getPreviousVersion(), IndexVersions.MINIMUM_COMPATIBLE, IndexVersionUtils.getPreviousVersion())
+            .version(VersionUtils.getPreviousVersion(), IndexVersions.MINIMUM_COMPATIBLE, IndexVersion.current())
             .build();
         AllocationId allocationId1P = AllocationId.newInitializing();
         AllocationId allocationId1R = AllocationId.newInitializing();
@@ -352,26 +351,18 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
                 IndexRoutingTable.builder(shard1.getIndex())
                     .addIndexShard(
                         new IndexShardRoutingTable.Builder(shard1).addShard(
-                            TestShardRouting.newShardRouting(
-                                shard1.getIndexName(),
-                                shard1.getId(),
-                                newNode.getId(),
-                                null,
-                                true,
-                                ShardRoutingState.STARTED,
-                                allocationId1P
-                            )
+                            shardRoutingBuilder(shard1.getIndexName(), shard1.getId(), newNode.getId(), true, ShardRoutingState.STARTED)
+                                .withAllocationId(allocationId1P)
+                                .build()
                         )
                             .addShard(
-                                TestShardRouting.newShardRouting(
+                                shardRoutingBuilder(
                                     shard1.getIndexName(),
                                     shard1.getId(),
                                     oldNode1.getId(),
-                                    null,
                                     false,
-                                    ShardRoutingState.STARTED,
-                                    allocationId1R
-                                )
+                                    ShardRoutingState.STARTED
+                                ).withAllocationId(allocationId1R).build()
                             )
                     )
             )
@@ -379,26 +370,18 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
                 IndexRoutingTable.builder(shard2.getIndex())
                     .addIndexShard(
                         new IndexShardRoutingTable.Builder(shard2).addShard(
-                            TestShardRouting.newShardRouting(
-                                shard2.getIndexName(),
-                                shard2.getId(),
-                                newNode.getId(),
-                                null,
-                                true,
-                                ShardRoutingState.STARTED,
-                                allocationId2P
-                            )
+                            shardRoutingBuilder(shard2.getIndexName(), shard2.getId(), newNode.getId(), true, ShardRoutingState.STARTED)
+                                .withAllocationId(allocationId2P)
+                                .build()
                         )
                             .addShard(
-                                TestShardRouting.newShardRouting(
+                                shardRoutingBuilder(
                                     shard2.getIndexName(),
                                     shard2.getId(),
                                     oldNode1.getId(),
-                                    null,
                                     false,
-                                    ShardRoutingState.STARTED,
-                                    allocationId2R
-                                )
+                                    ShardRoutingState.STARTED
+                                ).withAllocationId(allocationId2R).build()
                             )
                     )
             )
@@ -641,9 +624,9 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
             decision.getExplanation(),
             is(
                 "max supported index version ["
-                    + oldNode.node().getMaxIndexVersion()
+                    + oldNode.node().getMaxIndexVersion().toReleaseVersion()
                     + "] is older than the snapshot version ["
-                    + newNode.node().getMaxIndexVersion()
+                    + newNode.node().getMaxIndexVersion().toReleaseVersion()
                     + "]"
             )
         );
@@ -658,9 +641,9 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
             decision.getExplanation(),
             is(
                 "max supported index version ["
-                    + newNode.node().getMaxIndexVersion()
+                    + newNode.node().getMaxIndexVersion().toReleaseVersion()
                     + "] is the same or newer than snapshot version ["
-                    + oldNode.node().getMaxIndexVersion()
+                    + oldNode.node().getMaxIndexVersion().toReleaseVersion()
                     + "]"
             )
         );
@@ -669,7 +652,6 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
         };
         final RoutingNodes routingNodes = clusterState.mutableRoutingNodes();
         final ShardRouting startedPrimary = routingNodes.startShard(
-            logger,
             routingNodes.initializeShard(primaryShard, "newNode", null, 0, routingChangesObserver),
             routingChangesObserver,
             ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE
@@ -691,8 +673,7 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
         );
 
         routingNodes.startShard(
-            logger,
-            routingNodes.relocateShard(startedPrimary, "oldNode", 0, routingChangesObserver).v2(),
+            routingNodes.relocateShard(startedPrimary, "oldNode", 0, "test", routingChangesObserver).v2(),
             routingChangesObserver,
             ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE
         );

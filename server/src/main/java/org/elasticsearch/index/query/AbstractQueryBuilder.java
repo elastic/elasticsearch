@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.query;
@@ -20,6 +21,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.SuggestingErrorOnUnknown;
+import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
 import org.elasticsearch.xcontent.AbstractObjectParser;
 import org.elasticsearch.xcontent.FilterXContentParser;
 import org.elasticsearch.xcontent.FilterXContentParserWrapper;
@@ -215,12 +217,12 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
      * @return the same input object or a {@link BytesRef} representation if input was of type string
      */
     static Object maybeConvertToBytesRef(Object obj) {
-        if (obj instanceof String) {
-            return BytesRefs.checkIndexableLength(BytesRefs.toBytesRef(obj));
-        } else if (obj instanceof CharBuffer) {
-            return BytesRefs.checkIndexableLength(new BytesRef((CharBuffer) obj));
-        } else if (obj instanceof BigInteger) {
-            return BytesRefs.toBytesRef(obj);
+        if (obj instanceof String v) {
+            return BytesRefs.checkIndexableLength(BytesRefs.toExactSizedBytesRef(v));
+        } else if (obj instanceof CharBuffer v) {
+            return BytesRefs.checkIndexableLength(new BytesRef(v));
+        } else if (obj instanceof BigInteger v) {
+            return BytesRefs.toBytesRef(v);
         }
         return obj;
     }
@@ -277,6 +279,14 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
 
     @Override
     public final QueryBuilder rewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+        QueryRewriteInterceptor queryRewriteInterceptor = queryRewriteContext.getQueryRewriteInterceptor();
+        if (queryRewriteInterceptor != null) {
+            var rewritten = queryRewriteInterceptor.interceptAndRewrite(queryRewriteContext, this);
+            if (rewritten != this) {
+                return new InterceptedQueryBuilderWrapper(rewritten);
+            }
+        }
+
         QueryBuilder rewritten = doRewrite(queryRewriteContext);
         if (rewritten == this) {
             return rewritten;
@@ -295,6 +305,10 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
         // which returns `null` in the default implementation.
         if (queryRewriteContext == null) {
             return this;
+        }
+        final InnerHitsRewriteContext ihrc = queryRewriteContext.convertToInnerHitsRewriteContext();
+        if (ihrc != null) {
+            return doInnerHitsRewrite(ihrc);
         }
         final CoordinatorRewriteContext crc = queryRewriteContext.convertToCoordinatorRewriteContext();
         if (crc != null) {
@@ -339,6 +353,16 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
      * @return A {@link QueryBuilder} representing the rewritten query, that could be used to determine whether this query yields result.
      */
     protected QueryBuilder doIndexMetadataRewrite(final QueryRewriteContext context) throws IOException {
+        return this;
+    }
+
+    /**
+     * Optional rewrite logic that allows for optimization for extracting inner hits
+     * @param context an {@link InnerHitsRewriteContext} instance
+     * @return A {@link QueryBuilder} representing the rewritten query optimized for inner hit extraction
+     * @throws IOException if an error occurs while rewriting the query
+     */
+    protected QueryBuilder doInnerHitsRewrite(final InnerHitsRewriteContext context) throws IOException {
         return this;
     }
 

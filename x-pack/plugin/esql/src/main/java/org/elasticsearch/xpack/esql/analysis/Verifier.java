@@ -7,54 +7,59 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
-import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Equals;
-import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.NotEquals;
+import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.xpack.esql.LicenseAware;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
+import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
+import org.elasticsearch.xpack.esql.common.Failure;
+import org.elasticsearch.xpack.esql.common.Failures;
+import org.elasticsearch.xpack.esql.core.capabilities.Unresolvable;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
+import org.elasticsearch.xpack.esql.core.expression.function.Function;
+import org.elasticsearch.xpack.esql.core.expression.predicate.BinaryOperator;
+import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
+import org.elasticsearch.xpack.esql.core.tree.Node;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Neg;
-import org.elasticsearch.xpack.esql.plan.logical.Eval;
-import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
-import org.elasticsearch.xpack.esql.plan.logical.Row;
-import org.elasticsearch.xpack.esql.stats.FeatureMetric;
-import org.elasticsearch.xpack.esql.stats.Metrics;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
-import org.elasticsearch.xpack.ql.capabilities.Unresolvable;
-import org.elasticsearch.xpack.ql.common.Failure;
-import org.elasticsearch.xpack.ql.expression.Alias;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.FieldAttribute;
-import org.elasticsearch.xpack.ql.expression.Literal;
-import org.elasticsearch.xpack.ql.expression.MetadataAttribute;
-import org.elasticsearch.xpack.ql.expression.NamedExpression;
-import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
-import org.elasticsearch.xpack.ql.expression.TypeResolutions;
-import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
-import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
-import org.elasticsearch.xpack.ql.expression.predicate.BinaryOperator;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
-import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
-import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.ql.plan.logical.Project;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
+import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.Lookup;
+import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.telemetry.FeatureMetric;
+import org.elasticsearch.xpack.esql.telemetry.Metrics;
 
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.Collection;
-import java.util.LinkedHashSet;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.xpack.ql.analyzer.VerifierChecks.checkFilterConditionType;
-import static org.elasticsearch.xpack.ql.common.Failure.fail;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
+import static org.elasticsearch.xpack.esql.common.Failure.fail;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 
+/**
+ * This class is part of the planner. Responsible for failing impossible queries with a human-readable error message.  In particular, this
+ * step does type resolution and fails queries based on invalid type expressions.
+ */
 public class Verifier {
 
     private final Metrics metrics;
+    private final XPackLicenseState licenseState;
 
-    public Verifier(Metrics metrics) {
+    public Verifier(Metrics metrics, XPackLicenseState licenseState) {
         this.metrics = metrics;
+        this.licenseState = licenseState;
     }
 
     /**
@@ -66,9 +71,45 @@ public class Verifier {
      */
     Collection<Failure> verify(LogicalPlan plan, BitSet partialMetrics) {
         assert partialMetrics != null;
-        Set<Failure> failures = new LinkedHashSet<>();
+        Failures failures = new Failures();
 
         // quick verification for unresolved attributes
+        checkUnresolvedAttributes(plan, failures);
+
+        // in case of failures bail-out as all other checks will be redundant
+        if (failures.hasFailures()) {
+            return failures.failures();
+        }
+
+        // collect plan checkers
+        var planCheckers = planCheckers(plan);
+
+        // Concrete verifications
+        plan.forEachDown(p -> {
+            // if the children are unresolved, so will this node; counting it will only add noise
+            if (p.childrenResolved() == false) {
+                return;
+            }
+
+            planCheckers.forEach(c -> c.accept(p, failures));
+
+            checkOperationsOnUnsignedLong(p, failures);
+            checkBinaryComparison(p, failures);
+        });
+
+        if (failures.hasFailures() == false) {
+            licenseCheck(plan, failures);
+        }
+
+        // gather metrics
+        if (failures.hasFailures() == false) {
+            gatherMetrics(plan, partialMetrics);
+        }
+
+        return failures.failures();
+    }
+
+    private static void checkUnresolvedAttributes(LogicalPlan plan, Failures failures) {
         plan.forEachUp(p -> {
             // if the children are unresolved, so will this node; counting it will only add noise
             if (p.childrenResolved() == false) {
@@ -82,149 +123,90 @@ public class Verifier {
             else if (p.resolved()) {
                 return;
             }
-            // handle aggregate first to disambiguate between missing fields or incorrect function declaration
-            if (p instanceof Aggregate aggregate) {
-                for (NamedExpression agg : aggregate.aggregates()) {
-                    if (agg instanceof Alias as) {
-                        var child = as.child();
-                        if (child instanceof UnresolvedAttribute u) {
-                            failures.add(fail(child, "invalid stats declaration; [{}] is not an aggregate function", child.sourceText()));
-                        }
-                    }
-                }
-            }
-            p.forEachExpression(e -> {
+
+            Consumer<Expression> unresolvedExpressions = e -> {
                 // everything is fine, skip expression
                 if (e.resolved()) {
                     return;
                 }
 
                 e.forEachUp(ae -> {
-                    // we're only interested in the children
+                    // Special handling for Project and unsupported/union types: disallow renaming them but pass them through otherwise.
+                    if (p instanceof Project) {
+                        if (ae instanceof Alias as && as.child() instanceof UnsupportedAttribute ua) {
+                            failures.add(fail(ae, ua.unresolvedMessage()));
+                        }
+                        if (ae instanceof UnsupportedAttribute) {
+                            return;
+                        }
+                    }
+
+                    // Do not fail multiple times in case the children are already unresolved.
                     if (ae.childrenResolved() == false) {
                         return;
                     }
 
                     if (ae instanceof Unresolvable u) {
-                        // special handling for Project and unsupported types
-                        if (p instanceof Project == false || u instanceof UnsupportedAttribute == false) {
-                            failures.add(fail(ae, u.unresolvedMessage()));
-                        }
+                        failures.add(fail(ae, u.unresolvedMessage()));
                     }
                     if (ae.typeResolved().unresolved()) {
                         failures.add(fail(ae, ae.typeResolved().message()));
                     }
                 });
-            });
+            };
+
+            // aggregates duplicate grouping inside aggs - to avoid potentially confusing messages, we only check the aggregates
+            if (p instanceof Aggregate agg) {
+                // do groupings first
+                var groupings = agg.groupings();
+                groupings.forEach(unresolvedExpressions);
+                // followed by just the aggregates (to avoid going through the groups again)
+                var aggs = agg.aggregates();
+                int size = aggs.size() - groupings.size();
+                aggs.subList(0, size).forEach(unresolvedExpressions);
+            }
+            // similar approach for Lookup
+            else if (p instanceof Lookup lookup) {
+                // first check the table
+                var tableName = lookup.tableName();
+                if (tableName instanceof Unresolvable u) {
+                    failures.add(fail(tableName, u.unresolvedMessage()));
+                }
+                // only after that check the match fields
+                else {
+                    lookup.matchFields().forEach(unresolvedExpressions);
+                }
+            }
+
+            else {
+                p.forEachExpression(unresolvedExpressions);
+            }
         });
+    }
 
-        // in case of failures bail-out as all other checks will be redundant
-        if (failures.isEmpty() == false) {
-            return failures;
-        }
-
-        // Concrete verifications
+    private static List<BiConsumer<LogicalPlan, Failures>> planCheckers(LogicalPlan plan) {
+        List<BiConsumer<LogicalPlan, Failures>> planCheckers = new ArrayList<>();
+        Consumer<? super Node<?>> collectPlanCheckers = p -> {
+            if (p instanceof PostAnalysisPlanVerificationAware pva) {
+                planCheckers.add(pva.postAnalysisPlanVerification());
+            }
+        };
         plan.forEachDown(p -> {
-            // if the children are unresolved, so will this node; counting it will only add noise
-            if (p.childrenResolved() == false) {
-                return;
-            }
-            checkFilterConditionType(p, failures);
-            checkAggregate(p, failures);
-            checkRegexExtractOnlyOnStrings(p, failures);
+            collectPlanCheckers.accept(p);
+            p.forEachExpression(collectPlanCheckers);
 
-            checkRow(p, failures);
-            checkEvalFields(p, failures);
-
-            checkOperationsOnUnsignedLong(p, failures);
-            checkBinaryComparison(p, failures);
-        });
-
-        // gather metrics
-        if (failures.isEmpty()) {
-            gatherMetrics(plan, partialMetrics);
-        }
-
-        return failures;
-    }
-
-    private static void checkAggregate(LogicalPlan p, Set<Failure> failures) {
-        if (p instanceof Aggregate agg) {
-            agg.aggregates().forEach(e -> {
-                var exp = e instanceof Alias ? ((Alias) e).child() : e;
-                if (exp instanceof AggregateFunction aggFunc) {
-                    Expression field = aggFunc.field();
-
-                    // TODO: allow an expression?
-                    if ((field instanceof FieldAttribute
-                        || field instanceof MetadataAttribute
-                        || field instanceof ReferenceAttribute
-                        || field instanceof Literal) == false) {
-                        failures.add(
-                            fail(
-                                e,
-                                "aggregate function's field must be an attribute or literal; found ["
-                                    + field.sourceText()
-                                    + "] of type ["
-                                    + field.nodeName()
-                                    + "]"
-                            )
-                        );
+            if (p instanceof PostAnalysisVerificationAware va) {
+                planCheckers.add((lp, failures) -> {
+                    if (lp.getClass().equals(va.getClass())) {
+                        va.postAnalysisVerification(failures);
                     }
-                } else if (agg.groupings().contains(exp) == false) { // TODO: allow an expression?
-                    failures.add(
-                        fail(
-                            exp,
-                            "expected an aggregate function or group but got [" + exp.sourceText() + "] of type [" + exp.nodeName() + "]"
-                        )
-                    );
-                }
-            });
-        }
-    }
-
-    private static void checkRegexExtractOnlyOnStrings(LogicalPlan p, Set<Failure> failures) {
-        if (p instanceof RegexExtract re) {
-            Expression expr = re.input();
-            DataType type = expr.dataType();
-            if (EsqlDataTypes.isString(type) == false) {
-                failures.add(
-                    fail(
-                        expr,
-                        "{} only supports KEYWORD or TEXT values, found expression [{}] type [{}]",
-                        re.getClass().getSimpleName(),
-                        expr.sourceText(),
-                        type
-                    )
-                );
+                });
             }
-        }
+        });
+        return planCheckers;
     }
 
-    private static void checkRow(LogicalPlan p, Set<Failure> failures) {
-        if (p instanceof Row row) {
-            row.fields().forEach(a -> {
-                if (EsqlDataTypes.isRepresentable(a.dataType()) == false) {
-                    failures.add(fail(a, "cannot use [{}] directly in a row assignment", a.child().sourceText()));
-                }
-            });
-        }
-    }
-
-    private static void checkEvalFields(LogicalPlan p, Set<Failure> failures) {
-        if (p instanceof Eval eval) {
-            eval.fields().forEach(field -> {
-                DataType dataType = field.dataType();
-                if (EsqlDataTypes.isRepresentable(dataType) == false) {
-                    failures.add(
-                        fail(field, "EVAL does not support type [{}] in expression [{}]", dataType.typeName(), field.child().sourceText())
-                    );
-                }
-            });
-        }
-    }
-
-    private static void checkOperationsOnUnsignedLong(LogicalPlan p, Set<Failure> failures) {
+    private static void checkOperationsOnUnsignedLong(LogicalPlan p, Failures failures) {
         p.forEachExpression(e -> {
             Failure f = null;
 
@@ -240,7 +222,7 @@ public class Verifier {
         });
     }
 
-    private static void checkBinaryComparison(LogicalPlan p, Set<Failure> failures) {
+    private static void checkBinaryComparison(LogicalPlan p, Failures failures) {
         p.forEachExpression(BinaryComparison.class, bc -> {
             Failure f = validateBinaryComparison(bc);
             if (f != null) {
@@ -249,15 +231,38 @@ public class Verifier {
         });
     }
 
+    private void licenseCheck(LogicalPlan plan, Failures failures) {
+        Consumer<Node<?>> licenseCheck = n -> {
+            if (n instanceof LicenseAware la && la.licenseCheck(licenseState) == false) {
+                failures.add(fail(n, "current license is non-compliant for [{}]", n.sourceText()));
+            }
+        };
+        plan.forEachDown(p -> {
+            licenseCheck.accept(p);
+            p.forEachExpression(Expression.class, licenseCheck);
+        });
+    }
+
     private void gatherMetrics(LogicalPlan plan, BitSet b) {
         plan.forEachDown(p -> FeatureMetric.set(p, b));
         for (int i = b.nextSetBit(0); i >= 0; i = b.nextSetBit(i + 1)) {
             metrics.inc(FeatureMetric.values()[i]);
         }
+        Set<Class<?>> functions = new HashSet<>();
+        plan.forEachExpressionDown(Function.class, p -> functions.add(p.getClass()));
+        functions.forEach(f -> metrics.incFunctionMetric(f));
+    }
+
+    public XPackLicenseState licenseState() {
+        return licenseState;
     }
 
     /**
-     * Limit QL's comparisons to types we support.
+     * Limit QL's comparisons to types we support.  This should agree with
+     * {@link EsqlBinaryComparison}'s checkCompatibility method
+     *
+     * @return null if the given binary comparison has valid input types,
+     *         otherwise a failure message suitable to return to the user.
      */
     public static Failure validateBinaryComparison(BinaryComparison bc) {
         if (bc.left().dataType().isNumeric()) {
@@ -273,15 +278,21 @@ public class Verifier {
         }
 
         List<DataType> allowed = new ArrayList<>();
-        allowed.add(DataTypes.KEYWORD);
-        allowed.add(DataTypes.TEXT);
-        allowed.add(DataTypes.IP);
-        allowed.add(DataTypes.DATETIME);
-        allowed.add(DataTypes.VERSION);
-        allowed.add(EsqlDataTypes.GEO_POINT);
-        allowed.add(EsqlDataTypes.CARTESIAN_POINT);
+        allowed.add(DataType.KEYWORD);
+        allowed.add(DataType.TEXT);
+        if (EsqlCapabilities.Cap.SEMANTIC_TEXT_TYPE.isEnabled()) {
+            allowed.add(DataType.SEMANTIC_TEXT);
+        }
+        allowed.add(DataType.IP);
+        allowed.add(DataType.DATETIME);
+        allowed.add(DataType.DATE_NANOS);
+        allowed.add(DataType.VERSION);
+        allowed.add(DataType.GEO_POINT);
+        allowed.add(DataType.GEO_SHAPE);
+        allowed.add(DataType.CARTESIAN_POINT);
+        allowed.add(DataType.CARTESIAN_SHAPE);
         if (bc instanceof Equals || bc instanceof NotEquals) {
-            allowed.add(DataTypes.BOOLEAN);
+            allowed.add(DataType.BOOLEAN);
         }
         Expression.TypeResolution r = TypeResolutions.isType(
             bc.left(),
@@ -293,9 +304,15 @@ public class Verifier {
         if (false == r.resolved()) {
             return fail(bc, r.message());
         }
-        if (DataTypes.isString(bc.left().dataType()) && DataTypes.isString(bc.right().dataType())) {
+        if (DataType.isString(bc.left().dataType()) && DataType.isString(bc.right().dataType())) {
             return null;
         }
+
+        // Allow mixed millisecond and nanosecond binary comparisons
+        if (bc.left().dataType().isDate() && bc.right().dataType().isDate()) {
+            return null;
+        }
+
         if (bc.left().dataType() != bc.right().dataType()) {
             return fail(
                 bc,
@@ -320,15 +337,15 @@ public class Verifier {
     public static Failure validateUnsignedLongOperator(BinaryOperator<?, ?, ?, ?> bo) {
         DataType leftType = bo.left().dataType();
         DataType rightType = bo.right().dataType();
-        if ((leftType == DataTypes.UNSIGNED_LONG || rightType == DataTypes.UNSIGNED_LONG) && leftType != rightType) {
+        if ((leftType == DataType.UNSIGNED_LONG || rightType == DataType.UNSIGNED_LONG) && leftType != rightType) {
             return fail(
                 bo,
                 "first argument of [{}] is [{}] and second is [{}]. [{}] can only be operated on together with another [{}]",
                 bo.sourceText(),
                 leftType.typeName(),
                 rightType.typeName(),
-                DataTypes.UNSIGNED_LONG.typeName(),
-                DataTypes.UNSIGNED_LONG.typeName()
+                DataType.UNSIGNED_LONG.typeName(),
+                DataType.UNSIGNED_LONG.typeName()
             );
         }
         return null;
@@ -339,7 +356,7 @@ public class Verifier {
      */
     private static Failure validateUnsignedLongNegation(Neg neg) {
         DataType childExpressionType = neg.field().dataType();
-        if (childExpressionType.equals(DataTypes.UNSIGNED_LONG)) {
+        if (childExpressionType.equals(DataType.UNSIGNED_LONG)) {
             return fail(
                 neg,
                 "negation unsupported for arguments of type [{}] in expression [{}]",

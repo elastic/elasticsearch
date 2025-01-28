@@ -13,8 +13,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.injection.guice.Inject;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -82,7 +82,7 @@ public class AnalyticsCollectionResolver {
         // Listing data streams that are matching the analytics collection pattern.
         List<String> dataStreams = indexNameExpressionResolver.dataStreamNames(
             state,
-            IndicesOptions.lenientExpandOpen(),
+            IndicesOptions.lenientExpandOpenNoSelectors(),
             EVENT_DATA_STREAM_INDEX_PATTERN
         );
 

@@ -5,6 +5,12 @@
 <titleabbrev>Delete filters</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-ml-anomaly[{ml-cap}  {anomaly-detect} APIs].
+--
+
 Deletes a filter.
 
 [[ml-delete-filter-request]]
@@ -31,7 +37,7 @@ filter. For more information, see
 
 `<filter_id>`::
 (Required, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=filter-id]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=filter-id]
 
 [[ml-delete-filter-example]]
 == {api-examples-title}

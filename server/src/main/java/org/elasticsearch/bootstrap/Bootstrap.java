@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.bootstrap;
@@ -16,6 +17,7 @@ import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.NodeValidationException;
+import org.elasticsearch.plugins.PluginsLoader;
 
 import java.io.PrintStream;
 
@@ -31,6 +33,7 @@ class Bootstrap {
 
     // arguments from the CLI process
     private final ServerArgs args;
+    private final boolean useEntitlements;
 
     // controller for spawning component subprocesses
     private final Spawner spawner = new Spawner();
@@ -41,10 +44,14 @@ class Bootstrap {
     // the loaded settings for the node, not valid until after phase 2 of initialization
     private final SetOnce<Environment> nodeEnv = new SetOnce<>();
 
-    Bootstrap(PrintStream out, PrintStream err, ServerArgs args) {
+    // loads information about plugins required for entitlements in phase 2, used by plugins service in phase 3
+    private final SetOnce<PluginsLoader> pluginsLoader = new SetOnce<>();
+
+    Bootstrap(PrintStream out, PrintStream err, ServerArgs args, boolean useEntitlements) {
         this.out = out;
         this.err = err;
         this.args = args;
+        this.useEntitlements = useEntitlements;
     }
 
     ServerArgs args() {
@@ -53,6 +60,10 @@ class Bootstrap {
 
     Spawner spawner() {
         return spawner;
+    }
+
+    public boolean useEntitlements() {
+        return useEntitlements;
     }
 
     void setSecureSettings(SecureSettings secureSettings) {
@@ -69,6 +80,14 @@ class Bootstrap {
 
     Environment environment() {
         return nodeEnv.get();
+    }
+
+    void setPluginsLoader(PluginsLoader pluginsLoader) {
+        this.pluginsLoader.set(pluginsLoader);
+    }
+
+    PluginsLoader pluginsLoader() {
+        return pluginsLoader.get();
     }
 
     void exitWithNodeValidationException(NodeValidationException e) {

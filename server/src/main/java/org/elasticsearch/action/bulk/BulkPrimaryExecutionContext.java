@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.bulk;
@@ -293,7 +294,7 @@ class BulkPrimaryExecutionContext {
                 }
                 executionResult = BulkItemResponse.success(current.id(), current.request().opType(), response);
                 // set a blank ShardInfo so we can safely send it to the replicas. We won't use it in the real response though.
-                executionResult.getResponse().setShardInfo(new ReplicationResponse.ShardInfo());
+                executionResult.getResponse().setShardInfo(ReplicationResponse.ShardInfo.EMPTY);
                 locationToSync = TransportWriteAction.locationToSync(locationToSync, result.getTranslogLocation());
             }
             case FAILURE -> {

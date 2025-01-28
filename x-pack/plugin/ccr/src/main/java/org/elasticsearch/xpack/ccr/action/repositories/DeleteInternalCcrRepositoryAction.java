@@ -12,8 +12,8 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
@@ -24,7 +24,7 @@ public class DeleteInternalCcrRepositoryAction extends ActionType<ActionResponse
     public static final String NAME = "internal:admin/ccr/internal_repository/delete";
 
     private DeleteInternalCcrRepositoryAction() {
-        super(NAME, Writeable.Reader.localOnly());
+        super(NAME);
     }
 
     public static class TransportDeleteInternalRepositoryAction extends TransportAction<
@@ -39,7 +39,7 @@ public class DeleteInternalCcrRepositoryAction extends ActionType<ActionResponse
             ActionFilters actionFilters,
             TransportService transportService
         ) {
-            super(NAME, actionFilters, transportService.getTaskManager());
+            super(NAME, actionFilters, transportService.getTaskManager(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
             this.repositoriesService = repositoriesService;
         }
 

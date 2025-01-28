@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket.filter;
@@ -131,7 +132,7 @@ public class FilterByFilterAggregator extends FiltersAggregator {
         }
 
         /**
-         * Build the the adapter or {@code null} if the this isn't a valid rewrite.
+         * Build the adapter or {@code null} if this isn't a valid rewrite.
          */
         public final T build() throws IOException {
             if (false == valid || aggCtx.enableRewriteToFilterByFilter() == false) {
@@ -296,13 +297,15 @@ public class FilterByFilterAggregator extends FiltersAggregator {
 
             @Override
             public void collect(int docId) throws IOException {
-                collectBucket(subCollector, docId, filterOrd);
+                collectExistingBucket(subCollector, docId, filterOrd);
             }
 
             @Override
-            public void setScorer(Scorable scorer) throws IOException {}
+            public void setScorer(Scorable scorer) {}
         }
         MatchCollector collector = new MatchCollector();
+        // create the buckets so we can call collectExistingBucket
+        grow(filters().size() + 1);
         filters().get(0).collect(aggCtx.getLeafReaderContext(), collector, live);
         for (int filterOrd = 1; filterOrd < filters().size(); filterOrd++) {
             collector.subCollector = collectableSubAggregators.getLeafCollector(aggCtx);

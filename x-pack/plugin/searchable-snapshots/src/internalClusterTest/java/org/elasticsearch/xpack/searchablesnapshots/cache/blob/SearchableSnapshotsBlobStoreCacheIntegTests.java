@@ -8,10 +8,9 @@
 package org.elasticsearch.xpack.searchablesnapshots.cache.blob;
 
 import org.apache.lucene.store.AlreadyClosedException;
-import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
@@ -75,7 +74,7 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseFrozenSearc
 
     @BeforeClass
     public static void setUpCacheSettings() {
-        blobCacheMaxLength = pageAligned(new ByteSizeValue(randomLongBetween(64L, 128L), ByteSizeUnit.KB));
+        blobCacheMaxLength = pageAligned(ByteSizeValue.of(randomLongBetween(64L, 128L), ByteSizeUnit.KB));
 
         final Settings.Builder builder = Settings.builder();
         // Align ranges to match the blob cache max length
@@ -139,7 +138,7 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseFrozenSearc
 
         if (randomBoolean()) {
             logger.info("--> force-merging index before snapshotting");
-            final ForceMergeResponse forceMergeResponse = indicesAdmin().prepareForceMerge(indexName).setMaxNumSegments(1).get();
+            final BroadcastResponse forceMergeResponse = indicesAdmin().prepareForceMerge(indexName).setMaxNumSegments(1).get();
             assertThat(forceMergeResponse.getSuccessfulShards(), equalTo(numberOfShards.totalNumShards));
             assertThat(forceMergeResponse.getFailedShards(), equalTo(0));
         }
@@ -154,7 +153,7 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseFrozenSearc
         expectThrows(
             IndexNotFoundException.class,
             ".snapshot-blob-cache system index should not be created yet",
-            () -> systemClient().admin().indices().prepareGetIndex().addIndices(SNAPSHOT_BLOB_CACHE_INDEX).get()
+            () -> systemClient().admin().indices().prepareGetIndex(TEST_REQUEST_TIMEOUT).addIndices(SNAPSHOT_BLOB_CACHE_INDEX).get()
         );
 
         final Storage storage1 = randomFrom(Storage.values());
@@ -355,7 +354,7 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseFrozenSearc
 
     private void refreshSystemIndex() {
         try {
-            final RefreshResponse refreshResponse = systemClient().admin().indices().prepareRefresh(SNAPSHOT_BLOB_CACHE_INDEX).get();
+            final BroadcastResponse refreshResponse = systemClient().admin().indices().prepareRefresh(SNAPSHOT_BLOB_CACHE_INDEX).get();
             assertThat(refreshResponse.getSuccessfulShards(), greaterThan(0));
             assertThat(refreshResponse.getFailedShards(), equalTo(0));
         } catch (IndexNotFoundException indexNotFoundException) {

@@ -21,52 +21,54 @@
 
 package org.elasticsearch.tdigest;
 
-import org.elasticsearch.test.ESTestCase;
-
-public class MedianTests extends ESTestCase {
+public class MedianTests extends TDigestTestCase {
 
     public void testAVL() {
         double[] data = new double[] { 7, 15, 36, 39, 40, 41 };
-        TDigest digest = new AVLTreeDigest(100);
-        for (double value : data) {
-            digest.add(value);
-        }
+        try (TDigest digest = TDigest.createAvlTreeDigest(arrays(), 100)) {
+            for (double value : data) {
+                digest.add(value);
+            }
 
-        assertEquals(37.5, digest.quantile(0.5), 0);
-        assertEquals(0.5, digest.cdf(37.5), 0);
+            assertEquals(37.5, digest.quantile(0.5), 0);
+            assertEquals(0.5, digest.cdf(37.5), 0);
+        }
     }
 
     public void testMergingDigest() {
         double[] data = new double[] { 7, 15, 36, 39, 40, 41 };
-        TDigest digest = new MergingDigest(100);
-        for (double value : data) {
-            digest.add(value);
-        }
+        try (TDigest digest = TDigest.createMergingDigest(arrays(), 100)) {
+            for (double value : data) {
+                digest.add(value);
+            }
 
-        assertEquals(37.5, digest.quantile(0.5), 0);
-        assertEquals(0.5, digest.cdf(37.5), 0);
+            assertEquals(37.5, digest.quantile(0.5), 0);
+            assertEquals(0.5, digest.cdf(37.5), 0);
+        }
     }
 
     public void testSortingDigest() {
         double[] data = new double[] { 7, 15, 36, 39, 40, 41 };
-        TDigest digest = new SortingDigest();
-        for (double value : data) {
-            digest.add(value);
-        }
+        try (TDigest digest = TDigest.createSortingDigest(arrays())) {
+            for (double value : data) {
+                digest.add(value);
+            }
 
-        assertEquals(37.5, digest.quantile(0.5), 0);
-        assertEquals(0.5, digest.cdf(37.5), 0);
+            assertEquals(37.5, digest.quantile(0.5), 0);
+            assertEquals(0.5, digest.cdf(37.5), 0);
+        }
     }
 
     public void testHybridDigest() {
         double[] data = new double[] { 7, 15, 36, 39, 40, 41 };
-        TDigest digest = new HybridDigest(100);
-        for (double value : data) {
-            digest.add(value);
-        }
+        try (TDigest digest = TDigest.createHybridDigest(arrays(), 100)) {
+            for (double value : data) {
+                digest.add(value);
+            }
 
-        assertEquals(37.5, digest.quantile(0.5), 0);
-        assertEquals(0.5, digest.cdf(37.5), 0);
+            assertEquals(37.5, digest.quantile(0.5), 0);
+            assertEquals(0.5, digest.cdf(37.5), 0);
+        }
     }
 
     public void testReferenceWikipedia() {

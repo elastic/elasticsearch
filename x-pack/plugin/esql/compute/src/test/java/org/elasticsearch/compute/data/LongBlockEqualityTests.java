@@ -7,7 +7,8 @@
 
 package org.elasticsearch.compute.data;
 
-import org.elasticsearch.compute.operator.ComputeTestCase;
+import org.elasticsearch.compute.test.ComputeTestCase;
+import org.elasticsearch.compute.test.TestBlockFactory;
 
 import java.util.BitSet;
 import java.util.List;
@@ -35,14 +36,14 @@ public class LongBlockEqualityTests extends ComputeTestCase {
             blockFactory.newLongArrayBlock(
                 new long[] {},
                 0,
-                new int[] {},
+                new int[] { 0 },
                 BitSet.valueOf(new byte[] { 0b00 }),
                 randomFrom(Block.MvOrdering.values())
             ),
             blockFactory.newLongArrayBlock(
                 new long[] { 0 },
                 0,
-                new int[] {},
+                new int[] { 0 },
                 BitSet.valueOf(new byte[] { 0b00 }),
                 randomFrom(Block.MvOrdering.values())
             ),

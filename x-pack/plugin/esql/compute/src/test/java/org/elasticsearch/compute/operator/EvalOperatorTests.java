@@ -7,15 +7,16 @@
 
 package org.elasticsearch.compute.operator;
 
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator.EvalOperatorFactory;
+import org.elasticsearch.compute.test.CannedSourceOperator;
+import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.core.Tuple;
+import org.hamcrest.Matcher;
 
 import java.util.List;
 import java.util.Set;
@@ -67,7 +68,7 @@ public class EvalOperatorTests extends OperatorTestCase {
     }
 
     @Override
-    protected Operator.OperatorFactory simple(BigArrays bigArrays) {
+    protected Operator.OperatorFactory simple() {
         return new EvalOperator.EvalOperatorFactory(new EvalOperator.ExpressionEvaluator.Factory() {
             @Override
             public EvalOperator.ExpressionEvaluator get(DriverContext context) {
@@ -82,12 +83,12 @@ public class EvalOperatorTests extends OperatorTestCase {
     }
 
     @Override
-    protected String expectedDescriptionOfSimple() {
-        return "EvalOperator[evaluator=Addition[lhs=0, rhs=1]]";
+    protected Matcher<String> expectedDescriptionOfSimple() {
+        return equalTo("EvalOperator[evaluator=Addition[lhs=0, rhs=1]]");
     }
 
     @Override
-    protected String expectedToStringOfSimple() {
+    protected Matcher<String> expectedToStringOfSimple() {
         return expectedDescriptionOfSimple();
     }
 
@@ -114,10 +115,5 @@ public class EvalOperatorTests extends OperatorTestCase {
         assertThat(found, equalTo(LongStream.range(0, 10).mapToObj(Long::valueOf).collect(Collectors.toSet())));
         results.forEach(Page::releaseBlocks);
         assertThat(context.breaker().getUsed(), equalTo(0L));
-    }
-
-    @Override
-    protected ByteSizeValue memoryLimitForSimple() {
-        return ByteSizeValue.ofKb(4);
     }
 }

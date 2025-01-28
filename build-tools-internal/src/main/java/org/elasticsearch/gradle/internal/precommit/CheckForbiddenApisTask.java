@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal.precommit;
@@ -98,6 +99,7 @@ public abstract class CheckForbiddenApisTask extends DefaultTask implements Patt
     private File resourcesDir;
 
     private boolean ignoreFailures = false;
+    private boolean ignoreMissingClasses = false;
 
     @Input
     @Optional
@@ -250,6 +252,15 @@ public abstract class CheckForbiddenApisTask extends DefaultTask implements Patt
         this.ignoreFailures = ignoreFailures;
     }
 
+    @Input
+    public boolean getIgnoreMissingClasses() {
+        return ignoreMissingClasses;
+    }
+
+    public void setIgnoreMissingClasses(boolean ignoreMissingClasses) {
+        this.ignoreMissingClasses = ignoreMissingClasses;
+    }
+
     /**
      * The default compiler target version used to expand references to bundled JDK signatures.
      * E.g., if you use "jdk-deprecated", it will expand to this version.
@@ -378,6 +389,7 @@ public abstract class CheckForbiddenApisTask extends DefaultTask implements Patt
             parameters.getSignatures().set(getSignatures());
             parameters.getTargetCompatibility().set(getTargetCompatibility());
             parameters.getIgnoreFailures().set(getIgnoreFailures());
+            parameters.getIgnoreMissingClasses().set(getIgnoreMissingClasses());
             parameters.getSuccessMarker().set(getSuccessMarker());
             parameters.getSignaturesFiles().from(getSignaturesFiles());
         });
@@ -514,7 +526,9 @@ public abstract class CheckForbiddenApisTask extends DefaultTask implements Patt
         @NotNull
         private Checker createChecker(URLClassLoader urlLoader) {
             final EnumSet<Checker.Option> options = EnumSet.noneOf(Checker.Option.class);
-            options.add(FAIL_ON_MISSING_CLASSES);
+            if (getParameters().getIgnoreMissingClasses().get() == false) {
+                options.add(FAIL_ON_MISSING_CLASSES);
+            }
             if (getParameters().getIgnoreFailures().get() == false) {
                 options.add(FAIL_ON_VIOLATION);
             }
@@ -572,6 +586,8 @@ public abstract class CheckForbiddenApisTask extends DefaultTask implements Patt
         Property<String> getTargetCompatibility();
 
         Property<Boolean> getIgnoreFailures();
+
+        Property<Boolean> getIgnoreMissingClasses();
 
         ListProperty<String> getSignatures();
 

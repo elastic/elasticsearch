@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.support.single.shard;
@@ -36,7 +37,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequestHandler;
-import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -72,7 +72,8 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
         Writeable.Reader<Request> request,
         Executor executor
     ) {
-        super(actionName, actionFilters, transportService.getTaskManager());
+        // TODO: consider passing the executor, remove it from doExecute and let InboundHandler/TransportAction handle concurrency.
+        super(actionName, actionFilters, transportService.getTaskManager(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.transportService = transportService;
@@ -181,7 +182,7 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
                     clusterService.localNode(),
                     transportShardAction,
                     internalRequest.request(),
-                    new ActionListenerResponseHandler<>(listener, reader, TransportResponseHandler.TRANSPORT_WORKER)
+                    new ActionListenerResponseHandler<>(listener, reader, executor)
                 );
             } else {
                 perform(null);
@@ -234,7 +235,7 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
                     node,
                     transportShardAction,
                     internalRequest.request(),
-                    new ActionListenerResponseHandler<>(listener, reader, TransportResponseHandler.TRANSPORT_WORKER) {
+                    new ActionListenerResponseHandler<>(listener, reader, executor) {
                         @Override
                         public void handleException(TransportException exp) {
                             onFailure(shardRouting, exp);
@@ -250,7 +251,7 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
         @Override
         public void messageReceived(Request request, final TransportChannel channel, Task task) throws Exception {
             // if we have a local operation, execute it on a thread since we don't spawn
-            execute(task, request, new ChannelActionListener<>(channel));
+            executeDirect(task, request, new ChannelActionListener<>(channel));
         }
     }
 

@@ -5,6 +5,12 @@
 <titleabbrev>Delete jobs</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-ml-anomaly[{ml-cap}  {anomaly-detect} APIs].
+--
+
 Deletes an existing {anomaly-job}.
 
 [[ml-delete-job-request]]
@@ -43,7 +49,7 @@ parameters as the delete job request.
 
 `<job_id>`::
 (Required, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 
 [[ml-delete-job-query-parms]]
 == {api-query-parms-title}

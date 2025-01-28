@@ -7,14 +7,14 @@ nodes to take over their responsibilities, an {es} cluster can continue
 operating normally if some of its nodes are unavailable or disconnected.
 
 There is a limit to how small a resilient cluster can be. All {es} clusters
-require:
+require the following components to function:
 
-- One <<modules-discovery-quorums,elected master node>> node
-- At least one node for each <<modules-node,role>>.
-- At least one copy of every <<scalability,shard>>.
+- One <<modules-discovery-quorums,elected master node>>
+- At least one node for each <<modules-node,role>>
+- At least one copy of every <<scalability,shard>>
 
 A resilient cluster requires redundancy for every required cluster component.
-This means a resilient cluster must have:
+This means a resilient cluster must have the following components:
 
 - At least three master-eligible nodes
 - At least two nodes of each role
@@ -87,7 +87,7 @@ the same thing, but it's not necessary to use this feature in such a small
 cluster.
 
 We recommend you set only one of your two nodes to be
-<<master-node,master-eligible>>. This means you can be certain which of your
+<<master-node-role,master-eligible>>. This means you can be certain which of your
 nodes is the elected master of the cluster. The cluster can tolerate the loss of
 the other master-ineligible node. If you set both nodes to master-eligible, two
 nodes are required for a master election. Since the election will fail if either
@@ -164,12 +164,12 @@ cluster that is suitable for production deployments.
 [[high-availability-cluster-design-three-nodes]]
 ==== Three-node clusters
 
-If you have three nodes, we recommend they all be <<data-node,data nodes>> and
+If you have three nodes, we recommend they all be <<data-node-role,data nodes>> and
 every index that is not a <<searchable-snapshots,searchable snapshot index>>
 should have at least one replica. Nodes are data nodes by default. You may
 prefer for some indices to have two replicas so that each node has a copy of
 each shard in those indices. You should also configure each node to be
-<<master-node,master-eligible>> so that any two of them can hold a master
+<<master-node-role,master-eligible>> so that any two of them can hold a master
 election without needing to communicate with the third node. Nodes are
 master-eligible by default. This cluster will be resilient to the loss of any
 single node.
@@ -188,8 +188,8 @@ service provides such a load balancer.
 
 Once your cluster grows to more than three nodes, you can start to specialise
 these nodes according to their responsibilities, allowing you to scale their
-resources independently as needed. You can have as many <<data-node,data
-nodes>>, <<ingest,ingest nodes>>, <<ml-node,{ml} nodes>>, etc. as needed to
+resources independently as needed. You can have as many <<data-node-role,data
+nodes>>, <<ingest,ingest nodes>>, <<ml-node-role,{ml} nodes>>, etc. as needed to
 support your workload. As your cluster grows larger, we recommend using
 dedicated nodes for each role. This allows you to independently scale resources
 for each task.
@@ -246,7 +246,8 @@ accumulate into a noticeable performance penalty. An unreliable network may
 have frequent network partitions. {es} will automatically recover from a
 network partition as quickly as it can but your cluster may be partly
 unavailable during a partition and will need to spend time and resources to
-resynchronize any missing data and rebalance itself once the partition heals.
+<<shard-recovery,resynchronize any missing data>> and <<shards-rebalancing-settings,rebalance>> 
+itself once the partition heals.
 Recovering from a failure may involve copying a large amount of data between
 nodes so the recovery time is often determined by the available bandwidth.
 
@@ -375,11 +376,11 @@ The cluster will be resilient to the loss of any zone as long as:
 - There are at least two zones containing data nodes.
 - Every index that is not a <<searchable-snapshots,searchable snapshot index>>
   has at least one replica of each shard, in addition to the primary.
-- Shard allocation awareness is configured to avoid concentrating all copies of
-  a shard within a single zone.
+- <<shard-allocation-awareness,Shard allocation awareness>> is configured to 
+  avoid concentrating all copies of a shard within a single zone.
 - The cluster has at least three master-eligible nodes. At least two of these 
-  nodes are not voting-only master-eligible nodes, and they are spread evenly
-  across at least three zones.
+  nodes are not <<voting-only-node,voting-only master-eligible nodes>>, 
+  and they are spread evenly across at least three zones.
 - Clients are configured to send their requests to nodes in more than one zone
   or are configured to use a load balancer that balances the requests across an
   appropriate set of nodes. The {ess-trial}[Elastic Cloud] service provides such

@@ -9,11 +9,10 @@ package org.elasticsearch.xpack.downsample;
 
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
-import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -24,6 +23,7 @@ import org.elasticsearch.action.downsample.DownsampleAction;
 import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
@@ -77,7 +77,10 @@ public class DownsampleDataStreamTests extends ESSingleNodeTestCase {
         // GIVEN
         final String dataStreamName = randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
         putComposableIndexTemplate("1", List.of(dataStreamName));
-        client().execute(CreateDataStreamAction.INSTANCE, new CreateDataStreamAction.Request(dataStreamName)).actionGet();
+        client().execute(
+            CreateDataStreamAction.INSTANCE,
+            new CreateDataStreamAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, dataStreamName)
+        ).actionGet();
         indexDocs(dataStreamName, 10, Instant.now().toEpochMilli());
         final RolloverResponse rolloverResponse = indicesAdmin().rolloverIndex(new RolloverRequest(dataStreamName, null)).get();
         // NOTE: here we calculate a delay to index documents because the next data stream write index is created with a start time of
@@ -95,6 +98,7 @@ public class DownsampleDataStreamTests extends ESSingleNodeTestCase {
         // WHEN (simulate downsampling as done by an ILM action)
         final String downsampleTargetIndex = DataStream.BACKING_INDEX_PREFIX + dataStreamName + "-downsample-1h";
         final DownsampleAction.Request downsampleRequest = new DownsampleAction.Request(
+            TEST_REQUEST_TIMEOUT,
             rolloverResponse.getOldIndex(),
             downsampleTargetIndex,
             TIMEOUT,
@@ -113,6 +117,8 @@ public class DownsampleDataStreamTests extends ESSingleNodeTestCase {
         ).actionGet();
 
         final ModifyDataStreamsAction.Request modifyDataStreamRequest = new ModifyDataStreamsAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
             List.of(
                 DataStreamAction.removeBackingIndex(dataStreamName, rolloverResponse.getOldIndex()),
                 DataStreamAction.addBackingIndex(dataStreamName, downsampleTargetIndex)
@@ -124,7 +130,7 @@ public class DownsampleDataStreamTests extends ESSingleNodeTestCase {
         assertThat(downsampleResponse.isAcknowledged(), equalTo(true));
         final GetDataStreamAction.Response getDataStreamActionResponse = indicesAdmin().execute(
             GetDataStreamAction.INSTANCE,
-            new GetDataStreamAction.Request(new String[] { dataStreamName })
+            new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] { dataStreamName })
         ).actionGet();
         assertThat(getDataStreamActionResponse.getDataStreams().get(0).getDataStream().getIndices().size(), equalTo(2));
         final List<String> backingIndices = getDataStreamActionResponse.getDataStreams()
@@ -181,7 +187,7 @@ public class DownsampleDataStreamTests extends ESSingleNodeTestCase {
     }
 
     private void putComposableIndexTemplate(final String id, final List<String> patterns) throws IOException {
-        final PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request(id);
+        final TransportPutComposableIndexTemplateAction.Request request = new TransportPutComposableIndexTemplateAction.Request(id);
         final Template template = new Template(
             indexSettings(1, 0).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
                 .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), List.of("routing_field"))
@@ -212,7 +218,7 @@ public class DownsampleDataStreamTests extends ESSingleNodeTestCase {
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
                 .build()
         );
-        client().execute(PutComposableIndexTemplateAction.INSTANCE, request).actionGet();
+        client().execute(TransportPutComposableIndexTemplateAction.TYPE, request).actionGet();
     }
 
     private void indexDocs(final String dataStream, int numDocs, long startTime) {
@@ -240,7 +246,7 @@ public class DownsampleDataStreamTests extends ESSingleNodeTestCase {
         final BulkItemResponse[] items = bulkResponse.getItems();
         assertThat(items.length, equalTo(numDocs));
         assertThat(bulkResponse.hasFailures(), equalTo(false));
-        final RefreshResponse refreshResponse = indicesAdmin().refresh(new RefreshRequest(dataStream)).actionGet();
+        final BroadcastResponse refreshResponse = indicesAdmin().refresh(new RefreshRequest(dataStream)).actionGet();
         assertThat(refreshResponse.getStatus().getStatus(), equalTo(RestStatus.OK.getStatus()));
     }
 }

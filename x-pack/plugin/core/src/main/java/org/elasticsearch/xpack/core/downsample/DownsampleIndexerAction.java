@@ -37,7 +37,7 @@ public class DownsampleIndexerAction extends ActionType<DownsampleIndexerAction.
     public static final String NAME = "indices:admin/xpack/downsample_indexer";
 
     private DownsampleIndexerAction() {
-        super(NAME, DownsampleIndexerAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends BroadcastRequest<Request> implements IndicesRequest, ToXContentObject {
@@ -69,7 +69,7 @@ public class DownsampleIndexerAction extends ActionType<DownsampleIndexerAction.
 
         public Request(StreamInput in) throws IOException {
             super(in);
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_061) && in.readBoolean()) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_10_X) && in.readBoolean()) {
                 this.indexStartTimeMillis = in.readVLong();
                 this.indexEndTimeMillis = in.readVLong();
             } else {
@@ -132,7 +132,7 @@ public class DownsampleIndexerAction extends ActionType<DownsampleIndexerAction.
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_061)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_10_X)) {
                 out.writeBoolean(true);
                 out.writeVLong(indexStartTimeMillis);
                 out.writeVLong(indexEndTimeMillis);

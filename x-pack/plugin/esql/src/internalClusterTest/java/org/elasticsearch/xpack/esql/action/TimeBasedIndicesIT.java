@@ -37,19 +37,17 @@ public class TimeBasedIndicesIT extends AbstractEsqlIntegTestCase {
         }
         bulk.get();
         {
-            EsqlQueryRequest request = new EsqlQueryRequest();
-            request.query("FROM test | limit 1000");
-            request.filter(new RangeQueryBuilder("@timestamp").from(epoch - TimeValue.timeValueHours(3).millis()).to("now"));
-            try (var resp = run(request)) {
+            String query = "FROM test | limit 1000";
+            var filter = new RangeQueryBuilder("@timestamp").from(epoch - TimeValue.timeValueHours(3).millis()).to("now");
+            try (var resp = run(query, null, filter)) {
                 List<List<Object>> values = getValuesList(resp);
                 assertThat(values, hasSize(oldDocs));
             }
         }
         {
-            EsqlQueryRequest request = new EsqlQueryRequest();
-            request.query("FROM test | limit 1000");
-            request.filter(new RangeQueryBuilder("@timestamp").from("now").to(epoch + TimeValue.timeValueHours(3).millis()));
-            try (var resp = run(request)) {
+            String query = "FROM test | limit 1000";
+            var filter = new RangeQueryBuilder("@timestamp").from("now").to(epoch + TimeValue.timeValueHours(3).millis());
+            try (var resp = run(query, null, filter)) {
                 List<List<Object>> values = getValuesList(resp);
                 assertThat(values, hasSize(newDocs));
             }

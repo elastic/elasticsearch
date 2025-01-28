@@ -7,59 +7,84 @@
 
 package org.elasticsearch.xpack.inference.services.huggingface;
 
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.inference.external.action.huggingface.HuggingFaceActionCreator;
-import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderFactory;
+import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
+import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 
-import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.parsePersistedConfigErrorMsg;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMap;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
 
 public abstract class HuggingFaceBaseService extends SenderService {
 
-    public HuggingFaceBaseService(SetOnce<HttpRequestSenderFactory> factory, SetOnce<ServiceComponents> serviceComponents) {
+    /**
+     * The optimal batch size depends on the hardware the model is deployed on.
+     * For HuggingFace use a conservatively small max batch size as it is
+     * unknown how the model is deployed
+     */
+    static final int EMBEDDING_MAX_BATCH_SIZE = 20;
+
+    public HuggingFaceBaseService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents) {
         super(factory, serviceComponents);
     }
 
     @Override
-    public HuggingFaceModel parseRequestConfig(
-        String modelId,
+    public void parseRequestConfig(
+        String inferenceEntityId,
         TaskType taskType,
         Map<String, Object> config,
-        Set<String> platformArchitectures
+        ActionListener<Model> parsedModelListener
     ) {
-        Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
+        try {
+            Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
 
-        var model = createModel(
-            modelId,
-            taskType,
-            serviceSettingsMap,
-            serviceSettingsMap,
-            TaskType.unsupportedTaskTypeErrorMsg(taskType, name())
-        );
+            ChunkingSettings chunkingSettings = null;
+            if (TaskType.TEXT_EMBEDDING.equals(taskType)) {
+                chunkingSettings = ChunkingSettingsBuilder.fromMap(
+                    removeFromMapOrDefaultEmpty(config, ModelConfigurations.CHUNKING_SETTINGS)
+                );
+            }
 
-        throwIfNotEmptyMap(config, name());
-        throwIfNotEmptyMap(serviceSettingsMap, name());
+            var model = createModel(
+                inferenceEntityId,
+                taskType,
+                serviceSettingsMap,
+                chunkingSettings,
+                serviceSettingsMap,
+                TaskType.unsupportedTaskTypeErrorMsg(taskType, name()),
+                ConfigurationParseContext.REQUEST
+            );
 
-        return model;
+            throwIfNotEmptyMap(config, name());
+            throwIfNotEmptyMap(serviceSettingsMap, name());
+
+            parsedModelListener.onResponse(model);
+        } catch (Exception e) {
+            parsedModelListener.onFailure(e);
+        }
     }
 
     @Override
     public HuggingFaceModel parsePersistedConfigWithSecrets(
-        String modelId,
+        String inferenceEntityId,
         TaskType taskType,
         Map<String, Object> config,
         Map<String, Object> secrets
@@ -67,29 +92,59 @@ public abstract class HuggingFaceBaseService extends SenderService {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
         Map<String, Object> secretSettingsMap = removeFromMapOrThrowIfNull(secrets, ModelSecrets.SECRET_SETTINGS);
 
-        return createModel(modelId, taskType, serviceSettingsMap, secretSettingsMap, parsePersistedConfigErrorMsg(modelId, name()));
+        ChunkingSettings chunkingSettings = null;
+        if (TaskType.TEXT_EMBEDDING.equals(taskType)) {
+            chunkingSettings = ChunkingSettingsBuilder.fromMap(removeFromMap(config, ModelConfigurations.CHUNKING_SETTINGS));
+        }
+
+        return createModel(
+            inferenceEntityId,
+            taskType,
+            serviceSettingsMap,
+            chunkingSettings,
+            secretSettingsMap,
+            parsePersistedConfigErrorMsg(inferenceEntityId, name()),
+            ConfigurationParseContext.PERSISTENT
+        );
     }
 
     @Override
-    public HuggingFaceModel parsePersistedConfig(String modelId, TaskType taskType, Map<String, Object> config) {
+    public HuggingFaceModel parsePersistedConfig(String inferenceEntityId, TaskType taskType, Map<String, Object> config) {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
 
-        return createModel(modelId, taskType, serviceSettingsMap, null, parsePersistedConfigErrorMsg(modelId, name()));
+        ChunkingSettings chunkingSettings = null;
+        if (TaskType.TEXT_EMBEDDING.equals(taskType)) {
+            chunkingSettings = ChunkingSettingsBuilder.fromMap(removeFromMap(config, ModelConfigurations.CHUNKING_SETTINGS));
+        }
+
+        return createModel(
+            inferenceEntityId,
+            taskType,
+            serviceSettingsMap,
+            chunkingSettings,
+            null,
+            parsePersistedConfigErrorMsg(inferenceEntityId, name()),
+            ConfigurationParseContext.PERSISTENT
+        );
     }
 
     protected abstract HuggingFaceModel createModel(
-        String modelId,
+        String inferenceEntityId,
         TaskType taskType,
         Map<String, Object> serviceSettings,
+        ChunkingSettings chunkingSettings,
         Map<String, Object> secretSettings,
-        String failureMessage
+        String failureMessage,
+        ConfigurationParseContext context
     );
 
     @Override
     public void doInfer(
         Model model,
-        List<String> input,
+        InferenceInputs inputs,
         Map<String, Object> taskSettings,
+        InputType inputType,
+        TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     ) {
         if (model instanceof HuggingFaceModel == false) {
@@ -101,6 +156,6 @@ public abstract class HuggingFaceBaseService extends SenderService {
         var actionCreator = new HuggingFaceActionCreator(getSender(), getServiceComponents());
 
         var action = huggingFaceModel.accept(actionCreator);
-        action.execute(input, listener);
+        action.execute(inputs, timeout, listener);
     }
 }

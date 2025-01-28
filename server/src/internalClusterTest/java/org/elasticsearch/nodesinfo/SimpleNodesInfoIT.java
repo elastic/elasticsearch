@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.nodesinfo;
@@ -11,7 +12,6 @@ package org.elasticsearch.nodesinfo;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.monitor.os.OsInfo;
@@ -29,16 +29,19 @@ import static org.hamcrest.Matchers.notNullValue;
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 public class SimpleNodesInfoIT extends ESIntegTestCase {
 
-    public void testNodesInfos() throws Exception {
-        List<String> nodesIds = internalCluster().startNodes(2);
-        final String node_1 = nodesIds.get(0);
-        final String node_2 = nodesIds.get(1);
+    public void testNodesInfos() {
+        List<String> nodesNames = internalCluster().startNodes(2);
+        final String node_1 = nodesNames.get(0);
+        final String node_2 = nodesNames.get(1);
 
-        ClusterHealthResponse clusterHealth = clusterAdmin().prepareHealth().setWaitForGreenStatus().setWaitForNodes("2").get();
+        ClusterHealthResponse clusterHealth = clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
+            .setWaitForGreenStatus()
+            .setWaitForNodes("2")
+            .get();
         logger.info("--> done cluster_health, status {}", clusterHealth.getStatus());
 
-        String server1NodeId = internalCluster().getInstance(ClusterService.class, node_1).state().nodes().getLocalNodeId();
-        String server2NodeId = internalCluster().getInstance(ClusterService.class, node_2).state().nodes().getLocalNodeId();
+        String server1NodeId = getNodeId(node_1);
+        String server2NodeId = getNodeId(node_2);
         logger.info("--> started nodes: {} and {}", server1NodeId, server2NodeId);
 
         NodesInfoResponse response = clusterAdmin().prepareNodesInfo().get();
@@ -68,16 +71,19 @@ public class SimpleNodesInfoIT extends ESIntegTestCase {
         assertThat(response.getNodesMap().get(server2NodeId), notNullValue());
     }
 
-    public void testNodesInfosTotalIndexingBuffer() throws Exception {
-        List<String> nodesIds = internalCluster().startNodes(2);
-        final String node_1 = nodesIds.get(0);
-        final String node_2 = nodesIds.get(1);
+    public void testNodesInfosTotalIndexingBuffer() {
+        List<String> nodesNames = internalCluster().startNodes(2);
+        final String node_1 = nodesNames.get(0);
+        final String node_2 = nodesNames.get(1);
 
-        ClusterHealthResponse clusterHealth = clusterAdmin().prepareHealth().setWaitForGreenStatus().setWaitForNodes("2").get();
+        ClusterHealthResponse clusterHealth = clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
+            .setWaitForGreenStatus()
+            .setWaitForNodes("2")
+            .get();
         logger.info("--> done cluster_health, status {}", clusterHealth.getStatus());
 
-        String server1NodeId = internalCluster().getInstance(ClusterService.class, node_1).state().nodes().getLocalNodeId();
-        String server2NodeId = internalCluster().getInstance(ClusterService.class, node_2).state().nodes().getLocalNodeId();
+        String server1NodeId = getNodeId(node_1);
+        String server2NodeId = getNodeId(node_2);
         logger.info("--> started nodes: {} and {}", server1NodeId, server2NodeId);
 
         NodesInfoResponse response = clusterAdmin().prepareNodesInfo().get();
@@ -103,19 +109,22 @@ public class SimpleNodesInfoIT extends ESIntegTestCase {
     }
 
     public void testAllocatedProcessors() throws Exception {
-        List<String> nodesIds = internalCluster().startNodes(
+        List<String> nodeNames = internalCluster().startNodes(
             Settings.builder().put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), 2.9).build(),
             Settings.builder().put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), 5.9).build()
         );
 
-        final String node_1 = nodesIds.get(0);
-        final String node_2 = nodesIds.get(1);
+        final String node_1 = nodeNames.get(0);
+        final String node_2 = nodeNames.get(1);
 
-        ClusterHealthResponse clusterHealth = clusterAdmin().prepareHealth().setWaitForGreenStatus().setWaitForNodes("2").get();
+        ClusterHealthResponse clusterHealth = clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
+            .setWaitForGreenStatus()
+            .setWaitForNodes("2")
+            .get();
         logger.info("--> done cluster_health, status {}", clusterHealth.getStatus());
 
-        String server1NodeId = internalCluster().getInstance(ClusterService.class, node_1).state().nodes().getLocalNodeId();
-        String server2NodeId = internalCluster().getInstance(ClusterService.class, node_2).state().nodes().getLocalNodeId();
+        String server1NodeId = getNodeId(node_1);
+        String server2NodeId = getNodeId(node_2);
         logger.info("--> started nodes: {} and {}", server1NodeId, server2NodeId);
 
         NodesInfoResponse response = clusterAdmin().prepareNodesInfo().get();

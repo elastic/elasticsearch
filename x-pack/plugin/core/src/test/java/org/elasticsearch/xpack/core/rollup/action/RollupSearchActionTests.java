@@ -11,9 +11,11 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 
+import static org.elasticsearch.test.LambdaMatchers.trueWith;
+
 public class RollupSearchActionTests extends ESTestCase {
 
     public void testIndexReadPrivilegeCanPerformRollupSearchAction() {
-        assertTrue(Automatons.predicate(IndexPrivilege.READ.getAutomaton()).test(RollupSearchAction.NAME));
+        assertThat(Automatons.predicate(IndexPrivilege.READ.getAutomaton()), trueWith(RollupSearchAction.NAME));
     }
 }

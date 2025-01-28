@@ -17,6 +17,7 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.common.IteratingActionListener;
+import org.elasticsearch.xpack.core.security.action.apikey.CrossClusterApiKeyRoleDescriptorBuilder;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.authz.store.RoleReference;
@@ -144,12 +145,12 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
     ) {
         final Set<RoleDescriptor> roleDescriptors = crossClusterAccessRoleReference.getRoleDescriptorsBytes().toRoleDescriptors();
         for (RoleDescriptor roleDescriptor : roleDescriptors) {
-            if (roleDescriptor.hasPrivilegesOtherThanIndex()) {
-                final String message = "Role descriptor for cross cluster access can only contain index privileges "
+            if (roleDescriptor.hasUnsupportedPrivilegesInsideAPIKeyConnectedRemoteCluster()) {
+                final String message = "Role descriptor for cross cluster access can only contain index and cluster privileges "
                     + "but other privileges found for subject ["
                     + crossClusterAccessRoleReference.getUserPrincipal()
                     + "]";
-                logger.debug("{}. Invalid role descriptor: [{}]", message, roleDescriptor);
+                logger.warn("{}. Invalid role descriptor: [{}]", message, roleDescriptor);
                 listener.onFailure(new IllegalArgumentException(message));
                 return;
             }
@@ -165,6 +166,32 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
         }
         final RolesRetrievalResult rolesRetrievalResult = new RolesRetrievalResult();
         rolesRetrievalResult.addDescriptors(Set.copyOf(roleDescriptors));
+        listener.onResponse(rolesRetrievalResult);
+    }
+
+    @Override
+    public void resolveCrossClusterApiKeyRoleReference(
+        RoleReference.CrossClusterApiKeyRoleReference crossClusterApiKeyRoleReference,
+        ActionListener<RolesRetrievalResult> listener
+    ) {
+        final List<RoleDescriptor> roleDescriptors = apiKeyService.parseRoleDescriptorsBytes(
+            crossClusterApiKeyRoleReference.getApiKeyId(),
+            crossClusterApiKeyRoleReference.getRoleDescriptorsBytes(),
+            crossClusterApiKeyRoleReference.getRoleType()
+        );
+        final RolesRetrievalResult rolesRetrievalResult = new RolesRetrievalResult();
+        rolesRetrievalResult.addDescriptors(Set.copyOf(roleDescriptors));
+        assert rolesRetrievalResult.getRoleDescriptors().stream().noneMatch(RoleDescriptor::hasRestriction)
+            : "there should be no role descriptors with restriction";
+        try {
+            CrossClusterApiKeyRoleDescriptorBuilder.checkForInvalidLegacyRoleDescriptors(
+                crossClusterApiKeyRoleReference.getApiKeyId(),
+                roleDescriptors
+            );
+        } catch (IllegalArgumentException e) {
+            listener.onFailure(e);
+            return;
+        }
         listener.onResponse(rolesRetrievalResult);
     }
 

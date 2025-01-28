@@ -49,6 +49,8 @@ setup:
 
 ---
 "Test simulate":
+  - skip:
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/107815"
   - do:
       ingest.simulate:
         body:  >

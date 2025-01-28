@@ -2,11 +2,15 @@
 [[security-api-update-cross-cluster-api-key]]
 === Update Cross-Cluster API key API
 
-beta::[]
-
 ++++
 <titleabbrev>Update Cross-Cluster API key</titleabbrev>
 ++++
+
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-security[Security APIs].
+--
 
 Update an existing cross-cluster API Key that is used for <<remote-clusters-api-key,API key based remote cluster>> access.
 
@@ -34,7 +38,7 @@ Use this API to update cross-cluster API keys created by the <<security-api-crea
 It's not possible to update expired API keys, or API keys that have been invalidated by
 <<security-api-invalidate-api-key,invalidate API Key>>.
 
-This API supports updates to an API key's access scope and metadata.
+This API supports updates to an API key's access scope, metadata and expiration.
 The owner user's information, e.g. `username`, `realm`, is also updated automatically on every call.
 
 NOTE: This API cannot update <<security-api-create-api-key,REST API keys>>, which should be updated by
@@ -65,6 +69,9 @@ for the field's structure.
 It supports nested data structure.
 Within the `metadata` object, top-level keys beginning with `_` are reserved for system usage.
 When specified, this fully replaces metadata previously associated with the API key.
+
+`expiration`::
+(Optional, string) Expiration time for the API key. By default, API keys never expire. Can be omitted to leave unchanged.
 
 [[security-api-update-cross-cluster-api-key-response-body]]
 ==== {api-response-body-title}

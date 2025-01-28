@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.downsample.DownsampleAction;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -26,6 +25,7 @@ import org.mockito.Mockito;
 
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.action.downsample.DownsampleConfig.generateDownsampleIndexName;
@@ -49,7 +49,7 @@ public class DownsampleStepTests extends AbstractStepTestCase<DownsampleStep> {
             nextStepKey,
             client,
             fixedInterval,
-            TimeValue.parseTimeValue(randomTimeValue(1, 1000, "d", "h", "ms", "s", "m"), "timeout")
+            randomTimeValue(1, 1000, TimeUnit.DAYS, TimeUnit.HOURS, TimeUnit.MINUTES, TimeUnit.SECONDS, TimeUnit.MILLISECONDS)
         );
     }
 
@@ -66,7 +66,7 @@ public class DownsampleStepTests extends AbstractStepTestCase<DownsampleStep> {
             case 2 -> fixedInterval = randomValueOtherThan(instance.getFixedInterval(), ConfigTestHelpers::randomInterval);
             case 3 -> timeout = randomValueOtherThan(
                 instance.getWaitTimeout(),
-                () -> TimeValue.parseTimeValue(randomTimeValue(1, 1000, "d", "h", "ms", "s", "m"), "timeout")
+                () -> randomTimeValue(1, 1000, TimeUnit.DAYS, TimeUnit.HOURS, TimeUnit.MINUTES, TimeUnit.SECONDS, TimeUnit.MILLISECONDS)
             );
             default -> throw new AssertionError("Illegal randomisation branch");
         }
@@ -119,7 +119,7 @@ public class DownsampleStepTests extends AbstractStepTestCase<DownsampleStep> {
         mockClientDownsampleCall(index);
 
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder().put(indexMetadata, true)).build();
-        PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, clusterState, null, f));
+        performActionAndWait(step, indexMetadata, clusterState, null);
     }
 
     public void testPerformActionFailureInvalidExecutionState() {
@@ -170,7 +170,7 @@ public class DownsampleStepTests extends AbstractStepTestCase<DownsampleStep> {
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(Metadata.builder().put(newInstance(dataStreamName, List.of(indexMetadata.getIndex()))).put(indexMetadata, true))
             .build();
-        PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, clusterState, null, f));
+        performActionAndWait(step, indexMetadata, clusterState, null);
     }
 
     /**

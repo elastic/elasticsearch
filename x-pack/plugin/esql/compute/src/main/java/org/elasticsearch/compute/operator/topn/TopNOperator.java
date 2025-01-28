@@ -71,11 +71,11 @@ public class TopNOperator implements Operator, Accountable {
          */
         final BreakingBytesRefBuilder values;
 
-        Row(CircuitBreaker breaker, List<SortOrder> sortOrders) {
+        Row(CircuitBreaker breaker, List<SortOrder> sortOrders, int preAllocatedKeysSize, int preAllocatedValueSize) {
             boolean success = false;
             try {
-                keys = new BreakingBytesRefBuilder(breaker, "topn");
-                values = new BreakingBytesRefBuilder(breaker, "topn");
+                keys = new BreakingBytesRefBuilder(breaker, "topn", preAllocatedKeysSize);
+                values = new BreakingBytesRefBuilder(breaker, "topn", preAllocatedValueSize);
                 bytesOrder = new BytesOrder(sortOrders, breaker, "topn");
                 success = true;
             } finally {
@@ -273,7 +273,30 @@ public class TopNOperator implements Operator, Accountable {
     private final List<SortOrder> sortOrders;
 
     private Row spare;
+    private int spareValuesPreAllocSize = 0;
+    private int spareKeysPreAllocSize = 0;
+
     private Iterator<Page> output;
+
+    /**
+     * Count of pages that have been received by this operator.
+     */
+    private int pagesReceived;
+
+    /**
+     * Count of pages that have been emitted by this operator.
+     */
+    private int pagesEmitted;
+
+    /**
+     * Count of rows this operator has received.
+     */
+    private long rowsReceived;
+
+    /**
+     * Count of rows this operator has emitted.
+     */
+    private long rowsEmitted;
 
     public TopNOperator(
         BlockFactory blockFactory,
@@ -334,8 +357,6 @@ public class TopNOperator implements Operator, Accountable {
 
     @Override
     public void addInput(Page page) {
-        RowFiller rowFiller = new RowFiller(elementTypes, encoders, sortOrders, page);
-
         /*
          * Since row tracks memory we have to be careful to close any unused rows,
          * including any rows that fail while constructing because they allocate
@@ -347,18 +368,29 @@ public class TopNOperator implements Operator, Accountable {
          * inputQueue or because we hit an allocation failure while building it.
          */
         try {
+            RowFiller rowFiller = new RowFiller(elementTypes, encoders, sortOrders, page);
+
             for (int i = 0; i < page.getPositionCount(); i++) {
                 if (spare == null) {
-                    spare = new Row(breaker, sortOrders);
+                    spare = new Row(breaker, sortOrders, spareKeysPreAllocSize, spareValuesPreAllocSize);
                 } else {
                     spare.keys.clear();
                     spare.values.clear();
                 }
                 rowFiller.row(i, spare);
+
+                // When rows are very long, appending the values one by one can lead to lots of allocations.
+                // To avoid this, pre-allocate at least as much size as in the last seen row.
+                // Let the pre-allocation size decay in case we only have 1 huge row and smaller rows otherwise.
+                spareKeysPreAllocSize = Math.max(spare.keys.length(), spareKeysPreAllocSize / 2);
+                spareValuesPreAllocSize = Math.max(spare.values.length(), spareValuesPreAllocSize / 2);
+
                 spare = inputQueue.insertWithOverflow(spare);
             }
         } finally {
-            Releasables.close(() -> page.releaseBlocks());
+            page.releaseBlocks();
+            pagesReceived++;
+            rowsReceived += page.getPositionCount();
         }
     }
 
@@ -481,10 +513,13 @@ public class TopNOperator implements Operator, Accountable {
 
     @Override
     public Page getOutput() {
-        if (output != null && output.hasNext()) {
-            return output.next();
+        if (output == null || output.hasNext() == false) {
+            return null;
         }
-        return null;
+        Page ret = output.next();
+        pagesEmitted++;
+        rowsEmitted += ret.getPositionCount();
+        return ret;
     }
 
     @Override
@@ -521,7 +556,7 @@ public class TopNOperator implements Operator, Accountable {
 
     @Override
     public Status status() {
-        return new TopNOperatorStatus(inputQueue.size(), ramBytesUsed());
+        return new TopNOperatorStatus(inputQueue.size(), ramBytesUsed(), pagesReceived, pagesEmitted, rowsReceived, rowsEmitted);
     }
 
     @Override

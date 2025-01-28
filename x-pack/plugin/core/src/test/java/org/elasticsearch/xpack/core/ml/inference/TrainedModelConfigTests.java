@@ -16,6 +16,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.license.License;
 import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.test.AbstractBWCSerializationTestCase;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
@@ -23,7 +24,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
 import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfigTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.FillMaskConfigTests;
@@ -460,10 +460,10 @@ public class TrainedModelConfigTests extends AbstractBWCSerializationTestCase<Tr
         if (instance.getInferenceConfig() instanceof NlpConfig nlpConfig) {
             builder.setInferenceConfig(InferenceConfigItemTestCase.mutateForVersion(nlpConfig, version));
         }
-        if (version.before(TransportVersions.ML_TRAINED_MODEL_CONFIG_PLATFORM_ADDED)) {
+        if (version.before(TransportVersions.V_8_11_X)) {
             builder.setPlatformArchitecture(null);
         }
-        if (version.before(TransportVersions.ML_TRAINED_MODEL_PREFIX_STRINGS_ADDED)) {
+        if (version.before(TransportVersions.V_8_12_0)) {
             builder.setPrefixStrings(null);
         }
         return builder.build();

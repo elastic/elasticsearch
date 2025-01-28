@@ -4,7 +4,18 @@
 <titleabbrev>Cancel connector sync job</titleabbrev>
 ++++
 
+beta::[]
+
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-connector[Connector APIs].
+--
+
 Cancels a connector sync job.
+
+To get started with Connector APIs, check out <<es-connectors-tutorial-api, our tutorial>>.
+
 
 [[cancel-connector-sync-job-api-request]]
 ==== {api-request-title}
@@ -13,7 +24,7 @@ Cancels a connector sync job.
 [[cancel-connector-sync-job-api-prereqs]]
 ==== {api-prereq-title}
 
-* To sync data using connectors, it's essential to have the Elastic connectors service running.
+* To sync data using self-managed connectors, you need to deploy the <<es-connectors-deploy-connector-service,Elastic connector service>>. on your own infrastructure. This service runs automatically on Elastic Cloud for Elastic managed connectors.
 * The `connector_sync_job_id` parameter should reference an existing connector sync job.
 
 [[cancel-connector-sync-job-api-desc]]
@@ -47,4 +58,3 @@ The following example cancels the connector sync job with ID `my-connector-sync-
 PUT _connector/_sync_job/my-connector-sync-job-id/_cancel
 ----
 // TEST[skip:there's no way to clean up after creating a connector sync job, as we don't know the id ahead of time. Therefore, skip this test.]
-

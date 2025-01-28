@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket.histogram;
@@ -73,7 +74,7 @@ public class InternalHistogramTests extends InternalMultiBucketAggregationTestCa
             // rarely leave some holes to be filled up with empty buckets in case minDocCount is set to 0
             if (frequently()) {
                 final int docCount = TestUtil.nextInt(random(), 1, 50);
-                buckets.add(new InternalHistogram.Bucket(base + i * interval, docCount, keyed, format, aggregations));
+                buckets.add(new InternalHistogram.Bucket(base + i * interval, docCount, format, aggregations));
             }
         }
         BucketOrder order = BucketOrder.key(randomBoolean());
@@ -95,11 +96,10 @@ public class InternalHistogramTests extends InternalMultiBucketAggregationTestCa
             newBuckets.addAll(buckets.subList(0, buckets.size() - 1));
         }
         InternalHistogram.Bucket b = buckets.get(buckets.size() - 1);
-        newBuckets.add(new InternalHistogram.Bucket(Double.NaN, b.docCount, keyed, b.format, b.aggregations));
+        newBuckets.add(new InternalHistogram.Bucket(Double.NaN, b.docCount, b.format, b.aggregations));
 
-        InternalHistogram newHistogram = histogram.create(newBuckets);
         List<InternalAggregation> reduceMe = List.of(histogram, histogram2);
-        newHistogram.reduce(reduceMe, InternalAggregationTestCase.mockReduceContext(mockBuilder(reduceMe)).forPartialReduction());
+        InternalAggregationTestCase.reduce(reduceMe, mockReduceContext(mockBuilder(reduceMe)).forPartialReduction());
     }
 
     public void testLargeReduce() {
@@ -159,11 +159,6 @@ public class InternalHistogramTests extends InternalMultiBucketAggregationTestCa
     }
 
     @Override
-    protected Class<ParsedHistogram> implementationClass() {
-        return ParsedHistogram.class;
-    }
-
-    @Override
     protected InternalHistogram mutateInstance(InternalHistogram instance) {
         String name = instance.getName();
         List<InternalHistogram.Bucket> buckets = instance.getBuckets();
@@ -176,13 +171,7 @@ public class InternalHistogramTests extends InternalMultiBucketAggregationTestCa
             case 1 -> {
                 buckets = new ArrayList<>(buckets);
                 buckets.add(
-                    new InternalHistogram.Bucket(
-                        randomNonNegativeLong(),
-                        randomIntBetween(1, 100),
-                        keyed,
-                        format,
-                        InternalAggregations.EMPTY
-                    )
+                    new InternalHistogram.Bucket(randomNonNegativeLong(), randomIntBetween(1, 100), format, InternalAggregations.EMPTY)
                 );
             }
             case 2 -> order = BucketOrder.count(randomBoolean());

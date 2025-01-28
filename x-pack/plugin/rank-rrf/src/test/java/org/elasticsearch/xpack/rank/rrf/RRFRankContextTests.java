@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.rank.rrf;
 
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
-import org.elasticsearch.action.search.SearchPhaseController.SortedTopDocs;
 import org.elasticsearch.action.search.SearchPhaseController.TopDocsStats;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.test.ESTestCase;
@@ -36,8 +35,7 @@ public class RRFRankContextTests extends ESTestCase {
     }
 
     public void testShardCombine() {
-        RRFRankShardContext context = new RRFRankShardContext(null, 0, 10, 1);
-
+        RRFQueryPhaseRankShardContext context = new RRFQueryPhaseRankShardContext(null, 10, 1);
         List<TopDocs> topDocs = List.of(
             new TopDocs(
                 null,
@@ -69,11 +67,11 @@ public class RRFRankContextTests extends ESTestCase {
             )
         );
 
-        RRFRankShardResult result = context.combine(topDocs);
+        RRFRankShardResult result = context.combineQueryPhaseResults(topDocs);
         assertEquals(2, result.queryCount);
         assertEquals(10, result.rrfRankDocs.length);
 
-        RRFRankDoc expected = new RRFRankDoc(8, -1, 2);
+        RRFRankDoc expected = new RRFRankDoc(8, -1, 2, context.rankConstant());
         expected.rank = 1;
         expected.positions[0] = 7;
         expected.positions[1] = 0;
@@ -82,7 +80,7 @@ public class RRFRankContextTests extends ESTestCase {
         expected.score = Float.NaN;
         assertRDEquals(expected, result.rrfRankDocs[0]);
 
-        expected = new RRFRankDoc(1, -1, 2);
+        expected = new RRFRankDoc(1, -1, 2, context.rankConstant());
         expected.rank = 2;
         expected.positions[0] = 0;
         expected.positions[1] = NO_RANK;
@@ -91,7 +89,7 @@ public class RRFRankContextTests extends ESTestCase {
         expected.score = Float.NaN;
         assertRDEquals(expected, result.rrfRankDocs[1]);
 
-        expected = new RRFRankDoc(9, -1, 2);
+        expected = new RRFRankDoc(9, -1, 2, context.rankConstant());
         expected.rank = 3;
         expected.positions[0] = 8;
         expected.positions[1] = 1;
@@ -100,7 +98,7 @@ public class RRFRankContextTests extends ESTestCase {
         expected.score = Float.NaN;
         assertRDEquals(expected, result.rrfRankDocs[2]);
 
-        expected = new RRFRankDoc(10, -1, 2);
+        expected = new RRFRankDoc(10, -1, 2, context.rankConstant());
         expected.rank = 4;
         expected.positions[0] = 9;
         expected.positions[1] = 2;
@@ -109,7 +107,7 @@ public class RRFRankContextTests extends ESTestCase {
         expected.score = Float.NaN;
         assertRDEquals(expected, result.rrfRankDocs[3]);
 
-        expected = new RRFRankDoc(2, -1, 2);
+        expected = new RRFRankDoc(2, -1, 2, context.rankConstant());
         expected.rank = 5;
         expected.positions[0] = 1;
         expected.positions[1] = NO_RANK;
@@ -118,7 +116,7 @@ public class RRFRankContextTests extends ESTestCase {
         expected.score = Float.NaN;
         assertRDEquals(expected, result.rrfRankDocs[4]);
 
-        expected = new RRFRankDoc(3, -1, 2);
+        expected = new RRFRankDoc(3, -1, 2, context.rankConstant());
         expected.rank = 6;
         expected.positions[0] = 2;
         expected.positions[1] = NO_RANK;
@@ -127,7 +125,7 @@ public class RRFRankContextTests extends ESTestCase {
         expected.score = Float.NaN;
         assertRDEquals(expected, result.rrfRankDocs[5]);
 
-        expected = new RRFRankDoc(4, -1, 2);
+        expected = new RRFRankDoc(4, -1, 2, context.rankConstant());
         expected.rank = 7;
         expected.positions[0] = 3;
         expected.positions[1] = NO_RANK;
@@ -136,7 +134,7 @@ public class RRFRankContextTests extends ESTestCase {
         expected.score = Float.NaN;
         assertRDEquals(expected, result.rrfRankDocs[6]);
 
-        expected = new RRFRankDoc(11, -1, 2);
+        expected = new RRFRankDoc(11, -1, 2, context.rankConstant());
         expected.rank = 8;
         expected.positions[0] = NO_RANK;
         expected.positions[1] = 3;
@@ -145,7 +143,7 @@ public class RRFRankContextTests extends ESTestCase {
         expected.score = Float.NaN;
         assertRDEquals(expected, result.rrfRankDocs[7]);
 
-        expected = new RRFRankDoc(5, -1, 2);
+        expected = new RRFRankDoc(5, -1, 2, context.rankConstant());
         expected.rank = 9;
         expected.positions[0] = 4;
         expected.positions[1] = NO_RANK;
@@ -154,7 +152,7 @@ public class RRFRankContextTests extends ESTestCase {
         expected.score = Float.NaN;
         assertRDEquals(expected, result.rrfRankDocs[8]);
 
-        expected = new RRFRankDoc(12, -1, 2);
+        expected = new RRFRankDoc(12, -1, 2, context.rankConstant());
         expected.rank = 10;
         expected.positions[0] = NO_RANK;
         expected.positions[1] = 4;
@@ -165,30 +163,30 @@ public class RRFRankContextTests extends ESTestCase {
     }
 
     public void testCoordinatorRank() {
-        RRFRankCoordinatorContext context = new RRFRankCoordinatorContext(4, 0, 5, 1);
+        RRFQueryPhaseRankCoordinatorContext context = new RRFQueryPhaseRankCoordinatorContext(4, 0, 5, 1);
         QuerySearchResult qsr0 = new QuerySearchResult();
         qsr0.setShardIndex(1);
-        RRFRankDoc rd11 = new RRFRankDoc(1, -1, 2);
+        RRFRankDoc rd11 = new RRFRankDoc(1, -1, 2, context.rankConstant());
         rd11.positions[0] = 2;
         rd11.positions[1] = 0;
         rd11.scores[0] = 3.0f;
         rd11.scores[1] = 8.0f;
-        RRFRankDoc rd12 = new RRFRankDoc(2, -1, 2);
+        RRFRankDoc rd12 = new RRFRankDoc(2, -1, 2, context.rankConstant());
         rd12.positions[0] = 3;
         rd12.positions[1] = 1;
         rd12.scores[0] = 2.0f;
         rd12.scores[1] = 7.0f;
-        RRFRankDoc rd13 = new RRFRankDoc(3, -1, 2);
+        RRFRankDoc rd13 = new RRFRankDoc(3, -1, 2, context.rankConstant());
         rd13.positions[0] = 0;
         rd13.positions[1] = NO_RANK;
         rd13.scores[0] = 10.0f;
         rd13.scores[1] = 0.0f;
-        RRFRankDoc rd14 = new RRFRankDoc(4, -1, 2);
+        RRFRankDoc rd14 = new RRFRankDoc(4, -1, 2, context.rankConstant());
         rd14.positions[0] = 4;
         rd14.positions[1] = 2;
         rd14.scores[0] = 1.0f;
         rd14.scores[1] = 6.0f;
-        RRFRankDoc rd15 = new RRFRankDoc(5, -1, 2);
+        RRFRankDoc rd15 = new RRFRankDoc(5, -1, 2, context.rankConstant());
         rd15.positions[0] = 1;
         rd15.positions[1] = NO_RANK;
         rd15.scores[0] = 9.0f;
@@ -197,27 +195,27 @@ public class RRFRankContextTests extends ESTestCase {
 
         QuerySearchResult qsr1 = new QuerySearchResult();
         qsr1.setShardIndex(2);
-        RRFRankDoc rd21 = new RRFRankDoc(1, -1, 2);
+        RRFRankDoc rd21 = new RRFRankDoc(1, -1, 2, context.rankConstant());
         rd21.positions[0] = 0;
         rd21.positions[1] = 0;
         rd21.scores[0] = 9.5f;
         rd21.scores[1] = 7.5f;
-        RRFRankDoc rd22 = new RRFRankDoc(2, -1, 2);
+        RRFRankDoc rd22 = new RRFRankDoc(2, -1, 2, context.rankConstant());
         rd22.positions[0] = 1;
         rd22.positions[1] = 1;
         rd22.scores[0] = 8.5f;
         rd22.scores[1] = 6.5f;
-        RRFRankDoc rd23 = new RRFRankDoc(3, -1, 2);
+        RRFRankDoc rd23 = new RRFRankDoc(3, -1, 2, context.rankConstant());
         rd23.positions[0] = 2;
         rd23.positions[1] = 2;
         rd23.scores[0] = 7.5f;
         rd23.scores[1] = 4.5f;
-        RRFRankDoc rd24 = new RRFRankDoc(4, -1, 2);
+        RRFRankDoc rd24 = new RRFRankDoc(4, -1, 2, context.rankConstant());
         rd24.positions[0] = 3;
         rd24.positions[1] = NO_RANK;
         rd24.scores[0] = 5.5f;
         rd24.scores[1] = 0.0f;
-        RRFRankDoc rd25 = new RRFRankDoc(5, -1, 2);
+        RRFRankDoc rd25 = new RRFRankDoc(5, -1, 2, context.rankConstant());
         rd25.positions[0] = NO_RANK;
         rd25.positions[1] = 3;
         rd25.scores[0] = 0.0f;
@@ -225,61 +223,61 @@ public class RRFRankContextTests extends ESTestCase {
         qsr1.setRankShardResult(new RRFRankShardResult(2, new RRFRankDoc[] { rd21, rd22, rd23, rd24, rd25 }));
 
         TopDocsStats tds = new TopDocsStats(0);
-        SortedTopDocs std = context.rank(List.of(qsr0, qsr1), tds);
+        ScoreDoc[] scoreDocs = context.rankQueryPhaseResults(List.of(qsr0, qsr1), tds);
 
         assertEquals(4, tds.fetchHits);
-        assertEquals(4, std.scoreDocs().length);
+        assertEquals(4, scoreDocs.length);
 
-        RRFRankDoc expected = new RRFRankDoc(1, 2, 2);
+        RRFRankDoc expected = new RRFRankDoc(1, 2, 2, context.rankConstant());
         expected.rank = 1;
         expected.positions[0] = 1;
         expected.positions[1] = 1;
         expected.scores[0] = 9.5f;
         expected.scores[1] = 7.5f;
         expected.score = 0.6666667f;
-        assertRDEquals(expected, (RRFRankDoc) std.scoreDocs()[0]);
+        assertRDEquals(expected, (RRFRankDoc) scoreDocs[0]);
 
-        expected = new RRFRankDoc(3, 1, 2);
+        expected = new RRFRankDoc(3, 1, 2, context.rankConstant());
         expected.rank = 2;
         expected.positions[0] = 0;
         expected.positions[1] = NO_RANK;
         expected.scores[0] = 10.0f;
         expected.scores[1] = 0.0f;
         expected.score = 0.5f;
-        assertRDEquals(expected, (RRFRankDoc) std.scoreDocs()[1]);
+        assertRDEquals(expected, (RRFRankDoc) scoreDocs[1]);
 
-        expected = new RRFRankDoc(1, 1, 2);
+        expected = new RRFRankDoc(1, 1, 2, context.rankConstant());
         expected.rank = 3;
         expected.positions[0] = NO_RANK;
         expected.positions[1] = 0;
         expected.scores[0] = 0.0f;
         expected.scores[1] = 8.0f;
         expected.score = 0.5f;
-        assertRDEquals(expected, (RRFRankDoc) std.scoreDocs()[2]);
+        assertRDEquals(expected, (RRFRankDoc) scoreDocs[2]);
 
-        expected = new RRFRankDoc(2, 2, 2);
+        expected = new RRFRankDoc(2, 2, 2, context.rankConstant());
         expected.rank = 4;
         expected.positions[0] = 3;
         expected.positions[1] = 3;
         expected.scores[0] = 8.5f;
         expected.scores[1] = 6.5f;
         expected.score = 0.4f;
-        assertRDEquals(expected, (RRFRankDoc) std.scoreDocs()[3]);
+        assertRDEquals(expected, (RRFRankDoc) scoreDocs[3]);
     }
 
     public void testShardTieBreaker() {
-        RRFRankShardContext context = new RRFRankShardContext(null, 0, 10, 1);
+        RRFQueryPhaseRankShardContext context = new RRFQueryPhaseRankShardContext(null, 10, 1);
 
         List<TopDocs> topDocs = List.of(
             new TopDocs(null, new ScoreDoc[] { new ScoreDoc(1, 10.0f, -1), new ScoreDoc(2, 9.0f, -1) }),
             new TopDocs(null, new ScoreDoc[] { new ScoreDoc(2, 8.0f, -1), new ScoreDoc(1, 7.0f, -1) })
         );
 
-        RRFRankShardResult result = context.combine(topDocs);
+        RRFRankShardResult result = context.combineQueryPhaseResults(topDocs);
         assertEquals(2, result.queryCount);
         assertEquals(2, result.rrfRankDocs.length);
 
-        RRFRankDoc expected = new RRFRankDoc(1, -1, 2);
+        RRFRankDoc expected = new RRFRankDoc(1, -1, 2, context.rankConstant());
         expected.rank = 1;
         expected.positions[0] = 0;
         expected.positions[1] = 1;
@@ -288,7 +286,7 @@ public class RRFRankContextTests extends ESTestCase {
         expected.score = Float.NaN;
         assertRDEquals(expected, result.rrfRankDocs[0]);
 
-        expected = new RRFRankDoc(2, -1, 2);
+        expected = new RRFRankDoc(2, -1, 2, context.rankConstant());
         expected.rank = 2;
         expected.positions[0] = 1;
         expected.positions[1] = 0;
@@ -302,11 +300,11 @@ public class RRFRankContextTests extends ESTestCase {
             new TopDocs(null, new ScoreDoc[] { new ScoreDoc(4, 11.0f, -1), new ScoreDoc(3, 9.0f, -1), new ScoreDoc(2, 7.0f, -1) })
         );
 
-        result = context.combine(topDocs);
+        result = context.combineQueryPhaseResults(topDocs);
         assertEquals(2, result.queryCount);
         assertEquals(4, result.rrfRankDocs.length);
 
-        expected = new RRFRankDoc(3, -1, 2);
+        expected = new RRFRankDoc(3, -1, 2, context.rankConstant());
         expected.rank = 1;
         expected.positions[0] = 2;
         expected.positions[1] = 1;
@@ -315,7 +313,7 @@ public class RRFRankContextTests extends ESTestCase {
         expected.score = Float.NaN;
         assertRDEquals(expected, result.rrfRankDocs[0]);
 
-        expected = new RRFRankDoc(2, -1, 2);
+        expected = new RRFRankDoc(2, -1, 2, context.rankConstant());
         expected.rank = 2;
         expected.positions[0] = 1;
         expected.positions[1] = 2;
@@ -324,7 +322,7 @@ public class RRFRankContextTests extends ESTestCase {
         expected.score = Float.NaN;
         assertRDEquals(expected, result.rrfRankDocs[1]);
 
-        expected = new RRFRankDoc(1, -1, 2);
+        expected = new RRFRankDoc(1, -1, 2, context.rankConstant());
         expected.rank = 3;
         expected.positions[0] = 0;
         expected.positions[1] = -1;
@@ -333,7 +331,7 @@ public class RRFRankContextTests extends ESTestCase {
         expected.score = Float.NaN;
         assertRDEquals(expected, result.rrfRankDocs[2]);
 
-        expected = new RRFRankDoc(4, -1, 2);
+        expected = new RRFRankDoc(4, -1, 2, context.rankConstant());
         expected.rank = 4;
         expected.positions[0] = -1;
         expected.positions[1] = 0;
@@ -347,11 +345,11 @@ public class RRFRankContextTests extends ESTestCase {
             new TopDocs(null, new ScoreDoc[] { new ScoreDoc(2, 8.0f, -1), new ScoreDoc(4, 5.0f, -1) })
         );
 
-        result = context.combine(topDocs);
+        result = context.combineQueryPhaseResults(topDocs);
         assertEquals(2, result.queryCount);
         assertEquals(4, result.rrfRankDocs.length);
 
-        expected = new RRFRankDoc(1, -1, 2);
+        expected = new RRFRankDoc(1, -1, 2, context.rankConstant());
         expected.rank = 1;
         expected.positions[0] = 0;
         expected.positions[1] = -1;
@@ -360,7 +358,7 @@ public class RRFRankContextTests extends ESTestCase {
         expected.score = Float.NaN;
         assertRDEquals(expected, result.rrfRankDocs[0]);
 
-        expected = new RRFRankDoc(2, -1, 2);
+        expected = new RRFRankDoc(2, -1, 2, context.rankConstant());
         expected.rank = 2;
         expected.positions[0] = -1;
         expected.positions[1] = 0;
@@ -369,7 +367,7 @@ public class RRFRankContextTests extends ESTestCase {
         expected.score = Float.NaN;
         assertRDEquals(expected, result.rrfRankDocs[1]);
 
-        expected = new RRFRankDoc(3, -1, 2);
+        expected = new RRFRankDoc(3, -1, 2, context.rankConstant());
         expected.rank = 3;
         expected.positions[0] = 1;
         expected.positions[1] = -1;
@@ -378,7 +376,7 @@ public class RRFRankContextTests extends ESTestCase {
         expected.score = Float.NaN;
         assertRDEquals(expected, result.rrfRankDocs[2]);
 
-        expected = new RRFRankDoc(4, -1, 2);
+        expected = new RRFRankDoc(4, -1, 2, context.rankConstant());
         expected.rank = 4;
         expected.positions[0] = -1;
         expected.positions[1] = 1;
@@ -389,11 +387,11 @@ public class RRFRankContextTests extends ESTestCase {
     }
 
     public void testCoordinatorRankTieBreaker() {
-        RRFRankCoordinatorContext context = new RRFRankCoordinatorContext(4, 0, 5, 1);
+        RRFQueryPhaseRankCoordinatorContext context = new RRFQueryPhaseRankCoordinatorContext(4, 0, 5, 1);
 
         QuerySearchResult qsr0 = new QuerySearchResult();
         qsr0.setShardIndex(1);
-        RRFRankDoc rd11 = new RRFRankDoc(1, -1, 2);
+        RRFRankDoc rd11 = new RRFRankDoc(1, -1, 2, context.rankConstant());
         rd11.positions[0] = 0;
         rd11.positions[1] = 0;
         rd11.scores[0] = 10.0f;
@@ -402,7 +400,7 @@ public class RRFRankContextTests extends ESTestCase {
 
         QuerySearchResult qsr1 = new QuerySearchResult();
         qsr1.setShardIndex(2);
-        RRFRankDoc rd21 = new RRFRankDoc(1, -1, 2);
+        RRFRankDoc rd21 = new RRFRankDoc(1, -1, 2, context.rankConstant());
         rd21.positions[0] = 0;
         rd21.positions[1] = 0;
         rd21.scores[0] = 9.0f;
@@ -410,37 +408,37 @@ public class RRFRankContextTests extends ESTestCase {
         qsr1.setRankShardResult(new RRFRankShardResult(2, new RRFRankDoc[] { rd21 }));
 
         TopDocsStats tds = new TopDocsStats(0);
-        SortedTopDocs std = context.rank(List.of(qsr0, qsr1), tds);
+        ScoreDoc[] scoreDocs = context.rankQueryPhaseResults(List.of(qsr0, qsr1), tds);
 
         assertEquals(2, tds.fetchHits);
-        assertEquals(2, std.scoreDocs().length);
+        assertEquals(2, scoreDocs.length);
 
-        RRFRankDoc expected = new RRFRankDoc(1, 1, 2);
+        RRFRankDoc expected = new RRFRankDoc(1, 1, 2, context.rankConstant());
         expected.rank = 1;
         expected.positions[0] = 0;
         expected.positions[1] = 1;
         expected.scores[0] = 10.0f;
         expected.scores[1] = 7.0f;
         expected.score = 0.8333333730697632f;
-        assertRDEquals(expected, (RRFRankDoc) std.scoreDocs()[0]);
+        assertRDEquals(expected, (RRFRankDoc) scoreDocs[0]);
 
-        expected = new RRFRankDoc(1, 2, 2);
+        expected = new RRFRankDoc(1, 2, 2, context.rankConstant());
         expected.rank = 2;
         expected.positions[0] = 1;
         expected.positions[1] = 0;
         expected.scores[0] = 9.0f;
         expected.scores[1] = 8.0f;
         expected.score = 0.8333333730697632f;
-        assertRDEquals(expected, (RRFRankDoc) std.scoreDocs()[1]);
+        assertRDEquals(expected, (RRFRankDoc) scoreDocs[1]);
 
         qsr0 = new QuerySearchResult();
         qsr0.setShardIndex(1);
-        rd11 = new RRFRankDoc(1, -1, 2);
+        rd11 = new RRFRankDoc(1, -1, 2, context.rankConstant());
         rd11.positions[0] = 0;
         rd11.positions[1] = -1;
         rd11.scores[0] = 10.0f;
         rd11.scores[1] = 0.0f;
-        RRFRankDoc rd12 = new RRFRankDoc(2, -1, 2);
+        RRFRankDoc rd12 = new RRFRankDoc(2, -1, 2, context.rankConstant());
         rd12.positions[0] = 0;
         rd12.positions[1] = 1;
         rd12.scores[0] = 9.0f;
@@ -449,12 +447,12 @@ public class RRFRankContextTests extends ESTestCase {
 
         qsr1 = new QuerySearchResult();
         qsr1.setShardIndex(2);
-        rd21 = new RRFRankDoc(1, -1, 2);
+        rd21 = new RRFRankDoc(1, -1, 2, context.rankConstant());
         rd21.positions[0] = -1;
         rd21.positions[1] = 0;
         rd21.scores[0] = 0.0f;
         rd21.scores[1] = 11.0f;
-        RRFRankDoc rd22 = new RRFRankDoc(2, -1, 2);
+        RRFRankDoc rd22 = new RRFRankDoc(2, -1, 2, context.rankConstant());
         rd22.positions[0] = 0;
         rd22.positions[1] = 1;
         rd22.scores[0] = 9.0f;
@@ -462,55 +460,55 @@ public class RRFRankContextTests extends ESTestCase {
         qsr1.setRankShardResult(new RRFRankShardResult(2, new RRFRankDoc[] { rd21, rd22 }));
 
         tds = new TopDocsStats(0);
-        std = context.rank(List.of(qsr0, qsr1), tds);
+        scoreDocs = context.rankQueryPhaseResults(List.of(qsr0, qsr1), tds);
 
         assertEquals(4, tds.fetchHits);
-        assertEquals(4, std.scoreDocs().length);
+        assertEquals(4, scoreDocs.length);
 
-        expected = new RRFRankDoc(2, 2, 2);
+        expected = new RRFRankDoc(2, 2, 2, context.rankConstant());
         expected.rank = 1;
         expected.positions[0] = 2;
         expected.positions[1] = 1;
         expected.scores[0] = 9.0f;
         expected.scores[1] = 9.0f;
         expected.score = 0.5833333730697632f;
-        assertRDEquals(expected, (RRFRankDoc) std.scoreDocs()[0]);
+        assertRDEquals(expected, (RRFRankDoc) scoreDocs[0]);
 
-        expected = new RRFRankDoc(2, 1, 2);
+        expected = new RRFRankDoc(2, 1, 2, context.rankConstant());
         expected.rank = 2;
         expected.positions[0] = 1;
         expected.positions[1] = 2;
         expected.scores[0] = 9.0f;
         expected.scores[1] = 7.0f;
         expected.score = 0.5833333730697632f;
-        assertRDEquals(expected, (RRFRankDoc) std.scoreDocs()[1]);
+        assertRDEquals(expected, (RRFRankDoc) scoreDocs[1]);
 
-        expected = new RRFRankDoc(1, 1, 2);
+        expected = new RRFRankDoc(1, 1, 2, context.rankConstant());
         expected.rank = 3;
         expected.positions[0] = 0;
         expected.positions[1] = -1;
         expected.scores[0] = 10.0f;
         expected.scores[1] = 0.0f;
         expected.score = 0.5f;
-        assertRDEquals(expected, (RRFRankDoc) std.scoreDocs()[2]);
+        assertRDEquals(expected, (RRFRankDoc) scoreDocs[2]);
 
-        expected = new RRFRankDoc(1, 2, 2);
+        expected = new RRFRankDoc(1, 2, 2, context.rankConstant());
         expected.rank = 4;
         expected.positions[0] = -1;
         expected.positions[1] = 0;
         expected.scores[0] = 0.0f;
         expected.scores[1] = 11.0f;
         expected.score = 0.5f;
-        assertRDEquals(expected, (RRFRankDoc) std.scoreDocs()[3]);
+        assertRDEquals(expected, (RRFRankDoc) scoreDocs[3]);
 
         qsr0 = new QuerySearchResult();
         qsr0.setShardIndex(1);
-        rd11 = new RRFRankDoc(1, -1, 2);
+        rd11 = new RRFRankDoc(1, -1, 2, context.rankConstant());
         rd11.positions[0] = 0;
         rd11.positions[1] = -1;
         rd11.scores[0] = 10.0f;
         rd11.scores[1] = 0.0f;
-        rd12 = new RRFRankDoc(2, -1, 2);
+        rd12 = new RRFRankDoc(2, -1, 2, context.rankConstant());
         rd12.positions[0] = -1;
         rd12.positions[1] = 0;
         rd12.scores[0] = 0.0f;
@@ -519,12 +517,12 @@ public class RRFRankContextTests extends ESTestCase {
 
         qsr1 = new QuerySearchResult();
         qsr1.setShardIndex(2);
-        rd21 = new RRFRankDoc(1, -1, 2);
+        rd21 = new RRFRankDoc(1, -1, 2, context.rankConstant());
         rd21.positions[0] = 0;
         rd21.positions[1] = -1;
         rd21.scores[0] = 3.0f;
         rd21.scores[1] = 0.0f;
-        rd22 = new RRFRankDoc(2, -1, 2);
+        rd22 = new RRFRankDoc(2, -1, 2, context.rankConstant());
         rd22.positions[0] = -1;
         rd22.positions[1] = 0;
         rd22.scores[0] = 0.0f;
@@ -532,45 +530,45 @@ public class RRFRankContextTests extends ESTestCase {
         qsr1.setRankShardResult(new RRFRankShardResult(2, new RRFRankDoc[] { rd21, rd22 }));
 
         tds = new TopDocsStats(0);
-        std = context.rank(List.of(qsr0, qsr1), tds);
+        scoreDocs = context.rankQueryPhaseResults(List.of(qsr0, qsr1), tds);
 
         assertEquals(4, tds.fetchHits);
-        assertEquals(4, std.scoreDocs().length);
+        assertEquals(4, scoreDocs.length);
 
-        expected = new RRFRankDoc(1, 1, 2);
+        expected = new RRFRankDoc(1, 1, 2, context.rankConstant());
         expected.rank = 1;
         expected.positions[0] = 0;
         expected.positions[1] = -1;
         expected.scores[0] = 10.0f;
         expected.scores[1] = 0.0f;
         expected.score = 0.5f;
-        assertRDEquals(expected, (RRFRankDoc) std.scoreDocs()[0]);
+        assertRDEquals(expected, (RRFRankDoc) scoreDocs[0]);
 
-        expected = new RRFRankDoc(2, 1, 2);
+        expected = new RRFRankDoc(2, 1, 2, context.rankConstant());
         expected.rank = 2;
         expected.positions[0] = -1;
         expected.positions[1] = 0;
         expected.scores[0] = 0.0f;
         expected.scores[1] = 12.0f;
         expected.score = 0.5f;
-        assertRDEquals(expected, (RRFRankDoc) std.scoreDocs()[1]);
+        assertRDEquals(expected, (RRFRankDoc) scoreDocs[1]);
 
-        expected = new RRFRankDoc(1, 2, 2);
+        expected = new RRFRankDoc(1, 2, 2, context.rankConstant());
         expected.rank = 3;
         expected.positions[0] = 1;
         expected.positions[1] = -1;
         expected.scores[0] = 3.0f;
         expected.scores[1] = 0.0f;
         expected.score = 0.3333333333333333f;
-        assertRDEquals(expected, (RRFRankDoc) std.scoreDocs()[2]);
+        assertRDEquals(expected, (RRFRankDoc) scoreDocs[2]);
 
-        expected = new RRFRankDoc(2, 2, 2);
+        expected = new RRFRankDoc(2, 2, 2, context.rankConstant());
         expected.rank = 4;
         expected.positions[0] = -1;
         expected.positions[1] = 1;
         expected.scores[0] = 0.0f;
         expected.scores[1] = 5.0f;
         expected.score = 0.3333333333333333f;
-        assertRDEquals(expected, (RRFRankDoc) std.scoreDocs()[3]);
+        assertRDEquals(expected, (RRFRankDoc) scoreDocs[3]);
     }
 }

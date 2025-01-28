@@ -4,6 +4,11 @@
 <titleabbrev>Vector tile search</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-search[Search APIs].
+--
 
 Searches a vector tile for geospatial values. Returns results as a binary
 https://docs.mapbox.com/vector-tiles/specification[Mapbox vector tile].
@@ -429,7 +434,7 @@ include::search-vector-tile-api.asciidoc[tag=grid-type]
 (Optional, object) <<query-dsl,Query DSL>> used to filter documents for the
 search.
 
-include::{es-repo-dir}/search/search.asciidoc[tag=runtime-mappings-def]
+include::{es-ref-dir}/search/search.asciidoc[tag=runtime-mappings-def]
 
 include::search-vector-tile-api.asciidoc[tag=size]
 

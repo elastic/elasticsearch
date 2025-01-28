@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.action.search;
 
@@ -23,8 +24,7 @@ import java.util.concurrent.Executor;
 
 public class CountedCollectorTests extends ESTestCase {
     public void testCollect() throws InterruptedException {
-        ArraySearchPhaseResults<SearchPhaseResult> consumer = new ArraySearchPhaseResults<>(randomIntBetween(1, 100));
-        try {
+        try (ArraySearchPhaseResults<SearchPhaseResult> consumer = new ArraySearchPhaseResults<>(randomIntBetween(1, 100))) {
             List<Integer> state = new ArrayList<>();
             int numResultsExpected = randomIntBetween(1, consumer.getAtomicArray().length());
             MockSearchPhaseContext context = new MockSearchPhaseContext(consumer.getAtomicArray().length());
@@ -93,8 +93,7 @@ public class CountedCollectorTests extends ESTestCase {
             for (int i = numResultsExpected; i < results.length(); i++) {
                 assertNull("index: " + i, results.get(i));
             }
-        } finally {
-            consumer.decRef();
+            context.results.close();
         }
     }
 }

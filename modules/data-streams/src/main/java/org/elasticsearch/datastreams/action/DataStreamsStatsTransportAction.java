@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.datastreams.action;
 
@@ -11,6 +12,7 @@ import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.PointValues;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.datastreams.DataStreamsActionUtil;
 import org.elasticsearch.action.datastreams.DataStreamsStatsAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
@@ -24,15 +26,16 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.ReadOnlyEngine;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -44,16 +47,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.SortedMap;
-import java.util.stream.Stream;
 
 public class DataStreamsStatsTransportAction extends TransportBroadcastByNodeAction<
     DataStreamsStatsAction.Request,
     DataStreamsStatsAction.Response,
     DataStreamsStatsAction.DataStreamShardStats> {
 
-    private final ClusterService clusterService;
     private final IndicesService indicesService;
-    private final IndexNameExpressionResolver indexNameExpressionResolver;
 
     @Inject
     public DataStreamsStatsTransportAction(
@@ -72,9 +72,7 @@ public class DataStreamsStatsTransportAction extends TransportBroadcastByNodeAct
             DataStreamsStatsAction.Request::new,
             transportService.getThreadPool().executor(ThreadPool.Names.MANAGEMENT)
         );
-        this.clusterService = clusterService;
         this.indicesService = indicesService;
-        this.indexNameExpressionResolver = indexNameExpressionResolver;
     }
 
     @Override
@@ -103,29 +101,6 @@ public class DataStreamsStatsTransportAction extends TransportBroadcastByNodeAct
     }
 
     @Override
-    protected String[] resolveConcreteIndexNames(ClusterState clusterState, DataStreamsStatsAction.Request request) {
-        List<String> abstractionNames = indexNameExpressionResolver.dataStreamNames(
-            clusterState,
-            request.indicesOptions(),
-            request.indices()
-        );
-        SortedMap<String, IndexAbstraction> indicesLookup = clusterState.getMetadata().getIndicesLookup();
-
-        String[] concreteDatastreamIndices = abstractionNames.stream().flatMap(abstractionName -> {
-            IndexAbstraction indexAbstraction = indicesLookup.get(abstractionName);
-            assert indexAbstraction != null;
-            if (indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM) {
-                DataStream dataStream = (DataStream) indexAbstraction;
-                List<Index> indices = dataStream.getIndices();
-                return indices.stream().map(Index::getName);
-            } else {
-                return Stream.empty();
-            }
-        }).toArray(String[]::new);
-        return concreteDatastreamIndices;
-    }
-
-    @Override
     protected ShardsIterator shards(ClusterState clusterState, DataStreamsStatsAction.Request request, String[] concreteIndices) {
         return clusterState.getRoutingTable().allShards(concreteIndices);
     }
@@ -146,7 +121,7 @@ public class DataStreamsStatsTransportAction extends TransportBroadcastByNodeAct
             DataStream dataStream = indexAbstraction.getParentDataStream();
             assert dataStream != null;
             long maxTimestamp = 0L;
-            try (Engine.Searcher searcher = indexShard.acquireSearcher("data_stream_stats")) {
+            try (Engine.Searcher searcher = indexShard.acquireSearcher(ReadOnlyEngine.FIELD_RANGE_SEARCH_SOURCE)) {
                 IndexReader indexReader = searcher.getIndexReader();
                 byte[] maxPackedValue = PointValues.getMaxPackedValue(indexReader, DataStream.TIMESTAMP_FIELD_NAME);
                 if (maxPackedValue != null) {
@@ -155,6 +130,16 @@ public class DataStreamsStatsTransportAction extends TransportBroadcastByNodeAct
             }
             return new DataStreamsStatsAction.DataStreamShardStats(indexShard.routingEntry(), storeStats, maxTimestamp);
         });
+    }
+
+    @Override
+    protected String[] resolveConcreteIndexNames(ClusterState clusterState, DataStreamsStatsAction.Request request) {
+        return DataStreamsActionUtil.resolveConcreteIndexNames(
+            indexNameExpressionResolver,
+            clusterState,
+            request.indices(),
+            request.indicesOptions()
+        ).toArray(String[]::new);
     }
 
     @Override
@@ -178,13 +163,17 @@ public class DataStreamsStatsTransportAction extends TransportBroadcastByNodeAct
             request.indicesOptions(),
             request.indices()
         );
-        for (String abstractionName : abstractionNames) {
-            IndexAbstraction indexAbstraction = indicesLookup.get(abstractionName);
+        for (String abstraction : abstractionNames) {
+            IndexAbstraction indexAbstraction = indicesLookup.get(abstraction);
             assert indexAbstraction != null;
             if (indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM) {
                 DataStream dataStream = (DataStream) indexAbstraction;
                 AggregatedStats stats = aggregatedDataStreamsStats.computeIfAbsent(dataStream.getName(), s -> new AggregatedStats());
                 dataStream.getIndices().stream().map(Index::getName).forEach(index -> {
+                    stats.backingIndices.add(index);
+                    allBackingIndices.add(index);
+                });
+                dataStream.getFailureIndices().stream().map(Index::getName).forEach(index -> {
                     stats.backingIndices.add(index);
                     allBackingIndices.add(index);
                 });

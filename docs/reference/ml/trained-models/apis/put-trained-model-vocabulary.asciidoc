@@ -6,6 +6,12 @@
 <titleabbrev>Create trained model vocabulary</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-ml-trained-model[{ml-cap} trained model APIs].
+--
+
 Creates a trained model vocabulary.
 This is supported only for natural language processing (NLP) models.
 
@@ -34,7 +40,7 @@ The vocabulary is stored in the index as described in
 
 `<model_id>`::
 (Required, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-id]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=model-id]
 
 [[ml-put-trained-model-vocabulary-request-body]]
 == {api-request-body-title}

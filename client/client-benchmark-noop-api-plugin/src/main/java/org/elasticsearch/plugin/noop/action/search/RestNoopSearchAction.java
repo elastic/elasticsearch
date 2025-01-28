@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.plugin.noop.action.search;
 
@@ -12,7 +13,7 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.plugin.noop.NoopPlugin;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.RestChunkedToXContentListener;
+import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
 
 import java.util.List;
 
@@ -39,6 +40,10 @@ public class RestNoopSearchAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) {
         SearchRequest searchRequest = new SearchRequest();
-        return channel -> client.execute(NoopPlugin.NOOP_SEARCH_ACTION, searchRequest, new RestChunkedToXContentListener<>(channel));
+        return channel -> client.execute(
+            NoopPlugin.NOOP_SEARCH_ACTION,
+            searchRequest,
+            new RestRefCountedChunkedToXContentListener<>(channel)
+        );
     }
 }

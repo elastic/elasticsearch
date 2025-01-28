@@ -1,21 +1,23 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.action.bulk;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
+import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
 
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
@@ -61,7 +63,7 @@ public class BulkProcessorRetryIT extends ESIntegTestCase {
         final CorrelatingBackoffPolicy internalPolicy = new CorrelatingBackoffPolicy(backoffPolicy);
         int numberOfAsyncOps = randomIntBetween(600, 700);
         final CountDownLatch latch = new CountDownLatch(numberOfAsyncOps);
-        final Set<Object> responses = Collections.newSetFromMap(new ConcurrentHashMap<>());
+        final Set<Object> responses = ConcurrentCollections.newConcurrentSet();
 
         assertAcked(prepareCreate(INDEX_NAME));
         ensureGreen();
@@ -134,11 +136,11 @@ public class BulkProcessorRetryIT extends ESIntegTestCase {
         final boolean finalRejectedAfterAllRetries = rejectedAfterAllRetries;
         assertResponse(prepareSearch(INDEX_NAME).setQuery(QueryBuilders.matchAllQuery()).setSize(0), results -> {
             if (rejectedExecutionExpected) {
-                assertThat((int) results.getHits().getTotalHits().value, lessThanOrEqualTo(numberOfAsyncOps));
+                assertThat((int) results.getHits().getTotalHits().value(), lessThanOrEqualTo(numberOfAsyncOps));
             } else if (finalRejectedAfterAllRetries) {
-                assertThat((int) results.getHits().getTotalHits().value, lessThan(numberOfAsyncOps));
+                assertThat((int) results.getHits().getTotalHits().value(), lessThan(numberOfAsyncOps));
             } else {
-                assertThat((int) results.getHits().getTotalHits().value, equalTo(numberOfAsyncOps));
+                assertThat((int) results.getHits().getTotalHits().value(), equalTo(numberOfAsyncOps));
             }
         });
     }

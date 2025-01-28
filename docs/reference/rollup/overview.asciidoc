@@ -5,7 +5,7 @@
 <titleabbrev>Overview</titleabbrev>
 ++++
 
-deprecated::[8.11.0,"Rollups will be removed in a future version. Use <<downsampling,downsampling>> instead."]
+deprecated::[8.11.0,"Rollups will be removed in a future version. Please <<rollup-migrating-to-downsampling,migrate>> to <<downsampling,downsampling>> instead."]
 
 Time-based data (documents that are predominantly identified by their timestamp) often have associated retention policies
 to manage data growth. For example, your system may be generating 500 documents every second. That will generate

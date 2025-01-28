@@ -9,7 +9,7 @@ package org.elasticsearch.integration;
 
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
-import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -183,13 +183,20 @@ public class DataStreamLifecycleServiceRuntimeSecurityIT extends SecurityIntegTe
     private void prepareDataStreamAndIndex(String dataStreamName, DataStreamLifecycle lifecycle) throws IOException, InterruptedException,
         ExecutionException {
         putComposableIndexTemplate("id1", null, List.of(dataStreamName + "*"), null, null, lifecycle);
-        CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName);
+        CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            dataStreamName
+        );
         client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).get();
         indexDoc(dataStreamName);
     }
 
     private List<Index> getDataStreamBackingIndices(String dataStreamName) {
-        GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[] { dataStreamName });
+        GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            new String[] { dataStreamName }
+        );
         GetDataStreamAction.Response getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
             .actionGet();
         assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(1));
@@ -216,16 +223,21 @@ public class DataStreamLifecycleServiceRuntimeSecurityIT extends SecurityIntegTe
         @Nullable Map<String, Object> metadata,
         @Nullable DataStreamLifecycle lifecycle
     ) throws IOException {
-        PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request(id);
+        TransportPutComposableIndexTemplateAction.Request request = new TransportPutComposableIndexTemplateAction.Request(id);
         request.indexTemplate(
             ComposableIndexTemplate.builder()
                 .indexPatterns(patterns)
-                .template(new Template(settings, mappings == null ? null : CompressedXContent.fromJSON(mappings), null, lifecycle))
+                .template(
+                    Template.builder()
+                        .settings(settings)
+                        .mappings(mappings == null ? null : CompressedXContent.fromJSON(mappings))
+                        .lifecycle(lifecycle)
+                )
                 .metadata(metadata)
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
                 .build()
         );
-        client().execute(PutComposableIndexTemplateAction.INSTANCE, request).actionGet();
+        client().execute(TransportPutComposableIndexTemplateAction.TYPE, request).actionGet();
     }
 
     private static void indexDoc(String dataStream) {
@@ -259,7 +271,7 @@ public class DataStreamLifecycleServiceRuntimeSecurityIT extends SecurityIntegTe
                     SystemDataStreamDescriptor.Type.EXTERNAL,
                     ComposableIndexTemplate.builder()
                         .indexPatterns(List.of(SYSTEM_DATA_STREAM_NAME))
-                        .template(new Template(Settings.EMPTY, null, null, DataStreamLifecycle.newBuilder().dataRetention(0).build()))
+                        .template(Template.builder().lifecycle(DataStreamLifecycle.newBuilder().dataRetention(0)))
                         .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
                         .build(),
                     Map.of(),

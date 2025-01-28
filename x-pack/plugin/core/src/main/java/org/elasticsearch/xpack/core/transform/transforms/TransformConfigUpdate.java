@@ -117,7 +117,7 @@ public final class TransformConfigUpdate implements Writeable {
             setHeaders(in.readMap(StreamInput::readString));
         }
         settings = in.readOptionalWriteable(SettingsConfig::new);
-        metadata = in.readMap();
+        metadata = in.readGenericMap();
         retentionPolicyConfig = in.readOptionalNamedWriteable(RetentionPolicyConfig.class);
     }
 
@@ -237,6 +237,11 @@ public final class TransformConfigUpdate implements Writeable {
 
     public boolean changesHeaders(TransformConfig config) {
         return isNullOrEqual(headers, config.getHeaders()) == false;
+    }
+
+    public boolean changesDestIndex(TransformConfig config) {
+        var updatedIndex = dest == null ? null : dest.getIndex();
+        return isNullOrEqual(updatedIndex, config.getDestination().getIndex()) == false;
     }
 
     private static boolean isNullOrEqual(Object lft, Object rgt) {

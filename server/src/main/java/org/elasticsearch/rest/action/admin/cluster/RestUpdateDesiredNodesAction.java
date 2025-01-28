@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.rest.action.admin.cluster;
@@ -11,6 +12,8 @@ package org.elasticsearch.rest.action.admin.cluster;
 import org.elasticsearch.action.admin.cluster.desirednodes.UpdateDesiredNodesAction;
 import org.elasticsearch.action.admin.cluster.desirednodes.UpdateDesiredNodesRequest;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.cluster.metadata.DesiredNode;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -19,7 +22,15 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.List;
 
+import static org.elasticsearch.rest.RestUtils.getAckTimeout;
+import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
+
 public class RestUpdateDesiredNodesAction extends BaseRestHandler {
+
+    private final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestUpdateDesiredNodesAction.class);
+    private static final String VERSION_DEPRECATION_MESSAGE =
+        "[version removal] Specifying node_version in desired nodes requests is deprecated.";
+
     @Override
     public String getName() {
         return "update_desired_nodes";
@@ -38,10 +49,20 @@ public class RestUpdateDesiredNodesAction extends BaseRestHandler {
 
         final UpdateDesiredNodesRequest updateDesiredNodesRequest;
         try (XContentParser parser = request.contentParser()) {
-            updateDesiredNodesRequest = UpdateDesiredNodesRequest.fromXContent(historyId, version, dryRun, parser);
+            updateDesiredNodesRequest = UpdateDesiredNodesRequest.fromXContent(
+                getMasterNodeTimeout(request),
+                getAckTimeout(request),
+                historyId,
+                version,
+                dryRun,
+                parser
+            );
         }
 
-        updateDesiredNodesRequest.masterNodeTimeout(request.paramAsTime("master_timeout", updateDesiredNodesRequest.masterNodeTimeout()));
+        if (updateDesiredNodesRequest.getNodes().stream().anyMatch(DesiredNode::hasVersion)) {
+            deprecationLogger.compatibleCritical("desired_nodes_version", VERSION_DEPRECATION_MESSAGE);
+        }
+
         return restChannel -> client.execute(
             UpdateDesiredNodesAction.INSTANCE,
             updateDesiredNodesRequest,

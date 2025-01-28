@@ -9,7 +9,6 @@ package org.elasticsearch.license;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
@@ -137,7 +136,7 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent
             License [{}] on [{}].
             # If you have a new license, please update it. Otherwise, please reach out to
             # your support contact.
-            #\s""", expiredMsg, LicenseUtils.DATE_FORMATTER.formatMillis(expirationMillis));
+            #\s""", expiredMsg, LicenseUtils.formatMillis(expirationMillis));
         if (expired) {
             general = general.toUpperCase(Locale.ROOT);
         }
@@ -242,10 +241,15 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
                     XPackPlugin.checkReadyForXPackCustomMetadata(currentState);
-                    final Version oldestNodeVersion = currentState.nodes().getSmallestNonClientNodeVersion();
-                    if (licenseIsCompatible(newLicense, oldestNodeVersion) == false) {
+                    int maxCompatibleLicenseVersion = LicenseUtils.getMaxCompatibleLicenseVersion();
+                    if (maxCompatibleLicenseVersion < newLicense.version()) {
                         throw new IllegalStateException(
-                            "The provided license is not compatible with node version [" + oldestNodeVersion + "]"
+                            LoggerMessageFormat.format(
+                                "The provided license is of version [{}] but this node is only compatible with version [{}] "
+                                    + "licences or older",
+                                newLicense.version(),
+                                maxCompatibleLicenseVersion
+                            )
                         );
                     }
                     Metadata currentMetadata = currentState.metadata();
@@ -267,11 +271,6 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent
         clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 
-    private static boolean licenseIsCompatible(License license, Version version) {
-        final int maxVersion = LicenseUtils.getMaxLicenseVersion(version);
-        return license.version() <= maxVersion;
-    }
-
     private boolean isAllowedLicenseType(License.LicenseType type) {
         logger.debug("Checking license [{}] against allowed license types: {}", type, allowedLicenseTypes);
         return allowedLicenseTypes.contains(type);
@@ -286,11 +285,11 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent
         final LicensesMetadata licensesMetadata = getLicensesMetadata();
         if (licensesMetadata != null) {
             final License license = licensesMetadata.getLicense();
-            if (event.getJobName().equals(LICENSE_JOB)) {
+            if (event.jobName().equals(LICENSE_JOB)) {
                 updateXPackLicenseState(license);
-            } else if (event.getJobName().startsWith(ExpirationCallback.EXPIRATION_JOB_PREFIX)) {
+            } else if (event.jobName().startsWith(ExpirationCallback.EXPIRATION_JOB_PREFIX)) {
                 expirationCallbacks.stream()
-                    .filter(expirationCallback -> expirationCallback.getId().equals(event.getJobName()))
+                    .filter(expirationCallback -> expirationCallback.getId().equals(event.jobName()))
                     .forEach(expirationCallback -> expirationCallback.on(license));
             }
         }
@@ -300,8 +299,8 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent
      * Remove license from the cluster state metadata
      */
     @Override
-    public void removeLicense(ActionListener<? extends AcknowledgedResponse> listener) {
-        final PostStartBasicRequest startBasicRequest = new PostStartBasicRequest().acknowledge(true);
+    public void removeLicense(TimeValue masterNodeTimeout, TimeValue ackTimeout, ActionListener<? extends AcknowledgedResponse> listener) {
+        final PostStartBasicRequest startBasicRequest = new PostStartBasicRequest(masterNodeTimeout, ackTimeout).acknowledge(true);
         @SuppressWarnings("unchecked")
         final StartBasicClusterTask task = new StartBasicClusterTask(
             logger,
@@ -468,9 +467,7 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent
         // auto-generate license if no licenses ever existed or if the current license is basic and
         // needs extended or if the license signature needs to be updated. this will trigger a subsequent cluster changed event
         if (currentClusterState.getNodes().isLocalNodeElectedMaster()
-            && (noLicense
-                || LicenseUtils.licenseNeedsExtended(currentLicense)
-                || LicenseUtils.signatureNeedsUpdate(currentLicense, currentClusterState.nodes()))) {
+            && (noLicense || LicenseUtils.licenseNeedsExtended(currentLicense) || LicenseUtils.signatureNeedsUpdate(currentLicense))) {
             registerOrUpdateSelfGeneratedLicense();
         }
     }

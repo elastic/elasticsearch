@@ -9,7 +9,6 @@ import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
 import java.util.List;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
@@ -37,20 +36,16 @@ public final class SumDoubleGroupingAggregatorFunction implements GroupingAggreg
 
   private final DriverContext driverContext;
 
-  private final BigArrays bigArrays;
-
   public SumDoubleGroupingAggregatorFunction(List<Integer> channels,
-      SumDoubleAggregator.GroupingSumState state, DriverContext driverContext,
-      BigArrays bigArrays) {
+      SumDoubleAggregator.GroupingSumState state, DriverContext driverContext) {
     this.channels = channels;
     this.state = state;
     this.driverContext = driverContext;
-    this.bigArrays = bigArrays;
   }
 
   public static SumDoubleGroupingAggregatorFunction create(List<Integer> channels,
-      DriverContext driverContext, BigArrays bigArrays) {
-    return new SumDoubleGroupingAggregatorFunction(channels, SumDoubleAggregator.initGrouping(bigArrays), driverContext, bigArrays);
+      DriverContext driverContext) {
+    return new SumDoubleGroupingAggregatorFunction(channels, SumDoubleAggregator.initGrouping(driverContext.bigArrays()), driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -81,6 +76,10 @@ public final class SumDoubleGroupingAggregatorFunction implements GroupingAggreg
         public void add(int positionOffset, IntVector groupIds) {
           addRawInput(positionOffset, groupIds, valuesBlock);
         }
+
+        @Override
+        public void close() {
+        }
       };
     }
     return new GroupingAggregatorFunction.AddInput() {
@@ -93,12 +92,16 @@ public final class SumDoubleGroupingAggregatorFunction implements GroupingAggreg
       public void add(int positionOffset, IntVector groupIds) {
         addRawInput(positionOffset, groupIds, valuesVector);
       }
+
+      @Override
+      public void close() {
+      }
     };
   }
 
   private void addRawInput(int positionOffset, IntVector groups, DoubleBlock values) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      int groupId = Math.toIntExact(groups.getInt(groupPosition));
+      int groupId = groups.getInt(groupPosition);
       if (values.isNull(groupPosition + positionOffset)) {
         continue;
       }
@@ -112,7 +115,7 @@ public final class SumDoubleGroupingAggregatorFunction implements GroupingAggreg
 
   private void addRawInput(int positionOffset, IntVector groups, DoubleVector values) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      int groupId = Math.toIntExact(groups.getInt(groupPosition));
+      int groupId = groups.getInt(groupPosition);
       SumDoubleAggregator.combine(state, groupId, values.getDouble(groupPosition + positionOffset));
     }
   }
@@ -125,7 +128,7 @@ public final class SumDoubleGroupingAggregatorFunction implements GroupingAggreg
       int groupStart = groups.getFirstValueIndex(groupPosition);
       int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
-        int groupId = Math.toIntExact(groups.getInt(g));
+        int groupId = groups.getInt(g);
         if (values.isNull(groupPosition + positionOffset)) {
           continue;
         }
@@ -146,22 +149,39 @@ public final class SumDoubleGroupingAggregatorFunction implements GroupingAggreg
       int groupStart = groups.getFirstValueIndex(groupPosition);
       int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
-        int groupId = Math.toIntExact(groups.getInt(g));
+        int groupId = groups.getInt(g);
         SumDoubleAggregator.combine(state, groupId, values.getDouble(groupPosition + positionOffset));
       }
     }
   }
 
   @Override
+  public void selectedMayContainUnseenGroups(SeenGroupIds seenGroupIds) {
+    state.enableGroupIdTracking(seenGroupIds);
+  }
+
+  @Override
   public void addIntermediateInput(int positionOffset, IntVector groups, Page page) {
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
     assert channels.size() == intermediateBlockCount();
-    DoubleVector value = page.<DoubleBlock>getBlock(channels.get(0)).asVector();
-    DoubleVector delta = page.<DoubleBlock>getBlock(channels.get(1)).asVector();
-    BooleanVector seen = page.<BooleanBlock>getBlock(channels.get(2)).asVector();
+    Block valueUncast = page.getBlock(channels.get(0));
+    if (valueUncast.areAllValuesNull()) {
+      return;
+    }
+    DoubleVector value = ((DoubleBlock) valueUncast).asVector();
+    Block deltaUncast = page.getBlock(channels.get(1));
+    if (deltaUncast.areAllValuesNull()) {
+      return;
+    }
+    DoubleVector delta = ((DoubleBlock) deltaUncast).asVector();
+    Block seenUncast = page.getBlock(channels.get(2));
+    if (seenUncast.areAllValuesNull()) {
+      return;
+    }
+    BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
     assert value.getPositionCount() == delta.getPositionCount() && value.getPositionCount() == seen.getPositionCount();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      int groupId = Math.toIntExact(groups.getInt(groupPosition));
+      int groupId = groups.getInt(groupPosition);
       SumDoubleAggregator.combineIntermediate(state, groupId, value.getDouble(groupPosition + positionOffset), delta.getDouble(groupPosition + positionOffset), seen.getBoolean(groupPosition + positionOffset));
     }
   }

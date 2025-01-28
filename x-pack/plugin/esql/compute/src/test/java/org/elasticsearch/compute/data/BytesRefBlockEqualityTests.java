@@ -12,7 +12,8 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
-import org.elasticsearch.compute.operator.ComputeTestCase;
+import org.elasticsearch.compute.test.ComputeTestCase;
+import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 
 import java.util.Arrays;
@@ -46,7 +47,7 @@ public class BytesRefBlockEqualityTests extends ComputeTestCase {
                 new BytesRefArrayBlock(
                     bytesRefArray1,
                     0,
-                    new int[] {},
+                    new int[] { 0 },
                     BitSet.valueOf(new byte[] { 0b00 }),
                     randomFrom(Block.MvOrdering.values()),
                     blockFactory
@@ -54,7 +55,7 @@ public class BytesRefBlockEqualityTests extends ComputeTestCase {
                 new BytesRefArrayBlock(
                     bytesRefArray2,
                     0,
-                    new int[] {},
+                    new int[] { 0 },
                     BitSet.valueOf(new byte[] { 0b00 }),
                     randomFrom(Block.MvOrdering.values()),
                     blockFactory

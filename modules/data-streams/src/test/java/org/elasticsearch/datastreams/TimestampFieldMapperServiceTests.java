@@ -1,16 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.datastreams;
 
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.Template;
@@ -61,7 +62,7 @@ public class TimestampFieldMapperServiceTests extends ESSingleNodeTestCase {
         DocWriteResponse indexResponse = indexDoc();
 
         var indicesService = getInstanceFromNode(IndicesService.class);
-        var result = indicesService.getTimestampFieldType(indexResponse.getShardId().getIndex());
+        var result = indicesService.getTimestampFieldTypeInfo(indexResponse.getShardId().getIndex());
         assertThat(result, notNullValue());
     }
 
@@ -70,7 +71,7 @@ public class TimestampFieldMapperServiceTests extends ESSingleNodeTestCase {
         DocWriteResponse indexResponse = indexDoc();
 
         var indicesService = getInstanceFromNode(IndicesService.class);
-        var result = indicesService.getTimestampFieldType(indexResponse.getShardId().getIndex());
+        var result = indicesService.getTimestampFieldTypeInfo(indexResponse.getShardId().getIndex());
         assertThat(result, nullValue());
     }
 
@@ -94,7 +95,7 @@ public class TimestampFieldMapperServiceTests extends ESSingleNodeTestCase {
               }
             }""";
         var templateSettings = Settings.builder().put("index.mode", tsdb ? "time_series" : "standard");
-        var request = new PutComposableIndexTemplateAction.Request("id");
+        var request = new TransportPutComposableIndexTemplateAction.Request("id");
         request.indexTemplate(
             ComposableIndexTemplate.builder()
                 .indexPatterns(List.of("k8s*"))
@@ -102,7 +103,7 @@ public class TimestampFieldMapperServiceTests extends ESSingleNodeTestCase {
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
                 .build()
         );
-        client().execute(PutComposableIndexTemplateAction.INSTANCE, request).actionGet();
+        client().execute(TransportPutComposableIndexTemplateAction.TYPE, request).actionGet();
     }
 
     private static String formatInstant(Instant instant) {

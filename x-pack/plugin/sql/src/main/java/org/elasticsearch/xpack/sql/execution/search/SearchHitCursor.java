@@ -156,14 +156,12 @@ public class SearchHitCursor implements Cursor {
             logSearchResponse(response, log);
         }
 
-        SearchHit[] hits = response.getHits().getHits();
-
         SearchHitRowSet rowSet = makeRowSet.get();
 
         if (rowSet.hasRemaining() == false) {
             closePointInTime(client, response.pointInTimeId(), listener.delegateFailureAndWrap((l, r) -> l.onResponse(Page.last(rowSet))));
         } else {
-            updateSearchAfter(hits, source);
+            updateSearchAfter(response.getHits().getHits(), source);
 
             SearchHitCursor nextCursor = new SearchHitCursor(
                 source,

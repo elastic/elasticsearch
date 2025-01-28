@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.test.rest.yaml;
 
@@ -151,7 +152,7 @@ public class ClientYamlTestClient implements Closeable {
                 // We prepend "/" to the path part to handle parts that start with - or other invalid characters.
                 URI uri = new URI(null, null, null, -1, "/" + pathPart.getValue(), null, null);
                 // manually escape any slash that each part may contain
-                String encodedPathPart = uri.getRawPath().substring(1).replaceAll("/", "%2F");
+                String encodedPathPart = uri.getRawPath().substring(1).replace("/", "%2F");
                 finalPath = finalPath.replace("{" + pathPart.getKey() + "}", encodedPathPart);
             } catch (URISyntaxException e) {
                 throw new RuntimeException("unable to build uri", e);

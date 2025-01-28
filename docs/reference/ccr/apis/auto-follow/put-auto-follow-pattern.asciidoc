@@ -5,7 +5,13 @@
 <titleabbrev>Create auto-follow pattern</titleabbrev>
 ++++
 
-Creates an auto-follow pattern.
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-ccr[Cross-cluster replication APIs].
+--
+
+Creates a {ccr} <<ccr-auto-follow,auto-follow pattern>>.
 
 [[ccr-put-auto-follow-pattern-request]]
 ==== {api-request-title}
@@ -70,6 +76,11 @@ the new patterns.
 ==== {api-path-parms-title}
 `<auto_follow_pattern_name>`::
   (Required, string) The name of the collection of auto-follow patterns.
+
+[[ccr-put-auto-follow-pattern-query-params]]
+==== {api-query-parms-title}
+
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
 [[ccr-put-auto-follow-pattern-request-body]]
 ==== {api-request-body-title}

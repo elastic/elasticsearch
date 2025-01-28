@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.script.mustache;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.Strings;
@@ -95,8 +97,26 @@ public class MultiSearchTemplateResponseTests extends AbstractXContentTestCase<M
     }
 
     @Override
-    protected MultiSearchTemplateResponse doParseInstance(XContentParser parser) throws IOException {
-        return MultiSearchTemplateResponse.fromXContext(parser);
+    protected MultiSearchTemplateResponse doParseInstance(XContentParser parser) {
+        // The MultiSearchTemplateResponse is identical to the multi search response so we reuse the parsing logic in multi search response
+        MultiSearchResponse mSearchResponse = SearchResponseUtils.parseMultiSearchResponse(parser);
+        try {
+            org.elasticsearch.action.search.MultiSearchResponse.Item[] responses = mSearchResponse.getResponses();
+            MultiSearchTemplateResponse.Item[] templateResponses = new MultiSearchTemplateResponse.Item[responses.length];
+            int i = 0;
+            for (org.elasticsearch.action.search.MultiSearchResponse.Item item : responses) {
+                SearchTemplateResponse stResponse = null;
+                if (item.getResponse() != null) {
+                    stResponse = new SearchTemplateResponse();
+                    stResponse.setResponse(item.getResponse());
+                    item.getResponse().incRef();
+                }
+                templateResponses[i++] = new MultiSearchTemplateResponse.Item(stResponse, item.getFailure());
+            }
+            return new MultiSearchTemplateResponse(templateResponses, mSearchResponse.getTook().millis());
+        } finally {
+            mSearchResponse.decRef();
+        }
     }
 
     @Override

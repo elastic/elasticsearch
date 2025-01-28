@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.repositories.azure;
@@ -165,9 +166,9 @@ class CancellableRateLimitedFluxIterator<T> implements Subscriber<T>, Iterator<T
     }
 
     public void cancel() {
+        done = true;
         cancelSubscription();
         clearQueue();
-        done = true;
         // cancel should be called from the consumer
         // thread, but to avoid potential deadlocks
         // we just try to release a possibly blocked
@@ -177,9 +178,9 @@ class CancellableRateLimitedFluxIterator<T> implements Subscriber<T>, Iterator<T
 
     @Override
     public void onError(Throwable t) {
+        done = true;
         clearQueue();
         error = t;
-        done = true;
         signalConsumer();
     }
 

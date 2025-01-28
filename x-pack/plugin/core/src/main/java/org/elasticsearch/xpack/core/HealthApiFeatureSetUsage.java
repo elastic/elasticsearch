@@ -71,13 +71,13 @@ import java.util.stream.Collectors;
  *   "enabled": true
  * }
  */
-public class HealthApiFeatureSetUsage extends XPackFeatureSet.Usage {
+public class HealthApiFeatureSetUsage extends XPackFeatureUsage {
 
     private final Map<String, Object> usageStats;
 
     public HealthApiFeatureSetUsage(StreamInput in) throws IOException {
         super(in);
-        usageStats = in.readMap();
+        usageStats = in.readGenericMap();
     }
 
     public HealthApiFeatureSetUsage(boolean available, boolean enabled, @Nullable Counters stats) {

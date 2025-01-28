@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.test;
@@ -18,6 +19,7 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.function.Function;
+import java.util.function.Predicate;
 
 public class LambdaMatchers {
 
@@ -187,5 +189,74 @@ public class LambdaMatchers {
 
     public static <T, U> Matcher<T[]> transformedArrayItemsMatch(Function<T, U> function, Matcher<U[]> matcher) {
         return new ArrayTransformMatcher<>(matcher, function);
+    }
+
+    private static class PredicateMatcher<T> extends BaseMatcher<Predicate<? super T>> {
+        final T item;
+
+        private PredicateMatcher(T item) {
+            this.item = item;
+        }
+
+        @Override
+        @SuppressWarnings({ "rawtypes" })
+        public boolean matches(Object actual) {
+            Predicate p = (Predicate) actual;
+            try {
+                return predicateMatches(p);
+            } catch (ClassCastException e) {
+                return false;
+            }
+        }
+
+        @SuppressWarnings({ "rawtypes", "unchecked" })
+        protected boolean predicateMatches(Predicate predicate) {
+            return predicate.test(item);
+        }
+
+        @Override
+        @SuppressWarnings({ "rawtypes", "unchecked" })
+        public void describeMismatch(Object item, Description description) {
+            Predicate p = (Predicate) item;
+            try {
+                boolean result = p.test(this.item);
+                description.appendText("predicate with argument ").appendValue(this.item).appendText(" evaluated to ").appendValue(result);
+            } catch (ClassCastException e) {
+                description.appendText("predicate did not accept argument of type ")
+                    .appendValue(this.item.getClass())
+                    .appendText(" (")
+                    .appendText(e.getMessage())
+                    .appendText(")");
+            }
+        }
+
+        @Override
+        public void describeTo(Description description) {
+            description.appendText("predicate evaluates to <true> with argument ").appendValue(item);
+        }
+    }
+
+    public static <T> Matcher<Predicate<? super T>> trueWith(T item) {
+        return new PredicateMatcher<>(item);
+    }
+
+    private static class PredicateFalseMatcher<T> extends PredicateMatcher<T> {
+        private PredicateFalseMatcher(T item) {
+            super(item);
+        }
+
+        @SuppressWarnings({ "rawtypes", "unchecked" })
+        protected boolean predicateMatches(Predicate predicate) {
+            return predicate.test(item) == false;
+        }
+
+        @Override
+        public void describeTo(Description description) {
+            description.appendText("predicate evaluates to <false> with argument ").appendValue(item);
+        }
+    }
+
+    public static <T> Matcher<Predicate<? super T>> falseWith(T item) {
+        return new PredicateFalseMatcher<>(item);
     }
 }

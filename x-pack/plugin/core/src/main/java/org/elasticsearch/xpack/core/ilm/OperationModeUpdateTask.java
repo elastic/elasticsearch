@@ -9,23 +9,22 @@ package org.elasticsearch.xpack.core.ilm;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
-import org.elasticsearch.cluster.ack.AckedRequest;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.core.Nullable;
-
-import java.util.Objects;
+import org.elasticsearch.core.Strings;
 
 import static org.elasticsearch.xpack.core.ilm.LifecycleOperationMetadata.currentILMMode;
 import static org.elasticsearch.xpack.core.ilm.LifecycleOperationMetadata.currentSLMMode;
 
 /**
  * This task updates the operation mode state for ILM.
- *
+ * <p>
  * As stopping ILM proved to be an action we want to sometimes take in order to allow clusters to stabilise when under heavy load this
  * task might run at {@link Priority#IMMEDIATE} priority so please make sure to keep this task as lightweight as possible.
  */
@@ -38,7 +37,7 @@ public class OperationModeUpdateTask extends ClusterStateUpdateTask {
 
     public static AckedClusterStateUpdateTask wrap(
         OperationModeUpdateTask task,
-        AckedRequest request,
+        AcknowledgedRequest<?> request,
         ActionListener<AcknowledgedResponse> listener
     ) {
         return new AckedClusterStateUpdateTask(task.priority(), request, listener) {
@@ -145,7 +144,10 @@ public class OperationModeUpdateTask extends ClusterStateUpdateTask {
 
     @Override
     public void onFailure(Exception e) {
-        logger.error("unable to update lifecycle metadata with new ilm mode [" + ilmMode + "], slm mode [" + slmMode + "]", e);
+        logger.error(
+            () -> Strings.format("unable to update lifecycle metadata with new ilm mode [%s], slm mode [%s]", ilmMode, slmMode),
+            e
+        );
     }
 
     @Override
@@ -156,24 +158,5 @@ public class OperationModeUpdateTask extends ClusterStateUpdateTask {
         if (slmMode != null) {
             logger.info("SLM operation mode updated to {}", slmMode);
         }
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(super.hashCode(), ilmMode, slmMode);
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (obj == null) {
-            return false;
-        }
-        if (obj.getClass() != getClass()) {
-            return false;
-        }
-        OperationModeUpdateTask other = (OperationModeUpdateTask) obj;
-        return Objects.equals(priority(), other.priority())
-            && Objects.equals(ilmMode, other.ilmMode)
-            && Objects.equals(slmMode, other.slmMode);
     }
 }

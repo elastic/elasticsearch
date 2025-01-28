@@ -10,7 +10,6 @@ import java.lang.String;
 import java.lang.StringBuilder;
 import java.util.List;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
@@ -36,23 +35,19 @@ public final class PercentileLongGroupingAggregatorFunction implements GroupingA
 
   private final DriverContext driverContext;
 
-  private final BigArrays bigArrays;
-
   private final double percentile;
 
   public PercentileLongGroupingAggregatorFunction(List<Integer> channels,
-      QuantileStates.GroupingState state, DriverContext driverContext, BigArrays bigArrays,
-      double percentile) {
+      QuantileStates.GroupingState state, DriverContext driverContext, double percentile) {
     this.channels = channels;
     this.state = state;
     this.driverContext = driverContext;
-    this.bigArrays = bigArrays;
     this.percentile = percentile;
   }
 
   public static PercentileLongGroupingAggregatorFunction create(List<Integer> channels,
-      DriverContext driverContext, BigArrays bigArrays, double percentile) {
-    return new PercentileLongGroupingAggregatorFunction(channels, PercentileLongAggregator.initGrouping(bigArrays, percentile), driverContext, bigArrays, percentile);
+      DriverContext driverContext, double percentile) {
+    return new PercentileLongGroupingAggregatorFunction(channels, PercentileLongAggregator.initGrouping(driverContext, percentile), driverContext, percentile);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -83,6 +78,10 @@ public final class PercentileLongGroupingAggregatorFunction implements GroupingA
         public void add(int positionOffset, IntVector groupIds) {
           addRawInput(positionOffset, groupIds, valuesBlock);
         }
+
+        @Override
+        public void close() {
+        }
       };
     }
     return new GroupingAggregatorFunction.AddInput() {
@@ -95,12 +94,16 @@ public final class PercentileLongGroupingAggregatorFunction implements GroupingA
       public void add(int positionOffset, IntVector groupIds) {
         addRawInput(positionOffset, groupIds, valuesVector);
       }
+
+      @Override
+      public void close() {
+      }
     };
   }
 
   private void addRawInput(int positionOffset, IntVector groups, LongBlock values) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      int groupId = Math.toIntExact(groups.getInt(groupPosition));
+      int groupId = groups.getInt(groupPosition);
       if (values.isNull(groupPosition + positionOffset)) {
         continue;
       }
@@ -114,7 +117,7 @@ public final class PercentileLongGroupingAggregatorFunction implements GroupingA
 
   private void addRawInput(int positionOffset, IntVector groups, LongVector values) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      int groupId = Math.toIntExact(groups.getInt(groupPosition));
+      int groupId = groups.getInt(groupPosition);
       PercentileLongAggregator.combine(state, groupId, values.getLong(groupPosition + positionOffset));
     }
   }
@@ -127,7 +130,7 @@ public final class PercentileLongGroupingAggregatorFunction implements GroupingA
       int groupStart = groups.getFirstValueIndex(groupPosition);
       int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
-        int groupId = Math.toIntExact(groups.getInt(g));
+        int groupId = groups.getInt(g);
         if (values.isNull(groupPosition + positionOffset)) {
           continue;
         }
@@ -148,20 +151,29 @@ public final class PercentileLongGroupingAggregatorFunction implements GroupingA
       int groupStart = groups.getFirstValueIndex(groupPosition);
       int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
-        int groupId = Math.toIntExact(groups.getInt(g));
+        int groupId = groups.getInt(g);
         PercentileLongAggregator.combine(state, groupId, values.getLong(groupPosition + positionOffset));
       }
     }
   }
 
   @Override
+  public void selectedMayContainUnseenGroups(SeenGroupIds seenGroupIds) {
+    state.enableGroupIdTracking(seenGroupIds);
+  }
+
+  @Override
   public void addIntermediateInput(int positionOffset, IntVector groups, Page page) {
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
     assert channels.size() == intermediateBlockCount();
-    BytesRefVector quart = page.<BytesRefBlock>getBlock(channels.get(0)).asVector();
+    Block quartUncast = page.getBlock(channels.get(0));
+    if (quartUncast.areAllValuesNull()) {
+      return;
+    }
+    BytesRefVector quart = ((BytesRefBlock) quartUncast).asVector();
     BytesRef scratch = new BytesRef();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      int groupId = Math.toIntExact(groups.getInt(groupPosition));
+      int groupId = groups.getInt(groupPosition);
       PercentileLongAggregator.combineIntermediate(state, groupId, quart.getBytesRef(groupPosition + positionOffset, scratch));
     }
   }

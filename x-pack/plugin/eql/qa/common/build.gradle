@@ -5,7 +5,6 @@ dependencies {
   api project(xpackModule('core'))
   api testArtifact(project(xpackModule('core')))
   api project(xpackModule('ql:test-fixtures'))
-  implementation project(":client:rest-high-level")
   // TOML parser for EqlActionIT tests
   api 'io.ous:jtoml:2.0.0'
 }

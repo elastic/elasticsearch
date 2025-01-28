@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.test.rest.yaml.section;
@@ -78,7 +79,7 @@ public class TransformAndSetSection implements ExecutableSection {
             String key = entry.getKey();
             String value = entry.getValue();
             if (value.startsWith("#base64EncodeCredentials(") && value.endsWith(")")) {
-                value = entry.getValue().substring("#base64EncodeCredentials(".length(), entry.getValue().lastIndexOf(")"));
+                value = entry.getValue().substring("#base64EncodeCredentials(".length(), entry.getValue().lastIndexOf(')'));
                 String[] idAndPassword = value.split(",");
                 if (idAndPassword.length == 2) {
                     String credentials = executionContext.response(idAndPassword[0].trim())

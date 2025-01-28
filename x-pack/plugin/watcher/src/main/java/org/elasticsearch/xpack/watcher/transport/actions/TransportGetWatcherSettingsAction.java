@@ -16,21 +16,25 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.watcher.transport.actions.put.GetWatcherSettingsAction;
-import org.elasticsearch.xpack.core.watcher.transport.actions.put.UpdateWatcherSettingsAction;
 
+import static org.elasticsearch.xpack.core.watcher.transport.actions.put.UpdateWatcherSettingsAction.ALLOWED_SETTINGS_PREFIXES;
+import static org.elasticsearch.xpack.core.watcher.transport.actions.put.UpdateWatcherSettingsAction.ALLOWED_SETTING_KEYS;
+import static org.elasticsearch.xpack.core.watcher.transport.actions.put.UpdateWatcherSettingsAction.EXPLICITLY_DENIED_SETTINGS;
 import static org.elasticsearch.xpack.watcher.transport.actions.TransportUpdateWatcherSettingsAction.WATCHER_INDEX_NAME;
 import static org.elasticsearch.xpack.watcher.transport.actions.TransportUpdateWatcherSettingsAction.WATCHER_INDEX_REQUEST;
 
 public class TransportGetWatcherSettingsAction extends TransportMasterNodeAction<
     GetWatcherSettingsAction.Request,
     GetWatcherSettingsAction.Response> {
+
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
 
     @Inject
     public TransportGetWatcherSettingsAction(
@@ -46,11 +50,11 @@ public class TransportGetWatcherSettingsAction extends TransportMasterNodeAction
             clusterService,
             threadPool,
             actionFilters,
-            GetWatcherSettingsAction.Request::new,
-            indexNameExpressionResolver,
+            GetWatcherSettingsAction.Request::readFrom,
             GetWatcherSettingsAction.Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
     }
 
     @Override
@@ -73,11 +77,14 @@ public class TransportGetWatcherSettingsAction extends TransportMasterNodeAction
      */
     private static Settings filterSettableSettings(Settings settings) {
         Settings.Builder builder = Settings.builder();
-        for (String settingName : UpdateWatcherSettingsAction.ALLOWED_SETTING_KEYS) {
-            if (settings.hasValue(settingName)) {
-                builder.put(settingName, settings.get(settingName));
-            }
-        }
+        settings.keySet()
+            .stream()
+            .filter(
+                setting -> (ALLOWED_SETTING_KEYS.contains(setting)
+                    || ALLOWED_SETTINGS_PREFIXES.stream().anyMatch(prefix -> setting.startsWith(prefix + ".")))
+                    && EXPLICITLY_DENIED_SETTINGS.contains(setting) == false
+            )
+            .forEach(setting -> builder.put(setting, settings.get(setting)));
         return builder.build();
     }
 

@@ -21,10 +21,11 @@ import org.elasticsearch.test.MockUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ilm.StopILMRequest;
-import org.elasticsearch.xpack.core.ilm.action.StopILMAction;
+import org.elasticsearch.xpack.core.ilm.action.ILMActions;
 import org.mockito.ArgumentMatcher;
 
-import static java.util.Collections.emptyMap;
+import java.util.Map;
+
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -47,12 +48,12 @@ public class TransportStopILMActionTests extends ESTestCase {
         Task task = new Task(
             randomLong(),
             "transport",
-            StopILMAction.NAME,
+            ILMActions.STOP.name(),
             "description",
             new TaskId(randomLong() + ":" + randomLong()),
-            emptyMap()
+            Map.of()
         );
-        StopILMRequest request = new StopILMRequest();
+        StopILMRequest request = new StopILMRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
         transportStopILMAction.masterOperation(task, request, ClusterState.EMPTY_STATE, ActionListener.noop());
 
         verify(clusterService).submitUnbatchedStateUpdateTask(

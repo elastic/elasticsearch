@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search;
@@ -17,8 +18,8 @@ import org.apache.http.nio.entity.NByteArrayEntity;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.tests.util.TimeUnits;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.aggregations.pipeline.DerivativePipelineAggregationBuilder;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
@@ -42,6 +43,7 @@ import org.elasticsearch.join.query.HasParentQueryBuilder;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
@@ -112,7 +114,6 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
  * such parameter, hence we want to verify that results are the same in both scenarios.
  */
 @TimeoutSuite(millis = 5 * TimeUnits.MINUTE) // to account for slow as hell VMs
-@SuppressWarnings("removal")
 public class CCSDuelIT extends ESRestTestCase {
 
     private static final String INDEX_NAME = "ccs_duel_index";
@@ -199,7 +200,7 @@ public class CCSDuelIT extends ESRestTestCase {
 
         assertTrue(latch.await(30, TimeUnit.SECONDS));
 
-        RefreshResponse refreshResponse = refresh(INDEX_NAME);
+        BroadcastResponse refreshResponse = refresh(INDEX_NAME);
         ElasticsearchAssertions.assertNoFailures(refreshResponse);
     }
 
@@ -580,13 +581,14 @@ public class CCSDuelIT extends ESRestTestCase {
 
     public void testSortByFieldOneClusterHasNoResults() throws Exception {
         assumeMultiClusterSetup();
-        // set to a value greater than the number of shards to avoid differences due to the skipping of shards
+        // setting aggs to avoid differences due to the skipping of shards when matching none
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
         boolean onlyRemote = randomBoolean();
         sourceBuilder.query(new TermQueryBuilder("_index", onlyRemote ? REMOTE_INDEX_NAME : INDEX_NAME));
         sourceBuilder.sort("type.keyword", SortOrder.ASC);
         sourceBuilder.sort("creationDate", SortOrder.DESC);
         sourceBuilder.sort("user.keyword", SortOrder.ASC);
+        sourceBuilder.aggregation(AggregationBuilders.max("max").field("creationDate"));
         CheckedConsumer<ObjectPath, IOException> responseChecker = response -> {
             assertHits(response);
             int size = response.evaluateArraySize("hits.hits");

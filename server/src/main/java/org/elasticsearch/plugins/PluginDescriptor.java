@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.plugins;
@@ -120,13 +121,13 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
         this.name = in.readString();
         this.description = in.readString();
         this.version = in.readString();
-        if (in.getTransportVersion().before(TransportVersions.PLUGIN_DESCRIPTOR_STRING_VERSION)) {
+        if (in.getTransportVersion().before(TransportVersions.V_8_12_0)) {
             elasticsearchVersion = Version.readVersion(in).toString();
         } else {
             elasticsearchVersion = in.readString();
         }
         javaVersion = in.readString();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.PLUGIN_DESCRIPTOR_OPTIONAL_CLASSNAME)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             this.classname = in.readOptionalString();
         } else {
             this.classname = in.readString();
@@ -165,13 +166,13 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
         out.writeString(name);
         out.writeString(description);
         out.writeString(version);
-        if (out.getTransportVersion().before(TransportVersions.PLUGIN_DESCRIPTOR_STRING_VERSION)) {
+        if (out.getTransportVersion().before(TransportVersions.V_8_12_0)) {
             Version.writeVersion(Version.fromString(elasticsearchVersion), out);
         } else {
             out.writeString(elasticsearchVersion);
         }
         out.writeString(javaVersion);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.PLUGIN_DESCRIPTOR_OPTIONAL_CLASSNAME)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             out.writeOptionalString(classname);
         } else {
             out.writeString(classname);

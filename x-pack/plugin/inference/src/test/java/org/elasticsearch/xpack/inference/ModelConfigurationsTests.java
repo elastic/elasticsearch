@@ -14,41 +14,42 @@ import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xpack.inference.services.elser.ElserMlNodeServiceSettingsTests;
-import org.elasticsearch.xpack.inference.services.elser.ElserMlNodeTaskSettings;
+import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsTests;
+import org.elasticsearch.xpack.inference.services.elasticsearch.ElserInternalServiceSettingsTests;
+import org.elasticsearch.xpack.inference.services.elasticsearch.ElserMlNodeTaskSettings;
 
 public class ModelConfigurationsTests extends AbstractWireSerializingTestCase<ModelConfigurations> {
 
     public static ModelConfigurations createRandomInstance() {
-        // TODO randomise task types and settings
-        var taskType = TaskType.SPARSE_EMBEDDING;
+        var taskType = randomFrom(TaskType.values());
         return new ModelConfigurations(
             randomAlphaOfLength(6),
             taskType,
             randomAlphaOfLength(6),
             randomServiceSettings(),
-            randomTaskSettings(taskType)
+            randomTaskSettings(taskType),
+            randomBoolean() ? ChunkingSettingsTests.createRandomChunkingSettings() : null
         );
     }
 
     public static ModelConfigurations mutateTestInstance(ModelConfigurations instance) {
         switch (randomIntBetween(0, 2)) {
             case 0 -> new ModelConfigurations(
-                instance.getModelId() + "foo",
+                instance.getInferenceEntityId() + "foo",
                 instance.getTaskType(),
                 instance.getService(),
                 instance.getServiceSettings(),
                 instance.getTaskSettings()
             );
             case 1 -> new ModelConfigurations(
-                instance.getModelId(),
+                instance.getInferenceEntityId(),
                 TaskType.values()[(instance.getTaskType().ordinal() + 1) % TaskType.values().length],
                 instance.getService(),
                 instance.getServiceSettings(),
                 instance.getTaskSettings()
             );
             case 2 -> new ModelConfigurations(
-                instance.getModelId(),
+                instance.getInferenceEntityId(),
                 instance.getTaskType(),
                 instance.getService() + "bar",
                 instance.getServiceSettings(),
@@ -60,7 +61,7 @@ public class ModelConfigurationsTests extends AbstractWireSerializingTestCase<Mo
     }
 
     private static ServiceSettings randomServiceSettings() {
-        return ElserMlNodeServiceSettingsTests.createRandom();
+        return ElserInternalServiceSettingsTests.createRandom();
     }
 
     private static TaskSettings randomTaskSettings(TaskType taskType) {

@@ -20,6 +20,7 @@ import org.elasticsearch.index.mapper.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.test.AbstractBWCSerializationTestCase;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
@@ -27,7 +28,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
 import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.FrequencyEncodingTests;
@@ -41,7 +41,6 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.PredictionFieldTyp
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -446,18 +445,19 @@ public class ClassificationTests extends AbstractBWCSerializationTestCase<Classi
     }
 
     public void testGetResultMappings_DependentVariableMappingIsPresent() {
-        Map<String, Object> expectedTopClassesMapping = new HashMap<>() {
-            {
-                put("type", "nested");
-                put("properties", new HashMap<>() {
-                    {
-                        put("class_name", singletonMap("type", "dummy"));
-                        put("class_probability", singletonMap("type", "double"));
-                        put("class_score", singletonMap("type", "double"));
-                    }
-                });
-            }
-        };
+        Map<String, Object> expectedTopClassesMapping = Map.of(
+            "type",
+            "nested",
+            "properties",
+            Map.of(
+                "class_name",
+                Map.of("type", "dummy"),
+                "class_probability",
+                Map.of("type", "double"),
+                "class_score",
+                Map.of("type", "double")
+            )
+        );
         FieldCapabilitiesResponse fieldCapabilitiesResponse = new FieldCapabilitiesResponse(
             new String[0],
             Collections.singletonMap("foo", Collections.singletonMap("dummy", createFieldCapabilities("foo", "dummy")))

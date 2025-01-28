@@ -14,7 +14,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest.OpType;
 import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -155,7 +154,7 @@ public class IndexServiceAccountTokenStore extends CachingServiceAccountTokenSto
                 executeAsyncWithOrigin(
                     client,
                     SECURITY_ORIGIN,
-                    BulkAction.INSTANCE,
+                    TransportBulkAction.TYPE,
                     bulkRequest,
                     TransportBulkAction.<IndexResponse>unwrappingSingleItemBulkResponse(ActionListener.wrap(response -> {
                         assert DocWriteResponse.Result.CREATED == response.getResult()

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.script.mustache;
@@ -11,7 +12,6 @@ package org.elasticsearch.script.mustache;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.core.AbstractRefCounted;
@@ -21,16 +21,13 @@ import org.elasticsearch.transport.LeakTracker;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.Map;
 
 public class SearchTemplateResponse extends ActionResponse implements ToXContentObject {
-    public static ParseField TEMPLATE_OUTPUT_FIELD = new ParseField("template_output");
+    public static final ParseField TEMPLATE_OUTPUT_FIELD = new ParseField("template_output");
 
     /** Contains the source of the rendered template **/
     private BytesReference source;
@@ -48,12 +45,6 @@ public class SearchTemplateResponse extends ActionResponse implements ToXContent
     });
 
     SearchTemplateResponse() {}
-
-    SearchTemplateResponse(StreamInput in) throws IOException {
-        super(in);
-        source = in.readOptionalBytesReference();
-        response = in.readOptionalWriteable(SearchResponse::new);
-    }
 
     public BytesReference getSource() {
         return source;
@@ -106,27 +97,6 @@ public class SearchTemplateResponse extends ActionResponse implements ToXContent
         return refCounted.hasReferences();
     }
 
-    public static SearchTemplateResponse fromXContent(XContentParser parser) throws IOException {
-        SearchTemplateResponse searchTemplateResponse = new SearchTemplateResponse();
-        Map<String, Object> contentAsMap = parser.map();
-
-        if (contentAsMap.containsKey(TEMPLATE_OUTPUT_FIELD.getPreferredName())) {
-            Object source = contentAsMap.get(TEMPLATE_OUTPUT_FIELD.getPreferredName());
-            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON).value(source);
-            searchTemplateResponse.setSource(BytesReference.bytes(builder));
-        } else {
-            XContentType contentType = parser.contentType();
-            XContentBuilder builder = XContentFactory.contentBuilder(contentType).map(contentAsMap);
-            try (
-                XContentParser searchResponseParser = contentType.xContent()
-                    .createParser(parser.getXContentRegistry(), parser.getDeprecationHandler(), BytesReference.bytes(builder).streamInput())
-            ) {
-                searchTemplateResponse.setResponse(SearchResponse.fromXContent(searchResponseParser));
-            }
-        }
-        return searchTemplateResponse;
-    }
-
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -137,7 +107,7 @@ public class SearchTemplateResponse extends ActionResponse implements ToXContent
 
     void innerToXContent(XContentBuilder builder, Params params) throws IOException {
         if (hasResponse()) {
-            ChunkedToXContent.wrapAsToXContent(p -> response.innerToXContentChunked(p)).toXContent(builder, params);
+            ChunkedToXContent.wrapAsToXContent(response::innerToXContentChunked).toXContent(builder, params);
         } else {
             // we can assume the template is always json as we convert it before compiling it
             try (InputStream stream = source.streamInput()) {

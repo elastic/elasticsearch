@@ -144,7 +144,7 @@ public class DownsampleShardStatus implements Task.Status {
         numSent = in.readLong();
         numIndexed = in.readLong();
         numFailed = in.readLong();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_061) && in.readBoolean()) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_10_X) && in.readBoolean()) {
             totalShardDocCount = in.readVLong();
             lastSourceTimestamp = in.readVLong();
             lastTargetTimestamp = in.readVLong();
@@ -254,7 +254,7 @@ public class DownsampleShardStatus implements Task.Status {
         out.writeLong(numSent);
         out.writeLong(numIndexed);
         out.writeLong(numFailed);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_061)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_10_X)) {
             out.writeBoolean(true);
             out.writeVLong(totalShardDocCount);
             out.writeVLong(lastSourceTimestamp);

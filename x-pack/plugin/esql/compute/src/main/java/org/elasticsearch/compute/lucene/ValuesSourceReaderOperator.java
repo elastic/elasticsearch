@@ -27,6 +27,7 @@ import org.elasticsearch.compute.data.SingletonOrdinalsBuilder;
 import org.elasticsearch.compute.operator.AbstractPageMappingOperator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
@@ -43,6 +44,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.TreeMap;
+import java.util.function.IntFunction;
 import java.util.function.Supplier;
 
 /**
@@ -95,22 +97,25 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
         }
     }
 
+    /**
+     * Configuration for a field to load.
+     *
+     * {@code blockLoader} maps shard index to the {@link BlockLoader}s
+     * which load the actual blocks.
+     */
+    public record FieldInfo(String name, ElementType type, IntFunction<BlockLoader> blockLoader) {}
+
     public record ShardContext(IndexReader reader, Supplier<SourceLoader> newSourceLoader) {}
 
-    private final List<FieldWork> fields;
+    private final FieldWork[] fields;
     private final List<ShardContext> shardContexts;
     private final int docChannel;
     private final BlockFactory blockFactory;
 
     private final Map<String, Integer> readersBuilt = new TreeMap<>();
 
-    /**
-     * Configuration for a field to load.
-     *
-     * {@code blockLoaders} is a list, one entry per shard, of
-     * {@link BlockLoader}s which load the actual blocks.
-     */
-    public record FieldInfo(String name, List<BlockLoader> blockLoaders) {}
+    int lastShard = -1;
+    int lastSegment = -1;
 
     /**
      * Creates a new extractor
@@ -118,7 +123,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
      * @param docChannel the channel containing the shard, leaf/segment and doc id
      */
     public ValuesSourceReaderOperator(BlockFactory blockFactory, List<FieldInfo> fields, List<ShardContext> shardContexts, int docChannel) {
-        this.fields = fields.stream().map(f -> new FieldWork(f)).toList();
+        this.fields = fields.stream().map(f -> new FieldWork(f)).toArray(FieldWork[]::new);
         this.shardContexts = shardContexts;
         this.docChannel = docChannel;
         this.blockFactory = blockFactory;
@@ -128,15 +133,39 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
     protected Page process(Page page) {
         DocVector docVector = page.<DocBlock>getBlock(docChannel).asVector();
 
-        Block[] blocks = new Block[fields.size()];
+        Block[] blocks = new Block[fields.length];
         boolean success = false;
         try {
             if (docVector.singleSegmentNonDecreasing()) {
-                loadFromSingleLeaf(blocks, docVector);
+                IntVector docs = docVector.docs();
+                int shard = docVector.shards().getInt(0);
+                int segment = docVector.segments().getInt(0);
+                loadFromSingleLeaf(blocks, shard, segment, new BlockLoader.Docs() {
+                    @Override
+                    public int count() {
+                        return docs.getPositionCount();
+                    }
+
+                    @Override
+                    public int get(int i) {
+                        return docs.getInt(i);
+                    }
+                });
+            } else if (docVector.singleSegment()) {
+                loadFromSingleLeafUnsorted(blocks, docVector);
             } else {
-                loadFromManyLeaves(blocks, docVector);
+                try (LoadFromMany many = new LoadFromMany(blocks, docVector)) {
+                    many.run();
+                }
+            }
+            if (Assertions.ENABLED) {
+                for (int f = 0; f < fields.length; f++) {
+                    assert blocks[f].elementType() == ElementType.NULL || blocks[f].elementType() == fields[f].info.type
+                        : blocks[f].elementType() + " NOT IN (NULL, " + fields[f].info.type + ")";
+                }
             }
             success = true;
+            return page.appendBlocks(blocks);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         } finally {
@@ -144,45 +173,78 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
                 Releasables.closeExpectNoException(blocks);
             }
         }
-        return page.appendBlocks(blocks);
     }
 
-    private void loadFromSingleLeaf(Block[] blocks, DocVector docVector) throws IOException {
-        int shard = docVector.shards().getInt(0);
-        int segment = docVector.segments().getInt(0);
-        int firstDoc = docVector.docs().getInt(0);
-        IntVector docs = docVector.docs();
-        BlockLoader.Docs loaderDocs = new BlockLoader.Docs() {
-            @Override
-            public int count() {
-                return docs.getPositionCount();
+    private void positionFieldWork(int shard, int segment, int firstDoc) {
+        if (lastShard == shard) {
+            if (lastSegment == segment) {
+                for (FieldWork w : fields) {
+                    w.sameSegment(firstDoc);
+                }
+                return;
             }
+            lastSegment = segment;
+            for (FieldWork w : fields) {
+                w.sameShardNewSegment();
+            }
+            return;
+        }
+        lastShard = shard;
+        lastSegment = segment;
+        for (FieldWork w : fields) {
+            w.newShard(shard);
+        }
+    }
 
-            @Override
-            public int get(int i) {
-                return docs.getInt(i);
+    private boolean positionFieldWorkDocGuarteedAscending(int shard, int segment) {
+        if (lastShard == shard) {
+            if (lastSegment == segment) {
+                return false;
             }
-        };
+            lastSegment = segment;
+            for (FieldWork w : fields) {
+                w.sameShardNewSegment();
+            }
+            return true;
+        }
+        lastShard = shard;
+        lastSegment = segment;
+        for (FieldWork w : fields) {
+            w.newShard(shard);
+        }
+        return true;
+    }
+
+    private void loadFromSingleLeaf(Block[] blocks, int shard, int segment, BlockLoader.Docs docs) throws IOException {
+        int firstDoc = docs.get(0);
+        positionFieldWork(shard, segment, firstDoc);
         StoredFieldsSpec storedFieldsSpec = StoredFieldsSpec.NO_REQUIREMENTS;
-        List<RowStrideReaderWork> rowStrideReaders = new ArrayList<>(fields.size());
-        ComputeBlockLoaderFactory loaderBlockFactory = new ComputeBlockLoaderFactory(blockFactory, docs.getPositionCount());
+        List<RowStrideReaderWork> rowStrideReaders = new ArrayList<>(fields.length);
+        ComputeBlockLoaderFactory loaderBlockFactory = new ComputeBlockLoaderFactory(blockFactory, docs.count());
+        LeafReaderContext ctx = ctx(shard, segment);
         try {
-            for (int b = 0; b < fields.size(); b++) {
-                FieldWork field = fields.get(b);
-                BlockLoader.ColumnAtATimeReader columnAtATime = field.columnAtATime.reader(shard, segment, firstDoc);
+            for (int f = 0; f < fields.length; f++) {
+                FieldWork field = fields[f];
+                BlockLoader.ColumnAtATimeReader columnAtATime = field.columnAtATime(ctx);
                 if (columnAtATime != null) {
-                    blocks[b] = (Block) columnAtATime.read(loaderBlockFactory, loaderDocs);
+                    blocks[f] = (Block) columnAtATime.read(loaderBlockFactory, docs);
                 } else {
-                    BlockLoader.RowStrideReader rowStride = field.rowStride.reader(shard, segment, firstDoc);
                     rowStrideReaders.add(
                         new RowStrideReaderWork(
-                            rowStride,
-                            (Block.Builder) field.info.blockLoaders.get(shard).builder(loaderBlockFactory, docs.getPositionCount()),
-                            b
+                            field.rowStride(ctx),
+                            (Block.Builder) field.loader.builder(loaderBlockFactory, docs.count()),
+                            field.loader,
+                            f
                         )
                     );
-                    storedFieldsSpec = storedFieldsSpec.merge(field.info.blockLoaders.get(shard).rowStrideStoredFieldSpec());
+                    storedFieldsSpec = storedFieldsSpec.merge(field.loader.rowStrideStoredFieldSpec());
                 }
+            }
+
+            SourceLoader sourceLoader = null;
+            if (storedFieldsSpec.requiresSource()) {
+                sourceLoader = shardContexts.get(shard).newSourceLoader.get();
+                storedFieldsSpec = storedFieldsSpec.merge(new StoredFieldsSpec(true, false, sourceLoader.requiredStoredFields()));
             }
 
             if (rowStrideReaders.isEmpty()) {
@@ -193,9 +255,8 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
                     "found row stride readers [" + rowStrideReaders + "] without stored fields [" + storedFieldsSpec + "]"
                 );
             }
-            LeafReaderContext ctx = ctx(shard, segment);
             StoredFieldLoader storedFieldLoader;
-            if (useSequentialStoredFieldsReader(docVector.docs())) {
+            if (useSequentialStoredFieldsReader(docs)) {
                 storedFieldLoader = StoredFieldLoader.fromSpecSequential(storedFieldsSpec);
                 trackStoredFields(storedFieldsSpec, true);
             } else {
@@ -203,74 +264,167 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
                 trackStoredFields(storedFieldsSpec, false);
             }
             BlockLoaderStoredFieldsFromLeafLoader storedFields = new BlockLoaderStoredFieldsFromLeafLoader(
-                // TODO enable the optimization by passing non-null to docs if correct
                 storedFieldLoader.getLoader(ctx, null),
-                storedFieldsSpec.requiresSource() ? shardContexts.get(shard).newSourceLoader.get().leaf(ctx.reader(), null) : null
+                sourceLoader != null ? sourceLoader.leaf(ctx.reader(), null) : null
             );
-            for (int p = 0; p < docs.getPositionCount(); p++) {
-                int doc = docs.getInt(p);
-                if (storedFields != null) {
-                    storedFields.advanceTo(doc);
-                }
-                for (int r = 0; r < rowStrideReaders.size(); r++) {
-                    RowStrideReaderWork work = rowStrideReaders.get(r);
-                    work.reader.read(doc, storedFields, work.builder);
+            for (int p = 0; p < docs.count(); p++) {
+                int doc = docs.get(p);
+                storedFields.advanceTo(doc);
+                for (RowStrideReaderWork work : rowStrideReaders) {
+                    work.read(doc, storedFields);
                 }
             }
-            for (int r = 0; r < rowStrideReaders.size(); r++) {
-                RowStrideReaderWork work = rowStrideReaders.get(r);
-                blocks[work.offset] = work.builder.build();
+            for (RowStrideReaderWork work : rowStrideReaders) {
+                blocks[work.offset] = work.build();
             }
         } finally {
             Releasables.close(rowStrideReaders);
         }
     }
 
-    private void loadFromManyLeaves(Block[] blocks, DocVector docVector) throws IOException {
-        IntVector shards = docVector.shards();
-        IntVector segments = docVector.segments();
+    private void loadFromSingleLeafUnsorted(Block[] blocks, DocVector docVector) throws IOException {
         IntVector docs = docVector.docs();
-        Block.Builder[] builders = new Block.Builder[blocks.length];
         int[] forwards = docVector.shardSegmentDocMapForwards();
-        ComputeBlockLoaderFactory loaderBlockFactory = new ComputeBlockLoaderFactory(blockFactory, docs.getPositionCount());
-        try {
-            for (int b = 0; b < fields.size(); b++) {
-                FieldWork field = fields.get(b);
-                builders[b] = builderFromFirstNonNull(loaderBlockFactory, field, docs.getPositionCount());
+        int shard = docVector.shards().getInt(0);
+        int segment = docVector.segments().getInt(0);
+        loadFromSingleLeaf(blocks, shard, segment, new BlockLoader.Docs() {
+            @Override
+            public int count() {
+                return docs.getPositionCount();
             }
-            int lastShard = -1;
-            int lastSegment = -1;
-            BlockLoaderStoredFieldsFromLeafLoader storedFields = null;
-            for (int i = 0; i < forwards.length; i++) {
-                int p = forwards[i];
-                int shard = shards.getInt(p);
-                int segment = segments.getInt(p);
-                int doc = docs.getInt(p);
-                if (shard != lastShard || segment != lastSegment) {
-                    lastShard = shard;
-                    lastSegment = segment;
-                    StoredFieldsSpec storedFieldsSpec = storedFieldsSpecForShard(shard);
-                    LeafReaderContext ctx = ctx(shard, segment);
-                    storedFields = new BlockLoaderStoredFieldsFromLeafLoader(
-                        StoredFieldLoader.fromSpec(storedFieldsSpec).getLoader(ctx, null),
-                        storedFieldsSpec.requiresSource() ? shardContexts.get(shard).newSourceLoader.get().leaf(ctx.reader(), null) : null
-                    );
-                    if (false == storedFieldsSpec.equals(StoredFieldsSpec.NO_REQUIREMENTS)) {
-                        trackStoredFields(storedFieldsSpec, false);
+
+            @Override
+            public int get(int i) {
+                return docs.getInt(forwards[i]);
+            }
+        });
+        final int[] backwards = docVector.shardSegmentDocMapBackwards();
+        for (int i = 0; i < blocks.length; i++) {
+            Block in = blocks[i];
+            blocks[i] = in.filter(backwards);
+            in.close();
+        }
+    }
+
+    private class LoadFromMany implements Releasable {
+        private final Block[] target;
+        private final IntVector shards;
+        private final IntVector segments;
+        private final IntVector docs;
+        private final int[] forwards;
+        private final int[] backwards;
+        private final Block.Builder[][] builders;
+        private final BlockLoader[][] converters;
+        private final Block.Builder[] fieldTypeBuilders;
+        private final BlockLoader.RowStrideReader[] rowStride;
+
+        BlockLoaderStoredFieldsFromLeafLoader storedFields;
+
+        LoadFromMany(Block[] target, DocVector docVector) {
+            this.target = target;
+            shards = docVector.shards();
+            segments = docVector.segments();
+            docs = docVector.docs();
+            forwards = docVector.shardSegmentDocMapForwards();
+            backwards = docVector.shardSegmentDocMapBackwards();
+            fieldTypeBuilders = new Block.Builder[target.length];
+            builders = new Block.Builder[target.length][shardContexts.size()];
+            converters = new BlockLoader[target.length][shardContexts.size()];
+            rowStride = new BlockLoader.RowStrideReader[target.length];
+        }
+
+        void run() throws IOException {
+            for (int f = 0; f < fields.length; f++) {
+                /*
+                 * Important note: each field has a desired type, which might not match the mapped type (in the case of union-types).
+                 * We create the final block builders using the desired type, one for each field, but then also use inner builders
+                 * (one for each field and shard), and converters (again one for each field and shard) to actually perform the field
+                 * loading in a way that is correct for the mapped field type, and then convert between that type and the desired type.
+                 */
+                fieldTypeBuilders[f] = fields[f].info.type.newBlockBuilder(docs.getPositionCount(), blockFactory);
+                builders[f] = new Block.Builder[shardContexts.size()];
+                converters[f] = new BlockLoader[shardContexts.size()];
+            }
+            ComputeBlockLoaderFactory loaderBlockFactory = new ComputeBlockLoaderFactory(blockFactory, docs.getPositionCount());
+            int p = forwards[0];
+            int shard = shards.getInt(p);
+            int segment = segments.getInt(p);
+            int firstDoc = docs.getInt(p);
+            positionFieldWork(shard, segment, firstDoc);
+            LeafReaderContext ctx = ctx(shard, segment);
+            fieldsMoved(ctx, shard);
+            verifyBuilders(loaderBlockFactory, shard);
+            read(firstDoc, shard);
+            for (int i = 1; i < forwards.length; i++) {
+                p = forwards[i];
+                shard = shards.getInt(p);
+                segment = segments.getInt(p);
+                boolean changedSegment = positionFieldWorkDocGuarteedAscending(shard, segment);
+                if (changedSegment) {
+                    ctx = ctx(shard, segment);
+                    fieldsMoved(ctx, shard);
+                }
+                verifyBuilders(loaderBlockFactory, shard);
+                read(docs.getInt(p), shard);
+            }
+            for (int f = 0; f < target.length; f++) {
+                for (int s = 0; s < shardContexts.size(); s++) {
+                    if (builders[f][s] != null) {
+                        try (Block orig = (Block) converters[f][s].convert(builders[f][s].build())) {
+                            fieldTypeBuilders[f].copyFrom(orig, 0, orig.getPositionCount());
+                        }
                     }
                 }
-                storedFields.advanceTo(doc);
-                for (int r = 0; r < blocks.length; r++) {
-                    fields.get(r).rowStride.reader(shard, segment, doc).read(doc, storedFields, builders[r]);
+                try (Block targetBlock = fieldTypeBuilders[f].build()) {
+                    target[f] = targetBlock.filter(backwards);
                 }
             }
-            for (int r = 0; r < blocks.length; r++) {
-                try (Block orig = builders[r].build()) {
-                    blocks[r] = orig.filter(docVector.shardSegmentDocMapBackwards());
+        }
+
+        private void fieldsMoved(LeafReaderContext ctx, int shard) throws IOException {
+            StoredFieldsSpec storedFieldsSpec = StoredFieldsSpec.NO_REQUIREMENTS;
+            for (int f = 0; f < fields.length; f++) {
+                FieldWork field = fields[f];
+                rowStride[f] = field.rowStride(ctx);
+                storedFieldsSpec = storedFieldsSpec.merge(field.loader.rowStrideStoredFieldSpec());
+            }
+            SourceLoader sourceLoader = null;
+            if (storedFieldsSpec.requiresSource()) {
+                sourceLoader = shardContexts.get(shard).newSourceLoader.get();
+                storedFieldsSpec = storedFieldsSpec.merge(new StoredFieldsSpec(true, false, sourceLoader.requiredStoredFields()));
+            }
+            storedFields = new BlockLoaderStoredFieldsFromLeafLoader(
+                StoredFieldLoader.fromSpec(storedFieldsSpec).getLoader(ctx, null),
+                sourceLoader != null ? sourceLoader.leaf(ctx.reader(), null) : null
+            );
+            if (false == storedFieldsSpec.equals(StoredFieldsSpec.NO_REQUIREMENTS)) {
+                trackStoredFields(storedFieldsSpec, false);
+            }
+        }
+
+        private void verifyBuilders(ComputeBlockLoaderFactory loaderBlockFactory, int shard) {
+            for (int f = 0; f < fields.length; f++) {
+                if (builders[f][shard] == null) {
+                    // Note that this relies on field.newShard() to set the loader and converter correctly for the current shard
+                    builders[f][shard] = (Block.Builder) fields[f].loader.builder(loaderBlockFactory, docs.getPositionCount());
+                    converters[f][shard] = fields[f].loader;
                 }
             }
-        } finally {
-            Releasables.closeExpectNoException(builders);
+        }
+
+        private void read(int doc, int shard) throws IOException {
+            storedFields.advanceTo(doc);
+            for (int f = 0; f < builders.length; f++) {
+                rowStride[f].read(doc, storedFields, builders[f][shard]);
+            }
+        }
+
+        @Override
+        public void close() {
+            Releasables.closeExpectNoException(fieldTypeBuilders);
+            for (int f = 0; f < fields.length; f++) {
+                Releasables.closeExpectNoException(builders[f]);
+            }
         }
     }
 
@@ -278,9 +432,9 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
      * Is it more efficient to use a sequential stored field reader
      * when reading stored fields for the documents contained in {@code docIds}?
      */
-    private boolean useSequentialStoredFieldsReader(IntVector docIds) {
-        return docIds.getPositionCount() >= SEQUENTIAL_BOUNDARY
-            && docIds.getInt(docIds.getPositionCount() - 1) - docIds.getInt(0) == docIds.getPositionCount() - 1;
+    private boolean useSequentialStoredFieldsReader(BlockLoader.Docs docs) {
+        int count = docs.count();
+        return count >= SEQUENTIAL_BOUNDARY && docs.get(count - 1) - docs.get(0) == count - 1;
     }
 
     private void trackStoredFields(StoredFieldsSpec spec, boolean sequential) {
@@ -298,87 +452,69 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
         );
     }
 
-    /**
-     * Returns a builder from the first non - {@link BlockLoader#CONSTANT_NULLS} loader
-     * in the list. If they are all the null loader then returns a null builder.
-     */
-    private Block.Builder builderFromFirstNonNull(BlockLoader.BlockFactory loaderBlockFactory, FieldWork field, int positionCount) {
-        for (BlockLoader loader : field.info.blockLoaders) {
-            if (loader != BlockLoader.CONSTANT_NULLS) {
-                return (Block.Builder) loader.builder(loaderBlockFactory, positionCount);
-            }
-        }
-        // All null, just let the first one build the null block loader.
-        return (Block.Builder) field.info.blockLoaders.get(0).builder(loaderBlockFactory, positionCount);
-    }
-
-    private StoredFieldsSpec storedFieldsSpecForShard(int shard) {
-        StoredFieldsSpec storedFieldsSpec = StoredFieldsSpec.NO_REQUIREMENTS;
-        for (int b = 0; b < fields.size(); b++) {
-            FieldWork field = fields.get(b);
-            storedFieldsSpec = storedFieldsSpec.merge(field.info.blockLoaders.get(shard).rowStrideStoredFieldSpec());
-        }
-        return storedFieldsSpec;
-    }
-
     private class FieldWork {
         final FieldInfo info;
-        final GuardedReader<BlockLoader.ColumnAtATimeReader> columnAtATime = new GuardedReader<>() {
-            @Override
-            BlockLoader.ColumnAtATimeReader build(BlockLoader loader, LeafReaderContext ctx) throws IOException {
-                return loader.columnAtATimeReader(ctx);
-            }
 
-            @Override
-            String type() {
-                return "column_at_a_time";
-            }
-        };
-
-        final GuardedReader<BlockLoader.RowStrideReader> rowStride = new GuardedReader<>() {
-            @Override
-            BlockLoader.RowStrideReader build(BlockLoader loader, LeafReaderContext ctx) throws IOException {
-                return loader.rowStrideReader(ctx);
-            }
-
-            @Override
-            String type() {
-                return "row_stride";
-            }
-        };
+        BlockLoader loader;
+        BlockLoader.ColumnAtATimeReader columnAtATime;
+        BlockLoader.RowStrideReader rowStride;
 
         FieldWork(FieldInfo info) {
             this.info = info;
         }
 
-        private abstract class GuardedReader<V extends BlockLoader.Reader> {
-            private int lastShard = -1;
-            private int lastSegment = -1;
-            V lastReader;
-
-            V reader(int shard, int segment, int startingDocId) throws IOException {
-                if (lastShard == shard && lastSegment == segment) {
-                    if (lastReader == null) {
-                        return null;
-                    }
-                    if (lastReader.canReuse(startingDocId)) {
-                        return lastReader;
-                    }
-                }
-                lastShard = shard;
-                lastSegment = segment;
-                lastReader = build(info.blockLoaders.get(shard), ctx(shard, segment));
-                readersBuilt.merge(info.name + ":" + type() + ":" + lastReader, 1, (prev, one) -> prev + one);
-                return lastReader;
+        void sameSegment(int firstDoc) {
+            if (columnAtATime != null && columnAtATime.canReuse(firstDoc) == false) {
+                columnAtATime = null;
             }
+            if (rowStride != null && rowStride.canReuse(firstDoc) == false) {
+                rowStride = null;
+            }
+        }
 
-            abstract V build(BlockLoader loader, LeafReaderContext ctx) throws IOException;
+        void sameShardNewSegment() {
+            columnAtATime = null;
+            rowStride = null;
+        }
 
-            abstract String type();
+        void newShard(int shard) {
+            loader = info.blockLoader.apply(shard);
+            columnAtATime = null;
+            rowStride = null;
+        }
+
+        BlockLoader.ColumnAtATimeReader columnAtATime(LeafReaderContext ctx) throws IOException {
+            if (columnAtATime == null) {
+                columnAtATime = loader.columnAtATimeReader(ctx);
+                trackReader("column_at_a_time", this.columnAtATime);
+            }
+            return columnAtATime;
+        }
+
+        BlockLoader.RowStrideReader rowStride(LeafReaderContext ctx) throws IOException {
+            if (rowStride == null) {
+                rowStride = loader.rowStrideReader(ctx);
+                trackReader("row_stride", this.rowStride);
+            }
+            return rowStride;
+        }
+
+        private void trackReader(String type, BlockLoader.Reader reader) {
+            readersBuilt.merge(info.name + ":" + type + ":" + reader, 1, (prev, one) -> prev + one);
         }
     }
 
-    private record RowStrideReaderWork(BlockLoader.RowStrideReader reader, Block.Builder builder, int offset) implements Releasable {
+    private record RowStrideReaderWork(BlockLoader.RowStrideReader reader, Block.Builder builder, BlockLoader loader, int offset)
+        implements
+            Releasable {
+        void read(int doc, BlockLoaderStoredFieldsFromLeafLoader storedFields) throws IOException {
+            reader.read(doc, storedFields, builder);
+        }
+
+        Block build() {
+            return (Block) loader.convert(builder.build());
+        }
+
         @Override
         public void close() {
             builder.close();
@@ -393,7 +529,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
     public String toString() {
         StringBuilder sb = new StringBuilder();
         sb.append("ValuesSourceReaderOperator[fields = [");
-        if (fields.size() < 10) {
+        if (fields.length < 10) {
             boolean first = true;
             for (FieldWork f : fields) {
                 if (first) {
@@ -404,14 +540,14 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
                 sb.append(f.info.name);
             }
         } else {
-            sb.append(fields.size()).append(" fields");
+            sb.append(fields.length).append(" fields");
         }
         return sb.append("]]").toString();
     }
 
     @Override
-    protected Status status(int pagesProcessed) {
-        return new Status(new TreeMap<>(readersBuilt), pagesProcessed);
+    protected Status status(long processNanos, int pagesProcessed, long rowsReceived, long rowsEmitted) {
+        return new Status(new TreeMap<>(readersBuilt), processNanos, pagesProcessed, rowsReceived, rowsEmitted);
     }
 
     public static class Status extends AbstractPageMappingOperator.Status {
@@ -423,8 +559,8 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
 
         private final Map<String, Integer> readersBuilt;
 
-        Status(Map<String, Integer> readersBuilt, int pagesProcessed) {
-            super(pagesProcessed);
+        Status(Map<String, Integer> readersBuilt, long processNanos, int pagesProcessed, long rowsReceived, long rowsEmitted) {
+            super(processNanos, pagesProcessed, rowsReceived, rowsEmitted);
             this.readersBuilt = readersBuilt;
         }
 
@@ -456,21 +592,20 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
                 builder.field(e.getKey(), e.getValue());
             }
             builder.endObject();
-            builder.field("pages_processed", pagesProcessed());
+            innerToXContent(builder);
             return builder.endObject();
         }
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (super.equals(o) == false) return false;
             Status status = (Status) o;
-            return pagesProcessed() == status.pagesProcessed() && readersBuilt.equals(status.readersBuilt);
+            return readersBuilt.equals(status.readersBuilt);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(readersBuilt, pagesProcessed());
+            return Objects.hash(super.hashCode(), readersBuilt);
         }
 
         @Override
@@ -491,7 +626,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
 
         @Override
         public BlockLoader.BooleanBuilder booleansFromDocValues(int expectedCount) {
-            return factory.newBooleanBlockBuilder(expectedCount).mvOrdering(Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING);
+            return factory.newBooleanBlockBuilder(expectedCount).mvOrdering(Block.MvOrdering.SORTED_ASCENDING);
         }
 
         @Override
@@ -511,7 +646,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
 
         @Override
         public BlockLoader.DoubleBuilder doublesFromDocValues(int expectedCount) {
-            return factory.newDoubleBlockBuilder(expectedCount).mvOrdering(Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING);
+            return factory.newDoubleBlockBuilder(expectedCount).mvOrdering(Block.MvOrdering.SORTED_ASCENDING);
         }
 
         @Override
@@ -521,7 +656,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
 
         @Override
         public BlockLoader.IntBuilder intsFromDocValues(int expectedCount) {
-            return factory.newIntBlockBuilder(expectedCount).mvOrdering(Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING);
+            return factory.newIntBlockBuilder(expectedCount).mvOrdering(Block.MvOrdering.SORTED_ASCENDING);
         }
 
         @Override
@@ -531,7 +666,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
 
         @Override
         public BlockLoader.LongBuilder longsFromDocValues(int expectedCount) {
-            return factory.newLongBlockBuilder(expectedCount).mvOrdering(Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING);
+            return factory.newLongBlockBuilder(expectedCount).mvOrdering(Block.MvOrdering.SORTED_ASCENDING);
         }
 
         @Override

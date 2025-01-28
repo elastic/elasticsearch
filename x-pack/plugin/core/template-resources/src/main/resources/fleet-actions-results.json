@@ -53,6 +53,9 @@
         },
         "completed_at": {
           "type": "date"
+        },
+        "namespaces": {
+          "type": "keyword"
         }
       }
     }

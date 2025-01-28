@@ -69,6 +69,13 @@ public class TextSimilarityConfigUpdate extends NlpConfigUpdate implements Named
     private final String resultsField;
     private final TextSimilarityConfig.SpanScoreFunction spanScoreFunction;
 
+    public TextSimilarityConfigUpdate(String text) {
+        super((TokenizationUpdate) null);
+        this.text = ExceptionsHelper.requireNonNull(text, TEXT);
+        this.resultsField = null;
+        this.spanScoreFunction = null;
+    }
+
     public TextSimilarityConfigUpdate(
         String text,
         @Nullable String resultsField,
@@ -110,31 +117,13 @@ public class TextSimilarityConfigUpdate extends NlpConfigUpdate implements Named
         return builder;
     }
 
-    @Override
-    public String getWriteableName() {
-        return NAME;
+    public TextSimilarityConfig.SpanScoreFunction getSpanScoreFunction() {
+        return spanScoreFunction;
     }
 
     @Override
-    public InferenceConfig apply(InferenceConfig originalConfig) {
-        if (originalConfig instanceof TextSimilarityConfig == false) {
-            throw ExceptionsHelper.badRequestException(
-                "Inference config of type [{}] can not be updated with a inference request of type [{}]",
-                originalConfig.getName(),
-                getName()
-            );
-        }
-
-        TextSimilarityConfig textSimilarityConfig = (TextSimilarityConfig) originalConfig;
-        return new TextSimilarityConfig(
-            text,
-            textSimilarityConfig.getVocabularyConfig(),
-            tokenizationUpdate == null
-                ? textSimilarityConfig.getTokenization()
-                : tokenizationUpdate.apply(textSimilarityConfig.getTokenization()),
-            Optional.ofNullable(resultsField).orElse(textSimilarityConfig.getResultsField()),
-            Optional.ofNullable(spanScoreFunction).orElse(textSimilarityConfig.getSpanScoreFunction())
-        );
+    public String getWriteableName() {
+        return NAME;
     }
 
     @Override

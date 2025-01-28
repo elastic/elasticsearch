@@ -40,15 +40,15 @@ is an object it has the following properties:
 =====
 `char_filter`::::
 (array of strings or objects)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=char-filter]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=char-filter]
 
 `tokenizer`::::
 (string or object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=tokenizer]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=tokenizer]
 
 `filter`::::
 (array of strings or objects)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=filter]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=filter]
 =====
 
 `categorization_filters`::

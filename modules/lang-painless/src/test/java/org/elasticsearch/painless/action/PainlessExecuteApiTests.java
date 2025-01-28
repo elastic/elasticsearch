@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.painless.action;
 
@@ -36,6 +37,7 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.painless.action.PainlessExecuteAction.TransportAction.innerShardOperation;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 public class PainlessExecuteApiTests extends ESSingleNodeTestCase {
 
@@ -514,5 +516,44 @@ public class PainlessExecuteApiTests extends ESSingleNodeTestCase {
         expectThrows(IllegalArgumentException.class, () -> Request.ContextSetup.parseClusterAliasAndIndex("blogs:  "));
         expectThrows(IllegalArgumentException.class, () -> Request.ContextSetup.parseClusterAliasAndIndex("remote1:foo,remote2:bar"));
         expectThrows(IllegalArgumentException.class, () -> Request.ContextSetup.parseClusterAliasAndIndex("a:b,c:d,e:f"));
+    }
+
+    public void testRemoveClusterAliasFromIndexExpression() {
+        {
+            // index expressions with no clusterAlias should come back unchanged
+            PainlessExecuteAction.Request request = createRequest("blogs");
+            assertThat(request.index(), equalTo("blogs"));
+            PainlessExecuteAction.TransportAction.removeClusterAliasFromIndexExpression(request);
+            assertThat(request.index(), equalTo("blogs"));
+        }
+        {
+            // index expressions with no index specified should come back unchanged
+            PainlessExecuteAction.Request request = createRequest(null);
+            assertThat(request.index(), nullValue());
+            PainlessExecuteAction.TransportAction.removeClusterAliasFromIndexExpression(request);
+            assertThat(request.index(), nullValue());
+        }
+        {
+            // index expressions with clusterAlias should come back with it stripped off
+            PainlessExecuteAction.Request request = createRequest("remote1:blogs");
+            assertThat(request.index(), equalTo("remote1:blogs"));
+            PainlessExecuteAction.TransportAction.removeClusterAliasFromIndexExpression(request);
+            assertThat(request.index(), equalTo("blogs"));
+        }
+        {
+            // index expressions with clusterAlias should come back with it stripped off
+            PainlessExecuteAction.Request request = createRequest("remote1:remote1");
+            assertThat(request.index(), equalTo("remote1:remote1"));
+            PainlessExecuteAction.TransportAction.removeClusterAliasFromIndexExpression(request);
+            assertThat(request.index(), equalTo("remote1"));
+        }
+    }
+
+    private PainlessExecuteAction.Request createRequest(String indexExpression) {
+        return new PainlessExecuteAction.Request(
+            new Script("100.0 / 1000.0"),
+            null,
+            new PainlessExecuteAction.Request.ContextSetup(indexExpression, null, null)
+        );
     }
 }

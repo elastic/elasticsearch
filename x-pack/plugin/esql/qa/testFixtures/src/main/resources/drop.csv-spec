@@ -1,3 +1,23 @@
+height
+// tag::height[]
+FROM employees
+| DROP height
+// end::height[]
+| LIMIT 0;
+
+avg_worked_seconds:long | birth_date:date | emp_no:integer | first_name:keyword | gender:keyword | height.float:double | height.half_float:double | height.scaled_float:double | hire_date:date | is_rehired:boolean | job_positions:keyword | languages:integer | languages.byte:integer | languages.long:long | languages.short:integer | last_name:keyword | salary:integer | salary_change:double | salary_change.int:integer |salary_change.keyword:keyword |salary_change.long:long | still_hired:boolean
+;
+
+heightWithWildcard
+// tag::heightWithWildcard[]
+FROM employees 
+| DROP height*
+// end::heightWithWildcard[]
+| LIMIT 0;
+
+avg_worked_seconds:long | birth_date:date | emp_no:integer | first_name:keyword | gender:keyword | hire_date:date | is_rehired:boolean | job_positions:keyword | languages:integer | languages.byte:integer | languages.long:long | languages.short:integer | last_name:keyword | salary:integer | salary_change:double | salary_change.int:integer |salary_change.keyword:keyword |salary_change.long:long | still_hired:boolean
+;
+
 sortWithLimitOne_DropHeight
 from employees | sort languages, emp_no | limit 1 | drop height*;
 
@@ -87,3 +107,68 @@ bar:long
 57
 ;
 
+dropColumnWithQuotedWildcard#[skip:-8.12.99]
+FROM employees | STATS ROUND(AVG(height * 1.5)), COUNT(*), MIN(salary  * 10) | DROP `MIN(salary  * 10)`
+;
+
+ROUND(AVG(height * 1.5)):d | COUNT(*):l
+3.0                        | 100
+;
+
+dropColumnWithQuotedWildcardBasic#[skip:-8.12.99]
+FROM employees | STATS COUNT(*), MIN(salary  * 10), MAX(languages)| DROP `COUNT(*)`
+;
+
+MIN(salary  * 10):i | MAX(languages):i
+253240              | 5
+;
+
+// Not really shadowing, but let's keep the name consistent with the other command's tests
+shadowingInternal
+FROM employees
+| SORT emp_no ASC
+| KEEP emp_no, first_name, last_name
+| DROP last_name, last_name
+| LIMIT 2
+;
+
+emp_no:integer | first_name:keyword
+         10001 | Georgi
+         10002 | Bezalel
+;
+
+shadowingInternalWildcard
+FROM employees
+| SORT emp_no ASC
+| KEEP emp_no, first_name, last_name
+| DROP last*name, last*name, last*, last_name
+| LIMIT 2
+;
+
+emp_no:integer | first_name:keyword
+         10001 | Georgi
+         10002 | Bezalel
+;
+
+subfields
+FROM addresses
+| DROP city.country.continent.planet.name, city.country.continent.name, city.country.name, number, street, zip_code, city.country.continent.planet.name
+| SORT city.name
+;
+
+city.country.continent.planet.galaxy:keyword | city.name:keyword
+Milky Way                                    | Amsterdam
+Milky Way                                    | San Francisco
+Milky Way                                    | Tokyo
+;
+
+subfieldsWildcard
+FROM addresses
+| DROP *.name, number, street, zip_code, *ame
+;
+
+city.country.continent.planet.galaxy:keyword
+Milky Way
+Milky Way
+Milky Way
+;

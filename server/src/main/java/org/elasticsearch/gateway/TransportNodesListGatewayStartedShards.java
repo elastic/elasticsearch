@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gateway;
@@ -11,7 +12,6 @@ package org.elasticsearch.gateway;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
@@ -24,10 +24,8 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.NodeEnvironment;
@@ -37,6 +35,7 @@ import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.shard.ShardStateMetadata;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
@@ -58,12 +57,13 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
     TransportNodesListGatewayStartedShards.Request,
     TransportNodesListGatewayStartedShards.NodesGatewayStartedShards,
     TransportNodesListGatewayStartedShards.NodeRequest,
-    TransportNodesListGatewayStartedShards.NodeGatewayStartedShards> {
+    TransportNodesListGatewayStartedShards.NodeGatewayStartedShards,
+    Void> {
 
     private static final Logger logger = LogManager.getLogger(TransportNodesListGatewayStartedShards.class);
 
     public static final String ACTION_NAME = "internal:gateway/local/started_shards";
-    public static final ActionType<NodesGatewayStartedShards> TYPE = new ActionType<>(ACTION_NAME, Writeable.Reader.localOnly());
+    public static final ActionType<NodesGatewayStartedShards> TYPE = new ActionType<>(ACTION_NAME);
 
     private final Settings settings;
     private final NodeEnvironment nodeEnv;
@@ -181,7 +181,7 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
         }
     }
 
-    public static class Request extends BaseNodesRequest<Request> {
+    public static class Request extends BaseNodesRequest {
 
         private final ShardId shardId;
         @Nullable
@@ -205,11 +205,6 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
         @Nullable
         public String getCustomDataPath() {
             return customDataPath;
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            TransportAction.localOnly();
         }
     }
 
@@ -243,11 +238,7 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
         public NodeRequest(StreamInput in) throws IOException {
             super(in);
             shardId = new ShardId(in);
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_6_0)) {
-                customDataPath = in.readString();
-            } else {
-                customDataPath = null;
-            }
+            customDataPath = in.readString();
         }
 
         public NodeRequest(Request request) {
@@ -259,10 +250,7 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             shardId.writeTo(out);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_6_0)) {
-                assert customDataPath != null;
-                out.writeString(customDataPath);
-            }
+            out.writeString(customDataPath);
         }
 
         public ShardId getShardId() {
@@ -285,10 +273,6 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
         private final String allocationId;
         private final boolean primary;
         private final Exception storeException;
-
-        public NodeGatewayStartedShards(StreamInput in) throws IOException {
-            this(in, null);
-        }
 
         public NodeGatewayStartedShards(StreamInput in, DiscoveryNode node) throws IOException {
             super(in, node);

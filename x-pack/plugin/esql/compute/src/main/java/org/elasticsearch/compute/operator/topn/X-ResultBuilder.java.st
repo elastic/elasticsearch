@@ -11,6 +11,10 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.$Type$Block;
 
+/**
+ * Builds the resulting {@link $Type$Block} for some column in a top-n.
+ * This class is generated. Edit {@code X-ResultBuilder.java.st} instead.
+ */
 class ResultBuilderFor$Type$ implements ResultBuilder {
     private final $Type$Block.Builder builder;
 

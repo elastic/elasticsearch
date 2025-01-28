@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.query;
 
@@ -67,7 +68,7 @@ public class ThrowingQueryBuilder extends AbstractQueryBuilder<ThrowingQueryBuil
         this.randomUID = in.readLong();
         this.failure = in.readException();
         this.shardId = in.readVInt();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_061)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_10_X)) {
             this.index = in.readOptionalString();
         } else {
             this.index = null;
@@ -79,7 +80,7 @@ public class ThrowingQueryBuilder extends AbstractQueryBuilder<ThrowingQueryBuil
         out.writeLong(randomUID);
         out.writeException(failure);
         out.writeVInt(shardId);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_061)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_10_X)) {
             out.writeOptionalString(index);
         }
     }

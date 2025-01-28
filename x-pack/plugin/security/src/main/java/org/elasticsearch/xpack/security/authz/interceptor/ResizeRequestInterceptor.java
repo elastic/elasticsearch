@@ -34,11 +34,18 @@ public final class ResizeRequestInterceptor implements RequestInterceptor {
     private final ThreadContext threadContext;
     private final XPackLicenseState licenseState;
     private final AuditTrailService auditTrailService;
+    private final boolean dlsFlsEnabled;
 
-    public ResizeRequestInterceptor(ThreadPool threadPool, XPackLicenseState licenseState, AuditTrailService auditTrailService) {
+    public ResizeRequestInterceptor(
+        ThreadPool threadPool,
+        XPackLicenseState licenseState,
+        AuditTrailService auditTrailService,
+        boolean dlsFlsEnabled
+    ) {
         this.threadContext = threadPool.getThreadContext();
         this.licenseState = licenseState;
         this.auditTrailService = auditTrailService;
+        this.dlsFlsEnabled = dlsFlsEnabled;
     }
 
     @Override
@@ -52,7 +59,7 @@ public final class ResizeRequestInterceptor implements RequestInterceptor {
             final AuditTrail auditTrail = auditTrailService.get();
             final boolean isDlsLicensed = DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState);
             final boolean isFlsLicensed = FIELD_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState);
-            if (isDlsLicensed || isFlsLicensed) {
+            if (dlsFlsEnabled && (isDlsLicensed || isFlsLicensed)) {
                 IndicesAccessControl indicesAccessControl = threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
                 IndicesAccessControl.IndexAccessControl indexAccessControl = indicesAccessControl.getIndexPermissions(
                     request.getSourceIndex()

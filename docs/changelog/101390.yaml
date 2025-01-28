@@ -1,5 +1,0 @@
-pr: 101390
-summary: Enable inter-segment concurrency for terms aggs
-area: Aggregations
-type: enhancement
-issues: []

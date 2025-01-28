@@ -1,0 +1,72 @@
+setup:
+  - requires:
+      cluster_features: "gte_v8.14.0"
+      reason: 'check of preTags and postTags params for empty values was added in 8.14'
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            "properties":
+              "text":
+                "type": "text"
+                "term_vector": "with_positions_offsets"
+
+  - do:
+      index:
+        index: test
+        id:    "1"
+        body:
+          "text" : "The quick brown fox is brown."
+  - do:
+      indices.refresh: {}
+
+---
+"Test with empty pre_tags or post_tags in query body with unified highlight type - should fail" :
+  - do:
+      catch: /pre_tags or post_tags must not be empty/
+      search:
+        index: test
+        body: {
+          "query": { "match": { "text": "fox" } },
+          "highlight": {
+            "type": "unified",
+            "fields": { "*": { } },
+            "pre_tags": [ ],
+            "post_tags": [ ]
+          },
+        }
+
+---
+"Test with empty pre_tags or post_tags in query body with plain highlight type - should fail" :
+  - do:
+      catch: /pre_tags or post_tags must not be empty/
+      search:
+        index: test
+        body: {
+          "query": { "match": { "text": "fox" } },
+          "highlight": {
+            "type": "plain",
+            "fields": { "*": { } },
+            "pre_tags": [ ],
+            "post_tags": [ ]
+          },
+        }
+
+---
+"Test with empty pre_tags or post_tags in query body with fvh highlight type - should fail" :
+  - do:
+      catch: /pre_tags or post_tags must not be empty/
+      search:
+        index: test
+        body: {
+          "query": { "match": { "text": "fox" } },
+          "highlight": {
+            "type": "fvh",
+            "fields": { "*": { } },
+            "pre_tags": [ ],
+            "post_tags": [ ]
+          },
+        }
+

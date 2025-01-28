@@ -7,19 +7,22 @@
 
 package org.elasticsearch.xpack.inference.external.openai;
 
-import org.apache.http.HttpResponse;
-import org.apache.http.client.methods.HttpRequestBase;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.xpack.core.inference.results.StreamingChatCompletionResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.retry.BaseResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.retry.ContentTooLargeException;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseParser;
 import org.elasticsearch.xpack.inference.external.http.retry.RetryException;
-import org.elasticsearch.xpack.inference.external.response.openai.OpenAiErrorResponseEntity;
-import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
+import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.response.ErrorMessageResponseEntity;
+import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEventParser;
+import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEventProcessor;
 
-import static org.elasticsearch.xpack.inference.external.http.HttpUtils.checkForEmptyBody;
+import java.util.concurrent.Flow;
+
+import static org.elasticsearch.xpack.inference.external.http.retry.ResponseHandlerUtils.getFirstHeaderOrUnknown;
 
 public class OpenAiResponseHandler extends BaseResponseHandler {
     /**
@@ -36,36 +39,39 @@ public class OpenAiResponseHandler extends BaseResponseHandler {
 
     static final String CONTENT_TOO_LARGE_MESSAGE = "Please reduce your prompt; or completion length.";
 
-    public OpenAiResponseHandler(String requestType, ResponseParser parseFunction) {
-        super(requestType, parseFunction, OpenAiErrorResponseEntity::fromResponse);
-    }
+    static final String OPENAI_SERVER_BUSY = "Received a server busy error status code";
 
-    @Override
-    public void validateResponse(ThrottlerManager throttlerManager, Logger logger, HttpRequestBase request, HttpResult result)
-        throws RetryException {
-        checkForFailureStatusCode(request, result);
-        checkForEmptyBody(throttlerManager, logger, request, result);
+    private final boolean canHandleStreamingResponses;
+
+    public OpenAiResponseHandler(String requestType, ResponseParser parseFunction, boolean canHandleStreamingResponses) {
+        super(requestType, parseFunction, ErrorMessageResponseEntity::fromResponse);
+        this.canHandleStreamingResponses = canHandleStreamingResponses;
     }
 
     /**
      * Validates the status code throws an RetryException if not in the range [200, 300).
      *
      * The OpenAI API error codes are documented <a href="https://platform.openai.com/docs/guides/error-codes/api-errors">here</a>.
-     * @param request The http request
+     * @param request The originating request
      * @param result  The http response and body
      * @throws RetryException Throws if status code is {@code >= 300 or < 200 }
      */
-    void checkForFailureStatusCode(HttpRequestBase request, HttpResult result) throws RetryException {
-        int statusCode = result.response().getStatusLine().getStatusCode();
-        if (statusCode >= 200 && statusCode < 300) {
+    @Override
+    protected void checkForFailureStatusCode(Request request, HttpResult result) throws RetryException {
+        if (result.isSuccessfulResponse()) {
             return;
         }
 
         // handle error codes
-        if (statusCode >= 500) {
+        int statusCode = result.response().getStatusLine().getStatusCode();
+        if (statusCode == 500) {
+            throw new RetryException(true, buildError(SERVER_ERROR, request, result));
+        } else if (statusCode == 503) {
+            throw new RetryException(true, buildError(OPENAI_SERVER_BUSY, request, result));
+        } else if (statusCode > 500) {
             throw new RetryException(false, buildError(SERVER_ERROR, request, result));
         } else if (statusCode == 429) {
-            throw new RetryException(true, buildError(buildRateLimitErrorMessage(result), request, result));
+            throw buildExceptionHandling429(request, result);
         } else if (isContentTooLarge(result)) {
             throw new ContentTooLargeException(buildError(CONTENT_TOO_LARGE, request, result));
         } else if (statusCode == 401) {
@@ -77,6 +83,10 @@ public class OpenAiResponseHandler extends BaseResponseHandler {
         }
     }
 
+    protected RetryException buildExceptionHandling429(Request request, HttpResult result) {
+        return new RetryException(true, buildError(buildRateLimitErrorMessage(result), request, result));
+    }
+
     private static boolean isContentTooLarge(HttpResult result) {
         int statusCode = result.response().getStatusLine().getStatusCode();
 
@@ -85,7 +95,7 @@ public class OpenAiResponseHandler extends BaseResponseHandler {
         }
 
         if (statusCode == 400) {
-            var errorEntity = OpenAiErrorResponseEntity.fromResponse(result);
+            var errorEntity = ErrorMessageResponseEntity.fromResponse(result);
 
             return errorEntity != null && errorEntity.getErrorMessage().contains(CONTENT_TOO_LARGE_MESSAGE);
         }
@@ -111,11 +121,18 @@ public class OpenAiResponseHandler extends BaseResponseHandler {
         return RATE_LIMIT + ". " + usageMessage;
     }
 
-    private static String getFirstHeaderOrUnknown(HttpResponse response, String name) {
-        var header = response.getFirstHeader(name);
-        if (header != null && header.getElements().length > 0) {
-            return header.getElements()[0].getName();
-        }
-        return "unknown";
+    @Override
+    public boolean canHandleStreamingResponses() {
+        return canHandleStreamingResponses;
+    }
+
+    @Override
+    public InferenceServiceResults parseResult(Request request, Flow.Publisher<HttpResult> flow) {
+        var serverSentEventProcessor = new ServerSentEventProcessor(new ServerSentEventParser());
+        var openAiProcessor = new OpenAiStreamingProcessor();
+
+        flow.subscribe(serverSentEventProcessor);
+        serverSentEventProcessor.subscribe(openAiProcessor);
+        return new StreamingChatCompletionResults(openAiProcessor);
     }
 }

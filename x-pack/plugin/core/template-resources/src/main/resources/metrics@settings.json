@@ -6,8 +6,10 @@
           "name": "metrics"
         },
         "codec": "best_compression",
-        "query": {
-          "default_field": ["message"]
+        "mapping": {
+          "total_fields": {
+            "ignore_dynamic_beyond_limit": true
+          }
         }
       }
     }

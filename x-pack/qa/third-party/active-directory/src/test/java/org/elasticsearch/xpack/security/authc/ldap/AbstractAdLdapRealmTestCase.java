@@ -20,11 +20,14 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.SslVerificationMode;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.fixtures.smb.SmbTestContainer;
 import org.elasticsearch.test.fixtures.testcontainers.TestContainersThreadFilter;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingResponse;
@@ -178,7 +181,7 @@ public abstract class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase 
 
     @Before
     public void setupRoleMappings() throws Exception {
-        assertSecurityIndexActive();
+        createSecurityIndexWithWaitForActiveShards();
 
         List<String> content = getRoleMappingContent(RoleMappingEntry::nativeContent);
         if (content.isEmpty()) {
@@ -187,11 +190,16 @@ public abstract class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase 
         Map<String, ActionFuture<PutRoleMappingResponse>> futures = Maps.newLinkedHashMapWithExpectedSize(content.size());
         for (int i = 0; i < content.size(); i++) {
             final String name = "external_" + i;
-            final PutRoleMappingRequestBuilder builder = new PutRoleMappingRequestBuilder(client()).source(
-                name,
-                new BytesArray(content.get(i)),
-                XContentType.JSON
-            );
+            final PutRoleMappingRequestBuilder builder;
+            try (
+                XContentParser parser = XContentHelper.createParserNotCompressed(
+                    LoggingDeprecationHandler.XCONTENT_PARSER_CONFIG,
+                    new BytesArray(content.get(i)),
+                    XContentType.JSON
+                )
+            ) {
+                builder = new PutRoleMappingRequestBuilder(client()).source(name, parser);
+            }
             futures.put(name, builder.execute());
         }
         for (String mappingName : futures.keySet()) {

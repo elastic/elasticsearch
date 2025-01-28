@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.forcemerge;
 
+import org.elasticsearch.action.support.broadcast.BaseBroadcastResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
@@ -50,7 +52,7 @@ public class ForceMergeBlocksIT extends ESIntegTestCase {
         for (String blockSetting : Arrays.asList(SETTING_BLOCKS_READ, SETTING_BLOCKS_WRITE, SETTING_READ_ONLY_ALLOW_DELETE)) {
             try {
                 enableIndexBlock("test", blockSetting);
-                ForceMergeResponse response = indicesAdmin().prepareForceMerge("test").get();
+                BaseBroadcastResponse response = indicesAdmin().prepareForceMerge("test").get();
                 assertNoFailures(response);
                 assertThat(response.getSuccessfulShards(), equalTo(numShards.totalNumShards));
             } finally {
@@ -70,7 +72,7 @@ public class ForceMergeBlocksIT extends ESIntegTestCase {
 
         // Merging all indices is blocked when the cluster is read-only
         try {
-            ForceMergeResponse response = indicesAdmin().prepareForceMerge().get();
+            BaseBroadcastResponse response = indicesAdmin().prepareForceMerge().get();
             assertNoFailures(response);
             assertThat(response.getSuccessfulShards(), equalTo(numShards.totalNumShards));
 

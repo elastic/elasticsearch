@@ -150,6 +150,24 @@ public class TextSimilarityConfig implements NlpConfig {
     }
 
     @Override
+    public InferenceConfig apply(InferenceConfigUpdate update) {
+        if (update instanceof TextSimilarityConfigUpdate configUpdate) {
+            return new TextSimilarityConfig(
+                configUpdate.getText(),
+                vocabularyConfig,
+                configUpdate.tokenizationUpdate == null ? tokenization : configUpdate.tokenizationUpdate.apply(tokenization),
+                Optional.ofNullable(configUpdate.getResultsField()).orElse(resultsField),
+                Optional.ofNullable(configUpdate.getSpanScoreFunction()).orElse(spanScoreFunction)
+            );
+        } else if (update instanceof TokenizationConfigUpdate tokenizationUpdate) {
+            var updatedTokenization = getTokenization().updateWindowSettings(tokenizationUpdate.getSpanSettings());
+            return new TextSimilarityConfig(text, vocabularyConfig, updatedTokenization, resultsField, spanScoreFunction);
+        } else {
+            throw incompatibleUpdateException(update.getName());
+        }
+    }
+
+    @Override
     public MlConfigVersion getMinimalSupportedMlConfigVersion() {
         return MlConfigVersion.V_8_5_0;
     }

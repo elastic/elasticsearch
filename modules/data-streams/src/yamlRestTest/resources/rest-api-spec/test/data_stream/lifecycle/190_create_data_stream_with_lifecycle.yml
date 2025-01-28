@@ -1,9 +1,9 @@
 ---
 "Create data stream with lifecycle":
-  - skip:
-      version: " - 8.10.99"
+  - requires:
+      cluster_features: [ "gte_v8.11.0" ]
       reason: "Data stream lifecycle was GA in 8.11"
-      features: allowed_warnings
+      test_runner_features: allowed_warnings
   - do:
       allowed_warnings:
         - "index template [template-with-lifecycle] has index patterns [managed-data-stream] matching patterns from existing older templates [global] with patterns (global => [*]); this template [template-with-lifecycle] will take precedence during new index creation"

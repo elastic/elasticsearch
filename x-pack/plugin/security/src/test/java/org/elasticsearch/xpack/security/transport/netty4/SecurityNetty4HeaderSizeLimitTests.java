@@ -22,8 +22,10 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.mocksocket.MockSocket;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.DefaultBuiltInExecutorBuilders;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterPortSettings;
 import org.elasticsearch.transport.RequestHandlerRegistry;
@@ -77,7 +79,7 @@ public final class SecurityNetty4HeaderSizeLimitTests extends ESTestCase {
 
     @Before
     public void startThreadPool() {
-        threadPool = new ThreadPool(settings);
+        threadPool = new ThreadPool(settings, MeterRegistry.NOOP, new DefaultBuiltInExecutorBuilders());
         TaskManager taskManager = new TaskManager(settings, threadPool, Collections.emptySet());
         NetworkService networkService = new NetworkService(Collections.emptyList());
         PageCacheRecycler recycler = new MockPageCacheRecycler(Settings.EMPTY);

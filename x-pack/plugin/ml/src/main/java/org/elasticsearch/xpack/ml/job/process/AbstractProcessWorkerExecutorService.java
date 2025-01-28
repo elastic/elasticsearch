@@ -26,6 +26,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
+import static org.elasticsearch.core.Strings.format;
+
 /**
  * A worker service that executes runnables sequentially in
  * a single worker thread.
@@ -139,6 +141,10 @@ public abstract class AbstractProcessWorkerExecutorService<T extends Runnable> e
         assert isShutdown() : "Queue runnables should only be drained and notified after the worker is shutdown";
 
         if (queue.isEmpty() == false) {
+            logger.warn(
+                format("[%s] notifying [%d] queued requests that have not been processed before shutdown", processName, queue.size())
+            );
+
             List<Runnable> notExecuted = new ArrayList<>();
             queue.drainTo(notExecuted);
 

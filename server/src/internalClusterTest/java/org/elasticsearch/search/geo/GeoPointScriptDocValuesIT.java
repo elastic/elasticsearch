@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.geo;
@@ -21,8 +22,7 @@ import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
-import org.hamcrest.BaseMatcher;
-import org.hamcrest.Description;
+import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 
@@ -33,12 +33,12 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
+import java.util.stream.IntStream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.oneOf;
 
 public class GeoPointScriptDocValuesIT extends ESSingleNodeTestCase {
@@ -255,28 +255,8 @@ public class GeoPointScriptDocValuesIT extends ESSingleNodeTestCase {
         );
     }
 
-    private static MultiPointLabelPosition isMultiPointLabelPosition(double[] lats, double[] lons) {
-        return new MultiPointLabelPosition(lats, lons);
-    }
-
-    private static class MultiPointLabelPosition extends BaseMatcher<GeoPoint> {
-        private final GeoPoint[] points;
-
-        private MultiPointLabelPosition(double[] lats, double[] lons) {
-            points = new GeoPoint[lats.length];
-            for (int i = 0; i < lats.length; i++) {
-                points[i] = new GeoPoint(lats[i], lons[i]);
-            }
-        }
-
-        @Override
-        public boolean matches(Object actual) {
-            return is(oneOf(points)).matches(actual);
-        }
-
-        @Override
-        public void describeTo(Description description) {
-            description.appendText("is(oneOf(" + Arrays.toString(points) + ")");
-        }
+    private static Matcher<GeoPoint> isMultiPointLabelPosition(double[] lats, double[] lons) {
+        assert lats.length == lons.length;
+        return oneOf(IntStream.range(0, lats.length).mapToObj(i -> new GeoPoint(lats[i], lons[i])).toArray(GeoPoint[]::new));
     }
 }

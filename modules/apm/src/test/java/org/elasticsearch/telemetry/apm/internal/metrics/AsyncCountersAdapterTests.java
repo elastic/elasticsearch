@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.telemetry.apm.internal.metrics;
@@ -38,7 +39,7 @@ public class AsyncCountersAdapterTests extends ESTestCase {
     // testing that a value reported is then used in a callback
     public void testLongAsyncCounter() throws Exception {
         AtomicReference<LongWithAttributes> attrs = new AtomicReference<>();
-        LongAsyncCounter longAsyncCounter = registry.registerLongAsyncCounter("name", "desc", "unit", attrs::get);
+        LongAsyncCounter longAsyncCounter = registry.registerLongAsyncCounter("es.test.name.total", "desc", "unit", attrs::get);
 
         attrs.set(new LongWithAttributes(1L, Map.of("k", 1L)));
 
@@ -70,7 +71,7 @@ public class AsyncCountersAdapterTests extends ESTestCase {
 
     public void testDoubleAsyncAdapter() throws Exception {
         AtomicReference<DoubleWithAttributes> attrs = new AtomicReference<>();
-        DoubleAsyncCounter doubleAsyncCounter = registry.registerDoubleAsyncCounter("name", "desc", "unit", attrs::get);
+        DoubleAsyncCounter doubleAsyncCounter = registry.registerDoubleAsyncCounter("es.test.name.total", "desc", "unit", attrs::get);
 
         attrs.set(new DoubleWithAttributes(1.0, Map.of("k", 1.0)));
 
@@ -102,7 +103,7 @@ public class AsyncCountersAdapterTests extends ESTestCase {
 
     public void testNullGaugeRecord() throws Exception {
         DoubleAsyncCounter dcounter = registry.registerDoubleAsyncCounter(
-            "name",
+            "es.test.name.total",
             "desc",
             "unit",
             new AtomicReference<DoubleWithAttributes>()::get
@@ -112,7 +113,7 @@ public class AsyncCountersAdapterTests extends ESTestCase {
         assertThat(metrics, hasSize(0));
 
         LongAsyncCounter lcounter = registry.registerLongAsyncCounter(
-            "name",
+            "es.test.name.total",
             "desc",
             "unit",
             new AtomicReference<LongWithAttributes>()::get

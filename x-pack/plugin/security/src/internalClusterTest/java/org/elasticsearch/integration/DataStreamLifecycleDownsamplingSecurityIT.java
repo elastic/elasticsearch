@@ -13,7 +13,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
-import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -257,7 +257,10 @@ public class DataStreamLifecycleDownsamplingSecurityIT extends SecurityIntegTest
     }
 
     private List<Index> getDataStreamBackingIndices(String dataStreamName) {
-        GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[] { dataStreamName });
+        GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            new String[] { dataStreamName }
+        );
         GetDataStreamAction.Response getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
             .actionGet();
         assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(1));
@@ -335,16 +338,16 @@ public class DataStreamLifecycleDownsamplingSecurityIT extends SecurityIntegTest
         @Nullable Map<String, Object> metadata,
         @Nullable DataStreamLifecycle lifecycle
     ) {
-        PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request(id);
+        TransportPutComposableIndexTemplateAction.Request request = new TransportPutComposableIndexTemplateAction.Request(id);
         request.indexTemplate(
             ComposableIndexTemplate.builder()
                 .indexPatterns(patterns)
-                .template(new Template(settings, mappings, null, lifecycle))
+                .template(Template.builder().settings(settings).mappings(mappings).lifecycle(lifecycle))
                 .metadata(metadata)
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
                 .build()
         );
-        client.execute(PutComposableIndexTemplateAction.INSTANCE, request).actionGet();
+        client.execute(TransportPutComposableIndexTemplateAction.TYPE, request).actionGet();
     }
 
     private void indexDocuments(Client client, String dataStreamName, int docCount, long startTime) {
@@ -439,7 +442,7 @@ public class DataStreamLifecycleDownsamplingSecurityIT extends SecurityIntegTest
                         SystemDataStreamDescriptor.Type.EXTERNAL,
                         ComposableIndexTemplate.builder()
                             .indexPatterns(List.of(SYSTEM_DATA_STREAM_NAME))
-                            .template(new Template(settings.build(), getTSDBMappings(), null, LIFECYCLE))
+                            .template(Template.builder().settings(settings).mappings(getTSDBMappings()).lifecycle(LIFECYCLE))
                             .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
                             .build(),
                         Map.of(),

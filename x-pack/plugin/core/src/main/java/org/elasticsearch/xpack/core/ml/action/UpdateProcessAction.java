@@ -28,7 +28,7 @@ public class UpdateProcessAction extends ActionType<UpdateProcessAction.Response
     public static final String NAME = "cluster:internal/xpack/ml/job/update/process";
 
     private UpdateProcessAction() {
-        super(NAME, UpdateProcessAction.Response::new);
+        super(NAME);
     }
 
     public static class Response extends BaseTasksResponse implements ToXContentObject, Writeable {

@@ -16,6 +16,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -31,8 +32,6 @@ import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
@@ -49,7 +48,6 @@ import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.ml.utils.MlIndicesUtils;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
@@ -167,18 +165,18 @@ public class ExpiredResultsRemover extends AbstractExpiredJobDataRemover {
 
     @Override
     void calcCutoffEpochMs(String jobId, long retentionDays, ActionListener<CutoffDetails> listener) {
-        ThreadedActionListener<CutoffDetails> threadedActionListener = new ThreadedActionListener<>(
-            threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME),
-            listener
-        );
-        latestBucketTime(client, getParentTaskId(), jobId, ActionListener.wrap(latestTime -> {
+        latestBucketTime(client, getParentTaskId(), jobId, listener.delegateFailureAndWrap((l, latestTime) -> {
+            ThreadedActionListener<CutoffDetails> threadedActionListener = new ThreadedActionListener<>(
+                threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME),
+                l
+            );
             if (latestTime == null) {
                 threadedActionListener.onResponse(null);
             } else {
                 long cutoff = latestTime - new TimeValue(retentionDays, TimeUnit.DAYS).getMillis();
                 threadedActionListener.onResponse(new CutoffDetails(latestTime, cutoff));
             }
-        }, listener::onFailure));
+        }));
     }
 
     static void latestBucketTime(OriginSettingClient client, TaskId parentTaskId, String jobId, ActionListener<Long> listener) {
@@ -197,25 +195,27 @@ public class ExpiredResultsRemover extends AbstractExpiredJobDataRemover {
         searchRequest.indicesOptions(MlIndicesUtils.addIgnoreUnavailable(SearchRequest.DEFAULT_INDICES_OPTIONS));
         searchRequest.setParentTask(parentTaskId);
 
-        client.search(searchRequest, ActionListener.wrap(response -> {
+        client.search(searchRequest, listener.delegateFailureAndWrap((delegate, response) -> {
             SearchHit[] hits = response.getHits().getHits();
             if (hits.length == 0) {
                 // no buckets found
-                listener.onResponse(null);
+                delegate.onResponse(null);
             } else {
 
                 try (
-                    InputStream stream = hits[0].getSourceRef().streamInput();
-                    XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                        .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)
+                    XContentParser parser = XContentHelper.createParserNotCompressed(
+                        LoggingDeprecationHandler.XCONTENT_PARSER_CONFIG,
+                        hits[0].getSourceRef(),
+                        XContentType.JSON
+                    )
                 ) {
                     Bucket bucket = Bucket.LENIENT_PARSER.apply(parser, null);
-                    listener.onResponse(bucket.getTimestamp().getTime());
+                    delegate.onResponse(bucket.getTimestamp().getTime());
                 } catch (IOException e) {
-                    listener.onFailure(new ElasticsearchParseException("failed to parse bucket", e));
+                    delegate.onFailure(new ElasticsearchParseException("failed to parse bucket", e));
                 }
             }
-        }, listener::onFailure));
+        }));
     }
 
     private void auditResultsWereDeleted(String jobId, long cutoffEpochMs) {

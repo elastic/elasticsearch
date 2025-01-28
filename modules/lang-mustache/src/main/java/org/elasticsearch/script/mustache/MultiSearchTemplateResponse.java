@@ -1,21 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.script.mustache;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.AbstractRefCounted;
@@ -26,7 +24,6 @@ import org.elasticsearch.transport.LeakTracker;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -39,16 +36,6 @@ public class MultiSearchTemplateResponse extends ActionResponse implements Itera
     public static class Item implements Writeable {
         private final SearchTemplateResponse response;
         private final Exception exception;
-
-        private Item(StreamInput in) throws IOException {
-            if (in.readBoolean()) {
-                this.response = new SearchTemplateResponse(in);
-                this.exception = null;
-            } else {
-                exception = in.readException();
-                this.response = null;
-            }
-        }
 
         public Item(SearchTemplateResponse response, Exception exception) {
             this.response = response;
@@ -116,16 +103,6 @@ public class MultiSearchTemplateResponse extends ActionResponse implements Itera
         }
     });
 
-    MultiSearchTemplateResponse(StreamInput in) throws IOException {
-        super(in);
-        items = in.readArray(Item::new, Item[]::new);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_0_0)) {
-            tookInMillis = in.readVLong();
-        } else {
-            tookInMillis = -1L;
-        }
-    }
-
     MultiSearchTemplateResponse(Item[] items, long tookInMillis) {
         this.items = items;
         this.tookInMillis = tookInMillis;
@@ -153,9 +130,7 @@ public class MultiSearchTemplateResponse extends ActionResponse implements Itera
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeArray(items);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_0_0)) {
-            out.writeVLong(tookInMillis);
-        }
+        out.writeVLong(tookInMillis);
     }
 
     @Override
@@ -202,28 +177,6 @@ public class MultiSearchTemplateResponse extends ActionResponse implements Itera
     static final class Fields {
         static final String RESPONSES = "responses";
         static final String STATUS = "status";
-    }
-
-    public static MultiSearchTemplateResponse fromXContext(XContentParser parser) {
-        // The MultiSearchTemplateResponse is identical to the multi search response so we reuse the parsing logic in multi search response
-        MultiSearchResponse mSearchResponse = MultiSearchResponse.fromXContext(parser);
-        try {
-            org.elasticsearch.action.search.MultiSearchResponse.Item[] responses = mSearchResponse.getResponses();
-            Item[] templateResponses = new Item[responses.length];
-            int i = 0;
-            for (org.elasticsearch.action.search.MultiSearchResponse.Item item : responses) {
-                SearchTemplateResponse stResponse = null;
-                if (item.getResponse() != null) {
-                    stResponse = new SearchTemplateResponse();
-                    stResponse.setResponse(item.getResponse());
-                    item.getResponse().incRef();
-                }
-                templateResponses[i++] = new Item(stResponse, item.getFailure());
-            }
-            return new MultiSearchTemplateResponse(templateResponses, mSearchResponse.getTook().millis());
-        } finally {
-            mSearchResponse.decRef();
-        }
     }
 
     @Override

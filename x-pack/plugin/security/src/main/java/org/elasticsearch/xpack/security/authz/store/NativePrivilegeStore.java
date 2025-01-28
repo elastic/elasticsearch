@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
@@ -25,12 +26,12 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -39,7 +40,6 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
@@ -100,6 +100,16 @@ public class NativePrivilegeStore {
         Setting.Property.NodeScope
     );
 
+    /**
+     * Determines how long get privileges calls will wait for an available security index.
+     * The default value of 0 bypasses all waiting-related logic entirely.
+     */
+    private static final TimeValue SECURITY_INDEX_WAIT_TIMEOUT = TimeValue.parseTimeValue(
+        System.getProperty("es.security.security_index.wait_timeout", null),
+        TimeValue.ZERO,
+        "system property <es.security.security_index.wait_timeout>"
+    );
+
     private static final Collector<Tuple<String, String>, ?, Map<String, List<String>>> TUPLES_TO_MAP = Collectors.toMap(
         Tuple::v1,
         t -> CollectionUtils.newSingletonArrayList(t.v2()),
@@ -145,6 +155,17 @@ public class NativePrivilegeStore {
         Collection<String> names,
         ActionListener<Collection<ApplicationPrivilegeDescriptor>> listener
     ) {
+        // timeout of 0 means skip wait attempt entirely
+        final boolean waitForAvailableSecurityIndex = false == SECURITY_INDEX_WAIT_TIMEOUT.equals(TimeValue.ZERO);
+        getPrivileges(applications, names, waitForAvailableSecurityIndex, listener);
+    }
+
+    public void getPrivileges(
+        Collection<String> applications,
+        Collection<String> names,
+        boolean waitForAvailableSecurityIndex,
+        ActionListener<Collection<ApplicationPrivilegeDescriptor>> listener
+    ) {
         if (false == isEmpty(names) && names.stream().noneMatch(ApplicationPrivilege::isValidPrivilegeName)) {
             logger.debug("no concrete privilege, only action patterns [{}], returning no application privilege descriptors", names);
             listener.onResponse(Collections.emptySet());
@@ -180,7 +201,7 @@ public class NativePrivilegeStore {
                 final long invalidationCount = descriptorsAndApplicationNamesCache == null
                     ? -1
                     : descriptorsAndApplicationNamesCache.getInvalidationCount();
-                innerGetPrivileges(applicationNamesCacheKey, ActionListener.wrap(fetchedDescriptors -> {
+                innerGetPrivileges(applicationNamesCacheKey, waitForAvailableSecurityIndex, ActionListener.wrap(fetchedDescriptors -> {
                     final Map<String, Set<ApplicationPrivilegeDescriptor>> mapOfFetchedDescriptors = fetchedDescriptors.stream()
                         .collect(Collectors.groupingBy(ApplicationPrivilegeDescriptor::getApplication, Collectors.toUnmodifiableSet()));
                     if (invalidationCount != -1) {
@@ -192,17 +213,37 @@ public class NativePrivilegeStore {
         }
     }
 
-    private void innerGetPrivileges(Collection<String> applications, ActionListener<Collection<ApplicationPrivilegeDescriptor>> listener) {
+    private void innerGetPrivileges(
+        Collection<String> applications,
+        boolean waitForAvailableSecurityIndex,
+        ActionListener<Collection<ApplicationPrivilegeDescriptor>> listener
+    ) {
         assert applications != null && applications.size() > 0 : "Application names are required (found " + applications + ")";
 
         final SecurityIndexManager frozenSecurityIndex = securityIndexManager.defensiveCopy();
         if (frozenSecurityIndex.indexExists() == false) {
             listener.onResponse(Collections.emptyList());
         } else if (frozenSecurityIndex.isAvailable(SEARCH_SHARDS) == false) {
-            listener.onFailure(frozenSecurityIndex.getUnavailableReason(SEARCH_SHARDS));
+            final ElasticsearchException unavailableReason = frozenSecurityIndex.getUnavailableReason(SEARCH_SHARDS);
+            if (false == waitForAvailableSecurityIndex || false == unavailableReason instanceof UnavailableShardsException) {
+                listener.onFailure(unavailableReason);
+                return;
+            }
+            securityIndexManager.onIndexAvailableForSearch(new ActionListener<>() {
+                @Override
+                public void onResponse(Void unused) {
+                    innerGetPrivileges(applications, false, listener);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    logger.warn("Failure while waiting for security index [" + frozenSecurityIndex.getConcreteIndexName() + "]", e);
+                    // Call get privileges once more to get most up-to-date failure (or result, in case of an unlucky time-out)
+                    innerGetPrivileges(applications, false, listener);
+                }
+            }, SECURITY_INDEX_WAIT_TIMEOUT);
         } else {
             securityIndexManager.checkIndexVersionThenExecute(listener::onFailure, () -> {
-
                 final TermQueryBuilder typeQuery = QueryBuilders.termQuery(
                     ApplicationPrivilegeDescriptor.Fields.TYPE.getPreferredName(),
                     DOC_TYPE_VALUE
@@ -227,7 +268,6 @@ public class NativePrivilegeStore {
                         .setFetchSource(true)
                         .request();
                     logger.trace(() -> format("Searching for [%s] privileges with query [%s]", applications, Strings.toString(query)));
-                    request.indicesOptions().ignoreUnavailable();
                     ScrollHelper.fetchAllByEntity(
                         client,
                         request,
@@ -237,6 +277,10 @@ public class NativePrivilegeStore {
                 }
             });
         }
+    }
+
+    public SecurityIndexManager getSecurityIndexManager() {
+        return securityIndexManager;
     }
 
     private Tuple<QueryBuilder, Predicate<String>> getApplicationNameQueryAndPredicate(Collection<String> applications) {
@@ -298,9 +342,11 @@ public class NativePrivilegeStore {
             // EMPTY is safe here because we never use namedObject
 
             try (
-                StreamInput input = source.streamInput();
-                XContentParser parser = XContentType.JSON.xContent()
-                    .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, input)
+                XContentParser parser = XContentHelper.createParserNotCompressed(
+                    LoggingDeprecationHandler.XCONTENT_PARSER_CONFIG,
+                    source,
+                    XContentType.JSON
+                )
             ) {
                 final ApplicationPrivilegeDescriptor privilege = ApplicationPrivilegeDescriptor.parse(parser, null, null, true);
                 assert privilege.getApplication().equals(name.v1())

@@ -26,7 +26,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 public class InferencePipelineAggregator extends PipelineAggregator {
 
@@ -101,17 +100,15 @@ public class InferencePipelineAggregator extends PipelineAggregator {
                 } catch (Exception e) {
                     inference = new WarningInferenceResults(e.getMessage());
                 }
-
-                final List<InternalAggregation> aggs = bucket.getAggregations()
-                    .asList()
-                    .stream()
-                    .map((p) -> (InternalAggregation) p)
-                    .collect(Collectors.toList());
-
-                InternalInferenceAggregation aggResult = new InternalInferenceAggregation(name(), metadata(), inference);
-                aggs.add(aggResult);
-                InternalMultiBucketAggregation.InternalBucket newBucket = originalAgg.createBucket(InternalAggregations.from(aggs), bucket);
-                newBuckets.add(newBucket);
+                newBuckets.add(
+                    originalAgg.createBucket(
+                        InternalAggregations.append(
+                            bucket.getAggregations(),
+                            new InternalInferenceAggregation(name(), metadata(), inference)
+                        ),
+                        bucket
+                    )
+                );
             }
 
             // the model is released at the end of this block.

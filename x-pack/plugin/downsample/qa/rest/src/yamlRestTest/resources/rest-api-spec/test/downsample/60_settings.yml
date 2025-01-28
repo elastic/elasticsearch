@@ -1,7 +1,7 @@
 ---
 "Downsample index with pipeline":
-  - skip:
-      version: " - 8.4.99"
+  - requires:
+      cluster_features: ["gte_v8.5.0"]
       reason: "rollup renamed to downsample in 8.5.0"
 
   - do:
@@ -92,12 +92,14 @@
 
 ---
 "Downsample datastream with tier preference":
-  - skip:
-      version: " - 8.4.99"
-      features: default_shards
-      reason: "rollup renamed to downsample in 8.5.0, avoid globalTemplateIndexSettings with overlapping index pattern"
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
+      reason: _tsid hashing introduced in 8.13
+      test_runner_features: allowed_warnings
 
   - do:
+      allowed_warnings:
+        - "index template [downsampling-template] has index patterns [test-datastream-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [downsampling-template] will take precedence during new index creation"
       indices.put_index_template:
         name: downsampling-template
         body:

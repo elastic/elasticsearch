@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations;
@@ -26,6 +27,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Function;
 
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 import static org.hamcrest.Matchers.equalTo;
@@ -187,6 +189,15 @@ public abstract class BaseAggregationTestCase<AB extends AbstractAggregationBuil
         AggregationBuilder clone = original.shallowCopy(original.factoriesBuilder, original.metadata);
         assertNotSame(original, clone);
         assertEquals(original, clone);
+    }
+
+    public void testPlainDeepCopyEquivalentToStreamCopy() throws IOException {
+        AB original = createTestAggregatorBuilder();
+        AggregationBuilder deepClone = AggregationBuilder.deepCopy(original, Function.identity());
+        assertNotSame(deepClone, original);
+        AggregationBuilder streamClone = copyAggregation(original);
+        assertNotSame(streamClone, original);
+        assertEquals(streamClone, deepClone);
     }
 
     // we use the streaming infra to create a copy of the query provided as

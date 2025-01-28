@@ -34,7 +34,8 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
 
     public static final Set<String> ALLOWED_ERRORS = Set.of(
         "Reference \\[.*\\] is ambiguous",
-        "Cannot use field \\[.*\\] due to ambiguities"
+        "Cannot use field \\[.*\\] due to ambiguities",
+        "cannot sort on .*"
     );
 
     public static final Set<Pattern> ALLOWED_ERROR_PATTERNS = ALLOWED_ERRORS.stream()
@@ -45,7 +46,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
     @Before
     public void setup() throws IOException {
         if (indexExists(CSV_DATASET_MAP.keySet().iterator().next()) == false) {
-            loadDataSetIntoEs(client());
+            loadDataSetIntoEs(client(), true);
         }
     }
 
@@ -96,7 +97,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
 
     private EsqlQueryGenerator.QueryExecuted execute(String command, int depth) {
         try {
-            Map<String, Object> a = RestEsqlTestCase.runEsql(new RestEsqlTestCase.RequestObjectBuilder().query(command).build());
+            Map<String, Object> a = RestEsqlTestCase.runEsqlSync(new RestEsqlTestCase.RequestObjectBuilder().query(command).build());
             List<EsqlQueryGenerator.Column> outputSchema = outputSchema(a);
             return new EsqlQueryGenerator.QueryExecuted(command, depth, outputSchema, null);
         } catch (Exception e) {

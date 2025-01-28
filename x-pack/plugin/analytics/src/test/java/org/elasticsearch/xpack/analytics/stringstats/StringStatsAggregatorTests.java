@@ -170,7 +170,7 @@ public class StringStatsAggregatorTests extends AggregatorTestCase {
     }
 
     public void testQueryFiltering() throws IOException {
-        testAggregation(new TermInSetQuery("text", new BytesRef("test0"), new BytesRef("test1")), iw -> {
+        testAggregation(new TermInSetQuery("text", List.of(new BytesRef("test0"), new BytesRef("test1"))), iw -> {
             for (int i = 0; i < 10; i++) {
                 iw.addDocument(singleton(new TextField("text", "test" + i, Field.Store.NO)));
             }
@@ -226,10 +226,11 @@ public class StringStatsAggregatorTests extends AggregatorTestCase {
         RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
         final int numDocs = 10;
         for (int i = 0; i < numDocs; i++) {
-            for (int j = 0; j < 4; j++)
+            for (int j = 0; j < 4; j++) {
                 indexWriter.addDocument(
                     List.of(new NumericDocValuesField("value", i + 1), new TextField("text", "test" + j, Field.Store.NO))
                 );
+            }
         }
         indexWriter.close();
 

@@ -46,7 +46,7 @@ public final class SpecReader {
 
     public static List<Object[]> readURLSpec(URL source, Parser parser) throws Exception {
         String fileName = pathAndName(source.getFile()).v2();
-        String groupName = fileName.substring(0, fileName.lastIndexOf("."));
+        String groupName = fileName.substring(0, fileName.lastIndexOf('.'));
 
         Map<String, Integer> testNames = new LinkedHashMap<>();
         List<Object[]> testCases = new ArrayList<>();

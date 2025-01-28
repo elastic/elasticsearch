@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.ccr;
 
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequest;
@@ -29,6 +30,7 @@ import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineFactory;
@@ -90,8 +92,9 @@ import org.elasticsearch.xpack.ccr.rest.RestPutAutoFollowPatternAction;
 import org.elasticsearch.xpack.ccr.rest.RestPutFollowAction;
 import org.elasticsearch.xpack.ccr.rest.RestResumeAutoFollowPatternAction;
 import org.elasticsearch.xpack.ccr.rest.RestResumeFollowAction;
+import org.elasticsearch.xpack.ccr.rest.RestShardChangesAction;
 import org.elasticsearch.xpack.ccr.rest.RestUnfollowAction;
-import org.elasticsearch.xpack.core.XPackFeatureSet;
+import org.elasticsearch.xpack.core.XPackFeatureUsage;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
@@ -111,6 +114,7 @@ import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.ShardFollowTask;
 import org.elasticsearch.xpack.core.ccr.action.UnfollowAction;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -118,6 +122,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
@@ -137,8 +142,35 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
     public static final String CCR_CUSTOM_METADATA_REMOTE_CLUSTER_NAME_KEY = "remote_cluster_name";
 
     public static final String REQUESTED_OPS_MISSING_METADATA_KEY = "es.requested_operations_missing";
-    public static final TransportVersion TRANSPORT_VERSION_ACTION_WITH_SHARD_ID = TransportVersions.V_8_500_020;
+    public static final TransportVersion TRANSPORT_VERSION_ACTION_WITH_SHARD_ID = TransportVersions.V_8_9_X;
+    private static final List<RestHandler> BASE_REST_HANDLERS = Arrays.asList(
+        // stats API
+        new RestFollowStatsAction(),
+        new RestCcrStatsAction(),
+        new RestFollowInfoAction(),
+        // follow APIs
+        new RestPutFollowAction(),
+        new RestResumeFollowAction(),
+        new RestPauseFollowAction(),
+        new RestUnfollowAction(),
+        // auto-follow APIs
+        new RestDeleteAutoFollowPatternAction(),
+        new RestPutAutoFollowPatternAction(),
+        new RestGetAutoFollowPatternAction(),
+        new RestPauseAutoFollowPatternAction(),
+        new RestResumeAutoFollowPatternAction(),
+        // forget follower API
+        new RestForgetFollowerAction()
+    );
 
+    private static final List<RestHandler> REST_HANDLERS = Collections.unmodifiableList(BASE_REST_HANDLERS);
+
+    private static final List<RestHandler> SNAPSHOT_BUILD_REST_HANDLERS;
+    static {
+        List<RestHandler> snapshotBuildHandlers = new ArrayList<>(BASE_REST_HANDLERS);
+        snapshotBuildHandlers.add(new RestShardChangesAction());
+        SNAPSHOT_BUILD_REST_HANDLERS = Collections.unmodifiableList(snapshotBuildHandlers);
+    }
     private final boolean enabled;
     private final Settings settings;
     private final CcrLicenseChecker ccrLicenseChecker;
@@ -190,7 +222,7 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
                 client,
                 services.clusterService(),
                 ccrLicenseChecker,
-                services.threadPool()::relativeTimeInMillis,
+                services.threadPool().relativeTimeInMillisSupplier(),
                 services.threadPool()::absoluteTimeInMillis,
                 services.threadPool().executor(Ccr.CCR_THREAD_POOL_NAME)
             )
@@ -257,36 +289,20 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
 
     public List<RestHandler> getRestHandlers(
         Settings unused,
+        NamedWriteableRegistry namedWriteableRegistry,
         RestController restController,
         ClusterSettings clusterSettings,
         IndexScopedSettings indexScopedSettings,
         SettingsFilter settingsFilter,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        Supplier<DiscoveryNodes> nodesInCluster
+        Supplier<DiscoveryNodes> nodesInCluster,
+        Predicate<NodeFeature> clusterSupportsFeature
     ) {
         if (enabled == false) {
             return emptyList();
         }
 
-        return Arrays.asList(
-            // stats API
-            new RestFollowStatsAction(),
-            new RestCcrStatsAction(),
-            new RestFollowInfoAction(),
-            // follow APIs
-            new RestPutFollowAction(),
-            new RestResumeFollowAction(),
-            new RestPauseFollowAction(),
-            new RestUnfollowAction(),
-            // auto-follow APIs
-            new RestDeleteAutoFollowPatternAction(),
-            new RestPutAutoFollowPatternAction(),
-            new RestGetAutoFollowPatternAction(),
-            new RestPauseAutoFollowPatternAction(),
-            new RestResumeAutoFollowPatternAction(),
-            // forget follower API
-            new RestForgetFollowerAction()
-        );
+        return Build.current().isSnapshot() ? SNAPSHOT_BUILD_REST_HANDLERS : REST_HANDLERS;
     }
 
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
@@ -302,7 +318,7 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
             ),
 
             // usage api
-            new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.CCR, CCRInfoTransportAction.Usage::new)
+            new NamedWriteableRegistry.Entry(XPackFeatureUsage.class, XPackField.CCR, CCRInfoTransportAction.Usage::new)
         );
     }
 

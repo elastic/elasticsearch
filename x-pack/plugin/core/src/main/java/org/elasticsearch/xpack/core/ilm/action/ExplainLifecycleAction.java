@@ -15,7 +15,7 @@ public class ExplainLifecycleAction extends ActionType<ExplainLifecycleResponse>
     public static final String NAME = "indices:admin/ilm/explain";
 
     protected ExplainLifecycleAction() {
-        super(NAME, ExplainLifecycleResponse::new);
+        super(NAME);
     }
 
 }

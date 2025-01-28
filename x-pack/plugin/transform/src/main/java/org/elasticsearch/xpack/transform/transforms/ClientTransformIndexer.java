@@ -14,10 +14,10 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
-import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.search.ClosePointInTimeRequest;
 import org.elasticsearch.action.search.OpenPointInTimeRequest;
 import org.elasticsearch.action.search.SearchRequest;
@@ -25,9 +25,15 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.TransportClosePointInTimeAction;
 import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
 import org.elasticsearch.action.search.TransportSearchAction;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -43,10 +49,12 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ActionNotFoundTransportException;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
+import org.elasticsearch.xpack.core.transform.TransformMetadata;
 import org.elasticsearch.xpack.core.transform.action.ValidateTransformAction;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TransformEffectiveSettings;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerPosition;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
@@ -54,9 +62,11 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformStoredDoc;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
 import org.elasticsearch.xpack.core.transform.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.transform.TransformExtension;
 import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.checkpoint.CheckpointProvider;
 import org.elasticsearch.xpack.transform.persistence.SeqNoPrimaryTermAndIndex;
+import org.elasticsearch.xpack.transform.persistence.TransformIndex;
 import org.elasticsearch.xpack.transform.transforms.pivot.SchemaUtil;
 import org.elasticsearch.xpack.transform.utils.ExceptionRootCauseFinder;
 
@@ -75,6 +85,9 @@ class ClientTransformIndexer extends TransformIndexer {
     private static final Logger logger = LogManager.getLogger(ClientTransformIndexer.class);
 
     private final ParentTaskAssigningClient client;
+    private final ClusterService clusterService;
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
+    private final Settings destIndexSettings;
     private final AtomicBoolean oldStatsCleanedUp = new AtomicBoolean(false);
 
     private final AtomicReference<SeqNoPrimaryTermAndIndex> seqNoPrimaryTermAndIndexHolder;
@@ -84,6 +97,9 @@ class ClientTransformIndexer extends TransformIndexer {
 
     ClientTransformIndexer(
         ThreadPool threadPool,
+        ClusterService clusterService,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        TransformExtension transformExtension,
         TransformServices transformServices,
         CheckpointProvider checkpointProvider,
         AtomicReference<IndexerState> initialState,
@@ -112,22 +128,20 @@ class ClientTransformIndexer extends TransformIndexer {
             context
         );
         this.client = ExceptionsHelper.requireNonNull(client, "client");
+        this.clusterService = clusterService;
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
+        this.destIndexSettings = transformExtension.getTransformDestinationIndexSettings();
         this.seqNoPrimaryTermAndIndexHolder = new AtomicReference<>(seqNoPrimaryTermAndIndex);
 
         // TODO: move into context constructor
         context.setShouldStopAtCheckpoint(shouldStopAtCheckpoint);
 
-        if (transformConfig.getSettings().getUsePit() != null) {
-            disablePit = transformConfig.getSettings().getUsePit() == false;
-        }
+        disablePit = TransformEffectiveSettings.isPitDisabled(transformConfig.getSettings());
     }
 
     @Override
     public void applyNewSettings(SettingsConfig newSettings) {
-        if (newSettings.getUsePit() != null) {
-            disablePit = newSettings.getUsePit() == false;
-        }
-
+        disablePit = TransformEffectiveSettings.isPitDisabled(newSettings);
         super.applyNewSettings(newSettings);
     }
 
@@ -160,7 +174,7 @@ class ClientTransformIndexer extends TransformIndexer {
             transformConfig.getHeaders(),
             ClientHelper.TRANSFORM_ORIGIN,
             client,
-            BulkAction.INSTANCE,
+            TransportBulkAction.TYPE,
             request,
             ActionListener.wrap(bulkResponse -> handleBulkResponse(bulkResponse, nextPhase), nextPhase::onFailure)
         );
@@ -182,7 +196,11 @@ class ClientTransformIndexer extends TransformIndexer {
 
         for (BulkItemResponse item : bulkResponse.getItems()) {
             if (item.isFailed()) {
-                deduplicatedFailures.putIfAbsent(item.getFailure().getCause().getClass().getSimpleName(), item);
+                var exceptionClass = item.getFailure().getCause().getClass();
+                if (IndexNotFoundException.class.isAssignableFrom(exceptionClass)) {
+                    context.setShouldRecreateDestinationIndex(true);
+                }
+                deduplicatedFailures.putIfAbsent(exceptionClass.getSimpleName(), item);
                 failureCount++;
             }
         }
@@ -288,13 +306,27 @@ class ClientTransformIndexer extends TransformIndexer {
         SchemaUtil.getDestinationFieldMappings(client, getConfig().getDestination().getIndex(), fieldMappingsListener);
     }
 
-    void validate(ActionListener<Void> listener) {
+    @Override
+    void doMaybeCreateDestIndex(Map<String, String> deducedDestIndexMappings, ActionListener<Boolean> listener) {
+        TransformIndex.createDestinationIndex(
+            client,
+            auditor,
+            indexNameExpressionResolver,
+            clusterService.state(),
+            transformConfig,
+            destIndexSettings,
+            deducedDestIndexMappings,
+            listener
+        );
+    }
+
+    void validate(ActionListener<ValidateTransformAction.Response> listener) {
         ClientHelper.executeAsyncWithOrigin(
             client,
             ClientHelper.TRANSFORM_ORIGIN,
             ValidateTransformAction.INSTANCE,
             new ValidateTransformAction.Request(transformConfig, false, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT),
-            ActionListener.wrap(response -> listener.onResponse(null), listener::onFailure)
+            listener
         );
     }
 
@@ -408,6 +440,42 @@ class ClientTransformIndexer extends TransformIndexer {
     }
 
     @Override
+    public boolean maybeTriggerAsyncJob(long now) {
+        if (TransformMetadata.upgradeMode(clusterService.state())) {
+            logger.debug("[{}] schedule was triggered but the Transform is upgrading. Ignoring trigger.", getJobId());
+            return false;
+        }
+        if (context.isWaitingForIndexToUnblock()) {
+            if (destinationIndexHasWriteBlock()) {
+                logger.debug("[{}] schedule was triggered but the destination index has a write block. Ignoring trigger.", getJobId());
+                return false;
+            }
+            logger.debug("[{}] destination index is no longer blocked.", getJobId());
+            context.setIsWaitingForIndexToUnblock(false);
+        }
+
+        return super.maybeTriggerAsyncJob(now);
+    }
+
+    private boolean destinationIndexHasWriteBlock() {
+        var clusterState = clusterService.state();
+        if (clusterState == null) {
+            // if we can't determine if the index is blocked, we assume it isn't, even though the bulk request may fail again
+            return false;
+        }
+
+        var destinationIndexName = transformConfig.getDestination().getIndex();
+        var destinationIndex = indexNameExpressionResolver.concreteWriteIndex(
+            clusterState,
+            IndicesOptions.lenientExpandOpen(),
+            destinationIndexName,
+            true,
+            false
+        );
+        return destinationIndex != null && clusterState.blocks().indexBlocked(ClusterBlockLevel.WRITE, destinationIndex.getName());
+    }
+
+    @Override
     protected void onStop() {
         closePointInTime();
         super.onStop();
@@ -426,7 +494,7 @@ class ClientTransformIndexer extends TransformIndexer {
             return;
         }
 
-        String oldPit = pit.getEncodedId();
+        BytesReference oldPit = pit.getEncodedId();
 
         ClosePointInTimeRequest closePitRequest = new ClosePointInTimeRequest(oldPit);
         ClientHelper.executeWithHeadersAsync(
@@ -450,6 +518,7 @@ class ClientTransformIndexer extends TransformIndexer {
     ) {
         SearchRequest searchRequest = namedSearchRequest.v2();
         // We explicitly disable PIT in the presence of remote clusters in the source due to huge PIT handles causing performance problems.
+        // We should not re-enable until this is resolved: https://github.com/elastic/elasticsearch/issues/80187
         if (disablePit || searchRequest.indices().length == 0 || transformConfig.getSource().requiresRemoteCluster()) {
             listener.onResponse(namedSearchRequest);
             return;

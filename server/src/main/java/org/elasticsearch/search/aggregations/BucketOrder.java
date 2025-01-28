@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations;
 
@@ -11,6 +12,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
+import org.elasticsearch.search.aggregations.bucket.terms.BucketAndOrd;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
 import org.elasticsearch.xcontent.ToXContentObject;
 
@@ -18,13 +20,13 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
-import java.util.function.ToLongFunction;
+import java.util.function.BiFunction;
 
 /**
  * {@link Bucket} ordering strategy. Buckets can be order either as
  * "complete" buckets using {@link #comparator()} or against a combination
  * of the buckets internals with its ordinal with
- * {@link #partiallyBuiltBucketComparator(ToLongFunction, Aggregator)}.
+ * {@link #partiallyBuiltBucketComparator(Aggregator)}.
  */
 public abstract class BucketOrder implements ToXContentObject, Writeable {
     /**
@@ -100,7 +102,7 @@ public abstract class BucketOrder implements ToXContentObject, Writeable {
          * to validate this order because doing so checks all of the appropriate
          * paths.
          */
-        partiallyBuiltBucketComparator(null, aggregator);
+        partiallyBuiltBucketComparator(aggregator);
     }
 
     /**
@@ -119,7 +121,7 @@ public abstract class BucketOrder implements ToXContentObject, Writeable {
      * with it all the time.
      * </p>
      */
-    public abstract <T extends Bucket> Comparator<T> partiallyBuiltBucketComparator(ToLongFunction<T> ordinalReader, Aggregator aggregator);
+    public abstract <T extends Bucket> Comparator<BucketAndOrd<T>> partiallyBuiltBucketComparator(Aggregator aggregator);
 
     /**
      * Build a comparator for fully built buckets.
@@ -128,8 +130,14 @@ public abstract class BucketOrder implements ToXContentObject, Writeable {
 
     /**
      * Build a comparator for {@link DelayedBucket}, a wrapper that delays bucket reduction.
+     *
+     * The comparator might need to reduce the {@link DelayedBucket} and therefore we need to provide the
+     * reducer and the reduce context.The context must be on the final reduce phase.
      */
-    abstract Comparator<DelayedBucket<? extends Bucket>> delayedBucketComparator();
+    abstract <B extends InternalMultiBucketAggregation.InternalBucket> Comparator<DelayedBucket<B>> delayedBucketComparator(
+        BiFunction<List<B>, AggregationReduceContext, B> reduce,
+        AggregationReduceContext reduceContext
+    );
 
     /**
      * @return unique internal ID used for reading/writing this order from/to a stream.

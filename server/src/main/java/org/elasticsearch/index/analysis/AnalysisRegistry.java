@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.analysis;
 
@@ -188,7 +189,11 @@ public final class AnalysisRegistry implements Closeable {
                 }
             });
         }
-        return analyzerProvider.get(environment, analyzer).get();
+
+        return overridePositionIncrementGap(
+            (NamedAnalyzer) analyzerProvider.get(environment, analyzer).get(),
+            TextFieldMapper.Defaults.POSITION_INCREMENT_GAP
+        );
     }
 
     @Override
@@ -719,17 +724,19 @@ public final class AnalysisRegistry implements Closeable {
             throw new IllegalArgumentException("analyzer [" + analyzerFactory.name() + "] created null analyzer");
         }
         NamedAnalyzer analyzer;
-        if (analyzerF instanceof NamedAnalyzer) {
-            // if we got a named analyzer back, use it...
-            analyzer = (NamedAnalyzer) analyzerF;
-            if (overridePositionIncrementGap >= 0 && analyzer.getPositionIncrementGap(analyzer.name()) != overridePositionIncrementGap) {
-                // unless the positionIncrementGap needs to be overridden
-                analyzer = new NamedAnalyzer(analyzer, overridePositionIncrementGap);
-            }
+        if (analyzerF instanceof NamedAnalyzer namedAnalyzer) {
+            analyzer = overridePositionIncrementGap(namedAnalyzer, overridePositionIncrementGap);
         } else {
             analyzer = new NamedAnalyzer(name, analyzerFactory.scope(), analyzerF, overridePositionIncrementGap);
         }
         checkVersions(analyzer);
+        return analyzer;
+    }
+
+    private static NamedAnalyzer overridePositionIncrementGap(NamedAnalyzer analyzer, int overridePositionIncrementGap) {
+        if (overridePositionIncrementGap >= 0 && analyzer.getPositionIncrementGap(analyzer.name()) != overridePositionIncrementGap) {
+            analyzer = new NamedAnalyzer(analyzer, overridePositionIncrementGap);
+        }
         return analyzer;
     }
 

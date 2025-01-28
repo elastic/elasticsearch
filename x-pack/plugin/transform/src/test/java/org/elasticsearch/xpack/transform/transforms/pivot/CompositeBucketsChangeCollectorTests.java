@@ -11,9 +11,10 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
-import org.elasticsearch.search.aggregations.Aggregations;
-import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
+import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.composite.InternalComposite;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
@@ -26,7 +27,6 @@ import org.elasticsearch.xpack.core.transform.transforms.pivot.TermsGroupSource;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.TermsGroupSourceTests;
 import org.elasticsearch.xpack.transform.transforms.Function.ChangeCollector;
 import org.elasticsearch.xpack.transform.transforms.pivot.CompositeBucketsChangeCollector.FieldCollector;
-import org.mockito.stubbing.Answer;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -91,28 +91,28 @@ public class CompositeBucketsChangeCollectorTests extends ESTestCase {
 
         ChangeCollector collector = CompositeBucketsChangeCollector.buildChangeCollector(groups, null);
 
-        CompositeAggregation composite = mock(CompositeAggregation.class);
+        InternalComposite composite = mock(InternalComposite.class);
         when(composite.getName()).thenReturn("_transform_change_collector");
-        when(composite.getBuckets()).thenAnswer((Answer<List<CompositeAggregation.Bucket>>) invocationOnMock -> {
-            List<CompositeAggregation.Bucket> compositeBuckets = new ArrayList<>();
-            CompositeAggregation.Bucket bucket = mock(CompositeAggregation.Bucket.class);
+        when(composite.getBuckets()).thenAnswer(invocationOnMock -> {
+            List<InternalComposite.InternalBucket> compositeBuckets = new ArrayList<>();
+            InternalComposite.InternalBucket bucket = mock(InternalComposite.InternalBucket.class);
             when(bucket.getKey()).thenReturn(Collections.singletonMap("id", "id1"));
             compositeBuckets.add(bucket);
 
-            bucket = mock(CompositeAggregation.Bucket.class);
+            bucket = mock(InternalComposite.InternalBucket.class);
             when(bucket.getKey()).thenReturn(Collections.singletonMap("id", "id2"));
             compositeBuckets.add(bucket);
 
-            bucket = mock(CompositeAggregation.Bucket.class);
+            bucket = mock(InternalComposite.InternalBucket.class);
             when(bucket.getKey()).thenReturn(Collections.singletonMap("id", "id3"));
             compositeBuckets.add(bucket);
 
             return compositeBuckets;
         });
-        Aggregations aggs = new Aggregations(Collections.singletonList(composite));
+        InternalAggregations aggs = InternalAggregations.from(Collections.singletonList(composite));
 
         SearchResponse response = new SearchResponse(
-            null,
+            SearchHits.EMPTY_WITH_TOTAL_HITS,
             aggs,
             null,
             false,

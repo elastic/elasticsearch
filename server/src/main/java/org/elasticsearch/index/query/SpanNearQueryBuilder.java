@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.query;
@@ -40,9 +41,9 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
     public static final String NAME = "span_near";
 
     /** Default for flag controlling whether matches are required to be in-order */
-    public static boolean DEFAULT_IN_ORDER = true;
+    public static final boolean DEFAULT_IN_ORDER = true;
     /** Default slop value, this is the same that lucene {@link SpanNearQuery} uses if no slop is provided */
-    public static int DEFAULT_SLOP = 0;
+    public static final int DEFAULT_SLOP = 0;
 
     private static final ParseField SLOP_FIELD = new ParseField("slop");
     private static final ParseField CLAUSES_FIELD = new ParseField("clauses");

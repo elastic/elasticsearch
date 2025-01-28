@@ -15,7 +15,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.LatchedActionListener;
-import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskAction;
+import org.elasticsearch.action.admin.cluster.node.tasks.get.TransportGetTaskAction;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
@@ -88,7 +88,7 @@ public class EnrichPolicyExecutorTests extends ESTestCase {
         // Launch a fake policy run that will block until firstTaskBlock is counted down.
         final CountDownLatch firstTaskComplete = new CountDownLatch(1);
         testExecutor.coordinatePolicyExecution(
-            new ExecuteEnrichPolicyAction.Request(testPolicyName),
+            new ExecuteEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, testPolicyName),
             new LatchedActionListener<>(ActionListener.noop(), firstTaskComplete)
         );
 
@@ -97,7 +97,10 @@ public class EnrichPolicyExecutorTests extends ESTestCase {
             EsRejectedExecutionException.class,
             "Expected exception but nothing was thrown",
             () -> {
-                testExecutor.coordinatePolicyExecution(new ExecuteEnrichPolicyAction.Request(testPolicyName), ActionListener.noop());
+                testExecutor.coordinatePolicyExecution(
+                    new ExecuteEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, testPolicyName),
+                    ActionListener.noop()
+                );
                 // Should throw exception on the previous statement, but if it doesn't, be a
                 // good citizen and conclude the fake runs to keep the logs clean from interrupted exceptions
                 latch.countDown();
@@ -118,7 +121,7 @@ public class EnrichPolicyExecutorTests extends ESTestCase {
         // Ensure that the lock from the previous run has been cleared
         CountDownLatch secondTaskComplete = new CountDownLatch(1);
         testExecutor.coordinatePolicyExecution(
-            new ExecuteEnrichPolicyAction.Request(testPolicyName),
+            new ExecuteEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, testPolicyName),
             new LatchedActionListener<>(ActionListener.noop(), secondTaskComplete)
         );
         secondTaskComplete.await();
@@ -144,13 +147,13 @@ public class EnrichPolicyExecutorTests extends ESTestCase {
         // Launch a two fake policy runs that will block until counted down to use up the maximum concurrent
         final CountDownLatch firstTaskComplete = new CountDownLatch(1);
         testExecutor.coordinatePolicyExecution(
-            new ExecuteEnrichPolicyAction.Request(testPolicyBaseName + "1"),
+            new ExecuteEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, testPolicyBaseName + "1"),
             new LatchedActionListener<>(ActionListener.noop(), firstTaskComplete)
         );
 
         final CountDownLatch secondTaskComplete = new CountDownLatch(1);
         testExecutor.coordinatePolicyExecution(
-            new ExecuteEnrichPolicyAction.Request(testPolicyBaseName + "2"),
+            new ExecuteEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, testPolicyBaseName + "2"),
             new LatchedActionListener<>(ActionListener.noop(), secondTaskComplete)
         );
 
@@ -160,7 +163,7 @@ public class EnrichPolicyExecutorTests extends ESTestCase {
             "Expected exception but nothing was thrown",
             () -> {
                 testExecutor.coordinatePolicyExecution(
-                    new ExecuteEnrichPolicyAction.Request(testPolicyBaseName + "3"),
+                    new ExecuteEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, testPolicyBaseName + "3"),
                     ActionListener.noop()
                 );
                 // Should throw exception on the previous statement, but if it doesn't, be a
@@ -188,7 +191,7 @@ public class EnrichPolicyExecutorTests extends ESTestCase {
         assertThat(locks.lockedPolices(), is(empty()));
         CountDownLatch finalTaskComplete = new CountDownLatch(1);
         testExecutor.coordinatePolicyExecution(
-            new ExecuteEnrichPolicyAction.Request(testPolicyBaseName + "1"),
+            new ExecuteEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, testPolicyBaseName + "1"),
             new LatchedActionListener<>(ActionListener.noop(), finalTaskComplete)
         );
         finalTaskComplete.await();
@@ -229,7 +232,7 @@ public class EnrichPolicyExecutorTests extends ESTestCase {
                         Thread.currentThread().interrupt();
                     }
 
-                    if (GetTaskAction.INSTANCE.equals(action)) {
+                    if (TransportGetTaskAction.TYPE.equals(action)) {
                         if (shouldGetTaskApiReturnTimeout.get() == false) {
                             // This is the second call to the Get Task API, so count down the latch to let the main test logic know.
                             secondGetTaskWasCalled.countDown();
@@ -279,7 +282,7 @@ public class EnrichPolicyExecutorTests extends ESTestCase {
         // Launch a fake policy run that will block until firstTaskBlock is counted down.
         PlainActionFuture<ExecuteEnrichPolicyAction.Response> firstTaskResult = new PlainActionFuture<>();
         testExecutor.coordinatePolicyExecution(
-            new ExecuteEnrichPolicyAction.Request(testPolicyName).setWaitForCompletion(false),
+            new ExecuteEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, testPolicyName).setWaitForCompletion(false),
             firstTaskResult
         );
 

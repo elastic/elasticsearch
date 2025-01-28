@@ -10,14 +10,14 @@ package org.elasticsearch.xpack.core.ilm;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.rollover.Condition;
-import org.elasticsearch.action.admin.indices.rollover.MaxPrimaryShardDocsCondition;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConditions;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
+import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -25,9 +25,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.xpack.core.ilm.step.info.EmptyInfo;
 
-import java.util.HashMap;
-import java.util.Locale;
-import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -87,13 +84,16 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
         IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(index.getName());
         assert indexAbstraction != null : "invalid cluster metadata. index [" + index.getName() + "] was not found";
         final String rolloverTarget;
+        final boolean targetFailureStore;
         DataStream dataStream = indexAbstraction.getParentDataStream();
         if (dataStream != null) {
-            assert dataStream.getWriteIndex() != null : "datastream " + dataStream.getName() + " has no write index";
-            if (dataStream.getWriteIndex().equals(index) == false) {
+            targetFailureStore = dataStream.isFailureStoreIndex(index.getName());
+            boolean isFailureStoreWriteIndex = index.equals(dataStream.getWriteFailureIndex());
+            if (isFailureStoreWriteIndex == false && dataStream.getWriteIndex().equals(index) == false) {
                 logger.warn(
-                    "index [{}] is not the write index for data stream [{}]. skipping rollover for policy [{}]",
+                    "index [{}] is not the {}write index for data stream [{}]. skipping rollover for policy [{}]",
                     index.getName(),
+                    targetFailureStore ? "failure store " : "",
                     dataStream.getName(),
                     metadata.index(index).getLifecyclePolicyName()
                 );
@@ -108,8 +108,7 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
             if (Strings.isNullOrEmpty(rolloverAlias)) {
                 listener.onFailure(
                     new IllegalArgumentException(
-                        String.format(
-                            Locale.ROOT,
+                        Strings.format(
                             "setting [%s] for index [%s] is empty or not defined",
                             RolloverAction.LIFECYCLE_ROLLOVER_ALIAS,
                             index.getName()
@@ -147,7 +146,7 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
 
             boolean indexingComplete = LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE_SETTING.get(indexMetadata.getSettings());
             if (indexingComplete) {
-                logger.trace(index + " has lifecycle complete set, skipping " + WaitForRolloverReadyStep.NAME);
+                logger.trace("{} has lifecycle complete set, skipping {}", index, WaitForRolloverReadyStep.NAME);
                 // If this index is still the write index for this alias, skipping rollover and continuing with the policy almost certainly
                 // isn't what we want, as something likely still expects to be writing to this index.
                 // If the alias doesn't point to this index, that's okay as that will be the result if this index is using a
@@ -155,8 +154,7 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
                 if (aliasPointsToThisIndex && Boolean.TRUE.equals(isWriteIndex)) {
                     listener.onFailure(
                         new IllegalStateException(
-                            String.format(
-                                Locale.ROOT,
+                            Strings.format(
                                 "index [%s] has [%s] set to [true], but is still the write index for alias [%s]",
                                 index.getName(),
                                 LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE,
@@ -175,8 +173,7 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
             if (aliasPointsToThisIndex == false) {
                 listener.onFailure(
                     new IllegalArgumentException(
-                        String.format(
-                            Locale.ROOT,
+                        Strings.format(
                             "%s [%s] does not point to index [%s]",
                             RolloverAction.LIFECYCLE_ROLLOVER_ALIAS,
                             rolloverAlias,
@@ -191,19 +188,25 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
             if (Boolean.FALSE.equals(isWriteIndex)) {
                 listener.onFailure(
                     new IllegalArgumentException(
-                        String.format(Locale.ROOT, "index [%s] is not the write index for alias [%s]", index.getName(), rolloverAlias)
+                        Strings.format("index [%s] is not the write index for alias [%s]", index.getName(), rolloverAlias)
                     )
                 );
                 return;
             }
 
             rolloverTarget = rolloverAlias;
+            targetFailureStore = false;
         }
 
         // if we should only rollover if not empty, *and* if neither an explicit min_docs nor an explicit min_primary_shard_docs
         // has been specified on this policy, then inject a default min_docs: 1 condition so that we do not rollover empty indices
         boolean rolloverOnlyIfHasDocuments = LifecycleSettings.LIFECYCLE_ROLLOVER_ONLY_IF_HAS_DOCUMENTS_SETTING.get(metadata.settings());
-        RolloverRequest rolloverRequest = createRolloverRequest(rolloverTarget, masterTimeout, rolloverOnlyIfHasDocuments);
+        RolloverRequest rolloverRequest = createRolloverRequest(
+            rolloverTarget,
+            masterTimeout,
+            rolloverOnlyIfHasDocuments,
+            targetFailureStore
+        );
 
         getClient().admin().indices().rolloverIndex(rolloverRequest, ActionListener.wrap(response -> {
             final var conditionStatus = response.getConditionStatus();
@@ -230,23 +233,39 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
      * @return A RolloverRequest suitable for passing to {@code rolloverIndex(...) }.
      */
     // visible for testing
-    RolloverRequest createRolloverRequest(String rolloverTarget, TimeValue masterTimeout, boolean rolloverOnlyIfHasDocuments) {
+    RolloverRequest createRolloverRequest(
+        String rolloverTarget,
+        TimeValue masterTimeout,
+        boolean rolloverOnlyIfHasDocuments,
+        boolean targetFailureStore
+    ) {
         RolloverRequest rolloverRequest = new RolloverRequest(rolloverTarget, null).masterNodeTimeout(masterTimeout);
         rolloverRequest.dryRun(true);
-        if (rolloverOnlyIfHasDocuments && (conditions.getMinDocs() == null && conditions.getMinPrimaryShardDocs() == null)) {
-            rolloverRequest.setConditions(RolloverConditions.newBuilder(conditions).addMinIndexDocsCondition(1L).build());
-        } else {
-            rolloverRequest.setConditions(conditions);
-        }
-        long currentMaxPrimaryShardDocs = rolloverRequest.getConditions().getMaxPrimaryShardDocs() != null
-            ? rolloverRequest.getConditions().getMaxPrimaryShardDocs()
-            : Long.MAX_VALUE;
-        if (currentMaxPrimaryShardDocs > MAX_PRIMARY_SHARD_DOCS) {
-            Map<String, Condition<?>> conditions = new HashMap<>(rolloverRequest.getConditions().getConditions());
-            conditions.put(MaxPrimaryShardDocsCondition.NAME, new MaxPrimaryShardDocsCondition(MAX_PRIMARY_SHARD_DOCS));
-            rolloverRequest.setConditions(new RolloverConditions(conditions));
+        rolloverRequest.setConditions(applyDefaultConditions(conditions, rolloverOnlyIfHasDocuments));
+        if (targetFailureStore) {
+            rolloverRequest.setRolloverTarget(IndexNameExpressionResolver.combineSelector(rolloverTarget, IndexComponentSelector.FAILURES));
         }
         return rolloverRequest;
+    }
+
+    /**
+     * Apply default conditions to the set of user-defined conditions.
+     *
+     * @param conditions the existing conditions
+     * @param rolloverOnlyIfHasDocuments whether to inject a min_docs 1 condition if there is not already a min_docs
+     *                                   (or min_primary_shard_docs) condition
+     * @return the rollover conditions with the default conditions applied.
+     */
+    public static RolloverConditions applyDefaultConditions(RolloverConditions conditions, boolean rolloverOnlyIfHasDocuments) {
+        var builder = RolloverConditions.newBuilder(conditions);
+        if (rolloverOnlyIfHasDocuments && (conditions.getMinDocs() == null && conditions.getMinPrimaryShardDocs() == null)) {
+            builder.addMinIndexDocsCondition(1L);
+        }
+        long currentMaxPrimaryShardDocs = conditions.getMaxPrimaryShardDocs() != null
+            ? conditions.getMaxPrimaryShardDocs()
+            : Long.MAX_VALUE;
+        builder.addMaxPrimaryShardDocsCondition(Math.min(currentMaxPrimaryShardDocs, MAX_PRIMARY_SHARD_DOCS));
+        return builder.build();
     }
 
     public RolloverConditions getConditions() {

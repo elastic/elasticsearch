@@ -9,9 +9,9 @@ package org.elasticsearch.xpack.application.connector.action;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.test.AbstractBWCSerializationTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.application.connector.ConnectorTestUtils;
-import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
 
 import java.io.IOException;
 
@@ -28,7 +28,11 @@ public class UpdateConnectorConfigurationActionRequestBWCSerializingTests extend
     @Override
     protected UpdateConnectorConfigurationAction.Request createTestInstance() {
         this.connectorId = randomUUID();
-        return new UpdateConnectorConfigurationAction.Request(connectorId, ConnectorTestUtils.getRandomConnectorConfiguration());
+        return new UpdateConnectorConfigurationAction.Request(
+            connectorId,
+            ConnectorTestUtils.getRandomConnectorConfiguration(),
+            ConnectorTestUtils.getRandomConnectorConfigurationValues()
+        );
     }
 
     @Override

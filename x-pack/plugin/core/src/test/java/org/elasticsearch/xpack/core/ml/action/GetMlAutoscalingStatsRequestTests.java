@@ -23,11 +23,11 @@ public class GetMlAutoscalingStatsRequestTests extends AbstractWireSerializingTe
 
     @Override
     protected Request createTestInstance() {
-        return new Request(TimeValue.parseTimeValue(randomTimeValue(0, 10_000), "timeout"));
+        return new Request(TEST_REQUEST_TIMEOUT, randomTimeValue(0, 10_000));
     }
 
     @Override
     protected Request mutateInstance(Request instance) throws IOException {
-        return new Request(TimeValue.timeValueMillis(instance.timeout().millis() + randomIntBetween(1, 1000)));
+        return new Request(TEST_REQUEST_TIMEOUT, TimeValue.timeValueMillis(instance.requestTimeout().millis() + randomIntBetween(1, 1000)));
     }
 }

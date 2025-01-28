@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.benchmark.compute.operator;
@@ -31,6 +32,7 @@ import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
@@ -40,8 +42,10 @@ import org.elasticsearch.compute.lucene.LuceneSourceOperator;
 import org.elasticsearch.compute.lucene.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.topn.TopNOperator;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -96,8 +100,12 @@ public class ValuesSourceReaderBenchmark {
                     for (String name : ValuesSourceReaderBenchmark.class.getField("name").getAnnotationsByType(Param.class)[0].value()) {
                         benchmark.layout = layout;
                         benchmark.name = name;
-                        benchmark.setupPages();
-                        benchmark.benchmark();
+                        try {
+                            benchmark.setupPages();
+                            benchmark.benchmark();
+                        } catch (Exception e) {
+                            throw new AssertionError("error initializing [" + layout + "/" + name + "]", e);
+                        }
                     }
                 }
             } finally {
@@ -111,11 +119,11 @@ public class ValuesSourceReaderBenchmark {
     private static List<ValuesSourceReaderOperator.FieldInfo> fields(String name) {
         return switch (name) {
             case "3_stored_keywords" -> List.of(
-                new ValuesSourceReaderOperator.FieldInfo("keyword_1", List.of(blockLoader("stored_keyword_1"))),
-                new ValuesSourceReaderOperator.FieldInfo("keyword_2", List.of(blockLoader("stored_keyword_2"))),
-                new ValuesSourceReaderOperator.FieldInfo("keyword_3", List.of(blockLoader("stored_keyword_3")))
+                new ValuesSourceReaderOperator.FieldInfo("keyword_1", ElementType.BYTES_REF, shardIdx -> blockLoader("stored_keyword_1")),
+                new ValuesSourceReaderOperator.FieldInfo("keyword_2", ElementType.BYTES_REF, shardIdx -> blockLoader("stored_keyword_2")),
+                new ValuesSourceReaderOperator.FieldInfo("keyword_3", ElementType.BYTES_REF, shardIdx -> blockLoader("stored_keyword_3"))
             );
-            default -> List.of(new ValuesSourceReaderOperator.FieldInfo(name, List.of(blockLoader(name))));
+            default -> List.of(new ValuesSourceReaderOperator.FieldInfo(name, elementType(name), shardIdx -> blockLoader(name)));
         };
     }
 
@@ -125,29 +133,38 @@ public class ValuesSourceReaderBenchmark {
         STORED;
     }
 
-    private static BlockLoader blockLoader(String name) {
-        Where where = Where.DOC_VALUES;
-        if (name.startsWith("stored_")) {
-            name = name.substring("stored_".length());
-            where = Where.STORED;
-        } else if (name.startsWith("source_")) {
-            name = name.substring("source_".length());
-            where = Where.SOURCE;
-        }
+    private static ElementType elementType(String name) {
+        name = WhereAndBaseName.fromName(name).name;
         switch (name) {
             case "long":
-                return numericBlockLoader(name, where, NumberFieldMapper.NumberType.LONG);
+                return ElementType.LONG;
             case "int":
-                return numericBlockLoader(name, where, NumberFieldMapper.NumberType.INTEGER);
+                return ElementType.INT;
             case "double":
-                return numericBlockLoader(name, where, NumberFieldMapper.NumberType.DOUBLE);
-            case "keyword":
-                name = "keyword_1";
+                return ElementType.DOUBLE;
         }
         if (name.startsWith("keyword")) {
+            return ElementType.BYTES_REF;
+        }
+        throw new UnsupportedOperationException("no element type for [" + name + "]");
+    }
+
+    private static BlockLoader blockLoader(String name) {
+        WhereAndBaseName w = WhereAndBaseName.fromName(name);
+        switch (w.name) {
+            case "long":
+                return numericBlockLoader(w, NumberFieldMapper.NumberType.LONG);
+            case "int":
+                return numericBlockLoader(w, NumberFieldMapper.NumberType.INTEGER);
+            case "double":
+                return numericBlockLoader(w, NumberFieldMapper.NumberType.DOUBLE);
+            case "keyword":
+                w = new WhereAndBaseName(w.where, "keyword_1");
+        }
+        if (w.name.startsWith("keyword")) {
             boolean syntheticSource = false;
             FieldType ft = new FieldType(KeywordFieldMapper.Defaults.FIELD_TYPE);
-            switch (where) {
+            switch (w.where) {
                 case DOC_VALUES:
                     break;
                 case SOURCE:
@@ -161,7 +178,7 @@ public class ValuesSourceReaderBenchmark {
             }
             ft.freeze();
             return new KeywordFieldMapper.KeywordFieldType(
-                name,
+                w.name,
                 ft,
                 Lucene.KEYWORD_ANALYZER,
                 Lucene.KEYWORD_ANALYZER,
@@ -172,6 +189,16 @@ public class ValuesSourceReaderBenchmark {
                 @Override
                 public String indexName() {
                     return "benchmark";
+                }
+
+                @Override
+                public IndexSettings indexSettings() {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public MappedFieldType.FieldExtractPreference fieldExtractPreference() {
+                    return MappedFieldType.FieldExtractPreference.NONE;
                 }
 
                 @Override
@@ -188,15 +215,31 @@ public class ValuesSourceReaderBenchmark {
                 public String parentField(String field) {
                     throw new UnsupportedOperationException();
                 }
+
+                @Override
+                public FieldNamesFieldMapper.FieldNamesFieldType fieldNames() {
+                    return FieldNamesFieldMapper.FieldNamesFieldType.get(true);
+                }
             });
         }
         throw new IllegalArgumentException("can't read [" + name + "]");
     }
 
-    private static BlockLoader numericBlockLoader(String name, Where where, NumberFieldMapper.NumberType numberType) {
+    private record WhereAndBaseName(Where where, String name) {
+        static WhereAndBaseName fromName(String name) {
+            if (name.startsWith("stored_")) {
+                return new WhereAndBaseName(Where.STORED, name.substring("stored_".length()));
+            } else if (name.startsWith("source_")) {
+                return new WhereAndBaseName(Where.SOURCE, name.substring("source_".length()));
+            }
+            return new WhereAndBaseName(Where.DOC_VALUES, name);
+        }
+    }
+
+    private static BlockLoader numericBlockLoader(WhereAndBaseName w, NumberFieldMapper.NumberType numberType) {
         boolean stored = false;
         boolean docValues = true;
-        switch (where) {
+        switch (w.where) {
             case DOC_VALUES:
                 break;
             case SOURCE:
@@ -207,7 +250,7 @@ public class ValuesSourceReaderBenchmark {
                 throw new UnsupportedOperationException();
         }
         return new NumberFieldMapper.NumberFieldType(
-            name,
+            w.name,
             numberType,
             true,
             stored,

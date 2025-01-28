@@ -9,48 +9,26 @@ package org.elasticsearch.xpack.application.connector;
 
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
-import org.junit.Before;
 
 import java.io.IOException;
-import java.util.List;
 
-import static java.util.Collections.emptyList;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.hamcrest.CoreMatchers.equalTo;
 
 public class ConnectorTests extends ESTestCase {
 
-    private NamedWriteableRegistry namedWriteableRegistry;
-
-    @Before
-    public void registerNamedObjects() {
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, emptyList());
-
-        List<NamedWriteableRegistry.Entry> namedWriteables = searchModule.getNamedWriteables();
-        namedWriteableRegistry = new NamedWriteableRegistry(namedWriteables);
-    }
-
-    public final void testRandomSerialization() throws IOException {
-        for (int runs = 0; runs < 10; runs++) {
-            Connector testInstance = ConnectorTestUtils.getRandomConnector();
-            assertTransportSerialization(testInstance);
-        }
-    }
-
     public void testToXContent() throws IOException {
         String connectorId = "test-connector";
         String content = XContentHelper.stripWhitespace("""
             {
-               "api_key_id":"test",
+               "api_key_id":"test-aki",
+               "api_key_secret_id":"test-aksi",
                "custom_scheduling":{
                   "schedule-key":{
                      "configuration_overrides":{
@@ -130,7 +108,6 @@ public class ConnectorTests extends ESTestCase {
                   "document_level_security":{
                      "enabled":true
                   },
-                  "filtering_advanced_config":true,
                   "sync_rules":{
                      "advanced":{
                         "enabled":false
@@ -138,6 +115,9 @@ public class ConnectorTests extends ESTestCase {
                      "basic":{
                         "enabled":true
                      }
+                  },
+                  "native_connector_api_keys": {
+                     "enabled": true
                   }
                },
                "filtering":[
@@ -146,7 +126,14 @@ public class ConnectorTests extends ESTestCase {
                         "advanced_snippet":{
                            "created_at":"2023-11-09T15:13:08.231Z",
                            "updated_at":"2023-11-09T15:13:08.231Z",
-                           "value":{}
+                           "value":[
+                             {
+                                 "tables": [
+                                     "some_table"
+                                 ],
+                                 "query": "SELECT id, st_geohash(coordinates) FROM my_db.some_table;"
+                             }
+                           ]
                         },
                         "rules":[
                            {
@@ -170,7 +157,14 @@ public class ConnectorTests extends ESTestCase {
                         "advanced_snippet":{
                            "created_at":"2023-11-09T15:13:08.231Z",
                            "updated_at":"2023-11-09T15:13:08.231Z",
-                           "value":{}
+                           "value":[
+                             {
+                                 "tables": [
+                                     "some_table"
+                                 ],
+                                 "query": "SELECT id, st_geohash(coordinates) FROM my_db.some_table;"
+                             }
+                           ]
                         },
                         "rules":[
                            {
@@ -208,7 +202,7 @@ public class ConnectorTests extends ESTestCase {
                "name":"test-name",
                "pipeline":{
                   "extract_binary_content":true,
-                  "name":"ent-search-generic-ingestion",
+                  "name":"search-default-ingestion",
                   "reduce_whitespace":true,
                   "run_ml_inference":false
                },
@@ -246,6 +240,7 @@ public class ConnectorTests extends ESTestCase {
         String content = XContentHelper.stripWhitespace("""
             {
                "api_key_id": null,
+               "api_key_secret_id": null,
                "custom_scheduling":{},
                "configuration":{},
                "description": null,
@@ -257,7 +252,9 @@ public class ConnectorTests extends ESTestCase {
                "last_access_control_sync_error": null,
                "last_access_control_sync_scheduled_at": null,
                "last_access_control_sync_status": null,
+               "last_deleted_document_count":null,
                "last_incremental_sync_scheduled_at": null,
+               "last_indexed_document_count":null,
                "last_seen": null,
                "last_sync_error": null,
                "last_sync_scheduled_at": null,
@@ -266,7 +263,7 @@ public class ConnectorTests extends ESTestCase {
                "name": null,
                "pipeline":{
                   "extract_binary_content":true,
-                  "name":"ent-search-generic-ingestion",
+                  "name":"search-default-ingestion",
                   "reduce_whitespace":true,
                   "run_ml_inference":false
                },
@@ -299,13 +296,68 @@ public class ConnectorTests extends ESTestCase {
         assertToXContentEquivalent(originalBytes, toXContent(parsed, XContentType.JSON, humanReadable), XContentType.JSON);
     }
 
-    private void assertTransportSerialization(Connector testInstance) throws IOException {
-        Connector deserializedInstance = copyInstance(testInstance);
-        assertNotSame(testInstance, deserializedInstance);
-        assertThat(testInstance, equalTo(deserializedInstance));
-    }
+    public void testToXContent_withOptionalFieldsMissing() throws IOException {
+        // This test is to ensure the doc can serialize without fields that have been added since 8.12.
+        // This is to avoid breaking serverless, which has a regular BC built
+        // that can be broken if we haven't made migrations yet.
+        String connectorId = "test-connector";
 
-    private Connector copyInstance(Connector instance) throws IOException {
-        return copyWriteable(instance, namedWriteableRegistry, Connector::new);
+        // Missing from doc:
+        // api_key_secret_id
+        String content = XContentHelper.stripWhitespace("""
+            {
+               "api_key_id": null,
+               "custom_scheduling":{},
+               "configuration":{},
+               "description": null,
+               "features": null,
+               "filtering":[],
+               "index_name": "search-test",
+               "is_native": false,
+               "language": null,
+               "last_access_control_sync_error": null,
+               "last_access_control_sync_scheduled_at": null,
+               "last_access_control_sync_status": null,
+               "last_incremental_sync_scheduled_at": null,
+               "last_seen": null,
+               "last_sync_error": null,
+               "last_sync_scheduled_at": null,
+               "last_sync_status": null,
+               "last_synced": null,
+               "name": null,
+               "pipeline":{
+                  "extract_binary_content":true,
+                  "name":"search-default-ingestion",
+                  "reduce_whitespace":true,
+                  "run_ml_inference":false
+               },
+               "scheduling":{
+                  "access_control":{
+                     "enabled":false,
+                     "interval":"0 0 0 * * ?"
+                  },
+                  "full":{
+                     "enabled":false,
+                     "interval":"0 0 0 * * ?"
+                  },
+                  "incremental":{
+                     "enabled":false,
+                     "interval":"0 0 0 * * ?"
+                  }
+               },
+               "service_type": null,
+               "status": "needs_configuration",
+               "sync_now":false
+            }""");
+
+        Connector connector = Connector.fromXContentBytes(new BytesArray(content), connectorId, XContentType.JSON);
+        boolean humanReadable = true;
+        BytesReference originalBytes = toShuffledXContent(connector, XContentType.JSON, ToXContent.EMPTY_PARAMS, humanReadable);
+        Connector parsed;
+        try (XContentParser parser = createParser(XContentType.JSON.xContent(), originalBytes)) {
+            parsed = Connector.fromXContent(parser, connectorId);
+        }
+        assertToXContentEquivalent(originalBytes, toXContent(parsed, XContentType.JSON, humanReadable), XContentType.JSON);
+        assertThat(parsed.getApiKeySecretId(), equalTo(null));
     }
 }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.server.cli;
@@ -154,15 +155,15 @@ public class ServerProcessBuilder {
         boolean success = false;
         try {
             jvmProcess = createProcess(getCommand(), getJvmArgs(), jvmOptions, getEnvironment(), processStarter);
-            errorPump = new ErrorPumpThread(terminal.getErrorWriter(), jvmProcess.getErrorStream());
+            errorPump = new ErrorPumpThread(terminal, jvmProcess.getErrorStream());
             errorPump.start();
             sendArgs(serverArgs, jvmProcess.getOutputStream());
 
-            String errorMsg = errorPump.waitUntilReady();
-            if (errorMsg != null) {
+            boolean serverOk = errorPump.waitUntilReady();
+            if (serverOk == false) {
                 // something bad happened, wait for the process to exit then rethrow
                 int exitCode = jvmProcess.waitFor();
-                throw new UserException(exitCode, errorMsg);
+                throw new UserException(exitCode, "Elasticsearch died while starting up");
             }
             success = true;
         } catch (InterruptedException e) {

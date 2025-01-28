@@ -36,6 +36,7 @@ public class SearchableSnapshotsSettingValidationIntegTests extends BaseFrozenSe
         assertAcked(indicesAdmin().prepareDelete(indexName));
 
         final MountSearchableSnapshotRequest req = new MountSearchableSnapshotRequest(
+            TEST_REQUEST_TIMEOUT,
             indexName,
             repoName,
             snapshotName,

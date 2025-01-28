@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.pipeline;
@@ -25,10 +26,9 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.search.aggregations.Aggregation;
-import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilter;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
@@ -119,12 +119,12 @@ public class AvgBucketAggregatorTests extends AggregatorTestCase {
 
             // Finally, reduce the pipeline agg
             PipelineAggregator avgBucketAgg = avgBucketBuilder.createInternal(Collections.emptyMap());
-            List<Aggregation> reducedAggs = new ArrayList<>(2);
+            List<InternalAggregation> reducedAggs = new ArrayList<>(2);
 
             // Histo has to go first to exercise the bug
             reducedAggs.add(histogramResult);
             reducedAggs.add(avgResult);
-            Aggregations aggregations = new Aggregations(reducedAggs);
+            InternalAggregations aggregations = InternalAggregations.from(reducedAggs);
             InternalAggregation pipelineResult = ((AvgBucketPipelineAggregator) avgBucketAgg).doReduce(aggregations, null);
             assertNotNull(pipelineResult);
         }
@@ -174,10 +174,10 @@ public class AvgBucketAggregatorTests extends AggregatorTestCase {
 
             // Finally, reduce the pipeline agg
             PipelineAggregator avgBucketAgg = avgBucketBuilder.createInternal(Collections.emptyMap());
-            List<Aggregation> reducedAggs = new ArrayList<>(4);
+            List<InternalAggregation> reducedAggs = new ArrayList<>(4);
 
             reducedAggs.add(filterResult);
-            Aggregations aggregations = new Aggregations(reducedAggs);
+            InternalAggregations aggregations = InternalAggregations.from(reducedAggs);
             InternalAggregation pipelineResult = ((AvgBucketPipelineAggregator) avgBucketAgg).doReduce(aggregations, null);
             assertNotNull(pipelineResult);
         }

@@ -13,12 +13,14 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.eql.execution.assembler.BoxedQueryRequest;
@@ -38,7 +40,9 @@ import org.elasticsearch.xpack.ql.util.ActionListeners;
 import org.elasticsearch.xpack.ql.util.CollectionUtils;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -49,7 +53,7 @@ import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.action.ActionListener.runAfter;
 import static org.elasticsearch.xpack.eql.execution.ExecutionUtils.copySource;
 import static org.elasticsearch.xpack.eql.execution.search.RuntimeUtils.combineFilters;
-import static org.elasticsearch.xpack.eql.execution.search.RuntimeUtils.searchHits;
+import static org.elasticsearch.xpack.eql.util.SearchHitUtils.addShardFailures;
 import static org.elasticsearch.xpack.eql.util.SearchHitUtils.qualifiedIndex;
 
 /**
@@ -102,6 +106,9 @@ public class TumblingWindow implements Executable {
 
     private final boolean hasKeys;
     private final List<List<Attribute>> listOfKeys;
+    private final boolean allowPartialSearchResults;
+    private final boolean allowPartialSequenceResults;
+    private Map<String, ShardSearchFailure> shardFailures = new HashMap<>();
 
     // flag used for DESC sequences to indicate whether
     // the window needs to restart (since the DESC query still has results)
@@ -126,7 +133,10 @@ public class TumblingWindow implements Executable {
         List<SequenceCriterion> criteria,
         SequenceCriterion until,
         SequenceMatcher matcher,
-        List<List<Attribute>> listOfKeys
+        List<List<Attribute>> listOfKeys,
+        boolean allowPartialSearchResults,
+        boolean allowPartialSequenceResults
+
     ) {
         this.client = client;
 
@@ -140,6 +150,8 @@ public class TumblingWindow implements Executable {
         this.hasKeys = baseRequest.keySize() > 0;
         this.restartWindowFromTailQuery = baseRequest.descending();
         this.listOfKeys = listOfKeys;
+        this.allowPartialSearchResults = allowPartialSearchResults;
+        this.allowPartialSequenceResults = allowPartialSequenceResults;
     }
 
     @Override
@@ -157,6 +169,9 @@ public class TumblingWindow implements Executable {
      * Move the window while preserving the same base.
      */
     private void tumbleWindow(int currentStage, ActionListener<Payload> listener) {
+        if (allowPartialSequenceResults == false && shardFailures.isEmpty() == false) {
+            doPayload(listener);
+        }
         if (currentStage > matcher.firstPositiveStage && matcher.hasCandidates() == false) {
             if (restartWindowFromTailQuery) {
                 currentStage = matcher.firstPositiveStage;
@@ -223,6 +238,9 @@ public class TumblingWindow implements Executable {
 
     private void doCheckMissingEvents(List<Sequence> batchToCheck, MultiSearchResponse p, ActionListener<Payload> listener, Runnable next) {
         MultiSearchResponse.Item[] responses = p.getResponses();
+        for (MultiSearchResponse.Item response : responses) {
+            addShardFailures(shardFailures, response.getResponse());
+        }
         int nextResponse = 0;
         for (Sequence sequence : batchToCheck) {
             boolean leading = true;
@@ -315,7 +333,14 @@ public class TumblingWindow implements Executable {
                     }
                     addKeyFilter(i, sequence, builder);
                     RuntimeUtils.combineFilters(builder, range);
-                    result.add(RuntimeUtils.prepareRequest(builder.size(1).trackTotalHits(false), false, Strings.EMPTY_ARRAY));
+                    result.add(
+                        RuntimeUtils.prepareRequest(
+                            builder.size(1).trackTotalHits(false),
+                            false,
+                            allowPartialSearchResults,
+                            Strings.EMPTY_ARRAY
+                        )
+                    );
                 } else {
                     leading = false;
                 }
@@ -360,19 +385,21 @@ public class TumblingWindow implements Executable {
      * Execute the base query.
      */
     private void baseCriterion(int baseStage, SearchResponse r, ActionListener<Payload> listener) {
+        addShardFailures(shardFailures, r);
         SequenceCriterion base = criteria.get(baseStage);
-        List<SearchHit> hits = searchHits(r);
+        SearchHits hits = r.getHits();
 
-        log.trace("Found [{}] hits", hits.size());
+        log.trace("Found [{}] hits", hits.getHits().length);
 
         Ordinal begin = null, end = null;
         WindowInfo info;
 
         // if there is at least one result, process it
-        if (hits.isEmpty() == false) {
+        if (hits.getHits().length > 0) {
             // get borders for the rest of the queries - but only when at least one result is found
-            begin = headOrdinal(hits, base);
-            end = tailOrdinal(hits, base);
+            var hitsAsList = Arrays.asList(hits.getHits());
+            begin = headOrdinal(hitsAsList, base);
+            end = tailOrdinal(hitsAsList, base);
             // always create an ASC window
             info = new WindowInfo(baseStage, begin, end);
 
@@ -391,7 +418,14 @@ public class TumblingWindow implements Executable {
             if (until != null && baseStage > 0) {
                 // find "until" ordinals - early on to discard data in-flight to avoid matching
                 // hits that can occur in other documents
-                untilCriterion(info, listener, () -> completeBaseCriterion(baseStage, hits, info, listener));
+                hits.incRef();
+                untilCriterion(info, listener, () -> {
+                    try {
+                        completeBaseCriterion(baseStage, hits, info, listener);
+                    } finally {
+                        hits.decRef();
+                    }
+                });
                 return;
             }
         } else {
@@ -405,17 +439,17 @@ public class TumblingWindow implements Executable {
         completeBaseCriterion(baseStage, hits, info, listener);
     }
 
-    private void completeBaseCriterion(int baseStage, List<SearchHit> hits, WindowInfo info, ActionListener<Payload> listener) {
+    private void completeBaseCriterion(int baseStage, SearchHits hits, WindowInfo info, ActionListener<Payload> listener) {
         SequenceCriterion base = criteria.get(baseStage);
 
         // check for matches - if the limit has been reached, abort
-        if (matcher.match(baseStage, wrapValues(base, hits)) == false) {
+        if (matcher.match(baseStage, wrapValues(base, Arrays.asList(hits.getHits()))) == false) {
             payload(listener);
             return;
         }
 
         int nextStage = nextPositiveStage(baseStage);
-        boolean windowCompleted = hits.size() < windowSize;
+        boolean windowCompleted = hits.getHits().length < windowSize;
 
         // there are still queries
         if (nextStage > 0) { // -1 means no further positive stages
@@ -527,7 +561,7 @@ public class TumblingWindow implements Executable {
         log.trace("Querying until stage {}", request);
 
         client.query(request, listener.delegateFailureAndWrap((delegate, r) -> {
-            List<SearchHit> hits = searchHits(r);
+            List<SearchHit> hits = Arrays.asList(r.getHits().getHits());
 
             log.trace("Found [{}] hits", hits.size());
             // no more results for until - let the other queries run
@@ -558,7 +592,7 @@ public class TumblingWindow implements Executable {
         log.trace("Querying (secondary) stage [{}] {}", criterion.stage(), request);
 
         client.query(request, listener.delegateFailureAndWrap((delegate, r) -> {
-            List<SearchHit> hits = searchHits(r);
+            List<SearchHit> hits = Arrays.asList(r.getHits().getHits());
 
             // filter hits that are escaping the window (same timestamp but different tiebreaker)
             // apply it only to ASC queries; DESC queries need it to find matches going the opposite direction
@@ -722,8 +756,10 @@ public class TumblingWindow implements Executable {
 
         log.trace("Sending payload for [{}] sequences", completed.size());
 
-        if (completed.isEmpty()) {
-            listener.onResponse(new EmptyPayload(Type.SEQUENCE, timeTook()));
+        if (completed.isEmpty() || (allowPartialSequenceResults == false && shardFailures.isEmpty() == false)) {
+            listener.onResponse(
+                new EmptyPayload(Type.SEQUENCE, timeTook(), shardFailures.values().toArray(new ShardSearchFailure[shardFailures.size()]))
+            );
             return;
         }
 
@@ -732,8 +768,13 @@ public class TumblingWindow implements Executable {
             if (criteria.get(matcher.firstPositiveStage).descending()) {
                 Collections.reverse(completed);
             }
-            SequencePayload payload = new SequencePayload(completed, addMissingEventPlaceholders(listOfHits), false, timeTook());
-            return payload;
+            return new SequencePayload(
+                completed,
+                addMissingEventPlaceholders(listOfHits),
+                false,
+                timeTook(),
+                shardFailures.values().toArray(new ShardSearchFailure[0])
+            );
         }));
     }
 

@@ -443,8 +443,8 @@
 
 ---
 "Script Write Field":
-  - skip:
-      version: " - 8.4.99"
+  - requires:
+      cluster_features: ["gte_v8.5.0"]
       reason: "Write fields api introduced in 8.5.0"
 
   - do:

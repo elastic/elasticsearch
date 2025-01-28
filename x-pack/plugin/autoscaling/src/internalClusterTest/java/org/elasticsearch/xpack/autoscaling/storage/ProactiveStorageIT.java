@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.autoscaling.storage;
 
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
-import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
@@ -111,6 +111,8 @@ public class ProactiveStorageIT extends AutoscalingStorageIntegTestCase {
 
     private void putAutoscalingPolicy(String policyName, Settings settings) {
         final PutAutoscalingPolicyAction.Request request = new PutAutoscalingPolicyAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
             policyName,
             new TreeSet<>(Set.of("data")),
             new TreeMap<>(Map.of("proactive_storage", settings))
@@ -120,8 +122,8 @@ public class ProactiveStorageIT extends AutoscalingStorageIntegTestCase {
 
     private static void createDataStreamAndTemplate(String dataStreamName) throws IOException {
         client().execute(
-            PutComposableIndexTemplateAction.INSTANCE,
-            new PutComposableIndexTemplateAction.Request(dataStreamName + "_template").indexTemplate(
+            TransportPutComposableIndexTemplateAction.TYPE,
+            new TransportPutComposableIndexTemplateAction.Request(dataStreamName + "_template").indexTemplate(
                 ComposableIndexTemplate.builder()
                     .indexPatterns(Collections.singletonList(dataStreamName))
                     .template(new Template(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build(), null, null))
@@ -129,6 +131,9 @@ public class ProactiveStorageIT extends AutoscalingStorageIntegTestCase {
                     .build()
             )
         ).actionGet();
-        client().execute(CreateDataStreamAction.INSTANCE, new CreateDataStreamAction.Request(dataStreamName)).actionGet();
+        client().execute(
+            CreateDataStreamAction.INSTANCE,
+            new CreateDataStreamAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, dataStreamName)
+        ).actionGet();
     }
 }

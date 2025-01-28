@@ -8,12 +8,10 @@
 package org.elasticsearch.xpack.core.security.action.apikey;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -27,15 +25,11 @@ public abstract class BaseBulkUpdateApiKeyRequest extends BaseUpdateApiKeyReques
     public BaseBulkUpdateApiKeyRequest(
         final List<String> ids,
         @Nullable final List<RoleDescriptor> roleDescriptors,
-        @Nullable final Map<String, Object> metadata
+        @Nullable final Map<String, Object> metadata,
+        @Nullable final TimeValue expiration
     ) {
-        super(roleDescriptors, metadata);
+        super(roleDescriptors, metadata, expiration);
         this.ids = Objects.requireNonNull(ids, "API key IDs must not be null");
-    }
-
-    public BaseBulkUpdateApiKeyRequest(StreamInput in) throws IOException {
-        super(in);
-        this.ids = in.readStringCollectionAsList();
     }
 
     @Override
@@ -47,13 +41,24 @@ public abstract class BaseBulkUpdateApiKeyRequest extends BaseUpdateApiKeyReques
         return validationException;
     }
 
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeStringCollection(ids);
-    }
-
     public List<String> getIds() {
         return ids;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass() || super.equals(o)) return false;
+
+        BaseBulkUpdateApiKeyRequest that = (BaseBulkUpdateApiKeyRequest) o;
+        return Objects.equals(getIds(), that.getIds())
+            && Objects.equals(metadata, that.metadata)
+            && Objects.equals(expiration, that.expiration)
+            && Objects.equals(roleDescriptors, that.roleDescriptors);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(getIds(), expiration, metadata, roleDescriptors);
     }
 }

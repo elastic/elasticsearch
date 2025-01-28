@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.indices.analyze;
 
@@ -77,9 +78,8 @@ public class AnalyzeActionIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test").addAlias(new Alias("alias")).setMapping("long", "type=long", "double", "type=double"));
         ensureGreen("test");
 
-        expectThrows(IllegalArgumentException.class, () -> indicesAdmin().prepareAnalyze(indexOrAlias(), "123").setField("long").get());
-
-        expectThrows(IllegalArgumentException.class, () -> indicesAdmin().prepareAnalyze(indexOrAlias(), "123.0").setField("double").get());
+        expectThrows(IllegalArgumentException.class, indicesAdmin().prepareAnalyze(indexOrAlias(), "123").setField("long"));
+        expectThrows(IllegalArgumentException.class, indicesAdmin().prepareAnalyze(indexOrAlias(), "123.0").setField("double"));
     }
 
     public void testAnalyzeWithNoIndex() throws Exception {
@@ -280,7 +280,7 @@ public class AnalyzeActionIT extends ESIntegTestCase {
     public void testNonExistTokenizer() {
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> indicesAdmin().prepareAnalyze("this is a test").setAnalyzer("not_exist_analyzer").get()
+            indicesAdmin().prepareAnalyze("this is a test").setAnalyzer("not_exist_analyzer")
         );
         assertThat(e.getMessage(), startsWith("failed to find global analyzer"));
     }

@@ -20,34 +20,26 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.evaluator.mapper.ExpressionMapper;
-import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.ComparisonMapper;
-import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.InMapper;
-import org.elasticsearch.xpack.esql.evaluator.predicate.operator.regex.RegexMapper;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.BinaryLogic;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
+import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
+import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InsensitiveEqualsMapper;
 import org.elasticsearch.xpack.esql.planner.Layout;
-import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
-import org.elasticsearch.xpack.ql.expression.Attribute;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.Literal;
-import org.elasticsearch.xpack.ql.expression.predicate.logical.BinaryLogic;
-import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
-import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNotNull;
-import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNull;
 
 import java.util.List;
 
 public final class EvalMapper {
 
     private static final List<ExpressionMapper<?>> MAPPERS = List.of(
-        ComparisonMapper.EQUALS,
-        ComparisonMapper.NOT_EQUALS,
-        ComparisonMapper.GREATER_THAN,
-        ComparisonMapper.GREATER_THAN_OR_EQUAL,
-        ComparisonMapper.LESS_THAN,
-        ComparisonMapper.LESS_THAN_OR_EQUAL,
-        InMapper.IN_MAPPER,
-        RegexMapper.REGEX_MATCH,
+        new InsensitiveEqualsMapper(),
         new BooleanLogic(),
         new Nots(),
         new Attributes(),
@@ -59,13 +51,23 @@ public final class EvalMapper {
     private EvalMapper() {}
 
     @SuppressWarnings({ "rawtypes", "unchecked" })
-    public static ExpressionEvaluator.Factory toEvaluator(Expression exp, Layout layout) {
+    public static ExpressionEvaluator.Factory toEvaluator(FoldContext foldCtx, Expression exp, Layout layout) {
         if (exp instanceof EvaluatorMapper m) {
-            return m.toEvaluator(e -> toEvaluator(e, layout));
+            return m.toEvaluator(new EvaluatorMapper.ToEvaluator() {
+                @Override
+                public ExpressionEvaluator.Factory apply(Expression expression) {
+                    return toEvaluator(foldCtx, expression, layout);
+                }
+
+                @Override
+                public FoldContext foldCtx() {
+                    return foldCtx;
+                }
+            });
         }
         for (ExpressionMapper em : MAPPERS) {
             if (em.typeToken.isInstance(exp)) {
-                return em.map(exp, layout);
+                return em.map(foldCtx, exp, layout);
             }
         }
         throw new QlIllegalArgumentException("Unsupported expression [{}]", exp);
@@ -73,9 +75,9 @@ public final class EvalMapper {
 
     static class BooleanLogic extends ExpressionMapper<BinaryLogic> {
         @Override
-        public ExpressionEvaluator.Factory map(BinaryLogic bc, Layout layout) {
-            var leftEval = toEvaluator(bc.left(), layout);
-            var rightEval = toEvaluator(bc.right(), layout);
+        public ExpressionEvaluator.Factory map(FoldContext foldCtx, BinaryLogic bc, Layout layout) {
+            var leftEval = toEvaluator(foldCtx, bc.left(), layout);
+            var rightEval = toEvaluator(foldCtx, bc.right(), layout);
             /**
              * Evaluator for the <href a="https://en.wikipedia.org/wiki/Three-valued_logic">three-valued boolean expressions</href>.
              * We can't generate these with the {@link Evaluator} annotation because that
@@ -134,7 +136,7 @@ public final class EvalMapper {
                     int positionCount = lhs.getPositionCount();
                     try (var result = lhs.blockFactory().newBooleanVectorFixedBuilder(positionCount)) {
                         for (int p = 0; p < positionCount; p++) {
-                            result.appendBoolean(bl.function().apply(lhs.getBoolean(p), rhs.getBoolean(p)));
+                            result.appendBoolean(p, bl.function().apply(lhs.getBoolean(p), rhs.getBoolean(p)));
                         }
                         return result.build().asBlock();
                     }
@@ -151,8 +153,8 @@ public final class EvalMapper {
 
     static class Nots extends ExpressionMapper<Not> {
         @Override
-        public ExpressionEvaluator.Factory map(Not not, Layout layout) {
-            var expEval = toEvaluator(not.field(), layout);
+        public ExpressionEvaluator.Factory map(FoldContext foldCtx, Not not, Layout layout) {
+            var expEval = toEvaluator(foldCtx, not.field(), layout);
             return dvrCtx -> new org.elasticsearch.xpack.esql.evaluator.predicate.operator.logical.NotEvaluator(
                 not.source(),
                 expEval.get(dvrCtx),
@@ -163,7 +165,7 @@ public final class EvalMapper {
 
     static class Attributes extends ExpressionMapper<Attribute> {
         @Override
-        public ExpressionEvaluator.Factory map(Attribute attr, Layout layout) {
+        public ExpressionEvaluator.Factory map(FoldContext foldCtx, Attribute attr, Layout layout) {
             record Attribute(int channel) implements ExpressionEvaluator {
                 @Override
                 public Block eval(Page page) {
@@ -185,6 +187,11 @@ public final class EvalMapper {
                 public String toString() {
                     return "Attribute[channel=" + channel + "]";
                 }
+
+                @Override
+                public boolean eagerEvalSafeInLazy() {
+                    return true;
+                }
             }
             return new AttributeFactory(layout.get(attr.id()).channel());
         }
@@ -193,7 +200,7 @@ public final class EvalMapper {
     static class Literals extends ExpressionMapper<Literal> {
 
         @Override
-        public ExpressionEvaluator.Factory map(Literal lit, Layout layout) {
+        public ExpressionEvaluator.Factory map(FoldContext foldCtx, Literal lit, Layout layout) {
             record LiteralsEvaluator(DriverContext context, Literal lit) implements ExpressionEvaluator {
                 @Override
                 public Block eval(Page page) {
@@ -217,6 +224,11 @@ public final class EvalMapper {
                 @Override
                 public String toString() {
                     return "LiteralsEvaluator[lit=" + lit + "]";
+                }
+
+                @Override
+                public boolean eagerEvalSafeInLazy() {
+                    return true;
                 }
             }
             return new LiteralsEvaluatorFactory(lit);
@@ -245,8 +257,8 @@ public final class EvalMapper {
     static class IsNulls extends ExpressionMapper<IsNull> {
 
         @Override
-        public ExpressionEvaluator.Factory map(IsNull isNull, Layout layout) {
-            var field = toEvaluator(isNull.field(), layout);
+        public ExpressionEvaluator.Factory map(FoldContext foldCtx, IsNull isNull, Layout layout) {
+            var field = toEvaluator(foldCtx, isNull.field(), layout);
             return new IsNullEvaluatorFactory(field);
         }
 
@@ -271,7 +283,7 @@ public final class EvalMapper {
                     }
                     try (var builder = driverContext.blockFactory().newBooleanVectorFixedBuilder(page.getPositionCount())) {
                         for (int p = 0; p < page.getPositionCount(); p++) {
-                            builder.appendBoolean(fieldBlock.isNull(p));
+                            builder.appendBoolean(p, fieldBlock.isNull(p));
                         }
                         return builder.build().asBlock();
                     }
@@ -293,8 +305,8 @@ public final class EvalMapper {
     static class IsNotNulls extends ExpressionMapper<IsNotNull> {
 
         @Override
-        public ExpressionEvaluator.Factory map(IsNotNull isNotNull, Layout layout) {
-            return new IsNotNullEvaluatorFactory(toEvaluator(isNotNull.field(), layout));
+        public ExpressionEvaluator.Factory map(FoldContext foldCtx, IsNotNull isNotNull, Layout layout) {
+            return new IsNotNullEvaluatorFactory(toEvaluator(foldCtx, isNotNull.field(), layout));
         }
 
         record IsNotNullEvaluatorFactory(EvalOperator.ExpressionEvaluator.Factory field) implements ExpressionEvaluator.Factory {
@@ -320,7 +332,7 @@ public final class EvalMapper {
                     }
                     try (var builder = driverContext.blockFactory().newBooleanVectorFixedBuilder(page.getPositionCount())) {
                         for (int p = 0; p < page.getPositionCount(); p++) {
-                            builder.appendBoolean(fieldBlock.isNull(p) == false);
+                            builder.appendBoolean(p, fieldBlock.isNull(p) == false);
                         }
                         return builder.build().asBlock();
                     }

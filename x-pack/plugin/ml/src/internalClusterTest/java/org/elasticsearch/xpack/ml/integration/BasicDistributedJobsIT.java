@@ -230,7 +230,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         OpenJobAction.Request openJobRequest = new OpenJobAction.Request(job.getId());
         client().execute(OpenJobAction.INSTANCE, openJobRequest).actionGet();
         assertBusy(() -> {
-            ClusterState clusterState = clusterAdmin().prepareState().get().getState();
+            ClusterState clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
             PersistentTasksCustomMetadata tasks = clusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
             PersistentTask<?> task = tasks.getTask(MlTasks.jobTaskId(jobId));
 
@@ -261,6 +261,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         });
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/102657")
     public void testMaxConcurrentJobAllocations() throws Exception {
         int numMlNodes = 2;
         internalCluster().ensureAtMostNumDataNodes(0);
@@ -327,7 +328,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         }
         ensureStableCluster(1, nonMlNode);
         assertBusy(() -> {
-            ClusterState state = client(nonMlNode).admin().cluster().prepareState().get().getState();
+            ClusterState state = client(nonMlNode).admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
             List<PersistentTask<?>> tasks = findTasks(state, MlTasks.JOB_TASK_NAME);
             assertEquals(numJobs, tasks.size());
             for (PersistentTask<?> task : tasks) {
@@ -410,7 +411,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         CloseJobAction.Request closeJobRequest = new CloseJobAction.Request(jobId);
         client().execute(CloseJobAction.INSTANCE, closeJobRequest).actionGet();
         assertBusy(() -> {
-            ClusterState clusterState = clusterAdmin().prepareState().get().getState();
+            ClusterState clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
             List<PersistentTask<?>> tasks = findTasks(clusterState, MlTasks.JOB_TASK_NAME);
             assertEquals(0, tasks.size());
         });
@@ -501,7 +502,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
     }
 
     private void assertJobTask(String jobId, JobState expectedState, boolean hasExecutorNode) {
-        ClusterState clusterState = clusterAdmin().prepareState().get().getState();
+        ClusterState clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         List<PersistentTask<?>> tasks = findTasks(clusterState, MlTasks.JOB_TASK_NAME);
         assertEquals(1, tasks.size());
         PersistentTask<?> task = tasks.get(0);
@@ -523,7 +524,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
 
     private CheckedRunnable<Exception> checkAllJobsAreAssignedAndOpened(int numJobs) {
         return () -> {
-            ClusterState state = clusterAdmin().prepareState().get().getState();
+            ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
             List<PersistentTask<?>> tasks = findTasks(state, MlTasks.JOB_TASK_NAME);
             assertEquals(numJobs, tasks.size());
             for (PersistentTask<?> task : tasks) {

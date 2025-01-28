@@ -17,6 +17,7 @@ import org.elasticsearch.tasks.TaskManager;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 public abstract class StoredAsyncTask<Response extends ActionResponse> extends CancellableTask implements AsyncTask {
 
@@ -24,6 +25,7 @@ public abstract class StoredAsyncTask<Response extends ActionResponse> extends C
     private final Map<String, String> originHeaders;
     private volatile long expirationTimeMillis;
     protected final List<ActionListener<Response>> completionListeners;
+    private boolean hasCompleted = false;
 
     @SuppressWarnings("this-escape")
     public StoredAsyncTask(
@@ -66,8 +68,12 @@ public abstract class StoredAsyncTask<Response extends ActionResponse> extends C
         return expirationTimeMillis;
     }
 
-    public synchronized void addCompletionListener(ActionListener<Response> listener) {
-        completionListeners.add(listener);
+    public synchronized boolean addCompletionListener(Supplier<ActionListener<Response>> listenerSupplier) {
+        if (hasCompleted) {
+            return false;
+        }
+        completionListeners.add(listenerSupplier.get());
+        return true;
     }
 
     public synchronized void removeCompletionListener(ActionListener<Response> listener) {
@@ -77,8 +83,15 @@ public abstract class StoredAsyncTask<Response extends ActionResponse> extends C
     /**
      * This method is called when the task is finished successfully before unregistering the task and storing the results
      */
-    public synchronized void onResponse(Response response) {
-        for (ActionListener<Response> listener : completionListeners) {
+    public void onResponse(Response response) {
+        List<ActionListener<Response>> completionListenersCopy;
+        synchronized (this) {
+            assert hasCompleted == false;
+            hasCompleted = true;
+            completionListenersCopy = new ArrayList<>(completionListeners);
+            completionListeners.clear();
+        }
+        for (ActionListener<Response> listener : completionListenersCopy) {
             response.incRef();
             ActionListener.respondAndRelease(listener, response);
         }
@@ -87,8 +100,15 @@ public abstract class StoredAsyncTask<Response extends ActionResponse> extends C
     /**
      * This method is called when the task failed before unregistering the task and storing the results
      */
-    public synchronized void onFailure(Exception e) {
-        for (ActionListener<Response> listener : completionListeners) {
+    public void onFailure(Exception e) {
+        List<ActionListener<Response>> completionListenersCopy;
+        synchronized (this) {
+            assert hasCompleted == false;
+            hasCompleted = true;
+            completionListenersCopy = new ArrayList<>(completionListeners);
+            completionListeners.clear();
+        }
+        for (ActionListener<Response> listener : completionListenersCopy) {
             listener.onFailure(e);
         }
     }

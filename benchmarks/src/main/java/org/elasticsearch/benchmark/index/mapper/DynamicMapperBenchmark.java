@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.benchmark.index.mapper;
@@ -108,7 +109,8 @@ public class DynamicMapperBenchmark {
             if (random.nextBoolean()) {
                 continue;
             }
-            String objFieldPrefix = Stream.generate(() -> "obj_field_" + idx).limit(objFieldDepth).collect(Collectors.joining("."));
+            int objFieldDepthActual = random.nextInt(1, objFieldDepth);
+            String objFieldPrefix = Stream.generate(() -> "obj_field_" + idx).limit(objFieldDepthActual).collect(Collectors.joining("."));
             for (int j = 0; j < textFields; j++) {
                 if (random.nextBoolean()) {
                     StringBuilder fieldValueBuilder = generateTextField(fieldValueCountMax);

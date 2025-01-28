@@ -29,7 +29,7 @@ public class PostDataAction extends ActionType<PostDataAction.Response> {
     public static final String NAME = "cluster:admin/xpack/ml/job/data/post";
 
     private PostDataAction() {
-        super(NAME, PostDataAction.Response::new);
+        super(NAME);
     }
 
     public static class Response extends BaseTasksResponse implements ToXContentObject, Writeable {

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.shard;
 
@@ -15,6 +16,8 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason;
+
+import java.util.function.Supplier;
 
 /**
  * An index event listener is the primary extension point for plugins and build-in services
@@ -54,6 +57,13 @@ public interface IndexEventListener {
      * @param indexShard The index shard
      */
     default void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard, Settings indexSettings) {}
+
+    /**
+     * Called after the index shard has been marked closed. It could still be waiting for the async close of the engine.
+     * The ordering between this and the subsequent state notifications (closed, deleted, store closed) is
+     * not guaranteed.
+     */
+    default void afterIndexShardClosing(ShardId shardId, @Nullable IndexShard indexShard, Settings indexSettings) {}
 
     /**
      * Called after the index shard has been closed.
@@ -182,4 +192,14 @@ public interface IndexEventListener {
      * @param indexShard the shard that is recovering
      */
     default void afterFilesRestoredFromRepository(IndexShard indexShard) {}
+
+    /**
+     * Called when a single primary permit is acquired for the given shard (see
+     * {@link IndexShard#acquirePrimaryOperationPermit(ActionListener, java.util.concurrent.Executor)}).
+     *
+     * @param indexShard the shard of which a primary permit is requested
+     * @param onPermitAcquiredListenerSupplier call this immediately to get a listener when the permit is acquired. The listener must be
+     *                                         completed in order for the permit to be given to the acquiring operation.
+     */
+    default void onAcquirePrimaryOperationPermit(IndexShard indexShard, Supplier<ActionListener<Void>> onPermitAcquiredListenerSupplier) {}
 }

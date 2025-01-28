@@ -1,17 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.profile.query;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.search.profile.AbstractProfiler;
+import org.elasticsearch.search.profile.Timer;
 
-import java.util.Objects;
+import static java.util.Objects.requireNonNull;
 
 /**
  * This class acts as a thread-local storage for profiling a query.  It also
@@ -37,10 +39,18 @@ public final class QueryProfiler extends AbstractProfiler<QueryProfileBreakdown,
         super(new InternalQueryProfileTree());
     }
 
-    public void setVectorOpsCount(long vectorOpsCount) {
-        this.vectorOpsCount = vectorOpsCount;
+    /**
+     * Adds a number of vector operations to the current count
+     * @param vectorOpsCount number of vector ops to add to the profiler
+     */
+    public void addVectorOpsCount(long vectorOpsCount) {
+        this.vectorOpsCount += vectorOpsCount;
     }
 
+    /**
+     * Retrieves the number of vector operations performed by the queries
+     * @return number of vector operations performed by the queries
+     */
     public long getVectorOpsCount() {
         return this.vectorOpsCount;
     }
@@ -50,15 +60,15 @@ public final class QueryProfiler extends AbstractProfiler<QueryProfileBreakdown,
         if (this.collectorResult != null) {
             throw new IllegalStateException("The collector result can only be set once.");
         }
-        this.collectorResult = Objects.requireNonNull(collectorResult);
+        this.collectorResult = requireNonNull(collectorResult);
     }
 
     /**
      * Begin timing the rewrite phase of a request.  All rewrites are accumulated together into a
      * single metric
      */
-    public void startRewriteTime() {
-        ((InternalQueryProfileTree) profileTree).startRewriteTime();
+    public Timer startRewriteTime() {
+        return ((InternalQueryProfileTree) profileTree).startRewriteTime();
     }
 
     /**
@@ -67,8 +77,8 @@ public final class QueryProfiler extends AbstractProfiler<QueryProfileBreakdown,
      *
      * @return cumulative rewrite time
      */
-    public long stopAndAddRewriteTime() {
-        return ((InternalQueryProfileTree) profileTree).stopAndAddRewriteTime();
+    public long stopAndAddRewriteTime(Timer rewriteTimer) {
+        return ((InternalQueryProfileTree) profileTree).stopAndAddRewriteTime(requireNonNull(rewriteTimer));
     }
 
     /**

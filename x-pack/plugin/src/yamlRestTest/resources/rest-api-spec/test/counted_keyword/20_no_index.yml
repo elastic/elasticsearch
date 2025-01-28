@@ -1,7 +1,7 @@
 setup:
 
-  - skip:
-      version: " - 8.12.99"
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
       reason: "index option on counted_keyword was added in 8.13"
 
   - do:

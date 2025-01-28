@@ -7,24 +7,24 @@
 
 package org.elasticsearch.xpack.transform.integration;
 
+import org.apache.http.HttpHost;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.client.RestClient;
+import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.time.Instant;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -32,6 +32,7 @@ import java.util.Set;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInRelativeOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -54,6 +55,14 @@ public class TransformPivotRestIT extends TransformRestTestCase {
 
     private static boolean indicesCreated = false;
 
+    @Override
+    protected RestClient buildClient(Settings settings, HttpHost[] hosts) throws IOException {
+        RestClientBuilder builder = RestClient.builder(hosts);
+        configureClient(builder, settings);
+        builder.setStrictDeprecationMode(false);
+        return builder.build();
+    }
+
     // preserve indices in order to reuse source indices in several test cases
     @Override
     protected boolean preserveIndicesUponCompletion() {
@@ -63,7 +72,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
     @Before
     public void createIndexes() throws IOException {
         setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME);
-        setupUser(TEST_USER_NAME, Arrays.asList("transform_admin", DATA_ACCESS_ROLE));
+        setupUser(TEST_USER_NAME, List.of("transform_admin", DATA_ACCESS_ROLE));
 
         // it's not possible to run it as @BeforeClass as clients aren't initialized then, so we need this little hack
         if (indicesCreated) {
@@ -894,6 +903,15 @@ public class TransformPivotRestIT extends TransformRestTestCase {
                       }
                     }
                   },
+                  "common_users_desc": {
+                    "terms": {
+                      "field": "user_id",
+                      "size": 3,
+                      "order": {
+                        "_key": "desc"
+                      }
+                    }
+                  },
                   "rare_users": {
                     "rare_terms": {
                       "field": "user_id"
@@ -915,40 +933,38 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         assertEquals(3, XContentMapValues.extractValue("_all.total.docs.count", indexStats));
 
         // get and check some term results
-        Map<String, Object> searchResult = getAsMap(transformIndex + "/_search?q=every_2:2.0");
+        Map<String, Object> searchResult = getAsOrderedMap(transformIndex + "/_search?q=every_2:2.0");
 
         assertEquals(1, XContentMapValues.extractValue("hits.total.value", searchResult));
         Map<String, Integer> commonUsers = (Map<String, Integer>) ((List<?>) XContentMapValues.extractValue(
             "hits.hits._source.common_users",
             searchResult
         )).get(0);
+        assertThat(commonUsers, is(not(nullValue())));
+        assertThat(
+            commonUsers,
+            equalTo(
+                Map.of(
+                    "user_10",
+                    Map.of("common_businesses", Map.of("business_12", 6, "business_9", 4)),
+                    "user_0",
+                    Map.of("common_businesses", Map.of("business_0", 35))
+                )
+            )
+        );
+        Map<String, Integer> commonUsersDesc = (Map<String, Integer>) ((List<?>) XContentMapValues.extractValue(
+            "hits.hits._source.common_users_desc",
+            searchResult
+        )).get(0);
+        assertThat(commonUsersDesc, is(not(nullValue())));
+        // 3 user names latest in lexicographic order (user_9, user_8, user_7) are selected properly and their order is preserved.
+        assertThat(commonUsersDesc.keySet(), containsInRelativeOrder("user_9", "user_8", "user_7"));
         Map<String, Integer> rareUsers = (Map<String, Integer>) ((List<?>) XContentMapValues.extractValue(
             "hits.hits._source.rare_users",
             searchResult
         )).get(0);
-        assertThat(commonUsers, is(not(nullValue())));
-        assertThat(commonUsers, equalTo(new HashMap<>() {
-            {
-                put("user_10", Collections.singletonMap("common_businesses", new HashMap<>() {
-                    {
-                        put("business_12", 6);
-                        put("business_9", 4);
-                    }
-                }));
-                put("user_0", Collections.singletonMap("common_businesses", new HashMap<>() {
-                    {
-                        put("business_0", 35);
-                    }
-                }));
-            }
-        }));
         assertThat(rareUsers, is(not(nullValue())));
-        assertThat(rareUsers, equalTo(new HashMap<>() {
-            {
-                put("user_5", 1);
-                put("user_12", 1);
-            }
-        }));
+        assertThat(rareUsers, is(equalTo(Map.of("user_5", 1, "user_12", 1))));
     }
 
     private void assertDateHistogramPivot(String indexName) throws Exception {
@@ -1184,8 +1200,8 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         List<Map<String, Object>> preview = (List<Map<String, Object>>) previewTransformResponse.get("preview");
         // preview is limited to 100
         assertThat(preview.size(), equalTo(100));
-        Set<String> expectedTopLevelFields = new HashSet<>(Arrays.asList("user", "by_day"));
-        Set<String> expectedNestedFields = new HashSet<>(Arrays.asList("id", "avg_rating"));
+        Set<String> expectedTopLevelFields = Set.of("user", "by_day");
+        Set<String> expectedNestedFields = Set.of("id", "avg_rating");
         preview.forEach(p -> {
             Set<String> keys = p.keySet();
             assertThat(keys, equalTo(expectedTopLevelFields));
@@ -1255,8 +1271,8 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         List<Map<String, Object>> preview = (List<Map<String, Object>>) previewTransformResponse.get("preview");
         // preview is limited to 100
         assertThat(preview.size(), equalTo(100));
-        Set<String> expectedTopLevelFields = new HashSet<>(Arrays.asList("user", "by_day", "pipeline_field"));
-        Set<String> expectedNestedFields = new HashSet<>(Arrays.asList("id", "avg_rating"));
+        Set<String> expectedTopLevelFields = Set.of("user", "by_day", "pipeline_field");
+        Set<String> expectedNestedFields = Set.of("id", "avg_rating");
         preview.forEach(p -> {
             Set<String> keys = p.keySet();
             assertThat(keys, equalTo(expectedTopLevelFields));
@@ -1383,8 +1399,11 @@ public class TransformPivotRestIT extends TransformRestTestCase {
                     }
                   }
                 }
+              },
+              "settings": {
+                "deduce_mappings": %s
               }
-            }""", REVIEWS_INDEX_NAME, offset);
+            }""", REVIEWS_INDEX_NAME, offset, randomBoolean());
         createPreviewRequest.setJsonEntity(config);
 
         Map<String, Object> previewTransformResponse = entityAsMap(client().performRequest(createPreviewRequest));
@@ -2698,6 +2717,54 @@ public class TransformPivotRestIT extends TransformRestTestCase {
             .get(0);
         importConfig.remove("id");
         assertThat(storedConfig, equalTo(importConfig));
+    }
+
+    public void testPivotWithDeprecatedMaxPageSearchSize() throws Exception {
+        String transformId = "deprecated_settings_pivot";
+        String transformIndex = "deprecated_settings_pivot_index";
+        setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME, transformIndex);
+
+        final Request createTransformRequest = createRequestWithAuth(
+            "PUT",
+            getTransformEndpoint() + transformId,
+            BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS
+        );
+
+        String config = Strings.format("""
+            {
+              "source": {
+                "index": "%s"
+              },
+              "dest": {
+                "index": "%s"
+              },
+              "pivot": {
+                "group_by": {
+                  "every_2": {
+                    "histogram": {
+                      "interval": 2,
+                      "field": "stars"
+                    }
+                  }
+                },
+                "aggregations": {
+                  "avg_rating": {
+                    "avg": {
+                      "field": "stars"
+                    }
+                  }
+                },
+                "max_page_search_size": 1234
+              }
+            }""", REVIEWS_INDEX_NAME, transformIndex);
+
+        createTransformRequest.setJsonEntity(config);
+        Map<String, Object> createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));
+        assertThat(createTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
+
+        Map<String, Object> transform = getTransformConfig(transformId, BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS);
+        assertNull(XContentMapValues.extractValue("pivot.max_page_search_size", transform));
+        assertThat(XContentMapValues.extractValue("settings.max_page_search_size", transform), equalTo(1234));
     }
 
     private void createDateNanoIndex(String indexName, int numDocs) throws IOException {

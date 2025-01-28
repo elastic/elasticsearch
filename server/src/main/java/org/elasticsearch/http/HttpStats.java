@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.http;
@@ -24,7 +25,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.TransportVersions.NODE_STATS_HTTP_ROUTE_STATS_ADDED;
+import static org.elasticsearch.TransportVersions.V_8_12_0;
 
 public record HttpStats(long serverOpen, long totalOpen, List<ClientStats> clientStats, Map<String, HttpRouteStats> httpRouteStats)
     implements
@@ -42,7 +43,7 @@ public record HttpStats(long serverOpen, long totalOpen, List<ClientStats> clien
             in.readVLong(),
             in.readVLong(),
             in.readCollectionAsList(ClientStats::new),
-            in.getTransportVersion().onOrAfter(NODE_STATS_HTTP_ROUTE_STATS_ADDED) ? in.readMap(HttpRouteStats::new) : Map.of()
+            in.getTransportVersion().onOrAfter(V_8_12_0) ? in.readMap(HttpRouteStats::new) : Map.of()
         );
     }
 
@@ -51,7 +52,7 @@ public record HttpStats(long serverOpen, long totalOpen, List<ClientStats> clien
         out.writeVLong(serverOpen);
         out.writeVLong(totalOpen);
         out.writeCollection(clientStats);
-        if (out.getTransportVersion().onOrAfter(NODE_STATS_HTTP_ROUTE_STATS_ADDED)) {
+        if (out.getTransportVersion().onOrAfter(V_8_12_0)) {
             out.writeMap(httpRouteStats, StreamOutput::writeWriteable);
         }
     }

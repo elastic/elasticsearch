@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.discovery.azure.classic;
@@ -12,6 +13,7 @@ import org.elasticsearch.cloud.azure.classic.AbstractAzureComputeServiceTestCase
 import org.elasticsearch.cloud.azure.classic.management.AzureComputeService.Discovery;
 import org.elasticsearch.cloud.azure.classic.management.AzureComputeService.Management;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import static org.hamcrest.Matchers.containsString;
@@ -26,7 +28,16 @@ public class AzureSimpleTests extends AbstractAzureComputeServiceTestCase {
 
         final String node1 = internalCluster().startNode(settings);
         registerAzureNode(node1);
-        assertNotNull(client().admin().cluster().prepareState().setMasterNodeTimeout("1s").get().getState().nodes().getMasterNodeId());
+        assertNotNull(
+            client().admin()
+                .cluster()
+                .prepareState(TEST_REQUEST_TIMEOUT)
+                .setMasterNodeTimeout(TimeValue.timeValueSeconds(1))
+                .get()
+                .getState()
+                .nodes()
+                .getMasterNodeId()
+        );
 
         // We expect having 1 node as part of the cluster, let's test that
         assertNumberOfNodes(1);
@@ -39,7 +50,16 @@ public class AzureSimpleTests extends AbstractAzureComputeServiceTestCase {
 
         final String node1 = internalCluster().startNode(settings);
         registerAzureNode(node1);
-        assertNotNull(client().admin().cluster().prepareState().setMasterNodeTimeout("1s").get().getState().nodes().getMasterNodeId());
+        assertNotNull(
+            client().admin()
+                .cluster()
+                .prepareState(TEST_REQUEST_TIMEOUT)
+                .setMasterNodeTimeout(TimeValue.timeValueSeconds(1))
+                .get()
+                .getState()
+                .nodes()
+                .getMasterNodeId()
+        );
 
         // We expect having 1 node as part of the cluster, let's test that
         assertNumberOfNodes(1);

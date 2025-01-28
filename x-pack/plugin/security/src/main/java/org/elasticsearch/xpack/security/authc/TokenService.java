@@ -21,7 +21,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest.OpType;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.DocWriteResponse.Result;
-import org.elasticsearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -41,6 +40,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -154,7 +154,7 @@ import static org.elasticsearch.xpack.security.support.SecurityIndexManager.Avai
  * Service responsible for the creation, validation, and other management of {@link UserToken}
  * objects for authentication
  */
-public final class TokenService {
+public class TokenService {
 
     /**
      * The parameters below are used to generate the cryptographic key that is used to encrypt the
@@ -210,7 +210,7 @@ public final class TokenService {
     static final TransportVersion VERSION_ACCESS_TOKENS_AS_UUIDS = TransportVersions.V_7_2_0;
     static final TransportVersion VERSION_MULTIPLE_CONCURRENT_REFRESHES = TransportVersions.V_7_2_0;
     static final TransportVersion VERSION_CLIENT_AUTH_FOR_REFRESH = TransportVersions.V_8_2_0;
-    static final TransportVersion VERSION_GET_TOKEN_DOC_FOR_REFRESH = TransportVersions.V_8_500_061;
+    static final TransportVersion VERSION_GET_TOKEN_DOC_FOR_REFRESH = TransportVersions.V_8_10_X;
 
     private static final Logger logger = LogManager.getLogger(TokenService.class);
 
@@ -234,6 +234,7 @@ public final class TokenService {
     /**
      * Creates a new token service
      */
+    @SuppressWarnings("this-escape")
     public TokenService(
         Settings settings,
         Clock clock,
@@ -366,8 +367,8 @@ public final class TokenService {
                     assert accessTokenBytes.length == RAW_TOKEN_BYTES_TOTAL_LENGTH;
                     MessageDigest userTokenIdDigest = sha256();
                     userTokenIdDigest.update(accessTokenBytes, RAW_TOKEN_BYTES_LENGTH, RAW_TOKEN_DOC_ID_BYTES_LENGTH);
-                    userTokenId = Base64.getUrlEncoder().withoutPadding().encodeToString(userTokenIdDigest.digest());
-                    accessTokenToStore = Base64.getUrlEncoder().withoutPadding().encodeToString(sha256().digest(accessTokenBytes));
+                    userTokenId = Strings.BASE_64_NO_PADDING_URL_ENCODER.encodeToString(userTokenIdDigest.digest());
+                    accessTokenToStore = Strings.BASE_64_NO_PADDING_URL_ENCODER.encodeToString(sha256().digest(accessTokenBytes));
                     if (refreshTokenBytes != null) {
                         assert refreshTokenBytes.length == RAW_TOKEN_BYTES_TOTAL_LENGTH;
                         assert Arrays.equals(
@@ -378,31 +379,31 @@ public final class TokenService {
                             RAW_TOKEN_BYTES_LENGTH,
                             RAW_TOKEN_BYTES_TOTAL_LENGTH
                         ) : "the last bytes of paired access and refresh tokens should be the same";
-                        refreshTokenToStore = Base64.getUrlEncoder().withoutPadding().encodeToString(sha256().digest(refreshTokenBytes));
+                        refreshTokenToStore = Strings.BASE_64_NO_PADDING_URL_ENCODER.encodeToString(sha256().digest(refreshTokenBytes));
                         refreshTokenToReturn = prependVersionAndEncodeRefreshToken(tokenVersion, refreshTokenBytes);
                     } else {
                         refreshTokenToStore = refreshTokenToReturn = null;
                     }
                 } else if (tokenVersion.onOrAfter(VERSION_HASHED_TOKENS)) {
                     assert accessTokenBytes.length == RAW_TOKEN_BYTES_LENGTH;
-                    userTokenId = hashTokenString(Base64.getUrlEncoder().withoutPadding().encodeToString(accessTokenBytes));
+                    userTokenId = hashTokenString(Strings.BASE_64_NO_PADDING_URL_ENCODER.encodeToString(accessTokenBytes));
                     accessTokenToStore = null;
                     if (refreshTokenBytes != null) {
                         assert refreshTokenBytes.length == RAW_TOKEN_BYTES_LENGTH;
-                        refreshTokenToStore = hashTokenString(Base64.getUrlEncoder().withoutPadding().encodeToString(refreshTokenBytes));
+                        refreshTokenToStore = hashTokenString(Strings.BASE_64_NO_PADDING_URL_ENCODER.encodeToString(refreshTokenBytes));
                         refreshTokenToReturn = prependVersionAndEncodeRefreshToken(tokenVersion, refreshTokenBytes);
                     } else {
                         refreshTokenToStore = refreshTokenToReturn = null;
                     }
                 } else {
                     assert accessTokenBytes.length == RAW_TOKEN_BYTES_LENGTH;
-                    userTokenId = Base64.getUrlEncoder().withoutPadding().encodeToString(accessTokenBytes);
+                    userTokenId = Strings.BASE_64_NO_PADDING_URL_ENCODER.encodeToString(accessTokenBytes);
                     accessTokenToStore = null;
                     if (refreshTokenBytes != null) {
                         assert refreshTokenBytes.length == RAW_TOKEN_BYTES_LENGTH;
-                        refreshTokenToStore = refreshTokenToReturn = Base64.getUrlEncoder()
-                            .withoutPadding()
-                            .encodeToString(refreshTokenBytes);
+                        refreshTokenToStore = refreshTokenToReturn = Strings.BASE_64_NO_PADDING_URL_ENCODER.encodeToString(
+                            refreshTokenBytes
+                        );
                     } else {
                         refreshTokenToStore = refreshTokenToReturn = null;
                     }
@@ -469,7 +470,7 @@ public final class TokenService {
      * verification that the token has not been revoked or is expired.
      */
     void tryAuthenticateToken(SecureString token, ActionListener<UserToken> listener) {
-        if (isEnabled() && token != null) {
+        if (shouldTryRealm() && token != null) {
             decodeToken(token.toString(), true, listener.delegateResponse((l, e) -> {
                 if (isShardNotAvailableException(e)) {
                     l.onResponse(null);
@@ -646,8 +647,8 @@ public final class TokenService {
                 }
                 MessageDigest userTokenIdDigest = sha256();
                 userTokenIdDigest.update(accessTokenBytes, RAW_TOKEN_BYTES_LENGTH, RAW_TOKEN_DOC_ID_BYTES_LENGTH);
-                final String userTokenId = Base64.getUrlEncoder().withoutPadding().encodeToString(userTokenIdDigest.digest());
-                final String storedAccessToken = Base64.getUrlEncoder().withoutPadding().encodeToString(sha256().digest(accessTokenBytes));
+                final String userTokenId = Strings.BASE_64_NO_PADDING_URL_ENCODER.encodeToString(userTokenIdDigest.digest());
+                final String storedAccessToken = Strings.BASE_64_NO_PADDING_URL_ENCODER.encodeToString(sha256().digest(accessTokenBytes));
                 getAndValidateUserToken(userTokenId, version, storedAccessToken, validateUserToken, listener);
             } else if (version.onOrAfter(VERSION_ACCESS_TOKENS_AS_UUIDS)) {
                 // The token was created in a > VERSION_ACCESS_TOKENS_UUIDS cluster
@@ -1117,10 +1118,10 @@ public final class TokenService {
                     } else {
                         MessageDigest userTokenIdDigest = sha256();
                         userTokenIdDigest.update(refreshTokenBytes, RAW_TOKEN_BYTES_LENGTH, RAW_TOKEN_DOC_ID_BYTES_LENGTH);
-                        final String userTokenId = Base64.getUrlEncoder().withoutPadding().encodeToString(userTokenIdDigest.digest());
-                        final String storedRefreshToken = Base64.getUrlEncoder()
-                            .withoutPadding()
-                            .encodeToString(sha256().digest(refreshTokenBytes));
+                        final String userTokenId = Strings.BASE_64_NO_PADDING_URL_ENCODER.encodeToString(userTokenIdDigest.digest());
+                        final String storedRefreshToken = Strings.BASE_64_NO_PADDING_URL_ENCODER.encodeToString(
+                            sha256().digest(refreshTokenBytes)
+                        );
                         getTokenDocById(userTokenId, version, null, storedRefreshToken, listener);
                     }
                 } else if (version.onOrAfter(VERSION_HASHED_TOKENS)) {
@@ -1446,7 +1447,7 @@ public final class TokenService {
                         RAW_TOKEN_BYTES_LENGTH,
                         RAW_TOKEN_DOC_ID_BYTES_LENGTH
                     );
-                    tokenDocId = getTokenDocumentId(Base64.getUrlEncoder().withoutPadding().encodeToString(userTokenIdDigest.digest()));
+                    tokenDocId = getTokenDocumentId(Strings.BASE_64_NO_PADDING_URL_ENCODER.encodeToString(userTokenIdDigest.digest()));
                 } else {
                     tokenDocId = getTokenDocumentId(hashTokenString(decryptedTokens[0]));
                 }
@@ -1530,8 +1531,8 @@ public final class TokenService {
         byte[] salt
     ) throws GeneralSecurityException {
         Cipher cipher = getEncryptionCipher(iv, refreshToken, salt);
-        final String supersedingAccessToken = Base64.getUrlEncoder().withoutPadding().encodeToString(supersedingAccessTokenBytes);
-        final String supersedingRefreshToken = Base64.getUrlEncoder().withoutPadding().encodeToString(supersedingRefreshTokenBytes);
+        final String supersedingAccessToken = Strings.BASE_64_NO_PADDING_URL_ENCODER.encodeToString(supersedingAccessTokenBytes);
+        final String supersedingRefreshToken = Strings.BASE_64_NO_PADDING_URL_ENCODER.encodeToString(supersedingRefreshTokenBytes);
         final String supersedingTokens = supersedingAccessToken + "|" + supersedingRefreshToken;
         return Base64.getEncoder().encodeToString(cipher.doFinal(supersedingTokens.getBytes(StandardCharsets.UTF_8)));
     }
@@ -1768,7 +1769,7 @@ public final class TokenService {
                                 client,
                                 request,
                                 new ContextPreservingActionListener<>(supplier, listener),
-                                (SearchHit hit) -> filterAndParseHit(hit, filter)
+                                (SearchHit hit) -> filterAndParseHit(hit.getSourceAsMap(), filter)
                             );
                         }, listener::onFailure));
                 }
@@ -1912,9 +1913,8 @@ public final class TokenService {
         };
     }
 
-    private static Tuple<UserToken, String> filterAndParseHit(SearchHit hit, @Nullable Predicate<Map<String, Object>> filter)
+    private static Tuple<UserToken, String> filterAndParseHit(Map<String, Object> source, @Nullable Predicate<Map<String, Object>> filter)
         throws IllegalStateException, DateTimeException {
-        final Map<String, Object> source = hit.getSourceAsMap();
         if (source == null) {
             throw new IllegalStateException("token document did not have source but source should have been fetched");
         }
@@ -1963,8 +1963,10 @@ public final class TokenService {
         }
     }
 
-    private boolean isEnabled() {
-        return enabled && Security.TOKEN_SERVICE_FEATURE.check(licenseState);
+    private boolean shouldTryRealm() {
+        // Check license without tracking because this is just checking if we should *try* the realm - if this realm doesn't match,
+        // the next realm in the list will be checked, and that's not "using the feature"
+        return enabled && Security.TOKEN_SERVICE_FEATURE.checkWithoutTracking(licenseState);
     }
 
     private void ensureEnabled() {
@@ -2023,7 +2025,7 @@ public final class TokenService {
             try (BytesStreamOutput out = new BytesStreamOutput(MINIMUM_BASE64_BYTES)) {
                 out.setTransportVersion(version);
                 TransportVersion.writeVersion(version, out);
-                out.writeString(Base64.getUrlEncoder().withoutPadding().encodeToString(accessTokenBytes));
+                out.writeString(Strings.BASE_64_NO_PADDING_URL_ENCODER.encodeToString(accessTokenBytes));
                 return Base64.getEncoder().encodeToString(out.bytes().toBytesRef().bytes);
             }
         } else {
@@ -2048,7 +2050,7 @@ public final class TokenService {
                     StreamOutput encryptedStreamOutput = new OutputStreamStreamOutput(encryptedOutput)
                 ) {
                     encryptedStreamOutput.setTransportVersion(version);
-                    encryptedStreamOutput.writeString(Base64.getUrlEncoder().withoutPadding().encodeToString(accessTokenBytes));
+                    encryptedStreamOutput.writeString(Strings.BASE_64_NO_PADDING_URL_ENCODER.encodeToString(accessTokenBytes));
                     // StreamOutput needs to be closed explicitly because it wraps CipherOutputStream
                     encryptedStreamOutput.close();
                     return new String(os.toByteArray(), StandardCharsets.UTF_8);
@@ -2069,7 +2071,7 @@ public final class TokenService {
             try (BytesStreamOutput out = new BytesStreamOutput(VERSION_BYTES + TOKEN_LENGTH)) {
                 out.setTransportVersion(version);
                 TransportVersion.writeVersion(version, out);
-                out.writeString(Base64.getUrlEncoder().withoutPadding().encodeToString(refreshTokenBytes));
+                out.writeString(Strings.BASE_64_NO_PADDING_URL_ENCODER.encodeToString(refreshTokenBytes));
                 return Base64.getEncoder().encodeToString(out.bytes().toBytesRef().bytes);
             }
         }
@@ -2380,7 +2382,7 @@ public final class TokenService {
         char[] ref = new char[0];
         try {
             secureRandom.nextBytes(keyBytes);
-            encode = Base64.getUrlEncoder().withoutPadding().encode(keyBytes);
+            encode = Strings.BASE_64_NO_PADDING_URL_ENCODER.encode(keyBytes);
             ref = new char[encode.length];
             int len = UnicodeUtil.UTF8toUTF16(encode, 0, encode.length, ref);
             return new SecureString(Arrays.copyOfRange(ref, 0, len));
@@ -2734,7 +2736,6 @@ public final class TokenService {
     }
 
     record Doc(String id, Map<String, Object> sourceAsMap, long seqNo, long primaryTerm) {
-
         Doc(SearchHit searchHit) {
             this(searchHit.getId(), searchHit.getSourceAsMap(), searchHit.getSeqNo(), searchHit.getPrimaryTerm());
         }

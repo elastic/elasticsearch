@@ -24,6 +24,11 @@ The output from the Profile API is *very* verbose, especially for complicated
 requests executed across many shards. Pretty-printing the response is
 recommended to help understand the output.
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-search[Search APIs].
+--
 
 [[search-profile-api-example]]
 ==== {api-examples-title}
@@ -197,6 +202,17 @@ The API returns the following result:
             "stored_fields": ["_id", "_routing", "_source"]
           },
           "children": [
+            {
+              "type" : "FetchFieldsPhase",
+              "description" : "",
+              "time_in_nanos" : 238762,
+              "breakdown" : {
+                "process_count" : 5,
+                "process" : 227914,
+                "next_reader" : 10848,
+                "next_reader_count" : 1
+              }
+            },
             {
               "type": "FetchSourcePhase",
               "description": "",
@@ -1044,6 +1060,17 @@ And here is the fetch profile:
           },
           "children": [
             {
+              "type" : "FetchFieldsPhase",
+              "description" : "",
+              "time_in_nanos" : 238762,
+              "breakdown" : {
+                "process_count" : 5,
+                "process" : 227914,
+                "next_reader" : 10848,
+                "next_reader_count" : 1
+              }
+            },
+            {
               "type": "FetchSourcePhase",
               "description": "",
               "time_in_nanos": 20443,
@@ -1276,7 +1303,7 @@ One of the `dfs.knn` sections for a shard looks like the following:
         "query" : [
             {
                 "type" : "DocAndScoreQuery",
-                "description" : "DocAndScore[100]",
+                "description" : "DocAndScoreQuery[0,...][0.008961825,...],0.008961825",
                 "time_in_nanos" : 444414,
                 "breakdown" : {
                   "set_min_competitive_score_count" : 0,

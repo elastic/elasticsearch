@@ -8,8 +8,6 @@
 package org.elasticsearch.compute.aggregation;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.compute.data.BasicBlockTests;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.LongBlock;
@@ -19,6 +17,7 @@ import org.elasticsearch.compute.operator.SourceOperator;
 import java.util.List;
 import java.util.stream.LongStream;
 
+import static org.elasticsearch.compute.test.BlockTestUtils.valuesAtPositions;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -33,8 +32,8 @@ public class CountDistinctBytesRefAggregatorFunctionTests extends AggregatorFunc
     }
 
     @Override
-    protected AggregatorFunctionSupplier aggregatorFunction(BigArrays bigArrays, List<Integer> inputChannels) {
-        return new CountDistinctBytesRefAggregatorFunctionSupplier(bigArrays, inputChannels, 40000);
+    protected AggregatorFunctionSupplier aggregatorFunction(List<Integer> inputChannels) {
+        return new CountDistinctBytesRefAggregatorFunctionSupplier(inputChannels, 40000);
     }
 
     @Override
@@ -55,6 +54,6 @@ public class CountDistinctBytesRefAggregatorFunctionTests extends AggregatorFunc
     @Override
     protected void assertOutputFromEmpty(Block b) {
         assertThat(b.getPositionCount(), equalTo(1));
-        assertThat(BasicBlockTests.valuesAtPositions(b, 0, 1), equalTo(List.of(List.of(0L))));
+        assertThat(valuesAtPositions(b, 0, 1), equalTo(List.of(List.of(0L))));
     }
 }

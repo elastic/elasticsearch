@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.tasks;
@@ -505,7 +506,7 @@ public class TaskManager implements ClusterStateApplier {
             if (channel instanceof TcpTransportChannel) {
                 startTrackingChannel(((TcpTransportChannel) channel).getChannel(), ban::registerChannel);
             } else {
-                assert channel.getChannelType().equals("direct") : "expect direct channel; got [" + channel + "]";
+                assert TransportService.isDirectResponseChannel(channel) : "expect direct channel; got [" + channel + "]";
                 ban.registerChannel(DIRECT_CHANNEL_TRACKER);
             }
         }

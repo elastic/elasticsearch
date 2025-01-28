@@ -299,7 +299,7 @@ public class TransformUpdater {
         TransformAuditor auditor,
         IndexNameExpressionResolver indexNameExpressionResolver,
         TransformConfig config,
-        Map<String, String> mappings,
+        Map<String, String> destIndexMappings,
         SeqNoPrimaryTermAndIndex seqNoPrimaryTermAndIndex,
         ClusterState clusterState,
         Settings destIndexSettings,
@@ -355,7 +355,7 @@ public class TransformUpdater {
                 clusterState,
                 config,
                 destIndexSettings,
-                mappings,
+                destIndexMappings,
                 createDestinationListener
             );
         } else {

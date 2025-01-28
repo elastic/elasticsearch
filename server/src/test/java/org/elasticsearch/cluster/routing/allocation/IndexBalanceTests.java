@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing.allocation;
@@ -21,7 +22,6 @@ import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
-import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
 import org.elasticsearch.common.UUIDs;
@@ -35,6 +35,7 @@ import java.util.function.IntFunction;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
+import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
@@ -498,14 +499,9 @@ public class IndexBalanceTests extends ESAllocationTestCase {
 
         for (int shardId = 0; shardId < numberOfShards; shardId++) {
             indexRoutingTableBuilder.addShard(
-                TestShardRouting.newShardRouting(
-                    new ShardId(indexId, shardId),
-                    assignmentFunction.apply(shardId),
-                    null,
-                    true,
-                    ShardRoutingState.STARTED,
-                    AllocationId.newInitializing(inSyncIds.get(shardId))
-                )
+                shardRoutingBuilder(new ShardId(indexId, shardId), assignmentFunction.apply(shardId), true, ShardRoutingState.STARTED)
+                    .withAllocationId(AllocationId.newInitializing(inSyncIds.get(shardId)))
+                    .build()
             );
         }
 

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.plugins.cli;
@@ -101,13 +102,13 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
 import static org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase.forEachFileRecursively;
-import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.hasToString;
+import static org.hamcrest.Matchers.matchesRegex;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
@@ -1286,7 +1287,7 @@ public class InstallPluginActionTests extends ESTestCase {
             )
         );
         assertEquals(ExitCodes.IO_ERROR, e.exitCode);
-        assertThat(e, hasToString(matches("checksum file at \\[.*\\] is not for this plugin")));
+        assertThat(e, hasToString(matchesRegex(".*checksum file at \\[.*\\] is not for this plugin.*")));
     }
 
     public void testInvalidShaFileContainingExtraLine() throws Exception {

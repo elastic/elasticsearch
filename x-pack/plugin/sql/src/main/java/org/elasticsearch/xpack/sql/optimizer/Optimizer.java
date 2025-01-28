@@ -1211,10 +1211,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         }
 
         private static boolean foldable(Expression e) {
-            if (e instanceof Alias) {
-                e = ((Alias) e).child();
-            }
-            return e.foldable();
+            return Alias.unwrap(e).foldable();
         }
 
     }

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.security.action.apikey;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.xcontent.ToXContent;
@@ -27,9 +28,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTests.randomCrossClusterAccessRoleDescriptor;
-import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTests.randomUniquelyNamedRoleDescriptors;
+import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTestHelper.randomCrossClusterAccessRoleDescriptor;
+import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTestHelper.randomUniquelyNamedRoleDescriptors;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
@@ -67,6 +69,7 @@ public class ApiKeyTests extends ESTestCase {
         assertThat(map.get("invalidated"), is(apiKey.isInvalidated()));
         assertThat(map.get("username"), equalTo(apiKey.getUsername()));
         assertThat(map.get("realm"), equalTo(apiKey.getRealm()));
+        assertThat(map.get("realm_type"), equalTo(apiKey.getRealmType()));
         assertThat(map.get("metadata"), equalTo(Objects.requireNonNullElseGet(apiKey.getMetadata(), Map::of)));
 
         if (apiKey.getRoleDescriptors() == null) {
@@ -152,6 +155,10 @@ public class ApiKeyTests extends ESTestCase {
         return randomMetadata == null ? new HashMap<>() : new HashMap<>(randomMetadata);
     }
 
+    public static TimeValue randomFutureExpirationTime() {
+        return randomTimeValue(10, 20, TimeUnit.DAYS, TimeUnit.HOURS, TimeUnit.MINUTES, TimeUnit.SECONDS);
+    }
+
     public static ApiKey randomApiKeyInstance() {
         final String name = randomAlphaOfLengthBetween(4, 10);
         final String id = randomAlphaOfLength(20);
@@ -167,6 +174,7 @@ public class ApiKeyTests extends ESTestCase {
             : null;
         final String username = randomAlphaOfLengthBetween(4, 10);
         final String realmName = randomAlphaOfLengthBetween(3, 8);
+        final String realmType = randomFrom(randomAlphaOfLengthBetween(3, 8), null);
         final Map<String, Object> metadata = randomMetadata();
         final List<RoleDescriptor> roleDescriptors = type == ApiKey.Type.CROSS_CLUSTER
             ? List.of(randomCrossClusterAccessRoleDescriptor())
@@ -185,6 +193,7 @@ public class ApiKeyTests extends ESTestCase {
             invalidation,
             username,
             realmName,
+            realmType,
             metadata,
             roleDescriptors,
             limitedByRoleDescriptors

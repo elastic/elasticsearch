@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.xcontent.provider.smile;
@@ -21,6 +22,7 @@ import org.elasticsearch.xcontent.XContentGenerator;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.provider.XContentImplUtils;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -45,7 +47,7 @@ public final class SmileXContentImpl implements XContent {
     }
 
     static {
-        smileFactory = new SmileFactory();
+        smileFactory = XContentImplUtils.configure(SmileFactory.builder());
         // for now, this is an overhead, might make sense for web sockets
         smileFactory.configure(SmileGenerator.Feature.ENCODE_BINARY_AS_7BIT, false);
         smileFactory.configure(SmileFactory.Feature.FAIL_ON_SYMBOL_HASH_OVERFLOW, false); // this trips on many mappings now...
@@ -64,7 +66,7 @@ public final class SmileXContentImpl implements XContent {
     }
 
     @Override
-    public byte streamSeparator() {
+    public byte bulkSeparator() {
         return (byte) 0xFF;
     }
 

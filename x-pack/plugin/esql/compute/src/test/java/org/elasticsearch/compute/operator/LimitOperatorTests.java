@@ -7,24 +7,24 @@
 
 package org.elasticsearch.compute.operator;
 
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.compute.data.BasicBlockTests;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.test.OperatorTestCase;
+import org.elasticsearch.compute.test.RandomBlock;
+import org.elasticsearch.compute.test.SequenceLongBlockSourceOperator;
+import org.hamcrest.Matcher;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.LongStream;
 
+import static org.elasticsearch.compute.test.RandomBlock.randomElementType;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class LimitOperatorTests extends OperatorTestCase {
     @Override
-    protected LimitOperator.Factory simple(BigArrays bigArrays) {
+    protected LimitOperator.Factory simple() {
         return new LimitOperator.Factory(100);
     }
 
@@ -34,13 +34,13 @@ public class LimitOperatorTests extends OperatorTestCase {
     }
 
     @Override
-    protected String expectedDescriptionOfSimple() {
-        return "LimitOperator[limit = 100]";
+    protected Matcher<String> expectedDescriptionOfSimple() {
+        return equalTo("LimitOperator[limit = 100]");
     }
 
     @Override
-    protected String expectedToStringOfSimple() {
-        return "LimitOperator[limit = 100/100]";
+    protected Matcher<String> expectedToStringOfSimple() {
+        return equalTo("LimitOperator[limit = 100/100]");
     }
 
     @Override
@@ -50,15 +50,9 @@ public class LimitOperatorTests extends OperatorTestCase {
         assertThat(outputPositionCount, equalTo(Math.min(100, inputPositionCount)));
     }
 
-    @Override
-    protected ByteSizeValue memoryLimitForSimple() {
-        assumeFalse("doesn't allocate, just filters", true);
-        return null;
-    }
-
     public void testStatus() {
         BlockFactory blockFactory = driverContext().blockFactory();
-        LimitOperator op = simple(BigArrays.NON_RECYCLING_INSTANCE).get(driverContext());
+        LimitOperator op = simple().get(driverContext());
 
         LimitOperator.Status status = op.status();
         assertThat(status.limit(), equalTo(100));
@@ -80,7 +74,7 @@ public class LimitOperatorTests extends OperatorTestCase {
 
     public void testNeedInput() {
         BlockFactory blockFactory = driverContext().blockFactory();
-        try (LimitOperator op = simple(BigArrays.NON_RECYCLING_INSTANCE).get(driverContext())) {
+        try (LimitOperator op = simple().get(driverContext())) {
             assertTrue(op.needsInput());
             Page p = new Page(blockFactory.newConstantNullBlock(10));
             op.addInput(p);
@@ -95,7 +89,7 @@ public class LimitOperatorTests extends OperatorTestCase {
     public void testBlockBiggerThanRemaining() {
         BlockFactory blockFactory = driverContext().blockFactory();
         for (int i = 0; i < 100; i++) {
-            try (var op = simple(BigArrays.NON_RECYCLING_INSTANCE).get(driverContext())) {
+            try (var op = simple().get(driverContext())) {
                 assertTrue(op.needsInput());
                 Page p = new Page(randomBlock(blockFactory, 200));  // test doesn't close because operator returns a view
                 op.addInput(p);
@@ -115,7 +109,7 @@ public class LimitOperatorTests extends OperatorTestCase {
     public void testBlockPreciselyRemaining() {
         BlockFactory blockFactory = driverContext().blockFactory();
         for (int i = 0; i < 100; i++) {
-            try (var op = simple(BigArrays.NON_RECYCLING_INSTANCE).get(driverContext())) {
+            try (var op = simple().get(driverContext())) {
                 assertTrue(op.needsInput());
                 Page p = new Page(randomBlock(blockFactory, 100));  // test doesn't close because operator returns same page
                 op.addInput(p);
@@ -136,17 +130,6 @@ public class LimitOperatorTests extends OperatorTestCase {
         if (randomBoolean()) {
             return blockFactory.newConstantNullBlock(size);
         }
-        return BasicBlockTests.randomBlock(blockFactory, randomElement(), size, false, 1, 1, 0, 0).block();
-    }
-
-    static ElementType randomElement() {
-        List<ElementType> l = new ArrayList<>();
-        for (ElementType elementType : ElementType.values()) {
-            if (elementType == ElementType.UNKNOWN || elementType == ElementType.NULL || elementType == ElementType.DOC) {
-                continue;
-            }
-            l.add(elementType);
-        }
-        return randomFrom(l);
+        return RandomBlock.randomBlock(blockFactory, randomElementType(), size, false, 1, 1, 0, 0).block();
     }
 }

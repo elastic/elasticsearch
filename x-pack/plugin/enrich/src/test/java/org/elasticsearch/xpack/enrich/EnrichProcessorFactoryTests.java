@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.enrich;
 
-import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
@@ -25,7 +24,6 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.profile.SearchProfileResults;
@@ -260,7 +258,7 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
                     ActionListener.respondAndRelease(
                         listener,
                         (Response) new SearchResponse(
-                            new SearchHits(new SearchHit[0], new TotalHits(0L, TotalHits.Relation.EQUAL_TO), 0.0f),
+                            SearchHits.EMPTY_WITH_TOTAL_HITS,
                             InternalAggregations.EMPTY,
                             new Suggest(Collections.emptyList()),
                             false,
@@ -305,10 +303,10 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
             assertThat(failure[0], nullValue());
             assertThat(result[0], notNullValue());
             assertThat(requestCounter[0], equalTo(1));
-            assertThat(enrichCache.getStats("_id").getCount(), equalTo(1L));
-            assertThat(enrichCache.getStats("_id").getMisses(), equalTo(1L));
-            assertThat(enrichCache.getStats("_id").getHits(), equalTo(0L));
-            assertThat(enrichCache.getStats("_id").getEvictions(), equalTo(0L));
+            assertThat(enrichCache.getStats("_id").count(), equalTo(1L));
+            assertThat(enrichCache.getStats("_id").misses(), equalTo(1L));
+            assertThat(enrichCache.getStats("_id").hits(), equalTo(0L));
+            assertThat(enrichCache.getStats("_id").evictions(), equalTo(0L));
 
             // No search is performed, result is read from the cache:
             result[0] = null;
@@ -320,10 +318,10 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
             assertThat(failure[0], nullValue());
             assertThat(result[0], notNullValue());
             assertThat(requestCounter[0], equalTo(1));
-            assertThat(enrichCache.getStats("_id").getCount(), equalTo(1L));
-            assertThat(enrichCache.getStats("_id").getMisses(), equalTo(1L));
-            assertThat(enrichCache.getStats("_id").getHits(), equalTo(1L));
-            assertThat(enrichCache.getStats("_id").getEvictions(), equalTo(0L));
+            assertThat(enrichCache.getStats("_id").count(), equalTo(1L));
+            assertThat(enrichCache.getStats("_id").misses(), equalTo(1L));
+            assertThat(enrichCache.getStats("_id").hits(), equalTo(1L));
+            assertThat(enrichCache.getStats("_id").evictions(), equalTo(0L));
         }
     }
 

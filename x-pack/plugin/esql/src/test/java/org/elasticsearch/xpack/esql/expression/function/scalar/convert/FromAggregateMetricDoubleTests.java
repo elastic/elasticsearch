@@ -59,7 +59,7 @@ public class FromAggregateMetricDoubleTests extends AbstractScalarFunctionTestCa
                         new TestCaseSupplier.TypedData(agg_metric, dataType, "agg_metric"),
                         new TestCaseSupplier.TypedData(index, DataType.INTEGER, "subfield_index").forceLiteral()
                     ),
-                    "FromAggregateDoubleMetricEvaluator[field=Attribute[channel=0],subfieldIndex=" + index + "]",
+                    "FromAggregateMetricDoubleEvaluator[field=Attribute[channel=0],subfieldIndex=" + index + "]",
                     index == AggregateMetricDoubleBlockBuilder.Metric.COUNT.getIndex() ? DataType.INTEGER : DataType.DOUBLE,
                     index == AggregateMetricDoubleBlockBuilder.Metric.COUNT.getIndex() ? Matchers.equalTo(agg_metric.getCount())
                         : expectedValue == null ? Matchers.nullValue()

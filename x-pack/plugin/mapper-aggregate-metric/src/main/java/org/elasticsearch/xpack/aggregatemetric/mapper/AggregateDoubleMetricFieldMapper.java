@@ -554,7 +554,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
 
                     @Override
                     public String toString() {
-                        return "BlockDocValuesReader.AggregatedDoubleMetrics";
+                        return "BlockDocValuesReader.AggregateMetricDouble";
                     }
 
                     @Override

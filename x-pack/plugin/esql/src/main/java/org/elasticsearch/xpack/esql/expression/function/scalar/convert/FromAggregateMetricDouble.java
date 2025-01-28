@@ -42,7 +42,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 public class FromAggregateMetricDouble extends EsqlScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
-        "FromAggregateDoubleMetric",
+        "FromAggregateMetricDouble",
         FromAggregateMetricDouble::new
     );
 
@@ -130,7 +130,7 @@ public class FromAggregateMetricDouble extends EsqlScalarFunction {
 
             @Override
             public String toString() {
-                return "FromAggregateDoubleMetricEvaluator[" + "field=" + fieldEvaluator + ",subfieldIndex=" + subfieldIndex + "]";
+                return "FromAggregateMetricDoubleEvaluator[" + "field=" + fieldEvaluator + ",subfieldIndex=" + subfieldIndex + "]";
             }
 
             @Override
@@ -158,7 +158,7 @@ public class FromAggregateMetricDouble extends EsqlScalarFunction {
 
                     @Override
                     public String toString() {
-                        return "FromAggregateDoubleMetricEvaluator[field=" + eval + ",subfieldIndex=" + subfieldIndex + "]";
+                        return "FromAggregateMetricDoubleEvaluator[field=" + eval + ",subfieldIndex=" + subfieldIndex + "]";
                     }
                 };
 

@@ -42,9 +42,8 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
         .distribution(DistributionType.DEFAULT)
         .version(getOldClusterTestVersion())
         .nodes(2)
-        .setting("indices.memory.shard_inactive_time", "60m")
-        .setting("xpack.security.enabled", "false")
         .setting("ingest.geoip.downloader.endpoint", () -> fixture.getAddress(), s -> useFixture)
+        .setting("xpack.security.enabled", "false")
         .feature(FeatureFlag.TIME_SERIES_MODE)
         .build();
 
@@ -93,7 +92,7 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
             Request migrateSystemFeatures = new Request("POST", "/_migration/system_features");
             assertOK(client().performRequest(migrateSystemFeatures));
 
-            assertBusy(() -> testCatIndices(".geoip_databases-reindexed-for-8", "my-index-00001"));
+            assertBusy(() -> testCatIndices(".geoip_databases-reindexed-for-9", "my-index-00001"));
             assertBusy(() -> testIndexGeoDoc());
 
             Request disableDownloader = new Request("PUT", "/_cluster/settings");

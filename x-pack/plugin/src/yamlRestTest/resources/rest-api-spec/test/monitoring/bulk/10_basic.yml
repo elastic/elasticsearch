@@ -12,6 +12,8 @@
             xpack.monitoring.collection.enabled: true
 
   - do:
+      allowed_warnings:
+        - "The xpack monitoring bulk action is deprecated and will be removed in the next major release."
       monitoring.bulk:
         system_id:          "kibana"
         system_api_version: "7"
@@ -48,6 +50,8 @@
   - match: { hits.total: 2 }
 
   - do:
+      allowed_warnings:
+        - "The xpack monitoring bulk action is deprecated and will be removed in the next major release."
       monitoring.bulk:
         system_id:          "kibana"
         system_api_version: "7"
@@ -96,6 +100,8 @@
 
   # Old system_api_version should still be accepted
   - do:
+      allowed_warnings:
+        - "The xpack monitoring bulk action is deprecated and will be removed in the next major release."
       monitoring.bulk:
         system_id:          "kibana"
         system_api_version: "6"
@@ -141,6 +147,8 @@
 
   # Missing a system_id causes it to fail
   - do:
+      allowed_warnings:
+        - "The xpack monitoring bulk action is deprecated and will be removed in the next major release."
       catch: bad_request
       monitoring.bulk:
         system_api_version: "7"
@@ -151,6 +159,8 @@
 
   # Missing a system_api_version causes it to fail
   - do:
+      allowed_warnings:
+        - "The xpack monitoring bulk action is deprecated and will be removed in the next major release."
       catch: bad_request
       monitoring.bulk:
         system_id:          "kibana"
@@ -161,6 +171,8 @@
 
   # Missing an interval causes it to fail
   - do:
+      allowed_warnings:
+        - "The xpack monitoring bulk action is deprecated and will be removed in the next major release."
       catch: bad_request
       monitoring.bulk:
         system_id:          "kibana"
@@ -183,6 +195,8 @@
             xpack.monitoring.collection.enabled: true
 
   - do:
+      allowed_warnings:
+        - "The xpack monitoring bulk action is deprecated and will be removed in the next major release."
       monitoring.bulk:
         system_id:          "beats"
         system_api_version: "7"
@@ -215,6 +229,8 @@
         index: .monitoring-beats-*
 
   - do:
+      allowed_warnings:
+        - "The xpack monitoring bulk action is deprecated and will be removed in the next major release."
       catch: /export_exception/
       monitoring.bulk:
         system_id:          "beats"

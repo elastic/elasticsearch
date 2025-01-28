@@ -87,6 +87,8 @@ teardown:
             xpack.monitoring.collection.enabled: true
 
   - do:
+      allowed_warnings:
+        - "The xpack monitoring bulk action is deprecated and will be removed in the next major release."
       headers:
         # Authorization: logstash_agent
         Authorization: "Basic bG9nc3Rhc2hfYWdlbnQ6czNrcml0LXBhc3N3b3Jk"
@@ -124,6 +126,8 @@ teardown:
   - match: { hits.total: 0 }
 
   - do:
+      allowed_warnings:
+        - "The xpack monitoring bulk action is deprecated and will be removed in the next major release."
       catch: forbidden
       headers:
         # Authorization: unknown_agent

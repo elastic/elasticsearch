@@ -10,6 +10,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
@@ -28,6 +29,7 @@ import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkResponse;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.TEMPLATE_VERSION;
@@ -39,6 +41,11 @@ import static org.mockito.Mockito.when;
 public class RestMonitoringBulkActionTests extends ESTestCase {
 
     private final RestMonitoringBulkAction action = new RestMonitoringBulkAction();
+
+    @Override
+    protected List<String> filteredWarnings() {
+        return CollectionUtils.appendToCopy(super.filteredWarnings(), RestMonitoringBulkAction.DEPRECATION_MESSAGE);
+    }
 
     public void testGetName() {
         // Are you sure that you want to change the name?

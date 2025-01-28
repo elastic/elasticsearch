@@ -37,7 +37,7 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 public class RestMonitoringBulkAction extends BaseRestHandler {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(MonitoringBulkAction.class);
     private static final String DEPRECATION_ID = "xpack_monitoring_bulk_api_removal";
-    private static final String DEPRECATION_MESSAGE =
+    public static final String DEPRECATION_MESSAGE =
         "The xpack monitoring bulk action is deprecated and will be removed in the next major release.";
 
     public static final String MONITORING_ID = "system_id";

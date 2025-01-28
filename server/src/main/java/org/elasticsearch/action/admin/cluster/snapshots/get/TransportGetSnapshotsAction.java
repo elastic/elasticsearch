@@ -279,7 +279,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
 
                 final BooleanSupplier failFastSupplier = () -> cancellableTask.isCancelled() || listeners.isFailing();
 
-                final Iterator<AsyncRepositoryContents> asyncRepositoryContentsIterator = Iterators.failFast(
+                final Iterator<AsyncSnapshotInfoIterator> asyncSnapshotInfoIterators = Iterators.failFast(
                     Iterators.map(
                         Iterators.filter(
                             Iterators.map(repositories.iterator(), RepositoryMetadata::name),
@@ -299,10 +299,10 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                     failFastSupplier
                 );
 
-                // TODO if the request parameters allow it, modify asyncRepositoryContentsIterator to skip unnecessary GET calls here
+                // TODO if the request parameters allow it, modify asyncSnapshotInfoIterators to skip unnecessary GET calls here
 
-                asyncRepositoryContentsIterator.forEachRemaining(
-                    asyncRepositoryContents -> asyncRepositoryContents.getAsyncSnapshotInfoIterator(
+                asyncSnapshotInfoIterators.forEachRemaining(
+                    asyncSnapshotInfoIteratorSupplier -> asyncSnapshotInfoIteratorSupplier.getAsyncSnapshotInfoIterator(
                         listeners.acquire(
                             asyncSnapshotInfoIterator -> ThrottledIterator.run(
                                 Iterators.failFast(asyncSnapshotInfoIterator, failFastSupplier),
@@ -399,7 +399,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
          * An asynchronous supplier of the collection of snapshots contained in a repository, as an iterator over snapshots each represented
          * as an {@link AsyncSnapshotInfo}.
          */
-        private interface AsyncRepositoryContents {
+        private interface AsyncSnapshotInfoIterator {
             /**
              * @param listener completed, possibly asynchronously, with the appropriate iterator over {@link AsyncSnapshotInfo} instances.
              */

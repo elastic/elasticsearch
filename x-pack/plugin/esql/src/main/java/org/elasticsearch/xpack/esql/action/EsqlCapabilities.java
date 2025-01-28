@@ -475,7 +475,10 @@ public class EsqlCapabilities {
          * Support Least and Greatest functions on Date Nanos type
          */
         LEAST_GREATEST_FOR_DATENANOS(),
-
+        /**
+         * support date extract function for date nanos
+         */
+        DATE_NANOS_DATE_EXTRACT(),
         /**
          * Support add and subtract on date nanos
          */
@@ -756,7 +759,17 @@ public class EsqlCapabilities {
         /**
          * Disabled support for index aliases in lookup joins
          */
-        LOOKUP_JOIN_NO_ALIASES(JOIN_LOOKUP_V12.isEnabled());
+        LOOKUP_JOIN_NO_ALIASES(JOIN_LOOKUP_V12.isEnabled()),
+
+        /**
+         * Full text functions can be used in disjunctions as they are implemented in compute engine
+         */
+        FULL_TEXT_FUNCTIONS_DISJUNCTIONS_COMPUTE_ENGINE,
+
+        /**
+         * Support match options in match function
+         */
+        MATCH_FUNCTION_OPTIONS;
 
         private final boolean enabled;
 

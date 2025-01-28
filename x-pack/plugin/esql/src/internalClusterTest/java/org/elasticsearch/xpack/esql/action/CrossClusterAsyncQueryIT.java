@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionFuture;
@@ -265,6 +266,7 @@ public class CrossClusterAsyncQueryIT extends AbstractMultiClustersTestCase {
     }
 
     public void testStopQuery() throws Exception {
+        assumeTrue("Pragme does not work in release builds", Build.current().isSnapshot());
         Map<String, Object> testClusterInfo = setupClusters(3);
         int localNumShards = (Integer) testClusterInfo.get("local.num_shards");
         int remote1NumShards = (Integer) testClusterInfo.get("remote1.num_shards");

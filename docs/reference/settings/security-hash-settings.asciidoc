@@ -124,7 +124,7 @@ following:
                              initial input with SHA512 first.
 |=======================
 
-Furthermore, Elasticsearch supports authentication via securely-generated high entropy tokens,
+Furthermore, {es} supports authentication via securely-generated high entropy tokens,
 for instance <<security-api-create-api-key,API keys>>.
 Analogous to passwords, only the tokens' hashes are stored. Since the tokens are guaranteed
 to have sufficiently high entropy to resist offline attacks, secure salted hash functions are supported

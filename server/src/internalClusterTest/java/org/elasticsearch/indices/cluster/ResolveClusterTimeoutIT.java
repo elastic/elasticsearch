@@ -39,23 +39,23 @@ public class ResolveClusterTimeoutIT extends AbstractMultiClustersTestCase {
         long maxTimeoutInMillis = 500;
 
         // First part: we query _resolve/cluster without any indices to prove we can hit remote1 fine.
-        ResolveClusterActionRequest requestWithoutIndices;
+        ResolveClusterActionRequest resolveClusterActionRequest;
         if (randomBoolean()) {
-            requestWithoutIndices = new ResolveClusterActionRequest(new String[0], IndicesOptions.DEFAULT, true, true);
+            resolveClusterActionRequest = new ResolveClusterActionRequest(new String[0], IndicesOptions.DEFAULT, true, true);
         } else {
-            requestWithoutIndices = new ResolveClusterActionRequest(new String[] { "*:*" });
+            resolveClusterActionRequest = new ResolveClusterActionRequest(new String[] { "*:*" });
         }
 
-        // We set a timeout but won't stall any cluster; expectation is that we get back response just fine.
-        requestWithoutIndices.setTimeout(TimeValue.timeValueMillis(randomLongBetween(100, maxTimeoutInMillis)));
-        ResolveClusterActionResponse responseWithoutIndices = safeGet(
-            client().execute(TransportResolveClusterAction.TYPE, requestWithoutIndices)
+        // We set a timeout but won't stall any cluster; expectation is that we always get back response just fine before the timeout.
+        resolveClusterActionRequest.setTimeout(TimeValue.timeValueSeconds(10));
+        ResolveClusterActionResponse clusterActionResponse = safeGet(
+            client().execute(TransportResolveClusterAction.TYPE, resolveClusterActionRequest)
         );
-        Map<String, ResolveClusterInfo> clusterInfoWithoutIndices = responseWithoutIndices.getResolveClusterInfo();
+        Map<String, ResolveClusterInfo> clusterInfo = clusterActionResponse.getResolveClusterInfo();
 
         // Remote is connected and error message is null.
-        assertThat(clusterInfoWithoutIndices.get(REMOTE_CLUSTER_1).isConnected(), equalTo(true));
-        assertThat(clusterInfoWithoutIndices.get(REMOTE_CLUSTER_1).getError(), is(nullValue()));
+        assertThat(clusterInfo.get(REMOTE_CLUSTER_1).isConnected(), equalTo(true));
+        assertThat(clusterInfo.get(REMOTE_CLUSTER_1).getError(), is(nullValue()));
 
         // Second part: now we stall the remote and utilise the timeout feature.
         CountDownLatch latch = new CountDownLatch(1);
@@ -72,21 +72,19 @@ public class ResolveClusterTimeoutIT extends AbstractMultiClustersTestCase {
             );
         }
 
-        ResolveClusterActionRequest requestWithIndices = new ResolveClusterActionRequest(new String[] { "*:*" });
         long randomlyChosenTimeout = randomLongBetween(100, maxTimeoutInMillis);
-        requestWithIndices.setTimeout(TimeValue.timeValueMillis(randomlyChosenTimeout));
+        // We now randomly choose a timeout which is guaranteed to hit since the remote is stalled.
+        resolveClusterActionRequest.setTimeout(TimeValue.timeValueMillis(randomlyChosenTimeout));
 
-        ResolveClusterActionResponse responseWithIndices = safeGet(
-            client().execute(TransportResolveClusterAction.TYPE, requestWithIndices)
-        );
+        clusterActionResponse = safeGet(client().execute(TransportResolveClusterAction.TYPE, resolveClusterActionRequest));
         latch.countDown();
 
-        Map<String, ResolveClusterInfo> clusterInfoWithIndices = responseWithIndices.getResolveClusterInfo();
+        clusterInfo = clusterActionResponse.getResolveClusterInfo();
 
         // Ensure that the request timed out and that the remote is marked as not connected.
-        assertThat(clusterInfoWithIndices.get(REMOTE_CLUSTER_1).isConnected(), equalTo(false));
+        assertThat(clusterInfo.get(REMOTE_CLUSTER_1).isConnected(), equalTo(false));
         assertThat(
-            clusterInfoWithIndices.get(REMOTE_CLUSTER_1).getError(),
+            clusterInfo.get(REMOTE_CLUSTER_1).getError(),
             equalTo("Request timed out before receiving a response from the remote cluster")
         );
     }

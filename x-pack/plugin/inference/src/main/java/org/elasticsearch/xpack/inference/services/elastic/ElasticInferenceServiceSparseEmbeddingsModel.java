@@ -93,9 +93,7 @@ public class ElasticInferenceServiceSparseEmbeddingsModel extends ElasticInferen
     private URI createUri() throws ElasticsearchStatusException {
         try {
             // TODO, consider transforming the base URL into a URI for better error handling.
-            return new URI(
-                elasticInferenceServiceComponents().elasticInferenceServiceUrl() + "/api/v1/embed/text/sparse"
-            );
+            return new URI(elasticInferenceServiceComponents().elasticInferenceServiceUrl() + "/api/v1/embed/text/sparse");
         } catch (URISyntaxException e) {
             throw new ElasticsearchStatusException(
                 "Failed to create URI for service ["

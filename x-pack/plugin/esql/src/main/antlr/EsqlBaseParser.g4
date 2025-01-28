@@ -110,7 +110,7 @@ functionName
     ;
 
 mapExpression
-    : {this.isDevVersion()}? LEFT_BRACES entryExpression (COMMA entryExpression)* RIGHT_BRACES
+    : LEFT_BRACES entryExpression (COMMA entryExpression)* RIGHT_BRACES
     ;
 
 entryExpression
@@ -337,7 +337,7 @@ joinCommand
     ;
 
 joinTarget
-    : index=identifier (AS alias=identifier)?
+    : index=indexPattern (AS alias=identifier)?
     ;
 
 joinCondition

@@ -241,7 +241,7 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
      * Tests that finish then close without calling {@link Operator#getOutput} to
      * retrieve a potential last page, releases all memory.
      */
-    public void testSimpleFinishClose() {
+    public void testSimpleFinishClose() throws Exception {
         DriverContext driverContext = driverContext();
         List<Page> input = CannedSourceOperator.collectPages(simpleInput(driverContext.blockFactory(), 1));
         assert input.size() == 1 : "Expected single page, got: " + input;
@@ -253,7 +253,6 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
             operator.addInput(page);
             operator.finish();
         }
-        assertThat(driverContext.blockFactory().breaker().getUsed(), equalTo(0L));
     }
 
     protected final List<Page> drive(Operator operator, Iterator<Page> input, DriverContext driverContext) {

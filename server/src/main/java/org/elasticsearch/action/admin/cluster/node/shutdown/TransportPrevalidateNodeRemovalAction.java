@@ -73,7 +73,6 @@ public class TransportPrevalidateNodeRemovalAction extends TransportMasterNodeRe
             threadPool,
             actionFilters,
             PrevalidateNodeRemovalRequest::new,
-            indexNameExpressionResolver,
             PrevalidateNodeRemovalResponse::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );

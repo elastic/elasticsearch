@@ -145,7 +145,7 @@ public class PlannerUtils {
     }
 
     /**
-     * Similar to {@link Node#forEachUp(Consumer)}, but with a custom callback to get the node children.
+     * Similar to {@link Node#forEachUp(Class, Consumer)}, but with a custom callback to get the node children.
      */
     private static <T extends Node<T>, E extends T> void forEachUpWithChildren(
         T node,

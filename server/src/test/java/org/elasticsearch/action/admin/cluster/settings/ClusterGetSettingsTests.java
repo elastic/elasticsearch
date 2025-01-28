@@ -12,7 +12,6 @@ package org.elasticsearch.action.admin.cluster.settings;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
@@ -56,8 +55,7 @@ public class ClusterGetSettingsTests extends ESTestCase {
             mock(ClusterService.class),
             threadPool,
             filter,
-            mock(ActionFilters.class),
-            mock(IndexNameExpressionResolver.class)
+            mock(ActionFilters.class)
         );
 
         final Settings persistentSettings = Settings.builder()

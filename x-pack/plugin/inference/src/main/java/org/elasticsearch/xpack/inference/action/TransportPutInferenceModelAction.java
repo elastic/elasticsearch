@@ -88,7 +88,6 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
             threadPool,
             actionFilters,
             PutInferenceModelAction.Request::new,
-            indexNameExpressionResolver,
             PutInferenceModelAction.Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );

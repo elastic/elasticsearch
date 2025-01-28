@@ -2471,7 +2471,6 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         threadPool,
                         metadataMappingService,
                         actionFilters,
-                        indexNameExpressionResolver,
                         EmptySystemIndices.INSTANCE
                     )
                 );

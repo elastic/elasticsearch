@@ -72,7 +72,12 @@ abstract class IdentifierBuilder extends AbstractBuilder {
                 validateIndexPattern(indexPattern, c, hasSeenStar.get());
             }
             if (selectorString != null) {
-                IndexNameExpressionResolver.SelectorResolver.validateIndexSelectorString(indexPattern, selectorString);
+                try {
+                    // Ensures that the selector provided is one of the valid kinds
+                    IndexNameExpressionResolver.SelectorResolver.validateIndexSelectorString(indexPattern, selectorString);
+                } catch (InvalidIndexNameException e) {
+                    throw new ParsingException(e, source(c), e.getMessage());
+                }
             }
             patterns.add(reassembleIndexName(clusterString, indexPattern, selectorString));
         });

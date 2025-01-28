@@ -18,7 +18,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link ToString}.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code org.elasticsearch.compute.gen.ConvertEvaluatorImplementer} instead.
  */
 public final class ToStringFromDoubleEvaluator extends AbstractConvertFunction.AbstractEvaluator {
   public ToStringFromDoubleEvaluator(EvalOperator.ExpressionEvaluator field, Source source,

@@ -12,7 +12,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * {@link AggregatorFunctionSupplier} implementation for {@link StdDevIntAggregator}.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code org.elasticsearch.compute.gen.AggregatorFunctionSupplierImplementer} instead.
  */
 public final class StdDevIntAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
   private final List<Integer> channels;

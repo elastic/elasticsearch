@@ -5,7 +5,7 @@ Pagination organizes search results into manageable pages, enhancing user intera
 
 The three commonly used pagination techniques are:
 
-* <<from-and-size-pagination, From and size pagination>>: This method is ideal for creating a defined list of pages that users can select to navigate through the results.
+* <<from-and-size-pagination, From and size pagination>>: Ideal for creating a list of pages that users can navigate.
 * <<search-after, Search after>>: Designed for seamless navigation, this technique supports “infinite scroll” experiences or enables users to load additional results by pressing a “next” button.
 * <<scroll-search-results, Scroll>>: Historically used to retrieve all matching documents for display or export. However, we now recommend using the <<search-after, search after>> method in combination with the <<point-in-time-api, point in time API>> for improved efficiency and reliability.
 

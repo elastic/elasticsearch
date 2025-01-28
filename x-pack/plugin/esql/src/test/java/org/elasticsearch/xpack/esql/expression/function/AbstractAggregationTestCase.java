@@ -74,6 +74,23 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
         );
     }
 
+    /**
+     * Converts a list of test cases into a list of parameter suppliers.
+     * Also, adds a default set of extra test cases.
+     * <p>
+     *     Use if possible, as this method may get updated with new checks in the future.
+     * </p>
+     *
+     * @param entirelyNullPreservesType See {@link #anyNullIsNull(boolean, List)}
+     */
+    protected static Iterable<Object[]> parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(
+        // TODO remove after removing parameterSuppliersFromTypedDataWithDefaultChecks rename this to that.
+        List<TestCaseSupplier> suppliers,
+        boolean entirelyNullPreservesType
+    ) {
+        return parameterSuppliersFromTypedData(anyNullIsNull(entirelyNullPreservesType, randomizeBytesRefsOffset(suppliers)));
+    }
+
     // TODO: Remove and migrate everything to the method with all the parameters
     /**
      * @deprecated Use {@link #parameterSuppliersFromTypedDataWithDefaultChecks(List, boolean, PositionalErrorMessageSupplier)} instead.

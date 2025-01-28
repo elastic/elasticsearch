@@ -1,4 +1,9 @@
 [[remote-clusters-cert]]
+
+deprecated::[9.0.0,"Certificate based authentication is deprecated.
+Configure <<remote-clusters-api-key,API key authentication>> instead or follow a guide on how to
+<<remote-clusters-migrate, migrate remote clusters from certificate to API key authentication>>."]
+
 === Add remote clusters using TLS certificate authentication
 
 To add a remote cluster using TLS certificate authentication:

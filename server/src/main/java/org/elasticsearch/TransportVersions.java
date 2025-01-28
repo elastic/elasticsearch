@@ -167,6 +167,7 @@ public class TransportVersions {
     public static final TransportVersion RANK_DOC_OPTIONAL_METADATA_FOR_EXPLAIN = def(8_833_00_0);
     public static final TransportVersion ILM_ADD_SEARCHABLE_SNAPSHOT_ADD_REPLICATE_FOR = def(8_834_00_0);
     public static final TransportVersion INGEST_REQUEST_INCLUDE_SOURCE_ON_ERROR = def(8_835_00_0);
+    public static final TransportVersion RESOURCE_DEPRECATION_CHECKS = def(8_836_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

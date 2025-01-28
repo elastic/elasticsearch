@@ -7,6 +7,8 @@
 
 package org.elasticsearch.compute.data;
 
+import java.util.Objects;
+
 public class AggregateMetricDoubleLiteral {
     private final Double min;
     private final Double max;
@@ -34,5 +36,19 @@ public class AggregateMetricDoubleLiteral {
 
     public Integer getCount() {
         return count;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null || obj.getClass() != this.getClass()) {
+            return false;
+        }
+        var aggMetric = (AggregateMetricDoubleLiteral) obj;
+        return min.equals(aggMetric.min) && max.equals(aggMetric.max) && sum.equals(aggMetric.sum) && count.equals(aggMetric.count);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(max, min, sum, count);
     }
 }

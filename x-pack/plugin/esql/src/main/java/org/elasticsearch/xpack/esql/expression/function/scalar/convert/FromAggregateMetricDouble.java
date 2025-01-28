@@ -144,10 +144,13 @@ public class FromAggregateMetricDouble extends EsqlScalarFunction {
                         if (block.areAllValuesNull()) {
                             return block;
                         }
-                        try (CompositeBlock compositeBlock = (CompositeBlock) block) {
+                        try {
+                            CompositeBlock compositeBlock = (CompositeBlock) block;
                             Block resultBlock = compositeBlock.getBlock(((Number) subfieldIndex.fold(FoldContext.small())).intValue());
                             resultBlock.incRef();
                             return resultBlock;
+                        } finally {
+                            block.close();
                         }
                     }
 

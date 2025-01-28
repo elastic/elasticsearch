@@ -148,6 +148,7 @@ abstract class PositionToXContent {
                     return builder.value(versionToString(val));
                 }
             };
+            // TODO: Add implementation for aggregate_metric_double
             case NULL, AGGREGATE_METRIC_DOUBLE -> new PositionToXContent(block) {
                 @Override
                 protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)

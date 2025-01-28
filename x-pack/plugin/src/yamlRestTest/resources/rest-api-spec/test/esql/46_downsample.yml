@@ -77,6 +77,14 @@ setup:
 
 ---
 "Query stats on downsampled index":
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [aggregate_metric_double]
+      reason: "Support for aggregate_metric_double"
   - do:
       indices.downsample:
         index: test

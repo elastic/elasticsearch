@@ -41,7 +41,7 @@ public abstract class Collector {
         collectionSetting("indices"),
         Property.Dynamic,
         Property.NodeScope,
-        Setting.Property.DeprecatedWarning
+        Property.Deprecated
     );
 
     private final String name;
@@ -176,6 +176,6 @@ public abstract class Collector {
 
     protected static Setting<TimeValue> collectionTimeoutSetting(final String settingName) {
         String name = collectionSetting(settingName);
-        return timeSetting(name, TimeValue.timeValueSeconds(10), Property.Dynamic, Property.NodeScope, Property.DeprecatedWarning);
+        return timeSetting(name, TimeValue.timeValueSeconds(10), Property.Dynamic, Property.NodeScope, Property.Deprecated);
     }
 }

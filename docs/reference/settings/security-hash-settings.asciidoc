@@ -126,7 +126,7 @@ following:
 
 Furthermore, Elasticsearch supports authentication via securely-generated high entropy tokens,
 for instance <<security-api-create-api-key,API keys>>.
-Analogous to passwords, only the hash of such credentials are stored. Since the credentials are guaranteed
+Analogous to passwords, only the tokens' hashes are stored. Since the tokens are guaranteed
 to have sufficiently high entropy to resist offline attacks, secure salted hash functions are supported
 in addition to the password-hashing algorithms mentioned above.
 
@@ -135,8 +135,8 @@ by setting the <<static-cluster-setting,static>>
 `xpack.security.authc.api_key.hashing.algorithm` setting to one of the
 following
 
-[[secure-token-hash-algo]]
-.Secure token hash algorithms
+[[secure-token-hashing-algorithms]]
+.Secure token hashing algorithms
 |=======================
 | Algorithm               | | | Description
 

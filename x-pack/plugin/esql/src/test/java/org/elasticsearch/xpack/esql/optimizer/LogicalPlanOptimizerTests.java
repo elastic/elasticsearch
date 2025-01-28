@@ -2343,8 +2343,6 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         as(filter.child(), EsRelation.class);
     }
 
-    // TODO: all mv_expands below this line
-
     /**
      * Expected
      *
@@ -2406,6 +2404,43 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var limit7300Before = asLimit(topN.child(), 7300, true);
         mvExpand = as(limit7300Before.child(), MvExpand.class);
         var limit = asLimit(mvExpand.child(), 7300, false);
+        as(limit.child(), LocalRelation.class);
+    }
+
+    /**
+     * Expects
+     * Limit[10000[INTEGER],true]
+     * \_Join[LEFT,[language_code{r}#14],[language_code{r}#14],[language_code{f}#18]]
+     *   |_EsqlProject[[c{r}#7 AS language_code, a{r}#3]]
+     *   | \_TopN[[Order[a{r}#3,ASC,FIRST]],7300[INTEGER]]
+     *   |   \_Limit[7300[INTEGER],true]
+     *   |     \_Join[LEFT,[language_code{r}#5],[language_code{r}#5],[language_code{f}#16]]
+     *   |       |_Limit[7300[INTEGER],false]
+     *   |       | \_LocalRelation[[a{r}#3, language_code{r}#5, c{r}#7],[ConstantNullBlock[positions=1], IntVectorBlock[vector=ConstantIntVector[p
+     * ositions=1, value=123]], IntVectorBlock[vector=ConstantIntVector[positions=1, value=234]]]]
+     *   |       \_EsRelation[languages_lookup][LOOKUP][language_code{f}#16]
+     *   \_EsRelation[languages_lookup][LOOKUP][language_code{f}#18, language_name{f}#19]
+     */
+    public void testLimitThenSortBeforeLookupJoin() {
+        LogicalPlan plan = optimizedPlan("""
+            row  a = null, language_code = 123, c = 234
+            | lookup join languages_lookup on language_code
+            | limit 7300
+            | keep c, a
+            | sort a NULLS FIRST
+            | rename c as language_code
+            | lookup join languages_lookup on language_code
+            """);
+
+        var limit10kBefore = asLimit(plan, 10000, true);
+        var join = as(limit10kBefore.child(), Join.class);
+        var project = as(join.left(), EsqlProject.class);
+        var topN = as(project.child(), TopN.class);
+        assertThat(topN.limit().fold(FoldContext.small()), equalTo(7300));
+        assertThat(orderNames(topN), contains("a"));
+        var limit7300Before = asLimit(topN.child(), 7300, true);
+        join = as(limit7300Before.child(), Join.class);
+        var limit = asLimit(join.left(), 7300, false);
         as(limit.child(), LocalRelation.class);
     }
 
@@ -2547,11 +2582,33 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         LogicalPlan plan = optimizedPlan("""
             row a = 1
             | sort a
-            | mv_expand a""");
+            | mv_expand a
+            """);
 
         var limit = asLimit(plan, 1000, true);
         var expand = as(limit.child(), MvExpand.class);
         var topN = as(expand.child(), TopN.class);
+        var row = as(topN.child(), LocalRelation.class);
+    }
+
+    /**
+     * Expected:
+     * Limit[1000[INTEGER],true]
+     * \_Join[LEFT,[language_code{r}#3],[language_code{r}#3],[language_code{f}#6]]
+     *   |_TopN[[Order[language_code{r}#3,ASC,LAST]],1000[INTEGER]]
+     *   | \_LocalRelation[[language_code{r}#3],[IntVectorBlock[vector=ConstantIntVector[positions=1, value=1]]]]
+     *   \_EsRelation[languages_lookup][LOOKUP][language_code{f}#6, language_name{f}#7]
+     */
+    public void testSortLookupJoin() {
+        LogicalPlan plan = optimizedPlan("""
+            row language_code = 1
+            | sort language_code
+            | lookup join languages_lookup on language_code
+            """);
+
+        var limit = asLimit(plan, 1000, true);
+        var join = as(limit.child(), Join.class);
+        var topN = as(join.left(), TopN.class);
         var row = as(topN.child(), LocalRelation.class);
     }
 
@@ -2578,6 +2635,32 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
     /**
      * Expected:
+     * Limit[20[INTEGER],true]
+     * \_Join[LEFT,[language_code{r}#5],[language_code{r}#5],[language_code{f}#18]]
+     *   |_EsqlProject[[_meta_field{f}#13, emp_no{f}#7 AS language_code, first_name{f}#8, gender{f}#9, hire_date{f}#14, job{f}#15, jo
+     * b.raw{f}#16, languages{f}#10, last_name{f}#11, long_noidx{f}#17, salary{f}#12]]
+     *   | \_TopN[[Order[emp_no{f}#7,ASC,LAST]],20[INTEGER]]
+     *   |   \_EsRelation[test][_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, ge..]
+     *   \_EsRelation[languages_lookup][LOOKUP][language_code{f}#18, language_name{f}#19]
+     */
+    public void testSortLookupJoinLimit() {
+        LogicalPlan plan = optimizedPlan("""
+            from test
+            | sort emp_no
+            | rename emp_no as language_code
+            | lookup join languages_lookup on language_code
+            | limit 20""");
+
+        var limit = asLimit(plan, 20, true);
+        var join = as(limit.child(), Join.class);
+        var project = as(join.left(), Project.class);
+        var topN = as(project.child(), TopN.class);
+        assertThat(topN.limit().fold(FoldContext.small()), is(20));
+        var row = as(topN.child(), EsRelation.class);
+    }
+
+    /**
+     * Expected:
      * Limit[1000[INTEGER],true]
      * \_MvExpand[b{r}#5,b{r}#9]
      *   \_Limit[1000[INTEGER],false]
@@ -2590,11 +2673,34 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         LogicalPlan plan = optimizedPlan("""
             row  a = 1, b = -15
             | where b < 3
-            | mv_expand b""");
+            | mv_expand b
+            """);
 
         var limit = asLimit(plan, 1000, true);
         var expand = as(limit.child(), MvExpand.class);
         var limit2 = asLimit(expand.child(), 1000, false);
+        var row = as(limit2.child(), LocalRelation.class);
+    }
+
+    /**
+     * Expected:
+     * Limit[1000[INTEGER],true]
+     * \_Join[LEFT,[language_code{r}#5],[language_code{r}#5],[language_code{f}#8]]
+     *   |_Limit[1000[INTEGER],false]
+     *   | \_LocalRelation[[a{r}#3, language_code{r}#5],[IntVectorBlock[vector=ConstantIntVector[positions=1, value=1]], IntVectorBlock[ve
+     * ctor=ConstantIntVector[positions=1, value=-15]]]]
+     *   \_EsRelation[languages_lookup][LOOKUP][language_code{f}#8, language_name{f}#9]
+     */
+    public void testWhereLookupJoin() {
+        LogicalPlan plan = optimizedPlan("""
+            row  a = 1, language_code = -15
+            | where language_code < 3
+            | lookup join languages_lookup on language_code
+            """);
+
+        var limit = asLimit(plan, 1000, true);
+        var join = as(limit.child(), Join.class);
+        var limit2 = asLimit(join.left(), 1000, false);
         var row = as(limit2.child(), LocalRelation.class);
     }
 

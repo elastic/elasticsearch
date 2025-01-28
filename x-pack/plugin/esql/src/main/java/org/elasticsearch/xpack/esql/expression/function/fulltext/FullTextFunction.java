@@ -54,8 +54,8 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isStr
 public abstract class FullTextFunction extends Function
     implements
         TranslationAware,
-        TranslationAware.QueryRewriter,
-        PostAnalysisPlanVerificationAware {
+        PostAnalysisPlanVerificationAware,
+        MappingPreProcessor.MappingPreProcessorSupplier {
 
     private final Expression query;
     private final QueryBuilder queryBuilder;
@@ -122,7 +122,7 @@ public abstract class FullTextFunction extends Function
     }
 
     @Override
-    public MappingPreProcessor queryRewriter() {
+    public MappingPreProcessor mappingPreProcessor() {
         return FullTextFunctionMapperPreprocessor.INSTANCE;
     }
 

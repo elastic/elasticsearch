@@ -27,4 +27,8 @@ public interface MappingPreProcessor {
      * @param listener the listener to notify when processing is complete
      */
     void preprocess(LogicalPlan plan, TransportActionServices services, ActionListener<LogicalPlan> listener);
+
+    interface MappingPreProcessorSupplier {
+        MappingPreProcessor mappingPreProcessor();
+    }
 }

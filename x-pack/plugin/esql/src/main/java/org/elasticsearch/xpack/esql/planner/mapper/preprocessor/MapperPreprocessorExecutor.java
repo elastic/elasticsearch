@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.planner.mapper.preprocessor;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plugin.TransportActionServices;
 
@@ -25,17 +24,17 @@ public class MapperPreprocessorExecutor {
     }
 
     public void execute(LogicalPlan plan, ActionListener<LogicalPlan> listener) {
-        execute(plan, queryRewriters(plan), 0, listener);
+        execute(plan, preprocessors(plan), 0, listener);
     }
 
-    private static List<MappingPreProcessor> queryRewriters(LogicalPlan plan) {
-        Set<MappingPreProcessor> queryRewriters = new HashSet<>();
+    private static List<MappingPreProcessor> preprocessors(LogicalPlan plan) {
+        Set<MappingPreProcessor> preprocessors = new HashSet<>();
         plan.forEachExpressionDown(e -> {
-            if (e instanceof TranslationAware.QueryRewriter qr) {
-                queryRewriters.add(qr.queryRewriter());
+            if (e instanceof MappingPreProcessor.MappingPreProcessorSupplier supplier) {
+                preprocessors.add(supplier.mappingPreProcessor());
             }
         });
-        return List.copyOf(queryRewriters);
+        return List.copyOf(preprocessors);
     }
 
     private void execute(LogicalPlan plan, List<MappingPreProcessor> preprocessors, int index, ActionListener<LogicalPlan> listener) {

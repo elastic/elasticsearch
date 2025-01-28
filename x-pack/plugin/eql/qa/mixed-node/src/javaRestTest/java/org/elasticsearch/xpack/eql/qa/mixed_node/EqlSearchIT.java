@@ -291,9 +291,7 @@ public class EqlSearchIT extends ESRestTestCase {
             }
             payload.append("}");
             request.setJsonEntity(payload.toString());
-            assertBusy(() -> {
-                assertResponse(expectedResponse, runEql(client, request));
-            });
+            assertBusy(() -> { assertResponse(expectedResponse, runEql(client, request)); });
         }
     }
 

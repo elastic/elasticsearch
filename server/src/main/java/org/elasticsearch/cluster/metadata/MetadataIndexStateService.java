@@ -90,6 +90,7 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static java.util.stream.Collectors.joining;
+import static org.elasticsearch.cluster.metadata.IndexMetadataVerifier.hasReadOnlyBlocks;
 import static org.elasticsearch.core.Strings.format;
 
 /**
@@ -1184,6 +1185,19 @@ public class MetadataIndexStateService {
                 if (indexMetadata.getState() != IndexMetadata.State.OPEN) {
                     final Settings.Builder updatedSettings = Settings.builder().put(indexMetadata.getSettings());
                     updatedSettings.remove(VERIFIED_BEFORE_CLOSE_SETTING.getKey());
+
+                    // Reopening a read-only compatible index that has not been marked as read-only is possible if the index was
+                    // verified-before-close in the first place.
+                    var compatibilityVersion = indexMetadata.getCompatibilityVersion();
+                    if (compatibilityVersion.before(minIndexCompatibilityVersion) && hasReadOnlyBlocks(indexMetadata) == false) {
+                        if (VERIFIED_BEFORE_CLOSE_SETTING.get(indexMetadata.getSettings())) {
+                            // at least set a write block if the index was verified-before-close, but not verified-read-only, at the time
+                            // the cluster was upgraded
+                            updatedSettings.put(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey(), true);
+                            updatedSettings.put(VERIFIED_READ_ONLY_SETTING.getKey(), true);
+                            blocks.addIndexBlock(index.getName(), APIBlock.WRITE.block);
+                        } // or else, the following indexMetadataVerifier.verifyIndexMetadata() should throw.
+                    }
 
                     IndexMetadata newIndexMetadata = IndexMetadata.builder(indexMetadata)
                         .state(IndexMetadata.State.OPEN)

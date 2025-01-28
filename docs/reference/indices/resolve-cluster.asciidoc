@@ -124,15 +124,6 @@ Resources on <<remote-clusters,remote clusters>> can be specified using the
 [[resolve-cluster-api-query-params]]
 ==== {api-query-parms-title}
 
-`timeout`::
-(Optional, TimeValue) Specify a max wait time for remote clusters to respond.
-If a remote cluster does not respond within this timeout period, the API response
-will show the cluster as not connected and show an error message for that cluster
-indicating that it did not respond. The default is unset and the query can take
-as long as the networking layer is configured to wait for remote clusters that are
-not responding (typically 30 seconds).
-+
-
 include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 +
 Defaults to `open`.
@@ -263,12 +254,11 @@ The API returns the following response:
 ==== Identifying potential problems with your {ccs}
 
 The following request shows several examples of how modifying your query can
-prevent search failures. Note also that a `timeout` of 5 seconds is sent, which
-sets the maximum time the query will wait for remote clusters to respond.
+prevent search failures.
 
 [source,console]
 --------------------------------------------------
-GET /_resolve/cluster/not-present,clust*:my-index*,oldcluster:*?ignore_unavailable=false&timeout=5s
+GET /_resolve/cluster/not-present,clust*:my-index*,oldcluster:*?ignore_unavailable=false
 --------------------------------------------------
 // TEST[continued]
 // TEST[s/,oldcluster:*//]
@@ -294,14 +284,16 @@ GET /_resolve/cluster/not-present,clust*:my-index*,oldcluster:*?ignore_unavailab
   },
   "cluster_two": {
     "connected": false,           <3>
-    "skip_unavailable": false
+    "skip_unavailable": false,
+    "matching_indices": true,
+    "version": {
+      "number": "8.13.0",
+      "build_flavor": "default",
+      "minimum_wire_compatibility_version": "7.17.0",
+      "minimum_index_compatibility_version": "7.0.0"
+    }
   },
-  "cluster_three": {
-    "connected": false,
-    "skip_unavailable": true,
-    "error": "Request timed out before receiving a response from the remote cluster"  <4>
-  },
-  "oldcluster": {         <5>
+  "oldcluster": {         <4>
     "connected": true,
     "skip_unavailable": false,
     "matching_indices": true
@@ -323,10 +315,7 @@ could be closed. (You can check this by using the
 failed). Since this cluster is marked as `skip_unavailable=false`, you should
 probably exclude this cluster from the search by adding `-cluster_two:*` to the
 search index expression.
-<4> For `cluster_three`, the error message indicates that this remote cluster did
-not respond within the 5 second timeout window specified, so it is also marked as
-not connected.
-<5> The `oldcluster` remote cluster shows that it has matching indices, but no
+<4> The `oldcluster` remote cluster shows that it has matching indices, but no
 version information is included. This indicates that the cluster version predates
 the introduction of the `_resolve/cluster` API in 8.13.0., so you may want to
 exclude it from your {ccs}. (Note: the endpoint was able to tell there were

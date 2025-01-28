@@ -290,6 +290,9 @@ tests:
 - class: org.elasticsearch.xpack.security.profile.ProfileIntegTests
   method: testUpdateProfileData
   issue: https://github.com/elastic/elasticsearch/issues/121108
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=nodes.stats/11_indices_metrics/indices mappings exact count test for indices level}
+  issue: https://github.com/elastic/elasticsearch/issues/120950
 
 # Examples:
 #

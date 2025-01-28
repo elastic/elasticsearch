@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.expression.function.fulltext;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.lucene.LuceneQueryExpressionEvaluator;
 import org.elasticsearch.compute.lucene.LuceneQueryExpressionEvaluator.ShardConfig;
-import org.elasticsearch.compute.lucene.LuceneQueryExpressionScoringEvaluator;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
@@ -376,25 +375,12 @@ public abstract class FullTextFunction extends Function implements TranslationAw
 
     @Override
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        if (toEvaluator.usesScoring()) {
-            List<EsPhysicalOperationProviders.ShardContext> shardContexts = toEvaluator.shardContexts();
-            LuceneQueryExpressionScoringEvaluator.ShardConfig[] shardConfigs =
-                new LuceneQueryExpressionScoringEvaluator.ShardConfig[shardContexts.size()];
-            int i = 0;
-            for (EsPhysicalOperationProviders.ShardContext shardContext : shardContexts) {
-                shardConfigs[i++] = new LuceneQueryExpressionScoringEvaluator.ShardConfig(
-                    shardContext.toQuery(queryBuilder()),
-                    shardContext.searcher()
-                );
-            }
-            return new LuceneQueryExpressionScoringEvaluator.Factory(shardConfigs);
-        }
         List<EsPhysicalOperationProviders.ShardContext> shardContexts = toEvaluator.shardContexts();
         ShardConfig[] shardConfigs = new ShardConfig[shardContexts.size()];
         int i = 0;
         for (EsPhysicalOperationProviders.ShardContext shardContext : shardContexts) {
             shardConfigs[i++] = new ShardConfig(shardContext.toQuery(queryBuilder()), shardContext.searcher());
         }
-        return new LuceneQueryExpressionEvaluator.Factory(shardConfigs);
+        return new LuceneQueryExpressionEvaluator.Factory(shardConfigs, toEvaluator.usesScoring());
     }
 }

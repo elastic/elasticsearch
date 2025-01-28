@@ -17,7 +17,7 @@ import org.elasticsearch.core.Releasables;
 
 import java.util.Arrays;
 
-import static org.elasticsearch.compute.lucene.LuceneQueryExpressionScoringEvaluator.SCORE_FOR_FALSE;
+import static org.elasticsearch.compute.lucene.LuceneQueryExpressionEvaluator.SCORE_FOR_FALSE;
 
 public class FilterScoringOperator extends AbstractPageMappingOperator {
 

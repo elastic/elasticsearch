@@ -15,7 +15,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasables;
 
-import static org.elasticsearch.compute.lucene.LuceneQueryExpressionScoringEvaluator.SCORE_FOR_FALSE;
+import static org.elasticsearch.compute.lucene.LuceneQueryExpressionEvaluator.SCORE_FOR_FALSE;
 
 public class BooleanToScoringExpressionEvaluator implements EvalOperator.ExpressionEvaluator {
 

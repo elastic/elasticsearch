@@ -11,7 +11,7 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.PredicateBiFunctio
 
 import java.util.function.BiFunction;
 
-import static org.elasticsearch.compute.lucene.LuceneQueryExpressionScoringEvaluator.SCORE_FOR_FALSE;
+import static org.elasticsearch.compute.lucene.LuceneQueryExpressionEvaluator.SCORE_FOR_FALSE;
 
 public enum BinaryScoringLogicOperation implements PredicateBiFunction<Double, Double, Double> {
 

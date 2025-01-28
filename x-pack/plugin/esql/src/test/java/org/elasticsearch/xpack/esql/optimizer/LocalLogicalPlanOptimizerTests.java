@@ -249,6 +249,11 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         }
 
         @Override
+        public String commandName() {
+            return "MOCK";
+        }
+
+        @Override
         public boolean expressionsResolved() {
             return true;
         }

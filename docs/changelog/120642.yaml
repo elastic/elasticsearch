@@ -1,0 +1,5 @@
+pr: 120642
+summary: Defer unpromotable shard refreshes until index refresh blocks are cleared
+area: Engine
+type: enhancement
+issues: []

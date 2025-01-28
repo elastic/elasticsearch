@@ -1,0 +1,6 @@
+pr: 120343
+summary: Support some stats on `aggregate_metric_double`
+area: "ES|QL, TSDB"
+type: enhancement
+issues:
+ - 110649

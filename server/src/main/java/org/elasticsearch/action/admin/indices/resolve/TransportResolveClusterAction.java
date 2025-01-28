@@ -63,6 +63,7 @@ public class TransportResolveClusterAction extends HandledTransportAction<Resolv
     );
 
     private static final String DUMMY_INDEX_FOR_OLDER_CLUSTERS = "*:dummy*";
+    private static final String REMOTE_CONNECTION_TIMEOUT_ERROR = "Request timed out before receiving a response from the remote cluster";
 
     private final Executor searchCoordinationExecutor;
     private final ClusterService clusterService;
@@ -217,7 +218,7 @@ public class TransportResolveClusterAction extends HandledTransportAction<Resolv
                              * differentiate between connection error to a remote vs. request time out since the "connected" property
                              * cannot provide the additional context in the latter case.
                              */
-                            if (errorMessage.contains("Timed out")) {
+                            if (errorMessage.equals(REMOTE_CONNECTION_TIMEOUT_ERROR)) {
                                 clusterInfoMap.put(clusterAlias, new ResolveClusterInfo(false, skipUnavailable, errorMessage));
                             } else {
                                 clusterInfoMap.put(clusterAlias, new ResolveClusterInfo(false, skipUnavailable));
@@ -352,9 +353,7 @@ public class TransportResolveClusterAction extends HandledTransportAction<Resolv
                         timeout,
                         searchCoordinationExecutor,
                         releaserListener,
-                        ignored -> releaserListener.onFailure(
-                            new ConnectTransportException(null, "Timed out: did not receive a response from the cluster")
-                        )
+                        ignored -> releaserListener.onFailure(new ConnectTransportException(null, REMOTE_CONNECTION_TIMEOUT_ERROR))
                     );
                 } else {
                     resultsListener = ActionListener.releaseAfter(remoteListener, refs.acquire());

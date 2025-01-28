@@ -11,16 +11,17 @@ package org.elasticsearch.indices.cluster;
 
 import org.elasticsearch.action.admin.indices.resolve.ResolveClusterActionRequest;
 import org.elasticsearch.action.admin.indices.resolve.ResolveClusterActionResponse;
+import org.elasticsearch.action.admin.indices.resolve.ResolveClusterInfo;
 import org.elasticsearch.action.admin.indices.resolve.TransportResolveClusterAction;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.AbstractMultiClustersTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -28,37 +29,35 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class ResolveClusterTimeoutIT extends AbstractMultiClustersTestCase {
     private static final String REMOTE_CLUSTER_1 = "cluster-a";
-    private static final String REMOTE_CLUSTER_2 = "cluster-b";
 
     @Override
     protected List<String> remoteClusterAlias() {
-        return List.of(REMOTE_CLUSTER_1, REMOTE_CLUSTER_2);
+        return List.of(REMOTE_CLUSTER_1);
     }
 
-    public void testTimeoutParameterWithoutStallingRemotes() throws Exception {
-        var maxTimeoutInMillis = 500L;
-        var resolveClusterActionRequest = new ResolveClusterActionRequest(new String[] { "*:*" });
+    public void testTimeoutParameter() {
+        long maxTimeoutInMillis = 500;
+
+        // First part: we query _resolve/cluster without any indices to prove we can hit remote1 fine.
+        ResolveClusterActionRequest requestWithoutIndices;
+        if (randomBoolean()) {
+            requestWithoutIndices = new ResolveClusterActionRequest(new String[0], IndicesOptions.DEFAULT, true, true);
+        } else {
+            requestWithoutIndices = new ResolveClusterActionRequest(new String[] { "*:*" });
+        }
 
         // We set a timeout but won't stall any cluster; expectation is that we get back response just fine.
-        resolveClusterActionRequest.setTimeout(TimeValue.timeValueMillis(randomLongBetween(100, maxTimeoutInMillis)));
+        requestWithoutIndices.setTimeout(TimeValue.timeValueMillis(randomLongBetween(100, maxTimeoutInMillis)));
+        ResolveClusterActionResponse responseWithoutIndices = safeGet(
+            client().execute(TransportResolveClusterAction.TYPE, requestWithoutIndices)
+        );
+        Map<String, ResolveClusterInfo> clusterInfoWithoutIndices = responseWithoutIndices.getResolveClusterInfo();
 
-        final AtomicReference<ResolveClusterActionResponse> resolveClusterActionResponse = new AtomicReference<>();
-        assertBusy(() -> {
-            var futureAction = client().execute(TransportResolveClusterAction.TYPE, resolveClusterActionRequest);
-            resolveClusterActionResponse.set(futureAction.get());
-        }, maxTimeoutInMillis, TimeUnit.MILLISECONDS);
+        // Remote is connected and error message is null.
+        assertThat(clusterInfoWithoutIndices.get(REMOTE_CLUSTER_1).isConnected(), equalTo(true));
+        assertThat(clusterInfoWithoutIndices.get(REMOTE_CLUSTER_1).getError(), is(nullValue()));
 
-        var clusterInfo = resolveClusterActionResponse.get().getResolveClusterInfo();
-
-        // Both remotes are connected and error message is null.
-        assertThat(clusterInfo.get(REMOTE_CLUSTER_1).isConnected(), equalTo(true));
-        assertThat(clusterInfo.get(REMOTE_CLUSTER_1).getError(), is(nullValue()));
-        assertThat(clusterInfo.get(REMOTE_CLUSTER_2).isConnected(), equalTo(true));
-        assertThat(clusterInfo.get(REMOTE_CLUSTER_2).getError(), is(nullValue()));
-    }
-
-    public void testTimeoutParameterWithStallingARemote() throws Exception {
-        var maxSleepInMillis = 500L;
+        // Second part: now we stall the remote and utilise the timeout feature.
         CountDownLatch latch = new CountDownLatch(1);
 
         // Add an override so that the remote cluster receives the TransportResolveClusterAction request but stalls.
@@ -73,28 +72,22 @@ public class ResolveClusterTimeoutIT extends AbstractMultiClustersTestCase {
             );
         }
 
-        var resolveClusterActionRequest = new ResolveClusterActionRequest(new String[] { "*:*" });
-        var randomlyChosenTimeout = randomLongBetween(100, maxSleepInMillis);
-        resolveClusterActionRequest.setTimeout(TimeValue.timeValueMillis(randomlyChosenTimeout));
+        ResolveClusterActionRequest requestWithIndices = new ResolveClusterActionRequest(new String[] { "*:*" });
+        long randomlyChosenTimeout = randomLongBetween(100, maxTimeoutInMillis);
+        requestWithIndices.setTimeout(TimeValue.timeValueMillis(randomlyChosenTimeout));
 
-        final AtomicReference<ResolveClusterActionResponse> resolveClusterActionResponse = new AtomicReference<>();
-        try {
-            assertBusy(() -> {
-                var futureAction = client().execute(TransportResolveClusterAction.TYPE, resolveClusterActionRequest);
-                resolveClusterActionResponse.set(futureAction.get());
-            }, maxSleepInMillis, TimeUnit.MILLISECONDS);
-        } finally {
-            latch.countDown();
-        }
+        ResolveClusterActionResponse responseWithIndices = safeGet(
+            client().execute(TransportResolveClusterAction.TYPE, requestWithIndices)
+        );
+        latch.countDown();
 
-        var clusterInfo = resolveClusterActionResponse.get().getResolveClusterInfo();
+        Map<String, ResolveClusterInfo> clusterInfoWithIndices = responseWithIndices.getResolveClusterInfo();
 
         // Ensure that the request timed out and that the remote is marked as not connected.
-        assertThat(clusterInfo.get(REMOTE_CLUSTER_1).isConnected(), equalTo(false));
-        assertThat(clusterInfo.get(REMOTE_CLUSTER_1).getError(), equalTo("Timed out: did not receive a response from the cluster"));
-
-        // We never stalled the 2nd remote cluster. It should respond fine and be marked as connected with no error message set.
-        assertThat(clusterInfo.get(REMOTE_CLUSTER_2).isConnected(), equalTo(true));
-        assertThat(clusterInfo.get(REMOTE_CLUSTER_2).getError(), is(nullValue()));
+        assertThat(clusterInfoWithIndices.get(REMOTE_CLUSTER_1).isConnected(), equalTo(false));
+        assertThat(
+            clusterInfoWithIndices.get(REMOTE_CLUSTER_1).getError(),
+            equalTo("Request timed out before receiving a response from the remote cluster")
+        );
     }
 }

@@ -243,7 +243,7 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
     }
 
     private boolean systemIndexPrimaryShardActiveAndAssignedToLocalNode(final ClusterState state) {
-        for (IndexMetadata indexMetadata: state.metadata()) {
+        for (IndexMetadata indexMetadata : state.metadata()) {
             if (indexMetadata.isSystem() && systemIndexDescriptor.matchesIndexPattern(indexMetadata.getIndex().getName())) {
                 final IndexRoutingTable indexRoutingTable = state.routingTable().index(indexMetadata.getIndex());
                 if (indexRoutingTable == null || indexRoutingTable.shard(0) == null) {

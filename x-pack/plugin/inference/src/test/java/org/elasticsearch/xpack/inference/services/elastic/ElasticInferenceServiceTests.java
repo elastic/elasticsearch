@@ -11,6 +11,7 @@ import org.apache.http.HttpHeaders;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -19,9 +20,11 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.EmptySecretSettings;
 import org.elasticsearch.inference.EmptyTaskSettings;
+import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
+import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
@@ -37,9 +40,14 @@ import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
+import org.elasticsearch.xpack.inference.external.response.elastic.ElasticInferenceServiceAuthorizationResponseEntity;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
+import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.results.SparseEmbeddingResultsTests;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
+import org.elasticsearch.xpack.inference.services.elastic.authorization.ElasticInferenceServiceAuthorization;
+import org.elasticsearch.xpack.inference.services.elastic.authorization.ElasticInferenceServiceAuthorizationHandler;
+import org.elasticsearch.xpack.inference.services.elastic.authorization.ElasticInferenceServiceAuthorizationTests;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElserModels;
 import org.hamcrest.MatcherAssert;
 import org.hamcrest.Matchers;
@@ -47,6 +55,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -67,6 +76,8 @@ import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -296,14 +307,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
 
     public void testCheckModelConfig_ReturnsNewModelReference() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-
-        try (
-            var service = new ElasticInferenceService(
-                senderFactory,
-                createWithEmptySettings(threadPool),
-                new ElasticInferenceServiceComponents(getUrl(webServer))
-            )
-        ) {
+        try (var service = createService(senderFactory, getUrl(webServer))) {
             var model = ElasticInferenceServiceSparseEmbeddingsModelTests.createModel(getUrl(webServer));
             PlainActionFuture<Model> listener = new PlainActionFuture<>();
             service.checkModelConfig(model, listener);
@@ -321,13 +325,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
 
         var mockModel = getInvalidModel("model_id", "service_name", TaskType.SPARSE_EMBEDDING);
 
-        try (
-            var service = new ElasticInferenceService(
-                factory,
-                createWithEmptySettings(threadPool),
-                new ElasticInferenceServiceComponents(null)
-            )
-        ) {
+        try (var service = createService(factory)) {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
                 mockModel,
@@ -355,6 +353,12 @@ public class ElasticInferenceServiceTests extends ESTestCase {
         verifyNoMoreInteractions(sender);
     }
 
+    private ModelRegistry mockModelRegistry() {
+        var client = mock(Client.class);
+        when(client.threadPool()).thenReturn(threadPool);
+        return new ModelRegistry(client);
+    }
+
     public void testInfer_ThrowsErrorWhenTaskTypeIsNotValid() throws IOException {
         var sender = mock(Sender.class);
 
@@ -363,13 +367,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
 
         var mockModel = getInvalidModel("model_id", "service_name", TaskType.TEXT_EMBEDDING);
 
-        try (
-            var service = new ElasticInferenceService(
-                factory,
-                createWithEmptySettings(threadPool),
-                new ElasticInferenceServiceComponents(null)
-            )
-        ) {
+        try (var service = createService(factory)) {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
                 mockModel,
@@ -408,13 +406,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
 
         var mockModel = getInvalidModel("model_id", "service_name", TaskType.CHAT_COMPLETION);
 
-        try (
-            var service = new ElasticInferenceService(
-                factory,
-                createWithEmptySettings(threadPool),
-                new ElasticInferenceServiceComponents(null)
-            )
-        ) {
+        try (var service = createService(factory)) {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
                 mockModel,
@@ -451,13 +443,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
         var eisGatewayUrl = getUrl(webServer);
 
-        try (
-            var service = new ElasticInferenceService(
-                senderFactory,
-                createWithEmptySettings(threadPool),
-                new ElasticInferenceServiceComponents(eisGatewayUrl)
-            )
-        ) {
+        try (var service = createService(senderFactory, eisGatewayUrl)) {
             String responseJson = """
                 {
                     "data": [
@@ -508,13 +494,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
         var eisGatewayUrl = getUrl(webServer);
 
-        try (
-            var service = new ElasticInferenceService(
-                senderFactory,
-                createWithEmptySettings(threadPool),
-                new ElasticInferenceServiceComponents(eisGatewayUrl)
-            )
-        ) {
+        try (var service = createService(senderFactory, eisGatewayUrl)) {
             String responseJson = """
                 {
                     "data": [
@@ -567,8 +547,65 @@ public class ElasticInferenceServiceTests extends ESTestCase {
         }
     }
 
+    public void testHideFromConfigurationApi_ReturnsTrue_WithNoAvailableModels() throws Exception {
+        try (var service = createServiceWithMockSender(ElasticInferenceServiceAuthorization.newDisabledService())) {
+            assertTrue(service.hideFromConfigurationApi());
+        }
+    }
+
+    public void testHideFromConfigurationApi_ReturnsTrue_WithModelTaskTypesThatAreNotImplemented() throws Exception {
+        try (
+            var service = createServiceWithMockSender(
+                ElasticInferenceServiceAuthorization.of(
+                    new ElasticInferenceServiceAuthorizationResponseEntity(
+                        List.of(
+                            new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedModel(
+                                "model-1",
+                                EnumSet.of(TaskType.TEXT_EMBEDDING)
+                            )
+                        )
+                    )
+                )
+            )
+        ) {
+            assertTrue(service.hideFromConfigurationApi());
+        }
+    }
+
+    public void testHideFromConfigurationApi_ReturnsFalse_WithAvailableModels() throws Exception {
+        try (
+            var service = createServiceWithMockSender(
+                ElasticInferenceServiceAuthorization.of(
+                    new ElasticInferenceServiceAuthorizationResponseEntity(
+                        List.of(
+                            new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedModel(
+                                "model-1",
+                                EnumSet.of(TaskType.CHAT_COMPLETION)
+                            )
+                        )
+                    )
+                )
+            )
+        ) {
+            assertFalse(service.hideFromConfigurationApi());
+        }
+    }
+
     public void testGetConfiguration() throws Exception {
-        try (var service = createServiceWithMockSender()) {
+        try (
+            var service = createServiceWithMockSender(
+                ElasticInferenceServiceAuthorization.of(
+                    new ElasticInferenceServiceAuthorizationResponseEntity(
+                        List.of(
+                            new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedModel(
+                                "model-1",
+                                EnumSet.of(TaskType.SPARSE_EMBEDDING, TaskType.CHAT_COMPLETION)
+                            )
+                        )
+                    )
+                )
+            )
+        ) {
             String content = XContentHelper.stripWhitespace("""
                 {
                        "service": "elastic",
@@ -620,11 +657,354 @@ public class ElasticInferenceServiceTests extends ESTestCase {
         }
     }
 
+    public void testGetConfiguration_WithoutSupportedTaskTypes() throws Exception {
+        try (var service = createServiceWithMockSender(ElasticInferenceServiceAuthorization.newDisabledService())) {
+            String content = XContentHelper.stripWhitespace("""
+                {
+                       "service": "elastic",
+                       "name": "Elastic",
+                       "task_types": [],
+                       "configurations": {
+                           "rate_limit.requests_per_minute": {
+                               "description": "Minimize the number of rate limit errors.",
+                               "label": "Rate Limit",
+                               "required": false,
+                               "sensitive": false,
+                               "updatable": false,
+                               "type": "int",
+                               "supported_task_types": ["sparse_embedding" , "chat_completion"]
+                           },
+                           "model_id": {
+                               "description": "The name of the model to use for the inference task.",
+                               "label": "Model ID",
+                               "required": true,
+                               "sensitive": false,
+                               "updatable": false,
+                               "type": "str",
+                               "supported_task_types": ["sparse_embedding" , "chat_completion"]
+                           },
+                           "max_input_tokens": {
+                               "description": "Allows you to specify the maximum number of tokens per input.",
+                               "label": "Maximum Input Tokens",
+                               "required": false,
+                               "sensitive": false,
+                               "updatable": false,
+                               "type": "int",
+                               "supported_task_types": ["sparse_embedding"]
+                           }
+                       }
+                   }
+                """);
+            InferenceServiceConfiguration configuration = InferenceServiceConfiguration.fromXContentBytes(
+                new BytesArray(content),
+                XContentType.JSON
+            );
+            boolean humanReadable = true;
+            BytesReference originalBytes = toShuffledXContent(configuration, XContentType.JSON, ToXContent.EMPTY_PARAMS, humanReadable);
+            InferenceServiceConfiguration serviceConfiguration = service.getConfiguration();
+            assertToXContentEquivalent(
+                originalBytes,
+                toXContent(serviceConfiguration, XContentType.JSON, humanReadable),
+                XContentType.JSON
+            );
+        }
+    }
+
+    public void testGetConfiguration_WithoutSupportedTaskTypes_WhenModelsReturnTaskOutsideOfImplementation() throws Exception {
+        try (
+            var service = createServiceWithMockSender(
+                // this service doesn't yet support text embedding so we should still have no task types
+                ElasticInferenceServiceAuthorization.of(
+                    new ElasticInferenceServiceAuthorizationResponseEntity(
+                        List.of(
+                            new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedModel(
+                                "model-1",
+                                EnumSet.of(TaskType.TEXT_EMBEDDING)
+                            )
+                        )
+                    )
+                )
+            )
+        ) {
+            String content = XContentHelper.stripWhitespace("""
+                {
+                       "service": "elastic",
+                       "name": "Elastic",
+                       "task_types": [],
+                       "configurations": {
+                           "rate_limit.requests_per_minute": {
+                               "description": "Minimize the number of rate limit errors.",
+                               "label": "Rate Limit",
+                               "required": false,
+                               "sensitive": false,
+                               "updatable": false,
+                               "type": "int",
+                               "supported_task_types": ["sparse_embedding" , "chat_completion"]
+                           },
+                           "model_id": {
+                               "description": "The name of the model to use for the inference task.",
+                               "label": "Model ID",
+                               "required": true,
+                               "sensitive": false,
+                               "updatable": false,
+                               "type": "str",
+                               "supported_task_types": ["sparse_embedding" , "chat_completion"]
+                           },
+                           "max_input_tokens": {
+                               "description": "Allows you to specify the maximum number of tokens per input.",
+                               "label": "Maximum Input Tokens",
+                               "required": false,
+                               "sensitive": false,
+                               "updatable": false,
+                               "type": "int",
+                               "supported_task_types": ["sparse_embedding"]
+                           }
+                       }
+                   }
+                """);
+            InferenceServiceConfiguration configuration = InferenceServiceConfiguration.fromXContentBytes(
+                new BytesArray(content),
+                XContentType.JSON
+            );
+            boolean humanReadable = true;
+            BytesReference originalBytes = toShuffledXContent(configuration, XContentType.JSON, ToXContent.EMPTY_PARAMS, humanReadable);
+            InferenceServiceConfiguration serviceConfiguration = service.getConfiguration();
+            assertToXContentEquivalent(
+                originalBytes,
+                toXContent(serviceConfiguration, XContentType.JSON, humanReadable),
+                XContentType.JSON
+            );
+        }
+    }
+
+    public void testSupportedStreamingTasks_ReturnsChatCompletion_WhenAuthRespondsWithAValidModel() throws Exception {
+        String responseJson = """
+            {
+                "models": [
+                    {
+                      "model_name": "model-a",
+                      "task_types": ["embed/text/sparse", "chat"]
+                    }
+                ]
+            }
+            """;
+
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+        try (var service = createServiceWithAuthHandler(senderFactory, getUrl(webServer))) {
+            service.waitForAuthorizationToComplete(TIMEOUT);
+            assertThat(service.supportedStreamingTasks(), is(EnumSet.of(TaskType.CHAT_COMPLETION, TaskType.ANY)));
+            assertTrue(service.defaultConfigIds().isEmpty());
+
+            PlainActionFuture<List<Model>> listener = new PlainActionFuture<>();
+            service.defaultConfigs(listener);
+            assertTrue(listener.actionGet(TIMEOUT).isEmpty());
+        }
+    }
+
+    public void testSupportedTaskTypes_Returns_TheAuthorizedTaskTypes_IgnoresUnimplementedTaskTypes() throws Exception {
+        String responseJson = """
+            {
+                "models": [
+                    {
+                      "model_name": "model-a",
+                      "task_types": ["embed/text/sparse"]
+                    },
+                    {
+                      "model_name": "model-b",
+                      "task_types": ["embed"]
+                    }
+                ]
+            }
+            """;
+
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+        try (var service = createServiceWithAuthHandler(senderFactory, getUrl(webServer))) {
+            service.waitForAuthorizationToComplete(TIMEOUT);
+            assertThat(service.supportedTaskTypes(), is(EnumSet.of(TaskType.SPARSE_EMBEDDING)));
+        }
+    }
+
+    public void testSupportedTaskTypes_Returns_TheAuthorizedTaskTypes() throws Exception {
+        String responseJson = """
+            {
+                "models": [
+                    {
+                      "model_name": "model-a",
+                      "task_types": ["embed/text/sparse"]
+                    },
+                    {
+                      "model_name": "model-b",
+                      "task_types": ["chat"]
+                    }
+                ]
+            }
+            """;
+
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+        try (var service = createServiceWithAuthHandler(senderFactory, getUrl(webServer))) {
+            service.waitForAuthorizationToComplete(TIMEOUT);
+            assertThat(service.supportedTaskTypes(), is(EnumSet.of(TaskType.SPARSE_EMBEDDING, TaskType.CHAT_COMPLETION)));
+        }
+    }
+
+    public void testSupportedStreamingTasks_ReturnsEmpty_WhenAuthRespondsWithoutChatCompletion() throws Exception {
+        String responseJson = """
+            {
+                "models": [
+                    {
+                      "model_name": "model-a",
+                      "task_types": ["embed/text/sparse"]
+                    }
+                ]
+            }
+            """;
+
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+        try (var service = createServiceWithAuthHandler(senderFactory, getUrl(webServer))) {
+            service.waitForAuthorizationToComplete(TIMEOUT);
+            assertThat(service.supportedStreamingTasks(), is(EnumSet.noneOf(TaskType.class)));
+            assertTrue(service.defaultConfigIds().isEmpty());
+            assertThat(service.supportedTaskTypes(), is(EnumSet.of(TaskType.SPARSE_EMBEDDING)));
+
+            PlainActionFuture<List<Model>> listener = new PlainActionFuture<>();
+            service.defaultConfigs(listener);
+            assertTrue(listener.actionGet(TIMEOUT).isEmpty());
+        }
+    }
+
+    public void testDefaultConfigs_Returns_DefaultChatCompletion_V1_WhenTaskTypeIsIncorrect() throws Exception {
+        String responseJson = """
+            {
+                "models": [
+                    {
+                      "model_name": "rainbow-sprinkles",
+                      "task_types": ["embed/text/sparse"]
+                    }
+                ]
+            }
+            """;
+
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+        try (var service = createServiceWithAuthHandler(senderFactory, getUrl(webServer))) {
+            service.waitForAuthorizationToComplete(TIMEOUT);
+            assertThat(service.supportedStreamingTasks(), is(EnumSet.noneOf(TaskType.class)));
+            assertThat(
+                service.defaultConfigIds(),
+                is(
+                    List.of(
+                        new InferenceService.DefaultConfigId(".rainbow-sprinkles-elastic", MinimalServiceSettings.chatCompletion(), service)
+                    )
+                )
+            );
+            assertThat(service.supportedTaskTypes(), is(EnumSet.of(TaskType.SPARSE_EMBEDDING)));
+
+            PlainActionFuture<List<Model>> listener = new PlainActionFuture<>();
+            service.defaultConfigs(listener);
+            assertThat(listener.actionGet(TIMEOUT).get(0).getConfigurations().getInferenceEntityId(), is(".rainbow-sprinkles-elastic"));
+        }
+    }
+
+    public void testDefaultConfigs_Returns_DefaultChatCompletion_V1_WhenTaskTypeIsCorrect() throws Exception {
+        String responseJson = """
+            {
+                "models": [
+                    {
+                      "model_name": "rainbow-sprinkles",
+                      "task_types": ["chat"]
+                    }
+                ]
+            }
+            """;
+
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+        try (var service = createServiceWithAuthHandler(senderFactory, getUrl(webServer))) {
+            service.waitForAuthorizationToComplete(TIMEOUT);
+            assertThat(service.supportedStreamingTasks(), is(EnumSet.of(TaskType.CHAT_COMPLETION, TaskType.ANY)));
+            assertThat(
+                service.defaultConfigIds(),
+                is(
+                    List.of(
+                        new InferenceService.DefaultConfigId(".rainbow-sprinkles-elastic", MinimalServiceSettings.chatCompletion(), service)
+                    )
+                )
+            );
+            assertThat(service.supportedTaskTypes(), is(EnumSet.of(TaskType.CHAT_COMPLETION)));
+
+            PlainActionFuture<List<Model>> listener = new PlainActionFuture<>();
+            service.defaultConfigs(listener);
+            assertThat(listener.actionGet(TIMEOUT).get(0).getConfigurations().getInferenceEntityId(), is(".rainbow-sprinkles-elastic"));
+        }
+    }
+
     private ElasticInferenceService createServiceWithMockSender() {
+        return createServiceWithMockSender(ElasticInferenceServiceAuthorizationTests.createEnabledAuth());
+    }
+
+    private ElasticInferenceService createServiceWithMockSender(ElasticInferenceServiceAuthorization auth) {
+        var mockAuthHandler = mock(ElasticInferenceServiceAuthorizationHandler.class);
+        doAnswer(invocation -> {
+            ActionListener<ElasticInferenceServiceAuthorization> listener = invocation.getArgument(0);
+            listener.onResponse(auth);
+            return Void.TYPE;
+        }).when(mockAuthHandler).getAuthorization(any(), any());
+
         return new ElasticInferenceService(
             mock(HttpRequestSender.Factory.class),
             createWithEmptySettings(threadPool),
-            new ElasticInferenceServiceComponents(null)
+            new ElasticInferenceServiceComponents(null),
+            mockModelRegistry(),
+            mockAuthHandler
+        );
+    }
+
+    private ElasticInferenceService createService(HttpRequestSender.Factory senderFactory) {
+        return createService(senderFactory, ElasticInferenceServiceAuthorizationTests.createEnabledAuth(), null);
+    }
+
+    private ElasticInferenceService createService(HttpRequestSender.Factory senderFactory, String gatewayUrl) {
+        return createService(senderFactory, ElasticInferenceServiceAuthorizationTests.createEnabledAuth(), gatewayUrl);
+    }
+
+    private ElasticInferenceService createService(
+        HttpRequestSender.Factory senderFactory,
+        ElasticInferenceServiceAuthorization auth,
+        String gatewayUrl
+    ) {
+        var mockAuthHandler = mock(ElasticInferenceServiceAuthorizationHandler.class);
+        doAnswer(invocation -> {
+            ActionListener<ElasticInferenceServiceAuthorization> listener = invocation.getArgument(0);
+            listener.onResponse(auth);
+            return Void.TYPE;
+        }).when(mockAuthHandler).getAuthorization(any(), any());
+
+        return new ElasticInferenceService(
+            senderFactory,
+            createWithEmptySettings(threadPool),
+            new ElasticInferenceServiceComponents(gatewayUrl),
+            mockModelRegistry(),
+            mockAuthHandler
+        );
+    }
+
+    private ElasticInferenceService createServiceWithAuthHandler(HttpRequestSender.Factory senderFactory, String eisGatewayUrl) {
+        return new ElasticInferenceService(
+            senderFactory,
+            createWithEmptySettings(threadPool),
+            new ElasticInferenceServiceComponents(eisGatewayUrl),
+            mockModelRegistry(),
+            new ElasticInferenceServiceAuthorizationHandler(eisGatewayUrl, threadPool)
         );
     }
 }

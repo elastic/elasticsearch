@@ -14,6 +14,9 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
+import org.elasticsearch.client.Response;
+import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
@@ -32,9 +35,11 @@ import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.is;
 
 public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCase {
 
@@ -100,12 +105,21 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
             // the geoip index should be created
             assertBusy(() -> testCatIndices(".geoip_databases", ".security-7"));
             assertBusy(() -> testIndexGeoDoc());
+
+            // before the upgrade, Kibana should work
+            assertBusy(() -> testGetStarAsKibana(".security-7", "my-index-00001"));
         } else {
+            // after the upgrade, but before the migration, Kibana should work
+            assertBusy(() -> testGetStarAsKibana(".security-7", "my-index-00001"));
+
             Request migrateSystemFeatures = new Request("POST", "/_migration/system_features");
             assertOK(client().performRequest(migrateSystemFeatures));
 
             assertBusy(() -> testCatIndices(".geoip_databases-reindexed-for-10", ".security-7-reindexed-for-10", "my-index-00001"));
             assertBusy(() -> testIndexGeoDoc());
+
+            // after the migration, Kibana should work BUT IT DOESN'T
+            // assertBusy(() -> testGetStarAsKibana());
 
             Request disableDownloader = new Request("PUT", "/_cluster/settings");
             disableDownloader.setJsonEntity("""
@@ -176,5 +190,19 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
         ObjectPath doc = ObjectPath.createFromResponse(client().performRequest(getDoc));
         assertNull(doc.evaluate("_source.tags"));
         assertEquals("Sweden", doc.evaluate("_source.geo.country_name"));
+    }
+
+    private void testGetStarAsKibana(String... indexNames) throws IOException {
+        Request getStar = new Request("GET", "*?expand_wildcards=all");
+        getStar.setOptions(
+            RequestOptions.DEFAULT.toBuilder()
+                .addHeader("X-elastic-product-origin", "kibana")
+                .setWarningsHandler(WarningsHandler.PERMISSIVE) // we don't care about warnings, just errors
+        );
+        Response response = client().performRequest(getStar);
+        assertOK(response);
+
+        Map<String, Object> map = responseAsMap(response);
+        assertThat(map.keySet(), is(Set.of(indexNames)));
     }
 }

@@ -11,11 +11,14 @@ import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.elasticsearch.Build;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.dissect.DissectException;
 import org.elasticsearch.dissect.DissectParser;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -92,15 +95,18 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
      */
     public static final int MAX_QUERY_DEPTH = 500;
 
-    public LogicalPlanBuilder(QueryParams params) {
-        super(params);
+    public LogicalPlanBuilder(ParsingContext context) {
+        super(context);
     }
 
     private int queryDepth = 0;
 
     protected LogicalPlan plan(ParseTree ctx) {
         LogicalPlan p = ParserUtils.typedParsing(this, ctx, LogicalPlan.class);
-        var errors = this.params.parsingErrors();
+        if (p instanceof TelemetryAware ma) {
+            this.context.telemetry().command(ma);
+        }
+        var errors = this.context.params().parsingErrors();
         if (errors.hasNext() == false) {
             return p;
         } else {
@@ -480,8 +486,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             false,
             List.of(new MetadataAttribute(source, MetadataAttribute.TSID_FIELD, DataType.KEYWORD, false)),
             IndexMode.TIME_SERIES,
-            null,
-            "FROM TS"
+            null
         );
         return new Aggregate(source, relation, Aggregate.AggregateType.METRICS, stats.groupings, stats.aggregates);
     }
@@ -527,6 +532,13 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         if (rightPattern.contains(WILDCARD)) {
             throw new ParsingException(source(target), "invalid index pattern [{}], * is not allowed in LOOKUP JOIN", rightPattern);
         }
+        if (RemoteClusterAware.isRemoteIndexName(rightPattern)) {
+            throw new ParsingException(
+                source(target),
+                "invalid index pattern [{}], remote clusters are not supported in LOOKUP JOIN",
+                rightPattern
+            );
+        }
 
         UnresolvedRelation right = new UnresolvedRelation(
             source(target),
@@ -534,8 +546,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             false,
             emptyList(),
             IndexMode.LOOKUP,
-            null,
-            "???"
+            null
         );
 
         var condition = ctx.joinCondition();
@@ -557,6 +568,20 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             throw new ParsingException(source, "JOIN ON clause only supports one field at the moment, found [{}]", matchFieldsCount);
         }
 
-        return p -> new LookupJoin(source, p, right, joinFields);
+        return p -> {
+            p.forEachUp(UnresolvedRelation.class, r -> {
+                for (var leftPattern : Strings.splitStringByCommaToArray(r.indexPattern().indexPattern())) {
+                    if (RemoteClusterAware.isRemoteIndexName(leftPattern)) {
+                        throw new ParsingException(
+                            source(target),
+                            "invalid index pattern [{}], remote clusters are not supported in LOOKUP JOIN",
+                            r.indexPattern().indexPattern()
+                        );
+                    }
+                }
+            });
+
+            return new LookupJoin(source, p, right, joinFields);
+        };
     }
 }

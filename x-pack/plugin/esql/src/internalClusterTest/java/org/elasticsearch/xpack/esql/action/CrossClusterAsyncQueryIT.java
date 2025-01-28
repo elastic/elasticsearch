@@ -146,8 +146,8 @@ public class CrossClusterAsyncQueryIT extends AbstractMultiClustersTestCase {
                 executionInfo.clusterAliases(),
                 equalTo(Set.of(REMOTE_CLUSTER_1, REMOTE_CLUSTER_2, RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY))
             );
-            assertThat(executionInfo.getClusterStateCount(EsqlExecutionInfo.Cluster.Status.RUNNING), equalTo(2));
-            assertThat(executionInfo.getClusterStateCount(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL), equalTo(1));
+            assertThat(executionInfo.getClusterStates(EsqlExecutionInfo.Cluster.Status.RUNNING).count(), equalTo(2L));
+            assertThat(executionInfo.getClusterStates(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL).count(), equalTo(1L));
 
             EsqlExecutionInfo.Cluster clusterA = executionInfo.getCluster(REMOTE_CLUSTER_1);
             // Should be done and successful

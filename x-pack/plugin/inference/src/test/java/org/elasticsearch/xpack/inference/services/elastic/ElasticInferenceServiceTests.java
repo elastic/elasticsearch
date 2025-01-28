@@ -308,12 +308,12 @@ public class ElasticInferenceServiceTests extends ESTestCase {
     public void testCheckModelConfig_ReturnsNewModelReference() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
         try (var service = createService(senderFactory, getUrl(webServer))) {
-            var model = ElasticInferenceServiceSparseEmbeddingsModelTests.createModel(getUrl(webServer));
+            var model = ElasticInferenceServiceSparseEmbeddingsModelTests.createModel(getUrl(webServer), "my-model-id");
             PlainActionFuture<Model> listener = new PlainActionFuture<>();
             service.checkModelConfig(model, listener);
 
             var returnedModel = listener.actionGet(TIMEOUT);
-            assertThat(returnedModel, is(ElasticInferenceServiceSparseEmbeddingsModelTests.createModel(getUrl(webServer))));
+            assertThat(returnedModel, is(ElasticInferenceServiceSparseEmbeddingsModelTests.createModel(getUrl(webServer), "my-model-id")));
         }
     }
 
@@ -457,7 +457,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
 
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-            var model = ElasticInferenceServiceSparseEmbeddingsModelTests.createModel(eisGatewayUrl);
+            var model = ElasticInferenceServiceSparseEmbeddingsModelTests.createModel(eisGatewayUrl, "my-model-id");
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
                 model,
@@ -508,7 +508,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
 
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-            var model = ElasticInferenceServiceSparseEmbeddingsModelTests.createModel(eisGatewayUrl);
+            var model = ElasticInferenceServiceSparseEmbeddingsModelTests.createModel(eisGatewayUrl, "my-model-id");
             PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
             service.chunkedInfer(
                 model,

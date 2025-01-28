@@ -7,7 +7,10 @@
 
 package org.elasticsearch.xpack.core.security.user;
 
+import org.elasticsearch.action.admin.cluster.shards.TransportClusterSearchShardsAction;
 import org.elasticsearch.action.admin.indices.analyze.TransportReloadAnalyzersAction;
+import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
+import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeAction;
 import org.elasticsearch.action.admin.indices.readonly.TransportAddIndexBlockAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
@@ -15,7 +18,14 @@ import org.elasticsearch.action.admin.indices.rollover.LazyRolloverAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
 import org.elasticsearch.action.admin.indices.settings.put.TransportUpdateSettingsAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
+import org.elasticsearch.action.bulk.TransportBulkAction;
+import org.elasticsearch.action.datastreams.GetDataStreamAction;
+import org.elasticsearch.action.datastreams.ModifyDataStreamsAction;
 import org.elasticsearch.action.downsample.DownsampleAction;
+import org.elasticsearch.action.index.TransportIndexAction;
+import org.elasticsearch.action.search.TransportSearchAction;
+import org.elasticsearch.action.search.TransportSearchScrollAction;
+import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
@@ -180,6 +190,43 @@ public class InternalUsers {
         )
     );
 
+    public static final InternalUser REINDEX_DATA_STREAM_USER = new InternalUser(
+        UsernamesField.REINDEX_DATA_STREAM_NAME,
+        new RoleDescriptor(
+            UsernamesField.REINDEX_DATA_STREAM_ROLE,
+            new String[] {},
+            new RoleDescriptor.IndicesPrivileges[] {
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices("*")
+                    .privileges(
+                        GetDataStreamAction.NAME,
+                        RolloverAction.NAME,
+                        IndicesStatsAction.NAME,
+                        TransportDeleteIndexAction.TYPE.name(),
+                        "indices:admin/data_stream/index/reindex",
+                        "indices:admin/index/create_from_source",
+                        TransportAddIndexBlockAction.TYPE.name(),
+                        TransportCreateIndexAction.TYPE.name(),
+                        TransportClusterSearchShardsAction.TYPE.name(),
+                        TransportUpdateSettingsAction.TYPE.name(),
+                        RefreshAction.NAME,
+                        ReindexAction.NAME,
+                        TransportSearchAction.NAME,
+                        TransportBulkAction.NAME,
+                        TransportIndexAction.NAME,
+                        TransportSearchScrollAction.TYPE.name(),
+                        ModifyDataStreamsAction.NAME
+                    )
+                    .allowRestrictedIndices(false)
+                    .build() },
+            null,
+            null,
+            new String[] {},
+            MetadataUtils.DEFAULT_RESERVED_METADATA,
+            Map.of()
+        )
+    );
+
     /**
      * Internal user that can rollover an index/data stream.
      */
@@ -234,6 +281,7 @@ public class InternalUsers {
             ASYNC_SEARCH_USER,
             STORAGE_USER,
             DATA_STREAM_LIFECYCLE_USER,
+            REINDEX_DATA_STREAM_USER,
             SYNONYMS_USER,
             LAZY_ROLLOVER_USER
         ).collect(Collectors.toUnmodifiableMap(InternalUser::principal, Function.identity()));

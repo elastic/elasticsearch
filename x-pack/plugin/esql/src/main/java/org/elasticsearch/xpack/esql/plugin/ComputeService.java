@@ -55,9 +55,9 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME;
@@ -83,6 +83,7 @@ public class ComputeService {
     private final AtomicLong childSessionIdGenerator = new AtomicLong();
     private final DataNodeComputeHandler dataNodeComputeHandler;
     private final ClusterComputeHandler clusterComputeHandler;
+    private final ExchangeService exchangeService;
 
     @SuppressWarnings("this-escape")
     public ComputeService(
@@ -113,6 +114,7 @@ public class ComputeService {
             esqlExecutor,
             dataNodeComputeHandler
         );
+        this.exchangeService = exchangeService;
     }
 
     public void execute(
@@ -195,11 +197,12 @@ public class ComputeService {
             var exchangeSource = new ExchangeSourceHandler(
                 queryPragmas.exchangeBufferSize(),
                 transportService.getThreadPool().executor(ThreadPool.Names.SEARCH),
-                computeListener.acquireAvoid()
+                ActionListener.runBefore(computeListener.acquireAvoid(), () -> exchangeService.removeExchangeSourceHandler(sessionId))
             );
+            exchangeService.addExchangeSourceHandler(sessionId, exchangeSource);
             try (Releasable ignored = exchangeSource.addEmptySink()) {
                 // run compute on the coordinator
-                final AtomicReference<ComputeResponse> localResponse = new AtomicReference<>(new ComputeResponse(List.of()));
+                final AtomicBoolean localClusterWasInterrupted = new AtomicBoolean();
                 try (
                     var localListener = new ComputeListener(
                         transportService.getThreadPool(),
@@ -207,16 +210,13 @@ public class ComputeService {
                         computeListener.acquireCompute().delegateFailure((l, profiles) -> {
                             if (execInfo.isCrossClusterSearch() && execInfo.clusterAliases().contains(LOCAL_CLUSTER)) {
                                 var tookTime = TimeValue.timeValueNanos(System.nanoTime() - execInfo.getRelativeStartNanos());
-                                var r = localResponse.get();
-                                var merged = new ComputeResponse(
-                                    profiles,
-                                    tookTime,
-                                    r.totalShards,
-                                    r.successfulShards,
-                                    r.skippedShards,
-                                    r.failedShards
+                                var status = localClusterWasInterrupted.get()
+                                    ? EsqlExecutionInfo.Cluster.Status.PARTIAL
+                                    : EsqlExecutionInfo.Cluster.Status.SUCCESSFUL;
+                                execInfo.swapCluster(
+                                    LOCAL_CLUSTER,
+                                    (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setStatus(status).setTook(tookTime).build()
                                 );
-                                updateExecutionInfo(execInfo, LOCAL_CLUSTER, merged);
                             }
                             l.onResponse(profiles);
                         })
@@ -224,7 +224,15 @@ public class ComputeService {
                 ) {
                     runCompute(
                         rootTask,
-                        new ComputeContext(sessionId, LOCAL_CLUSTER, List.of(), configuration, foldContext, exchangeSource, null),
+                        new ComputeContext(
+                            sessionId,
+                            LOCAL_CLUSTER,
+                            List.of(),
+                            configuration,
+                            foldContext,
+                            exchangeSource::createExchangeSource,
+                            null
+                        ),
                         coordinatorPlan,
                         localListener.acquireCompute()
                     );
@@ -241,7 +249,17 @@ public class ComputeService {
                             exchangeSource,
                             cancelQueryOnFailure,
                             localListener.acquireCompute().map(r -> {
-                                localResponse.set(r);
+                                localClusterWasInterrupted.set(execInfo.isPartial());
+                                if (execInfo.isCrossClusterSearch() && execInfo.clusterAliases().contains(LOCAL_CLUSTER)) {
+                                    execInfo.swapCluster(
+                                        LOCAL_CLUSTER,
+                                        (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setTotalShards(r.getTotalShards())
+                                            .setSuccessfulShards(r.getSuccessfulShards())
+                                            .setSkippedShards(r.getSkippedShards())
+                                            .setFailedShards(r.getFailedShards())
+                                            .build()
+                                    );
+                                }
                                 return r.getProfiles();
                             })
                         );
@@ -269,22 +287,19 @@ public class ComputeService {
     }
 
     private void updateExecutionInfo(EsqlExecutionInfo executionInfo, String clusterAlias, ComputeResponse resp) {
-        TimeValue tookOnCluster;
-        if (resp.getTook() != null) {
-            TimeValue remoteExecutionTime = resp.getTook();
-            final long planningTime;
-            if (clusterAlias.equals(LOCAL_CLUSTER)) {
-                planningTime = 0L;
+        Function<EsqlExecutionInfo.Cluster.Status, EsqlExecutionInfo.Cluster.Status> runningToSuccess = status -> {
+            if (status == EsqlExecutionInfo.Cluster.Status.RUNNING) {
+                return executionInfo.isPartial() ? EsqlExecutionInfo.Cluster.Status.PARTIAL : EsqlExecutionInfo.Cluster.Status.SUCCESSFUL;
             } else {
-                planningTime = executionInfo.planningTookTime().nanos();
+                return status;
             }
-            tookOnCluster = new TimeValue(planningTime + remoteExecutionTime.nanos(), TimeUnit.NANOSECONDS);
+        };
+        if (resp.getTook() != null) {
+            var tookTime = TimeValue.timeValueNanos(executionInfo.planningTookTime().nanos() + resp.getTook().nanos());
             executionInfo.swapCluster(
                 clusterAlias,
-                (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v)
-                    // for now ESQL doesn't return partial results, so set status to SUCCESSFUL
-                    .setStatus(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL)
-                    .setTook(tookOnCluster)
+                (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setStatus(runningToSuccess.apply(v.getStatus()))
+                    .setTook(tookTime)
                     .setTotalShards(resp.getTotalShards())
                     .setSuccessfulShards(resp.getSuccessfulShards())
                     .setSkippedShards(resp.getSkippedShards())
@@ -294,14 +309,11 @@ public class ComputeService {
         } else {
             // if the cluster is an older version and does not send back took time, then calculate it here on the coordinator
             // and leave shard info unset, so it is not shown in the CCS metadata section of the JSON response
-            long remoteTook = System.nanoTime() - executionInfo.getRelativeStartNanos();
-            tookOnCluster = new TimeValue(remoteTook, TimeUnit.NANOSECONDS);
+            var tookTime = TimeValue.timeValueNanos(System.nanoTime() - executionInfo.getRelativeStartNanos());
             executionInfo.swapCluster(
                 clusterAlias,
-                (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v)
-                    // for now ESQL doesn't return partial results, so set status to SUCCESSFUL
-                    .setStatus(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL)
-                    .setTook(tookOnCluster)
+                (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setStatus(runningToSuccess.apply(v.getStatus()))
+                    .setTook(tookTime)
                     .build()
             );
         }
@@ -368,11 +380,12 @@ public class ComputeService {
                 blockFactory,
                 clusterService.getSettings(),
                 context.configuration(),
-                context.exchangeSource(),
-                context.exchangeSink(),
+                context.exchangeSourceSupplier(),
+                context.exchangeSinkSupplier(),
                 enrichLookupService,
                 lookupFromIndexService,
-                new EsPhysicalOperationProviders(context.foldCtx(), contexts, searchService.getIndicesService().getAnalysis())
+                new EsPhysicalOperationProviders(context.foldCtx(), contexts, searchService.getIndicesService().getAnalysis()),
+                contexts
             );
 
             LOGGER.debug("Received physical plan:\n{}", plan);

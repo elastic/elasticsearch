@@ -136,13 +136,24 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
     }
 
     @Override
-    protected RankDoc[] combineInnerRetrieverResults(List<ScoreDoc[]> rankResults) {
+    protected RankDoc[] combineInnerRetrieverResults(List<ScoreDoc[]> rankResults, boolean explain) {
         assert rankResults.size() == 1;
         ScoreDoc[] scoreDocs = rankResults.getFirst();
         TextSimilarityRankDoc[] textSimilarityRankDocs = new TextSimilarityRankDoc[scoreDocs.length];
         for (int i = 0; i < scoreDocs.length; i++) {
             ScoreDoc scoreDoc = scoreDocs[i];
-            textSimilarityRankDocs[i] = new TextSimilarityRankDoc(scoreDoc.doc, scoreDoc.score, scoreDoc.shardIndex, inferenceId, field);
+            assert scoreDoc.score >= 0;
+            if (explain) {
+                textSimilarityRankDocs[i] = new TextSimilarityRankDoc(
+                    scoreDoc.doc,
+                    scoreDoc.score,
+                    scoreDoc.shardIndex,
+                    inferenceId,
+                    field
+                );
+            } else {
+                textSimilarityRankDocs[i] = new TextSimilarityRankDoc(scoreDoc.doc, scoreDoc.score, scoreDoc.shardIndex);
+            }
         }
         return textSimilarityRankDocs;
     }

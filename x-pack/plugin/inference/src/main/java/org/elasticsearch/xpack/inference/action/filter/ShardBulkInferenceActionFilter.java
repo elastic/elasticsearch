@@ -35,6 +35,7 @@ import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.inference.InputType;
+import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.rest.RestStatus;
@@ -438,7 +439,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                     useLegacyFormat ? inputs : null,
                     new SemanticTextField.InferenceResult(
                         inferenceFieldMetadata.getInferenceId(),
-                        model != null ? new SemanticTextField.ModelSettings(model) : null,
+                        model != null ? new MinimalServiceSettings(model) : null,
                         chunkMap
                     ),
                     indexRequest.getContentType()

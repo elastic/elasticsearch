@@ -57,8 +57,8 @@ data stream should be currently running or have been completed in the last 24 ho
 (integer) The total number of backing indices in the data stream, including the write index.
 
 `total_indices_requiring_upgrade`::
-(integer) The number of backing indices that need to be upgraded. These will consist of the indices which are of an
-older version and are not closed or read-only.
+(integer) The number of backing indices that need to be upgraded. These will consist of the indices which have an
+older version and are not read-only.
 
 `successes`::
 (integer) The number of backing indices which have already been successfully upgraded.
@@ -96,7 +96,8 @@ older version and are not closed or read-only.
 =====
 
 `exceptions`::
-(Optional, string) If an exception caused the data stream reindex to fail, the exception message is included here in the status.
+(Optional, string)
+Exception message for a reindex failure if the failure could not be tied to a particular index.
 
 
 [[data-stream-reindex-status-example]]

@@ -14,16 +14,16 @@ For the most up-to-date API details, refer to {api-es}/group/endpoint-migration[
 include::{es-ref-dir}/migration/apis/shared-migration-apis-tip.asciidoc[]
 
 The reindex data stream API is used to upgrade the backing indices of a data stream to the most
-recent major version. It works by reindexing each backing index then replacing the original
+recent major version. It works by reindexing each backing index into a new index, then replacing the original
 backing index with its replacement and deleting the original backing index. The settings and mappings
 from the original backing indices are copied to the resulting backing indices.
 
-This api runs asynchronously because reindexing all indices in a large data stream
+This api runs in the background because reindexing all indices in a large data stream
 is expected to take a large amount of time and resources. The endpoint will return immediately and a persistent
 task will be created to run in the background. The current status of the task can be checked with
 the <<data-stream-reindex-status-api,reindex status API>>. This status will be available for 24 hours after the task completes, whether
-it finished successfully or failed. A running data stream reindex task can be cancelled using the
-<<data-stream-reindex-cancel-api,reindex cancel API>>.
+it finished successfully or failed. If the status is still available for a task, the task must be cancelled before it can be re-run.
+A running or recently completed data stream reindex task can be cancelled using the <<data-stream-reindex-cancel-api,reindex cancel API>>.
 
 [source,console]
 ----
@@ -61,7 +61,7 @@ POST _migration/reindex
 
 `mode`::
 (Required, enum) Set to `upgrade` to upgrade the data stream in-place, using the same source and destination
-data stream. Each backing index will be reindexed, then swapped into the data stream, then the old index will be deleted.
+data stream. Each out-of-date backing index will be reindexed. Then the new backing index is swapped into the data stream and the old index is deleted.
 Currently, the only allowed value for this parameter is `upgrade`.
 
 [[reindex-data-stream-api-settings]]
@@ -80,7 +80,7 @@ The number of backing indices within a given data stream which will be reindexed
 // tag::migrate_data_stream_reindex_max_request_per_second-setting-tag[]
 `migrate.data_stream_reindex_max_request_per_second`
 (<<dynamic-cluster-setting,Dynamic>>)
-The average number of documents within a given backing index to reindex per second.
+The average maximum number of documents within a given backing index to reindex per second.
 Defaults to `1000`, though can be any decimal number greater than `0`.
 To remove throttling, set to `-1`.
 This setting can be used to throttle the reindex process and manage resource usage.
@@ -128,11 +128,13 @@ First, the data stream is rolled over. So that no documents are lost during the 
 Once the data stream has a write index with an 8.x version we can proceed with reindexing the old indices.
 For each of the version 7.x indices, we now do the following:
 
-* Add a write block to the index to guarantee that no writes are lost.
-* Delete the target index if one exists. This is done in case we are retrying after a failure, so that we start with a fresh index.
-* Create the target index using the <<indices-create-index-from-source, create from source API>>.
+* Add a write block to the source index to guarantee that no writes are lost.
+* Open the source index if it is closed.
+* Delete the destination index if one exists. This is done in case we are retrying after a failure, so that we start with a fresh index.
+* Create the destination index using the <<indices-create-index-from-source, create from source API>>.
 This copies the settings and mappings from the old backing index to the new backing index.
 * Use the <<docs-reindex, reindex API>> to copy the contents of the old backing index to the new backing index.
+* Close the destination index if the source index was originally closed.
 * Replace the old index in the data stream with the new index, using the <<modify-data-streams-api,modify data streams API>>.
 * Finally, the old backing index is deleted.
 
@@ -333,7 +335,7 @@ which returns:
 [[reindex-data-stream-handling-failure]]
 ===== Handling Failures
 Since the reindex data stream API runs in the background, failure information can be obtained through the <<data-stream-reindex-status-api,reindex status API>>.
-For example, if the backing index `.ds-my-data-stream-2025.01.23-000002` was accidentally deleted, we would see a status like the following:
+For example, if the backing index `.ds-my-data-stream-2025.01.23-000002` was accidentally deleted by a user, we would see a status like the following:
 
 [source,console-result]
 ----
@@ -355,4 +357,6 @@ For example, if the backing index `.ds-my-data-stream-2025.01.23-000002` was acc
 ----
 // TEST[skip:result just part of explanation]
 
-Once the issue has been fixed, the reindex task can re-run using the <<reindex-data-stream-start,original reindex command>> to pick up where it left off.
+Once the issue has been fixed, the failed reindex task can be re-run. First, the failed run's status must be cleared
+using the <<data-stream-reindex-cancel-api,reindex cancel API>>. Then the
+<<reindex-data-stream-start,original reindex command>> can be called to pick up where it left off.

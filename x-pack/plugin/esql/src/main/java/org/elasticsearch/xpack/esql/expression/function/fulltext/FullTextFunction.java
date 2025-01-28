@@ -78,34 +78,25 @@ public abstract class FullTextFunction extends Function implements TranslationAw
             return new TypeResolution("Unresolved children");
         }
 
-        return resolveNonQueryParamTypes().and(resolveQueryParamType().and(checkParamCompatibility()));
+        return resolveParams();
     }
 
     /**
-     * Checks parameter specific compatibility, to be overriden by subclasses
+     * Resolves the type for the function parameters, as part of the type resolution for the function
      *
-     * @return TypeResolution for param compatibility
+     * @return type resolution for the function parameters
      */
-    protected TypeResolution checkParamCompatibility() {
-        return TypeResolution.TYPE_RESOLVED;
+    protected TypeResolution resolveParams() {
+        return resolveQuery(DEFAULT);
     }
 
     /**
      * Resolves the type for the query parameter, as part of the type resolution for the function
      *
-     * @return type resolution for query parameter
+     * @return type resolution for the query parameter
      */
-    protected TypeResolution resolveQueryParamType() {
-        return isString(query(), sourceText(), queryParamOrdinal()).and(isNotNullAndFoldable(query(), sourceText(), queryParamOrdinal()));
-    }
-
-    /**
-     * Subclasses can override this method for custom type resolution for additional function parameters
-     *
-     * @return type resolution for non-query parameter types
-     */
-    protected TypeResolution resolveNonQueryParamTypes() {
-        return TypeResolution.TYPE_RESOLVED;
+    protected TypeResolution resolveQuery(TypeResolutions.ParamOrdinal queryOrdinal) {
+        return isString(query(), sourceText(), queryOrdinal).and(isNotNullAndFoldable(query(), sourceText(), queryOrdinal));
     }
 
     public Expression query() {
@@ -124,15 +115,6 @@ public abstract class FullTextFunction extends Function implements TranslationAw
         }
 
         return queryAsObject;
-    }
-
-    /**
-     * Returns the param ordinal for the query parameter so it can be used in error messages
-     *
-     * @return Query ordinal for the
-     */
-    protected TypeResolutions.ParamOrdinal queryParamOrdinal() {
-        return DEFAULT;
     }
 
     @Override

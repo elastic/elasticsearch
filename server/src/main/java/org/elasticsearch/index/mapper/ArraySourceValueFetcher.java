@@ -25,7 +25,7 @@ import java.util.Set;
  *
  * This class differs from {@link SourceValueFetcher} in that it directly handles
  * array values in parsing. Field types should use this class if their corresponding
- * mapper returns true for {@link FieldMapper#parsesArrayValue()}.
+ * mapper returns true for {@link FieldMapper#parsesArrayValue(DocumentParserContext)}.
  */
 public abstract class ArraySourceValueFetcher implements ValueFetcher {
     private final Set<String> sourcePaths;

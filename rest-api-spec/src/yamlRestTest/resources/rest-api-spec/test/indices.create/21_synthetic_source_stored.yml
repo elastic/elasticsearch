@@ -1024,7 +1024,7 @@ index param - field ordering:
         index: test
 
   - length: { hits.hits.0._source: 4 }
-  - match: { hits.hits.0._source: { "a": "2", "b": [ { "bb": 100, "aa": 200 }, { "aa": 300, "bb": 400 } ], "c": [30, 20, 10], "d": [ { "bb": 10, "aa": 20 }, { "aa": 30, "bb": 40 } ] } }
+  - match: { hits.hits.0._source: { "a": "2", "b": [ { "bb": 100, "aa": 200 }, { "aa": 300, "bb": 400 } ], "c": ["30", "20", "10"], "d": [ { "bb": 10, "aa": 20 }, { "aa": 30, "bb": 40 } ] } }
 
 
 ---

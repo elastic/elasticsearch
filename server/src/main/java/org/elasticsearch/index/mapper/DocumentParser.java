@@ -9,10 +9,13 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.BitUtil;
 import org.elasticsearch.common.Explicit;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
@@ -154,11 +157,43 @@ public final class DocumentParser {
 
             executeIndexTimeScripts(context);
 
+            processArrayOffsets(context);
             for (MetadataFieldMapper metadataMapper : metadataFieldsMappers) {
                 metadataMapper.postParse(context);
             }
         } catch (Exception e) {
             throw wrapInDocumentParsingException(context, e);
+        }
+    }
+
+    // TODO: maybe move this logic to a new meta field mapper?
+    private static void processArrayOffsets(DocumentParserContext context) throws IOException {
+        var offsets = context.getOffSetsByField();
+        for (var entry : offsets.entrySet()) {
+            var fieldName = entry.getKey();
+            var offset = entry.getValue();
+
+            int currentOrd = 0;
+            // This array allows to retain the original ordering of elements in leaf arrays and retain duplicates.
+            int[] offsetToOrd = new int[offset.currentOffset];
+            for (var offsetEntry : offset.valueToOffsets.entrySet()) {
+                for (var offsetAndLevel : offsetEntry.getValue()) {
+                    offsetToOrd[offsetAndLevel] = currentOrd;
+                }
+                currentOrd++;
+            }
+            for (var nullOffset : offset.nullValueOffsets) {
+                offsetToOrd[nullOffset] = -1;
+            }
+
+            try (var streamOutput = new BytesStreamOutput()) {
+                // Could just use vint for array length, but this allows for decoding my_field: null as -1
+                streamOutput.writeVInt(BitUtil.zigZagEncode(offsetToOrd.length));
+                for (int ord : offsetToOrd) {
+                    streamOutput.writeVInt(BitUtil.zigZagEncode(ord));
+                }
+                context.doc().add(new BinaryDocValuesField(fieldName, streamOutput.bytes().toBytesRef()));
+            }
         }
     }
 
@@ -616,7 +651,7 @@ public final class DocumentParser {
             // There is a concrete mapper for this field already. Need to check if the mapper
             // expects an array, if so we pass the context straight to the mapper and if not
             // we serialize the array components
-            if (parsesArrayValue(mapper)) {
+            if (parsesArrayValue(mapper, context)) {
                 parseObjectOrField(context, mapper);
             } else {
                 parseNonDynamicArray(context, mapper, lastFieldName, lastFieldName);
@@ -664,7 +699,7 @@ public final class DocumentParser {
             }
             parseNonDynamicArray(context, objectMapperFromTemplate, currentFieldName, currentFieldName);
         } else {
-            if (parsesArrayValue(objectMapperFromTemplate)) {
+            if (parsesArrayValue(objectMapperFromTemplate, context)) {
                 if (context.addDynamicMapper(objectMapperFromTemplate) == false) {
                     context.parser().skipChildren();
                     return;
@@ -678,8 +713,8 @@ public final class DocumentParser {
         }
     }
 
-    private static boolean parsesArrayValue(Mapper mapper) {
-        return mapper instanceof FieldMapper && ((FieldMapper) mapper).parsesArrayValue();
+    private static boolean parsesArrayValue(Mapper mapper, DocumentParserContext context) {
+        return mapper instanceof FieldMapper && ((FieldMapper) mapper).parsesArrayValue(context);
     }
 
     private static void parseNonDynamicArray(
@@ -692,7 +727,7 @@ public final class DocumentParser {
 
         // Check if we need to record the array source. This only applies to synthetic source.
         boolean canRemoveSingleLeafElement = false;
-        if (context.canAddIgnoredField()) {
+        if (context.canAddIgnoredField() && (parsesArrayValue(mapper, context) == false)) {
             Mapper.SourceKeepMode mode = Mapper.SourceKeepMode.NONE;
             boolean objectWithFallbackSyntheticSource = false;
             if (mapper instanceof ObjectMapper objectMapper) {
@@ -729,10 +764,12 @@ public final class DocumentParser {
             }
         }
 
-        // In synthetic source, if any array element requires storing its source as-is, it takes precedence over
-        // elements from regular source loading that are then skipped from the synthesized array source.
-        // To prevent this, we track that parsing sub-context is within array scope.
-        context = context.maybeCloneForArray(mapper);
+        if (parsesArrayValue(mapper, context) == false) {
+            // In synthetic source, if any array element requires storing its source as-is, it takes precedence over
+            // elements from regular source loading that are then skipped from the synthesized array source.
+            // To prevent this, we track that parsing sub-context is within array scope.
+            context = context.maybeCloneForArray(mapper);
+        }
 
         XContentParser parser = context.parser();
         XContentParser.Token token;

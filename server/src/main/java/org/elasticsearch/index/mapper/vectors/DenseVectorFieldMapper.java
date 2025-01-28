@@ -2186,7 +2186,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
     }
 
     @Override
-    public boolean parsesArrayValue() {
+    public boolean parsesArrayValue(DocumentParserContext context) {
         return true;
     }
 

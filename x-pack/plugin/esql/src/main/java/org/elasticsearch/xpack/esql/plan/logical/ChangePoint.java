@@ -114,11 +114,6 @@ public class ChangePoint extends UnaryPlan implements GeneratingPlan<ChangePoint
     }
 
     @Override
-    public String commandName() {
-        return "CHANGE_POINT";
-    }
-
-    @Override
     public List<Attribute> generatedAttributes() {
         return List.of(targetType, targetPvalue);
     }

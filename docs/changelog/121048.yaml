@@ -1,5 +1,5 @@
 pr: 121048
-summary: Inference Update is PUT
+summary: Updating Inference Update API documentation to have the correct PUT method
 area: Machine Learning
 type: bug
 issues: []

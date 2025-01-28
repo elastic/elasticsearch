@@ -22,6 +22,7 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.Instant;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
@@ -126,7 +127,8 @@ public class LogsdbIndexingRollingUpgradeIT extends AbstractRollingUpgradeTestCa
         assertOK(client().performRequest(putIndexTemplateRequest));
     }
 
-    static void bulkIndex(String dataStreamName, int numRequest, int numDocs, Instant startTime) throws Exception {
+    static String bulkIndex(String dataStreamName, int numRequest, int numDocs, Instant startTime) throws Exception {
+        String firstIndex = null;
         for (int i = 0; i < numRequest; i++) {
             var bulkRequest = new Request("POST", "/" + dataStreamName + "/_bulk");
             StringBuilder requestBody = new StringBuilder();
@@ -159,7 +161,11 @@ public class LogsdbIndexingRollingUpgradeIT extends AbstractRollingUpgradeTestCa
             assertOK(response);
             var responseBody = entityAsMap(response);
             assertThat("errors in response:\n " + responseBody, responseBody.get("errors"), equalTo(false));
+            if (firstIndex == null) {
+                firstIndex = (String) ((Map<?, ?>)((Map<?, ?>)((List<?>)responseBody.get("items")).get(0)).get("create")).get("_index");
+            }
         }
+        return firstIndex;
     }
 
     void search(String dataStreamName) throws Exception {

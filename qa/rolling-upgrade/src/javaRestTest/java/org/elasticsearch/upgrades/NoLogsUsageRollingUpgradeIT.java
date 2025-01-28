@@ -15,9 +15,10 @@ import java.time.Instant;
 import java.util.Map;
 
 import static org.elasticsearch.upgrades.LogsUsageRollingUpgradeIT.getClusterSettings;
-import static org.elasticsearch.upgrades.LogsUsageRollingUpgradeIT.rolloverDataStream;
 import static org.elasticsearch.upgrades.LogsdbIndexingRollingUpgradeIT.bulkIndex;
 import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.not;
 
 public class NoLogsUsageRollingUpgradeIT extends AbstractRollingUpgradeTestCase {
 
@@ -31,21 +32,17 @@ public class NoLogsUsageRollingUpgradeIT extends AbstractRollingUpgradeTestCase 
             dataStreamName = dataStreamName.replace("logs-", "log-");
             bulkIndex(dataStreamName, 4, 256, Instant.now());
             ensureGreen(dataStreamName);
-        } else {
-            if (isFirstMixedCluster()) {
-
-            }
-            String newIndex = rolloverDataStream(dataStreamName);
-            bulkIndex(dataStreamName, 4, 256, Instant.now());
+        } else if (isUpgradedCluster()) {
+            String newIndex = bulkIndex(dataStreamName, 4, 256, Instant.now());
+            ensureGreen(dataStreamName);
             Map<?, ?> indexResponse = (Map<?, ?>) getIndexSettings(newIndex, true).get(newIndex);
             Map<?, ?> settings = (Map<?, ?>) indexResponse.get("settings");
-            Map<?, ?> defaults = (Map<?, ?>) indexResponse.get("defaults");
             assertThat(settings, hasEntry("index.mode", "logsdb"));
-            assertThat(defaults, hasEntry("index.mode", "logsdb"));
-            if (isUpgradedCluster()) {
-                var response = getClusterSettings();
-                assertThat(response, hasEntry("persistent.logsdb.prior_logs_usage", true));
-            }
+            var getClusterSettingsResponse = getClusterSettings();
+            Map<?, ?> defaults = (Map<?, ?>) getClusterSettingsResponse.get("defaults");
+            Map<?, ?> persistentSettings = (Map<?, ?>) getClusterSettingsResponse.get("persistent");
+            assertThat(persistentSettings, not(hasKey("logsdb.prior_logs_usage")));
+            assertThat(defaults, hasEntry("cluster.logsdb.enabled", "true"));
         }
     }
 

@@ -16,6 +16,7 @@ import org.elasticsearch.client.Request;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.upgrades.LogsdbIndexingRollingUpgradeIT.bulkIndex;
 import static org.hamcrest.Matchers.hasEntry;
@@ -29,14 +30,16 @@ public class LogsUsageRollingUpgradeIT extends AbstractRollingUpgradeTestCase {
     }
 
     public void testUsage() throws Exception {
+        assumeTrue("logsdb.prior_logs_usage only gets set in 8.x", getOldClusterTestVersion().before("9.0.0"));
         String dataStreamName = "logs-mysql-error";
         if (isOldCluster()) {
             bulkIndex(dataStreamName, 4, 256, Instant.now());
             ensureGreen(dataStreamName);
             assertBusy(() -> {
-                var response = getClusterSettings();
-                assertThat(response, hasEntry("persistent.logsdb.prior_logs_usage", true));
-            });
+                var getClusterSettingsResponse = getClusterSettings();
+                Map<?, ?> persistentSettings = (Map<?, ?>) getClusterSettingsResponse.get("persistent");
+                assertThat(persistentSettings, hasEntry("logsdb.prior_logs_usage", "true"));
+            }, 2, TimeUnit.MINUTES);
         } else {
             String newIndex = rolloverDataStream(dataStreamName);
             bulkIndex(dataStreamName, 4, 256, Instant.now());

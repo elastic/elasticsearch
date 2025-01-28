@@ -29,7 +29,7 @@ public abstract class BaseInferenceActionRequest extends ActionRequest {
 
     public BaseInferenceActionRequest(StreamInput in) throws IOException {
         super(in);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_REQUEST_ADAPTIVE_RATE_LIMITING_ADDED)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_REQUEST_ADAPTIVE_RATE_LIMITING)) {
             this.hasBeenRerouted = in.readBoolean();
         } else {
             // For backwards compatibility, we treat all inference requests coming from ES nodes having
@@ -55,7 +55,7 @@ public abstract class BaseInferenceActionRequest extends ActionRequest {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_REQUEST_ADAPTIVE_RATE_LIMITING_ADDED)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_REQUEST_ADAPTIVE_RATE_LIMITING)) {
             out.writeBoolean(hasBeenRerouted);
         }
     }

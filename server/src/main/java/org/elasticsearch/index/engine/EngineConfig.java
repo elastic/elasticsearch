@@ -178,6 +178,7 @@ public final class EngineConfig {
         boolean promotableToPrimary,
         MapperService mapperService
     ) {
+        //TODO
         this.shardId = shardId;
         this.indexSettings = indexSettings;
         this.threadPool = threadPool;

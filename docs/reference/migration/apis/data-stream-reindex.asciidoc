@@ -25,19 +25,15 @@ the <<data-stream-reindex-status-api,reindex status API>>. This status will be a
 it finished successfully or failed. If the status is still available for a task, the task must be cancelled before it can be re-run.
 A running or recently completed data stream reindex task can be cancelled using the <<data-stream-reindex-cancel-api,reindex cancel API>>.
 
+///////////////////////////////////////////////////////////
 [source,console]
-----
-POST _migration/reindex
-{
-    "source": {
-        "index": "my-data-stream"
-    },
-    "mode": "upgrade"
-}
-----
-// TEST[setup:my_data_stream]
-// TEST[teardown:data_stream_cleanup]
-
+------------------------------------------------------
+POST /_migration/reindex/my-data-stream/_cancel
+DELETE _data_stream/my-data-stream
+DELETE _index_template/my-data-stream-template
+------------------------------------------------------
+// TEARDOWN
+///////////////////////////////////////////////////////////
 
 
 [[data-stream-reindex-api-request]]
@@ -114,7 +110,7 @@ POST _migration/reindex
     "mode": "upgrade"
 }
 ----
-// TEST[skip:cannot easily clean up reindex task between tests]
+// TEST[setup:my_data_stream]
 
 
 As this task runs in the background this API will return immediately.

@@ -20,11 +20,28 @@ Once a data stream reindex task is cancelled it will no longer be accessible thr
 <<data-stream-reindex-status-api,status API>>. If a reindex task is not currently running
 this API will return `resource_not_found_exception`.
 
+
+///////////////////////////////////////////////////////////
+[source,console]
+------------------------------------------------------
+POST _migration/reindex
+{
+    "source": {
+        "index": "my-data-stream"
+    },
+    "mode": "upgrade"
+}
+------------------------------------------------------
+// TESTSETUP
+// TEST[setup:my_data_stream]
+///////////////////////////////////////////////////////////
+
+
 [source,console]
 ----
 POST _migration/reindex/my-data-stream/_cancel
 ----
-// TEST[skip:cannot easily clean up reindex task between tests]
+// TEST[teardown:data_stream_cleanup]
 
 [[data-stream-reindex-cancel-request]]
 ==== {api-request-title}

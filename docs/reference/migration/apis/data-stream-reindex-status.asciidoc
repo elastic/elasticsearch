@@ -18,6 +18,29 @@ available while the reindex task is running and for 24 hours after completion of
 whether it succeeds or fails. If the task is cancelled, the status is no longer available.
 If the task fails, the exception will be listed within the status.
 
+///////////////////////////////////////////////////////////
+[source,console]
+------------------------------------------------------
+POST _migration/reindex
+{
+    "source": {
+        "index": "my-data-stream"
+    },
+    "mode": "upgrade"
+}
+------------------------------------------------------
+// TESTSETUP
+// TEST[setup:my_data_stream]
+
+[source,console]
+------------------------------------------------------
+POST /_migration/reindex/my-data-stream/_cancel
+DELETE _data_stream/my-data-stream
+DELETE _index_template/my-data-stream-template
+------------------------------------------------------
+// TEARDOWN
+///////////////////////////////////////////////////////////
+
 
 [[data-stream-reindex-status-api-request]]
 ==== {api-request-title}
@@ -107,7 +130,6 @@ Exception message for a reindex failure if the failure could not be tied to a pa
 ----
 GET _migration/reindex/my-data-stream/_status
 ----
-// TEST[skip:cannot easily clean up reindex task between tests]
 
 The following is a typical response:
 [source,console-result]

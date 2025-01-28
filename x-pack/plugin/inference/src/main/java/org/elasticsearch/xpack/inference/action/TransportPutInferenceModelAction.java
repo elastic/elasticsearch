@@ -108,6 +108,17 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
             return;
         }
 
+        if (modelRegistry.containsDefaultConfigId(request.getInferenceEntityId())) {
+            listener.onFailure(
+                new ElasticsearchStatusException(
+                    "[{}] is a reserved inference ID. Cannot create a new inference endpoint with a reserved ID.",
+                    RestStatus.BAD_REQUEST,
+                    request.getInferenceEntityId()
+                )
+            );
+            return;
+        }
+
         var requestAsMap = requestToMap(request);
         var resolvedTaskType = ServiceUtils.resolveTaskType(request.getTaskType(), (String) requestAsMap.remove(TaskType.NAME));
 

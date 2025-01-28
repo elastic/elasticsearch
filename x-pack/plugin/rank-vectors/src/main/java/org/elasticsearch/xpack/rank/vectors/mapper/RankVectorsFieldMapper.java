@@ -375,7 +375,7 @@ public class RankVectorsFieldMapper extends FieldMapper {
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport() {
-        return new SyntheticSourceSupport.Native(new DocValuesSyntheticFieldLoader());
+        return new SyntheticSourceSupport.Native(DocValuesSyntheticFieldLoader::new);
     }
 
     private class DocValuesSyntheticFieldLoader extends SourceLoader.DocValuesBasedSyntheticFieldLoader {

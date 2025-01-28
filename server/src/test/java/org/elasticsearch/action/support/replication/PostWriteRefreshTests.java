@@ -162,7 +162,7 @@ public class PostWriteRefreshTests extends IndexShardTestCase {
                 new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "message"),
                 ShardRouting.Role.SEARCH_ONLY
             );
-            when(routingTable.unpromotableShards()).thenReturn(List.of(shardRouting));
+            when(routingTable.allUnpromotableShards()).thenReturn(List.of(shardRouting));
             when(routingTable.shardId()).thenReturn(shardId);
             WriteRequest.RefreshPolicy policy = randomFrom(WriteRequest.RefreshPolicy.IMMEDIATE, WriteRequest.RefreshPolicy.WAIT_UNTIL);
             postWriteRefresh.refreshShard(policy, primary, result.getTranslogLocation(), f, postWriteRefreshTimeout);
@@ -238,9 +238,9 @@ public class PostWriteRefreshTests extends IndexShardTestCase {
             );
             // Randomly test scenarios with and without unpromotables
             if (randomBoolean()) {
-                when(routingTable.unpromotableShards()).thenReturn(Collections.emptyList());
+                when(routingTable.allUnpromotableShards()).thenReturn(Collections.emptyList());
             } else {
-                when(routingTable.unpromotableShards()).thenReturn(List.of(shardRouting));
+                when(routingTable.allUnpromotableShards()).thenReturn(List.of(shardRouting));
             }
             WriteRequest.RefreshPolicy policy = WriteRequest.RefreshPolicy.WAIT_UNTIL;
             postWriteRefresh.refreshShard(policy, primary, null, f, postWriteRefreshTimeout);

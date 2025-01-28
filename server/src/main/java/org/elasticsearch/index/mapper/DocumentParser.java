@@ -85,7 +85,11 @@ public final class DocumentParser {
         XContentMeteringParserDecorator meteringParserDecorator = source.getMeteringParserDecorator();
         try (
             XContentParser parser = meteringParserDecorator.decorate(
-                XContentHelper.createParser(parserConfiguration, source.source(), xContentType)
+                XContentHelper.createParser(
+                    parserConfiguration.withIncludeSourceOnError(source.getIncludeSourceOnError()),
+                    source.source(),
+                    xContentType
+                )
             )
         ) {
             context = new RootDocumentParserContext(mappingLookup, mappingParserContext, source, parser);
@@ -1023,7 +1027,7 @@ public final class DocumentParser {
             protected SyntheticSourceSupport syntheticSourceSupport() {
                 // Opt out of fallback synthetic source implementation
                 // since there is custom logic in #parseCreateField().
-                return new SyntheticSourceSupport.Native(SourceLoader.SyntheticFieldLoader.NOTHING);
+                return new SyntheticSourceSupport.Native(() -> SourceLoader.SyntheticFieldLoader.NOTHING);
             }
         };
     }

@@ -24,7 +24,7 @@ public class BinaryOptionalMathProcessor implements Processor {
 
     public enum BinaryOptionalMathOperation implements BiFunction<Number, Number, Number> {
 
-        ROUND((n, precision) -> Maths.round(n, precision)),
+        ROUND((n, precision) -> Maths.round(n, precision.longValue())),
         TRUNCATE((n, precision) -> Maths.truncate(n, precision));
 
         private final BiFunction<Number, Number, Number> process;

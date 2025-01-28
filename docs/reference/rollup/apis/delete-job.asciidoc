@@ -6,12 +6,15 @@
 <titleabbrev>Delete {rollup-jobs}</titleabbrev>
 ++++
 
-Deletes an existing {rollup-job}. 
+deprecated::[8.11.0,"Rollups will be removed in a future version. Use <<downsampling,downsampling>> instead."]
 
-experimental[]
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-rollup[Rollup APIs].
+--
 
-NOTE: For version 8.5 and above we recommend <<downsampling,downsampling>> over
-rollups as a way to reduce your storage costs for time series data.
+Deletes an existing {rollup-job}.
 
 [[rollup-delete-job-request]]
 ==== {api-request-title}

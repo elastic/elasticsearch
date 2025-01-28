@@ -22,9 +22,10 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.PipelineConfiguration;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -44,6 +45,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.ENRICH_ORIGIN;
 
 public class TransportDeleteEnrichPolicyAction extends AcknowledgedTransportMasterNodeAction<DeleteEnrichPolicyAction.Request> {
 
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final EnrichPolicyLocks enrichPolicyLocks;
     private final IngestService ingestService;
     private final Client client;
@@ -69,9 +71,9 @@ public class TransportDeleteEnrichPolicyAction extends AcknowledgedTransportMast
             threadPool,
             actionFilters,
             DeleteEnrichPolicyAction.Request::new,
-            indexNameExpressionResolver,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.client = client;
         this.enrichPolicyLocks = enrichPolicyLocks;
         this.ingestService = ingestService;
@@ -122,8 +124,9 @@ public class TransportDeleteEnrichPolicyAction extends AcknowledgedTransportMast
         }
 
         try {
-            final GetIndexRequest indices = new GetIndexRequest().indices(EnrichPolicy.getBaseName(policyName) + "-*")
-                .indicesOptions(IndicesOptions.lenientExpand());
+            final GetIndexRequest indices = new GetIndexRequest(request.masterNodeTimeout()).indices(
+                EnrichPolicy.getBaseName(policyName) + "-*"
+            ).indicesOptions(IndicesOptions.lenientExpand());
 
             String[] concreteIndices = indexNameExpressionResolver.concreteIndexNamesWithSystemIndexAccess(state, indices);
 
@@ -148,19 +151,21 @@ public class TransportDeleteEnrichPolicyAction extends AcknowledgedTransportMast
         // as the setting 'action.destructive_requires_name' may be set to true
         DeleteIndexRequest deleteRequest = new DeleteIndexRequest().indices(indices).indicesOptions(LENIENT_OPTIONS);
 
-        new OriginSettingClient(client, ENRICH_ORIGIN).admin().indices().delete(deleteRequest, ActionListener.wrap((response) -> {
-            if (response.isAcknowledged() == false) {
-                listener.onFailure(
-                    new ElasticsearchStatusException(
-                        "Could not fetch indices to delete during policy delete of [{}]",
-                        RestStatus.INTERNAL_SERVER_ERROR,
-                        name
-                    )
-                );
-            } else {
-                deletePolicy(name, listener);
-            }
-        }, listener::onFailure));
+        new OriginSettingClient(client, ENRICH_ORIGIN).admin()
+            .indices()
+            .delete(deleteRequest, listener.delegateFailureAndWrap((delegate, response) -> {
+                if (response.isAcknowledged() == false) {
+                    delegate.onFailure(
+                        new ElasticsearchStatusException(
+                            "Could not fetch indices to delete during policy delete of [{}]",
+                            RestStatus.INTERNAL_SERVER_ERROR,
+                            name
+                        )
+                    );
+                } else {
+                    deletePolicy(name, delegate);
+                }
+            }));
     }
 
     private void deletePolicy(String name, ActionListener<AcknowledgedResponse> listener) {

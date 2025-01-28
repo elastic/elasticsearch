@@ -33,7 +33,7 @@ public class WarningInferenceResultsTests extends InferenceResultsTestCase<Warni
     }
 
     @Override
-    void assertFieldValues(WarningInferenceResults createdInstance, IngestDocument document, String resultsField) {
-        assertThat(document.getFieldValue(resultsField + ".warning", String.class), equalTo(createdInstance.getWarning()));
+    void assertFieldValues(WarningInferenceResults createdInstance, IngestDocument document, String parentField, String resultsField) {
+        assertThat(document.getFieldValue(parentField + "warning", String.class), equalTo(createdInstance.getWarning()));
     }
 }

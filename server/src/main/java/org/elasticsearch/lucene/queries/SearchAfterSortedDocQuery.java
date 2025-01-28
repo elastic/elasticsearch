@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.lucene.queries;
@@ -16,10 +17,12 @@ import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafFieldComparator;
+import org.apache.lucene.search.Pruning;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.Weight;
@@ -52,7 +55,7 @@ public class SearchAfterSortedDocQuery extends Query {
         this.reverseMuls = new int[numFields];
         for (int i = 0; i < numFields; i++) {
             SortField sortField = sort.getSort()[i];
-            FieldComparator<?> fieldComparator = sortField.getComparator(1, false);
+            FieldComparator<?> fieldComparator = sortField.getComparator(1, Pruning.NONE);
             @SuppressWarnings("unchecked")
             FieldComparator<Object> comparator = (FieldComparator<Object>) fieldComparator;
             comparator.setTopValue(after.fields[i]);
@@ -65,8 +68,8 @@ public class SearchAfterSortedDocQuery extends Query {
     public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
         return new ConstantScoreWeight(this, 1.0f) {
             @Override
-            public Scorer scorer(LeafReaderContext context) throws IOException {
-                Sort segmentSort = context.reader().getMetaData().getSort();
+            public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
+                Sort segmentSort = context.reader().getMetaData().sort();
                 if (segmentSort == null || Lucene.canEarlyTerminate(sort, segmentSort) == false) {
                     throw new IOException("search sort :[" + sort + "] does not match the index sort:[" + segmentSort + "]");
                 }
@@ -78,7 +81,8 @@ public class SearchAfterSortedDocQuery extends Query {
                     return null;
                 }
                 final DocIdSetIterator disi = new MinDocQuery.MinDocIterator(firstDoc, maxDoc);
-                return new ConstantScoreScorer(this, score(), scoreMode, disi);
+                Scorer scorer = new ConstantScoreScorer(score(), scoreMode, disi);
+                return new DefaultScorerSupplier(scorer);
             }
 
             @Override

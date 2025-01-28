@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.repositories.gcs;
@@ -23,9 +24,11 @@ import com.google.cloud.storage.StorageException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
+import org.elasticsearch.common.blobstore.BlobStoreActionStats;
 import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.blobstore.OptionalBytesReference;
 import org.elasticsearch.common.blobstore.support.BlobContainerUtils;
@@ -39,6 +42,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Streams;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.ByteArrayInputStream;
@@ -81,7 +85,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
         final String key = "es.repository_gcs.large_blob_threshold_byte_size";
         final String largeBlobThresholdByteSizeProperty = System.getProperty(key);
         if (largeBlobThresholdByteSizeProperty == null) {
-            LARGE_BLOB_THRESHOLD_BYTE_SIZE = Math.toIntExact(new ByteSizeValue(5, ByteSizeUnit.MB).getBytes());
+            LARGE_BLOB_THRESHOLD_BYTE_SIZE = Math.toIntExact(ByteSizeValue.of(5, ByteSizeUnit.MB).getBytes());
         } else {
             final int largeBlobThresholdByteSize;
             try {
@@ -103,6 +107,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
     private final GoogleCloudStorageOperationsStats stats;
     private final int bufferSize;
     private final BigArrays bigArrays;
+    private final BackoffPolicy casBackoffPolicy;
 
     GoogleCloudStorageBlobStore(
         String bucketName,
@@ -110,7 +115,8 @@ class GoogleCloudStorageBlobStore implements BlobStore {
         String repositoryName,
         GoogleCloudStorageService storageService,
         BigArrays bigArrays,
-        int bufferSize
+        int bufferSize,
+        BackoffPolicy casBackoffPolicy
     ) {
         this.bucketName = bucketName;
         this.clientName = clientName;
@@ -119,6 +125,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
         this.bigArrays = bigArrays;
         this.stats = new GoogleCloudStorageOperationsStats(bucketName);
         this.bufferSize = bufferSize;
+        this.casBackoffPolicy = casBackoffPolicy;
     }
 
     private Storage client() throws IOException {
@@ -498,7 +505,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
                 final AtomicLong blobsDeleted = new AtomicLong(0L);
                 final AtomicLong bytesDeleted = new AtomicLong(0L);
                 final Iterator<Blob> blobs = page.getValues().iterator();
-                deleteBlobsIgnoringIfNotExists(new Iterator<>() {
+                deleteBlobs(new Iterator<>() {
                     @Override
                     public boolean hasNext() {
                         return blobs.hasNext();
@@ -524,7 +531,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
      *
      * @param blobNames names of the blobs to delete
      */
-    void deleteBlobsIgnoringIfNotExists(Iterator<String> blobNames) throws IOException {
+    void deleteBlobs(Iterator<String> blobNames) throws IOException {
         if (blobNames.hasNext() == false) {
             return;
         }
@@ -592,7 +599,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
     }
 
     @Override
-    public Map<String, Long> stats() {
+    public Map<String, BlobStoreActionStats> stats() {
         return stats.toMap();
     }
 
@@ -689,28 +696,46 @@ class GoogleCloudStorageBlobStore implements BlobStore {
             .setMd5(Base64.getEncoder().encodeToString(MessageDigests.digest(updated, MessageDigests.md5())))
             .build();
         final var bytesRef = updated.toBytesRef();
-        try {
-            SocketAccess.doPrivilegedVoidIOException(
-                () -> client().create(
-                    blobInfo,
-                    bytesRef.bytes,
-                    bytesRef.offset,
-                    bytesRef.length,
-                    Storage.BlobTargetOption.generationMatch()
-                )
-            );
-        } catch (Exception e) {
-            final var serviceException = unwrapServiceException(e);
-            if (serviceException != null) {
+
+        final Iterator<TimeValue> retries = casBackoffPolicy.iterator();
+        BaseServiceException finalException = null;
+        while (true) {
+            try {
+                SocketAccess.doPrivilegedVoidIOException(
+                    () -> client().create(
+                        blobInfo,
+                        bytesRef.bytes,
+                        bytesRef.offset,
+                        bytesRef.length,
+                        Storage.BlobTargetOption.generationMatch()
+                    )
+                );
+                return OptionalBytesReference.of(expected);
+            } catch (Exception e) {
+                final var serviceException = unwrapServiceException(e);
+                if (serviceException == null) {
+                    throw e;
+                }
                 final var statusCode = serviceException.getCode();
-                if (statusCode == RestStatus.PRECONDITION_FAILED.getStatus() || statusCode == RestStatus.TOO_MANY_REQUESTS.getStatus()) {
+                if (statusCode == RestStatus.PRECONDITION_FAILED.getStatus()) {
                     return OptionalBytesReference.MISSING;
                 }
+                if (statusCode == RestStatus.TOO_MANY_REQUESTS.getStatus()) {
+                    finalException = ExceptionsHelper.useOrSuppress(finalException, serviceException);
+                    if (retries.hasNext()) {
+                        try {
+                            // noinspection BusyWait
+                            Thread.sleep(retries.next().millis());
+                        } catch (InterruptedException iex) {
+                            Thread.currentThread().interrupt();
+                            finalException.addSuppressed(iex);
+                        }
+                    } else {
+                        throw finalException;
+                    }
+                }
             }
-            throw e;
         }
-
-        return OptionalBytesReference.of(expected);
     }
 
     private static BaseServiceException unwrapServiceException(Throwable t) {
@@ -752,40 +777,6 @@ class GoogleCloudStorageBlobStore implements BlobStore {
         @Override
         public int read() throws IOException {
             return SocketAccess.doPrivilegedIOException(stream::read);
-        }
-    }
-
-    private static final class PrivilegedWriteChannelStream extends OutputStream {
-
-        private final OutputStream stream;
-
-        PrivilegedWriteChannelStream(WritableByteChannel channel) {
-            stream = Channels.newOutputStream(channel);
-        }
-
-        @Override
-        public void write(int b) throws IOException {
-            SocketAccess.doPrivilegedVoidIOException(() -> stream.write(b));
-        }
-
-        @Override
-        public void write(byte[] b) throws IOException {
-            SocketAccess.doPrivilegedVoidIOException(() -> stream.write(b));
-        }
-
-        @Override
-        public void write(byte[] b, int off, int len) throws IOException {
-            SocketAccess.doPrivilegedVoidIOException(() -> stream.write(b, off, len));
-        }
-
-        @Override
-        public void flush() throws IOException {
-            SocketAccess.doPrivilegedVoidIOException(stream::flush);
-        }
-
-        @Override
-        public void close() throws IOException {
-            SocketAccess.doPrivilegedVoidIOException(stream::close);
         }
     }
 

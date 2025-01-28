@@ -48,6 +48,7 @@ public abstract class NotificationService<Account> {
     // using the new updated cluster settings
     private volatile SecureSettings cachedSecureSettings;
 
+    @SuppressWarnings("this-escape")
     public NotificationService(
         String type,
         Settings settings,

@@ -21,8 +21,8 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -36,7 +36,6 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.deprecation.DeprecationChecks.CLUSTER_SETTINGS_CHECKS;
-import static org.elasticsearch.xpack.deprecation.DeprecationChecks.INDEX_SETTINGS_CHECKS;
 
 public class TransportDeprecationInfoAction extends TransportMasterNodeReadAction<
     DeprecationInfoAction.Request,
@@ -49,6 +48,7 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
     private final Settings settings;
     private final NamedXContentRegistry xContentRegistry;
     private volatile List<String> skipTheseDeprecations;
+    private final List<ResourceDeprecationChecker> resourceDeprecationCheckers;
 
     @Inject
     public TransportDeprecationInfoAction(
@@ -68,14 +68,19 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
             threadPool,
             actionFilters,
             DeprecationInfoAction.Request::new,
-            indexNameExpressionResolver,
             DeprecationInfoAction.Response::new,
-            ThreadPool.Names.GENERIC
+            threadPool.executor(ThreadPool.Names.GENERIC)
         );
         this.client = client;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.settings = settings;
         this.xContentRegistry = xContentRegistry;
+        this.resourceDeprecationCheckers = List.of(
+            new IndexDeprecationChecker(indexNameExpressionResolver),
+            new DataStreamDeprecationChecker(indexNameExpressionResolver),
+            new TemplateDeprecationChecker(),
+            new IlmPolicyDeprecationChecker()
+        );
         skipTheseDeprecations = DeprecationChecks.SKIP_DEPRECATIONS_SETTING.get(settings);
         // Safe to register this here because it happens synchronously before the cluster service is started:
         clusterService.getClusterSettings()
@@ -105,7 +110,7 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
             ClientHelper.DEPRECATION_ORIGIN,
             NodesDeprecationCheckAction.INSTANCE,
             nodeDepReq,
-            ActionListener.wrap(response -> {
+            listener.delegateFailureAndWrap((delegate, response) -> {
                 if (response.hasFailures()) {
                     List<String> failedNodeIds = response.failures()
                         .stream()
@@ -127,22 +132,21 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
                     components,
                     new ThreadedActionListener<>(
                         client.threadPool().generic(),
-                        listener.map(
+                        delegate.map(
                             deprecationIssues -> DeprecationInfoAction.Response.from(
                                 state,
                                 indexNameExpressionResolver,
                                 request,
                                 response,
-                                INDEX_SETTINGS_CHECKS,
                                 CLUSTER_SETTINGS_CHECKS,
                                 deprecationIssues,
-                                skipTheseDeprecations
+                                skipTheseDeprecations,
+                                resourceDeprecationCheckers
                             )
                         )
                     )
                 );
-
-            }, listener::onFailure)
+            })
         );
     }
 
@@ -151,23 +155,20 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
         DeprecationChecker.Components components,
         ActionListener<Map<String, List<DeprecationIssue>>> listener
     ) {
-        List<DeprecationChecker> enabledCheckers = checkers.stream()
-            .filter(c -> c.enabled(components.settings()))
-            .collect(Collectors.toList());
+        List<DeprecationChecker> enabledCheckers = checkers.stream().filter(c -> c.enabled(components.settings())).toList();
         if (enabledCheckers.isEmpty()) {
             listener.onResponse(Collections.emptyMap());
             return;
         }
         GroupedActionListener<DeprecationChecker.CheckResult> groupedActionListener = new GroupedActionListener<>(
             enabledCheckers.size(),
-            ActionListener.wrap(
-                checkResults -> listener.onResponse(
+            listener.delegateFailureAndWrap(
+                (l, checkResults) -> l.onResponse(
                     checkResults.stream()
                         .collect(
                             Collectors.toMap(DeprecationChecker.CheckResult::getCheckerName, DeprecationChecker.CheckResult::getIssues)
                         )
-                ),
-                listener::onFailure
+                )
             )
         );
         for (DeprecationChecker checker : checkers) {

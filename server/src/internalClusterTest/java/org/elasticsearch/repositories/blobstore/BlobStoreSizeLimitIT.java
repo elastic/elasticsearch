@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.repositories.blobstore;
@@ -14,11 +15,14 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
+import org.elasticsearch.snapshots.SnapshotException;
 import org.hamcrest.Matchers;
 
 import java.util.List;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class BlobStoreSizeLimitIT extends AbstractSnapshotIntegTestCase {
 
@@ -32,7 +36,11 @@ public class BlobStoreSizeLimitIT extends AbstractSnapshotIntegTestCase {
         );
         final List<String> snapshotNames = createNSnapshots(repoName, maxSnapshots);
         final ActionFuture<CreateSnapshotResponse> failingSnapshotFuture = startFullSnapshot(repoName, "failing-snapshot");
-        final RepositoryException repositoryException = expectThrows(RepositoryException.class, failingSnapshotFuture::actionGet);
+        final SnapshotException snapshotException = expectThrows(SnapshotException.class, failingSnapshotFuture);
+        assertThat(snapshotException.getRepositoryName(), equalTo(repoName));
+        assertThat(snapshotException.getSnapshotName(), equalTo("failing-snapshot"));
+        assertThat(snapshotException.getCause(), instanceOf(RepositoryException.class));
+        final RepositoryException repositoryException = (RepositoryException) snapshotException.getCause();
         assertThat(
             repositoryException.getMessage(),
             Matchers.endsWith(

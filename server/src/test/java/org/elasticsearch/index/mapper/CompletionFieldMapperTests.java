@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.mapper;
 
@@ -15,7 +16,7 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.suggest.document.Completion90PostingsFormat;
+import org.apache.lucene.search.suggest.document.Completion912PostingsFormat;
 import org.apache.lucene.search.suggest.document.CompletionAnalyzer;
 import org.apache.lucene.search.suggest.document.ContextSuggestField;
 import org.apache.lucene.search.suggest.document.FuzzyCompletionQuery;
@@ -33,10 +34,12 @@ import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.codec.CodecService;
+import org.elasticsearch.index.codec.LegacyPerFieldMapperCodec;
 import org.elasticsearch.index.codec.PerFieldMapperCodec;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -58,6 +61,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 
+import static org.elasticsearch.index.mapper.CompletionFieldMapper.COMPLETION_CONTEXTS_LIMIT;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -71,6 +75,11 @@ public class CompletionFieldMapperTests extends MapperTestCase {
     @Override
     protected Object getSampleValueForDocument() {
         return "value";
+    }
+
+    @Override
+    protected Object getSampleObjectForDocument() {
+        return Map.of("input", "value");
     }
 
     @Override
@@ -142,9 +151,19 @@ public class CompletionFieldMapperTests extends MapperTestCase {
         MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
         CodecService codecService = new CodecService(mapperService, BigArrays.NON_RECYCLING_INSTANCE);
         Codec codec = codecService.codec("default");
-        assertThat(codec, instanceOf(PerFieldMapperCodec.class));
-        PerFieldMapperCodec perFieldCodec = (PerFieldMapperCodec) codec;
-        assertThat(perFieldCodec.getPostingsFormatForField("field"), instanceOf(Completion90PostingsFormat.class));
+        if (CodecService.ZSTD_STORED_FIELDS_FEATURE_FLAG.isEnabled()) {
+            assertThat(codec, instanceOf(PerFieldMapperCodec.class));
+            assertThat(((PerFieldMapperCodec) codec).getPostingsFormatForField("field"), instanceOf(Completion912PostingsFormat.class));
+        } else {
+            if (codec instanceof CodecService.DeduplicateFieldInfosCodec deduplicateFieldInfosCodec) {
+                codec = deduplicateFieldInfosCodec.delegate();
+            }
+            assertThat(codec, instanceOf(LegacyPerFieldMapperCodec.class));
+            assertThat(
+                ((LegacyPerFieldMapperCodec) codec).getPostingsFormatForField("field"),
+                instanceOf(Completion912PostingsFormat.class)
+            );
+        }
     }
 
     public void testDefaultConfiguration() throws IOException {
@@ -218,7 +237,10 @@ public class CompletionFieldMapperTests extends MapperTestCase {
         XContentBuilder builder = jsonBuilder().startObject();
         fieldMapper.toXContent(builder, new ToXContent.MapParams(Map.of("include_defaults", "true"))).endObject();
         builder.close();
-        Map<String, Object> serializedMap = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder)).map();
+        Map<String, Object> serializedMap;
+        try (var parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
+            serializedMap = parser.map();
+        }
         Map<String, Object> configMap = (Map<String, Object>) serializedMap.get("field");
         assertThat(configMap.get("analyzer").toString(), is("simple"));
         assertThat(configMap.get("search_analyzer").toString(), is("standard"));
@@ -232,7 +254,7 @@ public class CompletionFieldMapperTests extends MapperTestCase {
         Mapper fieldMapper = defaultMapper.mappers().getMapper("field");
 
         ParsedDocument parsedDocument = defaultMapper.parse(source(b -> b.field("field", "suggestion")));
-        List<IndexableField> fields = parsedDocument.rootDoc().getFields(fieldMapper.name());
+        List<IndexableField> fields = parsedDocument.rootDoc().getFields(fieldMapper.fullPath());
         assertFieldsOfType(fields);
     }
 
@@ -379,7 +401,7 @@ public class CompletionFieldMapperTests extends MapperTestCase {
         ParsedDocument parsedDocument = defaultMapper.parse(source(b -> b.field("field", "drm3btev3e86")));
 
         LuceneDocument indexableFields = parsedDocument.rootDoc();
-        assertThat(indexableFields.getFields("field"), hasSize(2));
+        assertThat(indexableFields.getFields("field"), hasSize(1));
         assertThat(indexableFields.getFields("field.analyzed"), containsInAnyOrder(suggestField("drm3btev3e86")));
         // unable to assert about geofield content, covered in a REST test
     }
@@ -479,7 +501,7 @@ public class CompletionFieldMapperTests extends MapperTestCase {
 
         ParsedDocument parsedDocument = defaultMapper.parse(source(b -> b.array("field", "suggestion1", "suggestion2")));
 
-        List<IndexableField> fields = parsedDocument.rootDoc().getFields(fieldMapper.name());
+        List<IndexableField> fields = parsedDocument.rootDoc().getFields(fieldMapper.fullPath());
         assertThat(fields, containsInAnyOrder(suggestField("suggestion1"), suggestField("suggestion2")));
     }
 
@@ -496,7 +518,7 @@ public class CompletionFieldMapperTests extends MapperTestCase {
             b.endObject();
         }));
 
-        List<IndexableField> fields = parsedDocument.rootDoc().getFields(fieldMapper.name());
+        List<IndexableField> fields = parsedDocument.rootDoc().getFields(fieldMapper.fullPath());
         assertThat(fields, containsInAnyOrder(suggestField("suggestion")));
     }
 
@@ -513,7 +535,7 @@ public class CompletionFieldMapperTests extends MapperTestCase {
             b.endObject();
         }));
 
-        List<IndexableField> fields = parsedDocument.rootDoc().getFields(fieldMapper.name());
+        List<IndexableField> fields = parsedDocument.rootDoc().getFields(fieldMapper.fullPath());
         assertThat(fields, containsInAnyOrder(suggestField("suggestion1"), suggestField("suggestion2"), suggestField("suggestion3")));
     }
 
@@ -550,7 +572,7 @@ public class CompletionFieldMapperTests extends MapperTestCase {
             b.endObject();
         }));
 
-        List<IndexableField> fields = parsedDocument.rootDoc().getFields(fieldMapper.name());
+        List<IndexableField> fields = parsedDocument.rootDoc().getFields(fieldMapper.fullPath());
         assertFieldsOfType(fields);
     }
 
@@ -568,7 +590,7 @@ public class CompletionFieldMapperTests extends MapperTestCase {
             b.endArray();
         }));
 
-        List<IndexableField> fields = parsedDocument.rootDoc().getFields(fieldMapper.name());
+        List<IndexableField> fields = parsedDocument.rootDoc().getFields(fieldMapper.fullPath());
         assertThat(fields, containsInAnyOrder(suggestField("suggestion1"), suggestField("suggestion2"), suggestField("suggestion3")));
     }
 
@@ -601,7 +623,7 @@ public class CompletionFieldMapperTests extends MapperTestCase {
             b.endArray();
         }));
 
-        List<IndexableField> fields = parsedDocument.rootDoc().getFields(fieldMapper.name());
+        List<IndexableField> fields = parsedDocument.rootDoc().getFields(fieldMapper.fullPath());
         assertThat(
             fields,
             containsInAnyOrder(
@@ -676,8 +698,8 @@ public class CompletionFieldMapperTests extends MapperTestCase {
         assertThat(doc.docs().size(), equalTo(1));
         assertNull(doc.docs().get(0).get("field"));
         assertNotNull(doc.docs().get(0).getField("_ignored"));
-        IndexableField ignoredFields = doc.docs().get(0).getField("_ignored");
-        assertThat(ignoredFields.stringValue(), equalTo("field"));
+        List<IndexableField> ignoredFields = doc.docs().get(0).getFields("_ignored");
+        assertTrue(ignoredFields.stream().anyMatch(field -> "field".equals(field.stringValue())));
 
         // null inputs are ignored
         ParsedDocument nullDoc = defaultMapper.parse(source(b -> b.nullField("field")));
@@ -737,7 +759,7 @@ public class CompletionFieldMapperTests extends MapperTestCase {
             .startObject("suggest")
             .field("type", "completion")
             .startArray("contexts");
-        for (int i = 0; i < CompletionFieldMapper.COMPLETION_CONTEXTS_LIMIT + 1; i++) {
+        for (int i = 0; i < COMPLETION_CONTEXTS_LIMIT + 1; i++) {
             mappingBuilder.startObject();
             mappingBuilder.field("name", Integer.toString(i));
             mappingBuilder.field("type", "category");
@@ -749,7 +771,7 @@ public class CompletionFieldMapperTests extends MapperTestCase {
         MapperParsingException e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
             b.field("type", "completion");
             b.startArray("contexts");
-            for (int i = 0; i < CompletionFieldMapper.COMPLETION_CONTEXTS_LIMIT + 1; i++) {
+            for (int i = 0; i < COMPLETION_CONTEXTS_LIMIT + 1; i++) {
                 b.startObject();
                 b.field("name", Integer.toString(i));
                 b.field("type", "category");
@@ -759,8 +781,29 @@ public class CompletionFieldMapperTests extends MapperTestCase {
         })));
         assertTrue(
             e.getMessage(),
-            e.getMessage()
-                .contains("Limit of completion field contexts [" + CompletionFieldMapper.COMPLETION_CONTEXTS_LIMIT + "] has been exceeded")
+            e.getMessage().contains("Limit of completion field contexts [" + COMPLETION_CONTEXTS_LIMIT + "] has been exceeded")
+        );
+
+        // test pre-8 deprecation warnings
+        createDocumentMapper(IndexVersions.V_7_0_0, fieldMapping(b -> {
+            b.field("type", "completion");
+            b.startArray("contexts");
+            for (int i = 0; i < COMPLETION_CONTEXTS_LIMIT + 1; i++) {
+                b.startObject();
+                b.field("name", Integer.toString(i));
+                b.field("type", "category");
+                b.endObject();
+            }
+            b.endArray();
+        }));
+        assertCriticalWarnings(
+            "You have defined more than ["
+                + COMPLETION_CONTEXTS_LIMIT
+                + "] completion contexts"
+                + " in the mapping for field [field]. The maximum allowed number of completion contexts in a mapping will be limited to "
+                + "["
+                + COMPLETION_CONTEXTS_LIMIT
+                + "] starting in version [8.0]."
         );
     }
 

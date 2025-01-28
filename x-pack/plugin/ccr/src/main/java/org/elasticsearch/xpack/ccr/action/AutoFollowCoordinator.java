@@ -300,9 +300,10 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
                     CcrLicenseChecker.checkRemoteClusterLicenseAndFetchClusterState(
                         client,
                         remoteCluster,
-                        new ClusterStateRequest().clear()
+                        new ClusterStateRequest(waitForMetadataTimeOut).clear()
                             .metadata(true)
                             .routingTable(true)
+                            .local(true)
                             .waitForMetadataVersion(metadataVersion)
                             .waitForTimeout(waitForMetadataTimeOut),
                         e -> handler.accept(null, e),
@@ -596,7 +597,10 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
             final GroupedActionListener<Tuple<Index, Exception>> groupedListener = new GroupedActionListener<>(
                 leaderIndicesToFollow.size(),
                 ActionListener.wrap(rs -> resultHandler.accept(new AutoFollowResult(autoFollowPattenName, new ArrayList<>(rs))), e -> {
-                    throw new AssertionError("must never happen", e);
+                    final var illegalStateException = new IllegalStateException("must never happen", e);
+                    LOGGER.error("must never happen", illegalStateException);
+                    assert false : illegalStateException;
+                    throw illegalStateException;
                 })
             );
 
@@ -708,7 +712,8 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
             final String leaderIndexName = indexToFollow.getName();
             final String followIndexName = getFollowerIndexName(pattern, leaderIndexName);
 
-            PutFollowAction.Request request = new PutFollowAction.Request();
+            // TODO use longer timeouts here? see https://github.com/elastic/elasticsearch/issues/109150
+            PutFollowAction.Request request = new PutFollowAction.Request(TimeValue.THIRTY_SECONDS, TimeValue.THIRTY_SECONDS);
             request.setRemoteCluster(remoteCluster);
             request.setLeaderIndex(indexToFollow.getName());
             request.setFollowerIndex(followIndexName);

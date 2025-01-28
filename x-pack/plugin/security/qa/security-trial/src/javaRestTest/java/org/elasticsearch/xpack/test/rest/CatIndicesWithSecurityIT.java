@@ -9,18 +9,20 @@ package org.elasticsearch.xpack.test.rest;
 
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.SecuritySettingsSourceField;
-import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xpack.security.SecurityOnTrialLicenseRestTestCase;
 
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.matchesRegex;
 
-public class CatIndicesWithSecurityIT extends ESRestTestCase {
+public class CatIndicesWithSecurityIT extends SecurityOnTrialLicenseRestTestCase {
+
     @Override
     protected Settings restAdminSettings() {
         String token = basicAuthHeaderValue("x_pack_rest_user", SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING);
@@ -40,6 +42,7 @@ public class CatIndicesWithSecurityIT extends ESRestTestCase {
             createRequest.setJsonEntity(
                 "{\"settings\": {\"index.hidden\": true, \"number_of_replicas\":  0}, \"aliases\": {\"index_allowed\": {}}}"
             );
+            createRequest.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("X-elastic-product-origin", "elastic"));
             final Response createResponse = adminClient().performRequest(createRequest);
             assertOK(createResponse);
             ensureGreen("index_allowed");
@@ -72,6 +75,7 @@ public class CatIndicesWithSecurityIT extends ESRestTestCase {
                     }
                   }
                 }""");
+            createRequest.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("X-elastic-product-origin", "elastic"));
             final Response createResponse = adminClient().performRequest(createRequest);
             assertOK(createResponse);
             ensureGreen("index_allowed");

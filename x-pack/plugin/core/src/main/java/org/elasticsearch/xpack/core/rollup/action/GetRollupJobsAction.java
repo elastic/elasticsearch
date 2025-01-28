@@ -6,14 +6,12 @@
  */
 package org.elasticsearch.xpack.core.rollup.action;
 
-import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
-import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -44,7 +42,7 @@ public class GetRollupJobsAction extends ActionType<GetRollupJobsAction.Response
     public static final ParseField STATS = new ParseField("stats");
 
     private GetRollupJobsAction() {
-        super(NAME, GetRollupJobsAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends BaseTasksRequest<Request> implements ToXContentObject {
@@ -120,13 +118,6 @@ public class GetRollupJobsAction extends ActionType<GetRollupJobsAction.Response
         }
     }
 
-    public static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
-
-        protected RequestBuilder(ElasticsearchClient client, GetRollupJobsAction action) {
-            super(client, action, new Request());
-        }
-    }
-
     public static class Response extends BaseTasksResponse implements Writeable, ToXContentObject {
 
         private final List<JobWrapper> jobs;
@@ -143,13 +134,13 @@ public class GetRollupJobsAction extends ActionType<GetRollupJobsAction.Response
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            jobs = in.readList(JobWrapper::new);
+            jobs = in.readCollectionAsList(JobWrapper::new);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeList(jobs);
+            out.writeCollection(jobs);
         }
 
         public List<JobWrapper> getJobs() {

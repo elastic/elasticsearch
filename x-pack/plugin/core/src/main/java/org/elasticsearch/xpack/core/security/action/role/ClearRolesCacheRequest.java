@@ -16,17 +16,12 @@ import java.io.IOException;
 /**
  * The request used to clear the cache for native roles stored in an index.
  */
-public class ClearRolesCacheRequest extends BaseNodesRequest<ClearRolesCacheRequest> {
+public class ClearRolesCacheRequest extends BaseNodesRequest {
 
     String[] names;
 
     public ClearRolesCacheRequest() {
         super((String[]) null);
-    }
-
-    public ClearRolesCacheRequest(StreamInput in) throws IOException {
-        super(in);
-        names = in.readOptionalStringArray();
     }
 
     /**
@@ -44,12 +39,6 @@ public class ClearRolesCacheRequest extends BaseNodesRequest<ClearRolesCacheRequ
      */
     public String[] names() {
         return names;
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeOptionalStringArray(names);
     }
 
     public static class Node extends TransportRequest {

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing.allocation.decider;
@@ -30,7 +31,7 @@ public class NodeVersionAllocationDecider extends AllocationDecider {
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         if (shardRouting.primary()) {
             if (shardRouting.currentNodeId() == null) {
-                if (shardRouting.recoverySource() != null && shardRouting.recoverySource().getType() == RecoverySource.Type.SNAPSHOT) {
+                if (shardRouting.recoverySource().getType() == RecoverySource.Type.SNAPSHOT) {
                     // restoring from a snapshot - check that the node can handle the version
                     return isVersionCompatible((SnapshotRecoverySource) shardRouting.recoverySource(), node, allocation);
                 } else {
@@ -118,22 +119,22 @@ public class NodeVersionAllocationDecider extends AllocationDecider {
         final RoutingNode target,
         final RoutingAllocation allocation
     ) {
-        if (target.node().getVersion().onOrAfter(recoverySource.version())) {
+        if (target.node().getMaxIndexVersion().onOrAfter(recoverySource.version())) {
             /* we can allocate if we can restore from a snapshot that is older or on the same version */
             return allocation.decision(
                 Decision.YES,
                 NAME,
-                "node version [%s] is the same or newer than snapshot version [%s]",
-                target.node().getVersion(),
-                recoverySource.version()
+                "max supported index version [%s] is the same or newer than snapshot version [%s]",
+                target.node().getMaxIndexVersion().toReleaseVersion(),
+                recoverySource.version().toReleaseVersion()
             );
         } else {
             return allocation.decision(
                 Decision.NO,
                 NAME,
-                "node version [%s] is older than the snapshot version [%s]",
-                target.node().getVersion(),
-                recoverySource.version()
+                "max supported index version [%s] is older than the snapshot version [%s]",
+                target.node().getMaxIndexVersion().toReleaseVersion(),
+                recoverySource.version().toReleaseVersion()
             );
         }
     }

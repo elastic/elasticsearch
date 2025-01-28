@@ -33,7 +33,7 @@ public class AnalyticsTransportActionTestUtils {
     public static MockLicenseState mockLicenseState(boolean supported) {
         MockLicenseState licenseState = mock(MockLicenseState.class);
 
-        when(licenseState.isAllowed(LicenseUtils.LICENSED_ENT_SEARCH_FEATURE)).thenReturn(supported);
+        when(licenseState.isAllowed(LicenseUtils.PLATINUM_LICENSED_FEATURE)).thenReturn(supported);
         when(licenseState.isActive()).thenReturn(supported);
         when(licenseState.statusDescription()).thenReturn("invalid license");
 

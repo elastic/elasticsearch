@@ -33,7 +33,7 @@ public class DefaultAuthenticationFailureHandlerTests extends ESTestCase {
 
     public void testAuthenticationRequired() {
         final boolean testDefault = randomBoolean();
-        final String basicAuthScheme = "Basic realm=\"" + XPackField.SECURITY + "\" charset=\"UTF-8\"";
+        final String basicAuthScheme = "Basic realm=\"" + XPackField.SECURITY + "\", charset=\"UTF-8\"";
         final String bearerAuthScheme = "Bearer realm=\"" + XPackField.SECURITY + "\"";
         final DefaultAuthenticationFailureHandler failureHandler;
         if (testDefault) {
@@ -69,7 +69,7 @@ public class DefaultAuthenticationFailureHandlerTests extends ESTestCase {
     }
 
     public void testExceptionProcessingRequest() {
-        final String basicAuthScheme = "Basic realm=\"" + XPackField.SECURITY + "\" charset=\"UTF-8\"";
+        final String basicAuthScheme = "Basic realm=\"" + XPackField.SECURITY + "\", charset=\"UTF-8\"";
         final String bearerAuthScheme = "Bearer realm=\"" + XPackField.SECURITY + "\"";
         final String negotiateAuthScheme = randomFrom("Negotiate", "Negotiate Ijoijksdk");
         final Map<String, List<String>> failureResponseHeaders = new HashMap<>();
@@ -134,7 +134,7 @@ public class DefaultAuthenticationFailureHandlerTests extends ESTestCase {
     }
 
     public void testSortsWWWAuthenticateHeaderValues() {
-        final String basicAuthScheme = "Basic realm=\"" + XPackField.SECURITY + "\" charset=\"UTF-8\"";
+        final String basicAuthScheme = "Basic realm=\"" + XPackField.SECURITY + "\", charset=\"UTF-8\"";
         final String bearerAuthScheme = "Bearer realm=\"" + XPackField.SECURITY + "\"";
         final String negotiateAuthScheme = randomFrom("Negotiate", "Negotiate Ijoijksdk");
         final String apiKeyAuthScheme = "ApiKey";

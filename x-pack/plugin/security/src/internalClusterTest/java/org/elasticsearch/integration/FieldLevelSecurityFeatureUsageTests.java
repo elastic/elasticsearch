@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.integration;
 
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
@@ -73,16 +72,17 @@ public class FieldLevelSecurityFeatureUsageTests extends AbstractDocumentAndFiel
     }
 
     public void testFlsFeatureUsageTracking() throws Exception {
-        assertAcked(client().admin().indices().prepareCreate("test").setMapping("field1", "type=text", "field2", "type=text"));
-        client().prepareIndex("test").setId("1").setSource("field1", "value1", "field2", "value1").setRefreshPolicy(IMMEDIATE).get();
-        client().prepareIndex("test").setId("2").setSource("field1", "value2", "field2", "value2").setRefreshPolicy(IMMEDIATE).get();
+        assertAcked(indicesAdmin().prepareCreate("test").setMapping("field1", "type=text", "field2", "type=text"));
+        prepareIndex("test").setId("1").setSource("field1", "value1", "field2", "value1").setRefreshPolicy(IMMEDIATE).get();
+        prepareIndex("test").setId("2").setSource("field1", "value2", "field2", "value2").setRefreshPolicy(IMMEDIATE).get();
 
-        SearchResponse response = internalCluster().coordOnlyNodeClient()
-            .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
-            .prepareSearch("test")
-            .setQuery(QueryBuilders.termQuery("field1", "value1"))
-            .get();
-        assertHitCount(response, 1);
+        assertHitCount(
+            internalCluster().coordOnlyNodeClient()
+                .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+                .prepareSearch("test")
+                .setQuery(QueryBuilders.termQuery("field1", "value1")),
+            1
+        );
 
         // coordinating only node should not tack DLS/FLS feature usage
         assertDlsFlsNotTrackedOnCoordOnlyNode();

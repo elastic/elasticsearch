@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.slm;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.NamedDiff;
@@ -93,7 +94,7 @@ public class SnapshotLifecycleMetadata implements Metadata.Custom {
     }
 
     public SnapshotLifecycleMetadata(StreamInput in) throws IOException {
-        this.snapshotConfigurations = in.readMap(StreamInput::readString, SnapshotLifecyclePolicyMetadata::new);
+        this.snapshotConfigurations = in.readMap(SnapshotLifecyclePolicyMetadata::new);
         this.operationMode = in.readEnum(OperationMode.class);
         this.slmStats = new SnapshotLifecycleStats(in);
     }
@@ -131,25 +132,24 @@ public class SnapshotLifecycleMetadata implements Metadata.Custom {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.V_7_4_0;
+        return TransportVersions.ZERO;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(this.snapshotConfigurations, StreamOutput::writeString, (out1, value) -> value.writeTo(out1));
+        out.writeMap(this.snapshotConfigurations, StreamOutput::writeWriteable);
         out.writeEnum(this.operationMode);
         this.slmStats.writeTo(out);
     }
 
     @Override
-    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
         return Iterators.concat(
-            ChunkedToXContentHelper.xContentValuesMap(POLICIES_FIELD.getPreferredName(), this.snapshotConfigurations),
-            Iterators.single((builder, params) -> {
-                builder.field(OPERATION_MODE_FIELD.getPreferredName(), operationMode);
-                builder.field(STATS_FIELD.getPreferredName(), this.slmStats);
-                return builder;
-            })
+            ChunkedToXContentHelper.xContentObjectFields(POLICIES_FIELD.getPreferredName(), this.snapshotConfigurations),
+            Iterators.single(
+                (builder, p) -> builder.field(OPERATION_MODE_FIELD.getPreferredName(), operationMode)
+                    .field(STATS_FIELD.getPreferredName(), this.slmStats)
+            )
         );
     }
 
@@ -230,7 +230,7 @@ public class SnapshotLifecycleMetadata implements Metadata.Custom {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersion.V_7_4_0;
+            return TransportVersions.ZERO;
         }
 
     }

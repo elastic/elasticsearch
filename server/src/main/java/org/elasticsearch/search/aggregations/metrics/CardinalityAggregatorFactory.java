@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.metrics;
@@ -15,6 +16,7 @@ import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.aggregations.support.TimeSeriesValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
@@ -24,6 +26,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.stream.Stream;
 
 public class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory {
 
@@ -109,7 +112,7 @@ public class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory 
             }
         }
 
-        boolean isHeuristicBased;
+        final boolean isHeuristicBased;
 
         ExecutionMode(boolean isHeuristicBased) {
             this.isHeuristicBased = isHeuristicBased;
@@ -151,7 +154,7 @@ public class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory 
     public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
         builder.register(
             CardinalityAggregationBuilder.REGISTRY_KEY,
-            CoreValuesSourceType.ALL_CORE,
+            Stream.concat(CoreValuesSourceType.ALL_CORE.stream(), Stream.of(TimeSeriesValuesSourceType.COUNTER)).toList(),
             (name, valuesSourceConfig, precision, executionMode, context, parent, metadata) -> {
                 // check global ords
                 if (valuesSourceConfig.hasValues()) {

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.coordination;
@@ -13,8 +14,8 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -43,9 +44,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.emptyOrNullString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -62,9 +63,9 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
 
     @Before
     public void setup() throws Exception {
-        node1 = TestDiscoveryNode.create("node1", randomNodeId());
-        node2 = TestDiscoveryNode.create("node2", randomNodeId());
-        node3 = TestDiscoveryNode.create("node3", randomNodeId());
+        node1 = DiscoveryNodeUtils.create("node1", randomNodeId());
+        node2 = DiscoveryNodeUtils.create("node2", randomNodeId());
+        node3 = DiscoveryNodeUtils.create("node3", randomNodeId());
         nullMasterClusterState = createClusterState(null);
         node1MasterClusterState = createClusterState(node1);
         node2MasterClusterState = createClusterState(node2);
@@ -126,9 +127,14 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
         assertThat(nodeIdToClusterFormationMap.get(node2.getId()), equalTo(node2ClusterFormation));
         assertThat(nodeIdToNodeNameMap.get(node1.getId()), equalTo(node1.getName()));
         assertThat(nodeIdToNodeNameMap.get(node2.getId()), equalTo(node2.getName()));
-        List<Diagnosis> diagnosis = result.diagnosisList();
-        assertThat(diagnosis.size(), equalTo(1));
-        assertThat(diagnosis.get(0), is(StableMasterHealthIndicatorService.CONTACT_SUPPORT));
+        assertThat(
+            result.diagnosisList(),
+            containsInAnyOrder(
+                StableMasterHealthIndicatorService.CONTACT_SUPPORT,
+                StableMasterHealthIndicatorService.TROUBLESHOOT_DISCOVERY,
+                StableMasterHealthIndicatorService.TROUBLESHOOT_UNSTABLE_CLUSTER
+            )
+        );
     }
 
     public void testGetHealthIndicatorResultNotGreenVerboseFalse() throws Exception {
@@ -275,11 +281,12 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
      * Creates a mocked MasterHistoryService with a non-mocked local master history (which can be updated with clusterChanged calls). The
      * remote master history is mocked.
      */
-    private static MasterHistoryService createMasterHistoryService() throws Exception {
+    private MasterHistoryService createMasterHistoryService() throws Exception {
         var clusterService = mock(ClusterService.class);
         when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
+        when(clusterService.state()).thenReturn(nullMasterClusterState);
         ThreadPool threadPool = mock(ThreadPool.class);
-        when(threadPool.relativeTimeInMillis()).thenReturn(System.currentTimeMillis());
+        when(threadPool.relativeTimeInMillisSupplier()).thenReturn(System::currentTimeMillis);
         MasterHistory localMasterHistory = new MasterHistory(threadPool, clusterService);
         MasterHistoryService masterHistoryService = mock(MasterHistoryService.class);
         when(masterHistoryService.getLocalMasterHistory()).thenReturn(localMasterHistory);
@@ -301,6 +308,7 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
         Coordinator coordinator = mock(Coordinator.class);
         when(coordinator.getFoundPeers()).thenReturn(Collections.emptyList());
         TransportService transportService = mock(TransportService.class);
+        when(transportService.getThreadPool()).thenReturn(mock(ThreadPool.class));
         return new StableMasterHealthIndicatorService(
             new CoordinationDiagnosticsService(clusterService, transportService, coordinator, masterHistoryService),
             clusterService
@@ -310,8 +318,11 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
     private Map<String, Object> xContentToMap(ToXContent xcontent) throws IOException {
         XContentBuilder builder = XContentFactory.jsonBuilder();
         xcontent.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        XContentParser parser = XContentType.JSON.xContent()
-            .createParser(xContentRegistry(), LoggingDeprecationHandler.INSTANCE, BytesReference.bytes(builder).streamInput());
-        return parser.map();
+        try (
+            XContentParser parser = XContentType.JSON.xContent()
+                .createParser(xContentRegistry(), LoggingDeprecationHandler.INSTANCE, BytesReference.bytes(builder).streamInput())
+        ) {
+            return parser.map();
+        }
     }
 }

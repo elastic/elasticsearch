@@ -1,15 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.transport.netty4;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.http.netty4.Netty4HttpServerTransport;
 import org.elasticsearch.test.ESTestCase;
 
 public final class SharedGroupFactoryTests extends ESTestCase {
@@ -37,9 +37,7 @@ public final class SharedGroupFactoryTests extends ESTestCase {
     }
 
     public void testNonSharedEventLoops() throws Exception {
-        Settings settings = Settings.builder()
-            .put(Netty4HttpServerTransport.SETTING_HTTP_WORKER_COUNT.getKey(), randomIntBetween(1, 10))
-            .build();
+        Settings settings = Settings.builder().put(Netty4Plugin.SETTING_HTTP_WORKER_COUNT.getKey(), randomIntBetween(1, 10)).build();
         SharedGroupFactory sharedGroupFactory = new SharedGroupFactory(settings);
         SharedGroupFactory.SharedGroup httpGroup = sharedGroupFactory.getHttpGroup();
         SharedGroupFactory.SharedGroup transportGroup = sharedGroupFactory.getTransportGroup();

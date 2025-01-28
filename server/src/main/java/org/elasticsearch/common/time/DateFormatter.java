@@ -1,15 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.time;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 
 import java.time.Instant;
 import java.time.ZoneId;
@@ -71,6 +73,14 @@ public interface DateFormatter {
     }
 
     /**
+     * Return the given nanoseconds-since-epoch formatted with this format.
+     */
+    default String formatNanos(long nanos) {
+        ZoneId zone = zone() != null ? zone() : ZoneOffset.UTC;
+        return format(Instant.ofEpochMilli(nanos / 1_000_000).plusNanos(nanos % 1_000_000).atZone(zone));
+    }
+
+    /**
      * A name based format for this formatter. Can be one of the registered formatters like <code>epoch_millis</code> or
      * a configured format like <code>HH:mm:ss</code>
      *
@@ -100,10 +110,10 @@ public interface DateFormatter {
     DateMathParser toDateMathParser();
 
     static DateFormatter forPattern(String input) {
-        return forPattern(input, Version.CURRENT);
+        return forPattern(input, IndexVersion.current());
     }
 
-    static DateFormatter forPattern(String input, Version supportedVersion) {
+    static DateFormatter forPattern(String input, IndexVersion supportedVersion) {
         if (Strings.hasLength(input) == false) {
             throw new IllegalArgumentException("No date pattern provided");
         }
@@ -119,7 +129,7 @@ public interface DateFormatter {
         List<DateFormatter> formatters = new ArrayList<>(patterns.length);
         for (String pattern : patterns) {
             // make sure we still support camel case for indices created before 8.0
-            if (supportedVersion.before(Version.V_8_0_0)) {
+            if (supportedVersion.before(IndexVersions.V_8_0_0)) {
                 pattern = LegacyFormatNames.camelCaseToSnakeCase(pattern);
             }
             formatters.add(DateFormatters.forPattern(pattern));

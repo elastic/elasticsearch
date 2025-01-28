@@ -1,20 +1,21 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.repositories;
 
 import org.apache.lucene.index.IndexCommit;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotFailedException;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
@@ -36,7 +37,7 @@ public final class SnapshotShardContext extends DelegatingActionListener<ShardSn
     @Nullable
     private final String shardStateIdentifier;
     private final IndexShardSnapshotStatus snapshotStatus;
-    private final Version repositoryMetaVersion;
+    private final IndexVersion repositoryMetaVersion;
     private final long snapshotStartTime;
 
     /**
@@ -62,11 +63,11 @@ public final class SnapshotShardContext extends DelegatingActionListener<ShardSn
         SnapshotIndexCommit commitRef,
         @Nullable String shardStateIdentifier,
         IndexShardSnapshotStatus snapshotStatus,
-        Version repositoryMetaVersion,
+        IndexVersion repositoryMetaVersion,
         final long snapshotStartTime,
         ActionListener<ShardSnapshotResult> listener
     ) {
-        super(ActionListener.runBefore(listener, commitRef::onCompletion));
+        super(commitRef.closingBefore(listener));
         this.store = store;
         this.mapperService = mapperService;
         this.snapshotId = snapshotId;
@@ -107,7 +108,7 @@ public final class SnapshotShardContext extends DelegatingActionListener<ShardSn
         return snapshotStatus;
     }
 
-    public Version getRepositoryMetaVersion() {
+    public IndexVersion getRepositoryMetaVersion() {
         return repositoryMetaVersion;
     }
 

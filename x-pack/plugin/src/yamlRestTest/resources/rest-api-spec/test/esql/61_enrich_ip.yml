@@ -1,0 +1,224 @@
+---
+setup:
+  - requires:
+      cluster_features: ["gte_v8.11.0"]
+      reason: "ESQL is available in 8.11+"
+      test_runner_features: allowed_warnings_regex
+  - do:
+      indices.create:
+        index: networks
+        body:
+          settings:
+            index.number_of_shards: 1
+            index.routing.rebalance.enable: "none"
+          mappings:
+            properties:
+              range:
+                type: "ip_range"
+              name:
+                type: keyword
+              department:
+                type: keyword
+
+  - do:
+      bulk:
+        index: networks
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "range": "10.100.0.0/16", "name": "Production", "department": "OPS" }
+          - { "index": { } }
+          - { "range": "10.101.0.0/16", "name": "QA", "department": "Engineering" }
+  - do:
+      cluster.health:
+        wait_for_no_initializing_shards: true
+        wait_for_events: languid
+
+  - do:
+      enrich.put_policy:
+        name: networks-policy
+        body:
+          range:
+            indices: [ "networks" ]
+            match_field: "range"
+            enrich_fields: [ "name", "department" ]
+
+  - do:
+      enrich.execute_policy:
+        name: networks-policy
+
+  - do:
+      indices.create:
+        index: events
+        body:
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              ip:
+                type: "ip"
+              message:
+                type: keyword
+
+  - do:
+      bulk:
+        index: events
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "@timestamp": "2023-06-20", "ip": "10.100.0.21", "message": "network connected" }
+          - { "index": { } }
+          - { "@timestamp": "2023-06-21", "ip": [ "10.100.0.21", "10.101.0.107" ], "message": "sending messages" }
+          - { "index": { } }
+          - { "@timestamp": "2023-06-22", "ip": "10.101.0.107", "message": "network disconnected" }
+          - { "index": { } }
+          - { "@timestamp": "2023-06-24", "ip": "13.101.0.114", "message": "authentication failed" }
+
+  - do:
+      indices.create:
+        index: events_text
+        body:
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              ip_text:
+                type: text
+              message:
+                type: keyword
+
+  - do:
+      bulk:
+        index: events_text
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "@timestamp": "2023-06-20", "ip_text": "10.100.0.21", "message": "network connected" }
+          - { "index": { } }
+          - { "@timestamp": "2023-06-21", "ip_text": [ "10.100.0.21", "10.101.0.107" ], "message": "sending messages" }
+          - { "index": { } }
+          - { "@timestamp": "2023-06-22", "ip_text": "10.101.0.107", "message": "network disconnected" }
+          - { "index": { } }
+          - { "@timestamp": "2023-06-24", "ip_text": "13.101.0.114", "message": "authentication failed" }
+
+---
+teardown:
+  - do:
+      enrich.delete_policy:
+        name: networks-policy
+
+---
+"IP strings":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM events | eval ip_str = to_string(ip) | ENRICH networks-policy ON ip_str | sort @timestamp | KEEP ip, name, department, message'
+
+  - match: { columns.0.name: "ip" }
+  - match: { columns.0.type: "ip" }
+  - match: { columns.1.name: "name" }
+  - match: { columns.1.type: "keyword" }
+  - match: { columns.2.name: "department" }
+  - match: { columns.2.type: "keyword" }
+  - match: { columns.3.name: "message" }
+  - match: { columns.3.type: "keyword" }
+
+  - length: { values: 4 }
+  - match: { values.0: [ "10.100.0.21", "Production", "OPS", "network connected" ] }
+  - match: { values.1: [ [ "10.100.0.21", "10.101.0.107" ], [ "Production", "QA" ], [ "OPS","Engineering" ], "sending messages" ] }
+  - match: { values.2: [ "10.101.0.107" , "QA", "Engineering", "network disconnected" ] }
+  - match: { values.3: [ "13.101.0.114" , null, null, "authentication failed" ] }
+
+---
+"IP text fields":
+  - requires:
+      cluster_features: ["gte_v8.14.0"]
+      reason: "ENRICH support for TEXT fields was added in 8.14.0"
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM events_text | ENRICH networks-policy ON ip_text | sort @timestamp | KEEP ip_text, name, department, message'
+
+  - match: { columns.0.name: "ip_text" }
+  - match: { columns.0.type: "text" }
+  - match: { columns.1.name: "name" }
+  - match: { columns.1.type: "keyword" }
+  - match: { columns.2.name: "department" }
+  - match: { columns.2.type: "keyword" }
+  - match: { columns.3.name: "message" }
+  - match: { columns.3.type: "keyword" }
+
+  - length: { values: 4 }
+  - match: { values.0: [ "10.100.0.21", "Production", "OPS", "network connected" ] }
+  - match: { values.1: [ [ "10.100.0.21", "10.101.0.107" ], [ "Production", "QA" ], [ "OPS","Engineering" ], "sending messages" ] }
+  - match: { values.2: [ "10.101.0.107" , "QA", "Engineering", "network disconnected" ] }
+  - match: { values.3: [ "13.101.0.114" , null, null, "authentication failed" ] }
+
+---
+"Invalid IP strings":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [method, path, parameters, capabilities]
+          capabilities: [enrich_strict_range_types]
+      reason: "Runtime range type checking was added"
+      test_runner_features: [capabilities, allowed_warnings_regex, warnings_regex]
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+        - "Line (1:68|-1:-1): evaluation of \\[(ENRICH networks-policy ON ip_str|)\\] failed, treating result as null. Only first 20 failures recorded."
+        - "Line (1:68|-1:-1): java.lang.IllegalArgumentException: 'invalid_' is not an IP string literal."
+
+      esql.query:
+        body:
+          query: 'FROM events | eval ip_str = mv_concat("invalid_", to_string(ip)) | ENRICH networks-policy ON ip_str | sort @timestamp | KEEP ip, name, department, message'
+
+  - match: { columns.0.name: "ip" }
+  - match: { columns.0.type: "ip" }
+  - match: { columns.1.name: "name" }
+  - match: { columns.1.type: "keyword" }
+  - match: { columns.2.name: "department" }
+  - match: { columns.2.type: "keyword" }
+  - match: { columns.3.name: "message" }
+  - match: { columns.3.type: "keyword" }
+
+  - length: { values: 4 }
+  - match: { values.0: [ "10.100.0.21", null, null, "network connected" ] }
+  - match: { values.1: [ [ "10.100.0.21", "10.101.0.107" ], null, null, "sending messages" ] }
+  - match: { values.2: [ "10.101.0.107" , null, null, "network disconnected" ] }
+  - match: { values.3: [ "13.101.0.114" , null, null, "authentication failed" ] }
+
+---
+"IP":
+  - requires:
+      cluster_features: ["gte_v8.14.0"]
+      reason: "IP range ENRICH support was added in 8.14.0"
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM events | ENRICH networks-policy ON ip | sort @timestamp | KEEP ip, name, department, message'
+
+  - match: { columns.0.name: "ip" }
+  - match: { columns.0.type: "ip" }
+  - match: { columns.1.name: "name" }
+  - match: { columns.1.type: "keyword" }
+  - match: { columns.2.name: "department" }
+  - match: { columns.2.type: "keyword" }
+  - match: { columns.3.name: "message" }
+  - match: { columns.3.type: "keyword" }
+
+  - length: { values: 4 }
+  - match: { values.0: [ "10.100.0.21", "Production", "OPS", "network connected" ] }
+  - match: { values.1: [ [ "10.100.0.21", "10.101.0.107" ], [ "Production", "QA" ], [ "OPS","Engineering" ], "sending messages" ] }
+  - match: { values.2: [ "10.101.0.107" , "QA", "Engineering", "network disconnected" ] }
+  - match: { values.3: [ "13.101.0.114" , null, null, "authentication failed" ] }

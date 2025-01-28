@@ -19,7 +19,6 @@ import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
@@ -360,7 +359,7 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
     public void testTonsOfBucketsTriggersBreaker() throws IOException {
         // Build a "simple" circuit breaker that trips at 20k
         CircuitBreakerService breaker = mock(CircuitBreakerService.class);
-        ByteSizeValue max = new ByteSizeValue(20, ByteSizeUnit.KB);
+        ByteSizeValue max = ByteSizeValue.of(20, ByteSizeUnit.KB);
         when(breaker.getBreaker(CircuitBreaker.REQUEST)).thenReturn(new MockBigArrays.LimitedBreaker(CircuitBreaker.REQUEST, max));
 
         // Collect some buckets with it
@@ -370,16 +369,16 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
             }
 
             try (DirectoryReader indexReader = DirectoryReader.open(directory)) {
-                IndexSearcher indexSearcher = newIndexSearcher(indexReader);
                 TopMetricsAggregationBuilder builder = simpleBuilder(new FieldSortBuilder("s").order(SortOrder.ASC));
                 try (
                     AggregationContext context = createAggregationContext(
-                        indexSearcher,
+                        indexReader,
                         createIndexSettings(),
                         new MatchAllDocsQuery(),
                         breaker,
                         builder.bytesToPreallocate(),
                         MultiBucketConsumerService.DEFAULT_MAX_BUCKETS,
+                        true,
                         false,
                         doubleFields()
                     )
@@ -575,9 +574,8 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
             }
 
             try (DirectoryReader indexReader = DirectoryReader.open(directory)) {
-                IndexSearcher indexSearcher = newIndexSearcher(indexReader);
                 InternalAggregation agg = searchAndReduce(
-                    indexSearcher,
+                    indexReader,
                     new AggTestConfig(builder, fields).withShouldBeCached(shouldBeCached).withQuery(query)
                 );
                 verifyOutputFieldNames(builder, agg);

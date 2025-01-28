@@ -1,0 +1,750 @@
+setup:
+  - requires:
+      cluster_features: "gte_v8.12.0"
+      reason: 'ingest simulate added in 8.12'
+
+---
+"Test no pipelines":
+
+  - skip:
+      features: headers
+
+  - do:
+      headers:
+        Content-Type: application/json
+      simulate.ingest:
+        body: >
+          {
+            "docs": [
+              {
+                "_index": "index-1",
+                "_id": "id",
+                "_source": {
+                  "foo": "bar"
+                }
+              },
+              {
+                "_index": "index-2",
+                "_id": "id",
+                "_source": {
+                  "foo": "rab"
+                }
+              }
+            ]
+          }
+  - length: { docs: 2 }
+  - match: { docs.0.doc._index: "index-1" }
+  - match: { docs.0.doc._source.foo: "bar" }
+  - match: { docs.0.doc.executed_pipelines: [] }
+  - match: { docs.1.doc._index: "index-2" }
+  - match: { docs.1.doc._source.foo: "rab" }
+  - match: { docs.1.doc.executed_pipelines: [] }
+
+---
+"Test existing index with pipelines":
+
+  - skip:
+      features: headers
+
+  - do:
+      headers:
+        Content-Type: application/json
+      ingest.put_pipeline:
+        id: "my-pipeline"
+        body:  >
+          {
+            "processors": [
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      headers:
+        Content-Type: application/json
+      ingest.put_pipeline:
+        id: "my-final-pipeline"
+        body:  >
+          {
+            "processors": [
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      indices.create:
+        index:  index
+        body:
+          settings:
+            default_pipeline: "my-pipeline"
+            final_pipeline: "my-final-pipeline"
+
+  - do:
+      headers:
+        Content-Type: application/json
+      simulate.ingest:
+        body: >
+          {
+            "docs": [
+              {
+                "_index": "index",
+                "_id": "id",
+                "_source": {
+                  "foo": "bar"
+                }
+              },
+              {
+                "_index": "index",
+                "_id": "id",
+                "_source": {
+                  "foo": "rab"
+                }
+              }
+            ],
+            "pipeline_substitutions": {
+              "my-pipeline": {
+                "processors": [
+                ]
+              }
+            }
+          }
+  - length: { docs: 2 }
+  - match: { docs.0.doc._source.foo: "bar" }
+  - match: { docs.0.doc.executed_pipelines: ["my-pipeline", "my-final-pipeline"] }
+  - match: { docs.1.doc._source.foo: "rab" }
+  - match: { docs.1.doc.executed_pipelines: ["my-pipeline", "my-final-pipeline"] }
+
+---
+"Test mapping validation":
+
+  - skip:
+      features: headers
+
+  - do:
+      headers:
+        Content-Type: application/json
+      ingest.put_pipeline:
+        id: "my-pipeline"
+        body:  >
+          {
+            "processors": [
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      headers:
+        Content-Type: application/json
+      ingest.put_pipeline:
+        id: "my-final-pipeline"
+        body:  >
+          {
+            "processors": [
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      indices.create:
+        index:  strict_index
+        body:
+          settings:
+            default_pipeline: "my-pipeline"
+            final_pipeline: "my-final-pipeline"
+            number_of_shards: 2
+            number_of_replicas: 0
+          mappings:
+            dynamic: strict
+            properties:
+              foo:
+                type: text
+
+  - do:
+      indices.create:
+        index:  lenient_index
+        body:
+          settings:
+            default_pipeline: "my-pipeline"
+            final_pipeline: "my-final-pipeline"
+            number_of_shards: 2
+            number_of_replicas: 0
+          mappings:
+            dynamic: true
+            properties:
+              foo:
+                type: text
+
+  - do:
+      cluster.health:
+        index: lenient_index
+        wait_for_status: green
+
+  - do:
+      headers:
+        Content-Type: application/json
+      simulate.ingest:
+        body: >
+          {
+            "docs": [
+              {
+                "_index": "strict_index",
+                "_id": "id",
+                "_source": {
+                  "foob": "bar"
+                }
+              },
+              {
+                "_index": "strict_index",
+                "_id": "id",
+                "_source": {
+                  "foo": "rab"
+                }
+              }
+            ],
+            "pipeline_substitutions": {
+              "my-pipeline": {
+                "processors": [
+                ]
+              }
+            }
+          }
+  - length: { docs: 2 }
+  - match: { docs.0.doc._source.foob: "bar" }
+  - match: { docs.0.doc.executed_pipelines: ["my-pipeline", "my-final-pipeline"] }
+  - match: { docs.0.doc.error.type: "strict_dynamic_mapping_exception" }
+  - match: { docs.0.doc.error.reason: "[1:9] mapping set to strict, dynamic introduction of [foob] within [_doc] is not allowed" }
+  - match: { docs.1.doc._source.foo: "rab" }
+  - match: { docs.1.doc.executed_pipelines: ["my-pipeline", "my-final-pipeline"] }
+  - not_exists: docs.1.doc.error
+
+  - do:
+      headers:
+        Content-Type: application/json
+      simulate.ingest:
+        body: >
+          {
+            "docs": [
+              {
+                "_index": "lenient_index",
+                "_id": "id",
+                "_source": {
+                  "foob": "bar"
+                }
+              },
+              {
+                "_index": "lenient_index",
+                "_id": "id",
+                "_source": {
+                  "foo": "rab"
+                }
+              }
+            ],
+            "pipeline_substitutions": {
+              "my-pipeline": {
+                "processors": [
+                ]
+              }
+            }
+          }
+  - length: { docs: 2 }
+  - match: { docs.0.doc._source.foob: "bar" }
+  - match: { docs.0.doc.executed_pipelines: ["my-pipeline", "my-final-pipeline"] }
+  - not_exists: docs.0.doc.error
+  - match: { docs.1.doc._source.foo: "rab" }
+  - match: { docs.1.doc.executed_pipelines: ["my-pipeline", "my-final-pipeline"] }
+  - not_exists: docs.1.doc.error
+
+---
+"Test mapping validation from templates":
+
+  - skip:
+      features:
+        - headers
+        - allowed_warnings
+
+  - do:
+      indices.put_template:
+        name: v1_template
+        body:
+          index_patterns: v1_strict_nonexistent*
+          mappings:
+            dynamic: strict
+            properties:
+              foo:
+                type: text
+
+  - do:
+      allowed_warnings:
+        - "index template [v2_template] has index patterns [v2_strict_nonexistent*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [v2_template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: v2_template
+        body:
+          index_patterns: v2_strict_nonexistent*
+          template:
+            mappings:
+              dynamic: strict
+              properties:
+                foo:
+                  type: text
+
+  - do:
+      allowed_warnings:
+        - "index template [v2_hidden_template] has index patterns [v2_strict_hidden_nonexistent*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [v2_hidden_template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: v2_hidden_template
+        body:
+          index_patterns: v2_strict_hidden_nonexistent*
+          template:
+            settings:
+              index:
+                hidden: true
+            mappings:
+              dynamic: strict
+              properties:
+                foo:
+                  type: text
+
+  - do:
+      headers:
+        Content-Type: application/json
+      simulate.ingest:
+        body: >
+          {
+            "docs": [
+              {
+                "_index": "v1_strict_nonexistent_index",
+                "_id": "id",
+                "_source": {
+                  "foob": "bar"
+                }
+              },
+              {
+                "_index": "v1_strict_nonexistent_index",
+                "_id": "id",
+                "_source": {
+                  "foo": "rab"
+                }
+              }
+            ],
+            "pipeline_substitutions": {
+              "my-pipeline": {
+                "processors": [
+                ]
+              }
+            }
+          }
+  - length: { docs: 2 }
+  - match: { docs.0.doc._source.foob: "bar" }
+  - match: { docs.0.doc.error.type: "strict_dynamic_mapping_exception" }
+  - match: { docs.0.doc.error.reason: "[1:9] mapping set to strict, dynamic introduction of [foob] within [_doc] is not allowed" }
+  - match: { docs.1.doc._source.foo: "rab" }
+  - not_exists: docs.1.doc.error
+
+  - do:
+      headers:
+        Content-Type: application/json
+      simulate.ingest:
+        body: >
+          {
+            "docs": [
+              {
+                "_index": "v2_strict_nonexistent_index",
+                "_id": "id",
+                "_source": {
+                  "foob": "bar"
+                }
+              },
+              {
+                "_index": "v2_strict_nonexistent_index",
+                "_id": "id",
+                "_source": {
+                  "foo": "rab"
+                }
+              },
+              {
+                "_index": "v2_strict_hidden_nonexistent_index",
+                "_id": "id",
+                "_source": {
+                  "foob": "bar"
+                }
+              }
+            ],
+            "pipeline_substitutions": {
+              "my-pipeline": {
+                "processors": [
+                ]
+              }
+            }
+          }
+  - length: { docs: 3 }
+  - match: { docs.0.doc._source.foob: "bar" }
+  - match: { docs.0.doc.error.type: "strict_dynamic_mapping_exception" }
+  - match: { docs.0.doc.error.reason: "[1:9] mapping set to strict, dynamic introduction of [foob] within [_doc] is not allowed" }
+  - match: { docs.1.doc._source.foo: "rab" }
+  - not_exists: docs.1.doc.error
+  - match: { docs.2.doc._source.foob: "bar" }
+  - match: { docs.2.doc.error.type: "strict_dynamic_mapping_exception" }
+  - match: { docs.2.doc.error.reason: "[1:9] mapping set to strict, dynamic introduction of [foob] within [_doc] is not allowed" }
+
+---
+"Test mapping validation for data streams from templates":
+
+  - skip:
+      features:
+       - headers
+       - allowed_warnings
+
+  - do:
+      allowed_warnings:
+        - "index template [my-template1] has index patterns [simple-data-stream1] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template1] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template1
+        body:
+          index_patterns: [simple-data-stream1]
+          template:
+            settings:
+              index.number_of_replicas: 1
+            mappings:
+              dynamic: strict
+              properties:
+                foo:
+                  type: text
+          data_stream: {}
+
+  - do:
+      allowed_warnings:
+        - "index template [my-hidden-template1] has index patterns [simple-hidden-data-stream1] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-hidden-template1] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-hidden-template1
+        body:
+          index_patterns: [simple-hidden-data-stream1]
+          template:
+            settings:
+              index.number_of_replicas: 1
+            mappings:
+              dynamic: strict
+              properties:
+                foo:
+                  type: text
+          data_stream:
+            hidden: true
+
+  - do:
+      headers:
+        Content-Type: application/json
+      simulate.ingest:
+        body: >
+          {
+            "docs": [
+              {
+                "_index": "simple-data-stream1",
+                "_id": "id",
+                "_source": {
+                  "@timestamp": "2020-12-12",
+                  "foob": "bar"
+                }
+              },
+              {
+                "_index": "simple-data-stream1",
+                "_id": "id",
+                "_source": {
+                  "@timestamp": "2020-12-12",
+                  "foo": "rab"
+                }
+              },
+              {
+                "_index": "simple-hidden-data-stream1",
+                "_id": "id",
+                "_source": {
+                  "@timestamp": "2020-12-12",
+                  "foob": "bar"
+                }
+              }
+            ],
+            "pipeline_substitutions": {
+              "my-pipeline": {
+                "processors": [
+                ]
+              }
+            }
+          }
+  - length: { docs: 3 }
+  - match: { docs.0.doc._source.foob: "bar" }
+  - match: { docs.0.doc.error.type: "strict_dynamic_mapping_exception" }
+  - match: { docs.0.doc.error.reason: "[1:35] mapping set to strict, dynamic introduction of [foob] within [_doc] is not allowed" }
+  - match: { docs.1.doc._source.foo: "rab" }
+  - not_exists: docs.1.doc.error
+  - match: { docs.2.doc._source.foob: "bar" }
+  - match: { docs.2.doc.error.type: "strict_dynamic_mapping_exception" }
+  - match: { docs.2.doc.error.reason: "[1:35] mapping set to strict, dynamic introduction of [foob] within [_doc] is not allowed" }
+
+  - do:
+      indices.create_data_stream:
+        name: simple-data-stream1
+  - is_true: acknowledged
+
+  - do:
+      headers:
+        Content-Type: application/json
+      simulate.ingest:
+        body: >
+          {
+            "docs": [
+              {
+                "_index": "simple-data-stream1",
+                "_id": "id",
+                "_source": {
+                  "@timestamp": "2020-12-12",
+                  "foob": "bar"
+                }
+              },
+              {
+                "_index": "simple-data-stream1",
+                "_id": "id",
+                "_source": {
+                  "@timestamp": "2020-12-12",
+                  "foo": "rab"
+                }
+              }
+            ],
+            "pipeline_substitutions": {
+              "my-pipeline": {
+                "processors": [
+                ]
+              }
+            }
+          }
+  - length: { docs: 2 }
+  - match: { docs.0.doc._source.foob: "bar" }
+  - match: { docs.0.doc.error.type: "strict_dynamic_mapping_exception" }
+  - match: { docs.0.doc.error.reason: "[1:35] mapping set to strict, dynamic introduction of [foob] within [_doc] is not allowed" }
+  - match: { docs.1.doc._source.foo: "rab" }
+  - not_exists: docs.1.doc.error
+---
+"Test index templates with pipelines":
+
+  - skip:
+      features: [headers, allowed_warnings]
+
+  - do:
+      headers:
+        Content-Type: application/json
+      ingest.put_pipeline:
+        id: "my-pipeline"
+        body:  >
+          {
+            "processors": [
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      headers:
+        Content-Type: application/json
+      ingest.put_pipeline:
+        id: "my-final-pipeline"
+        body:  >
+          {
+            "processors": [
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      allowed_warnings:
+        - "index template [my-template] has index patterns [index-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template
+        body:
+          index_patterns: index-*
+          template:
+            settings:
+              default_pipeline: "my-pipeline"
+              final_pipeline: "my-final-pipeline"
+
+  - do:
+      headers:
+        Content-Type: application/json
+      simulate.ingest:
+        body: >
+          {
+            "docs": [
+              {
+                "_index": "index-1",
+                "_id": "id",
+                "_source": {
+                  "foo": "bar"
+                }
+              },
+              {
+                "_index": "index-1",
+                "_id": "id",
+                "_source": {
+                  "foo": "rab"
+                }
+              }
+            ],
+            "pipeline_substitutions": {
+              "my-pipeline": {
+                "processors": [
+                ]
+              }
+            }
+          }
+  - length: { docs: 2 }
+  - match: { docs.0.doc._index: "index-1" }
+  - match: { docs.0.doc._source.foo: "bar" }
+  - match: { docs.0.doc.executed_pipelines: ["my-pipeline", "my-final-pipeline"] }
+  - match: { docs.1.doc._index: "index-1" }
+  - match: { docs.1.doc._source.foo: "rab" }
+  - match: { docs.1.doc.executed_pipelines: ["my-pipeline", "my-final-pipeline"] }
+
+---
+"Test bad pipeline substitution":
+
+  - skip:
+      features: [headers, allowed_warnings]
+
+  - do:
+      headers:
+        Content-Type: application/json
+      ingest.put_pipeline:
+        id: "my-pipeline"
+        body:  >
+          {
+            "processors": [
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      allowed_warnings:
+        - "index template [my-template] has index patterns [index-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template
+        body:
+          index_patterns: index-*
+          template:
+            settings:
+              default_pipeline: "my-pipeline"
+
+  - do:
+      catch: "request"
+      headers:
+        Content-Type: application/json
+      simulate.ingest:
+        body: >
+          {
+            "docs": [
+              {
+                "_index": "index-1",
+                "_id": "id",
+                "_source": {
+                  "foo": "bar"
+                }
+              },
+              {
+                "_index": "index-1",
+                "_id": "id",
+                "_source": {
+                  "foo": "rab"
+                }
+              }
+            ],
+            "pipeline_substitutions": {
+              "my-pipeline": {
+                "processors": [
+                  {
+                    "non-existent-processor": {
+                    }
+                  }
+                ]
+              }
+            }
+          }
+  - match: { status: 500 }
+
+---
+"Test index in path":
+
+  - skip:
+      features: headers
+
+  - do:
+      headers:
+        Content-Type: application/json
+      simulate.ingest:
+        index: "test-index"
+        body: >
+          {
+            "docs": [
+              {
+                "_id": "id",
+                "_source": {
+                  "foo": "bar"
+                }
+              },
+              {
+                "_id": "id",
+                "_source": {
+                  "foo": "rab"
+                }
+              }
+            ]
+          }
+  - length: { docs: 2 }
+  - match: { docs.0.doc._index: "test-index" }
+  - match: { docs.0.doc._source.foo: "bar" }
+  - match: { docs.0.doc.executed_pipelines: [] }
+  - match: { docs.1.doc._index: "test-index" }
+  - match: { docs.1.doc._source.foo: "rab" }
+  - match: { docs.1.doc.executed_pipelines: [] }
+
+---
+"Test pipeline in query param":
+
+  - skip:
+      features: headers
+
+  - do:
+      headers:
+        Content-Type: application/json
+      ingest.put_pipeline:
+        id: "my-pipeline"
+        body:  >
+          {
+            "processors": [
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      headers:
+        Content-Type: application/json
+      simulate.ingest:
+        pipeline: "my-pipeline"
+        body: >
+          {
+            "docs": [
+              {
+                "_index": "index-1",
+                "_id": "id",
+                "_source": {
+                  "foo": "bar"
+                }
+              },
+              {
+                "_index": "index-2",
+                "_id": "id",
+                "_source": {
+                  "foo": "rab"
+                }
+              }
+            ]
+          }
+  - length: { docs: 2 }
+  - match: { docs.0.doc._index: "index-1" }
+  - match: { docs.0.doc._source.foo: "bar" }
+  - match: { docs.0.doc.executed_pipelines: ["my-pipeline"] }
+  - match: { docs.1.doc._index: "index-2" }
+  - match: { docs.1.doc._source.foo: "rab" }
+  - match: { docs.1.doc.executed_pipelines: ["my-pipeline"] }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.core;
@@ -21,13 +22,17 @@ public final class CharArrays {
 
     private CharArrays() {}
 
+    public static char[] utf8BytesToChars(byte[] utf8Bytes) {
+        return utf8BytesToChars(utf8Bytes, 0, utf8Bytes.length);
+    }
+
     /**
      * Decodes the provided byte[] to a UTF-8 char[]. This is done while avoiding
      * conversions to String. The provided byte[] is not modified by this method, so
      * the caller needs to take care of clearing the value if it is sensitive.
      */
-    public static char[] utf8BytesToChars(byte[] utf8Bytes) {
-        final ByteBuffer byteBuffer = ByteBuffer.wrap(utf8Bytes);
+    public static char[] utf8BytesToChars(byte[] utf8Bytes, int offset, int len) {
+        final ByteBuffer byteBuffer = ByteBuffer.wrap(utf8Bytes, offset, len);
         final CharBuffer charBuffer = StandardCharsets.UTF_8.decode(byteBuffer);
         final char[] chars;
         if (charBuffer.hasArray()) {

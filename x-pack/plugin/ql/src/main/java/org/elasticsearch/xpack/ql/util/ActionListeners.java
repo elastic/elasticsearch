@@ -21,6 +21,6 @@ public class ActionListeners {
      * Combination of {@link ActionListener#wrap(CheckedConsumer, Consumer)} and {@link ActionListener#map}
      */
     public static <T, Response> ActionListener<Response> map(ActionListener<T> delegate, CheckedFunction<Response, T, Exception> fn) {
-        return ActionListener.wrap(r -> delegate.onResponse(fn.apply(r)), delegate::onFailure);
+        return delegate.delegateFailureAndWrap((l, r) -> l.onResponse(fn.apply(r)));
     }
 }

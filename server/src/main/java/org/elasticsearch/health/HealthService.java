@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.health;
@@ -46,28 +47,23 @@ public class HealthService {
      */
     private static final String REASON = "reasons";
 
+    // Indicators that are run first and represent a serious cascading health problem
     private final List<HealthIndicatorService> preflightHealthIndicatorServices;
+    // Indicators that are run if the preflight indicators return GREEN results
     private final List<HealthIndicatorService> healthIndicatorServices;
     private final ThreadPool threadPool;
 
     /**
      * Creates a new HealthService.
-     *
+
      * Accepts a list of regular indicator services and a list of preflight indicator services. Preflight indicators are run first and
      * represent serious cascading health problems. If any of these preflight indicators are not GREEN status, all remaining indicators are
      * likely to be degraded in some way or will not be able to calculate their state correctly. The remaining health indicators will return
      * UNKNOWN statuses in this case.
-     *
-     * @param preflightHealthIndicatorServices indicators that are run first and represent a serious cascading health problem.
-     * @param healthIndicatorServices indicators that are run if the preflight indicators return GREEN results.
      */
-    public HealthService(
-        List<HealthIndicatorService> preflightHealthIndicatorServices,
-        List<HealthIndicatorService> healthIndicatorServices,
-        ThreadPool threadPool
-    ) {
-        this.preflightHealthIndicatorServices = preflightHealthIndicatorServices;
-        this.healthIndicatorServices = healthIndicatorServices;
+    public HealthService(List<HealthIndicatorService> healthIndicatorServices, ThreadPool threadPool) {
+        this.preflightHealthIndicatorServices = healthIndicatorServices.stream().filter(HealthIndicatorService::isPreflight).toList();
+        this.healthIndicatorServices = healthIndicatorServices.stream().filter(indicator -> indicator.isPreflight() == false).toList();
         this.threadPool = threadPool;
     }
 
@@ -187,7 +183,7 @@ public class HealthService {
      * @param results                  The results that the listener will be notified of, if they pass validation
      * @param listener                 A listener to be notified of results
      */
-    private void validateResultsAndNotifyListener(
+    private static void validateResultsAndNotifyListener(
         @Nullable String indicatorName,
         List<HealthIndicatorResult> results,
         ActionListener<List<HealthIndicatorResult>> listener
@@ -208,7 +204,7 @@ public class HealthService {
      * @param computeDetails If details should be calculated on which indicators are causing the UNKNOWN state.
      * @return Details explaining why results are UNKNOWN, or an empty detail set if computeDetails is false.
      */
-    private HealthIndicatorDetails healthUnknownReason(List<HealthIndicatorResult> preflightResults, boolean computeDetails) {
+    private static HealthIndicatorDetails healthUnknownReason(List<HealthIndicatorResult> preflightResults, boolean computeDetails) {
         assert preflightResults.isEmpty() == false : "Requires at least one non-GREEN preflight result";
         HealthIndicatorDetails unknownDetails;
         if (computeDetails) {
@@ -231,7 +227,7 @@ public class HealthService {
      * @param details the details to include on the result
      * @return A result with the UNKNOWN status
      */
-    private HealthIndicatorResult generateUnknownResult(
+    private static HealthIndicatorResult generateUnknownResult(
         HealthIndicatorService indicatorService,
         String summary,
         HealthIndicatorDetails details

@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.stats;
 
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ClusterStatsLevel;
 import org.elasticsearch.action.admin.indices.stats.IndexStats.IndexStatsBuilder;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
@@ -23,11 +24,13 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -51,9 +54,19 @@ public class IndicesStatsResponse extends ChunkedBroadcastResponse {
     IndicesStatsResponse(StreamInput in) throws IOException {
         super(in);
         shards = in.readArray(ShardStats::new, ShardStats[]::new);
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_1_0)) {
-            indexHealthMap = in.readMap(StreamInput::readString, ClusterHealthStatus::readFrom);
-            indexStateMap = in.readMap(StreamInput::readString, IndexMetadata.State::readFrom);
+        if (in.getTransportVersion().onOrAfter(TransportVersions.INDEX_STATS_ADDITIONAL_FIELDS_REVERT)) {
+            indexHealthMap = in.readMap(ClusterHealthStatus::readFrom);
+            indexStateMap = in.readMap(IndexMetadata.State::readFrom);
+        } else if (in.getTransportVersion().onOrAfter(TransportVersions.INDEX_STATS_ADDITIONAL_FIELDS)) {
+            indexHealthMap = in.readMap(ClusterHealthStatus::readFrom);
+            indexStateMap = in.readMap(IndexMetadata.State::readFrom);
+            in.readMap(StreamInput::readStringCollectionAsList); // unused, reverted
+            in.readMap(StreamInput::readLong); // unused, reverted
+        } else if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0)) {
+            // Between 8.1 and INDEX_STATS_ADDITIONAL_FIELDS, we had a different format for the response
+            // where we only had health and state available.
+            indexHealthMap = in.readMap(ClusterHealthStatus::readFrom);
+            indexStateMap = in.readMap(IndexMetadata.State::readFrom);
         } else {
             indexHealthMap = Map.of();
             indexStateMap = Map.of();
@@ -171,9 +184,17 @@ public class IndicesStatsResponse extends ChunkedBroadcastResponse {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeArray(shards);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_1_0)) {
-            out.writeMap(indexHealthMap, StreamOutput::writeString, (o, s) -> s.writeTo(o));
-            out.writeMap(indexStateMap, StreamOutput::writeString, (o, s) -> s.writeTo(o));
+        if (out.getTransportVersion().onOrAfter(TransportVersions.INDEX_STATS_ADDITIONAL_FIELDS_REVERT)) {
+            out.writeMap(indexHealthMap, StreamOutput::writeWriteable);
+            out.writeMap(indexStateMap, StreamOutput::writeWriteable);
+        } else if (out.getTransportVersion().onOrAfter(TransportVersions.INDEX_STATS_ADDITIONAL_FIELDS)) {
+            out.writeMap(indexHealthMap, StreamOutput::writeWriteable);
+            out.writeMap(indexStateMap, StreamOutput::writeWriteable);
+            out.writeMap(Map.of(), StreamOutput::writeStringCollection);
+            out.writeMap(Map.of(), StreamOutput::writeLong);
+        } else if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0)) {
+            out.writeMap(indexHealthMap, StreamOutput::writeWriteable);
+            out.writeMap(indexStateMap, StreamOutput::writeWriteable);
         }
     }
 
@@ -181,46 +202,66 @@ public class IndicesStatsResponse extends ChunkedBroadcastResponse {
     protected Iterator<ToXContent> customXContentChunks(ToXContent.Params params) {
         final ClusterStatsLevel level = ClusterStatsLevel.of(params, ClusterStatsLevel.INDICES);
         if (level == ClusterStatsLevel.INDICES || level == ClusterStatsLevel.SHARDS) {
-            return Iterators.concat(Iterators.single(((builder, p) -> {
-                commonStats(builder, p);
-                return builder.startObject(Fields.INDICES);
-            })), getIndices().values().stream().<ToXContent>map(indexStats -> (builder, p) -> {
-                builder.startObject(indexStats.getIndex());
-                builder.field("uuid", indexStats.getUuid());
-                if (indexStats.getHealth() != null) {
-                    builder.field("health", indexStats.getHealth().toString().toLowerCase(Locale.ROOT));
-                }
-                if (indexStats.getState() != null) {
-                    builder.field("status", indexStats.getState().toString().toLowerCase(Locale.ROOT));
-                }
-                builder.startObject("primaries");
-                indexStats.getPrimaries().toXContent(builder, p);
-                builder.endObject();
+            return Iterators.concat(
 
-                builder.startObject("total");
-                indexStats.getTotal().toXContent(builder, p);
-                builder.endObject();
+                ChunkedToXContentHelper.chunk((builder, p) -> {
+                    commonStats(builder, p);
+                    return builder.startObject(Fields.INDICES);
+                }),
+                Iterators.flatMap(
+                    getIndices().values().iterator(),
+                    indexStats -> Iterators.concat(
 
-                if (level == ClusterStatsLevel.SHARDS) {
-                    builder.startObject(Fields.SHARDS);
-                    for (IndexShardStats indexShardStats : indexStats) {
-                        builder.startArray(Integer.toString(indexShardStats.getShardId().id()));
-                        for (ShardStats shardStats : indexShardStats) {
-                            builder.startObject();
-                            shardStats.toXContent(builder, p);
+                        ChunkedToXContentHelper.chunk((builder, p) -> {
+                            builder.startObject(indexStats.getIndex());
+                            builder.field("uuid", indexStats.getUuid());
+                            if (indexStats.getHealth() != null) {
+                                builder.field("health", indexStats.getHealth().toString().toLowerCase(Locale.ROOT));
+                            }
+                            if (indexStats.getState() != null) {
+                                builder.field("status", indexStats.getState().toString().toLowerCase(Locale.ROOT));
+                            }
+                            builder.startObject("primaries");
+                            indexStats.getPrimaries().toXContent(builder, p);
                             builder.endObject();
-                        }
-                        builder.endArray();
-                    }
-                    builder.endObject();
-                }
-                return builder.endObject();
-            }).iterator(), Iterators.single((b, p) -> b.endObject()));
+
+                            builder.startObject("total");
+                            indexStats.getTotal().toXContent(builder, p);
+                            builder.endObject();
+                            return builder;
+                        }),
+
+                        level == ClusterStatsLevel.SHARDS
+                            ? Iterators.concat(
+                                ChunkedToXContentHelper.startObject(Fields.SHARDS),
+                                Iterators.flatMap(
+                                    indexStats.iterator(),
+                                    indexShardStats -> Iterators.concat(
+                                        ChunkedToXContentHelper.startArray(Integer.toString(indexShardStats.getShardId().id())),
+                                        Iterators.<ShardStats, ToXContent>map(indexShardStats.iterator(), shardStats -> (builder, p) -> {
+                                            builder.startObject();
+                                            shardStats.toXContent(builder, p);
+                                            builder.endObject();
+                                            return builder;
+                                        }),
+                                        ChunkedToXContentHelper.endArray()
+                                    )
+                                ),
+                                ChunkedToXContentHelper.endObject()
+                            )
+                            : Collections.emptyIterator(),
+
+                        ChunkedToXContentHelper.endObject()
+                    )
+                ),
+                ChunkedToXContentHelper.endObject()
+            );
+        } else {
+            return ChunkedToXContentHelper.chunk((builder, p) -> {
+                commonStats(builder, p);
+                return builder;
+            });
         }
-        return Iterators.single((b, p) -> {
-            commonStats(b, p);
-            return b;
-        });
     }
 
     private void commonStats(XContentBuilder builder, ToXContent.Params p) throws IOException {

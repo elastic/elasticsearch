@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.unit;
@@ -17,6 +18,7 @@ import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.object.HasToString.hasToString;
 
@@ -103,7 +105,7 @@ public class TimeValueTests extends ESTestCase {
     }
 
     public void testRoundTrip() {
-        final String s = randomTimeValue();
+        final String s = randomTimeValue().getStringRep();
         assertThat(TimeValue.parseTimeValue(s, null, "test").getStringRep(), equalTo(s));
         final TimeValue t = new TimeValue(randomIntBetween(1, 128), randomFrom(TimeUnit.values()));
         assertThat(TimeValue.parseTimeValue(t.getStringRep(), null, "test"), equalTo(t));
@@ -231,6 +233,12 @@ public class TimeValueTests extends ESTestCase {
         assertThat(ex.getMessage(), containsString("duration cannot be negative"));
     }
 
+    public void testMin() {
+        assertThat(TimeValue.min(TimeValue.ZERO, TimeValue.timeValueNanos(1)), is(TimeValue.timeValueNanos(0)));
+        assertThat(TimeValue.min(TimeValue.MAX_VALUE, TimeValue.timeValueNanos(1)), is(TimeValue.timeValueNanos(1)));
+        assertThat(TimeValue.min(TimeValue.MINUS_ONE, TimeValue.timeValueHours(1)), is(TimeValue.MINUS_ONE));
+    }
+
     private TimeUnit randomTimeUnitObject() {
         return randomFrom(
             TimeUnit.NANOSECONDS,
@@ -241,5 +249,17 @@ public class TimeValueTests extends ESTestCase {
             TimeUnit.HOURS,
             TimeUnit.DAYS
         );
+    }
+
+    public void testInternedValues() {
+        assertSame(TimeValue.timeValueMillis(-1), TimeValue.MINUS_ONE);
+        assertSame(TimeValue.timeValueMillis(0), TimeValue.ZERO);
+        assertSame(TimeValue.timeValueSeconds(30), TimeValue.THIRTY_SECONDS);
+        assertSame(TimeValue.timeValueMinutes(1), TimeValue.ONE_MINUTE);
+
+        assertSame(TimeValue.parseTimeValue("-1", getTestName()), TimeValue.MINUS_ONE);
+        assertSame(TimeValue.parseTimeValue("0", getTestName()), TimeValue.ZERO);
+        assertSame(TimeValue.parseTimeValue("30s", getTestName()), TimeValue.THIRTY_SECONDS);
+        assertSame(TimeValue.parseTimeValue("1m", getTestName()), TimeValue.ONE_MINUTE);
     }
 }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common;
@@ -39,7 +40,7 @@ public final class FieldMemoryStats implements Writeable, Iterable<Map.Entry<Str
      * Creates a new FieldMemoryStats instance from a stream
      */
     public FieldMemoryStats(StreamInput input) throws IOException {
-        stats = input.readMap(StreamInput::readString, StreamInput::readVLong);
+        stats = input.readMap(StreamInput::readVLong);
     }
 
     /**
@@ -53,7 +54,7 @@ public final class FieldMemoryStats implements Writeable, Iterable<Map.Entry<Str
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(stats, StreamOutput::writeString, StreamOutput::writeVLong);
+        out.writeMap(stats, StreamOutput::writeVLong);
     }
 
     /**

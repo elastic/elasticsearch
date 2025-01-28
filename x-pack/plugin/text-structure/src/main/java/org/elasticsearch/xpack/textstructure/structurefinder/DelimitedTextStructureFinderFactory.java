@@ -67,6 +67,22 @@ public class DelimitedTextStructureFinderFactory implements TextStructureFinderF
         );
     }
 
+    public boolean canCreateFromMessages(List<String> explanation, List<String> messages, double allowedFractionOfBadLines) {
+        String formatName = switch ((char) csvPreference.getDelimiterChar()) {
+            case ',' -> "CSV";
+            case '\t' -> "TSV";
+            default -> Character.getName(csvPreference.getDelimiterChar()).toLowerCase(Locale.ROOT) + " delimited values";
+        };
+        return DelimitedTextStructureFinder.canCreateFromMessages(
+            explanation,
+            messages,
+            minFieldsPerRow,
+            csvPreference,
+            formatName,
+            allowedFractionOfBadLines
+        );
+    }
+
     @Override
     public TextStructureFinder createFromSample(
         List<String> explanation,
@@ -78,12 +94,34 @@ public class DelimitedTextStructureFinderFactory implements TextStructureFinderF
         TimeoutChecker timeoutChecker
     ) throws IOException {
         CsvPreference adjustedCsvPreference = new CsvPreference.Builder(csvPreference).maxLinesPerRow(lineMergeSizeLimit).build();
-        return DelimitedTextStructureFinder.makeDelimitedTextStructureFinder(
+        return DelimitedTextStructureFinder.createFromSample(
             explanation,
             sample,
             charsetName,
             hasByteOrderMarker,
             adjustedCsvPreference,
+            trimFields,
+            overrides,
+            timeoutChecker
+        );
+    }
+
+    public TextStructureFinder createFromMessages(
+        List<String> explanation,
+        List<String> messages,
+        TextStructureOverrides overrides,
+        TimeoutChecker timeoutChecker
+    ) throws IOException {
+        // DelimitedTextStructureFinderFactory::canCreateFromMessages already
+        // checked that every line contains a single valid delimited message,
+        // so we can safely concatenate and run the logic for a sample.
+        String sample = String.join("\n", messages);
+        return DelimitedTextStructureFinder.createFromSample(
+            explanation,
+            sample,
+            "UTF-8",
+            null,
+            csvPreference,
             trimFields,
             overrides,
             timeoutChecker

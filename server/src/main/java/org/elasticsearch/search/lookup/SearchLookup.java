@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.lookup;
@@ -37,8 +38,8 @@ public class SearchLookup implements SourceProvider {
      * The chain of fields for which this lookup was created, used for detecting
      * loops caused by runtime fields referring to other runtime fields. The chain is empty
      * for the "top level" lookup created for the entire search. When a lookup is used to load
-     * fielddata for a field, we fork it and make sure the field name name isn't in the chain,
-     * then add it to the end. So the lookup for the a field named {@code a} will be {@code ["a"]}. If
+     * fielddata for a field, we fork it and make sure the field name isn't in the chain,
+     * then add it to the end. So the lookup for a field named {@code a} will be {@code ["a"]}. If
      * that field looks up the values of a field named {@code b} then
      * {@code b}'s chain will contain {@code ["a", "b"]}.
      */
@@ -143,4 +144,5 @@ public class SearchLookup implements SourceProvider {
     public Source getSource(LeafReaderContext ctx, int doc) throws IOException {
         return sourceProvider.getSource(ctx, doc);
     }
+
 }

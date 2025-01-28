@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.client.internal;
@@ -11,22 +12,26 @@ package org.elasticsearch.client.internal;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteAction;
-import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotAction;
-import org.elasticsearch.action.admin.cluster.stats.ClusterStatsAction;
-import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptAction;
-import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheAction;
-import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
+import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
+import org.elasticsearch.action.admin.cluster.reroute.TransportClusterRerouteAction;
+import org.elasticsearch.action.admin.cluster.snapshots.create.TransportCreateSnapshotAction;
+import org.elasticsearch.action.admin.cluster.stats.TransportClusterStatsAction;
+import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
+import org.elasticsearch.action.admin.cluster.storedscripts.TransportDeleteStoredScriptAction;
+import org.elasticsearch.action.admin.indices.cache.clear.TransportClearIndicesCacheAction;
+import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
 import org.elasticsearch.action.admin.indices.flush.FlushAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
-import org.elasticsearch.action.delete.DeleteAction;
-import org.elasticsearch.action.get.GetAction;
-import org.elasticsearch.action.index.IndexAction;
-import org.elasticsearch.action.search.SearchAction;
+import org.elasticsearch.action.delete.TransportDeleteAction;
+import org.elasticsearch.action.get.TransportGetAction;
+import org.elasticsearch.action.index.TransportIndexAction;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.DefaultBuiltInExecutorBuilders;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -47,21 +52,21 @@ public abstract class AbstractClientHeadersTestCase extends ESTestCase {
 
     private static final ActionType<?>[] ACTIONS = new ActionType<?>[] {
         // client actions
-        GetAction.INSTANCE,
-        SearchAction.INSTANCE,
-        DeleteAction.INSTANCE,
-        DeleteStoredScriptAction.INSTANCE,
-        IndexAction.INSTANCE,
+        TransportGetAction.TYPE,
+        TransportSearchAction.TYPE,
+        TransportDeleteAction.TYPE,
+        TransportDeleteStoredScriptAction.TYPE,
+        TransportIndexAction.TYPE,
 
         // cluster admin actions
-        ClusterStatsAction.INSTANCE,
-        CreateSnapshotAction.INSTANCE,
-        ClusterRerouteAction.INSTANCE,
+        TransportClusterStatsAction.TYPE,
+        TransportCreateSnapshotAction.TYPE,
+        TransportClusterRerouteAction.TYPE,
 
         // indices admin actions
-        CreateIndexAction.INSTANCE,
+        TransportCreateIndexAction.TYPE,
         IndicesStatsAction.INSTANCE,
-        ClearIndicesCacheAction.INSTANCE,
+        TransportClearIndicesCacheAction.TYPE,
         FlushAction.INSTANCE };
 
     protected ThreadPool threadPool;
@@ -76,14 +81,13 @@ public abstract class AbstractClientHeadersTestCase extends ESTestCase {
             .put("node.name", "test-" + getTestName())
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
             .build();
-        threadPool = new ThreadPool(settings);
+        threadPool = new ThreadPool(settings, MeterRegistry.NOOP, new DefaultBuiltInExecutorBuilders());
         client = buildClient(settings, ACTIONS);
     }
 
     @Override
     public void tearDown() throws Exception {
         super.tearDown();
-        client.close();
         terminate(threadPool);
     }
 
@@ -97,33 +101,44 @@ public abstract class AbstractClientHeadersTestCase extends ESTestCase {
         // validation in the settings??? - ugly and conceptually wrong)
 
         // choosing arbitrary top level actions to test
-        client.prepareGet("idx", "id").execute(new AssertingActionListener<>(GetAction.NAME, client.threadPool()));
-        client.prepareSearch().execute(new AssertingActionListener<>(SearchAction.NAME, client.threadPool()));
-        client.prepareDelete("idx", "id").execute(new AssertingActionListener<>(DeleteAction.NAME, client.threadPool()));
-        client.admin()
-            .cluster()
-            .prepareDeleteStoredScript("id")
-            .execute(new AssertingActionListener<>(DeleteStoredScriptAction.NAME, client.threadPool()));
+        client.prepareGet("idx", "id").execute(new AssertingActionListener<>(TransportGetAction.TYPE.name(), client.threadPool()));
+        client.prepareSearch().execute(new AssertingActionListener<>(TransportSearchAction.TYPE.name(), client.threadPool()));
+        client.prepareDelete("idx", "id").execute(new AssertingActionListener<>(TransportDeleteAction.NAME, client.threadPool()));
+        client.execute(
+            TransportDeleteStoredScriptAction.TYPE,
+            new DeleteStoredScriptRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "id"),
+            new AssertingActionListener<>(TransportDeleteStoredScriptAction.TYPE.name(), client.threadPool())
+        );
         client.prepareIndex("idx")
             .setId("id")
             .setSource("source", XContentType.JSON)
-            .execute(new AssertingActionListener<>(IndexAction.NAME, client.threadPool()));
+            .execute(new AssertingActionListener<>(TransportIndexAction.NAME, client.threadPool()));
 
         // choosing arbitrary cluster admin actions to test
-        client.admin().cluster().prepareClusterStats().execute(new AssertingActionListener<>(ClusterStatsAction.NAME, client.threadPool()));
         client.admin()
             .cluster()
-            .prepareCreateSnapshot("repo", "bck")
-            .execute(new AssertingActionListener<>(CreateSnapshotAction.NAME, client.threadPool()));
-        client.admin().cluster().prepareReroute().execute(new AssertingActionListener<>(ClusterRerouteAction.NAME, client.threadPool()));
+            .prepareClusterStats()
+            .execute(new AssertingActionListener<>(TransportClusterStatsAction.TYPE.name(), client.threadPool()));
+        client.admin()
+            .cluster()
+            .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, "repo", "bck")
+            .execute(new AssertingActionListener<>(TransportCreateSnapshotAction.TYPE.name(), client.threadPool()));
+        client.execute(
+            TransportClusterRerouteAction.TYPE,
+            new ClusterRerouteRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT),
+            new AssertingActionListener<>(TransportClusterRerouteAction.TYPE.name(), client.threadPool())
+        );
 
         // choosing arbitrary indices admin actions to test
-        client.admin().indices().prepareCreate("idx").execute(new AssertingActionListener<>(CreateIndexAction.NAME, client.threadPool()));
+        client.admin()
+            .indices()
+            .prepareCreate("idx")
+            .execute(new AssertingActionListener<>(TransportCreateIndexAction.TYPE.name(), client.threadPool()));
         client.admin().indices().prepareStats().execute(new AssertingActionListener<>(IndicesStatsAction.NAME, client.threadPool()));
         client.admin()
             .indices()
             .prepareClearCache("idx1", "idx2")
-            .execute(new AssertingActionListener<>(ClearIndicesCacheAction.NAME, client.threadPool()));
+            .execute(new AssertingActionListener<>(TransportClearIndicesCacheAction.TYPE.name(), client.threadPool()));
         client.admin().indices().prepareFlush().execute(new AssertingActionListener<>(FlushAction.NAME, client.threadPool()));
     }
 
@@ -133,17 +148,18 @@ public abstract class AbstractClientHeadersTestCase extends ESTestCase {
         expected.put("key1", key1Val);
         expected.put("key2", "val 2");
         client.threadPool().getThreadContext().putHeader("key1", key1Val);
-        client.prepareGet("idx", "id").execute(new AssertingActionListener<>(GetAction.NAME, expected, client.threadPool()));
+        client.prepareGet("idx", "id")
+            .execute(new AssertingActionListener<>(TransportGetAction.TYPE.name(), expected, client.threadPool()));
 
         client.admin()
             .cluster()
             .prepareClusterStats()
-            .execute(new AssertingActionListener<>(ClusterStatsAction.NAME, expected, client.threadPool()));
+            .execute(new AssertingActionListener<>(TransportClusterStatsAction.TYPE.name(), expected, client.threadPool()));
 
         client.admin()
             .indices()
             .prepareCreate("idx")
-            .execute(new AssertingActionListener<>(CreateIndexAction.NAME, expected, client.threadPool()));
+            .execute(new AssertingActionListener<>(TransportCreateIndexAction.TYPE.name(), expected, client.threadPool()));
     }
 
     protected static void assertHeaders(Map<String, String> headers, Map<String, String> expected) {

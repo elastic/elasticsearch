@@ -6,9 +6,8 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.index.IndexVersion;
 import org.mockito.Mockito;
 
 public abstract class AbstractUnfollowIndexStepTestCase<T extends AbstractUnfollowIndexStep> extends AbstractStepTestCase<T> {
@@ -40,15 +39,16 @@ public abstract class AbstractUnfollowIndexStepTestCase<T extends AbstractUnfoll
     }
 
     public final void testNotAFollowerIndex() throws Exception {
-        IndexMetadata indexMetadata = IndexMetadata.builder("follower-index")
-            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true"))
-            .numberOfShards(1)
-            .numberOfReplicas(0)
-            .build();
-
-        T step = newInstance(randomStepKey(), randomStepKey());
-
-        PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, null, null, f));
+        performActionAndWait(
+            newInstance(randomStepKey(), randomStepKey()),
+            IndexMetadata.builder("follower-index")
+                .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true"))
+                .numberOfShards(1)
+                .numberOfReplicas(0)
+                .build(),
+            null,
+            null
+        );
         Mockito.verifyNoMoreInteractions(client);
     }
 

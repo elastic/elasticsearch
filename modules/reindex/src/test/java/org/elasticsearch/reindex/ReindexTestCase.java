@@ -1,19 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.reindex;
 
 import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
-import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequestBuilder;
-import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexRequestBuilder;
-import org.elasticsearch.index.reindex.UpdateByQueryAction;
 import org.elasticsearch.index.reindex.UpdateByQueryRequestBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -38,19 +36,19 @@ public abstract class ReindexTestCase extends ESIntegTestCase {
     }
 
     protected ReindexRequestBuilder reindex() {
-        return new ReindexRequestBuilder(client(), ReindexAction.INSTANCE);
+        return new ReindexRequestBuilder(client());
     }
 
     protected UpdateByQueryRequestBuilder updateByQuery() {
-        return new UpdateByQueryRequestBuilder(client(), UpdateByQueryAction.INSTANCE);
+        return new UpdateByQueryRequestBuilder(client());
     }
 
     protected DeleteByQueryRequestBuilder deleteByQuery() {
-        return new DeleteByQueryRequestBuilder(client(), DeleteByQueryAction.INSTANCE);
+        return new DeleteByQueryRequestBuilder(client());
     }
 
     protected RethrottleRequestBuilder rethrottle() {
-        return new RethrottleRequestBuilder(client(), RethrottleAction.INSTANCE);
+        return new RethrottleRequestBuilder(client());
     }
 
     public static BulkIndexByScrollResponseMatcher matcher() {

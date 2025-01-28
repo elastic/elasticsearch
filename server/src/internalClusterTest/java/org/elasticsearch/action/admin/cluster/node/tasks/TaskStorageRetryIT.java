@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.node.tasks;
@@ -65,14 +66,11 @@ public class TaskStorageRetryIT extends ESSingleNodeTestCase {
             TestTaskPlugin.NodesRequest req = new TestTaskPlugin.NodesRequest("foo");
             req.setShouldStoreResult(true);
             req.setShouldBlock(false);
-            task = nodeClient().executeLocally(TestTaskPlugin.TestTaskAction.INSTANCE, req, future);
+            task = nodeClient().executeLocally(TestTaskPlugin.TEST_TASK_ACTION, req, future);
 
             logger.info("verify that the task has started and is still running");
             assertBusy(() -> {
-                GetTaskResponse runningTask = client().admin()
-                    .cluster()
-                    .prepareGetTask(new TaskId(nodeClient().getLocalNodeId(), task.getId()))
-                    .get();
+                GetTaskResponse runningTask = clusterAdmin().prepareGetTask(new TaskId(nodeClient().getLocalNodeId(), task.getId())).get();
                 assertNotNull(runningTask.getTask());
                 assertFalse(runningTask.getTask().isCompleted());
                 assertEquals(emptyMap(), runningTask.getTask().getErrorAsMap());
@@ -88,10 +86,7 @@ public class TaskStorageRetryIT extends ESSingleNodeTestCase {
         future.get(10, TimeUnit.SECONDS);
 
         logger.info("check that it was written successfully");
-        GetTaskResponse finishedTask = client().admin()
-            .cluster()
-            .prepareGetTask(new TaskId(nodeClient().getLocalNodeId(), task.getId()))
-            .get();
+        GetTaskResponse finishedTask = clusterAdmin().prepareGetTask(new TaskId(nodeClient().getLocalNodeId(), task.getId())).get();
         assertTrue(finishedTask.getTask().isCompleted());
         assertEquals(emptyMap(), finishedTask.getTask().getErrorAsMap());
         assertEquals(singletonMap("failure_count", 0), finishedTask.getTask().getResponseAsMap());

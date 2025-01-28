@@ -16,11 +16,15 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.test.TestSecurityClient;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.local.distribution.DistributionType;
+import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.junit.BeforeClass;
+import org.junit.ClassRule;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -38,6 +42,93 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 
 public abstract class SecurityRealmSmokeTestCase extends ESRestTestCase {
+
+    @ClassRule
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
+        .distribution(DistributionType.DEFAULT)
+        .nodes(2)
+        .configFile("http-server.key", Resource.fromClasspath("ssl/http-server.key"))
+        .configFile("http-server.crt", Resource.fromClasspath("ssl/http-server.crt"))
+        .configFile("http-client-ca.crt", Resource.fromClasspath("ssl/http-client-ca.crt"))
+        .configFile("saml-metadata.xml", Resource.fromClasspath("saml-metadata.xml"))
+        .configFile("kerberos.keytab", Resource.fromClasspath("kerberos.keytab"))
+        .configFile("oidc-jwkset.json", Resource.fromClasspath("oidc-jwkset.json"))
+        .configFile("ldap_role_mapping.yml", Resource.fromClasspath("ldap_role_mapping.yml"))
+        .configFile("pki_role_mapping.yml", Resource.fromClasspath("pki_role_mapping.yml"))
+        .setting("xpack.ml.enabled", "false")
+        .setting("xpack.security.enabled", "true")
+        .setting("xpack.security.authc.token.enabled", "true")
+        .setting("xpack.security.authc.api_key.enabled", "true")
+        // Need a trial license (not basic) to enable all realms
+        .setting("xpack.license.self_generated.type", "trial")
+        // Need SSL to enable PKI realms
+        .setting("xpack.security.http.ssl.enabled", "true")
+        .setting("xpack.security.http.ssl.certificate", "http-server.crt")
+        .setting("xpack.security.http.ssl.key", "http-server.key")
+        .setting("xpack.security.http.ssl.key_passphrase", "http-password")
+        .setting("xpack.security.http.ssl.client_authentication", "optional")
+        .setting("xpack.security.http.ssl.certificate_authorities", "http-client-ca.crt")
+        // Don't need transport SSL, so leave it out
+        .setting("xpack.security.transport.ssl.enabled", "false")
+        // Configure every realm type
+        // - File
+        .setting("xpack.security.authc.realms.file.file0.order", "0")
+        // - Native
+        .setting("xpack.security.authc.realms.native.native1.order", "1")
+        // - LDAP (configured but won't work because we don't want external fixtures in this test suite)
+        .setting("xpack.security.authc.realms.ldap.ldap2.order", "2")
+        .setting("xpack.security.authc.realms.ldap.ldap2.url", "ldap://localhost:7777")
+        .setting("xpack.security.authc.realms.ldap.ldap2.user_search.base_dn", "OU=users,DC=example,DC=com")
+        .setting("xpack.security.authc.realms.ldap.ldap2.files.role_mapping", "ldap_role_mapping.yml")
+        // - AD (configured but won't work because we don't want external fixtures in this test suite)
+        .setting("xpack.security.authc.realms.active_directory.ad3.order", "3")
+        .setting("xpack.security.authc.realms.active_directory.ad3.domain_name", "localhost")
+        // role mappings don't matter, but we need to read the file as part of the test
+        .setting("xpack.security.authc.realms.active_directory.ad3.files.role_mapping", "ldap_role_mapping.yml")
+        // - PKI (works)
+        .setting("xpack.security.authc.realms.pki.pki4.order", "4")
+        // role mappings don't matter, but we need to read the file as part of the test
+        .setting("xpack.security.authc.realms.pki.pki4.files.role_mapping", "pki_role_mapping.yml")
+        // - SAML (configured but won't work because we don't want external fixtures in this test suite)
+        .setting("xpack.security.authc.realms.saml.saml5.order", "5")
+        .setting("xpack.security.authc.realms.saml.saml5.idp.metadata.path", "saml-metadata.xml")
+        .setting("xpack.security.authc.realms.saml.saml5.idp.entity_id", "http://idp.example.com/")
+        .setting("xpack.security.authc.realms.saml.saml5.sp.entity_id", "http://kibana.example.net/")
+        .setting("xpack.security.authc.realms.saml.saml5.sp.acs", "http://kibana.example.net/api/security/saml/callback")
+        .setting("xpack.security.authc.realms.saml.saml5.attributes.principal", "uid")
+        // - Kerberos (configured but won't work because we don't want external fixtures in this test suite)
+        .setting("xpack.security.authc.realms.kerberos.kerb6.order", "6")
+        .setting("xpack.security.authc.realms.kerberos.kerb6.keytab.path", "kerberos.keytab")
+        // - OIDC (configured but won't work because we don't want external fixtures in this test suite)
+        .setting("xpack.security.authc.realms.oidc.openid7.order", "7")
+        .setting("xpack.security.authc.realms.oidc.openid7.rp.client_id", "http://rp.example.net")
+        .setting("xpack.security.authc.realms.oidc.openid7.rp.response_type", "id_token")
+        .setting("xpack.security.authc.realms.oidc.openid7.rp.redirect_uri", "https://kibana.example.net/api/security/v1/oidc")
+        .setting("xpack.security.authc.realms.oidc.openid7.op.issuer", "https://op.example.com/")
+        .setting("xpack.security.authc.realms.oidc.openid7.op.authorization_endpoint", "https://op.example.com/auth")
+        .setting("xpack.security.authc.realms.oidc.openid7.op.jwkset_path", "oidc-jwkset.json")
+        .setting("xpack.security.authc.realms.oidc.openid7.claims.principal", "sub")
+        .setting("xpack.security.authc.realms.oidc.openid7.http.connection_pool_ttl", "1m")
+        .keystore("xpack.security.authc.realms.oidc.openid7.rp.client_secret", "this-is-my-secret")
+        // - JWT (works)
+        .setting("xpack.security.authc.realms.jwt.jwt8.order", "8")
+        .setting("xpack.security.authc.realms.jwt.jwt8.allowed_issuer", "iss8")
+        .setting("xpack.security.authc.realms.jwt.jwt8.allowed_signature_algorithms", "HS256")
+        .setting("xpack.security.authc.realms.jwt.jwt8.allowed_audiences", "aud8")
+        .setting("xpack.security.authc.realms.jwt.jwt8.claims.principal", "sub")
+        .setting("xpack.security.authc.realms.jwt.jwt8.client_authentication.type", "shared_secret")
+        .keystore("xpack.security.authc.realms.jwt.jwt8.client_authentication.shared_secret", "client-shared-secret-string")
+        .keystore("xpack.security.authc.realms.jwt.jwt8.hmac_key", "hmac-oidc-key-string-for-hs256-algorithm")
+        .rolesFile(Resource.fromClasspath("roles.yml"))
+        .user("admin_user", "admin-password")
+        .user("security_test_user", "security-test-password", "security_test_role", false)
+        .user("index_and_app_user", "security-test-password", "all_index_privileges,all_application_privileges", false)
+        .build();
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
 
     private static Path httpCAPath;
     private TestSecurityClient securityClient;

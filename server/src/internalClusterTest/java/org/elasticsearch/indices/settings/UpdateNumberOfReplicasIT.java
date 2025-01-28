@@ -1,15 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices.settings;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
@@ -19,7 +19,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.io.IOException;
-import java.util.EnumSet;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -38,11 +37,10 @@ public class UpdateNumberOfReplicasIT extends ESIntegTestCase {
         logger.info("Creating index test");
         assertAcked(prepareCreate("test", 2));
         logger.info("Running Cluster Health");
-        ClusterHealthResponse clusterHealth = clusterAdmin().prepareHealth()
+        ClusterHealthResponse clusterHealth = clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
             .setWaitForEvents(Priority.LANGUID)
             .setWaitForGreenStatus()
-            .execute()
-            .actionGet();
+            .get();
         logger.info("Done Cluster Health, status {}", clusterHealth.getStatus());
 
         NumShards numShards = getNumShards("test");
@@ -54,8 +52,7 @@ public class UpdateNumberOfReplicasIT extends ESIntegTestCase {
         assertThat(clusterHealth.getIndices().get("test").getActiveShards(), equalTo(numShards.totalNumShards));
 
         for (int i = 0; i < 10; i++) {
-            client().prepareIndex("test")
-                .setId(Integer.toString(i))
+            prepareIndex("test").setId(Integer.toString(i))
                 .setSource(jsonBuilder().startObject().field("value", "test" + i).endObject())
                 .get();
         }
@@ -63,20 +60,23 @@ public class UpdateNumberOfReplicasIT extends ESIntegTestCase {
         refresh();
 
         for (int i = 0; i < 10; i++) {
-            SearchResponse countResponse = client().prepareSearch().setSize(0).setQuery(matchAllQuery()).get();
-            assertHitCount(countResponse, 10L);
+            assertHitCount(prepareSearch().setSize(0).setQuery(matchAllQuery()), 10L);
         }
 
-        final long settingsVersion = clusterAdmin().prepareState().get().getState().metadata().index("test").getSettingsVersion();
+        final long settingsVersion = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
+            .get()
+            .getState()
+            .metadata()
+            .index("test")
+            .getSettingsVersion();
         logger.info("Increasing the number of replicas from 1 to 2");
         setReplicaCount(2, "test");
         logger.info("Running Cluster Health");
-        clusterHealth = clusterAdmin().prepareHealth()
+        clusterHealth = clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
             .setWaitForEvents(Priority.LANGUID)
             .setWaitForYellowStatus()
             .setWaitForActiveShards(numShards.numPrimaries * 2)
-            .execute()
-            .actionGet();
+            .get();
         logger.info("Done Cluster Health, status {}", clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
@@ -85,7 +85,7 @@ public class UpdateNumberOfReplicasIT extends ESIntegTestCase {
         // only 2 copies allocated (1 replica) across 2 nodes
         assertThat(clusterHealth.getIndices().get("test").getActiveShards(), equalTo(numShards.numPrimaries * 2));
 
-        final long afterReplicaIncreaseSettingsVersion = clusterAdmin().prepareState()
+        final long afterReplicaIncreaseSettingsVersion = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
             .get()
             .getState()
             .metadata()
@@ -96,7 +96,7 @@ public class UpdateNumberOfReplicasIT extends ESIntegTestCase {
         logger.info("starting another node to new replicas will be allocated to it");
         allowNodes("test", 3);
 
-        final long afterStartingAnotherNodeVersion = clusterAdmin().prepareState()
+        final long afterStartingAnotherNodeVersion = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
             .get()
             .getState()
             .metadata()
@@ -104,13 +104,12 @@ public class UpdateNumberOfReplicasIT extends ESIntegTestCase {
             .getSettingsVersion();
 
         logger.info("Running Cluster Health");
-        clusterHealth = clusterAdmin().prepareHealth()
+        clusterHealth = clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
             .setWaitForEvents(Priority.LANGUID)
             .setWaitForGreenStatus()
             .setWaitForNoRelocatingShards(true)
             .setWaitForNodes(">=3")
-            .execute()
-            .actionGet();
+            .get();
         logger.info("Done Cluster Health, status {}", clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
@@ -120,21 +119,19 @@ public class UpdateNumberOfReplicasIT extends ESIntegTestCase {
         assertThat(clusterHealth.getIndices().get("test").getActiveShards(), equalTo(numShards.numPrimaries * 3));
 
         for (int i = 0; i < 10; i++) {
-            SearchResponse countResponse = client().prepareSearch().setSize(0).setQuery(matchAllQuery()).get();
-            assertHitCount(countResponse, 10L);
+            assertHitCount(prepareSearch().setSize(0).setQuery(matchAllQuery()), 10L);
         }
 
         logger.info("Decreasing number of replicas from 2 to 0");
         setReplicaCount(0, "test");
 
         logger.info("Running Cluster Health");
-        clusterHealth = clusterAdmin().prepareHealth()
+        clusterHealth = clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
             .setWaitForEvents(Priority.LANGUID)
             .setWaitForGreenStatus()
             .setWaitForNoRelocatingShards(true)
             .setWaitForNodes(">=3")
-            .execute()
-            .actionGet();
+            .get();
         logger.info("Done Cluster Health, status {}", clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
@@ -144,10 +141,10 @@ public class UpdateNumberOfReplicasIT extends ESIntegTestCase {
         assertThat(clusterHealth.getIndices().get("test").getActiveShards(), equalTo(numShards.numPrimaries));
 
         for (int i = 0; i < 10; i++) {
-            assertHitCount(client().prepareSearch().setQuery(matchAllQuery()).get(), 10);
+            assertHitCount(prepareSearch().setQuery(matchAllQuery()), 10);
         }
 
-        final long afterReplicaDecreaseSettingsVersion = clusterAdmin().prepareState()
+        final long afterReplicaDecreaseSettingsVersion = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
             .get()
             .getState()
             .metadata()
@@ -164,12 +161,11 @@ public class UpdateNumberOfReplicasIT extends ESIntegTestCase {
         NumShards numShards = getNumShards("test");
 
         logger.info("--> running cluster health");
-        ClusterHealthResponse clusterHealth = clusterAdmin().prepareHealth()
+        ClusterHealthResponse clusterHealth = clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
             .setWaitForEvents(Priority.LANGUID)
             .setWaitForGreenStatus()
             .setWaitForActiveShards(numShards.numPrimaries * 2)
-            .execute()
-            .actionGet();
+            .get();
         logger.info("--> done cluster health, status {}", clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
@@ -178,16 +174,13 @@ public class UpdateNumberOfReplicasIT extends ESIntegTestCase {
         assertThat(clusterHealth.getIndices().get("test").getActiveShards(), equalTo(numShards.numPrimaries * 2));
 
         if (randomBoolean()) {
-            assertAcked(client().admin().indices().prepareClose("test").setWaitForActiveShards(ActiveShardCount.ALL));
+            assertAcked(indicesAdmin().prepareClose("test").setWaitForActiveShards(ActiveShardCount.ALL));
 
-            clusterHealth = client().admin()
-                .cluster()
-                .prepareHealth()
+            clusterHealth = clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
                 .setWaitForEvents(Priority.LANGUID)
                 .setWaitForGreenStatus()
                 .setWaitForActiveShards(numShards.numPrimaries * 2)
-                .execute()
-                .actionGet();
+                .get();
             logger.info("--> done cluster health, status {}", clusterHealth.getStatus());
             assertThat(clusterHealth.isTimedOut(), equalTo(false));
             assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
@@ -196,19 +189,23 @@ public class UpdateNumberOfReplicasIT extends ESIntegTestCase {
             assertThat(clusterHealth.getIndices().get("test").getActiveShards(), equalTo(numShards.numPrimaries * 2));
         }
 
-        final long settingsVersion = clusterAdmin().prepareState().get().getState().metadata().index("test").getSettingsVersion();
+        final long settingsVersion = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
+            .get()
+            .getState()
+            .metadata()
+            .index("test")
+            .getSettingsVersion();
 
         logger.info("--> add another node, should increase the number of replicas");
         allowNodes("test", 3);
 
         logger.info("--> running cluster health");
-        clusterHealth = clusterAdmin().prepareHealth()
+        clusterHealth = clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
             .setWaitForEvents(Priority.LANGUID)
             .setWaitForGreenStatus()
             .setWaitForActiveShards(numShards.numPrimaries * 3)
             .setWaitForNodes(">=3")
-            .execute()
-            .actionGet();
+            .get();
         logger.info("--> done cluster health, status {}", clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
@@ -216,7 +213,7 @@ public class UpdateNumberOfReplicasIT extends ESIntegTestCase {
         assertThat(clusterHealth.getIndices().get("test").getNumberOfReplicas(), equalTo(2));
         assertThat(clusterHealth.getIndices().get("test").getActiveShards(), equalTo(numShards.numPrimaries * 3));
 
-        final long afterAddingOneNodeSettingsVersion = clusterAdmin().prepareState()
+        final long afterAddingOneNodeSettingsVersion = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
             .get()
             .getState()
             .metadata()
@@ -229,13 +226,12 @@ public class UpdateNumberOfReplicasIT extends ESIntegTestCase {
         allowNodes("test", 2);
 
         logger.info("--> running cluster health");
-        clusterHealth = clusterAdmin().prepareHealth()
+        clusterHealth = clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
             .setWaitForEvents(Priority.LANGUID)
             .setWaitForGreenStatus()
             .setWaitForActiveShards(numShards.numPrimaries * 2)
             .setWaitForNodes(">=2")
-            .execute()
-            .actionGet();
+            .get();
         logger.info("--> done cluster health, status {}", clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
@@ -243,7 +239,7 @@ public class UpdateNumberOfReplicasIT extends ESIntegTestCase {
         assertThat(clusterHealth.getIndices().get("test").getNumberOfReplicas(), equalTo(1));
         assertThat(clusterHealth.getIndices().get("test").getActiveShards(), equalTo(numShards.numPrimaries * 2));
 
-        final long afterClosingOneNodeSettingsVersion = clusterAdmin().prepareState()
+        final long afterClosingOneNodeSettingsVersion = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
             .get()
             .getState()
             .metadata()
@@ -256,13 +252,12 @@ public class UpdateNumberOfReplicasIT extends ESIntegTestCase {
         allowNodes("test", 1);
 
         logger.info("--> running cluster health");
-        clusterHealth = clusterAdmin().prepareHealth()
+        clusterHealth = clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
             .setWaitForEvents(Priority.LANGUID)
             .setWaitForGreenStatus()
             .setWaitForNodes(">=1")
             .setWaitForActiveShards(numShards.numPrimaries)
-            .execute()
-            .actionGet();
+            .get();
         logger.info("--> done cluster health, status {}", clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
@@ -270,7 +265,7 @@ public class UpdateNumberOfReplicasIT extends ESIntegTestCase {
         assertThat(clusterHealth.getIndices().get("test").getNumberOfReplicas(), equalTo(0));
         assertThat(clusterHealth.getIndices().get("test").getActiveShards(), equalTo(numShards.numPrimaries));
 
-        final long afterClosingAnotherNodeSettingsVersion = clusterAdmin().prepareState()
+        final long afterClosingAnotherNodeSettingsVersion = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
             .get()
             .getState()
             .metadata()
@@ -287,12 +282,11 @@ public class UpdateNumberOfReplicasIT extends ESIntegTestCase {
         NumShards numShards = getNumShards("test");
 
         logger.info("--> running cluster health");
-        ClusterHealthResponse clusterHealth = clusterAdmin().prepareHealth()
+        ClusterHealthResponse clusterHealth = clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
             .setWaitForEvents(Priority.LANGUID)
             .setWaitForGreenStatus()
             .setWaitForActiveShards(numShards.numPrimaries * 2)
-            .execute()
-            .actionGet();
+            .get();
         logger.info("--> done cluster health, status {}", clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
@@ -301,16 +295,13 @@ public class UpdateNumberOfReplicasIT extends ESIntegTestCase {
         assertThat(clusterHealth.getIndices().get("test").getActiveShards(), equalTo(numShards.numPrimaries * 2));
 
         if (randomBoolean()) {
-            assertAcked(client().admin().indices().prepareClose("test").setWaitForActiveShards(ActiveShardCount.ALL));
+            assertAcked(indicesAdmin().prepareClose("test").setWaitForActiveShards(ActiveShardCount.ALL));
 
-            clusterHealth = client().admin()
-                .cluster()
-                .prepareHealth()
+            clusterHealth = clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
                 .setWaitForEvents(Priority.LANGUID)
                 .setWaitForGreenStatus()
                 .setWaitForActiveShards(numShards.numPrimaries * 2)
-                .execute()
-                .actionGet();
+                .get();
             logger.info("--> done cluster health, status {}", clusterHealth.getStatus());
             assertThat(clusterHealth.isTimedOut(), equalTo(false));
             assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
@@ -319,17 +310,21 @@ public class UpdateNumberOfReplicasIT extends ESIntegTestCase {
             assertThat(clusterHealth.getIndices().get("test").getActiveShards(), equalTo(numShards.numPrimaries * 2));
         }
 
-        final long settingsVersion = clusterAdmin().prepareState().get().getState().metadata().index("test").getSettingsVersion();
+        final long settingsVersion = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
+            .get()
+            .getState()
+            .metadata()
+            .index("test")
+            .getSettingsVersion();
         logger.info("--> add another node, should increase the number of replicas");
         allowNodes("test", 3);
 
         logger.info("--> running cluster health");
-        clusterHealth = clusterAdmin().prepareHealth()
+        clusterHealth = clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
             .setWaitForEvents(Priority.LANGUID)
             .setWaitForGreenStatus()
             .setWaitForActiveShards(numShards.numPrimaries * 3)
-            .execute()
-            .actionGet();
+            .get();
         logger.info("--> done cluster health, status {}", clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
@@ -337,7 +332,7 @@ public class UpdateNumberOfReplicasIT extends ESIntegTestCase {
         assertThat(clusterHealth.getIndices().get("test").getNumberOfReplicas(), equalTo(2));
         assertThat(clusterHealth.getIndices().get("test").getActiveShards(), equalTo(numShards.numPrimaries * 3));
 
-        final long afterAddingOneNodeSettingsVersion = clusterAdmin().prepareState()
+        final long afterAddingOneNodeSettingsVersion = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
             .get()
             .getState()
             .metadata()
@@ -350,13 +345,12 @@ public class UpdateNumberOfReplicasIT extends ESIntegTestCase {
         allowNodes("test", 2);
 
         logger.info("--> running cluster health");
-        clusterHealth = clusterAdmin().prepareHealth()
+        clusterHealth = clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
             .setWaitForEvents(Priority.LANGUID)
             .setWaitForGreenStatus()
             .setWaitForNodes(">=2")
             .setWaitForActiveShards(numShards.numPrimaries * 2)
-            .execute()
-            .actionGet();
+            .get();
         logger.info("--> done cluster health, status {}", clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
@@ -364,7 +358,7 @@ public class UpdateNumberOfReplicasIT extends ESIntegTestCase {
         assertThat(clusterHealth.getIndices().get("test").getNumberOfReplicas(), equalTo(1));
         assertThat(clusterHealth.getIndices().get("test").getActiveShards(), equalTo(numShards.numPrimaries * 2));
 
-        final long afterClosingOneNodeSettingsVersion = clusterAdmin().prepareState()
+        final long afterClosingOneNodeSettingsVersion = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
             .get()
             .getState()
             .metadata()
@@ -377,13 +371,12 @@ public class UpdateNumberOfReplicasIT extends ESIntegTestCase {
         allowNodes("test", 1);
 
         logger.info("--> running cluster health");
-        clusterHealth = clusterAdmin().prepareHealth()
+        clusterHealth = clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
             .setWaitForEvents(Priority.LANGUID)
             .setWaitForYellowStatus()
             .setWaitForNodes(">=1")
             .setWaitForActiveShards(numShards.numPrimaries)
-            .execute()
-            .actionGet();
+            .get();
         logger.info("--> done cluster health, status {}", clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
@@ -399,12 +392,11 @@ public class UpdateNumberOfReplicasIT extends ESIntegTestCase {
         NumShards numShards = getNumShards("test");
 
         logger.info("--> running cluster health");
-        ClusterHealthResponse clusterHealth = clusterAdmin().prepareHealth()
+        ClusterHealthResponse clusterHealth = clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
             .setWaitForEvents(Priority.LANGUID)
             .setWaitForGreenStatus()
             .setWaitForActiveShards(numShards.numPrimaries * 3)
-            .execute()
-            .actionGet();
+            .get();
         logger.info("--> done cluster health, status {}", clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
@@ -416,17 +408,21 @@ public class UpdateNumberOfReplicasIT extends ESIntegTestCase {
         allowNodes("test", 4);
         allowNodes("test", 5);
 
-        final long settingsVersion = clusterAdmin().prepareState().get().getState().metadata().index("test").getSettingsVersion();
+        final long settingsVersion = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
+            .get()
+            .getState()
+            .metadata()
+            .index("test")
+            .getSettingsVersion();
         logger.info("--> update the auto expand replicas to 0-3");
         updateIndexSettings(Settings.builder().put("auto_expand_replicas", "0-3"), "test");
 
         logger.info("--> running cluster health");
-        clusterHealth = clusterAdmin().prepareHealth()
+        clusterHealth = clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
             .setWaitForEvents(Priority.LANGUID)
             .setWaitForGreenStatus()
             .setWaitForActiveShards(numShards.numPrimaries * 4)
-            .execute()
-            .actionGet();
+            .get();
         logger.info("--> done cluster health, status {}", clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
@@ -439,25 +435,29 @@ public class UpdateNumberOfReplicasIT extends ESIntegTestCase {
          * time from the number of replicas changed by the allocation service.
          */
         assertThat(
-            client().admin().cluster().prepareState().get().getState().metadata().index("test").getSettingsVersion(),
+            clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().metadata().index("test").getSettingsVersion(),
             equalTo(1 + 1 + settingsVersion)
         );
     }
 
     public void testUpdateWithInvalidNumberOfReplicas() {
         createIndex("test");
-        final long settingsVersion = clusterAdmin().prepareState().get().getState().metadata().index("test").getSettingsVersion();
+        final long settingsVersion = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
+            .get()
+            .getState()
+            .metadata()
+            .index("test")
+            .getSettingsVersion();
         final int value = randomIntBetween(-10, -1);
         try {
             indicesAdmin().prepareUpdateSettings("test")
                 .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, value))
-                .execute()
-                .actionGet();
+                .get();
             fail("should have thrown an exception about the replica shard count");
         } catch (IllegalArgumentException e) {
             assertEquals("Failed to parse value [" + value + "] for setting [index.number_of_replicas] must be >= 0", e.getMessage());
             assertThat(
-                client().admin().cluster().prepareState().get().getState().metadata().index("test").getSettingsVersion(),
+                clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().metadata().index("test").getSettingsVersion(),
                 equalTo(settingsVersion)
             );
         }
@@ -465,18 +465,14 @@ public class UpdateNumberOfReplicasIT extends ESIntegTestCase {
 
     public void testUpdateNumberOfReplicasAllowNoIndices() {
         createIndex("test-index", Settings.builder().put("index.number_of_replicas", 0).build());
-        final IndicesOptions options = new IndicesOptions(
-            EnumSet.of(IndicesOptions.Option.ALLOW_NO_INDICES),
-            EnumSet.of(IndicesOptions.WildcardStates.OPEN)
-        );
+        final IndicesOptions options = IndicesOptions.DEFAULT;
         assertAcked(
             indicesAdmin().prepareUpdateSettings("non-existent-*")
                 .setSettings(Settings.builder().put("index.number_of_replicas", 1))
                 .setIndicesOptions(options)
-                .get()
         );
         final int numberOfReplicas = Integer.parseInt(
-            client().admin().indices().prepareGetSettings("test-index").get().getSetting("test-index", "index.number_of_replicas")
+            indicesAdmin().prepareGetSettings("test-index").get().getSetting("test-index", "index.number_of_replicas")
         );
         assertThat(numberOfReplicas, equalTo(0));
     }

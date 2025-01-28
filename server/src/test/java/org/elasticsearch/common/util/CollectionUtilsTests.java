@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.util;
@@ -21,6 +22,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.common.util.CollectionUtils.appendToCopyNoNullElements;
+import static org.elasticsearch.common.util.CollectionUtils.concatLists;
 import static org.elasticsearch.common.util.CollectionUtils.eagerPartition;
 import static org.elasticsearch.common.util.CollectionUtils.ensureNoSelfReferences;
 import static org.elasticsearch.common.util.CollectionUtils.limitSize;
@@ -191,5 +194,12 @@ public class CollectionUtilsTests extends ESTestCase {
     public void testLimitSizeOfLongList() {
         var longList = randomList(10, 100, () -> "item");
         assertThat(limitSize(longList, 10), equalTo(longList.subList(0, 10)));
+    }
+
+    public void testAppendToCopyNoNullElements() {
+        final List<String> oldList = randomList(3, () -> randomAlphaOfLength(10));
+        final String[] extraElements = randomArray(2, 4, String[]::new, () -> randomAlphaOfLength(10));
+        final List<String> newList = appendToCopyNoNullElements(oldList, extraElements);
+        assertThat(newList, equalTo(concatLists(oldList, List.of(extraElements))));
     }
 }

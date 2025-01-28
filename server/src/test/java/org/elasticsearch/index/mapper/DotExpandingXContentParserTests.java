@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -15,28 +16,39 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 public class DotExpandingXContentParserTests extends ESTestCase {
 
     private void assertXContentMatches(String dotsExpanded, String withDots) throws IOException {
-        XContentParser inputParser = createParser(JsonXContent.jsonXContent, withDots);
         final ContentPath contentPath = new ContentPath();
-        XContentParser expandedParser = DotExpandingXContentParser.expandDots(inputParser, contentPath);
-        expandedParser.allowDuplicateKeys(true);
+        try (
+            XContentParser inputParser = createParser(JsonXContent.jsonXContent, withDots);
+            XContentParser expandedParser = DotExpandingXContentParser.expandDots(inputParser, contentPath)
+        ) {
+            expandedParser.allowDuplicateKeys(true);
 
-        XContentBuilder actualOutput = XContentBuilder.builder(JsonXContent.jsonXContent).copyCurrentStructure(expandedParser);
-        assertEquals(dotsExpanded, Strings.toString(actualOutput));
+            XContentBuilder actualOutput = XContentBuilder.builder(JsonXContent.jsonXContent).copyCurrentStructure(expandedParser);
+            assertEquals(dotsExpanded, Strings.toString(actualOutput));
 
-        XContentParser expectedParser = createParser(JsonXContent.jsonXContent, dotsExpanded);
-        expectedParser.allowDuplicateKeys(true);
-        XContentParser actualParser = DotExpandingXContentParser.expandDots(createParser(JsonXContent.jsonXContent, withDots), contentPath);
-        XContentParser.Token currentToken;
-        while ((currentToken = actualParser.nextToken()) != null) {
-            assertEquals(currentToken, expectedParser.nextToken());
-            assertEquals(expectedParser.currentToken(), actualParser.currentToken());
-            assertEquals(actualParser.currentToken().name(), expectedParser.currentName(), actualParser.currentName());
+            try (XContentParser expectedParser = createParser(JsonXContent.jsonXContent, dotsExpanded)) {
+                expectedParser.allowDuplicateKeys(true);
+                try (
+                    var p = createParser(JsonXContent.jsonXContent, withDots);
+                    XContentParser actualParser = DotExpandingXContentParser.expandDots(p, contentPath)
+                ) {
+                    XContentParser.Token currentToken;
+                    while ((currentToken = actualParser.nextToken()) != null) {
+                        assertEquals(currentToken, expectedParser.nextToken());
+                        assertEquals(expectedParser.currentToken(), actualParser.currentToken());
+                        assertEquals(actualParser.currentToken().name(), expectedParser.currentName(), actualParser.currentName());
+                    }
+                    assertNull(expectedParser.nextToken());
+                }
+            }
         }
-        assertNull(expectedParser.nextToken());
     }
 
     public void testEmbeddedObject() throws IOException {
@@ -347,5 +359,95 @@ public class DotExpandingXContentParserTests extends ESTestCase {
         assertEquals(expectedParser.getTokenLocation(), dotExpandedParser.getTokenLocation());
         assertNull(dotExpandedParser.nextToken());
         assertNull(expectedParser.nextToken());
+    }
+
+    public void testParseMapUOE() throws Exception {
+        XContentParser dotExpandedParser = DotExpandingXContentParser.expandDots(
+            createParser(JsonXContent.jsonXContent, ""),
+            new ContentPath()
+        );
+        expectThrows(UnsupportedOperationException.class, dotExpandedParser::map);
+    }
+
+    public void testParseMapOrderedUOE() throws Exception {
+        XContentParser dotExpandedParser = DotExpandingXContentParser.expandDots(
+            createParser(JsonXContent.jsonXContent, ""),
+            new ContentPath()
+        );
+        expectThrows(UnsupportedOperationException.class, dotExpandedParser::mapOrdered);
+    }
+
+    public void testParseMapStringsUOE() throws Exception {
+        XContentParser dotExpandedParser = DotExpandingXContentParser.expandDots(
+            createParser(JsonXContent.jsonXContent, ""),
+            new ContentPath()
+        );
+        expectThrows(UnsupportedOperationException.class, dotExpandedParser::mapStrings);
+    }
+
+    public void testParseMapSupplierUOE() throws Exception {
+        XContentParser dotExpandedParser = DotExpandingXContentParser.expandDots(
+            createParser(JsonXContent.jsonXContent, ""),
+            new ContentPath()
+        );
+        expectThrows(UnsupportedOperationException.class, () -> dotExpandedParser.map(HashMap::new, XContentParser::text));
+    }
+
+    public void testParseMap() throws Exception {
+        String jsonInput = """
+            {"params":{"one":"one",
+            "two":"two"}}\
+            """;
+
+        ContentPath contentPath = new ContentPath();
+        contentPath.setWithinLeafObject(true);
+        XContentParser dotExpandedParser = DotExpandingXContentParser.expandDots(
+            createParser(JsonXContent.jsonXContent, jsonInput),
+            contentPath
+        );
+        assertEquals(XContentParser.Token.START_OBJECT, dotExpandedParser.nextToken());
+        assertEquals(XContentParser.Token.FIELD_NAME, dotExpandedParser.nextToken());
+        assertEquals("params", dotExpandedParser.currentName());
+        assertEquals(XContentParser.Token.START_OBJECT, dotExpandedParser.nextToken());
+        Map<String, Object> map = dotExpandedParser.map();
+        assertEquals(2, map.size());
+        assertEquals("one", map.get("one"));
+        assertEquals("two", map.get("two"));
+    }
+
+    public void testParseListUOE() throws Exception {
+        XContentParser dotExpandedParser = DotExpandingXContentParser.expandDots(
+            createParser(JsonXContent.jsonXContent, ""),
+            new ContentPath()
+        );
+        expectThrows(UnsupportedOperationException.class, dotExpandedParser::list);
+    }
+
+    public void testParseListOrderedUOE() throws Exception {
+        XContentParser dotExpandedParser = DotExpandingXContentParser.expandDots(
+            createParser(JsonXContent.jsonXContent, ""),
+            new ContentPath()
+        );
+        expectThrows(UnsupportedOperationException.class, dotExpandedParser::listOrderedMap);
+    }
+
+    public void testParseList() throws Exception {
+        String jsonInput = """
+            {"params":["one","two"]}\
+            """;
+
+        ContentPath contentPath = new ContentPath();
+        contentPath.setWithinLeafObject(true);
+        XContentParser dotExpandedParser = DotExpandingXContentParser.expandDots(
+            createParser(JsonXContent.jsonXContent, jsonInput),
+            contentPath
+        );
+        assertEquals(XContentParser.Token.START_OBJECT, dotExpandedParser.nextToken());
+        assertEquals(XContentParser.Token.FIELD_NAME, dotExpandedParser.nextToken());
+        assertEquals("params", dotExpandedParser.currentName());
+        List<Object> list = dotExpandedParser.list();
+        assertEquals(2, list.size());
+        assertEquals("one", list.get(0));
+        assertEquals("two", list.get(1));
     }
 }

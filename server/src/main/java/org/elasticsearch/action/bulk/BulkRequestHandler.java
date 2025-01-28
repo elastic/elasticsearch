@@ -1,15 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.action.bulk;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.threadpool.Scheduler;
 
 import java.util.concurrent.CountDownLatch;
@@ -21,7 +23,7 @@ import java.util.function.BiConsumer;
  * Implements the low-level details of bulk request handling
  */
 public final class BulkRequestHandler {
-    private final Logger logger;
+    private static final Logger logger = LogManager.getLogger(BulkRequestHandler.class);
     private final BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer;
     private final BulkProcessor.Listener listener;
     private final Semaphore semaphore;
@@ -36,7 +38,6 @@ public final class BulkRequestHandler {
         int concurrentRequests
     ) {
         assert concurrentRequests >= 0;
-        this.logger = LogManager.getLogger(getClass());
         this.consumer = consumer;
         this.listener = listener;
         this.concurrentRequests = concurrentRequests;

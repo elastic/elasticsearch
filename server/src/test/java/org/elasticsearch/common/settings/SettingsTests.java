@@ -1,17 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.settings;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.Diff;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -27,7 +28,6 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -473,55 +473,11 @@ public class SettingsTests extends ESTestCase {
         }
     }
 
-    public void testSecureSettingConflict() {
-        Setting<SecureString> setting = SecureSetting.secureString("something.secure", null);
-        Settings settings = Settings.builder().put("something.secure", "notreallysecure").build();
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> setting.get(settings));
-        assertTrue(e.getMessage().contains("must be stored inside the Elasticsearch keystore"));
-    }
-
     public void testSecureSettingIllegalName() {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> SecureSetting.secureString("*IllegalName", null));
         assertTrue(e.getMessage().contains("does not match the allowed setting name pattern"));
         e = expectThrows(IllegalArgumentException.class, () -> SecureSetting.secureFile("*IllegalName", null));
         assertTrue(e.getMessage().contains("does not match the allowed setting name pattern"));
-    }
-
-    public void testStatelessSecureSettingsWithoutStateless() {
-        Setting<?> setting = SecureSetting.secureString(StatelessSecureSettings.PREFIX + "key", null);
-
-        final Settings settings = Settings.builder()
-            .put(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, false)
-            .put(setting.getKey(), "yaml.value")
-            .build();
-
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> StatelessSecureSettings.install(settings));
-        assertTrue(e.getMessage().contains("supported only in stateless"));
-    }
-
-    public void testStatelessSecureSettings() throws Exception {
-        boolean testFileSettingInsteadOfStringSetting = randomBoolean();
-
-        Setting<?> yamlSetting = Setting.simpleString(StatelessSecureSettings.PREFIX + "stateless.key");
-        Setting<?> secureSetting = testFileSettingInsteadOfStringSetting
-            ? SecureSetting.secureFile("stateless.key", null)
-            : SecureSetting.secureString("stateless.key", null);
-
-        final Settings settings = Settings.builder()
-            .put(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, true)
-            .put(yamlSetting.getKey(), "stateless.yaml.value")
-            .build();
-
-        Settings newSettings = StatelessSecureSettings.install(settings);
-        assertTrue(secureSetting.exists(newSettings));
-        assertEquals(
-            "stateless.yaml.value",
-            testFileSettingInsteadOfStringSetting
-                ? new String(((InputStream) secureSetting.get(newSettings)).readAllBytes(), StandardCharsets.UTF_8)
-                : secureSetting.get(newSettings).toString()
-        );
-        assertTrue(yamlSetting.exists(newSettings));
-        assertEquals("stateless.yaml.value", yamlSetting.get(newSettings).toString());
     }
 
     public void testGetAsArrayFailsOnDuplicates() {
@@ -545,8 +501,10 @@ public class SettingsTests extends ESTestCase {
         builder.startObject();
         settings.toXContent(builder, new ToXContent.MapParams(Collections.singletonMap(Settings.FLAT_SETTINGS_PARAM, "" + flatSettings)));
         builder.endObject();
-        XContentParser parser = createParser(builder);
-        Settings build = Settings.fromXContent(parser);
+        Settings build;
+        try (XContentParser parser = createParser(builder)) {
+            build = Settings.fromXContent(parser);
+        }
         assertEquals(5, build.size());
         assertEquals(Arrays.asList("1", "2", "3"), build.getAsList("foo.bar.baz"));
         assertEquals(2, build.getAsInt("foo.foobar", 0).intValue());
@@ -661,7 +619,7 @@ public class SettingsTests extends ESTestCase {
 
     public void testReadWriteArray() throws IOException {
         BytesStreamOutput output = new BytesStreamOutput();
-        output.setTransportVersion(randomFrom(TransportVersion.CURRENT, TransportVersion.V_7_0_0));
+        output.setTransportVersion(randomFrom(TransportVersion.current(), TransportVersions.V_8_0_0));
         Settings settings = Settings.builder().putList("foo.bar", "0", "1", "2", "3").put("foo.bar.baz", "baz").build();
         settings.writeTo(output);
         StreamInput in = StreamInput.wrap(BytesReference.toBytes(output.bytes()));
@@ -682,11 +640,7 @@ public class SettingsTests extends ESTestCase {
     }
 
     public void testFractionalTimeValue() {
-        final Setting<TimeValue> setting = Setting.timeSetting(
-            "key",
-            TimeValue.parseTimeValue(randomTimeValue(0, 24, "h"), "key"),
-            TimeValue.ZERO
-        );
+        final Setting<TimeValue> setting = Setting.timeSetting("key", randomTimeValue(0, 24, TimeUnit.HOURS), TimeValue.ZERO);
         final TimeValue expected = TimeValue.timeValueMillis(randomNonNegativeLong());
         final Settings settings = Settings.builder().put("key", expected).build();
         /*
@@ -705,7 +659,7 @@ public class SettingsTests extends ESTestCase {
             "key",
             ByteSizeValue.parseBytesSizeValue(randomIntBetween(1, 16) + "k", "key")
         );
-        final ByteSizeValue expected = new ByteSizeValue(randomNonNegativeLong(), ByteSizeUnit.BYTES);
+        final ByteSizeValue expected = ByteSizeValue.of(randomNonNegativeLong(), ByteSizeUnit.BYTES);
         final Settings settings = Settings.builder().put("key", expected).build();
         /*
          * Previously we would internally convert the byte size value to a string using a method that tries to be smart about the units
@@ -719,11 +673,7 @@ public class SettingsTests extends ESTestCase {
     }
 
     public void testSetByTimeUnit() {
-        final Setting<TimeValue> setting = Setting.timeSetting(
-            "key",
-            TimeValue.parseTimeValue(randomTimeValue(0, 24, "h"), "key"),
-            TimeValue.ZERO
-        );
+        final Setting<TimeValue> setting = Setting.timeSetting("key", randomTimeValue(0, 24, TimeUnit.HOURS), TimeValue.ZERO);
         final TimeValue expected = new TimeValue(1500, TimeUnit.MICROSECONDS);
         final Settings settings = Settings.builder().put("key", expected.getMicros(), TimeUnit.MICROSECONDS).build();
         /*

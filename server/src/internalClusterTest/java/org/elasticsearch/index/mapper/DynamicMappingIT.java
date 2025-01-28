@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.mapper;
 
@@ -12,9 +13,6 @@ import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
@@ -23,13 +21,15 @@ import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.GeoBoundingBoxQueryBuilder;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.script.field.WriteField;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -39,20 +39,32 @@ import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
+import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_LIMIT_SETTING;
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING;
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING;
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
+import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.oneOf;
 
 public class DynamicMappingIT extends ESIntegTestCase {
 
@@ -64,9 +76,9 @@ public class DynamicMappingIT extends ESIntegTestCase {
     public void testConflictingDynamicMappings() {
         // we don't use indexRandom because the order of requests is important here
         createIndex("index");
-        client().prepareIndex("index").setId("1").setSource("foo", 3).get();
+        prepareIndex("index").setId("1").setSource("foo", 3).get();
         try {
-            client().prepareIndex("index").setId("2").setSource("foo", "bar").get();
+            prepareIndex("index").setId("2").setSource("foo", "bar").get();
             fail("Indexing request should have failed!");
         } catch (DocumentParsingException e) {
             // general case, the parsing code complains that it can't parse "bar" as a "long"
@@ -79,62 +91,141 @@ public class DynamicMappingIT extends ESIntegTestCase {
         }
     }
 
+    public void testSimpleDynamicMappingsSuccessful() {
+        createIndex("index");
+        client().prepareIndex("index").setId("1").setSource("a.x", 1).get();
+        client().prepareIndex("index").setId("2").setSource("a.y", 2).get();
+
+        Map<String, Object> mappings = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, "index")
+            .get()
+            .mappings()
+            .get("index")
+            .sourceAsMap();
+        assertTrue(new WriteField("properties.a", () -> mappings).exists());
+        assertTrue(new WriteField("properties.a.properties.x", () -> mappings).exists());
+    }
+
     public void testConflictingDynamicMappingsBulk() {
         // we don't use indexRandom because the order of requests is important here
         createIndex("index");
-        client().prepareIndex("index").setId("1").setSource("foo", 3).get();
-        BulkResponse bulkResponse = client().prepareBulk().add(client().prepareIndex("index").setId("1").setSource("foo", 3)).get();
+        prepareIndex("index").setId("1").setSource("foo", 3).get();
+        BulkResponse bulkResponse = client().prepareBulk().add(prepareIndex("index").setId("1").setSource("foo", 3)).get();
         assertFalse(bulkResponse.hasFailures());
-        bulkResponse = client().prepareBulk().add(client().prepareIndex("index").setId("2").setSource("foo", "bar")).get();
+        bulkResponse = client().prepareBulk().add(prepareIndex("index").setId("2").setSource("foo", "bar")).get();
         assertTrue(bulkResponse.hasFailures());
     }
 
-    private static void assertMappingsHaveField(GetMappingsResponse mappings, String index, String field) throws IOException {
+    public void testArrayWithDifferentTypes() {
+        createIndex("index");
+        BulkResponse bulkResponse = client().prepareBulk()
+            .add(client().prepareIndex("index").setId("1").setSource("foo", List.of(42, "bar")))
+            .get();
+
+        assertTrue(bulkResponse.hasFailures());
+        assertEquals(
+            "mapper [foo] cannot be changed from type [long] to [text]",
+            bulkResponse.getItems()[0].getFailure().getCause().getMessage()
+        );
+    }
+
+    public void testArraysCountAsOneTowardsFieldLimit() {
+        createIndex("index", Settings.builder().put(INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), 2).build());
+        BulkResponse bulkResponse = client().prepareBulk()
+            .add(client().prepareIndex("index").setId("1").setSource("field1", List.of(1, 2), "field2", 1))
+            .get();
+
+        assertFalse(bulkResponse.hasFailures());
+    }
+
+    public void testConcurrentDynamicUpdates() throws Throwable {
+        int numberOfFieldsToCreate = 32;
+        Map<String, Object> properties = indexConcurrently(numberOfFieldsToCreate, Settings.builder());
+        assertThat(properties, aMapWithSize(numberOfFieldsToCreate));
+        for (int i = 0; i < numberOfFieldsToCreate; i++) {
+            assertThat(properties, hasKey("field" + i));
+        }
+    }
+
+    public void testConcurrentDynamicIgnoreBeyondLimitUpdates() throws Throwable {
+        int numberOfFieldsToCreate = 32;
+        Map<String, Object> properties = indexConcurrently(
+            numberOfFieldsToCreate,
+            Settings.builder()
+                .put(INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), numberOfFieldsToCreate)
+                .put(INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_LIMIT_SETTING.getKey(), true)
+        );
+        // every field is a multi-field (text + keyword)
+        assertThat(properties, aMapWithSize(16));
+        assertResponse(
+            prepareSearch("index").setQuery(new MatchAllQueryBuilder()).setSize(numberOfFieldsToCreate).addFetchField("*"),
+            response -> {
+                long ignoredFields = Arrays.stream(response.getHits().getHits()).filter(hit -> hit.field("_ignored") != null).count();
+                assertEquals(16, ignoredFields);
+            }
+        );
+    }
+
+    private Map<String, Object> indexConcurrently(int numberOfFieldsToCreate, Settings.Builder settings) throws Throwable {
+        indicesAdmin().prepareCreate("index").setSettings(settings).get();
+        ensureGreen("index");
+        final AtomicReference<Throwable> error = new AtomicReference<>();
+        startInParallel(numberOfFieldsToCreate, i -> {
+            final String id = Integer.toString(i);
+            try {
+                assertEquals(
+                    DocWriteResponse.Result.CREATED,
+                    prepareIndex("index").setId(id).setSource("field" + id, "bar").get().getResult()
+                );
+            } catch (Exception e) {
+                error.compareAndSet(null, e);
+            }
+        });
+        if (error.get() != null) {
+            throw error.get();
+        }
+        client().admin().indices().prepareRefresh("index").get();
+        for (int i = 0; i < numberOfFieldsToCreate; ++i) {
+            assertTrue(client().prepareGet("index", Integer.toString(i)).get().isExists());
+        }
+        GetMappingsResponse mappings = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, "index").get();
         MappingMetadata indexMappings = mappings.getMappings().get("index");
         assertNotNull(indexMappings);
         Map<String, Object> typeMappingsMap = indexMappings.getSourceAsMap();
         @SuppressWarnings("unchecked")
         Map<String, Object> properties = (Map<String, Object>) typeMappingsMap.get("properties");
-        assertTrue("Could not find [" + field + "] in " + typeMappingsMap.toString(), properties.containsKey(field));
+        return properties;
     }
 
-    public void testConcurrentDynamicUpdates() throws Throwable {
-        createIndex("index");
-        final Thread[] indexThreads = new Thread[32];
-        final CountDownLatch startLatch = new CountDownLatch(1);
+    public void testConcurrentDynamicMappingsWithConflictingType() throws Throwable {
+        int numberOfDocsToCreate = 16;
+        indicesAdmin().prepareCreate("index").setSettings(Settings.builder()).get();
+        ensureGreen("index");
         final AtomicReference<Throwable> error = new AtomicReference<>();
-        for (int i = 0; i < indexThreads.length; ++i) {
-            final String id = Integer.toString(i);
-            indexThreads[i] = new Thread(new Runnable() {
-                @Override
-                public void run() {
-                    try {
-                        startLatch.await();
-                        assertEquals(
-                            DocWriteResponse.Result.CREATED,
-                            client().prepareIndex("index").setId(id).setSource("field" + id, "bar").get().getResult()
-                        );
-                    } catch (Exception e) {
-                        error.compareAndSet(null, e);
-                    }
-                }
-            });
-            indexThreads[i].start();
-        }
-        startLatch.countDown();
-        for (Thread thread : indexThreads) {
-            thread.join();
-        }
+        startInParallel(numberOfDocsToCreate, i -> {
+            try {
+                assertEquals(
+                    DocWriteResponse.Result.CREATED,
+                    prepareIndex("index").setId(Integer.toString(i)).setSource("field" + i, 0, "field" + (i + 1), 0.1).get().getResult()
+                );
+            } catch (Exception e) {
+                error.compareAndSet(null, e);
+            }
+        });
         if (error.get() != null) {
             throw error.get();
         }
-        Thread.sleep(2000);
-        GetMappingsResponse mappings = indicesAdmin().prepareGetMappings("index").get();
-        for (int i = 0; i < indexThreads.length; ++i) {
-            assertMappingsHaveField(mappings, "index", "field" + i);
-        }
-        for (int i = 0; i < indexThreads.length; ++i) {
+        client().admin().indices().prepareRefresh("index").get();
+        for (int i = 0; i < numberOfDocsToCreate; ++i) {
             assertTrue(client().prepareGet("index", Integer.toString(i)).get().isExists());
+        }
+        Map<String, Object> index = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, "index")
+            .get()
+            .getMappings()
+            .get("index")
+            .getSourceAsMap();
+        for (int i = 0, j = 1; i < numberOfDocsToCreate; i++, j++) {
+            assertThat(new WriteField("properties.field" + i + ".type", () -> index).get(null), is(oneOf("long", "float")));
+            assertThat(new WriteField("properties.field" + j + ".type", () -> index).get(null), is(oneOf("long", "float")));
         }
     }
 
@@ -163,7 +254,7 @@ public class DynamicMappingIT extends ESIntegTestCase {
                 XContentType.JSON
             )
             .get();
-        client().prepareIndex("index").setId("1").setSource("nested1", Map.of("foo", "bar"), "nested2", Map.of("foo", "bar")).get();
+        prepareIndex("index").setId("1").setSource("nested1", Map.of("foo", "bar"), "nested2", Map.of("foo", "bar")).get();
 
         final CountDownLatch masterBlockedLatch = new CountDownLatch(1);
         final CountDownLatch indexingCompletedLatch = new CountDownLatch(1);
@@ -179,17 +270,15 @@ public class DynamicMappingIT extends ESIntegTestCase {
 
                 @Override
                 public void onFailure(Exception e) {
-                    throw new AssertionError("unexpected", e);
+                    fail(e);
                 }
             });
 
         masterBlockedLatch.await();
-        final IndexRequestBuilder indexRequestBuilder = client().prepareIndex("index")
-            .setId("2")
-            .setSource("nested3", Map.of("foo", "bar"));
         try {
             assertThat(
-                expectThrows(IllegalArgumentException.class, () -> indexRequestBuilder.get(TimeValue.timeValueSeconds(10))).getMessage(),
+                expectThrows(IllegalArgumentException.class, prepareIndex("index").setId("2").setSource("nested3", Map.of("foo", "bar")))
+                    .getMessage(),
                 Matchers.containsString("Limit of nested fields [2] has been exceeded")
             );
         } finally {
@@ -200,7 +289,7 @@ public class DynamicMappingIT extends ESIntegTestCase {
     public void testTotalFieldsLimitForDynamicMappingsUpdateCheckedAtDocumentParseTime() throws InterruptedException {
         createIndex("index", Settings.builder().put(INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), 2).build());
         ensureGreen("index");
-        client().prepareIndex("index").setId("1").setSource("field1", "value1").get();
+        prepareIndex("index").setId("1").setSource("field1", "value1").get();
 
         final CountDownLatch masterBlockedLatch = new CountDownLatch(1);
         final CountDownLatch indexingCompletedLatch = new CountDownLatch(1);
@@ -216,23 +305,164 @@ public class DynamicMappingIT extends ESIntegTestCase {
 
                 @Override
                 public void onFailure(Exception e) {
-                    throw new AssertionError("unexpected", e);
+                    fail(e);
                 }
             });
 
         masterBlockedLatch.await();
-        final IndexRequestBuilder indexRequestBuilder = client().prepareIndex("index").setId("2").setSource("field2", "value2");
         try {
-            Exception e = expectThrows(DocumentParsingException.class, () -> indexRequestBuilder.get(TimeValue.timeValueSeconds(10)));
+            Exception e = expectThrows(DocumentParsingException.class, prepareIndex("index").setId("2").setSource("field2", "value2"));
             assertThat(e.getMessage(), Matchers.containsString("failed to parse"));
             assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
-            assertThat(
-                e.getCause().getMessage(),
-                Matchers.containsString("Limit of total fields [2] has been exceeded while adding new fields [1]")
-            );
+            assertThat(e.getCause().getMessage(), Matchers.containsString("Limit of total fields [2] has been exceeded"));
         } finally {
             indexingCompletedLatch.countDown();
         }
+    }
+
+    public void testIgnoreDynamicBeyondLimitSingleMultiField() {
+        indexIgnoreDynamicBeyond(1, orderedMap("field1", "text"), fields -> {
+            assertThat(fields.keySet(), equalTo(Set.of("_ignored")));
+            assertThat(fields.get("_ignored").getValues(), equalTo(List.of("field1")));
+        });
+    }
+
+    public void testIgnoreDynamicBeyondLimitMultiField() {
+        indexIgnoreDynamicBeyond(2, orderedMap("field1", 1, "field2", "text"), fields -> {
+            assertThat(fields.keySet(), equalTo(Set.of("field1", "_ignored")));
+            assertThat(fields.get("field1").getValues(), equalTo(List.of(1L)));
+            assertThat(fields.get("_ignored").getValues(), equalTo(List.of("field2")));
+        });
+    }
+
+    public void testIgnoreDynamicArrayField() {
+        indexIgnoreDynamicBeyond(1, orderedMap("field1", 1, "field2", List.of(1, 2)), fields -> {
+            assertThat(fields.keySet(), equalTo(Set.of("field1", "_ignored")));
+            assertThat(fields.get("field1").getValues(), equalTo(List.of(1L)));
+            assertThat(fields.get("_ignored").getValues(), equalTo(List.of("field2")));
+        });
+    }
+
+    public void testIgnoreDynamicBeyondLimitObjectField() {
+        indexIgnoreDynamicBeyond(3, orderedMap("a.b", 1, "a.c", 2, "a.d", 3), fields -> {
+            assertThat(fields.keySet(), equalTo(Set.of("a.b", "a.c", "_ignored")));
+            assertThat(fields.get("a.b").getValues(), equalTo(List.of(1L)));
+            assertThat(fields.get("a.c").getValues(), equalTo(List.of(2L)));
+            assertThat(fields.get("_ignored").getValues(), equalTo(List.of("a.d")));
+        });
+    }
+
+    public void testIgnoreDynamicBeyondLimitObjectField2() {
+        indexIgnoreDynamicBeyond(3, orderedMap("a.b", 1, "a.c", 2, "b.a", 3), fields -> {
+            assertThat(fields.keySet(), equalTo(Set.of("a.b", "a.c", "_ignored")));
+            assertThat(fields.get("a.b").getValues(), equalTo(List.of(1L)));
+            assertThat(fields.get("a.c").getValues(), equalTo(List.of(2L)));
+            assertThat(fields.get("_ignored").getValues(), equalTo(List.of("b")));
+        });
+    }
+
+    public void testIgnoreDynamicBeyondLimitDottedObjectMultiField() {
+        indexIgnoreDynamicBeyond(4, orderedMap("a.b", "foo", "a.c", 2, "a.d", 3), fields -> {
+            assertThat(fields.keySet(), equalTo(Set.of("a.b", "a.b.keyword", "a.c", "_ignored")));
+            assertThat(fields.get("a.b").getValues(), equalTo(List.of("foo")));
+            assertThat(fields.get("a.b.keyword").getValues(), equalTo(List.of("foo")));
+            assertThat(fields.get("a.c").getValues(), equalTo(List.of(2L)));
+            assertThat(fields.get("_ignored").getValues(), equalTo(List.of("a.d")));
+        });
+    }
+
+    public void testIgnoreDynamicBeyondLimitObjectMultiField() {
+        indexIgnoreDynamicBeyond(5, orderedMap("a", orderedMap("b", "foo", "c", "bar", "d", 3)), fields -> {
+            assertThat(fields.keySet(), equalTo(Set.of("a.b", "a.b.keyword", "a.c", "a.c.keyword", "_ignored")));
+            assertThat(fields.get("a.b").getValues(), equalTo(List.of("foo")));
+            assertThat(fields.get("a.b.keyword").getValues(), equalTo(List.of("foo")));
+            assertThat(fields.get("a.c").getValues(), equalTo(List.of("bar")));
+            assertThat(fields.get("a.c.keyword").getValues(), equalTo(List.of("bar")));
+            assertThat(fields.get("_ignored").getValues(), equalTo(List.of("a.d")));
+        });
+    }
+
+    public void testIgnoreDynamicBeyondLimitRuntimeFields() {
+        indexIgnoreDynamicBeyond(1, orderedMap("field1", 1, "field2", List.of(1, 2)), Map.of("dynamic", "runtime"), fields -> {
+            assertThat(fields.keySet(), equalTo(Set.of("field1", "_ignored")));
+            assertThat(fields.get("field1").getValues(), equalTo(List.of(1L)));
+            assertThat(fields.get("_ignored").getValues(), equalTo(List.of("field2")));
+        });
+    }
+
+    public void testFieldLimitRuntimeAndDynamic() throws Exception {
+        assertAcked(
+            indicesAdmin().prepareCreate("test")
+                .setSettings(
+                    Settings.builder()
+                        .put(INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), 5)
+                        .put(INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_LIMIT_SETTING.getKey(), true)
+                )
+                .setMapping("""
+                    {
+                      "dynamic": "runtime",
+                      "properties": {
+                        "runtime": {
+                          "type": "object"
+                        },
+                        "mapped_obj": {
+                          "type": "object",
+                          "dynamic": "true"
+                        }
+                      }
+                    }""")
+                .get()
+        );
+
+        client().index(
+            new IndexRequest("test").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                .source(orderedMap("dynamic.keyword", "foo", "mapped_obj.number", 1, "mapped_obj.string", "foo"))
+        ).get();
+
+        assertResponse(prepareSearch("test").setQuery(new MatchAllQueryBuilder()).addFetchField("*"), r -> {
+            var fields = r.getHits().getHits()[0].getFields();
+            assertThat(fields.keySet(), equalTo(Set.of("dynamic.keyword", "mapped_obj.number", "_ignored")));
+            assertThat(fields.get("dynamic.keyword").getValues(), equalTo(List.of("foo")));
+            assertThat(fields.get("mapped_obj.number").getValues(), equalTo(List.of(1L)));
+            assertThat(fields.get("_ignored").getValues(), equalTo(List.of("mapped_obj.string")));
+        });
+    }
+
+    private LinkedHashMap<String, Object> orderedMap(Object... entries) {
+        var map = new LinkedHashMap<String, Object>();
+        for (int i = 0; i < entries.length; i += 2) {
+            map.put((String) entries[i], entries[i + 1]);
+        }
+        return map;
+    }
+
+    private void indexIgnoreDynamicBeyond(int fieldLimit, Map<String, Object> source, Consumer<Map<String, DocumentField>> fieldsConsumer) {
+        indexIgnoreDynamicBeyond(fieldLimit, source, Map.of(), fieldsConsumer);
+    }
+
+    private void indexIgnoreDynamicBeyond(
+        int fieldLimit,
+        Map<String, Object> source,
+        Map<String, Object> mapping,
+        Consumer<Map<String, DocumentField>> fieldsConsumer
+    ) {
+        client().admin()
+            .indices()
+            .prepareCreate("index")
+            .setSettings(
+                Settings.builder()
+                    .put(INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), fieldLimit)
+                    .put(INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_LIMIT_SETTING.getKey(), true)
+                    .build()
+            )
+            .setMapping(mapping)
+            .get();
+        ensureGreen("index");
+        client().prepareIndex("index").setId("1").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).setSource(source).get();
+        assertResponse(
+            prepareSearch("index").setQuery(new MatchAllQueryBuilder()).addFetchField("*"),
+            r -> fieldsConsumer.accept(r.getHits().getHits()[0].getFields())
+        );
     }
 
     public void testTotalFieldsLimitWithRuntimeFields() {
@@ -265,10 +495,11 @@ public class DynamicMappingIT extends ESIntegTestCase {
 
         {
             // introduction of a new object with 2 new sub-fields fails
-            final IndexRequestBuilder indexRequestBuilder = client().prepareIndex("index1")
-                .setId("1")
-                .setSource("field3", "value3", "my_object2", Map.of("new_field1", "value1", "new_field2", "value2"));
-            Exception exc = expectThrows(DocumentParsingException.class, () -> indexRequestBuilder.get(TimeValue.timeValueSeconds(10)));
+            Exception exc = expectThrows(
+                DocumentParsingException.class,
+                prepareIndex("index1").setId("1")
+                    .setSource("field3", "value3", "my_object2", Map.of("new_field1", "value1", "new_field2", "value2"))
+            );
             assertThat(exc.getMessage(), Matchers.containsString("failed to parse"));
             assertThat(exc.getCause(), instanceOf(IllegalArgumentException.class));
             assertThat(
@@ -279,7 +510,7 @@ public class DynamicMappingIT extends ESIntegTestCase {
 
         {
             // introduction of a new single field succeeds
-            client().prepareIndex("index1").setId("2").setSource("field3", "value3", "new_field4", 100).get();
+            prepareIndex("index1").setId("2").setSource("field3", "value3", "new_field4", 100).get();
         }
 
         {
@@ -294,8 +525,7 @@ public class DynamicMappingIT extends ESIntegTestCase {
                 """, XContentType.JSON));
 
             // introduction of a new object with 2 new sub-fields succeeds
-            client().prepareIndex("index1")
-                .setId("1")
+            prepareIndex("index1").setId("1")
                 .setSource("field3", "value3", "my_object2", Map.of("new_field1", "value1", "new_field2", "value2"));
         }
     }
@@ -304,7 +534,7 @@ public class DynamicMappingIT extends ESIntegTestCase {
         createIndex("test");
         final ClusterService clusterService = internalCluster().clusterService();
         final long previousVersion = clusterService.state().metadata().index("test").getMappingVersion();
-        client().prepareIndex("test").setId("1").setSource("field", "text").get();
+        prepareIndex("test").setId("1").setSource("field", "text").get();
         assertBusy(() -> assertThat(clusterService.state().metadata().index("test").getMappingVersion(), equalTo(1 + previousVersion)));
     }
 
@@ -371,14 +601,20 @@ public class DynamicMappingIT extends ESIntegTestCase {
         final BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
         assertFalse(bulkResponse.hasFailures());
 
-        SearchResponse searchResponse = client().prepareSearch("test")
-            .setQuery(new GeoBoundingBoxQueryBuilder("location").setCorners(new GeoPoint(42, -72), new GeoPoint(40, -74)))
-            .get();
-        assertSearchHits(searchResponse, "1", "2", "4");
-        searchResponse = client().prepareSearch("test")
-            .setQuery(new GeoBoundingBoxQueryBuilder("address.location").setCorners(new GeoPoint(42, -72), new GeoPoint(40, -74)))
-            .get();
-        assertSearchHits(searchResponse, "3");
+        assertSearchHits(
+            prepareSearch("test").setQuery(
+                new GeoBoundingBoxQueryBuilder("location").setCorners(new GeoPoint(42, -72), new GeoPoint(40, -74))
+            ),
+            "1",
+            "2",
+            "4"
+        );
+        assertSearchHits(
+            prepareSearch("test").setQuery(
+                new GeoBoundingBoxQueryBuilder("address.location").setCorners(new GeoPoint(42, -72), new GeoPoint(40, -74))
+            ),
+            "3"
+        );
     }
 
     public void testBulkRequestWithNotFoundDynamicTemplate() throws Exception {
@@ -455,18 +691,12 @@ public class DynamicMappingIT extends ESIntegTestCase {
         BulkResponse bulkItemResponses = client().bulk(bulkRequest).actionGet();
         assertFalse(bulkItemResponses.buildFailureMessage(), bulkItemResponses.hasFailures());
 
-        {
-            SearchResponse searchResponse = client().prepareSearch("test").setQuery(new MatchQueryBuilder("one", "one")).get();
-            assertEquals(1, searchResponse.getHits().getTotalHits().value);
-        }
-        {
-            SearchResponse searchResponse = client().prepareSearch("test").setQuery(new MatchQueryBuilder("one.two", 3.5)).get();
-            assertEquals(1, searchResponse.getHits().getTotalHits().value);
-        }
-        {
-            SearchResponse searchResponse = client().prepareSearch("test").setQuery(new MatchQueryBuilder("one.two.three", "1")).get();
-            assertEquals(1, searchResponse.getHits().getTotalHits().value);
-        }
+        assertHitCount(
+            1,
+            prepareSearch("test").setQuery(new MatchQueryBuilder("one", "one")),
+            prepareSearch("test").setQuery(new MatchQueryBuilder("one.two", 3.5)),
+            prepareSearch("test").setQuery(new MatchQueryBuilder("one.two.three", "1"))
+        );
     }
 
     public void testDynamicRuntimeObjectFields() {
@@ -503,29 +733,15 @@ public class DynamicMappingIT extends ESIntegTestCase {
         BulkResponse bulkItemResponses = client().bulk(bulkRequest).actionGet();
         assertFalse(bulkItemResponses.buildFailureMessage(), bulkItemResponses.hasFailures());
 
-        {
-            SearchResponse searchResponse = client().prepareSearch("test").setQuery(new MatchQueryBuilder("obj.one", 1)).get();
-            assertEquals(1, searchResponse.getHits().getTotalHits().value);
-        }
-        {
-            SearchResponse searchResponse = client().prepareSearch("test").setQuery(new MatchQueryBuilder("anything", "anything")).get();
-            assertEquals(1, searchResponse.getHits().getTotalHits().value);
-        }
-        {
-            SearchResponse searchResponse = client().prepareSearch("test").setQuery(new MatchQueryBuilder("obj.runtime.one", "one")).get();
-            assertEquals(1, searchResponse.getHits().getTotalHits().value);
-        }
-        {
-            SearchResponse searchResponse = client().prepareSearch("test")
-                .setQuery(new MatchQueryBuilder("obj.runtime.one.two", "1"))
-                .get();
-            assertEquals(1, searchResponse.getHits().getTotalHits().value);
-        }
-
-        Exception exception = expectThrows(
-            DocumentParsingException.class,
-            () -> client().prepareIndex("test").setSource("obj.runtime", "value").get()
+        assertHitCount(
+            1,
+            prepareSearch("test").setQuery(new MatchQueryBuilder("obj.one", 1)),
+            prepareSearch("test").setQuery(new MatchQueryBuilder("anything", "anything")),
+            prepareSearch("test").setQuery(new MatchQueryBuilder("obj.runtime.one", "one")),
+            prepareSearch("test").setQuery(new MatchQueryBuilder("obj.runtime.one.two", "1"))
         );
+
+        Exception exception = expectThrows(DocumentParsingException.class, prepareIndex("test").setSource("obj.runtime", "value"));
         assertThat(
             exception.getMessage(),
             containsString("object mapping for [obj.runtime] tried to parse field [runtime] as object, but found a concrete value")
@@ -556,25 +772,19 @@ public class DynamicMappingIT extends ESIntegTestCase {
         // target the same shard where we are sure the mapping update has been applied
         assertEquals(
             RestStatus.CREATED,
-            client().prepareIndex("test")
-                .setSource("obj.runtime.dynamic.number", 1)
+            prepareIndex("test").setSource("obj.runtime.dynamic.number", 1)
                 .setId("id")
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .get()
                 .status()
         );
 
-        {
-            SearchResponse searchResponse = client().prepareSearch("test")
-                .setQuery(new MatchQueryBuilder("obj.runtime.dynamic.number", 1))
-                .get();
-            assertEquals(1, searchResponse.getHits().getTotalHits().value);
-        }
+        assertHitCount(prepareSearch("test").setQuery(new MatchQueryBuilder("obj.runtime.dynamic.number", 1)), 1);
 
         // a doc with the same field but a different type causes a conflict
         Exception e = expectThrows(
             DocumentParsingException.class,
-            () -> client().prepareIndex("test").setId("id").setSource("obj.runtime.dynamic.number", "string").get()
+            prepareIndex("test").setId("id").setSource("obj.runtime.dynamic.number", "string")
         );
         assertThat(
             e.getMessage(),
@@ -600,11 +810,15 @@ public class DynamicMappingIT extends ESIntegTestCase {
 
         IndexRequest request = new IndexRequest("test").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .source("host.name", "localhost", "host.id", 111, "time", 100, "time.max", 1000);
-        IndexResponse indexResponse = client().index(request).actionGet();
+        DocWriteResponse indexResponse = client().index(request).actionGet();
         assertEquals(RestStatus.CREATED, indexResponse.status());
 
         assertBusy(() -> {
-            Map<String, Object> mappings = indicesAdmin().prepareGetMappings("test").get().mappings().get("test").sourceAsMap();
+            Map<String, Object> mappings = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, "test")
+                .get()
+                .mappings()
+                .get("test")
+                .sourceAsMap();
             @SuppressWarnings("unchecked")
             Map<String, Object> properties = (Map<String, Object>) mappings.get("properties");
             assertEquals(4, properties.size());
@@ -645,11 +859,15 @@ public class DynamicMappingIT extends ESIntegTestCase {
                 "foo.metrics.time.max",
                 1000
             );
-        IndexResponse indexResponse = client().index(request).actionGet();
+        DocWriteResponse indexResponse = client().index(request).actionGet();
         assertEquals(RestStatus.CREATED, indexResponse.status());
 
         assertBusy(() -> {
-            Map<String, Object> mappings = indicesAdmin().prepareGetMappings("test").get().mappings().get("test").sourceAsMap();
+            Map<String, Object> mappings = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, "test")
+                .get()
+                .mappings()
+                .get("test")
+                .sourceAsMap();
             Map<String, Object> properties = (Map<String, Object>) mappings.get("properties");
             Map<String, Object> foo = (Map<String, Object>) properties.get("foo");
             properties = (Map<String, Object>) foo.get("properties");
@@ -661,5 +879,33 @@ public class DynamicMappingIT extends ESIntegTestCase {
             assertNotNull(properties.get("time"));
             assertNotNull(properties.get("time.max"));
         });
+    }
+
+    public void testKnnSubObject() throws Exception {
+        assertAcked(indicesAdmin().prepareCreate("test").setMapping("""
+            {
+              "properties": {
+                "obj": {
+                  "type": "object",
+                  "dynamic": "true"
+                },
+                "mapped_obj": {
+                  "type": "object",
+                  "dynamic": "true",
+                  "properties": {
+                    "vector": {
+                      "type": "dense_vector"
+                    }
+                  }
+                }
+              }
+            }""").get());
+
+        client().index(new IndexRequest("test").source("mapped_obj.vector", Randomness.get().doubles(3, 0.0, 5.0).toArray())).get();
+
+        client().index(
+            new IndexRequest("test").source("obj.vector", Randomness.get().doubles(MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING, 0.0, 5.0).toArray())
+        ).get();
+
     }
 }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.basic;
@@ -11,7 +12,6 @@ package org.elasticsearch.search.basic;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
@@ -27,6 +27,7 @@ import org.junit.After;
 import java.util.List;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyArray;
@@ -43,15 +44,16 @@ public class SearchRedStateIndexIT extends ESIntegTestCase {
         final int numShards = cluster().numDataNodes() + 2;
         buildRedIndex(numShards);
 
-        SearchResponse searchResponse = client().prepareSearch().setSize(0).setAllowPartialSearchResults(true).get();
-        assertThat(RestStatus.OK, equalTo(searchResponse.status()));
-        assertThat("Expect some shards failed", searchResponse.getFailedShards(), allOf(greaterThan(0), lessThanOrEqualTo(numShards)));
-        assertThat("Expect no shards skipped", searchResponse.getSkippedShards(), equalTo(0));
-        assertThat("Expect subset of shards successful", searchResponse.getSuccessfulShards(), lessThan(numShards));
-        assertThat("Expected total shards", searchResponse.getTotalShards(), equalTo(numShards));
-        for (ShardSearchFailure failure : searchResponse.getShardFailures()) {
-            assertThat(failure.getCause(), instanceOf(NoShardAvailableActionException.class));
-        }
+        assertResponse(prepareSearch().setSize(0).setAllowPartialSearchResults(true), response -> {
+            assertThat(RestStatus.OK, equalTo(response.status()));
+            assertThat("Expect some shards failed", response.getFailedShards(), allOf(greaterThan(0), lessThanOrEqualTo(numShards)));
+            assertThat("Expect no shards skipped", response.getSkippedShards(), equalTo(0));
+            assertThat("Expect subset of shards successful", response.getSuccessfulShards(), lessThan(numShards));
+            assertThat("Expected total shards", response.getTotalShards(), equalTo(numShards));
+            for (ShardSearchFailure failure : response.getShardFailures()) {
+                assertThat(failure.getCause(), instanceOf(NoShardAvailableActionException.class));
+            }
+        });
     }
 
     public void testClusterAllowPartialsWithRedState() throws Exception {
@@ -60,18 +62,19 @@ public class SearchRedStateIndexIT extends ESIntegTestCase {
 
         setClusterDefaultAllowPartialResults(true);
 
-        SearchResponse searchResponse = client().prepareSearch().setSize(0).get();
-        assertThat(RestStatus.OK, equalTo(searchResponse.status()));
-        assertThat("Expect some shards failed", searchResponse.getFailedShards(), allOf(greaterThan(0), lessThanOrEqualTo(numShards)));
-        assertThat("Expect no shards skipped", searchResponse.getSkippedShards(), equalTo(0));
-        assertThat("Expect subset of shards successful", searchResponse.getSuccessfulShards(), lessThan(numShards));
-        assertThat("Expected total shards", searchResponse.getTotalShards(), equalTo(numShards));
-        for (ShardSearchFailure failure : searchResponse.getShardFailures()) {
-            assertThat(failure.getCause(), instanceOf(NoShardAvailableActionException.class));
-            assertThat(failure.getCause().getStackTrace(), emptyArray());
-            // We don't write out the entire, repetitive stacktrace in the reason
-            assertThat(failure.reason(), equalTo("org.elasticsearch.action.NoShardAvailableActionException" + System.lineSeparator()));
-        }
+        assertResponse(prepareSearch().setSize(0), response -> {
+            assertThat(RestStatus.OK, equalTo(response.status()));
+            assertThat("Expect some shards failed", response.getFailedShards(), allOf(greaterThan(0), lessThanOrEqualTo(numShards)));
+            assertThat("Expect no shards skipped", response.getSkippedShards(), equalTo(0));
+            assertThat("Expect subset of shards successful", response.getSuccessfulShards(), lessThan(numShards));
+            assertThat("Expected total shards", response.getTotalShards(), equalTo(numShards));
+            for (ShardSearchFailure failure : response.getShardFailures()) {
+                assertThat(failure.getCause(), instanceOf(NoShardAvailableActionException.class));
+                assertThat(failure.getCause().getStackTrace(), emptyArray());
+                // We don't write out the entire, repetitive stacktrace in the reason
+                assertThat(failure.reason(), equalTo("org.elasticsearch.action.NoShardAvailableActionException" + System.lineSeparator()));
+            }
+        });
     }
 
     public void testDisallowPartialsWithRedState() throws Exception {
@@ -79,7 +82,7 @@ public class SearchRedStateIndexIT extends ESIntegTestCase {
 
         SearchPhaseExecutionException ex = expectThrows(
             SearchPhaseExecutionException.class,
-            () -> client().prepareSearch().setSize(0).setAllowPartialSearchResults(false).get()
+            prepareSearch().setSize(0).setAllowPartialSearchResults(false)
         );
         assertThat(ex.getDetailedMessage(), containsString("Search rejected due to missing shard"));
     }
@@ -88,10 +91,7 @@ public class SearchRedStateIndexIT extends ESIntegTestCase {
         buildRedIndex(cluster().numDataNodes() + 2);
 
         setClusterDefaultAllowPartialResults(false);
-        SearchPhaseExecutionException ex = expectThrows(
-            SearchPhaseExecutionException.class,
-            () -> client().prepareSearch().setSize(0).get()
-        );
+        SearchPhaseExecutionException ex = expectThrows(SearchPhaseExecutionException.class, prepareSearch().setSize(0));
         assertThat(ex.getDetailedMessage(), containsString("Search rejected due to missing shard"));
     }
 
@@ -100,7 +100,9 @@ public class SearchRedStateIndexIT extends ESIntegTestCase {
 
         Settings persistentSettings = Settings.builder().put(key, allowPartialResults).build();
 
-        ClusterUpdateSettingsResponse response1 = clusterAdmin().prepareUpdateSettings().setPersistentSettings(persistentSettings).get();
+        ClusterUpdateSettingsResponse response1 = clusterAdmin().prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+            .setPersistentSettings(persistentSettings)
+            .get();
 
         assertAcked(response1);
         assertEquals(response1.getPersistentSettings().getAsBoolean(key, null), allowPartialResults);
@@ -110,16 +112,16 @@ public class SearchRedStateIndexIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test").setSettings(indexSettings(numShards, 0)));
         ensureGreen();
         for (int i = 0; i < 10; i++) {
-            client().prepareIndex("test").setId("" + i).setSource("field1", "value1").get();
+            prepareIndex("test").setId("" + i).setSource("field1", "value1").get();
         }
         refresh();
 
         internalCluster().stopRandomDataNode();
 
-        clusterAdmin().prepareHealth().setWaitForStatus(ClusterHealthStatus.RED).get();
+        clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForStatus(ClusterHealthStatus.RED).get();
 
         assertBusy(() -> {
-            ClusterState state = clusterAdmin().prepareState().get().getState();
+            ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
             List<ShardRouting> unassigneds = RoutingNodesHelper.shardsWithState(state.getRoutingNodes(), ShardRoutingState.UNASSIGNED);
             assertThat(unassigneds.size(), greaterThan(0));
         });

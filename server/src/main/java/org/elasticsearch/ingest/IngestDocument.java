@@ -1,16 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
@@ -18,6 +21,7 @@ import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
 import org.elasticsearch.script.CtxMap;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.TemplateScript;
 
 import java.time.ZoneOffset;
@@ -47,8 +51,13 @@ public final class IngestDocument {
     private static final String INGEST_KEY_PREFIX = INGEST_KEY + ".";
     private static final String SOURCE_PREFIX = SOURCE_KEY + ".";
 
-    public static final String PIPELINE_CYCLE_ERROR_MESSAGE = "Cycle detected for pipeline: ";
+    private static final String PIPELINE_CYCLE_ERROR_MESSAGE = "Cycle detected for pipeline: ";
     static final String TIMESTAMP = "timestamp";
+    // This is the maximum number of nested pipelines that can be within a pipeline. If there are more, we bail out with an error
+    public static final int MAX_PIPELINES = Integer.parseInt(System.getProperty("es.ingest.max_pipelines", "100"));
+
+    // a 'not found' sentinel value for use in getOrDefault calls in order to avoid containsKey-and-then-get
+    private static final Object NOT_FOUND = new Object();
 
     private final IngestCtxMap ctxMap;
     private final Map<String, Object> ingestMetadata;
@@ -77,6 +86,7 @@ public final class IngestDocument {
 
     private boolean doNoSelfReferencesCheck = false;
     private boolean reroute = false;
+    private boolean terminate = false;
 
     public IngestDocument(String index, String id, long version, String routing, VersionType versionType, Map<String, Object> source) {
         this.ctxMap = new IngestCtxMap(index, id, version, routing, versionType, ZonedDateTime.now(ZoneOffset.UTC), source);
@@ -89,17 +99,36 @@ public final class IngestDocument {
     }
 
     // note: these rest of these constructors deal with the data-centric view of the IngestDocument, not the execution-centric view.
-    // For example, the copy constructor doesn't populate the `executedPipelines` or `indexHistory` (as well as some other fields),
+    // For example, the copy constructor doesn't populate the `indexHistory` (as well as some other fields),
     // because those fields are execution-centric.
 
     /**
      * Copy constructor that creates a new {@link IngestDocument} which has exactly the same properties as the one provided.
+     *
+     * @throws IllegalArgumentException if the passed-in ingest document references itself
      */
     public IngestDocument(IngestDocument other) {
         this(
-            new IngestCtxMap(deepCopyMap(other.ctxMap.getSource()), other.ctxMap.getMetadata().clone()),
+            new IngestCtxMap(deepCopyMap(ensureNoSelfReferences(other.ctxMap.getSource())), other.ctxMap.getMetadata().clone()),
             deepCopyMap(other.ingestMetadata)
         );
+        /*
+         * The executedPipelines field is clearly execution-centric rather than data centric. Despite what the comment above says, we're
+         * copying it here anyway. THe reason is that this constructor is only called from two non-test locations, and both of those
+         * involve the simulate pipeline logic. The simulate pipeline logic needs this information. Rather than making the code more
+         * complicated, we're just copying this over here since it does no harm.
+         */
+        this.executedPipelines.addAll(other.executedPipelines);
+    }
+
+    /**
+     * Internal helper utility method to get around the issue that a {@code this(...) } constructor call must be the first statement
+     * in a constructor. This is only for use in the {@link IngestDocument#IngestDocument(IngestDocument)} copy constructor, it's not a
+     * general purpose method.
+     */
+    private static Map<String, Object> ensureNoSelfReferences(Map<String, Object> source) {
+        CollectionUtils.ensureNoSelfReferences(source, null);
+        return source;
     }
 
     /**
@@ -177,18 +206,6 @@ public final class IngestDocument {
     }
 
     /**
-     * Returns the value contained in the document with the provided templated path
-     * @param pathTemplate The path within the document in dot-notation
-     * @param clazz The expected class of the field value
-     * @return the value for the provided path if existing, null otherwise
-     * @throws IllegalArgumentException if the pathTemplate is null, empty, invalid, if the field doesn't exist,
-     * or if the field that is found at the provided path is not of the expected type.
-     */
-    public <T> T getFieldValue(TemplateScript.Factory pathTemplate, Class<T> clazz) {
-        return getFieldValue(renderTemplate(pathTemplate), clazz);
-    }
-
-    /**
      * Returns the value contained in the document for the provided path as a byte array.
      * If the path value is a string, a base64 decode operation will happen.
      * If the path value is a byte array, it is just returned
@@ -224,16 +241,6 @@ public final class IngestDocument {
                 "Content field [" + path + "] of unknown type [" + object.getClass().getName() + "], must be string or byte array"
             );
         }
-    }
-
-    /**
-     * Checks whether the document contains a value for the provided templated path
-     * @param fieldPathTemplate the template for the path within the document in dot-notation
-     * @return true if the document contains a value for the field, false otherwise
-     * @throws IllegalArgumentException if the path is null, empty or invalid
-     */
-    public boolean hasField(TemplateScript.Factory fieldPathTemplate) {
-        return hasField(renderTemplate(fieldPathTemplate));
     }
 
     /**
@@ -318,15 +325,6 @@ public final class IngestDocument {
 
     /**
      * Removes the field identified by the provided path.
-     * @param fieldPathTemplate Resolves to the path with dot-notation within the document
-     * @throws IllegalArgumentException if the path is null, empty, invalid or if the field doesn't exist.
-     */
-    public void removeField(TemplateScript.Factory fieldPathTemplate) {
-        removeField(renderTemplate(fieldPathTemplate));
-    }
-
-    /**
-     * Removes the field identified by the provided path.
      * @param path the path of the field to be removed
      * @throws IllegalArgumentException if the path is null, empty, invalid or if the field doesn't exist.
      */
@@ -381,11 +379,15 @@ public final class IngestDocument {
         if (context == null) {
             return ResolveResult.error("cannot resolve [" + pathElement + "] from null as part of path [" + fullPath + "]");
         }
-        if (context instanceof Map<?, ?> map) {
-            if (map.containsKey(pathElement)) {
-                return ResolveResult.success(map.get(pathElement));
+        if (context instanceof Map<?, ?>) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> map = (Map<String, Object>) context;
+            Object object = map.getOrDefault(pathElement, NOT_FOUND); // getOrDefault is faster than containsKey + get
+            if (object == NOT_FOUND) {
+                return ResolveResult.error("field [" + pathElement + "] not present as part of path [" + fullPath + "]");
+            } else {
+                return ResolveResult.success(object);
             }
-            return ResolveResult.error("field [" + pathElement + "] not present as part of path [" + fullPath + "]");
         }
         if (context instanceof List<?> list) {
             int index;
@@ -455,17 +457,13 @@ public final class IngestDocument {
      * the provided value will be added to the newly created list.
      * Supports multiple values too provided in forms of list, in that case all the values will be appended to the
      * existing (or newly created) list.
-     * @param fieldPathTemplate Resolves to the path with dot-notation within the document
+     * @param path The path within the document in dot-notation
      * @param valueSource The value source that will produce the value or values to append to the existing ones
      * @param allowDuplicates When false, any values that already exist in the field will not be added
      * @throws IllegalArgumentException if the path is null, empty or invalid.
      */
-    public void appendFieldValue(TemplateScript.Factory fieldPathTemplate, ValueSource valueSource, boolean allowDuplicates) {
-        appendFieldValue(
-            fieldPathTemplate.newInstance(templateModel).execute(),
-            valueSource.copyAndResolve(templateModel),
-            allowDuplicates
-        );
+    public void appendFieldValue(String path, ValueSource valueSource, boolean allowDuplicates) {
+        appendFieldValue(path, valueSource.copyAndResolve(templateModel), allowDuplicates);
     }
 
     /**
@@ -486,26 +484,26 @@ public final class IngestDocument {
      * Sets the provided value to the provided path in the document.
      * Any non existing path element will be created. If the last element is a list,
      * the value will replace the existing list.
-     * @param fieldPathTemplate Resolves to the path with dot-notation within the document
+     * @param path The path within the document in dot-notation
      * @param valueSource The value source that will produce the value to put in for the path key
      * @throws IllegalArgumentException if the path is null, empty, invalid or if the value cannot be set to the
      * item identified by the provided path.
      */
-    public void setFieldValue(TemplateScript.Factory fieldPathTemplate, ValueSource valueSource) {
-        setFieldValue(fieldPathTemplate.newInstance(templateModel).execute(), valueSource.copyAndResolve(templateModel));
+    public void setFieldValue(String path, ValueSource valueSource) {
+        setFieldValue(path, valueSource.copyAndResolve(templateModel));
     }
 
     /**
      * Sets the provided value to the provided path in the document.
      * Any non existing path element will be created. If the last element is a list,
      * the value will replace the existing list.
-     * @param fieldPathTemplate Resolves to the path with dot-notation within the document
+     * @param path The path within the document in dot-notation
      * @param valueSource The value source that will produce the value to put in for the path key
      * @param ignoreEmptyValue The flag to determine whether to exit quietly when the value produced by TemplatedValue is null or empty
      * @throws IllegalArgumentException if the path is null, empty, invalid or if the value cannot be set to the
      * item identified by the provided path.
      */
-    public void setFieldValue(TemplateScript.Factory fieldPathTemplate, ValueSource valueSource, boolean ignoreEmptyValue) {
+    public void setFieldValue(String path, ValueSource valueSource, boolean ignoreEmptyValue) {
         Object value = valueSource.copyAndResolve(templateModel);
         if (ignoreEmptyValue && valueSource instanceof ValueSource.TemplatedValue) {
             if (value == null) {
@@ -517,20 +515,20 @@ public final class IngestDocument {
             }
         }
 
-        setFieldValue(fieldPathTemplate.newInstance(templateModel).execute(), value);
+        setFieldValue(path, value);
     }
 
     /**
      * Sets the provided value to the provided path in the document.
      * Any non existing path element will be created. If the last element is a list,
      * the value will replace the existing list.
-     * @param fieldPathTemplate Resolves to the path with dot-notation within the document
+     * @param path The path within the document in dot-notation
      * @param value The value to put in for the path key
      * @param ignoreEmptyValue The flag to determine whether to exit quietly when the value produced by TemplatedValue is null or empty
      * @throws IllegalArgumentException if the path is null, empty, invalid or if the value cannot be set to the
      * item identified by the provided path.
      */
-    public void setFieldValue(TemplateScript.Factory fieldPathTemplate, Object value, boolean ignoreEmptyValue) {
+    public void setFieldValue(String path, Object value, boolean ignoreEmptyValue) {
         if (ignoreEmptyValue) {
             if (value == null) {
                 return;
@@ -542,7 +540,7 @@ public final class IngestDocument {
             }
         }
 
-        setFieldValue(fieldPathTemplate.newInstance(templateModel).execute(), value);
+        setFieldValue(path, value);
     }
 
     private void setFieldValue(String path, Object value, boolean append, boolean allowDuplicates) {
@@ -556,12 +554,13 @@ public final class IngestDocument {
             if (context instanceof Map) {
                 @SuppressWarnings("unchecked")
                 Map<String, Object> map = (Map<String, Object>) context;
-                if (map.containsKey(pathElement)) {
-                    context = map.get(pathElement);
-                } else {
-                    HashMap<Object, Object> newMap = new HashMap<>();
+                Object object = map.getOrDefault(pathElement, NOT_FOUND); // getOrDefault is faster than containsKey + get
+                if (object == NOT_FOUND) {
+                    Map<Object, Object> newMap = new HashMap<>();
                     map.put(pathElement, newMap);
                     context = newMap;
+                } else {
+                    context = object;
                 }
             } else if (context instanceof List<?> list) {
                 int index;
@@ -600,16 +599,16 @@ public final class IngestDocument {
             @SuppressWarnings("unchecked")
             Map<String, Object> map = (Map<String, Object>) context;
             if (append) {
-                if (map.containsKey(leafKey)) {
-                    Object object = map.get(leafKey);
+                Object object = map.getOrDefault(leafKey, NOT_FOUND); // getOrDefault is faster than containsKey + get
+                if (object == NOT_FOUND) {
+                    List<Object> list = new ArrayList<>();
+                    appendValues(list, value);
+                    map.put(leafKey, list);
+                } else {
                     Object list = appendValues(object, value, allowDuplicates);
                     if (list != object) {
                         map.put(leafKey, list);
                     }
-                } else {
-                    List<Object> list = new ArrayList<>();
-                    appendValues(list, value);
-                    map.put(leafKey, list);
                 }
                 return;
             }
@@ -711,6 +710,21 @@ public final class IngestDocument {
         );
     }
 
+    /**
+     * Renders a template into a string. This allows field access via both literal fields like {@code "foo.bar.baz"} and dynamic fields
+     * like {@code "{{other_field}}"} (that is, look up the value of the 'other_field' in the document and then use the resulting string as
+     * the field to operate on).
+     * <p>
+     * See {@link ConfigurationUtils#compileTemplate(String, String, String, String, ScriptService)} and associated methods, which
+     * create these {@link TemplateScript.Factory} instances.
+     * <p>
+     * Note: for clarity and efficiency reasons, it is advisable to invoke this method outside IngestDocument itself -- fields should be
+     * rendered by a caller (once), and then passed to an ingest document repeatedly. There are enough methods on IngestDocument that
+     * operate on String paths already, we don't want to mirror all of them with twin methods that accept a template.
+     *
+     * @param template the template or literal string to evaluate
+     * @return a literal string field path
+     */
     public String renderTemplate(TemplateScript.Factory template) {
         return template.newInstance(templateModel).execute();
     }
@@ -835,7 +849,12 @@ public final class IngestDocument {
             return;
         }
 
-        if (executedPipelines.add(pipeline.getId())) {
+        if (executedPipelines.size() >= MAX_PIPELINES) {
+            handler.accept(
+                null,
+                new GraphStructureException("Too many nested pipelines. Cannot have more than " + MAX_PIPELINES + " nested pipelines")
+            );
+        } else if (executedPipelines.add(pipeline.getId())) {
             Object previousPipeline = ingestMetadata.put("pipeline", pipeline.getId());
             pipeline.execute(this, (result, e) -> {
                 executedPipelines.remove(pipeline.getId());
@@ -847,7 +866,7 @@ public final class IngestDocument {
                 handler.accept(result, e);
             });
         } else {
-            handler.accept(null, new IllegalStateException(PIPELINE_CYCLE_ERROR_MESSAGE + pipeline.getId()));
+            handler.accept(null, new GraphStructureException(PIPELINE_CYCLE_ERROR_MESSAGE + pipeline.getId()));
         }
     }
 
@@ -899,24 +918,6 @@ public final class IngestDocument {
     }
 
     @Override
-    public boolean equals(Object obj) {
-        if (obj == this) {
-            return true;
-        }
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-
-        IngestDocument other = (IngestDocument) obj;
-        return Objects.equals(ctxMap, other.ctxMap) && Objects.equals(ingestMetadata, other.ingestMetadata);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(ctxMap, ingestMetadata);
-    }
-
-    @Override
     public String toString() {
         return "IngestDocument{" + " sourceAndMetadata=" + ctxMap + ", ingestMetadata=" + ingestMetadata + '}';
     }
@@ -944,6 +945,29 @@ public final class IngestDocument {
         reroute = false;
     }
 
+    /**
+     * Sets the terminate flag to true, to indicate that no further processors in the current pipeline should be run for this document.
+     */
+    public void terminate() {
+        terminate = true;
+    }
+
+    /**
+     * Returns whether the {@link #terminate()} flag was set.
+     */
+    boolean isTerminate() {
+        return terminate;
+    }
+
+    /**
+     * Resets the {@link #terminate()} flag.
+     */
+    void resetTerminate() {
+        terminate = false;
+    }
+
+    // Unconditionally deprecate the _type field once V7 BWC support is removed
+    @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
     public enum Metadata {
         INDEX(IndexFieldMapper.NAME),
         TYPE("_type"),

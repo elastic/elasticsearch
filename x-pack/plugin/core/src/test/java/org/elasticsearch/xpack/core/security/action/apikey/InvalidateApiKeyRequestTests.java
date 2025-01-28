@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.security.action.apikey;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.Strings;
@@ -119,7 +120,7 @@ public class InvalidateApiKeyRequestTests extends ESTestCase {
                 super.writeTo(out);
                 out.writeOptionalString(realm);
                 out.writeOptionalString(user);
-                if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_10_0)) {
+                if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_10_0)) {
                     if (Strings.hasText(apiKeyId)) {
                         out.writeOptionalStringArray(new String[] { apiKeyId });
                     } else {
@@ -161,8 +162,8 @@ public class InvalidateApiKeyRequestTests extends ESTestCase {
             ) {
                 TransportVersion streamVersion = randomVersionBetween(
                     random(),
-                    TransportVersion.V_7_4_0,
-                    getPreviousVersion(TransportVersion.V_7_10_0)
+                    TransportVersions.V_7_4_0,
+                    getPreviousVersion(TransportVersions.V_7_10_0)
                 );
                 Dummy d = new Dummy(inputs[caseNo]);
                 osso.setTransportVersion(streamVersion);
@@ -188,11 +189,13 @@ public class InvalidateApiKeyRequestTests extends ESTestCase {
         {
             ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
             OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
-            out.setTransportVersion(randomVersionBetween(random(), TransportVersion.V_7_0_0, TransportVersion.V_7_3_0));
+            out.setTransportVersion(randomVersionBetween(random(), TransportVersions.V_7_0_0, TransportVersions.V_7_3_0));
             invalidateApiKeyRequest.writeTo(out);
 
             InputStreamStreamInput inputStreamStreamInput = new InputStreamStreamInput(new ByteArrayInputStream(outBuffer.toByteArray()));
-            inputStreamStreamInput.setTransportVersion(randomVersionBetween(random(), TransportVersion.V_7_0_0, TransportVersion.V_7_3_0));
+            inputStreamStreamInput.setTransportVersion(
+                randomVersionBetween(random(), TransportVersions.V_7_0_0, TransportVersions.V_7_3_0)
+            );
             InvalidateApiKeyRequest requestFromInputStream = new InvalidateApiKeyRequest(inputStreamStreamInput);
 
             assertThat(requestFromInputStream.getIds(), equalTo(invalidateApiKeyRequest.getIds()));
@@ -202,11 +205,13 @@ public class InvalidateApiKeyRequestTests extends ESTestCase {
         {
             ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
             OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
-            out.setTransportVersion(randomVersionBetween(random(), TransportVersion.V_7_4_0, TransportVersion.V_7_9_0));
+            out.setTransportVersion(randomVersionBetween(random(), TransportVersions.V_7_4_0, TransportVersions.V_7_9_0));
             invalidateApiKeyRequest.writeTo(out);
 
             InputStreamStreamInput inputStreamStreamInput = new InputStreamStreamInput(new ByteArrayInputStream(outBuffer.toByteArray()));
-            inputStreamStreamInput.setTransportVersion(randomVersionBetween(random(), TransportVersion.V_7_4_0, TransportVersion.V_7_9_0));
+            inputStreamStreamInput.setTransportVersion(
+                randomVersionBetween(random(), TransportVersions.V_7_4_0, TransportVersions.V_7_9_0)
+            );
             InvalidateApiKeyRequest requestFromInputStream = new InvalidateApiKeyRequest(inputStreamStreamInput);
 
             assertThat(requestFromInputStream, equalTo(invalidateApiKeyRequest));
@@ -214,11 +219,13 @@ public class InvalidateApiKeyRequestTests extends ESTestCase {
         {
             ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
             OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
-            out.setTransportVersion(randomVersionBetween(random(), TransportVersion.V_7_10_0, TransportVersion.CURRENT));
+            out.setTransportVersion(randomVersionBetween(random(), TransportVersions.V_7_10_0, TransportVersion.current()));
             invalidateApiKeyRequest.writeTo(out);
 
             InputStreamStreamInput inputStreamStreamInput = new InputStreamStreamInput(new ByteArrayInputStream(outBuffer.toByteArray()));
-            inputStreamStreamInput.setTransportVersion(randomVersionBetween(random(), TransportVersion.V_7_10_0, TransportVersion.CURRENT));
+            inputStreamStreamInput.setTransportVersion(
+                randomVersionBetween(random(), TransportVersions.V_7_10_0, TransportVersion.current())
+            );
             InvalidateApiKeyRequest requestFromInputStream = new InvalidateApiKeyRequest(inputStreamStreamInput);
 
             assertThat(requestFromInputStream, equalTo(invalidateApiKeyRequest));
@@ -235,7 +242,7 @@ public class InvalidateApiKeyRequestTests extends ESTestCase {
         );
         ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
         OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
-        out.setTransportVersion(randomVersionBetween(random(), TransportVersion.V_7_4_0, getPreviousVersion(TransportVersion.V_7_10_0)));
+        out.setTransportVersion(randomVersionBetween(random(), TransportVersions.V_7_4_0, getPreviousVersion(TransportVersions.V_7_10_0)));
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> invalidateApiKeyRequest.writeTo(out));
         assertThat(e.getMessage(), containsString("a request with multi-valued field [ids] cannot be sent to an older version"));
     }

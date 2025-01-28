@@ -8,8 +8,7 @@
 package org.elasticsearch.xpack.ml.aggs;
 
 import org.elasticsearch.search.aggregations.Aggregation;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
-import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.InvalidAggregationPathException;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers;
@@ -35,7 +34,7 @@ public final class MlAggsHelper {
      * @param aggregations The aggregations
      * @return The double values and doc_counts extracted from the path if the bucket path exists and the value is a valid number
      */
-    public static Optional<DoubleBucketValues> extractDoubleBucketedValues(String bucketPath, Aggregations aggregations) {
+    public static Optional<DoubleBucketValues> extractDoubleBucketedValues(String bucketPath, InternalAggregations aggregations) {
         return extractDoubleBucketedValues(bucketPath, aggregations, BucketHelpers.GapPolicy.INSERT_ZEROS, false);
     }
 
@@ -51,7 +50,7 @@ public final class MlAggsHelper {
      */
     public static Optional<DoubleBucketValues> extractDoubleBucketedValues(
         String bucketPath,
-        Aggregations aggregations,
+        InternalAggregations aggregations,
         BucketHelpers.GapPolicy gapPolicy,
         boolean excludeLastBucket
     ) {
@@ -76,7 +75,7 @@ public final class MlAggsHelper {
                             bucketCount++;
                             continue;
                         }
-                        throw new AggregationExecutionException(
+                        throw new IllegalArgumentException(
                             "missing or invalid bucket value found for path ["
                                 + bucketPath
                                 + "] in bucket ["
@@ -102,7 +101,7 @@ public final class MlAggsHelper {
 
     public static Optional<InternalMultiBucketAggregation.InternalBucket> extractBucket(
         String bucketPath,
-        Aggregations aggregations,
+        InternalAggregations aggregations,
         int bucket
     ) {
         List<String> parsedPath = AggregationPath.parse(bucketPath).getPathElementsAsStringList();

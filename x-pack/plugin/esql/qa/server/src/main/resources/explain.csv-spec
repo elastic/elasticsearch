@@ -1,0 +1,19 @@
+explainFrom-Ignore
+explain [ from foo ];
+
+plan:keyword | type:keyword
+"?foo" | PARSED
+"org.elasticsearch.xpack.esql.analysis.VerificationException: Found 1 problem
+ line 1:11: Unknown index [foo]" | ANALYZED
+;
+
+
+explainCompositeQuery-Ignore
+explain [ row a = 1 | where b > 0 ];
+
+plan:keyword | type:keyword
+"Filter[?b > 0[INTEGER]]
+\_Row[[1[INTEGER] AS a]]" | PARSED
+"org.elasticsearch.xpack.esql.analysis.VerificationException: Found 1 problem
+ line 1:29: Unknown column [b]" | ANALYZED
+;

@@ -6,6 +6,12 @@
 <titleabbrev>Update {dfanalytics-jobs}</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-ml-data-frame[{ml-cap}  {dfanalytics} APIs].
+--
+
 Updates an existing {dfanalytics-job}.
 
 
@@ -44,7 +50,7 @@ indices and stores the outcome in a destination index.
 
 `<data_frame_analytics_id>`::
 (Required, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-data-frame-analytics-define]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=job-id-data-frame-analytics-define]
 
 [role="child_attributes"]
 [[ml-update-dfanalytics-request-body]]
@@ -62,7 +68,7 @@ the `starting` state until sufficient {ml} node capacity is available.
 
 `description`::
 (Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=description-dfa]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=description-dfa]
 
 `max_num_threads`::
 (Optional, integer)
@@ -74,11 +80,11 @@ functionality other than the analysis itself.
 
 `_meta`::
 (Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=meta]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=meta]
 
 `model_memory_limit`::
 (Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-memory-limit-dfa]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=model-memory-limit-dfa]
 
 [[ml-update-dfanalytics-example]]
 == {api-examples-title}

@@ -118,7 +118,7 @@ class ParsedMediaType {
         return mediaTypeWithoutParameters() + formatParameters(parameters);
     }
 
-    private String formatParameters(Map<String, String> params) {
+    private static String formatParameters(Map<String, String> params) {
         String joined = params.entrySet().stream().map(e -> e.getKey() + "=" + e.getValue()).collect(Collectors.joining(";"));
         return joined.isEmpty() ? "" : ";" + joined;
     }

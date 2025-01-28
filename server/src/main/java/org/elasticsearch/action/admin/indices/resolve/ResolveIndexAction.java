@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.resolve;
@@ -15,29 +16,30 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.action.RemoteClusterActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.ResolvedExpression;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.concurrent.CountDown;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportService;
@@ -57,6 +59,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.action.search.TransportSearchHelper.checkCCSVersionCompatibility;
 
@@ -64,9 +67,10 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
 
     public static final ResolveIndexAction INSTANCE = new ResolveIndexAction();
     public static final String NAME = "indices:admin/resolve/index";
+    public static final RemoteClusterActionType<Response> REMOTE_TYPE = new RemoteClusterActionType<>(NAME, Response::new);
 
     private ResolveIndexAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
     public static class Request extends ActionRequest implements IndicesRequest.Replaceable {
@@ -389,9 +393,9 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
         }
 
         public Response(StreamInput in) throws IOException {
-            this.indices = in.readList(ResolvedIndex::new);
-            this.aliases = in.readList(ResolvedAlias::new);
-            this.dataStreams = in.readList(ResolvedDataStream::new);
+            this.indices = in.readCollectionAsList(ResolvedIndex::new);
+            this.aliases = in.readCollectionAsList(ResolvedAlias::new);
+            this.dataStreams = in.readCollectionAsList(ResolvedDataStream::new);
         }
 
         public List<ResolvedIndex> getIndices() {
@@ -408,9 +412,9 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeList(indices);
-            out.writeList(aliases);
-            out.writeList(dataStreams);
+            out.writeCollection(indices);
+            out.writeCollection(aliases);
+            out.writeCollection(dataStreams);
         }
 
         @Override
@@ -439,7 +443,6 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
 
     public static class TransportAction extends HandledTransportAction<Request, Response> {
 
-        private final ThreadPool threadPool;
         private final ClusterService clusterService;
         private final RemoteClusterService remoteClusterService;
         private final IndexNameExpressionResolver indexNameExpressionResolver;
@@ -449,12 +452,10 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
         public TransportAction(
             TransportService transportService,
             ClusterService clusterService,
-            ThreadPool threadPool,
             ActionFilters actionFilters,
             IndexNameExpressionResolver indexNameExpressionResolver
         ) {
-            super(NAME, transportService, actionFilters, Request::new);
-            this.threadPool = threadPool;
+            super(NAME, transportService, actionFilters, Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
             this.clusterService = clusterService;
             this.remoteClusterService = transportService.getRemoteClusterService();
             this.indexNameExpressionResolver = indexNameExpressionResolver;
@@ -492,9 +493,13 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                 for (Map.Entry<String, OriginalIndices> remoteIndices : remoteClusterIndices.entrySet()) {
                     String clusterAlias = remoteIndices.getKey();
                     OriginalIndices originalIndices = remoteIndices.getValue();
-                    Client remoteClusterClient = remoteClusterService.getRemoteClusterClient(threadPool, clusterAlias);
+                    var remoteClusterClient = remoteClusterService.getRemoteClusterClient(
+                        clusterAlias,
+                        EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                        RemoteClusterService.DisconnectedStrategy.RECONNECT_UNLESS_SKIP_UNAVAILABLE
+                    );
                     Request remoteRequest = new Request(originalIndices.indices(), originalIndices.indicesOptions());
-                    remoteClusterClient.admin().indices().resolveIndex(remoteRequest, ActionListener.wrap(response -> {
+                    remoteClusterClient.execute(ResolveIndexAction.REMOTE_TYPE, remoteRequest, ActionListener.wrap(response -> {
                         remoteResponses.put(clusterAlias, response);
                         terminalHandler.run();
                     }, failure -> terminalHandler.run()));
@@ -539,7 +544,6 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
          * @param aliases        List containing any matching aliases
          * @param dataStreams    List containing any matching data streams
          */
-        // visible for testing
         static void resolveIndices(
             String[] names,
             IndicesOptions indicesOptions,
@@ -563,8 +567,8 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             if (names.length == 1 && (Metadata.ALL.equals(names[0]) || Regex.isMatchAllPattern(names[0]))) {
                 names = new String[] { "**" };
             }
-            Set<String> resolvedIndexAbstractions = resolver.resolveExpressions(clusterState, indicesOptions, true, names);
-            for (String s : resolvedIndexAbstractions) {
+            Set<ResolvedExpression> resolvedIndexAbstractions = resolver.resolveExpressions(clusterState, indicesOptions, true, names);
+            for (ResolvedExpression s : resolvedIndexAbstractions) {
                 enrichIndexAbstraction(clusterState, s, indices, aliases, dataStreams);
             }
             indices.sort(Comparator.comparing(ResolvedIndexAbstraction::getName));
@@ -595,12 +599,13 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
 
         private static void enrichIndexAbstraction(
             ClusterState clusterState,
-            String indexAbstraction,
+            ResolvedExpression resolvedExpression,
             List<ResolvedIndex> indices,
             List<ResolvedAlias> aliases,
             List<ResolvedDataStream> dataStreams
         ) {
-            IndexAbstraction ia = clusterState.metadata().getIndicesLookup().get(indexAbstraction);
+            SortedMap<String, IndexAbstraction> indicesLookup = clusterState.metadata().getIndicesLookup();
+            IndexAbstraction ia = indicesLookup.get(resolvedExpression.resource());
             if (ia != null) {
                 switch (ia.getType()) {
                     case CONCRETE_INDEX -> {
@@ -629,20 +634,52 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                         );
                     }
                     case ALIAS -> {
-                        String[] indexNames = ia.getIndices().stream().map(Index::getName).toArray(String[]::new);
+                        String[] indexNames = getAliasIndexStream(resolvedExpression, ia, clusterState.metadata()).map(Index::getName)
+                            .toArray(String[]::new);
                         Arrays.sort(indexNames);
                         aliases.add(new ResolvedAlias(ia.getName(), indexNames));
                     }
                     case DATA_STREAM -> {
                         DataStream dataStream = (DataStream) ia;
-                        String[] backingIndices = dataStream.getIndices().stream().map(Index::getName).toArray(String[]::new);
-                        dataStreams.add(
-                            new ResolvedDataStream(dataStream.getName(), backingIndices, dataStream.getTimeStampField().getName())
-                        );
+                        Stream<Index> dataStreamIndices = resolvedExpression.selector() == null
+                            ? dataStream.getIndices().stream()
+                            : switch (resolvedExpression.selector()) {
+                                case DATA -> dataStream.getDataComponent().getIndices().stream();
+                                case FAILURES -> dataStream.getFailureIndices().stream();
+                                case ALL_APPLICABLE -> Stream.concat(
+                                    dataStream.getIndices().stream(),
+                                    dataStream.getFailureIndices().stream()
+                                );
+                            };
+                        String[] backingIndices = dataStreamIndices.map(Index::getName).toArray(String[]::new);
+                        dataStreams.add(new ResolvedDataStream(dataStream.getName(), backingIndices, DataStream.TIMESTAMP_FIELD_NAME));
                     }
                     default -> throw new IllegalStateException("unknown index abstraction type: " + ia.getType());
                 }
             }
+        }
+
+        private static Stream<Index> getAliasIndexStream(ResolvedExpression resolvedExpression, IndexAbstraction ia, Metadata metadata) {
+            Stream<Index> aliasIndices;
+            if (resolvedExpression.selector() == null) {
+                aliasIndices = ia.getIndices().stream();
+            } else {
+                aliasIndices = switch (resolvedExpression.selector()) {
+                    case DATA -> ia.getIndices().stream();
+                    case FAILURES -> {
+                        assert ia.isDataStreamRelated() : "Illegal selector [failures] used on non data stream alias";
+                        yield ia.getFailureIndices(metadata).stream();
+                    }
+                    case ALL_APPLICABLE -> {
+                        if (ia.isDataStreamRelated()) {
+                            yield Stream.concat(ia.getIndices().stream(), ia.getFailureIndices(metadata).stream());
+                        } else {
+                            yield ia.getIndices().stream();
+                        }
+                    }
+                };
+            }
+            return aliasIndices;
         }
 
         enum Attribute {
@@ -652,6 +689,5 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             SYSTEM,
             FROZEN
         }
-
     }
 }

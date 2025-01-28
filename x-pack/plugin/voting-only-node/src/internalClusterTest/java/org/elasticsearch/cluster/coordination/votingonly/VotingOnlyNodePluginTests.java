@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.cluster.coordination.votingonly;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
@@ -19,12 +18,15 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
+import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.snapshots.SnapshotInfo;
@@ -75,14 +77,12 @@ public class VotingOnlyNodePluginTests extends ESIntegTestCase {
         internalCluster().startNode(addRoles(Set.of(DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE)));
         assertBusy(
             () -> assertThat(
-                client().admin().cluster().prepareState().get().getState().getLastCommittedConfiguration().getNodeIds(),
+                clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().getLastCommittedConfiguration().getNodeIds(),
                 hasSize(3)
             )
         );
         assertThat(
-            client().admin()
-                .cluster()
-                .prepareClusterStats()
+            clusterAdmin().prepareClusterStats()
                 .get()
                 .getNodesStats()
                 .getCounts()
@@ -91,8 +91,8 @@ public class VotingOnlyNodePluginTests extends ESIntegTestCase {
                 .intValue(),
             equalTo(1)
         );
-        assertThat(client().admin().cluster().prepareNodesStats("voting_only:true").get().getNodes(), hasSize(1));
-        assertThat(client().admin().cluster().prepareNodesStats("master:true", "voting_only:false").get().getNodes(), hasSize(2));
+        assertThat(clusterAdmin().prepareNodesStats("voting_only:true").get().getNodes(), hasSize(1));
+        assertThat(clusterAdmin().prepareNodesStats("master:true", "voting_only:false").get().getNodes(), hasSize(2));
     }
 
     public void testPreferFullMasterOverVotingOnlyNodes() throws Exception {
@@ -102,17 +102,19 @@ public class VotingOnlyNodePluginTests extends ESIntegTestCase {
         internalCluster().startDataOnlyNodes(randomInt(2));
         assertBusy(
             () -> assertThat(
-                client().admin().cluster().prepareState().get().getState().getLastCommittedConfiguration().getNodeIds().size(),
+                clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().getLastCommittedConfiguration().getNodeIds().size(),
                 equalTo(3)
             )
         );
         final String originalMaster = internalCluster().getMasterName();
 
         internalCluster().stopCurrentMasterNode();
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).get();
+        clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForEvents(Priority.LANGUID).get();
         assertNotEquals(originalMaster, internalCluster().getMasterName());
         assertThat(
-            VotingOnlyNodePlugin.isVotingOnlyNode(client().admin().cluster().prepareState().get().getState().nodes().getMasterNode()),
+            VotingOnlyNodePlugin.isVotingOnlyNode(
+                clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().nodes().getMasterNode()
+            ),
             equalTo(false)
         );
     }
@@ -122,12 +124,14 @@ public class VotingOnlyNodePluginTests extends ESIntegTestCase {
         internalCluster().startNodes(addRoles(Set.of(DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE)), Settings.EMPTY, Settings.EMPTY);
         assertBusy(
             () -> assertThat(
-                client().admin().cluster().prepareState().get().getState().getLastCommittedConfiguration().getNodeIds().size(),
+                clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().getLastCommittedConfiguration().getNodeIds().size(),
                 equalTo(3)
             )
         );
         assertThat(
-            VotingOnlyNodePlugin.isVotingOnlyNode(client().admin().cluster().prepareState().get().getState().nodes().getMasterNode()),
+            VotingOnlyNodePlugin.isVotingOnlyNode(
+                clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().nodes().getMasterNode()
+            ),
             equalTo(false)
         );
     }
@@ -141,9 +145,11 @@ public class VotingOnlyNodePluginTests extends ESIntegTestCase {
                 .build()
         );
         internalCluster().startNode();
-        assertBusy(() -> assertThat(client().admin().cluster().prepareState().get().getState().getNodes().getSize(), equalTo(2)));
+        assertBusy(() -> assertThat(clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().getNodes().getSize(), equalTo(2)));
         assertThat(
-            VotingOnlyNodePlugin.isVotingOnlyNode(client().admin().cluster().prepareState().get().getState().nodes().getMasterNode()),
+            VotingOnlyNodePlugin.isVotingOnlyNode(
+                clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().nodes().getMasterNode()
+            ),
             equalTo(false)
         );
     }
@@ -155,23 +161,20 @@ public class VotingOnlyNodePluginTests extends ESIntegTestCase {
         internalCluster().startDataOnlyNodes(randomInt(2));
         assertBusy(
             () -> assertThat(
-                client().admin().cluster().prepareState().get().getState().getLastCommittedConfiguration().getNodeIds().size(),
+                clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().getLastCommittedConfiguration().getNodeIds().size(),
                 equalTo(3)
             )
         );
-        final String oldMasterId = client().admin().cluster().prepareState().get().getState().nodes().getMasterNodeId();
+        final String oldMasterId = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().nodes().getMasterNodeId();
 
         internalCluster().stopCurrentMasterNode();
 
         expectThrows(
             MasterNotDiscoveredException.class,
             () -> assertThat(
-                client().admin()
-                    .cluster()
-                    .prepareState()
-                    .setMasterNodeTimeout("100ms")
-                    .execute()
-                    .actionGet()
+                clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
+                    .setMasterNodeTimeout(TimeValue.timeValueMillis(100))
+                    .get()
                     .getState()
                     .nodes()
                     .getMasterNodeId(),
@@ -182,7 +185,7 @@ public class VotingOnlyNodePluginTests extends ESIntegTestCase {
         // start a fresh full master node, which will be brought into the cluster as master by the voting-only nodes
         final String newMaster = internalCluster().startNode();
         assertEquals(newMaster, internalCluster().getMasterName());
-        final String newMasterId = client().admin().cluster().prepareState().get().getState().nodes().getMasterNodeId();
+        final String newMasterId = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().nodes().getMasterNodeId();
         assertNotEquals(oldMasterId, newMasterId);
     }
 
@@ -201,9 +204,7 @@ public class VotingOnlyNodePluginTests extends ESIntegTestCase {
         final String nonDedicatedVotingOnlyNode = internalCluster().startNode(dataContainingVotingOnlyNodeSettings);
 
         assertAcked(
-            client().admin()
-                .cluster()
-                .preparePutRepository("test-repo")
+            clusterAdmin().preparePutRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "test-repo")
                 .setType("verifyaccess-fs")
                 .setSettings(Settings.builder().put("location", randomRepoPath()).put("compress", randomBoolean()))
         );
@@ -212,7 +213,11 @@ public class VotingOnlyNodePluginTests extends ESIntegTestCase {
         createIndex("test-idx-3");
         ensureGreen();
 
-        VerifyRepositoryResponse verifyResponse = client().admin().cluster().prepareVerifyRepository("test-repo").get();
+        VerifyRepositoryResponse verifyResponse = clusterAdmin().prepareVerifyRepository(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            "test-repo"
+        ).get();
         // only the da
         assertEquals(3, verifyResponse.getNodes().size());
         assertTrue(verifyResponse.getNodes().stream().noneMatch(nw -> nw.getName().equals(dedicatedVotingOnlyNode)));
@@ -224,7 +229,7 @@ public class VotingOnlyNodePluginTests extends ESIntegTestCase {
         Client client = client();
         CreateSnapshotResponse createSnapshotResponse = client.admin()
             .cluster()
-            .prepareCreateSnapshot("test-repo", "test-snap")
+            .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, "test-repo", "test-snap")
             .setWaitForCompletion(true)
             .setIndices(indicesToSnapshot)
             .get();
@@ -236,14 +241,14 @@ public class VotingOnlyNodePluginTests extends ESIntegTestCase {
 
         List<SnapshotInfo> snapshotInfos = client.admin()
             .cluster()
-            .prepareGetSnapshots("test-repo")
+            .prepareGetSnapshots(TEST_REQUEST_TIMEOUT, "test-repo")
             .setSnapshots(randomFrom("test-snap", "_all", "*", "*-snap", "test*"))
             .get()
             .getSnapshots();
         assertThat(snapshotInfos.size(), Matchers.equalTo(1));
         SnapshotInfo snapshotInfo = snapshotInfos.get(0);
         assertThat(snapshotInfo.state(), Matchers.equalTo(SnapshotState.SUCCESS));
-        assertThat(snapshotInfo.version(), Matchers.equalTo(Version.CURRENT));
+        assertThat(snapshotInfo.version(), Matchers.equalTo(IndexVersion.current()));
 
         logger.info("--> close indices");
         client.admin().indices().prepareClose("test-idx-1", "test-idx-2").get();
@@ -251,10 +256,9 @@ public class VotingOnlyNodePluginTests extends ESIntegTestCase {
         logger.info("--> restore all indices from the snapshot");
         RestoreSnapshotResponse restoreSnapshotResponse = client.admin()
             .cluster()
-            .prepareRestoreSnapshot("test-repo", "test-snap")
+            .prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, "test-repo", "test-snap")
             .setWaitForCompletion(true)
-            .execute()
-            .actionGet();
+            .get();
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
 
         ensureGreen();
@@ -268,7 +272,8 @@ public class VotingOnlyNodePluginTests extends ESIntegTestCase {
             NamedXContentRegistry namedXContentRegistry,
             ClusterService clusterService,
             BigArrays bigArrays,
-            RecoverySettings recoverySettings
+            RecoverySettings recoverySettings,
+            RepositoriesMetrics repositoriesMetrics
         ) {
             return Collections.singletonMap(
                 "verifyaccess-fs",

@@ -38,7 +38,7 @@ public class MonitoringBulkRequest extends ActionRequest {
 
     public MonitoringBulkRequest(StreamInput in) throws IOException {
         super(in);
-        docs.addAll(in.readList(MonitoringBulkDoc::new));
+        docs.addAll(in.readCollectionAsList(MonitoringBulkDoc::new));
     }
 
     /**
@@ -83,8 +83,10 @@ public class MonitoringBulkRequest extends ActionRequest {
     ) throws IOException {
 
         // MonitoringBulkRequest accepts a body request that has the same format as the BulkRequest
-        new BulkRequestParser(false, RestApiVersion.current()).parse(
+        new BulkRequestParser(false, true, RestApiVersion.current()).parse(
             content,
+            null,
+            null,
             null,
             null,
             null,
@@ -120,6 +122,6 @@ public class MonitoringBulkRequest extends ActionRequest {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeList(docs);
+        out.writeCollection(docs);
     }
 }

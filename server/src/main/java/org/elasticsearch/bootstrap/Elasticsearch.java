@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.bootstrap;
@@ -12,29 +13,42 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.config.Configurator;
-import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.StringHelper;
+import org.apache.lucene.util.VectorUtil;
+import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
+import org.elasticsearch.ReleaseVersions;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.ReferenceDocs;
-import org.elasticsearch.common.filesystem.FileSystemNatives;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.network.IfConfig;
 import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
+import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.entitlement.bootstrap.EntitlementBootstrap;
+import org.elasticsearch.entitlement.runtime.policy.LoadNativeLibrariesEntitlement;
+import org.elasticsearch.entitlement.runtime.policy.Policy;
+import org.elasticsearch.entitlement.runtime.policy.PolicyParserUtils;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.jdk.JarHell;
+import org.elasticsearch.jdk.RuntimeVersionFeature;
 import org.elasticsearch.monitor.jvm.HotThreads;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.os.OsProbe;
 import org.elasticsearch.monitor.process.ProcessProbe;
+import org.elasticsearch.nativeaccess.NativeAccess;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeValidationException;
+import org.elasticsearch.plugins.PluginsLoader;
+import org.elasticsearch.rest.MethodHandlers;
+import org.elasticsearch.transport.RequestHandlerRegistry;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -44,12 +58,19 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.Permission;
 import java.security.Security;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.bootstrap.BootstrapSettings.SECURITY_FILTER_BAD_DEFAULTS_SETTING;
+import static org.elasticsearch.nativeaccess.WindowsFunctions.ConsoleCtrlHandler.CTRL_CLOSE_EVENT;
 
 /**
  * This class starts elasticsearch.
@@ -96,6 +117,9 @@ class Elasticsearch {
         final PrintStream out = getStdout();
         final PrintStream err = getStderr();
         final ServerArgs args;
+        final boolean entitlementsExplicitlyEnabled = Booleans.parseBoolean(System.getProperty("es.entitlements.enabled", "false"));
+        // java 24+ only supports entitlements, but it may be enabled on earlier versions explicitly
+        final boolean useEntitlements = RuntimeVersionFeature.isSecurityManagerAvailable() == false || entitlementsExplicitlyEnabled;
         try {
             initSecurityProperties();
 
@@ -104,12 +128,14 @@ class Elasticsearch {
              * the presence of a security manager or lack thereof act as if there is a security manager present (e.g., DNS cache policy).
              * This forces such policies to take effect immediately.
              */
-            org.elasticsearch.bootstrap.Security.setSecurityManager(new SecurityManager() {
-                @Override
-                public void checkPermission(Permission perm) {
-                    // grant all permissions so that we can later set the security manager to the one that we want
-                }
-            });
+            if (useEntitlements == false && RuntimeVersionFeature.isSecurityManagerAvailable()) {
+                org.elasticsearch.bootstrap.Security.setSecurityManager(new SecurityManager() {
+                    @Override
+                    public void checkPermission(Permission perm) {
+                        // grant all permissions so that we can later set the security manager to the one that we want
+                    }
+                });
+            }
             LogConfigurator.registerErrorListener();
 
             BootstrapInfo.init();
@@ -135,7 +161,7 @@ class Elasticsearch {
             return null; // unreachable, to satisfy compiler
         }
 
-        return new Bootstrap(out, err, args);
+        return new Bootstrap(out, err, args, useEntitlements);
     }
 
     /**
@@ -170,7 +196,7 @@ class Elasticsearch {
         // initialize probes before the security manager is installed
         initializeProbes();
 
-        Runtime.getRuntime().addShutdownHook(new Thread(Elasticsearch::shutdown));
+        Runtime.getRuntime().addShutdownHook(new Thread(Elasticsearch::shutdown, "elasticsearch-shutdown"));
 
         // look for jar hell
         final Logger logger = LogManager.getLogger(JarHell.class);
@@ -179,21 +205,71 @@ class Elasticsearch {
         // Log ifconfig output before SecurityManager is installed
         IfConfig.logIfNecessary();
 
-        try {
+        ensureInitialized(
+            // ReleaseVersions does nontrivial static initialization which should always succeed but load it now (before SM) to be sure
+            ReleaseVersions.class,
             // ReferenceDocs class does nontrivial static initialization which should always succeed but load it now (before SM) to be sure
-            MethodHandles.publicLookup().ensureInitialized(ReferenceDocs.class);
-            // AbstractRefCounted class uses MethodHandles.lookup during initialization, load it now (before SM) to be sure it succeeds
-            MethodHandles.publicLookup().ensureInitialized(AbstractRefCounted.class);
-        } catch (IllegalAccessException unexpected) {
-            throw new AssertionError(unexpected);
+            ReferenceDocs.class,
+            // The following classes use MethodHandles.lookup during initialization, load them now (before SM) to be sure they succeed
+            AbstractRefCounted.class,
+            SubscribableListener.class,
+            RunOnce.class,
+            // We eagerly initialize to work around log4j permissions & JDK-8309727
+            VectorUtil.class,
+            // RequestHandlerRegistry and MethodHandlers classes do nontrivial static initialization which should always succeed but load
+            // it now (before SM) to be sure
+            RequestHandlerRegistry.class,
+            MethodHandlers.class
+        );
+
+        // load the plugin Java modules and layers now for use in entitlements
+        var modulesBundles = PluginsLoader.loadModulesBundles(nodeEnv.modulesFile());
+        var pluginsBundles = PluginsLoader.loadPluginsBundles(nodeEnv.pluginsFile());
+
+        final PluginsLoader pluginsLoader;
+
+        if (bootstrap.useEntitlements()) {
+            LogManager.getLogger(Elasticsearch.class).info("Bootstrapping Entitlements");
+
+            var pluginData = Stream.concat(
+                modulesBundles.stream()
+                    .map(bundle -> new PolicyParserUtils.PluginData(bundle.getDir(), bundle.pluginDescriptor().isModular(), false)),
+                pluginsBundles.stream()
+                    .map(bundle -> new PolicyParserUtils.PluginData(bundle.getDir(), bundle.pluginDescriptor().isModular(), true))
+            ).toList();
+            var pluginPolicies = PolicyParserUtils.createPluginPolicies(pluginData);
+
+            pluginsLoader = PluginsLoader.createPluginsLoader(modulesBundles, pluginsBundles, findPluginsWithNativeAccess(pluginPolicies));
+
+            var pluginsResolver = PluginsResolver.create(pluginsLoader);
+            EntitlementBootstrap.bootstrap(pluginPolicies, pluginsResolver::resolveClassToPluginName);
+        } else if (RuntimeVersionFeature.isSecurityManagerAvailable()) {
+            // no need to explicitly enable native access for legacy code
+            pluginsLoader = PluginsLoader.createPluginsLoader(modulesBundles, pluginsBundles, Map.of());
+            // install SM after natives, shutdown hooks, etc.
+            LogManager.getLogger(Elasticsearch.class).info("Bootstrapping java SecurityManager");
+            org.elasticsearch.bootstrap.Security.configure(
+                nodeEnv,
+                SECURITY_FILTER_BAD_DEFAULTS_SETTING.get(args.nodeSettings()),
+                args.pidFile()
+            );
+        } else {
+            // TODO: should we throw/interrupt startup in this case?
+            pluginsLoader = PluginsLoader.createPluginsLoader(modulesBundles, pluginsBundles, Map.of());
+            LogManager.getLogger(Elasticsearch.class).warn("Bootstrapping without any protection");
         }
 
-        // install SM after natives, shutdown hooks, etc.
-        org.elasticsearch.bootstrap.Security.configure(
-            nodeEnv,
-            SECURITY_FILTER_BAD_DEFAULTS_SETTING.get(args.nodeSettings()),
-            args.pidFile()
-        );
+        bootstrap.setPluginsLoader(pluginsLoader);
+    }
+
+    private static void ensureInitialized(Class<?>... classes) {
+        for (final var clazz : classes) {
+            try {
+                MethodHandles.publicLookup().ensureInitialized(clazz);
+            } catch (IllegalAccessException unexpected) {
+                throw new AssertionError(unexpected);
+            }
+        }
     }
 
     /**
@@ -217,14 +293,18 @@ class Elasticsearch {
     private static void initPhase3(Bootstrap bootstrap) throws IOException, NodeValidationException {
         checkLucene();
 
-        Node node = new Node(bootstrap.environment()) {
+        Node node = new Node(bootstrap.environment(), bootstrap.pluginsLoader()) {
             @Override
             protected void validateNodeBeforeAcceptingRequests(
                 final BootstrapContext context,
                 final BoundTransportAddress boundTransportAddress,
                 List<BootstrapCheck> checks
             ) throws NodeValidationException {
-                BootstrapChecks.check(context, boundTransportAddress, checks);
+                var additionalChecks = new ArrayList<>(checks);
+                if (bootstrap.useEntitlements() == false) {
+                    additionalChecks.add(new BootstrapChecks.AllPermissionCheck());
+                }
+                BootstrapChecks.check(context, boundTransportAddress, additionalChecks);
             }
         };
         INSTANCE = new Elasticsearch(bootstrap.spawner(), node);
@@ -260,9 +340,10 @@ class Elasticsearch {
      */
     static void initializeNatives(final Path tmpFile, final boolean mlockAll, final boolean systemCallFilter, final boolean ctrlHandler) {
         final Logger logger = LogManager.getLogger(Elasticsearch.class);
+        var nativeAccess = NativeAccess.instance();
 
         // check if the user is running as root, and bail
-        if (Natives.definitelyRunningAsRoot()) {
+        if (nativeAccess.definitelyRunningAsRoot()) {
             throw new RuntimeException("can not run elasticsearch as root");
         }
 
@@ -272,49 +353,31 @@ class Elasticsearch {
              *
              * TODO: should we fail hard here if system call filters fail to install, or remain lenient in non-production environments?
              */
-            Natives.tryInstallSystemCallFilter(tmpFile);
+            nativeAccess.tryInstallExecSandbox();
         }
 
         // mlockall if requested
         if (mlockAll) {
-            if (Constants.WINDOWS) {
-                Natives.tryVirtualLock();
-            } else {
-                Natives.tryMlockall();
-            }
+            nativeAccess.tryLockMemory();
         }
 
         // listener for windows close event
         if (ctrlHandler) {
-            Natives.addConsoleCtrlHandler(new ConsoleCtrlHandler() {
-                @Override
-                public boolean handle(int code) {
+            var windowsFunctions = nativeAccess.getWindowsFunctions();
+            if (windowsFunctions != null) {
+                windowsFunctions.addConsoleCtrlHandler(code -> {
                     if (CTRL_CLOSE_EVENT == code) {
                         logger.info("running graceful exit on windows");
                         shutdown();
                         return true;
                     }
                     return false;
-                }
-            });
+                });
+            }
         }
-
-        // force remainder of JNA to be loaded (if available).
-        try {
-            JNAKernel32Library.getInstance();
-        } catch (Exception ignored) {
-            // we've already logged this.
-        }
-
-        Natives.trySetMaxNumberOfThreads();
-        Natives.trySetMaxSizeVirtualMemory();
-        Natives.trySetMaxFileSize();
 
         // init lucene random seed. it will use /dev/urandom where available:
         StringHelper.randomId();
-
-        // init filesystem natives
-        FileSystemNatives.init();
     }
 
     static void initializeProbes() {
@@ -326,10 +389,10 @@ class Elasticsearch {
     }
 
     static void checkLucene() {
-        if (Version.CURRENT.luceneVersion().equals(org.apache.lucene.util.Version.LATEST) == false) {
+        if (IndexVersion.current().luceneVersion().equals(org.apache.lucene.util.Version.LATEST) == false) {
             throw new AssertionError(
                 "Lucene version mismatch this version of Elasticsearch requires lucene version ["
-                    + Version.CURRENT.luceneVersion()
+                    + IndexVersion.current().luceneVersion()
                     + "]  but the current lucene version is ["
                     + org.apache.lucene.util.Version.LATEST
                     + "]"
@@ -360,7 +423,7 @@ class Elasticsearch {
                     Bootstrap.exit(1);
                 }
             }
-        }).start();
+        }, "elasticsearch-cli-monitor-thread").start();
     }
 
     /**
@@ -417,6 +480,19 @@ class Elasticsearch {
         return new Environment(builder.build(), configDir);
     }
 
+    static Map<String, Set<String>> findPluginsWithNativeAccess(Map<String, Policy> policies) {
+        Map<String, Set<String>> pluginsWithNativeAccess = new HashMap<>();
+        for (var kv : policies.entrySet()) {
+            for (var scope : kv.getValue().scopes()) {
+                if (scope.entitlements().stream().anyMatch(entitlement -> entitlement instanceof LoadNativeLibrariesEntitlement)) {
+                    var modulesToEnable = pluginsWithNativeAccess.computeIfAbsent(kv.getKey(), k -> new HashSet<>());
+                    modulesToEnable.add(scope.moduleName());
+                }
+            }
+        }
+        return pluginsWithNativeAccess;
+    }
+
     // -- instance
 
     private static volatile Elasticsearch INSTANCE;
@@ -435,7 +511,7 @@ class Elasticsearch {
             } catch (InterruptedException e) {
                 // bail out
             }
-        }, "elasticsearch[keepAlive/" + Version.CURRENT + "]");
+        }, "elasticsearch[keepAlive/" + Build.current().version() + "]");
     }
 
     private void start() throws NodeValidationException {
@@ -444,6 +520,8 @@ class Elasticsearch {
     }
 
     private static void shutdown() {
+        ElasticsearchProcess.markStopping();
+
         if (INSTANCE == null) {
             return; // never got far enough
         }

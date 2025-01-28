@@ -34,7 +34,7 @@ public class FieldExtractorRegistry {
         return cache.computeIfAbsent(Expressions.id(expression), k -> createKeyExtractionFor(expression));
     }
 
-    private FieldExtraction createKeyExtractionFor(Expression expression) {
+    private static FieldExtraction createKeyExtractionFor(Expression expression) {
         if (expression instanceof FieldAttribute fieldAttribute) {
             FieldAttribute fa = fieldAttribute.exactAttribute();
             if (fa.isNested()) {
@@ -48,7 +48,7 @@ public class FieldExtractorRegistry {
         throw new EqlIllegalArgumentException("Unsupported expression [{}]", expression);
     }
 
-    private FieldExtraction createFieldExtractionFor(Expression expression) {
+    private static FieldExtraction createFieldExtractionFor(Expression expression) {
         if (expression instanceof FieldAttribute fieldAttribute) {
             FieldAttribute fa = fieldAttribute.exactAttribute();
             if (fa.isNested()) {
@@ -66,7 +66,7 @@ public class FieldExtractorRegistry {
         throw new EqlIllegalArgumentException("Unsupported expression [{}]", expression);
     }
 
-    private FieldExtraction topHitFieldExtractor(FieldAttribute fieldAttr) {
+    private static FieldExtraction topHitFieldExtractor(FieldAttribute fieldAttr) {
         return new SearchHitFieldRef(fieldAttr.name(), fieldAttr.field().getDataType(), fieldAttr.field().isAlias());
     }
 }

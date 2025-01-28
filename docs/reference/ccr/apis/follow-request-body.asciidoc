@@ -2,6 +2,7 @@
   (object) Settings to override from the leader index. Note that certain
   settings can not be overrode (e.g., `index.number_of_shards`).
 
+// tag::ccr-resume-follow-request-body[]
 `max_read_request_operation_count`::
   (integer) The maximum number of operations to pull per read from the remote
   cluster.
@@ -101,3 +102,4 @@ values for the above described index follow request parameters:
 }
 
 --------------------------------------------------
+// end::ccr-resume-follow-request-body[]

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.reindex.remote;
@@ -149,7 +150,7 @@ public class RemoteRequestBuildersTests extends ESTestCase {
 
         TimeValue scroll = null;
         if (randomBoolean()) {
-            scroll = TimeValue.parseTimeValue(randomPositiveTimeValue(), "test");
+            scroll = randomPositiveTimeValue();
             searchRequest.scroll(scroll);
         }
         int size = between(0, Integer.MAX_VALUE);
@@ -251,7 +252,7 @@ public class RemoteRequestBuildersTests extends ESTestCase {
     public void testScrollParams() {
         String scroll = randomAlphaOfLength(30);
         Version remoteVersion = Version.fromId(between(0, Version.CURRENT.id));
-        TimeValue keepAlive = TimeValue.parseTimeValue(randomPositiveTimeValue(), "test");
+        TimeValue keepAlive = randomPositiveTimeValue();
         assertScroll(remoteVersion, scroll(scroll, keepAlive, remoteVersion).getParameters(), keepAlive);
     }
 

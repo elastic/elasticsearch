@@ -7,10 +7,25 @@
 
 package org.elasticsearch.xpack.core.security.user;
 
+import org.elasticsearch.action.admin.cluster.shards.TransportClusterSearchShardsAction;
+import org.elasticsearch.action.admin.indices.analyze.TransportReloadAnalyzersAction;
+import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
+import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeAction;
+import org.elasticsearch.action.admin.indices.readonly.TransportAddIndexBlockAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
+import org.elasticsearch.action.admin.indices.rollover.LazyRolloverAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
+import org.elasticsearch.action.admin.indices.settings.put.TransportUpdateSettingsAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
+import org.elasticsearch.action.bulk.TransportBulkAction;
+import org.elasticsearch.action.datastreams.GetDataStreamAction;
+import org.elasticsearch.action.datastreams.ModifyDataStreamsAction;
+import org.elasticsearch.action.downsample.DownsampleAction;
+import org.elasticsearch.action.index.TransportIndexAction;
+import org.elasticsearch.action.search.TransportSearchAction;
+import org.elasticsearch.action.search.TransportSearchScrollAction;
+import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
@@ -126,12 +141,12 @@ public class InternalUsers {
     );
 
     /**
-     * Internal user that manages DLM. Has all indices permissions to perform DLM runtime tasks.
+     * Internal user that manages the data stream lifecycle. Has all indices permissions to perform data stream lifecycle runtime tasks.
      */
-    public static final InternalUser DLM_USER = new InternalUser(
-        UsernamesField.DLM_NAME,
+    public static final InternalUser DATA_STREAM_LIFECYCLE_USER = new InternalUser(
+        UsernamesField.DATA_STREAM_LIFECYCLE_NAME,
         new RoleDescriptor(
-            UsernamesField.DLM_ROLE,
+            UsernamesField.DATA_STREAM_LIFECYCLE_ROLE,
             new String[] {},
             new RoleDescriptor.IndicesPrivileges[] {
                 RoleDescriptor.IndicesPrivileges.builder()
@@ -141,22 +156,89 @@ public class InternalUsers {
                         RolloverAction.NAME,
                         ForceMergeAction.NAME + "*",
                         // indices stats is used by rollover, so we need to grant it here
-                        IndicesStatsAction.NAME + "*"
+                        IndicesStatsAction.NAME + "*",
+                        TransportUpdateSettingsAction.TYPE.name(),
+                        DownsampleAction.NAME,
+                        TransportAddIndexBlockAction.TYPE.name()
                     )
                     .allowRestrictedIndices(false)
                     .build(),
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(
                         // System data stream for result history of fleet actions (see Fleet#fleetActionsResultsDescriptor)
-                        ".fleet-actions-results"
+                        ".fleet-actions-results",
+                        // System data streams for storing uploaded file data for Agent diagnostics and Endpoint response actions
+                        ".fleet-fileds*"
                     )
                     .privileges(
                         "delete_index",
                         RolloverAction.NAME,
                         ForceMergeAction.NAME + "*",
                         // indices stats is used by rollover, so we need to grant it here
-                        IndicesStatsAction.NAME + "*"
+                        IndicesStatsAction.NAME + "*",
+                        TransportUpdateSettingsAction.TYPE.name(),
+                        DownsampleAction.NAME,
+                        TransportAddIndexBlockAction.TYPE.name()
                     )
+                    .allowRestrictedIndices(true)
+                    .build() },
+            null,
+            null,
+            new String[] {},
+            MetadataUtils.DEFAULT_RESERVED_METADATA,
+            Map.of()
+        )
+    );
+
+    public static final InternalUser REINDEX_DATA_STREAM_USER = new InternalUser(
+        UsernamesField.REINDEX_DATA_STREAM_NAME,
+        new RoleDescriptor(
+            UsernamesField.REINDEX_DATA_STREAM_ROLE,
+            new String[] {},
+            new RoleDescriptor.IndicesPrivileges[] {
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices("*")
+                    .privileges(
+                        GetDataStreamAction.NAME,
+                        RolloverAction.NAME,
+                        IndicesStatsAction.NAME,
+                        TransportDeleteIndexAction.TYPE.name(),
+                        "indices:admin/data_stream/index/reindex",
+                        "indices:admin/index/create_from_source",
+                        TransportAddIndexBlockAction.TYPE.name(),
+                        TransportCreateIndexAction.TYPE.name(),
+                        TransportClusterSearchShardsAction.TYPE.name(),
+                        TransportUpdateSettingsAction.TYPE.name(),
+                        RefreshAction.NAME,
+                        ReindexAction.NAME,
+                        TransportSearchAction.NAME,
+                        TransportBulkAction.NAME,
+                        TransportIndexAction.NAME,
+                        TransportSearchScrollAction.TYPE.name(),
+                        ModifyDataStreamsAction.NAME
+                    )
+                    .allowRestrictedIndices(false)
+                    .build() },
+            null,
+            null,
+            new String[] {},
+            MetadataUtils.DEFAULT_RESERVED_METADATA,
+            Map.of()
+        )
+    );
+
+    /**
+     * Internal user that can rollover an index/data stream.
+     */
+    public static final InternalUser LAZY_ROLLOVER_USER = new InternalUser(
+        UsernamesField.LAZY_ROLLOVER_NAME,
+        new RoleDescriptor(
+            UsernamesField.LAZY_ROLLOVER_ROLE,
+            new String[] {},
+            new RoleDescriptor.IndicesPrivileges[] {
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices("*")
+                    .privileges(LazyRolloverAction.NAME)
                     .allowRestrictedIndices(true)
                     .build() },
             null,
@@ -176,7 +258,8 @@ public class InternalUsers {
             UsernamesField.SYNONYMS_ROLE_NAME,
             null,
             new RoleDescriptor.IndicesPrivileges[] {
-                RoleDescriptor.IndicesPrivileges.builder().indices(".synonyms*").privileges("all").allowRestrictedIndices(true).build() },
+                RoleDescriptor.IndicesPrivileges.builder().indices(".synonyms*").privileges("all").allowRestrictedIndices(true).build(),
+                RoleDescriptor.IndicesPrivileges.builder().indices("*").privileges(TransportReloadAnalyzersAction.TYPE.name()).build(), },
             null,
             null,
             null,
@@ -186,7 +269,6 @@ public class InternalUsers {
     );
 
     public static final SystemUser SYSTEM_USER = SystemUser.INSTANCE;
-    public static final InternalUser CROSS_CLUSTER_ACCESS_USER = CrossClusterAccessUser.INSTANCE;
 
     private static final Map<String, InternalUser> INTERNAL_USERS;
 
@@ -197,10 +279,11 @@ public class InternalUsers {
             XPACK_SECURITY_USER,
             SECURITY_PROFILE_USER,
             ASYNC_SEARCH_USER,
-            CROSS_CLUSTER_ACCESS_USER,
             STORAGE_USER,
-            DLM_USER,
-            SYNONYMS_USER
+            DATA_STREAM_LIFECYCLE_USER,
+            REINDEX_DATA_STREAM_USER,
+            SYNONYMS_USER,
+            LAZY_ROLLOVER_USER
         ).collect(Collectors.toUnmodifiableMap(InternalUser::principal, Function.identity()));
     }
 

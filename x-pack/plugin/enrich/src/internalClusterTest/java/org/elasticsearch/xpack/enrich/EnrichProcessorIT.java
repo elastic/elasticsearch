@@ -9,9 +9,7 @@ package org.elasticsearch.xpack.enrich;
 
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.ingest.SimulateDocumentBaseResult;
-import org.elasticsearch.action.ingest.SimulatePipelineRequest;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.ingest.common.IngestCommonPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -27,6 +25,7 @@ import org.elasticsearch.xpack.core.enrich.action.PutEnrichPolicyAction;
 import java.util.Collection;
 import java.util.List;
 
+import static org.elasticsearch.ingest.IngestPipelineTestUtils.jsonSimulatePipelineRequest;
 import static org.elasticsearch.xpack.enrich.AbstractEnrichTestCase.createSourceIndices;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
@@ -49,12 +48,12 @@ public class EnrichProcessorIT extends ESSingleNodeTestCase {
 
     public void testEnrichCacheValuesCannotBeCorrupted() {
         // Ensure enrich cache is empty
-        var statsRequest = new EnrichStatsAction.Request();
+        var statsRequest = new EnrichStatsAction.Request(TEST_REQUEST_TIMEOUT);
         var statsResponse = client().execute(EnrichStatsAction.INSTANCE, statsRequest).actionGet();
         assertThat(statsResponse.getCacheStats().size(), equalTo(1));
-        assertThat(statsResponse.getCacheStats().get(0).getCount(), equalTo(0L));
-        assertThat(statsResponse.getCacheStats().get(0).getMisses(), equalTo(0L));
-        assertThat(statsResponse.getCacheStats().get(0).getHits(), equalTo(0L));
+        assertThat(statsResponse.getCacheStats().get(0).count(), equalTo(0L));
+        assertThat(statsResponse.getCacheStats().get(0).misses(), equalTo(0L));
+        assertThat(statsResponse.getCacheStats().get(0).hits(), equalTo(0L));
 
         String policyName = "device-enrich-policy";
         String sourceIndexName = "devices-idx";
@@ -85,12 +84,12 @@ public class EnrichProcessorIT extends ESSingleNodeTestCase {
         client().index(indexRequest).actionGet();
 
         // Store policy and execute it:
-        var putPolicyRequest = new PutEnrichPolicyAction.Request(policyName, enrichPolicy);
+        var putPolicyRequest = new PutEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, policyName, enrichPolicy);
         client().execute(PutEnrichPolicyAction.INSTANCE, putPolicyRequest).actionGet();
-        var executePolicyRequest = new ExecuteEnrichPolicyAction.Request(policyName);
+        var executePolicyRequest = new ExecuteEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, policyName);
         client().execute(ExecuteEnrichPolicyAction.INSTANCE, executePolicyRequest).actionGet();
 
-        var simulatePipelineRequest = new SimulatePipelineRequest(new BytesArray("""
+        var simulatePipelineRequest = jsonSimulatePipelineRequest("""
             {
               "pipeline": {
                 "processors": [
@@ -119,8 +118,8 @@ public class EnrichProcessorIT extends ESSingleNodeTestCase {
                 }
               ]
             }
-            """), XContentType.JSON);
-        var response = client().admin().cluster().simulatePipeline(simulatePipelineRequest).actionGet();
+            """);
+        var response = clusterAdmin().simulatePipeline(simulatePipelineRequest).actionGet();
         var result = (SimulateDocumentBaseResult) response.getResults().get(0);
         assertThat(result.getFailure(), nullValue());
         assertThat(result.getIngestDocument().getFieldValue("device.name", String.class), equalTo("bla"));
@@ -128,11 +127,11 @@ public class EnrichProcessorIT extends ESSingleNodeTestCase {
         // Verify that there was a cache miss and a new entry was added to enrich cache.
         statsResponse = client().execute(EnrichStatsAction.INSTANCE, statsRequest).actionGet();
         assertThat(statsResponse.getCacheStats().size(), equalTo(1));
-        assertThat(statsResponse.getCacheStats().get(0).getCount(), equalTo(1L));
-        assertThat(statsResponse.getCacheStats().get(0).getMisses(), equalTo(1L));
-        assertThat(statsResponse.getCacheStats().get(0).getHits(), equalTo(0L));
+        assertThat(statsResponse.getCacheStats().get(0).count(), equalTo(1L));
+        assertThat(statsResponse.getCacheStats().get(0).misses(), equalTo(1L));
+        assertThat(statsResponse.getCacheStats().get(0).hits(), equalTo(0L));
 
-        simulatePipelineRequest = new SimulatePipelineRequest(new BytesArray("""
+        simulatePipelineRequest = jsonSimulatePipelineRequest("""
             {
               "pipeline": {
                 "processors": [
@@ -155,8 +154,8 @@ public class EnrichProcessorIT extends ESSingleNodeTestCase {
                 }
               ]
             }
-            """), XContentType.JSON);
-        response = client().admin().cluster().simulatePipeline(simulatePipelineRequest).actionGet();
+            """);
+        response = clusterAdmin().simulatePipeline(simulatePipelineRequest).actionGet();
         result = (SimulateDocumentBaseResult) response.getResults().get(0);
         assertThat(result.getFailure(), nullValue());
         assertThat(result.getIngestDocument().getFieldValue("_tmp.device.name", String.class), equalTo("bla"));
@@ -164,9 +163,9 @@ public class EnrichProcessorIT extends ESSingleNodeTestCase {
         // Verify that enrich lookup was served from cache:
         statsResponse = client().execute(EnrichStatsAction.INSTANCE, statsRequest).actionGet();
         assertThat(statsResponse.getCacheStats().size(), equalTo(1));
-        assertThat(statsResponse.getCacheStats().get(0).getCount(), equalTo(1L));
-        assertThat(statsResponse.getCacheStats().get(0).getMisses(), equalTo(1L));
-        assertThat(statsResponse.getCacheStats().get(0).getHits(), equalTo(1L));
+        assertThat(statsResponse.getCacheStats().get(0).count(), equalTo(1L));
+        assertThat(statsResponse.getCacheStats().get(0).misses(), equalTo(1L));
+        assertThat(statsResponse.getCacheStats().get(0).hits(), equalTo(1L));
     }
 
 }

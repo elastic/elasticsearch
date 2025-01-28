@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.action.admin.indices.analyze;
 
@@ -17,6 +18,7 @@ import org.apache.lucene.analysis.tokenattributes.PositionLengthAttribute;
 import org.apache.lucene.analysis.tokenattributes.TypeAttribute;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
 import org.elasticsearch.cluster.ClusterState;
@@ -24,11 +26,11 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexService.IndexCreationContext;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.AnalyzerComponents;
@@ -42,6 +44,8 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.StringFieldType;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -82,7 +86,7 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
             actionFilters,
             indexNameExpressionResolver,
             AnalyzeAction.Request::new,
-            ThreadPool.Names.ANALYZE
+            threadPool.executor(ThreadPool.Names.ANALYZE)
         );
         this.settings = settings;
         this.indicesService = indicesService;
@@ -212,6 +216,7 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
     ) throws IOException {
         if (request.tokenizer() != null) {
             return analysisRegistry.buildCustomAnalyzer(
+                IndexCreationContext.RELOAD_ANALYZERS,
                 indexSettings,
                 false,
                 request.tokenizer(),
@@ -221,6 +226,7 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
         } else if (((request.tokenFilters() != null && request.tokenFilters().size() > 0)
             || (request.charFilters() != null && request.charFilters().size() > 0))) {
                 return analysisRegistry.buildCustomAnalyzer(
+                    IndexCreationContext.RELOAD_ANALYZERS,
                     indexSettings,
                     true,
                     new NameOrDefinition("keyword"),
@@ -451,11 +457,12 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
         private void increment() {
             tokenCount++;
             if (tokenCount > maxTokenCount) {
-                throw new IllegalStateException(
+                throw new ElasticsearchStatusException(
                     "The number of tokens produced by calling _analyze has exceeded the allowed maximum of ["
                         + maxTokenCount
                         + "]."
-                        + " This limit can be set by changing the [index.analyze.max_token_count] index level setting."
+                        + " This limit can be set by changing the [index.analyze.max_token_count] index level setting.",
+                    RestStatus.BAD_REQUEST
                 );
             }
         }

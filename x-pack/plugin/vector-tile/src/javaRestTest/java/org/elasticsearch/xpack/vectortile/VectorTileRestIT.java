@@ -14,6 +14,7 @@ import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
+import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
@@ -24,8 +25,11 @@ import org.elasticsearch.geometry.MultiPolygon;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.utils.WellKnownText;
+import org.elasticsearch.index.query.GeoShapeQueryBuilder;
+import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.test.rest.ObjectPath;
 import org.hamcrest.Matchers;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -789,7 +793,9 @@ public class VectorTileRestIT extends ESRestTestCase {
                 }
               }
             }""");
+        final int termsUsage = queryUsage(TermQueryBuilder.NAME);
         final VectorTile.Tile tile = execute(mvtRequest);
+        assertThat(queryUsage(TermQueryBuilder.NAME), Matchers.equalTo(termsUsage + 1));
         assertThat(tile.getLayersCount(), Matchers.equalTo(3));
         assertLayer(tile, HITS_LAYER, 4096, 1, 2);
         assertLayer(tile, AGGS_LAYER, 4096, 1, 2);
@@ -897,7 +903,7 @@ public class VectorTileRestIT extends ESRestTestCase {
                   "percentiles": {
                      "field": "value1",
                      "percents": [95, 99, 99.9]
-                    }
+                  }
                 }
               }
             }""");
@@ -927,6 +933,37 @@ public class VectorTileRestIT extends ESRestTestCase {
         assertLayer(tile, HITS_LAYER, 4096, 33, 2);
         assertLayer(tile, AGGS_LAYER, 4096, 1, 2);
         assertLayer(tile, META_LAYER, 4096, 1, 13);
+    }
+
+    public void testPartialResult() throws Exception {
+        assumeTrue("[error_query] is only available in snapshot builds", Build.current().isSnapshot());
+        final Request mvtRequest = new Request(getHttpMethod(), INDEX_POINTS_SHAPES + "/_mvt/location/" + z + "/" + x + "/" + y);
+        mvtRequest.setJsonEntity("""
+            {
+              "query": {
+                "error_query": {
+                  "indices": [
+                    {
+                      "error_type": "exception",
+                      "message": "local shard failure message 123",
+                      "name": "index-points"
+                    }
+                  ]
+                }
+              }
+            }""");
+        final VectorTile.Tile tile = execute(mvtRequest);
+        assertThat(tile.getLayersCount(), Matchers.equalTo(3));
+        assertLayer(tile, HITS_LAYER, 4096, 1, 2);
+        assertLayer(tile, AGGS_LAYER, 4096, 65536, 2);
+        assertLayer(tile, META_LAYER, 4096, 1, 22);
+        assertStringTag(getLayer(tile, HITS_LAYER), getLayer(tile, HITS_LAYER).getFeatures(0), "_index", INDEX_POLYGON);
+        assertStringTag(
+            getLayer(tile, META_LAYER),
+            getLayer(tile, META_LAYER).getFeatures(0),
+            "_shards.failures.0.reason.caused_by.reason",
+            "[index-points][0] local shard failure message 123"
+        );
     }
 
     private String getHttpMethod() {
@@ -1007,7 +1044,7 @@ public class VectorTileRestIT extends ESRestTestCase {
             String thisTag = layer.getKeys(feature.getTags(i));
             if (tag.equals(thisTag)) {
                 VectorTile.Tile.Value thisValue = layer.getValues(feature.getTags(i + 1));
-                assertEquals(thisValue.getStringValue(), value);
+                assertEquals(value, thisValue.getStringValue());
                 return;
             }
         }
@@ -1028,10 +1065,19 @@ public class VectorTileRestIT extends ESRestTestCase {
     }
 
     private VectorTile.Tile execute(Request mvtRequest) throws IOException {
+        final int geoShapeUsage = queryUsage(GeoShapeQueryBuilder.NAME);
         final Response response = client().performRequest(mvtRequest);
+        assertThat(queryUsage(GeoShapeQueryBuilder.NAME), Matchers.equalTo(geoShapeUsage + 1));
         final InputStream inputStream = response.getEntity().getContent();
         assertThat(response.getStatusLine().getStatusCode(), Matchers.equalTo(HttpStatus.SC_OK));
         return VectorTile.Tile.parseFrom(inputStream);
+    }
+
+    private int queryUsage(String queryName) throws IOException {
+        final Request request = new Request(HttpGet.METHOD_NAME, "/_cluster/stats?filter_path=indices.search.queries." + queryName);
+        ObjectPath objectPath = ObjectPath.createFromResponse(client().performRequest(request));
+        Integer count = objectPath.evaluate("indices.search.queries." + queryName);
+        return count == null ? 0 : count;
     }
 
     private VectorTile.Tile.Layer getLayer(VectorTile.Tile tile, String layerName) {

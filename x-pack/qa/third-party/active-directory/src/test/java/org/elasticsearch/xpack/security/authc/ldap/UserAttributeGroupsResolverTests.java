@@ -6,16 +6,20 @@
  */
 package org.elasticsearch.xpack.security.authc.ldap;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import com.unboundid.ldap.sdk.Attribute;
 import com.unboundid.ldap.sdk.SearchRequest;
 import com.unboundid.ldap.sdk.SearchScope;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.test.fixtures.smb.SmbTestContainer;
+import org.elasticsearch.test.fixtures.testcontainers.TestContainersThreadFilter;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.ldap.UserAttributeGroupsResolverSettings;
 import org.elasticsearch.xpack.core.security.support.NoOpLogger;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapUtils;
+import org.junit.ClassRule;
 
 import java.util.Collection;
 import java.util.List;
@@ -26,10 +30,14 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasSize;
 
+@ThreadLeakFilters(filters = { TestContainersThreadFilter.class })
 public class UserAttributeGroupsResolverTests extends GroupsResolverTestCase {
 
     public static final String BRUCE_BANNER_DN = "cn=Bruce Banner,CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com";
     private static final RealmConfig.RealmIdentifier REALM_ID = new RealmConfig.RealmIdentifier("ldap", "realm1");
+
+    @ClassRule
+    public static final SmbTestContainer smbFixture = new SmbTestContainer();
 
     public void testResolve() throws Exception {
         // falling back on the 'memberOf' attribute
@@ -112,7 +120,7 @@ public class UserAttributeGroupsResolverTests extends GroupsResolverTestCase {
 
     @Override
     protected String ldapUrl() {
-        return ActiveDirectorySessionFactoryTests.AD_LDAP_URL;
+        return smbFixture.getAdLdapUrl();
     }
 
     @Override

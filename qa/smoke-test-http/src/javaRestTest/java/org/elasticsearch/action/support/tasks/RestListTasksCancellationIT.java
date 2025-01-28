@@ -1,15 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.support.tasks;
 
 import org.apache.http.client.methods.HttpGet;
-import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasksAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Cancellable;
@@ -49,7 +50,7 @@ public class RestListTasksCancellationIT extends HttpSmokeTestCase {
         final PlainActionFuture<Response> tasksFuture = new PlainActionFuture<>();
         final Cancellable tasksCancellable = getRestClient().performRequestAsync(tasksRequest, wrapAsRestResponseListener(tasksFuture));
 
-        awaitTaskWithPrefix(ListTasksAction.NAME + "[n]");
+        awaitTaskWithPrefix(TransportListTasksAction.TYPE.name() + "[n]");
 
         tasksCancellable.cancel();
 
@@ -61,7 +62,7 @@ public class RestListTasksCancellationIT extends HttpSmokeTestCase {
             () -> assertFalse(
                 taskManagers.stream()
                     .flatMap(taskManager -> taskManager.getCancellableTasks().values().stream())
-                    .anyMatch(t -> t.getAction().startsWith(ListTasksAction.NAME))
+                    .anyMatch(t -> t.getAction().startsWith(TransportListTasksAction.TYPE.name()))
             )
         );
 

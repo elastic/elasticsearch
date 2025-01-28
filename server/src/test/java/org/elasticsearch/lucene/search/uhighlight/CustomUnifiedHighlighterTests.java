@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.lucene.search.uhighlight;
@@ -13,6 +14,10 @@ import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.apache.lucene.analysis.custom.CustomAnalyzer;
 import org.apache.lucene.analysis.ngram.EdgeNGramTokenizerFactory;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.apache.lucene.analysis.standard.StandardTokenizerFactory;
+import org.apache.lucene.analysis.synonym.SolrSynonymParser;
+import org.apache.lucene.analysis.synonym.SynonymFilterFactory;
+import org.apache.lucene.analysis.synonym.SynonymMap;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
@@ -35,11 +40,15 @@ import org.apache.lucene.search.highlight.DefaultEncoder;
 import org.apache.lucene.search.uhighlight.UnifiedHighlighter;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.apache.lucene.util.ResourceLoader;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.IOException;
+import java.io.StringReader;
 import java.text.BreakIterator;
+import java.text.ParseException;
 import java.util.Locale;
 import java.util.Map;
 import java.util.TreeMap;
@@ -132,28 +141,30 @@ public class CustomUnifiedHighlighterTests extends ESTestCase {
                 IndexSearcher searcher = newSearcher(reader);
                 iw.close();
                 TopDocs topDocs = searcher.search(new MatchAllDocsQuery(), 1, Sort.INDEXORDER);
-                assertThat(topDocs.totalHits.value, equalTo(1L));
+                assertThat(topDocs.totalHits.value(), equalTo(1L));
                 String rawValue = Strings.arrayToDelimitedString(inputs, String.valueOf(MULTIVAL_SEP_CHAR));
+                UnifiedHighlighter.Builder builder = UnifiedHighlighter.builder(searcher, analyzer);
+                builder.withBreakIterator(() -> breakIterator);
+                builder.withFieldMatcher(name -> "text".equals(name));
+                builder.withFormatter(new CustomPassageFormatter("<b>", "</b>", new DefaultEncoder(), 3));
                 CustomUnifiedHighlighter highlighter = new CustomUnifiedHighlighter(
-                    searcher,
-                    analyzer,
+                    builder,
                     offsetSource,
-                    new CustomPassageFormatter("<b>", "</b>", new DefaultEncoder()),
                     locale,
-                    breakIterator,
                     "index",
                     "text",
                     query,
                     noMatchSize,
                     expectedPassages.length,
-                    name -> "text".equals(name),
                     maxAnalyzedOffset,
-                    queryMaxAnalyzedOffset
+                    QueryMaxAnalyzedOffset.create(queryMaxAnalyzedOffset, maxAnalyzedOffset),
+                    true,
+                    true
                 );
                 final Snippet[] snippets = highlighter.highlightField(getOnlyLeafReader(reader), topDocs.scoreDocs[0].doc, () -> rawValue);
-                assertEquals(snippets.length, expectedPassages.length);
+                assertEquals(expectedPassages.length, snippets.length);
                 for (int i = 0; i < snippets.length; i++) {
-                    assertEquals(snippets[i].getText(), expectedPassages[i]);
+                    assertEquals(expectedPassages[i], snippets[i].getText());
                 }
             }
         }
@@ -218,7 +229,7 @@ public class CustomUnifiedHighlighterTests extends ESTestCase {
 
     public void testMultiPhrasePrefixQuery() throws Exception {
         final String[] inputs = { "The quick brown fox." };
-        final String[] outputs = { "The <b>quick</b> <b>brown</b> <b>fox</b>." };
+        final String[] outputs = { "The <b>quick brown fox</b>." };
         MultiPhrasePrefixQuery query = new MultiPhrasePrefixQuery("text");
         query.add(new Term("text", "quick"));
         query.add(new Term("text", "brown"));
@@ -241,7 +252,7 @@ public class CustomUnifiedHighlighterTests extends ESTestCase {
         final String[] outputs = {
             "The <b>quick</b> <b>brown</b>",
             "<b>fox</b> in a long",
-            "with another <b>quick</b>",
+            "another <b>quick</b>",
             "<b>brown</b> <b>fox</b>.",
             "sentence with <b>brown</b>",
             "<b>fox</b>.", };
@@ -277,7 +288,7 @@ public class CustomUnifiedHighlighterTests extends ESTestCase {
         );
     }
 
-    public void testRepeat() throws Exception {
+    public void testRepeatTerm() throws Exception {
         final String[] inputs = { "Fun  fun fun  fun  fun  fun  fun  fun  fun  fun" };
         final String[] outputs = {
             "<b>Fun</b>  <b>fun</b> <b>fun</b>",
@@ -295,8 +306,12 @@ public class CustomUnifiedHighlighterTests extends ESTestCase {
             0,
             outputs
         );
+    }
 
-        query = new PhraseQuery.Builder().add(new Term("text", "fun")).add(new Term("text", "fun")).build();
+    public void testRepeatPhrase() throws Exception {
+        final String[] inputs = { "Fun  fun fun  fun  fun  fun  fun  fun  fun  fun" };
+        final String[] outputs = { "<b>Fun  fun fun</b>", "<b>fun  fun  </b>", "<b>fun  fun  fun</b>", "<b>fun  fun</b>" };
+        Query query = new PhraseQuery.Builder().add(new Term("text", "fun")).add(new Term("text", "fun")).build();
         assertHighlightOneDoc(
             "text",
             inputs,
@@ -346,6 +361,42 @@ public class CustomUnifiedHighlighterTests extends ESTestCase {
             .build();
         Analyzer analyzer = CustomAnalyzer.builder()
             .withTokenizer(EdgeNGramTokenizerFactory.class, "minGramSize", "1", "maxGramSize", "7")
+            .build();
+        assertHighlightOneDoc("text", inputs, analyzer, query, Locale.ROOT, BreakIterator.getSentenceInstance(Locale.ROOT), 0, outputs);
+    }
+
+    public static class NYCFilterFactory extends SynonymFilterFactory {
+        public NYCFilterFactory(Map<String, String> args) {
+            super(args);
+        }
+
+        @Override
+        protected SynonymMap loadSynonyms(ResourceLoader loader, String cname, boolean dedup, Analyzer analyzer) throws IOException,
+            ParseException {
+            SynonymMap.Parser parser = new SolrSynonymParser(false, false, analyzer);
+            parser.parse(new StringReader("new york city => nyc, new york city"));
+            return parser.build();
+        }
+    }
+
+    public void testOverlappingPositions() throws Exception {
+        final String[] inputs = { "new york city" };
+        final String[] outputs = { "<b>new york city</b>" };
+        BooleanQuery query = new BooleanQuery.Builder().add(
+            new BooleanQuery.Builder().add(new TermQuery(new Term("text", "nyc")), BooleanClause.Occur.SHOULD)
+                .add(
+                    new BooleanQuery.Builder().add(new TermQuery(new Term("text", "new")), BooleanClause.Occur.MUST)
+                        .add(new TermQuery(new Term("text", "york")), BooleanClause.Occur.MUST)
+                        .add(new TermQuery(new Term("text", "city")), BooleanClause.Occur.MUST)
+                        .build(),
+                    BooleanClause.Occur.SHOULD
+                )
+                .build(),
+            BooleanClause.Occur.MUST
+        ).build();
+        Analyzer analyzer = CustomAnalyzer.builder()
+            .withTokenizer(StandardTokenizerFactory.class)
+            .addTokenFilter(NYCFilterFactory.class, "synonyms", "N/A")
             .build();
         assertHighlightOneDoc("text", inputs, analyzer, query, Locale.ROOT, BreakIterator.getSentenceInstance(Locale.ROOT), 0, outputs);
     }

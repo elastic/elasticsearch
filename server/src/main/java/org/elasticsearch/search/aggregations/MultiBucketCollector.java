@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations;
@@ -12,7 +13,6 @@ import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.MultiCollector;
 import org.apache.lucene.search.Scorable;
-import org.apache.lucene.search.ScoreCachingWrappingScorer;
 import org.apache.lucene.search.ScoreMode;
 
 import java.io.IOException;
@@ -183,17 +183,16 @@ public class MultiBucketCollector extends BucketCollector {
                 );
             }
         }
-        switch (leafCollectors.size()) {
-            case 0:
+        return switch (leafCollectors.size()) {
+            case 0 -> {
                 if (terminateIfNoop) {
                     throw new CollectionTerminatedException();
                 }
-                return LeafBucketCollector.NO_OP_COLLECTOR;
-            case 1:
-                return leafCollectors.get(0);
-            default:
-                return new MultiLeafBucketCollector(leafCollectors, cacheScores);
-        }
+                yield LeafBucketCollector.NO_OP_COLLECTOR;
+            }
+            case 1 -> leafCollectors.get(0);
+            default -> new MultiLeafBucketCollector(leafCollectors, cacheScores);
+        };
     }
 
     private static class MultiLeafBucketCollector extends LeafBucketCollector {
@@ -201,6 +200,7 @@ public class MultiBucketCollector extends BucketCollector {
         private final boolean cacheScores;
         private final LeafBucketCollector[] collectors;
         private int numCollectors;
+        private ScoreCachingScorable scorable;
 
         private MultiLeafBucketCollector(List<LeafBucketCollector> collectors, boolean cacheScores) {
             this.collectors = collectors.toArray(new LeafBucketCollector[collectors.size()]);
@@ -211,11 +211,11 @@ public class MultiBucketCollector extends BucketCollector {
         @Override
         public void setScorer(Scorable scorer) throws IOException {
             if (cacheScores) {
-                scorer = ScoreCachingWrappingScorer.wrap(scorer);
+                scorable = new ScoreCachingScorable(scorer);
             }
             for (int i = 0; i < numCollectors; ++i) {
                 final LeafCollector c = collectors[i];
-                c.setScorer(scorer);
+                c.setScorer(cacheScores ? scorable : scorer);
             }
         }
 
@@ -227,6 +227,9 @@ public class MultiBucketCollector extends BucketCollector {
 
         @Override
         public void collect(int doc, long bucket) throws IOException {
+            if (scorable != null) {
+                scorable.curDoc = doc;
+            }
             final LeafBucketCollector[] collectors = this.collectors;
             int numCollectors = this.numCollectors;
             for (int i = 0; i < numCollectors;) {
@@ -242,6 +245,27 @@ public class MultiBucketCollector extends BucketCollector {
                     }
                 }
             }
+        }
+    }
+
+    private static class ScoreCachingScorable extends Scorable {
+
+        private final Scorable in;
+        private int curDoc = -1; // current document
+        private int scoreDoc = -1; // document that score was computed on
+        private float score;
+
+        ScoreCachingScorable(Scorable in) {
+            this.in = in;
+        }
+
+        @Override
+        public float score() throws IOException {
+            if (curDoc != scoreDoc) {
+                score = in.score();
+                scoreDoc = curDoc;
+            }
+            return score;
         }
     }
 }

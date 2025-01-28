@@ -23,7 +23,7 @@ setup:
               "indices": [
                 {
                   "names": ["single_doc_index", "secure_alias", "test_index", "aliased_test_index", "field_caps_index_1",
-                  "field_caps_index_3", "point_in_time_index"],
+                  "field_caps_index_3", "point_in_time_index", "simple-data-stream1", "simple-data-stream2", "esql_index"],
                   "privileges": ["read", "read_cross_cluster"]
                 }
               ]
@@ -46,7 +46,7 @@ setup:
               "indices": [
                 {
                   "names": ["single_doc_index", "secure_alias", "test_index", "aliased_test_index", "field_caps_index_1",
-                  "field_caps_index_3", "point_in_time_index"],
+                  "field_caps_index_3", "point_in_time_index", "simple-data-stream1", "simple-data-stream2", "esql_index"],
                   "privileges": ["read", "read_cross_cluster"]
                 }
               ]
@@ -127,6 +127,8 @@ setup:
               properties:
                 '@timestamp':
                   type: date
+            settings:
+              'index.number_of_shards': 1
           data_stream: {}
 
   - do:
@@ -141,6 +143,8 @@ setup:
               properties:
                 '@timestamp':
                   type: date
+            settings:
+              'index.number_of_shards': 1
           data_stream: {}
 
   - do:
@@ -148,8 +152,27 @@ setup:
         name: simple-data-stream1
 
   - do:
+      bulk:
+        refresh: true
+        index: simple-data-stream1
+        body:
+          - '{"create":{ }}'
+          - '{"@timestamp": "2023-05-31", "value": 1}'
+          - '{"create":{ }}'
+          - '{"@timestamp": "2023-07-31", "value": 2}'
+
+  - do:
       indices.create_data_stream:
         name: simple-data-stream2
+  - do:
+      bulk:
+        refresh: true
+        index: simple-data-stream2
+        body:
+          - '{"create":{ }}'
+          - '{"@timestamp": "2020-02-11", "value": 1}'
+          - '{"create":{ }}'
+          - '{"@timestamp": "2020-03-01", "value": 2}'
 
   - do:
       indices.rollover:
@@ -165,8 +188,6 @@ setup:
   - do:
       indices.close:
         index: closed_index
-      allowed_warnings:
-        - "the default value for the ?wait_for_active_shards parameter will change from '0' to 'index-setting' in version 8; specify '?wait_for_active_shards=index-setting' to adopt the future default behaviour, or '?wait_for_active_shards=0' to preserve today's behaviour"
 
   - do:
         indices.create:
@@ -406,3 +427,71 @@ setup:
           - '{"foo": "foo"}'
           - '{"index": {"_index": "terms_enum_index"}}'
           - '{"foo": "foobar"}'
+
+  - do:
+      indices.create:
+        index: esql_index
+        body:
+          mappings:
+            properties:
+              since:
+                type: date
+                format: "yyyy-MM-dd"
+              cost:
+                type: long
+              tag:
+                type: keyword
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{"index": {"_index": "esql_index"}}'
+          - '{"since" : "2023-01-01", "cost": 1000, "tag": "computer"}'
+          - '{"index": {"_index": "esql_index"}}'
+          - '{ "since" : "2023-01-02", "cost": 1200, "tag": "computer"}'
+          - '{"index": {"_index": "esql_index"}}'
+          - '{"since" : "2023-01-03", "cost": 450, "tag": "tablet"}'
+          - '{"index": {"_index": "esql_index"}}'
+          - '{"since" : "2023-01-04", "cost": 100, "tag": "headphone"}'
+          - '{"index": {"_index": "esql_index"}}'
+          - '{"since" : "2023-01-05", "cost": 20, "tag": "headphone"}'
+  - do:
+      indices.create:
+        index: suggestions
+        body:
+          mappings:
+            properties:
+              tag:
+                type: keyword
+              phrase:
+                type: keyword
+  - do:
+      bulk:
+        index: "suggestions"
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "tag": "laptop", "phrase": "the best battery life laptop" }
+          - { "index": { } }
+          - { "tag": "computer", "phrase": "best desktop for programming" }
+          - { "index": { } }
+          - { "tag": "monitor", "phrase": "4k or 5k or 6K monitor?" }
+          - { "index": { } }
+          - { "tag": "headphone", "phrase": "the best noise-cancelling headphones" }
+          - { "index": { } }
+          - { "tag": "tablet", "phrase": "tablets for kids" }
+  - do:
+      enrich.put_policy:
+        name: suggestions
+        body:
+          match:
+            indices: [ "suggestions" ]
+            match_field: "tag"
+            enrich_fields: [ "phrase" ]
+  - do:
+      enrich.execute_policy:
+        name: suggestions
+  - do:
+      indices.delete:
+        index: suggestions
+

@@ -5,7 +5,13 @@
 <titleabbrev>Move to step</titleabbrev>
 ++++
 
-Triggers execution of a specific step in the lifecycle policy.
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-ilm[{ilm-cap} APIs].
+--
+
+Triggers execution of a specific step in the <<index-lifecycle-management,lifecycle>> policy.
 
 [[ilm-move-to-step-request]]
 ==== {api-request-title}
@@ -50,7 +56,7 @@ policy are considered valid, an index cannot move to a step that is not part of 
 [[ilm-move-to-step-query-params]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 [role="child_attributes"]
 [[ilm-move-to-step-request-body]]

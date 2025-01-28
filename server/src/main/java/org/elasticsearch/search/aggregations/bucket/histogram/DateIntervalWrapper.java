@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket.histogram;
@@ -14,22 +15,15 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.logging.DeprecationCategory;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.time.ZoneId;
-import java.util.Locale;
 import java.util.Objects;
-
-import static org.elasticsearch.core.RestApiVersion.equalTo;
 
 /**
  * A class that handles all the parsing, bwc and deprecations surrounding date histogram intervals.
@@ -39,9 +33,6 @@ import static org.elasticsearch.core.RestApiVersion.equalTo;
  * - Provides a variety of helper methods to interpret the intervals as different types, depending on caller's need
  */
 public class DateIntervalWrapper implements ToXContentFragment, Writeable {
-    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(DateHistogramAggregationBuilder.class);
-    private static final String DEPRECATION_TEXT = "[interval] on [date_histogram] is deprecated, use [fixed_interval] or "
-        + "[calendar_interval] in the future.";
     private static final ParseField FIXED_INTERVAL_FIELD = new ParseField("fixed_interval");
     private static final ParseField CALENDAR_INTERVAL_FIELD = new ParseField("calendar_interval");
 
@@ -59,10 +50,6 @@ public class DateIntervalWrapper implements ToXContentFragment, Writeable {
         @Deprecated
         LEGACY_DATE_HISTO(null);
 
-        public static IntervalTypeEnum fromString(String name) {
-            return valueOf(name.trim().toUpperCase(Locale.ROOT));
-        }
-
         public static IntervalTypeEnum fromStream(StreamInput in) throws IOException {
             return in.readEnum(IntervalTypeEnum.class);
         }
@@ -70,10 +57,6 @@ public class DateIntervalWrapper implements ToXContentFragment, Writeable {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeEnum(this);
-        }
-
-        public String value() {
-            return name().toLowerCase(Locale.ROOT);
         }
 
         public boolean isValid() {
@@ -88,7 +71,7 @@ public class DateIntervalWrapper implements ToXContentFragment, Writeable {
             return preferredName;
         }
 
-        private String preferredName;
+        private final String preferredName;
 
         IntervalTypeEnum(String preferredName) {
             this.preferredName = preferredName;
@@ -99,29 +82,6 @@ public class DateIntervalWrapper implements ToXContentFragment, Writeable {
     private IntervalTypeEnum intervalType = IntervalTypeEnum.NONE;
 
     public static <T extends DateIntervalConsumer<T>> void declareIntervalFields(ObjectParser<T, String> parser) {
-        /*
-         REST version compatibility.  When in V_7 compatibility mode, continue to parse the old style interval parameter,
-         but immediately adapt it into either fixed or calendar interval.
-         */
-        parser.declareField((wrapper, interval) -> {
-            DEPRECATION_LOGGER.warn(DeprecationCategory.AGGREGATIONS, "date-interval-getter", DEPRECATION_TEXT);
-            if (interval instanceof Long) {
-                wrapper.fixedInterval(new DateHistogramInterval(interval + "ms"));
-            } else {
-                if (interval != null && DateHistogramAggregationBuilder.DATE_FIELD_UNITS.containsKey(interval.toString())) {
-                    wrapper.calendarInterval((DateHistogramInterval) interval);
-                } else {
-                    wrapper.fixedInterval((DateHistogramInterval) interval);
-                }
-            }
-        }, p -> {
-            if (p.currentToken() == XContentParser.Token.VALUE_NUMBER) {
-                return p.longValue();
-            } else {
-                return new DateHistogramInterval(p.text());
-            }
-        }, Histogram.INTERVAL_FIELD.forRestApiVersion(equalTo(RestApiVersion.V_7)), ObjectParser.ValueType.LONG);
-
         parser.declareField(
             DateIntervalConsumer::calendarInterval,
             p -> new DateHistogramInterval(p.text()),

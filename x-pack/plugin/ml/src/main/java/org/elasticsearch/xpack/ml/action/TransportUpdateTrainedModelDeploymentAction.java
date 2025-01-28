@@ -17,7 +17,8 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -57,9 +58,8 @@ public class TransportUpdateTrainedModelDeploymentAction extends TransportMaster
             threadPool,
             actionFilters,
             UpdateTrainedModelDeploymentAction.Request::new,
-            indexNameExpressionResolver,
             CreateTrainedModelAssignmentAction.Response::new,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.trainedModelAssignmentClusterService = Objects.requireNonNull(trainedModelAssignmentClusterService);
         this.auditor = Objects.requireNonNull(auditor);
@@ -80,9 +80,11 @@ public class TransportUpdateTrainedModelDeploymentAction extends TransportMaster
             )
         );
 
-        trainedModelAssignmentClusterService.updateNumberOfAllocations(
+        trainedModelAssignmentClusterService.updateDeployment(
             request.getDeploymentId(),
             request.getNumberOfAllocations(),
+            request.getAdaptiveAllocationsSettings(),
+            request.isInternal(),
             ActionListener.wrap(updatedAssignment -> {
                 auditor.info(
                     request.getDeploymentId(),

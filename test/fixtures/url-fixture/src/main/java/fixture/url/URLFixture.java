@@ -1,56 +1,42 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package fixture.url;
 
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.fixture.AbstractHttpFixture;
+import org.elasticsearch.test.fixture.HttpHeaderParser;
+import org.junit.rules.TemporaryFolder;
+import org.junit.rules.TestRule;
 
 import java.io.IOException;
 import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.net.UnknownHostException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
  * This {@link URLFixture} exposes a filesystem directory over HTTP. It is used in repository-url
  * integration tests to expose a directory created by a regular FS repository.
  */
-public class URLFixture extends AbstractHttpFixture {
-    private static final Pattern RANGE_PATTERN = Pattern.compile("bytes=(\\d+)-(\\d+)$");
-    private final Path repositoryDir;
+public class URLFixture extends AbstractHttpFixture implements TestRule {
+    private final TemporaryFolder temporaryFolder;
+    private Path repositoryDir;
 
     /**
      * Creates a {@link URLFixture}
      */
-    private URLFixture(final int port, final String workingDir, final String repositoryDir) {
-        super(workingDir, port);
-        this.repositoryDir = dir(repositoryDir);
-    }
-
-    public static void main(String[] args) throws Exception {
-        if (args == null || args.length != 3) {
-            throw new IllegalArgumentException("URLFixture <port> <working directory> <repository directory>");
-        }
-        String workingDirectory = args[1];
-        if (Files.exists(dir(workingDirectory)) == false) {
-            throw new IllegalArgumentException("Configured working directory " + workingDirectory + " does not exist");
-        }
-        String repositoryDirectory = args[2];
-        if (Files.exists(dir(repositoryDirectory)) == false) {
-            throw new IllegalArgumentException("Configured repository directory " + repositoryDirectory + " does not exist");
-        }
-        final URLFixture fixture = new URLFixture(Integer.parseInt(args[0]), workingDirectory, repositoryDirectory);
-        fixture.listen(InetAddress.getByName("0.0.0.0"), false);
+    public URLFixture() {
+        super();
+        this.temporaryFolder = new TemporaryFolder();
     }
 
     @Override
@@ -72,19 +58,19 @@ public class URLFixture extends AbstractHttpFixture {
 
         if (normalizedPath.startsWith(normalizedRepositoryDir)) {
             if (Files.exists(normalizedPath) && Files.isReadable(normalizedPath) && Files.isRegularFile(normalizedPath)) {
-                final String range = request.getHeader("Range");
+                final String rangeHeader = request.getHeader("Range");
                 final Map<String, String> headers = new HashMap<>(contentType("application/octet-stream"));
-                if (range == null) {
+                if (rangeHeader == null) {
                     byte[] content = Files.readAllBytes(normalizedPath);
                     headers.put("Content-Length", String.valueOf(content.length));
                     return new Response(RestStatus.OK.getStatus(), headers, content);
                 } else {
-                    final Matcher matcher = RANGE_PATTERN.matcher(range);
-                    if (matcher.matches() == false) {
+                    final HttpHeaderParser.Range range = HttpHeaderParser.parseRangeHeader(rangeHeader);
+                    if (range == null) {
                         return new Response(RestStatus.REQUESTED_RANGE_NOT_SATISFIED.getStatus(), TEXT_PLAIN_CONTENT_TYPE, EMPTY_BYTE);
                     } else {
-                        long start = Long.parseLong(matcher.group(1));
-                        long end = Long.parseLong(matcher.group(2));
+                        long start = range.start();
+                        long end = range.end();
                         long rangeLength = end - start + 1;
                         final long fileSize = Files.size(normalizedPath);
                         if (start >= fileSize || start > end || rangeLength > fileSize) {
@@ -107,8 +93,32 @@ public class URLFixture extends AbstractHttpFixture {
         }
     }
 
-    @SuppressForbidden(reason = "Paths#get is fine - we don't have environment here")
-    private static Path dir(final String dir) {
-        return Paths.get(dir);
+    @Override
+    protected void before() throws Throwable {
+        this.temporaryFolder.create();
+        this.repositoryDir = temporaryFolder.newFolder("repoDir").toPath();
+        InetSocketAddress inetSocketAddress = resolveAddress("0.0.0.0", 0);
+        listen(inetSocketAddress, false);
+    }
+
+    public String getRepositoryDir() {
+        if (repositoryDir == null) {
+            throw new IllegalStateException("Rule has not been started yet");
+        }
+        return repositoryDir.toFile().getAbsolutePath();
+    }
+
+    private static InetSocketAddress resolveAddress(String address, int port) {
+        try {
+            return new InetSocketAddress(InetAddress.getByName(address), port);
+        } catch (UnknownHostException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    @Override
+    protected void after() {
+        super.stop();
+        this.temporaryFolder.delete();
     }
 }

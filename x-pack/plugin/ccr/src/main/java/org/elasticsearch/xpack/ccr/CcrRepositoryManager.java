@@ -48,14 +48,14 @@ class CcrRepositoryManager extends AbstractLifecycleComponent {
 
     private void putRepository(String repositoryName) {
         ActionRequest request = new PutInternalCcrRepositoryRequest(repositoryName, CcrRepository.TYPE);
-        PlainActionFuture<ActionResponse.Empty> f = PlainActionFuture.newFuture();
+        PlainActionFuture<ActionResponse.Empty> f = new PlainActionFuture<>();
         client.execute(PutInternalCcrRepositoryAction.INSTANCE, request, f);
         assert f.isDone() : "Should be completed as it is executed synchronously";
     }
 
     private void deleteRepository(String repositoryName) {
         DeleteInternalCcrRepositoryRequest request = new DeleteInternalCcrRepositoryRequest(repositoryName);
-        PlainActionFuture<ActionResponse.Empty> f = PlainActionFuture.newFuture();
+        PlainActionFuture<ActionResponse.Empty> f = new PlainActionFuture<>();
         client.execute(DeleteInternalCcrRepositoryAction.INSTANCE, request, f);
         assert f.isDone() : "Should be completed as it is executed synchronously";
     }

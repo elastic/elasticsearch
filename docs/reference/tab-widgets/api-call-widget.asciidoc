@@ -12,7 +12,7 @@
             aria-controls="self-managed-tab-api-call"
             id="self-managed-api-call"
             tabindex="-1">
-      Self-managed
+      Local Dev (Docker)
     </button>
   </div>
   <div tabindex="0"

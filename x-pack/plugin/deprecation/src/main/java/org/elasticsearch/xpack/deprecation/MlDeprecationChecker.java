@@ -26,8 +26,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 
-import static org.elasticsearch.xpack.core.ml.MachineLearningField.MIN_CHECKED_SUPPORTED_SNAPSHOT_VERSION;
-import static org.elasticsearch.xpack.core.ml.MachineLearningField.MIN_REPORTED_SUPPORTED_SNAPSHOT_VERSION;
+import static org.elasticsearch.xpack.core.ml.MachineLearningField.MIN_SUPPORTED_SNAPSHOT_VERSION;
 
 public class MlDeprecationChecker implements DeprecationChecker {
 
@@ -69,13 +68,13 @@ public class MlDeprecationChecker implements DeprecationChecker {
     }
 
     static Optional<DeprecationIssue> checkModelSnapshot(ModelSnapshot modelSnapshot) {
-        if (modelSnapshot.getMinVersion().before(MIN_CHECKED_SUPPORTED_SNAPSHOT_VERSION)) {
+        if (modelSnapshot.getMinVersion().before(MIN_SUPPORTED_SNAPSHOT_VERSION)) {
             StringBuilder details = new StringBuilder(
                 String.format(
                     Locale.ROOT,
                     "Delete model snapshot [%s] or update it to %s or greater.",
                     modelSnapshot.getSnapshotId(),
-                    MIN_REPORTED_SUPPORTED_SNAPSHOT_VERSION
+                    MIN_SUPPORTED_SNAPSHOT_VERSION
                 )
             );
             if (modelSnapshot.getLatestRecordTimeStamp() != null) {
@@ -125,28 +124,27 @@ public class MlDeprecationChecker implements DeprecationChecker {
         getModelSnapshots.setPageParams(new PageParams(0, 50));
         getModelSnapshots.setSort(ModelSnapshot.MIN_VERSION.getPreferredName());
 
-        ActionListener<Void> getModelSnaphots = ActionListener.wrap(
-            _unused -> components.client()
-                .execute(GetModelSnapshotsAction.INSTANCE, getModelSnapshots, ActionListener.wrap(modelSnapshots -> {
+        ActionListener<Void> getModelSnaphots = deprecationIssueListener.delegateFailureAndWrap(
+            (delegate, _unused) -> components.client()
+                .execute(GetModelSnapshotsAction.INSTANCE, getModelSnapshots, delegate.delegateFailureAndWrap((l, modelSnapshots) -> {
                     modelSnapshots.getResources()
                         .results()
                         .forEach(modelSnapshot -> checkModelSnapshot(modelSnapshot).ifPresent(issues::add));
-                    deprecationIssueListener.onResponse(new CheckResult(getName(), issues));
-                }, deprecationIssueListener::onFailure)),
-            deprecationIssueListener::onFailure
+                    l.onResponse(new CheckResult(getName(), issues));
+                }))
         );
 
         components.client()
             .execute(
                 GetDatafeedsAction.INSTANCE,
                 new GetDatafeedsAction.Request(GetDatafeedsAction.ALL),
-                ActionListener.wrap(datafeedsResponse -> {
+                getModelSnaphots.delegateFailureAndWrap((delegate, datafeedsResponse) -> {
                     for (DatafeedConfig df : datafeedsResponse.getResponse().results()) {
                         checkDataFeedAggregations(df, components.xContentRegistry()).ifPresent(issues::add);
                         checkDataFeedQuery(df, components.xContentRegistry()).ifPresent(issues::add);
                     }
-                    getModelSnaphots.onResponse(null);
-                }, deprecationIssueListener::onFailure)
+                    delegate.onResponse(null);
+                })
             );
     }
 

@@ -18,6 +18,6 @@ public class DeleteWatchAction extends ActionType<DeleteWatchResponse> {
     public static final String NAME = "cluster:admin/xpack/watcher/watch/delete";
 
     private DeleteWatchAction() {
-        super(NAME, DeleteWatchResponse::new);
+        super(NAME);
     }
 }

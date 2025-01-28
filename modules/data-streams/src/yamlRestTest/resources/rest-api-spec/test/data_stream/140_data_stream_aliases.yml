@@ -1,9 +1,9 @@
 ---
 "Create data stream alias":
-  - skip:
-      version: " - 7.13.99"
+  - requires:
+      cluster_features: ["gte_v7.14.0"]
       reason: "data streams aliases are available from 7.14.0"
-      features: allowed_warnings
+      test_runner_features: allowed_warnings
 
   - do:
       allowed_warnings:
@@ -14,7 +14,7 @@
           index_patterns: [events-*]
           template:
             settings:
-              index.number_of_replicas: 0
+              index.number_of_replicas: 1
           data_stream: {}
 
   - do:
@@ -74,10 +74,10 @@
 
 ---
 "Create data stream alias with filter":
-  - skip:
-      version: " - 7.14.99"
+  - requires:
+      cluster_features: ["gte_v7.15.0"]
       reason: "data stream alias filter supported was added in 7.15.0"
-      features: allowed_warnings
+      test_runner_features: allowed_warnings
 
   - do:
       allowed_warnings:
@@ -88,7 +88,7 @@
           index_patterns: [ log-* ]
           template:
             settings:
-              index.number_of_replicas: 0
+              index.number_of_replicas: 1
           data_stream: { }
 
   - do:
@@ -154,10 +154,10 @@
 
 ---
 "Create data stream aliases using wildcard expression":
-  - skip:
-      version: " - 7.14.0"
+  - requires:
+      cluster_features: ["gte_v7.14.1"]
       reason: "bugfix fixed from 7.14.1 and later"
-      features: allowed_warnings
+      test_runner_features: allowed_warnings
 
   - do:
       allowed_warnings:
@@ -196,10 +196,10 @@
 
 ---
 "Fix IndexNotFoundException error when handling remove alias action":
-  - skip:
-      version: " - 7.15.99"
+  - requires:
+      cluster_features: ["gte_v7.16.0"]
       reason: "Fix available from 7.16.0"
-      features: allowed_warnings
+      test_runner_features: allowed_warnings
 
   - do:
       allowed_warnings:
@@ -240,7 +240,8 @@
             test: {}
 
   - do:
-      indices.get_alias: { }
+      indices.get_alias:
+        index: test*
   - match: { test1.aliases.test: { } }
   - match: { test2.aliases.test: { } }
   - match: { test3.aliases.test: { } }
@@ -255,8 +256,139 @@
   - is_true: acknowledged
 
   - do:
-      indices.get_alias: {}
+      indices.get_alias:
+        index: test*
   - match: {test1.aliases: {}}
   - match: {test2.aliases: {}}
   - match: {test3.aliases: {}}
 
+---
+"Test get alias with non-matching data streams":
+  - requires:
+      cluster_features: ["gte_v8.12.2"]
+      reason: "bugfix fixed from 8.12.1 and later"
+      test_runner_features: allowed_warnings
+
+  - do:
+      allowed_warnings:
+        - "index template [my-template] has index patterns [ds-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template
+        body:
+          index_patterns: [ ds-* ]
+          template:
+            settings:
+              index.number_of_replicas: 0
+          data_stream: { }
+
+  - do:
+      indices.create_data_stream:
+        name: ds-first
+  - is_true: acknowledged
+
+  - do:
+      indices.create_data_stream:
+        name: ds-second
+  - is_true: acknowledged
+
+  - do:
+      indices.update_aliases:
+        body:
+          actions:
+            - add:
+                index: ds-first
+                alias: my-alias
+  - is_true: acknowledged
+
+  - do:
+      indices.get_alias:
+        name: my-al*
+  - match: {ds-first.aliases.my-alias: {}}
+
+  - do:
+      indices.get_alias:
+        name: this-does-not-exist*
+  - is_false: ds-first.aliases.my-alias
+---
+"Action Results with multiple matching aliases":
+  - requires:
+      cluster_features: ["gte_v8.14.0"]
+      reason: "alias action results do not work until 8.14"
+      test_runner_features: ["allowed_warnings"]
+  - do:
+      allowed_warnings:
+        - "index template [my-template] has index patterns [log-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template
+        body:
+          index_patterns: [ log-* ]
+          template:
+            settings:
+              index.number_of_replicas: 0
+          data_stream: { }
+  - do:
+      indices.create_data_stream:
+        name: log-foobar
+  - is_true: acknowledged
+  - do:
+      indices.update_aliases:
+        body:
+          actions:
+            - add:
+                index: log-foobar
+                aliases: test_alias1
+            - remove:
+                index: log-foobar
+                aliases: test_non_existing
+                must_exist: false
+  - is_true: errors
+  - length: { action_results: 2 }
+  - match: { action_results.0.status: 200 }
+  - match: { action_results.0.action: { 'type': 'add', 'indices': ['log-foobar'], 'aliases': ['test_alias1'] } }
+  - match: { action_results.0.error: null }
+  - match: { action_results.1.status: 404 }
+  - match: { action_results.1.action: { 'type': 'remove', 'indices': ['log-foobar'], 'aliases': ['test_non_existing'] } }
+  - match: { action_results.1.error.type: aliases_not_found_exception }
+---
+"Single action result per action":
+  - requires:
+      cluster_features: [ "gte_v8.14.0" ]
+      reason: "alias action results do not work until 8.14"
+      test_runner_features: [ "allowed_warnings" ]
+  - do:
+      allowed_warnings:
+        - "index template [my-template] has index patterns [log-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template
+        body:
+          index_patterns: [ log-* ]
+          template:
+            settings:
+              index.number_of_replicas: 0
+          data_stream: { }
+  - do:
+      indices.create_data_stream:
+        name: log-test-1
+  - do:
+      indices.create_data_stream:
+        name: log-test-2
+  - is_true: acknowledged
+  - do:
+      indices.update_aliases:
+        body:
+          actions:
+            - add:
+                index: log-test-*
+                aliases: test_alias1
+            - remove:
+                index: log-test-*
+                aliases: test_non_existing
+                must_exist: false
+  - is_true: errors
+  - length: { action_results: 2 }
+  - match: { action_results.0.status: 200}
+  - match: { action_results.0.action: { 'type': 'add', 'indices': ['log-test-1', 'log-test-2'], 'aliases': ['test_alias1'] } }
+  - match: { action_results.0.error: null }
+  - match: { action_results.1.status: 404 }
+  - match: { action_results.1.action: { 'type': 'remove', 'indices': ['log-test-1', 'log-test-2'], 'aliases': ['test_non_existing'] } }
+  - match: { action_results.1.error.type: aliases_not_found_exception }

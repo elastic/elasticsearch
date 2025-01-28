@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.rescore;
@@ -21,10 +22,11 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
 
-import static java.util.stream.Collectors.toSet;
+import static java.util.stream.Collectors.toUnmodifiableSet;
 
 public final class QueryRescorer implements Rescorer {
 
+    private static final int MAX_CALLS_BEFORE_QUERY_TIMEOUT_CHECK = 10;
     public static final Rescorer INSTANCE = new QueryRescorer();
 
     @Override
@@ -38,9 +40,14 @@ public final class QueryRescorer implements Rescorer {
         final QueryRescoreContext rescore = (QueryRescoreContext) rescoreContext;
 
         org.apache.lucene.search.Rescorer rescorer = new org.apache.lucene.search.QueryRescorer(rescore.parsedQuery().query()) {
+            int count = 0;
 
             @Override
             protected float combine(float firstPassScore, boolean secondPassMatches, float secondPassScore) {
+                if (count % MAX_CALLS_BEFORE_QUERY_TIMEOUT_CHECK == 0) {
+                    rescore.checkCancellation();
+                }
+                count++;
                 if (secondPassMatches) {
                     return rescore.scoreMode.combine(
                         firstPassScore * rescore.queryWeight(),
@@ -57,9 +64,7 @@ public final class QueryRescorer implements Rescorer {
         TopDocs topNFirstPass = topN(topDocs, rescoreContext.getWindowSize());
 
         // Save doc IDs for which rescoring was applied to be used in score explanation
-        Set<Integer> topNDocIDs = Collections.unmodifiableSet(
-            Arrays.stream(topNFirstPass.scoreDocs).map(scoreDoc -> scoreDoc.doc).collect(toSet())
-        );
+        Set<Integer> topNDocIDs = Arrays.stream(topNFirstPass.scoreDocs).map(scoreDoc -> scoreDoc.doc).collect(toUnmodifiableSet());
         rescoreContext.setRescoredDocs(topNDocIDs);
 
         // Rescore them:
@@ -199,9 +204,6 @@ public final class QueryRescorer implements Rescorer {
             this.scoreMode = scoreMode;
         }
 
-        public void setScoreMode(String scoreMode) {
-            setScoreMode(QueryRescoreMode.fromString(scoreMode));
-        }
     }
 
 }

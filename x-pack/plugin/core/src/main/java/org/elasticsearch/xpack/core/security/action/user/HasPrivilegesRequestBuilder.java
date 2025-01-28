@@ -24,17 +24,11 @@ public class HasPrivilegesRequestBuilder extends ActionRequestBuilder<HasPrivile
         super(client, HasPrivilegesAction.INSTANCE, new HasPrivilegesRequest());
     }
 
-    /**
-     * Set the username of the user that should enabled or disabled. Must not be {@code null}
-     */
     public HasPrivilegesRequestBuilder username(String username) {
         request.username(username);
         return this;
     }
 
-    /**
-     * Set whether the user should be enabled or not
-     */
     public HasPrivilegesRequestBuilder source(String username, BytesReference source, XContentType xContentType) throws IOException {
         final AuthorizationEngine.PrivilegesToCheck privilegesToCheck = RoleDescriptor.parsePrivilegesToCheck(
             username + "/has_privileges",

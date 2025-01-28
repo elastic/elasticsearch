@@ -1,20 +1,21 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.repositories;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotsService;
 
@@ -41,7 +42,7 @@ public final class FinalizeSnapshotContext extends DelegatingActionListener<Repo
 
     private final SnapshotInfo snapshotInfo;
 
-    private final Version repositoryMetaVersion;
+    private final IndexVersion repositoryMetaVersion;
 
     private final Consumer<SnapshotInfo> onDone;
 
@@ -61,7 +62,7 @@ public final class FinalizeSnapshotContext extends DelegatingActionListener<Repo
         long repositoryStateId,
         Metadata clusterMetadata,
         SnapshotInfo snapshotInfo,
-        Version repositoryMetaVersion,
+        IndexVersion repositoryMetaVersion,
         ActionListener<RepositoryData> listener,
         Consumer<SnapshotInfo> onDone
     ) {
@@ -86,7 +87,7 @@ public final class FinalizeSnapshotContext extends DelegatingActionListener<Repo
         return snapshotInfo;
     }
 
-    public Version repositoryMetaVersion() {
+    public IndexVersion repositoryMetaVersion() {
         return repositoryMetaVersion;
     }
 
@@ -99,11 +100,15 @@ public final class FinalizeSnapshotContext extends DelegatingActionListener<Repo
         return obsoleteGenerations.get();
     }
 
+    /**
+     * Returns a new {@link ClusterState}, based on the given {@code state} with the create-snapshot entry removed.
+     */
     public ClusterState updatedClusterState(ClusterState state) {
-        final ClusterState updatedState = SnapshotsService.stateWithoutSnapshot(state, snapshotInfo.snapshot());
+        final ClusterState updatedState = SnapshotsService.stateWithoutSnapshot(state, snapshotInfo.snapshot(), updatedShardGenerations);
+        // Now that the updated cluster state may have changed in-progress shard snapshots' shard generations to the latest shard
+        // generation, let's mark any now unreferenced shard generations as obsolete and ready to be deleted.
         obsoleteGenerations.set(
-            updatedState.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY)
-                .obsoleteGenerations(snapshotInfo.repository(), state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY))
+            SnapshotsInProgress.get(updatedState).obsoleteGenerations(snapshotInfo.repository(), SnapshotsInProgress.get(state))
         );
         return updatedState;
     }

@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.plugins.cli;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.Build;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
@@ -24,6 +25,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
@@ -59,7 +61,7 @@ public class SyncPluginsAction {
      * @throws UserException if a plugins config file is found.
      */
     public static void ensureNoConfigFile(Environment env) throws UserException {
-        final Path pluginsConfig = env.configFile().resolve("elasticsearch-plugins.yml");
+        final Path pluginsConfig = env.configFile().resolve(ELASTICSEARCH_PLUGINS_YML);
         if (Files.exists(pluginsConfig)) {
             throw new UserException(
                 ExitCodes.USAGE,
@@ -206,9 +208,8 @@ public class SyncPluginsAction {
         Optional<PluginsConfig> cachedPluginsConfig,
         List<PluginDescriptor> existingPlugins
     ) {
-        final Map<String, String> cachedPluginIdToLocation = cachedPluginsConfig.map(
-            config -> config.getPlugins().stream().collect(Collectors.toMap(InstallablePlugin::getId, InstallablePlugin::getLocation))
-        ).orElse(Map.of());
+        final Map<String, String> cachedPluginIdToLocation = new HashMap<>();
+        cachedPluginsConfig.ifPresent(config -> config.getPlugins().forEach(p -> cachedPluginIdToLocation.put(p.getId(), p.getLocation())));
 
         return pluginsToMaybeUpgrade.stream().filter(eachPlugin -> {
             final String eachPluginId = eachPlugin.getId();
@@ -241,15 +242,15 @@ public class SyncPluginsAction {
                         throw new RuntimeException("Couldn't find a PluginInfo for [" + eachPluginId + "], which should be impossible");
                     });
 
-                if (info.getElasticsearchVersion().before(Version.CURRENT)) {
+                if (info.getElasticsearchVersion().toString().equals(Build.current().version()) == false) {
                     this.terminal.println(
                         Terminal.Verbosity.VERBOSE,
                         String.format(
                             Locale.ROOT,
-                            "Official plugin [%s] is out-of-date (%s versus %s), upgrading",
+                            "Official plugin [%s] is out-of-sync (%s versus %s), upgrading",
                             eachPluginId,
                             info.getElasticsearchVersion(),
-                            Version.CURRENT
+                            Build.current().version()
                         )
                     );
                     return true;
@@ -278,14 +279,14 @@ public class SyncPluginsAction {
 
                     // Check for a version mismatch, unless it's an official plugin since we can upgrade them.
                     if (InstallPluginAction.OFFICIAL_PLUGINS.contains(info.getName())
-                        && info.getElasticsearchVersion().equals(Version.CURRENT) == false) {
+                        && info.getElasticsearchVersion().toString().equals(Build.current().version()) == false) {
                         this.terminal.errorPrintln(
                             String.format(
                                 Locale.ROOT,
                                 "WARNING: plugin [%s] was built for Elasticsearch version %s but version %s is required",
                                 info.getName(),
                                 info.getElasticsearchVersion(),
-                                Version.CURRENT
+                                Build.current().version()
                             )
                         );
                     }

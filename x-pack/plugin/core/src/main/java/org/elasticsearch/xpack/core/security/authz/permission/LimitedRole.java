@@ -10,7 +10,8 @@ package org.elasticsearch.xpack.core.security.authz.permission;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.automaton.Automaton;
-import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.transport.TransportRequest;
@@ -27,13 +28,12 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
 /**
  * A {@link Role} limited by another role.<br>
- * The effective permissions returned on {@link #authorize(String, Set, Map, FieldPermissionsCache)} call would be limited by the
+ * The effective permissions returned on {@link #authorize(String, Set, Metadata, FieldPermissionsCache)} call would be limited by the
  * provided role.
  */
 public final class LimitedRole implements Role {
@@ -51,6 +51,7 @@ public final class LimitedRole implements Role {
     public LimitedRole(Role baseRole, Role limitedByRole) {
         this.baseRole = Objects.requireNonNull(baseRole);
         this.limitedByRole = Objects.requireNonNull(limitedByRole, "limited by role is required to create limited role");
+        assert false == limitedByRole.hasWorkflowsRestriction() : "limited-by role must not have workflows restriction";
     }
 
     @Override
@@ -72,6 +73,33 @@ public final class LimitedRole implements Role {
     @Override
     public RemoteIndicesPermission remoteIndices() {
         throw new UnsupportedOperationException("cannot retrieve remote indices permission on limited role");
+    }
+
+    @Override
+    public RemoteClusterPermissions remoteCluster() {
+        throw new UnsupportedOperationException("cannot retrieve remote cluster permission on limited role");
+    }
+
+    @Override
+    public boolean hasWorkflowsRestriction() {
+        return baseRole.hasWorkflowsRestriction() || limitedByRole.hasWorkflowsRestriction();
+    }
+
+    @Override
+    public Role forWorkflow(String workflow) {
+        Role baseRestricted = baseRole.forWorkflow(workflow);
+        if (baseRestricted == EMPTY_RESTRICTED_BY_WORKFLOW) {
+            return EMPTY_RESTRICTED_BY_WORKFLOW;
+        }
+        Role limitedByRestricted = limitedByRole.forWorkflow(workflow);
+        if (limitedByRestricted == EMPTY_RESTRICTED_BY_WORKFLOW) {
+            return EMPTY_RESTRICTED_BY_WORKFLOW;
+        }
+        if (baseRestricted == baseRole && limitedByRestricted == limitedByRole) {
+            return this;
+        } else {
+            return baseRestricted.limitedBy(limitedByRestricted);
+        }
     }
 
     @Override
@@ -110,27 +138,28 @@ public final class LimitedRole implements Role {
     public IndicesAccessControl authorize(
         String action,
         Set<String> requestedIndicesOrAliases,
-        Map<String, IndexAbstraction> aliasAndIndexLookup,
+        Metadata metadata,
         FieldPermissionsCache fieldPermissionsCache
     ) {
-        IndicesAccessControl indicesAccessControl = baseRole.authorize(
-            action,
-            requestedIndicesOrAliases,
-            aliasAndIndexLookup,
-            fieldPermissionsCache
-        );
+        IndicesAccessControl indicesAccessControl = baseRole.authorize(action, requestedIndicesOrAliases, metadata, fieldPermissionsCache);
         IndicesAccessControl limitedByIndicesAccessControl = limitedByRole.authorize(
             action,
             requestedIndicesOrAliases,
-            aliasAndIndexLookup,
+            metadata,
             fieldPermissionsCache
         );
         return indicesAccessControl.limitIndicesAccessControl(limitedByIndicesAccessControl);
     }
 
     @Override
-    public RoleDescriptorsIntersection getRoleDescriptorsIntersectionForRemoteCluster(final String remoteClusterAlias) {
-        final RoleDescriptorsIntersection baseIntersection = baseRole.getRoleDescriptorsIntersectionForRemoteCluster(remoteClusterAlias);
+    public RoleDescriptorsIntersection getRoleDescriptorsIntersectionForRemoteCluster(
+        final String remoteClusterAlias,
+        TransportVersion remoteClusterVersion
+    ) {
+        final RoleDescriptorsIntersection baseIntersection = baseRole.getRoleDescriptorsIntersectionForRemoteCluster(
+            remoteClusterAlias,
+            remoteClusterVersion
+        );
         // Intersecting with empty descriptors list should result in an empty intersection.
         if (baseIntersection.roleDescriptorsList().isEmpty()) {
             logger.trace(
@@ -143,7 +172,8 @@ public final class LimitedRole implements Role {
             return RoleDescriptorsIntersection.EMPTY;
         }
         final RoleDescriptorsIntersection limitedByIntersection = limitedByRole.getRoleDescriptorsIntersectionForRemoteCluster(
-            remoteClusterAlias
+            remoteClusterAlias,
+            remoteClusterVersion
         );
         if (limitedByIntersection.roleDescriptorsList().isEmpty()) {
             logger.trace(
@@ -282,26 +312,24 @@ public final class LimitedRole implements Role {
         Collection<ApplicationPrivilegeDescriptor> storedPrivileges,
         @Nullable ResourcePrivilegesMap.Builder resourcePrivilegesMapBuilder
     ) {
-        boolean baseRoleCheck = baseRole.application()
-            .checkResourcePrivileges(
-                applicationName,
-                checkForResources,
-                checkForPrivilegeNames,
-                storedPrivileges,
-                resourcePrivilegesMapBuilder
-            );
+        boolean baseRoleCheck = baseRole.checkApplicationResourcePrivileges(
+            applicationName,
+            checkForResources,
+            checkForPrivilegeNames,
+            storedPrivileges,
+            resourcePrivilegesMapBuilder
+        );
         if (false == baseRoleCheck && null == resourcePrivilegesMapBuilder) {
             // short-circuit only if not interested in the detailed individual check results
             return false;
         }
-        boolean limitedByRoleCheck = limitedByRole.application()
-            .checkResourcePrivileges(
-                applicationName,
-                checkForResources,
-                checkForPrivilegeNames,
-                storedPrivileges,
-                resourcePrivilegesMapBuilder
-            );
+        boolean limitedByRoleCheck = limitedByRole.checkApplicationResourcePrivileges(
+            applicationName,
+            checkForResources,
+            checkForPrivilegeNames,
+            storedPrivileges,
+            resourcePrivilegesMapBuilder
+        );
         return baseRoleCheck && limitedByRoleCheck;
     }
 

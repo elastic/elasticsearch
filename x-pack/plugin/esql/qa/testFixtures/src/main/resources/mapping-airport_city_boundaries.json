@@ -1,0 +1,22 @@
+{
+  "properties": {
+    "abbrev": {
+      "type": "keyword"
+    },
+    "airport": {
+      "type": "text"
+    },
+    "region": {
+      "type": "text"
+    },
+    "city": {
+      "type": "keyword"
+    },
+    "city_location": {
+      "type": "geo_point"
+    },
+    "city_boundary": {
+      "type": "geo_shape"
+    }
+  }
+}

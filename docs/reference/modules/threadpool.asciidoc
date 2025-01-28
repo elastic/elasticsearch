@@ -13,8 +13,8 @@ There are several thread pools, but the important ones include:
 
 [[search-threadpool]]
 `search`::
-    For count/search/suggest operations. Thread pool type is
-    `fixed` with a size of `int((`<<node.processors,
+    For count/search operations at the shard level. Used also by fetch and other search
+    related operations  Thread pool type is `fixed` with a size of `int((`<<node.processors,
     `# of allocated processors`>>`pass:[ * ]3) / 2) + 1`, and queue_size of `1000`.
 
 [[search-throttled]]`search_throttled`::
@@ -23,8 +23,8 @@ There are several thread pools, but the important ones include:
 
 `search_coordination`::
     For lightweight search-related coordination operations. Thread pool type is
-    `fixed` with a size of a max of `min(5, (`<<node.processors,
-`# of allocated processors`>>`) / 2)`, and queue_size of `1000`.
+    `fixed` with a size of `(`<<node.processors, `# of allocated processors`>>`) / 2`,
+    and queue_size of `1000`.
 
 `get`::
     For get operations. Thread pool type is
@@ -36,7 +36,7 @@ There are several thread pools, but the important ones include:
     size of `16`.
 
 `write`::
-    For single-document index/delete/update and bulk requests. Thread pool type
+    For single-document index/delete/update, ingest processors, and bulk requests. Thread pool type
     is `fixed` with a size of <<node.processors, `# of allocated processors`>>,
     queue_size of `10000`. The maximum size for this pool is
     `pass:[1 + ]`<<node.processors, `# of allocated processors`>>.
@@ -114,6 +114,11 @@ There are several thread pools, but the important ones include:
     Thread pool type is `fixed` with a default maximum size of
     `min(5 * (`<<node.processors, `# of allocated processors`>>`), 50)`
     and queue_size of `1000`.
+
+[[modules-threadpool-esql]]`esql_worker`::
+    Executes <<esql>> operations. Thread pool type is `fixed` with a
+    size of `int((`<<node.processors, `# of allocated processors`>>
+    `pass:[ * ]3) / 2) + 1`, and queue_size of `1000`.
 
 Thread pool settings are <<static-cluster-setting,static>> and can be changed by
 editing `elasticsearch.yml`. Changing a specific thread pool can be done by

@@ -4,6 +4,12 @@
 <titleabbrev>Create or update alias</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-indices[Index APIs].
+--
+
 Adds a data stream or index to an <<aliases,alias>>.
 
 [source,console]
@@ -46,7 +52,7 @@ indices return an error.
 [[add-alias-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 [[add-alias-api-request-body]]
 ==== {api-request-body-title}

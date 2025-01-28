@@ -1,18 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.aliases;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -43,13 +44,13 @@ public class NetNewSystemIndexAliasIT extends ESIntegTestCase {
         {
             final IndexRequest request = new IndexRequest(SYSTEM_INDEX_NAME);
             request.source("some_field", "some_value");
-            IndexResponse resp = client().index(request).get();
+            DocWriteResponse resp = client().index(request).get();
             assertThat(resp.status().getStatus(), is(201));
         }
         ensureGreen();
 
-        GetAliasesRequest getAliasesRequest = new GetAliasesRequest();
-        GetAliasesResponse aliasResponse = client().admin().indices().getAliases(getAliasesRequest).get();
+        GetAliasesRequest getAliasesRequest = new GetAliasesRequest(TEST_REQUEST_TIMEOUT);
+        GetAliasesResponse aliasResponse = indicesAdmin().getAliases(getAliasesRequest).get();
         assertThat(aliasResponse.getAliases().size(), is(0));
     }
 
@@ -68,6 +69,7 @@ public class NetNewSystemIndexAliasIT extends ESIntegTestCase {
                 {
                     builder.startObject("_meta");
                     builder.field("version", Version.CURRENT.toString());
+                    builder.field(SystemIndexDescriptor.VERSION_META_KEY, 1);
                     builder.endObject();
 
                     builder.field("dynamic", "strict");
@@ -87,7 +89,6 @@ public class NetNewSystemIndexAliasIT extends ESIntegTestCase {
                         .setPrimaryIndex(SYSTEM_INDEX_NAME)
                         .setDescription("Test system index")
                         .setOrigin(getClass().getName())
-                        .setVersionMetaKey("version")
                         .setMappings(builder)
                         .setSettings(SETTINGS)
                         .setType(SystemIndexDescriptor.Type.INTERNAL_MANAGED)

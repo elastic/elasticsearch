@@ -8,6 +8,7 @@
 package org.elasticsearch.blobcache.shared;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.TestEnvironment;
@@ -28,24 +29,15 @@ public class SharedBytesTests extends ESTestCase {
         try (var nodeEnv = new NodeEnvironment(nodeSettings, TestEnvironment.newEnvironment(nodeSettings))) {
             final SharedBytes sharedBytes = new SharedBytes(
                 regions,
-                randomIntBetween(1, 16) * 4096L,
+                randomIntBetween(1, 16) * 4096,
                 nodeEnv,
                 ignored -> {},
-                ignored -> {}
+                ignored -> {},
+                IOUtils.WINDOWS == false && randomBoolean()
             );
             final var sharedBytesPath = nodeEnv.nodeDataPaths()[0].resolve("shared_snapshot_cache");
             assertTrue(Files.exists(sharedBytesPath));
-            SharedBytes.IO fileChannel = sharedBytes.getFileChannel(randomInt(regions - 1));
-            assertTrue(Files.exists(sharedBytesPath));
-            if (randomBoolean()) {
-                fileChannel.close();
-                assertTrue(Files.exists(sharedBytesPath));
-                sharedBytes.decRef();
-            } else {
-                sharedBytes.decRef();
-                assertTrue(Files.exists(sharedBytesPath));
-                fileChannel.close();
-            }
+            sharedBytes.decRef();
             assertFalse(Files.exists(sharedBytesPath));
         }
     }

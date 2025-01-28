@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.security.rest.action.profile;
 
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
@@ -24,7 +23,6 @@ import org.elasticsearch.xpack.core.security.action.profile.ActivateProfileReque
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 
@@ -42,15 +40,20 @@ public class RestActivateProfileAction extends SecurityBaseRestHandler implement
         PARSER.declareString((req, str) -> req.getGrant().setUsername(str), new ParseField("username"));
         PARSER.declareField(
             (req, secStr) -> req.getGrant().setPassword(secStr),
-            RestActivateProfileAction::getSecureString,
+            SecurityBaseRestHandler::getSecureString,
             new ParseField("password"),
             ObjectParser.ValueType.STRING
         );
         PARSER.declareField(
             (req, secStr) -> req.getGrant().setAccessToken(secStr),
-            RestActivateProfileAction::getSecureString,
+            SecurityBaseRestHandler::getSecureString,
             new ParseField("access_token"),
             ObjectParser.ValueType.STRING
+        );
+        PARSER.declareObject(
+            (req, clientAuthentication) -> req.getGrant().setClientAuthentication(clientAuthentication),
+            CLIENT_AUTHENTICATION_PARSER,
+            new ParseField("client_authentication")
         );
     }
 
@@ -68,23 +71,21 @@ public class RestActivateProfileAction extends SecurityBaseRestHandler implement
         return "xpack_security_activate_profile";
     }
 
+    // package-private for tests
+    static ActivateProfileRequest fromXContent(XContentParser parser) throws IOException {
+        return PARSER.parse(parser, null);
+    }
+
     @Override
     protected RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
         try (XContentParser parser = request.contentParser()) {
-            final ActivateProfileRequest activateProfileRequest = PARSER.parse(parser, null);
+            final ActivateProfileRequest activateProfileRequest = fromXContent(parser);
             return channel -> client.execute(ActivateProfileAction.INSTANCE, activateProfileRequest, new RestToXContentListener<>(channel));
         }
     }
 
-    // TODO: extract to standalone helper method
-    private static SecureString getSecureString(XContentParser parser) throws IOException {
-        return new SecureString(
-            Arrays.copyOfRange(parser.textCharacters(), parser.textOffset(), parser.textOffset() + parser.textLength())
-        );
-    }
-
     @Override
     public Set<String> getFilteredFields() {
-        return Set.of("password", "access_token");
+        return Set.of("password", "access_token", "client_authentication.value");
     }
 }

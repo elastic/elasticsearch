@@ -22,6 +22,7 @@ import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.security.audit.logfile.CapturingLogger;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
+import org.elasticsearch.xpack.core.security.authc.support.CachingRealm;
 import org.elasticsearch.xpack.core.security.authc.support.DnRoleMapperSettings;
 import org.junit.After;
 import org.junit.Before;
@@ -51,6 +52,9 @@ import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class DnRoleMapperTests extends ESTestCase {
 
@@ -103,7 +107,7 @@ public class DnRoleMapperTests extends ESTestCase {
 
         try (ResourceWatcherService watcherService = new ResourceWatcherService(settings, threadPool)) {
             DnRoleMapper mapper = createMapper(file, watcherService);
-            mapper.addListener(latch::countDown);
+            mapper.clearRealmCacheOnChange(mockCachingRealm(randomAlphaOfLength(8), latch));
 
             Set<String> roles = mapper.resolveRoles("", Collections.singletonList("cn=shield,ou=marvel,o=superheros"));
             assertThat(roles, notNullValue());
@@ -147,7 +151,7 @@ public class DnRoleMapperTests extends ESTestCase {
 
         try (ResourceWatcherService watcherService = new ResourceWatcherService(settings, threadPool)) {
             DnRoleMapper mapper = createMapper(file, watcherService);
-            mapper.addListener(latch::countDown);
+            mapper.clearRealmCacheOnChange(mockCachingRealm(randomAlphaOfLength(8), latch));
 
             Set<String> roles = mapper.resolveRoles("", Collections.singletonList("cn=shield,ou=marvel,o=superheros"));
             assertThat(roles, notNullValue());
@@ -188,16 +192,6 @@ public class DnRoleMapperTests extends ESTestCase {
                 assertThat(resolvedRoles.size(), is(1));
                 assertThat(resolvedRoles, contains("fantastic_four"));
             }, 2L, TimeUnit.SECONDS);
-        }
-    }
-
-    public void testAddNullListener() throws Exception {
-        Path file = env.configFile().resolve("test_role_mapping.yml");
-        Files.write(file, Collections.singleton(""));
-        try (ResourceWatcherService watcherService = new ResourceWatcherService(settings, threadPool)) {
-            DnRoleMapper mapper = createMapper(file, watcherService);
-            NullPointerException e = expectThrows(NullPointerException.class, () -> mapper.addListener(null));
-            assertEquals("listener cannot be null", e.getMessage());
         }
     }
 
@@ -365,5 +359,15 @@ public class DnRoleMapperTests extends ESTestCase {
             .build();
         RealmConfig config = new RealmConfig(identifier, mergedSettings, env, new ThreadContext(Settings.EMPTY));
         return new DnRoleMapper(config, watcherService);
+    }
+
+    private static CachingRealm mockCachingRealm(String name, CountDownLatch latch) {
+        CachingRealm cachingRealm = mock(CachingRealm.class);
+        when(cachingRealm.name()).thenReturn(name);
+        doAnswer(inv -> {
+            latch.countDown();
+            return null;
+        }).when(cachingRealm).expireAll();
+        return cachingRealm;
     }
 }

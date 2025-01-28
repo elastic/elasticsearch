@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.rank;
@@ -15,6 +16,7 @@ import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
+import org.elasticsearch.index.mapper.IdLoader;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -41,6 +43,8 @@ import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.query.QuerySearchResult;
+import org.elasticsearch.search.rank.context.QueryPhaseRankShardContext;
+import org.elasticsearch.search.rank.feature.RankFeatureResult;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
@@ -55,14 +59,16 @@ public class RankSearchContext extends SearchContext {
 
     private final SearchContext parent;
     private final Query rankQuery;
-    private final int windowSize;
+    private final int rankWindowSize;
     private final QuerySearchResult querySearchResult;
 
-    public RankSearchContext(SearchContext parent, Query rankQuery, int windowSize) {
+    @SuppressWarnings("this-escape")
+    public RankSearchContext(SearchContext parent, Query rankQuery, int rankWindowSize) {
         this.parent = parent;
         this.rankQuery = parent.buildFilteredQuery(rankQuery);
-        this.windowSize = windowSize;
+        this.rankWindowSize = rankWindowSize;
         this.querySearchResult = new QuerySearchResult(parent.readerContext().id(), parent.shardTarget(), parent.request());
+        this.addReleasable(querySearchResult::decRef);
     }
 
     @Override
@@ -178,7 +184,7 @@ public class RankSearchContext extends SearchContext {
 
     @Override
     public int size() {
-        return windowSize;
+        return rankWindowSize;
     }
 
     /**
@@ -255,11 +261,6 @@ public class RankSearchContext extends SearchContext {
     }
 
     @Override
-    public void addSearchExt(SearchExtBuilder searchExtBuilder) {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
     public SearchExtBuilder getSearchExt(String name) {
         throw new UnsupportedOperationException();
     }
@@ -284,18 +285,17 @@ public class RankSearchContext extends SearchContext {
         throw new UnsupportedOperationException();
     }
 
-    @Override
     public void suggest(SuggestionSearchContext suggest) {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public RankShardContext rankShardContext() {
+    public QueryPhaseRankShardContext queryPhaseRankShardContext() {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public void rankShardContext(RankShardContext rankShardContext) {
+    public void queryPhaseRankShardContext(QueryPhaseRankShardContext queryPhaseRankShardContext) {
         throw new UnsupportedOperationException();
     }
 
@@ -316,11 +316,6 @@ public class RankSearchContext extends SearchContext {
 
     @Override
     public boolean sourceRequested() {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public boolean hasFetchSourceContext() {
         throw new UnsupportedOperationException();
     }
 
@@ -360,11 +355,6 @@ public class RankSearchContext extends SearchContext {
     }
 
     @Override
-    public void timeout(TimeValue timeout) {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
     public void terminateAfter(int terminateAfter) {
         throw new UnsupportedOperationException();
     }
@@ -396,11 +386,6 @@ public class RankSearchContext extends SearchContext {
 
     @Override
     public SearchContext searchAfter(FieldDoc searchAfter) {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public SearchContext collapse(CollapseContext collapse) {
         throw new UnsupportedOperationException();
     }
 
@@ -460,11 +445,6 @@ public class RankSearchContext extends SearchContext {
     }
 
     @Override
-    public void groupStats(List<String> groupStats) {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
     public boolean version() {
         throw new UnsupportedOperationException();
     }
@@ -481,16 +461,6 @@ public class RankSearchContext extends SearchContext {
 
     @Override
     public void seqNoAndPrimaryTerm(boolean seqNoAndPrimaryTerm) {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public int[] docIdsToLoad() {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public SearchContext docIdsToLoad(int[] docIdsToLoad) {
         throw new UnsupportedOperationException();
     }
 
@@ -525,6 +495,16 @@ public class RankSearchContext extends SearchContext {
     }
 
     @Override
+    public void addRankFeatureResult() {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public RankFeatureResult rankFeatureResult() {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
     public FetchSearchResult fetchResult() {
         throw new UnsupportedOperationException();
     }
@@ -546,6 +526,11 @@ public class RankSearchContext extends SearchContext {
 
     @Override
     public SourceLoader newSourceLoader() {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public IdLoader newIdLoader() {
         throw new UnsupportedOperationException();
     }
 }

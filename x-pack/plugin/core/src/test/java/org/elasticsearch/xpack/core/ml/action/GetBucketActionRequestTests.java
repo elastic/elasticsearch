@@ -63,11 +63,6 @@ public class GetBucketActionRequestTests extends AbstractXContentSerializingTest
     }
 
     @Override
-    protected boolean supportsUnknownFields() {
-        return false;
-    }
-
-    @Override
     protected Request doParseInstance(XContentParser parser) {
         return GetBucketsAction.Request.parseRequest(null, parser);
     }

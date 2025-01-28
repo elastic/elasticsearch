@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockAction;
 import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockRequest;
+import org.elasticsearch.action.admin.indices.readonly.TransportAddIndexBlockAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
@@ -23,9 +23,15 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.APIBlock.WRITE;
  */
 public class ReadOnlyStep extends AsyncActionStep {
     public static final String NAME = "readonly";
+    private final boolean markVerified;
 
-    public ReadOnlyStep(StepKey key, StepKey nextStepKey, Client client) {
+    /**
+     * @param markVerified whether the index should be marked verified after becoming read-only, ensuring that N-2 is supported without
+     *                     manual intervention. Should be set to true when the read-only block is not temporary.
+     */
+    public ReadOnlyStep(StepKey key, StepKey nextStepKey, Client client, boolean markVerified) {
         super(key, nextStepKey, client);
+        this.markVerified = markVerified;
     }
 
     @Override
@@ -38,14 +44,15 @@ public class ReadOnlyStep extends AsyncActionStep {
         getClient().admin()
             .indices()
             .execute(
-                AddIndexBlockAction.INSTANCE,
-                new AddIndexBlockRequest(WRITE, indexMetadata.getIndex().getName()).masterNodeTimeout(TimeValue.MAX_VALUE),
-                ActionListener.wrap(response -> {
+                TransportAddIndexBlockAction.TYPE,
+                new AddIndexBlockRequest(WRITE, indexMetadata.getIndex().getName()).masterNodeTimeout(TimeValue.MAX_VALUE)
+                    .markVerified(markVerified),
+                listener.delegateFailureAndWrap((l, response) -> {
                     if (response.isAcknowledged() == false) {
                         throw new ElasticsearchException("read only add block index request failed to be acknowledged");
                     }
-                    listener.onResponse(null);
-                }, listener::onFailure)
+                    l.onResponse(null);
+                })
             );
     }
 

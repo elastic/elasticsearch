@@ -16,6 +16,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -57,7 +58,7 @@ public class GroupConfig implements Writeable, ToXContentObject {
     }
 
     public GroupConfig(StreamInput in) throws IOException {
-        source = in.readMap();
+        source = in.readGenericMap();
         groups = in.readOrderedMap(StreamInput::readString, (stream) -> {
             SingleGroupSource.Type groupType = SingleGroupSource.Type.fromId(stream.readByte());
             return switch (groupType) {
@@ -93,7 +94,7 @@ public class GroupConfig implements Writeable, ToXContentObject {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeGenericMap(source);
-        out.writeMap(groups, StreamOutput::writeString, (stream, value) -> {
+        out.writeMap(groups, (stream, value) -> {
             stream.writeByte(value.getType().getId());
             value.writeTo(stream);
         });
@@ -138,8 +139,11 @@ public class GroupConfig implements Writeable, ToXContentObject {
         } else {
             try (
                 XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().map(source);
-                XContentParser sourceParser = XContentType.JSON.xContent()
-                    .createParser(registry, LoggingDeprecationHandler.INSTANCE, BytesReference.bytes(xContentBuilder).streamInput())
+                XContentParser sourceParser = XContentHelper.createParserNotCompressed(
+                    LoggingDeprecationHandler.XCONTENT_PARSER_CONFIG.withRegistry(registry),
+                    BytesReference.bytes(xContentBuilder),
+                    XContentType.JSON
+                )
             ) {
                 groups = parseGroupConfig(sourceParser, lenient);
             } catch (Exception e) {

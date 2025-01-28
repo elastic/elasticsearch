@@ -1,15 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest;
 
-import org.elasticsearch.core.Tuple;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentType;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 
@@ -340,7 +343,7 @@ public class IngestDocumentTests extends ESTestCase {
     }
 
     public void testSetFieldValueNullValue() {
-        ingestDocument.setFieldValue("new_field", null);
+        ingestDocument.setFieldValue("new_field", (Object) null);
         assertThat(ingestDocument.getSourceAndMetadata().containsKey("new_field"), equalTo(true));
         assertThat(ingestDocument.getSourceAndMetadata().get("new_field"), nullValue());
     }
@@ -958,70 +961,6 @@ public class IngestDocumentTests extends ESTestCase {
         }
     }
 
-    public void testEqualsAndHashcode() throws Exception {
-        Map<String, Object> sourceAndMetadata = RandomDocumentPicks.randomSource(random());
-        int numFields = randomIntBetween(1, IngestDocument.Metadata.values().length);
-        for (int i = 0; i < numFields; i++) {
-            Tuple<String, Object> metadata = TestIngestDocument.randomMetadata();
-            sourceAndMetadata.put(metadata.v1(), metadata.v2());
-        }
-        sourceAndMetadata.putIfAbsent("_version", TestIngestDocument.randomVersion());
-        Map<String, Object> ingestMetadata = new HashMap<>();
-        numFields = randomIntBetween(1, 5);
-        for (int i = 0; i < numFields; i++) {
-            ingestMetadata.put(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLengthBetween(5, 10));
-        }
-        // this is testing equality so use the wire constructor
-        IngestDocument ingestDocument = new IngestDocument(sourceAndMetadata, ingestMetadata);
-
-        boolean changed = false;
-        Map<String, Object> otherSourceAndMetadata;
-        if (randomBoolean()) {
-            otherSourceAndMetadata = RandomDocumentPicks.randomSource(random());
-            otherSourceAndMetadata.putIfAbsent("_version", TestIngestDocument.randomVersion());
-            changed = true;
-        } else {
-            otherSourceAndMetadata = new HashMap<>(sourceAndMetadata);
-        }
-        if (randomBoolean()) {
-            numFields = randomIntBetween(1, IngestDocument.Metadata.values().length);
-            for (int i = 0; i < numFields; i++) {
-                Tuple<String, Object> metadata;
-                do {
-                    metadata = TestIngestDocument.randomMetadata();
-                } while (metadata.v2().equals(sourceAndMetadata.get(metadata.v1()))); // must actually be a change
-                otherSourceAndMetadata.put(metadata.v1(), metadata.v2());
-            }
-            changed = true;
-        }
-
-        Map<String, Object> otherIngestMetadata;
-        if (randomBoolean()) {
-            otherIngestMetadata = new HashMap<>();
-            numFields = randomIntBetween(1, 5);
-            for (int i = 0; i < numFields; i++) {
-                otherIngestMetadata.put(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLengthBetween(5, 10));
-            }
-            changed = true;
-        } else {
-            otherIngestMetadata = Map.copyOf(ingestMetadata);
-        }
-
-        IngestDocument otherIngestDocument = new IngestDocument(otherSourceAndMetadata, otherIngestMetadata);
-        if (changed) {
-            assertThat(ingestDocument, not(equalTo(otherIngestDocument)));
-            assertThat(otherIngestDocument, not(equalTo(ingestDocument)));
-        } else {
-            assertThat(ingestDocument, equalTo(otherIngestDocument));
-            assertThat(otherIngestDocument, equalTo(ingestDocument));
-            assertThat(ingestDocument.hashCode(), equalTo(otherIngestDocument.hashCode()));
-            IngestDocument thirdIngestDocument = new IngestDocument(Map.copyOf(sourceAndMetadata), Map.copyOf(ingestMetadata));
-            assertThat(thirdIngestDocument, equalTo(ingestDocument));
-            assertThat(ingestDocument, equalTo(thirdIngestDocument));
-            assertThat(ingestDocument.hashCode(), equalTo(thirdIngestDocument.hashCode()));
-        }
-    }
-
     public void testIngestMetadataTimestamp() throws Exception {
         long before = System.currentTimeMillis();
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
@@ -1069,6 +1008,40 @@ public class IngestDocumentTests extends ESTestCase {
             assertThat(ingestDocument.getFieldValue("_id", String.class), equalTo("bar1"));
             assertThat(ingestDocument.getFieldValue("hello", String.class), equalTo("world1"));
         }
+
+        {
+            // the copy constructor rejects self-references
+            IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
+            List<Object> someList = new ArrayList<>();
+            someList.add("some string");
+            someList.add(someList); // the list contains itself
+            ingestDocument.setFieldValue("someList", someList);
+            Exception e = expectThrows(IllegalArgumentException.class, () -> new IngestDocument(ingestDocument));
+            assertThat(e.getMessage(), equalTo("Iterable object is self-referencing itself"));
+        }
+    }
+
+    public void testCopyConstructorWithExecutedPipelines() {
+        /*
+         * This is similar to the first part of testCopyConstructor, except that we're executing a pipeilne, and running the
+         * assertions inside the processor so that we can test that executedPipelines is correct.
+         */
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
+        TestProcessor processor = new TestProcessor(ingestDocument1 -> {
+            assertThat(ingestDocument1.getPipelineStack().size(), equalTo(1));
+            IngestDocument copy = new IngestDocument(ingestDocument1);
+            assertThat(ingestDocument1.getSourceAndMetadata(), not(sameInstance(copy.getSourceAndMetadata())));
+            assertThat(ingestDocument1.getCtxMap(), not(sameInstance(copy.getCtxMap())));
+            assertThat(ingestDocument1.getCtxMap().getMetadata(), not(sameInstance(copy.getCtxMap().getMetadata())));
+            assertIngestDocument(ingestDocument1, copy);
+            assertThat(copy.getPipelineStack(), equalTo(ingestDocument1.getPipelineStack()));
+        });
+        Pipeline pipeline = new Pipeline("pipeline1", "test pipeline", 1, Map.of(), new CompoundProcessor(processor));
+        ingestDocument.executePipeline(pipeline, (ingestDocument1, exception) -> {
+            assertNotNull(ingestDocument1);
+            assertNull(exception);
+        });
+        assertThat(processor.getInvokedCounter(), equalTo(1));
     }
 
     public void testCopyConstructorWithZonedDateTime() {
@@ -1157,5 +1130,48 @@ public class IngestDocumentTests extends ESTestCase {
         // an index cycle cannot be introduced, however
         assertFalse(ingestDocument.updateIndexHistory(index1));
         assertThat(ingestDocument.getIndexHistory(), Matchers.contains(index1, index2));
+    }
+
+    public void testSourceHashMapIsNotCopied() {
+        // an ingest document's ctxMap will, as an optimization, just use the passed-in map reference
+        {
+            Map<String, Object> source = new HashMap<>(Map.of("foo", 1));
+            IngestDocument document = new IngestDocument("index", "id", 1, null, null, source);
+            assertThat(document.getSource(), sameInstance(source));
+            assertThat(document.getCtxMap().getSource(), sameInstance(source));
+        }
+
+        {
+            Map<String, Object> source = XContentHelper.convertToMap(new BytesArray("{ \"foo\": 1 }"), false, XContentType.JSON).v2();
+            IngestDocument document = new IngestDocument("index", "id", 1, null, null, source);
+            assertThat(document.getSource(), sameInstance(source));
+            assertThat(document.getCtxMap().getSource(), sameInstance(source));
+        }
+
+        {
+            Map<String, Object> source = Map.of("foo", 1);
+            IngestDocument document = new IngestDocument("index", "id", 1, null, null, source);
+            assertThat(document.getSource(), sameInstance(source));
+            assertThat(document.getCtxMap().getSource(), sameInstance(source));
+        }
+
+        // a cloned ingest document will copy the map, though
+        {
+            Map<String, Object> source = Map.of("foo", 1);
+            IngestDocument document1 = new IngestDocument("index", "id", 1, null, null, source);
+            document1.getIngestMetadata().put("bar", 2);
+            IngestDocument document2 = new IngestDocument(document1);
+            assertThat(document2.getCtxMap().getMetadata(), equalTo(document1.getCtxMap().getMetadata()));
+            assertThat(document2.getSource(), not(sameInstance(source)));
+            assertThat(document2.getCtxMap().getMetadata(), equalTo(document1.getCtxMap().getMetadata()));
+            assertThat(document2.getCtxMap().getSource(), not(sameInstance(source)));
+
+            // it also copies these other nearby maps
+            assertThat(document2.getIngestMetadata(), equalTo(document1.getIngestMetadata()));
+            assertThat(document2.getIngestMetadata(), not(sameInstance(document1.getIngestMetadata())));
+
+            assertThat(document2.getCtxMap().getMetadata(), not(sameInstance(document1.getCtxMap().getMetadata())));
+            assertThat(document2.getCtxMap().getMetadata(), not(sameInstance(document1.getCtxMap().getMetadata())));
+        }
     }
 }

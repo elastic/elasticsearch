@@ -10,13 +10,17 @@ package org.elasticsearch.xpack.ml.integration;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseListener;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AllocationStatus;
 import org.elasticsearch.xpack.core.ml.inference.assignment.Priority;
 import org.elasticsearch.xpack.core.ml.integration.MlRestTestStateCleaner;
@@ -191,11 +195,26 @@ public abstract class PyTorchModelRestTestCase extends ESRestTestCase {
     }
 
     protected void createPassThroughModel(String modelId) throws IOException {
+        createPassThroughModel(modelId, 0, 0);
+    }
+
+    protected void createPassThroughModel(String modelId, long perDeploymentMemoryBytes, long perAllocationMemoryBytes) throws IOException {
         Request request = new Request("PUT", "/_ml/trained_models/" + modelId);
-        request.setJsonEntity("""
+        String metadata;
+        if (perDeploymentMemoryBytes > 0 && perAllocationMemoryBytes > 0) {
+            metadata = Strings.format("""
+                "metadata": {
+                  "per_deployment_memory_bytes": %d,
+                  "per_allocation_memory_bytes": %d
+                },""", perDeploymentMemoryBytes, perAllocationMemoryBytes);
+        } else {
+            metadata = "";
+        }
+        request.setJsonEntity(Strings.format("""
             {
                "description": "simple model for testing",
                "model_type": "pytorch",
+                %s
                "inference_config": {
                  "pass_through": {
                    "tokenization": {
@@ -205,7 +224,7 @@ public abstract class PyTorchModelRestTestCase extends ESRestTestCase {
                    }
                  }
                }
-             }""");
+             }""", metadata));
         client().performRequest(request);
     }
 
@@ -267,16 +286,43 @@ public abstract class PyTorchModelRestTestCase extends ESRestTestCase {
         return client().performRequest(request);
     }
 
-    protected void stopDeployment(String modelId) throws IOException {
-        stopDeployment(modelId, false);
+    protected Response startDeployment(String modelId, String deploymentId, AdaptiveAllocationsSettings adaptiveAllocationsSettings)
+        throws IOException {
+        String endPoint = "/_ml/trained_models/"
+            + modelId
+            + "/deployment/_start"
+            + "?deployment_id="
+            + deploymentId
+            + "&threads_per_allocation=1"
+            + "&wait_for=started";
+
+        XContentBuilder builder = JsonXContent.contentBuilder();
+        builder.startObject();
+        builder.field("adaptive_allocations", adaptiveAllocationsSettings);
+        builder.endObject();
+        var body = Strings.toString(builder);
+
+        Request request = new Request("POST", endPoint);
+        request.setJsonEntity(body);
+        return client().performRequest(request);
     }
 
-    protected void stopDeployment(String modelId, boolean force) throws IOException {
+    protected void stopDeployment(String modelId) throws IOException {
+        stopDeployment(modelId, false, false);
+    }
+
+    protected void stopDeployment(String modelId, boolean force, boolean finishPendingWork) throws IOException {
         String endpoint = "/_ml/trained_models/" + modelId + "/deployment/_stop";
-        if (force) {
-            endpoint += "?force=true";
-        }
+
         Request request = new Request("POST", endpoint);
+        if (force) {
+            request.addParameter("force", "true");
+        }
+
+        if (finishPendingWork) {
+            request.addParameter("finish_pending_work", "true");
+        }
+
         client().performRequest(request);
     }
 
@@ -291,12 +337,25 @@ public abstract class PyTorchModelRestTestCase extends ESRestTestCase {
         return client().performRequest(request);
     }
 
+    protected Response getTrainedModelConfigs(String modelId) throws IOException {
+        Request request = new Request("GET", "/_ml/trained_models/" + modelId);
+        return client().performRequest(request);
+    }
+
     protected Response infer(String input, String modelId, TimeValue timeout) throws IOException {
         Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/_infer?timeout=" + timeout.toString());
         request.setJsonEntity(Strings.format("""
             {  "docs": [{"input":"%s"}] }
             """, input));
         return client().performRequest(request);
+    }
+
+    protected void asyncInfer(String input, String modelId, TimeValue timeout, ResponseListener responseListener) throws IOException {
+        Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/_infer?timeout=" + timeout.toString());
+        request.setJsonEntity(Strings.format("""
+            {  "docs": [{"input":"%s"}] }
+            """, input));
+        client().performRequestAsync(request, responseListener);
     }
 
     protected Response infer(String input, String modelId) throws IOException {
@@ -329,6 +388,24 @@ public abstract class PyTorchModelRestTestCase extends ESRestTestCase {
     protected void forceMergeIndex(String index) throws IOException {
         Request request = new Request("POST", "/" + index + "/_forcemerge?max_num_segments=1");
         assertOkWithErrorMessage(client().performRequest(request));
+    }
+
+    protected void putPipeline(String pipelineId, String pipelineDefinition) throws IOException {
+        Request request = new Request("PUT", "_ingest/pipeline/" + pipelineId);
+        request.setJsonEntity(pipelineDefinition);
+        assertOkWithErrorMessage(client().performRequest(request));
+    }
+
+    protected Response simulatePipeline(String pipelineDef, String docs) throws IOException {
+        String simulate = Strings.format("""
+            {
+              "pipeline": %s,
+              "docs": %s
+            }""", pipelineDef, docs);
+
+        Request request = new Request("POST", "_ingest/pipeline/_simulate?error_trace=true");
+        request.setJsonEntity(simulate);
+        return client().performRequest(request);
     }
 
     @SuppressWarnings("unchecked")

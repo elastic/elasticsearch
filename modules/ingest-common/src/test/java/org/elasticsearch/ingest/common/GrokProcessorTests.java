@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest.common;
@@ -114,13 +115,13 @@ public class GrokProcessorTests extends ESTestCase {
             MatcherWatchdog.noop()
         );
         processor.execute(doc);
-        assertThat(doc, equalTo(originalDoc));
+        assertIngestDocument(doc, originalDoc);
     }
 
     public void testNullField() {
         String fieldName = RandomDocumentPicks.randomFieldName(random());
         IngestDocument doc = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
-        doc.setFieldValue(fieldName, null);
+        doc.setFieldValue(fieldName, (Object) null);
         GrokProcessor processor = new GrokProcessor(
             randomAlphaOfLength(10),
             null,
@@ -138,7 +139,7 @@ public class GrokProcessorTests extends ESTestCase {
     public void testNullFieldWithIgnoreMissing() throws Exception {
         String fieldName = RandomDocumentPicks.randomFieldName(random());
         IngestDocument originalIngestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
-        originalIngestDocument.setFieldValue(fieldName, null);
+        originalIngestDocument.setFieldValue(fieldName, (Object) null);
         IngestDocument ingestDocument = new IngestDocument(originalIngestDocument);
         GrokProcessor processor = new GrokProcessor(
             randomAlphaOfLength(10),

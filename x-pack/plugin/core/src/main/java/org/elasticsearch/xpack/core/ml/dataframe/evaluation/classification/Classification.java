@@ -31,7 +31,7 @@ import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.MlEvaluationN
 /**
  * Evaluation of classification results.
  */
-public class Classification implements Evaluation {
+public final class Classification implements Evaluation {
 
     public static final ParseField NAME = new ParseField("classification");
 
@@ -110,7 +110,7 @@ public class Classification implements Evaluation {
             in.readOptionalString(),
             true
         );
-        this.metrics = in.readNamedWriteableList(EvaluationMetric.class);
+        this.metrics = in.readNamedWriteableCollectionAsList(EvaluationMetric.class);
     }
 
     @Override
@@ -140,7 +140,7 @@ public class Classification implements Evaluation {
         out.writeOptionalString(fields.getTopClassesField());
         out.writeOptionalString(fields.getPredictedClassField());
         out.writeOptionalString(fields.getPredictedProbabilityField());
-        out.writeNamedWriteableList(metrics);
+        out.writeNamedWriteableCollection(metrics);
     }
 
     @Override

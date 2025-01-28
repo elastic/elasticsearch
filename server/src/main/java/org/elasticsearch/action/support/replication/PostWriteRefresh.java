@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.support.replication;
@@ -25,14 +26,18 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.concurrent.Executor;
+
 public class PostWriteRefresh {
 
     public static final String POST_WRITE_REFRESH_ORIGIN = "post_write_refresh";
     public static final String FORCED_REFRESH_AFTER_INDEX = "refresh_flag_index";
     private final TransportService transportService;
+    private final Executor refreshExecutor;
 
     public PostWriteRefresh(final TransportService transportService) {
         this.transportService = transportService;
+        this.refreshExecutor = transportService.getThreadPool().executor(ThreadPool.Names.REFRESH);
     }
 
     public void refreshShard(
@@ -47,7 +52,7 @@ public class PostWriteRefresh {
             case WAIT_UNTIL -> waitUntil(indexShard, location, new ActionListener<>() {
                 @Override
                 public void onResponse(Boolean forced) {
-                    if (indexShard.routingEntry().isSearchable() == false && location != null) {
+                    if (location != null && indexShard.routingEntry().isSearchable() == false) {
                         refreshUnpromotables(indexShard, location, listener, forced, postWriteRefreshTimeout);
                     } else {
                         listener.onResponse(forced);
@@ -59,21 +64,13 @@ public class PostWriteRefresh {
                     listener.onFailure(e);
                 }
             });
-            case IMMEDIATE -> immediate(indexShard, new ActionListener<>() {
-                @Override
-                public void onResponse(Engine.RefreshResult refreshResult) {
-                    if (indexShard.getReplicationGroup().getRoutingTable().unpromotableShards().size() > 0) {
-                        sendUnpromotableRequests(indexShard, refreshResult.generation(), true, listener, postWriteRefreshTimeout);
-                    } else {
-                        listener.onResponse(true);
-                    }
+            case IMMEDIATE -> immediate(indexShard, listener.delegateFailureAndWrap((l, r) -> {
+                if (indexShard.getReplicationGroup().getRoutingTable().allUnpromotableShards().size() > 0) {
+                    sendUnpromotableRequests(indexShard, r.generation(), true, l, postWriteRefreshTimeout);
+                } else {
+                    l.onResponse(true);
                 }
-
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(e);
-                }
-            });
+            }));
             default -> throw new IllegalArgumentException("unknown refresh policy: " + policy);
         }
     }
@@ -117,21 +114,13 @@ public class PostWriteRefresh {
             return;
         }
 
-        engineOrNull.addFlushListener(location, ActionListener.wrap(new ActionListener<>() {
-            @Override
-            public void onResponse(Long generation) {
-                try (
-                    ThreadContext.StoredContext ignore = transportService.getThreadPool()
-                        .getThreadContext()
-                        .stashWithOrigin(POST_WRITE_REFRESH_ORIGIN)
-                ) {
-                    sendUnpromotableRequests(indexShard, generation, forced, listener, postWriteRefreshTimeout);
-                }
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
+        engineOrNull.addFlushListener(location, listener.delegateFailureAndWrap((l, generation) -> {
+            try (
+                ThreadContext.StoredContext ignore = transportService.getThreadPool()
+                    .getThreadContext()
+                    .stashWithOrigin(POST_WRITE_REFRESH_ORIGIN)
+            ) {
+                sendUnpromotableRequests(indexShard, generation, forced, l, postWriteRefreshTimeout);
             }
         }));
     }
@@ -145,19 +134,17 @@ public class PostWriteRefresh {
     ) {
         UnpromotableShardRefreshRequest unpromotableReplicaRequest = new UnpromotableShardRefreshRequest(
             indexShard.getReplicationGroup().getRoutingTable(),
+            indexShard.getOperationPrimaryTerm(),
             generation,
-            true
+            true,
+            postWriteRefreshTimeout
         );
         transportService.sendRequest(
             transportService.getLocalNode(),
             TransportUnpromotableShardRefreshAction.NAME,
             unpromotableReplicaRequest,
             TransportRequestOptions.timeout(postWriteRefreshTimeout),
-            new ActionListenerResponseHandler<>(
-                listener.delegateFailure((l, r) -> l.onResponse(wasForced)),
-                (in) -> ActionResponse.Empty.INSTANCE,
-                ThreadPool.Names.REFRESH
-            )
+            new ActionListenerResponseHandler<>(listener.safeMap(r -> wasForced), in -> ActionResponse.Empty.INSTANCE, refreshExecutor)
         );
     }
 

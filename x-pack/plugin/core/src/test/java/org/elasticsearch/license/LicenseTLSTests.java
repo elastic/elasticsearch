@@ -9,7 +9,7 @@ package org.elasticsearch.license;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.core.TimeValue;
@@ -31,7 +31,7 @@ public class LicenseTLSTests extends AbstractClusterStateLicenseServiceTestCase 
 
     public void testApplyLicenseInDevMode() throws Exception {
         License newLicense = TestUtils.generateSignedLicense(randomFrom("gold", "platinum"), TimeValue.timeValueHours(24L));
-        PutLicenseRequest request = new PutLicenseRequest();
+        PutLicenseRequest request = new PutLicenseRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
         request.acknowledge(true);
         request.license(newLicense);
         Settings settings = Settings.builder().put("xpack.security.enabled", true).build();
@@ -59,7 +59,7 @@ public class LicenseTLSTests extends AbstractClusterStateLicenseServiceTestCase 
 
     @Override
     protected DiscoveryNode getLocalNode() {
-        return TestDiscoveryNode.create(
+        return DiscoveryNodeUtils.create(
             "localnode",
             new TransportAddress(inetAddress, randomIntBetween(9300, 9399)),
             emptyMap(),

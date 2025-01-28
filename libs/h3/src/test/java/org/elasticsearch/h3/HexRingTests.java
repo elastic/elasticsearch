@@ -38,7 +38,7 @@ public class HexRingTests extends ESTestCase {
         for (int i = 0; i < 500; i++) {
             double lat = GeoTestUtil.nextLatitude();
             double lon = GeoTestUtil.nextLongitude();
-            for (int res = 0; res <= Constants.MAX_H3_RES; res++) {
+            for (int res = 0; res <= H3.MAX_H3_RES; res++) {
                 String origin = H3.geoToH3Address(lat, lon, res);
                 assertFalse(H3.areNeighborCells(origin, origin));
                 String[] ring = H3.hexRing(origin);

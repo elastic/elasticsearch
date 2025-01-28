@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search;
@@ -13,47 +14,61 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 
 import org.apache.lucene.tests.util.TimeUnits;
-import org.elasticsearch.Version;
+import org.elasticsearch.test.rest.TestFeatureService;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestClient;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestExecutionContext;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 import org.junit.BeforeClass;
 
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
+
 @TimeoutSuite(millis = 5 * TimeUnits.MINUTE) // to account for slow as hell VMs
 public class MultiClusterSearchYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
-    private static Version remoteEsVersion = null;
+    private static String remoteEsVersion = null;
 
     @BeforeClass
-    public static void determineRemoteClusterMinimumVersion() {
+    public static void readRemoteClusterVersion() {
         String remoteClusterVersion = System.getProperty("tests.rest.remote_cluster_version");
         if (remoteClusterVersion != null) {
-            remoteEsVersion = Version.fromString(remoteClusterVersion);
+            remoteEsVersion = remoteClusterVersion;
         }
     }
 
+    @Override
     protected ClientYamlTestExecutionContext createRestTestExecutionContext(
         ClientYamlTestCandidate clientYamlTestCandidate,
-        ClientYamlTestClient clientYamlTestClient
+        ClientYamlTestClient clientYamlTestClient,
+        final Set<String> nodesVersions,
+        final TestFeatureService testFeatureService,
+        final Set<String> osSet
     ) {
-        return new ClientYamlTestExecutionContext(clientYamlTestCandidate, clientYamlTestClient, randomizeContentType()) {
+        /*
+         * Since the esVersion is used to skip tests in ESClientYamlSuiteTestCase, we also take into account the
+         * remote cluster version here. This is used to skip tests if some feature isn't available on the remote cluster yet.
+         */
+        final Set<String> commonVersions;
+        if (remoteEsVersion == null || nodesVersions.contains(remoteEsVersion)) {
+            commonVersions = nodesVersions;
+        } else {
+            var versionsCopy = new HashSet<>(nodesVersions);
+            versionsCopy.add(remoteEsVersion);
+            commonVersions = Collections.unmodifiableSet(versionsCopy);
+        }
 
-            /**
-             * Since the esVersion is used to skip tests in ESClientYamlSuiteTestCase, we also take into account the
-             * remote cluster version here and return it if it is lower than the local client version. This is used to
-             * skip tests if some feature isn't available on the remote cluster yet.
-             */
-            @Override
-            public Version esVersion() {
-                Version clientEsVersion = clientYamlTestClient.getEsVersion();
-                if (remoteEsVersion == null) {
-                    return clientEsVersion;
-                } else {
-                    return remoteEsVersion.before(clientEsVersion) ? remoteEsVersion : clientEsVersion;
-                }
-            }
-        };
+        // TODO: same for os and features. Better to do that once this test(s) have been migrated to the new ElasticsearchCluster-based
+        // framework. See CcsCommonYamlTestSuiteIT for example.
+        return new ClientYamlTestExecutionContext(
+            clientYamlTestCandidate,
+            clientYamlTestClient,
+            randomizeContentType(),
+            commonVersions,
+            testFeatureService,
+            osSet
+        );
     }
 
     @Override

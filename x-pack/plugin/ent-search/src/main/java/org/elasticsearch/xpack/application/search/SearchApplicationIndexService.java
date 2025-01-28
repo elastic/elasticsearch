@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.application.search;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
@@ -17,13 +18,11 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
-import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
-import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
@@ -93,6 +92,7 @@ public class SearchApplicationIndexService {
     public static final String SEARCH_APPLICATION_ALIAS_NAME = ".search-app";
     public static final String SEARCH_APPLICATION_CONCRETE_INDEX_NAME = ".search-app-1";
     public static final String SEARCH_APPLICATION_INDEX_NAME_PATTERN = ".search-app-*";
+    private static final int SEARCH_APPLICATION_INDEX_MAPPINGS_VERSION = 1;
 
     // The client to perform any operations on user indices (alias, ...).
     private final Client client;
@@ -128,7 +128,6 @@ public class SearchApplicationIndexService {
             .setMappings(getIndexMappings())
             .setSettings(getIndexSettings())
             .setAliasName(SEARCH_APPLICATION_ALIAS_NAME)
-            .setVersionMetaKey("version")
             .setOrigin(ENT_SEARCH_ORIGIN)
             .setThreadPools(ExecutorNames.DEFAULT_SYSTEM_INDEX_THREAD_POOLS)
             .build();
@@ -137,7 +136,6 @@ public class SearchApplicationIndexService {
     private static Settings getIndexSettings() {
         return Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
             .put(IndexMetadata.SETTING_PRIORITY, 100)
             .put("index.refresh_interval", "1s")
@@ -151,16 +149,13 @@ public class SearchApplicationIndexService {
             {
                 builder.startObject("_meta");
                 builder.field("version", Version.CURRENT.toString());
+                builder.field(SystemIndexDescriptor.VERSION_META_KEY, SEARCH_APPLICATION_INDEX_MAPPINGS_VERSION);
                 builder.endObject();
 
                 builder.field("dynamic", "strict");
                 builder.startObject("properties");
                 {
                     builder.startObject(SearchApplication.NAME_FIELD.getPreferredName());
-                    builder.field("type", "keyword");
-                    builder.endObject();
-
-                    builder.startObject(SearchApplication.INDICES_FIELD.getPreferredName());
                     builder.field("type", "keyword");
                     builder.endObject();
 
@@ -202,9 +197,13 @@ public class SearchApplicationIndexService {
                 return;
             }
             final BytesReference source = getResponse.getSourceInternal();
-            final SearchApplication res = parseSearchApplicationBinaryFromSource(source);
-            l.onResponse(res);
+            SearchApplication searchApplication = parseSearchApplicationBinaryFromSource(source, getAliasIndices(resourceName));
+            l.onResponse(searchApplication);
         }));
+    }
+
+    private String[] getAliasIndices(String searchApplicationName) {
+        return clusterService.state().metadata().aliasedIndices(searchApplicationName).stream().map(Index::getName).toArray(String[]::new);
     }
 
     private static String getSearchAliasName(SearchApplication app) {
@@ -218,10 +217,10 @@ public class SearchApplicationIndexService {
      * @param create If true, the search application must not already exist
      * @param listener The action listener to invoke on response/failure.
      */
-    public void putSearchApplication(SearchApplication app, boolean create, ActionListener<IndexResponse> listener) {
+    public void putSearchApplication(SearchApplication app, boolean create, ActionListener<DocWriteResponse> listener) {
         createOrUpdateAlias(app, new ActionListener<>() {
             @Override
-            public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+            public void onResponse(IndicesAliasesResponse response) {
                 updateSearchApplication(app, create, listener);
             }
 
@@ -229,15 +228,16 @@ public class SearchApplicationIndexService {
             public void onFailure(Exception e) {
                 // Convert index not found failure from the alias API into an illegal argument
                 Exception failException = e;
-                if (e instanceof IndexNotFoundException) {
-                    failException = new IllegalArgumentException(e.getMessage(), e);
+                Throwable cause = ExceptionsHelper.unwrapCause(e);
+                if (cause instanceof IndexNotFoundException) {
+                    failException = new IllegalArgumentException(cause.getMessage(), cause);
                 }
                 listener.onFailure(failException);
             }
         });
     }
 
-    private void createOrUpdateAlias(SearchApplication app, ActionListener<AcknowledgedResponse> listener) {
+    private void createOrUpdateAlias(SearchApplication app, ActionListener<IndicesAliasesResponse> listener) {
 
         final Metadata metadata = clusterService.state().metadata();
         final String searchAliasName = getSearchAliasName(app);
@@ -274,12 +274,11 @@ public class SearchApplicationIndexService {
         return aliasesRequestBuilder;
     }
 
-    private void updateSearchApplication(SearchApplication app, boolean create, ActionListener<IndexResponse> listener) {
+    private void updateSearchApplication(SearchApplication app, boolean create, ActionListener<DocWriteResponse> listener) {
         try (ReleasableBytesStreamOutput buffer = new ReleasableBytesStreamOutput(0, bigArrays.withCircuitBreaking())) {
             try (XContentBuilder source = XContentFactory.jsonBuilder(buffer)) {
                 source.startObject()
                     .field(SearchApplication.NAME_FIELD.getPreferredName(), app.name())
-                    .field(SearchApplication.INDICES_FIELD.getPreferredName(), app.indices())
                     .field(SearchApplication.ANALYTICS_COLLECTION_NAME_FIELD.getPreferredName(), app.analyticsCollectionName())
                     .field(SearchApplication.UPDATED_AT_MILLIS_FIELD.getPreferredName(), app.updatedAtMillis())
                     .directFieldAsBase64(
@@ -320,24 +319,25 @@ public class SearchApplicationIndexService {
         }
     }
 
-    GetAliasesResponse getAlias(String searchAliasName) {
-        return client.admin().indices().getAliases(new GetAliasesRequest(searchAliasName)).actionGet();
-    }
-
     private void removeAlias(String searchAliasName, ActionListener<AcknowledgedResponse> listener) {
         IndicesAliasesRequest aliasesRequest = new IndicesAliasesRequest().addAliasAction(
             IndicesAliasesRequest.AliasActions.remove().aliases(searchAliasName).indices("*")
         );
-        client.admin()
-            .indices()
-            .aliases(
-                aliasesRequest,
-                new DelegatingIndexNotFoundActionListener<>(
-                    searchAliasName,
-                    listener,
-                    (l, acknowledgedResponse) -> l.onResponse(AcknowledgedResponse.TRUE)
-                )
-            );
+        client.admin().indices().aliases(aliasesRequest, new ActionListener<>() {
+            @Override
+            public void onResponse(IndicesAliasesResponse response) {
+                listener.onResponse(response);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                if (e instanceof ResourceNotFoundException) {
+                    listener.onResponse(IndicesAliasesResponse.ACKNOWLEDGED_NO_ERRORS);
+                } else {
+                    listener.onFailure(e);
+                }
+            }
+        });
     }
 
     /**
@@ -380,7 +380,6 @@ public class SearchApplicationIndexService {
                 .size(size)
                 .query(new QueryStringQueryBuilder(queryString))
                 .docValueField(SearchApplication.NAME_FIELD.getPreferredName())
-                .docValueField(SearchApplication.INDICES_FIELD.getPreferredName())
                 .docValueField(SearchApplication.ANALYTICS_COLLECTION_NAME_FIELD.getPreferredName())
                 .docValueField(SearchApplication.UPDATED_AT_MILLIS_FIELD.getPreferredName())
                 .storedFields(Collections.singletonList("_none_"))
@@ -410,7 +409,7 @@ public class SearchApplicationIndexService {
         final List<SearchApplicationListItem> apps = Arrays.stream(response.getHits().getHits())
             .map(SearchApplicationIndexService::hitToSearchApplicationListItem)
             .toList();
-        return new SearchApplicationResult(apps, (int) response.getHits().getTotalHits().value);
+        return new SearchApplicationResult(apps, (int) response.getHits().getTotalHits().value());
     }
 
     private static SearchApplicationListItem hitToSearchApplicationListItem(SearchHit searchHit) {
@@ -418,13 +417,12 @@ public class SearchApplicationIndexService {
         final String resourceName = documentFields.get(SearchApplication.NAME_FIELD.getPreferredName()).getValue();
         return new SearchApplicationListItem(
             resourceName,
-            documentFields.get(SearchApplication.INDICES_FIELD.getPreferredName()).getValues().toArray(String[]::new),
             documentFields.get(SearchApplication.ANALYTICS_COLLECTION_NAME_FIELD.getPreferredName()).getValue(),
             documentFields.get(SearchApplication.UPDATED_AT_MILLIS_FIELD.getPreferredName()).getValue()
         );
     }
 
-    private SearchApplication parseSearchApplicationBinaryFromSource(BytesReference source) {
+    private SearchApplication parseSearchApplicationBinaryFromSource(BytesReference source, String[] indices) {
         try (XContentParser parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, source, XContentType.JSON)) {
             ensureExpectedToken(parser.nextToken(), XContentParser.Token.START_OBJECT, parser);
             while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
@@ -445,7 +443,7 @@ public class SearchApplicationIndexService {
                     try (
                         StreamInput in = new NamedWriteableAwareStreamInput(new InputStreamStreamInput(encodedIn), namedWriteableRegistry)
                     ) {
-                        return parseSearchApplicationBinaryWithVersion(in);
+                        return parseSearchApplicationBinaryWithVersion(in, indices);
                     }
                 } else {
                     XContentParserUtils.parseFieldsValue(parser); // consume and discard unknown fields
@@ -459,11 +457,11 @@ public class SearchApplicationIndexService {
         }
     }
 
-    static SearchApplication parseSearchApplicationBinaryWithVersion(StreamInput in) throws IOException {
+    static SearchApplication parseSearchApplicationBinaryWithVersion(StreamInput in, String[] indices) throws IOException {
         TransportVersion version = TransportVersion.readVersion(in);
-        assert version.onOrBefore(TransportVersion.CURRENT) : version + " >= " + TransportVersion.CURRENT;
+        assert version.onOrBefore(TransportVersion.current()) : version + " >= " + TransportVersion.current();
         in.setTransportVersion(version);
-        return new SearchApplication(in);
+        return new SearchApplication(in, indices);
     }
 
     static void writeSearchApplicationBinaryWithVersion(SearchApplication app, OutputStream os, TransportVersion minTransportVersion)
@@ -495,8 +493,9 @@ public class SearchApplicationIndexService {
 
         @Override
         public void onFailure(Exception e) {
-            if (e instanceof IndexNotFoundException) {
-                delegate.onFailure(new ResourceNotFoundException(resourceName, e));
+            Throwable cause = ExceptionsHelper.unwrapCause(e);
+            if (cause instanceof IndexNotFoundException) {
+                delegate.onFailure(new ResourceNotFoundException(resourceName));
                 return;
             }
             delegate.onFailure(e);

@@ -22,6 +22,7 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 public class ClassificationInferenceResults extends SingleValueInferenceResults {
+    public static final String PREDICTION_PROBABILITY = "prediction_probability";
 
     public static final String NAME = "classification";
 
@@ -118,9 +119,9 @@ public class ClassificationInferenceResults extends SingleValueInferenceResults 
 
     public ClassificationInferenceResults(StreamInput in) throws IOException {
         super(in);
-        this.featureImportance = in.readList(ClassificationFeatureImportance::new);
+        this.featureImportance = in.readCollectionAsList(ClassificationFeatureImportance::new);
         this.classificationLabel = in.readOptionalString();
-        this.topClasses = in.readImmutableList(TopClassEntry::new);
+        this.topClasses = in.readCollectionAsImmutableList(TopClassEntry::new);
         this.topNumClassesField = in.readString();
         this.resultsField = in.readString();
         this.predictionFieldType = in.readEnum(PredictionFieldType.class);
@@ -147,7 +148,7 @@ public class ClassificationInferenceResults extends SingleValueInferenceResults 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeList(featureImportance);
+        out.writeCollection(featureImportance);
         out.writeOptionalString(classificationLabel);
         out.writeCollection(topClasses);
         out.writeString(topNumClassesField);
@@ -219,6 +220,19 @@ public class ClassificationInferenceResults extends SingleValueInferenceResults 
     public Map<String, Object> asMap() {
         Map<String, Object> map = new LinkedHashMap<>();
         map.put(resultsField, predictionFieldType.transformPredictedValue(value(), valueAsString()));
+        addSupportingFieldsToMap(map);
+        return map;
+    }
+
+    @Override
+    public Map<String, Object> asMap(String outputField) {
+        Map<String, Object> map = new LinkedHashMap<>();
+        map.put(outputField, predictionFieldType.transformPredictedValue(value(), valueAsString()));
+        addSupportingFieldsToMap(map);
+        return map;
+    }
+
+    private void addSupportingFieldsToMap(Map<String, Object> map) {
         if (topClasses.isEmpty() == false) {
             map.put(topNumClassesField, topClasses.stream().map(TopClassEntry::asValueMap).collect(Collectors.toList()));
         }
@@ -234,7 +248,6 @@ public class ClassificationInferenceResults extends SingleValueInferenceResults 
                 featureImportance.stream().map(ClassificationFeatureImportance::toMap).collect(Collectors.toList())
             );
         }
-        return map;
     }
 
     @Override

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal.test;
@@ -12,6 +13,7 @@ import org.elasticsearch.gradle.internal.ElasticsearchJavaBasePlugin;
 import org.elasticsearch.gradle.internal.ElasticsearchTestBasePlugin;
 import org.elasticsearch.gradle.internal.FixtureStop;
 import org.elasticsearch.gradle.internal.InternalTestClustersPlugin;
+import org.elasticsearch.gradle.internal.RestrictedBuildApiService;
 import org.elasticsearch.gradle.internal.precommit.InternalPrecommitTasks;
 import org.elasticsearch.gradle.test.SystemPropertyCommandLineArgumentProvider;
 import org.elasticsearch.gradle.testclusters.ElasticsearchCluster;
@@ -21,13 +23,18 @@ import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
+import org.gradle.api.Task;
 import org.gradle.api.plugins.JavaBasePlugin;
+import org.gradle.api.provider.Provider;
 import org.gradle.api.provider.ProviderFactory;
+import org.gradle.api.specs.NotSpec;
+import org.gradle.api.specs.Spec;
 import org.gradle.api.tasks.Sync;
 import org.gradle.api.tasks.bundling.Zip;
 
 import javax.inject.Inject;
 
+import static org.elasticsearch.gradle.internal.RestrictedBuildApiService.BUILD_API_RESTRICTIONS_SYS_PROPERTY;
 import static org.elasticsearch.gradle.plugin.BasePluginBuildPlugin.BUNDLE_PLUGIN_TASK_NAME;
 import static org.elasticsearch.gradle.plugin.BasePluginBuildPlugin.EXPLODED_BUNDLE_PLUGIN_TASK_NAME;
 
@@ -44,6 +51,7 @@ public class LegacyRestTestBasePlugin implements Plugin<Project> {
     private static final String TESTS_CLUSTER_REMOTE_ACCESS = "tests.cluster.remote_access";
 
     private ProviderFactory providerFactory;
+    private Project project;
 
     @Inject
     public LegacyRestTestBasePlugin(ProviderFactory providerFactory) {
@@ -52,6 +60,13 @@ public class LegacyRestTestBasePlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
+        this.project = project;
+        Provider<RestrictedBuildApiService> serviceProvider = project.getGradle()
+            .getSharedServices()
+            .registerIfAbsent("restrictedBuildAPI", RestrictedBuildApiService.class, spec -> {
+                spec.getParameters().getDisabled().set(Boolean.getBoolean(BUILD_API_RESTRICTIONS_SYS_PROPERTY));
+            });
+        serviceProvider.get().failOnUsageRestriction(getClass(), project);
         project.getPluginManager().apply(ElasticsearchJavaBasePlugin.class);
         project.getPluginManager().apply(ElasticsearchTestBasePlugin.class);
         project.getPluginManager().apply(InternalTestClustersPlugin.class);
@@ -109,7 +124,24 @@ public class LegacyRestTestBasePlugin implements Plugin<Project> {
                     t.getClusters().forEach(c -> c.plugin(bundle));
                 }
             });
+            configureCacheability(t);
         });
+    }
+
+    private void configureCacheability(StandaloneRestIntegTestTask testTask) {
+        Spec<Task> taskSpec = task -> testTask.getClusters().stream().anyMatch(ElasticsearchCluster::isShared);
+        testTask.getOutputs()
+            .doNotCacheIf(
+                "Caching disabled for this task since it uses a cluster shared by other tasks",
+                /*
+                 * Look for any other tasks which use the same cluster as this task. Since tests often have side effects for the cluster
+                 * they execute against, this state can cause issues when trying to cache tests results of tasks that share a cluster. To
+                 * avoid any undesired behavior we simply disable the cache if we detect that this task uses a cluster shared between
+                 * multiple tasks.
+                 */
+                taskSpec
+            );
+        testTask.getOutputs().upToDateWhen(new NotSpec(taskSpec));
     }
 
     private String systemProperty(String propName) {

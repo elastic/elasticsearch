@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.migration;
@@ -24,12 +25,14 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.AssociatedIndexDescriptor;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.Assert;
@@ -65,14 +68,17 @@ public abstract class AbstractFeatureMigrationIntegTest extends ESIntegTestCase 
     static final String INTERNAL_MANAGED_INDEX_NAME = ".int-man-old";
     static final int INDEX_DOC_COUNT = 100; // arbitrarily chosen
     static final int INTERNAL_MANAGED_FLAG_VALUE = 1;
-    public static final Version NEEDS_UPGRADE_VERSION = TransportGetFeatureUpgradeStatusAction.NO_UPGRADE_REQUIRED_VERSION.previousMajor();
+    static final String FIELD_NAME = "some_field";
+    protected static final IndexVersion NEEDS_UPGRADE_INDEX_VERSION = IndexVersionUtils.getPreviousMajorVersion(
+        TransportGetFeatureUpgradeStatusAction.NO_UPGRADE_REQUIRED_INDEX_VERSION
+    );
+    protected static final int UPGRADED_TO_VERSION = TransportGetFeatureUpgradeStatusAction.NO_UPGRADE_REQUIRED_VERSION.major + 1;
 
     static final SystemIndexDescriptor EXTERNAL_UNMANAGED = SystemIndexDescriptor.builder()
         .setIndexPattern(".ext-unman-*")
         .setType(SystemIndexDescriptor.Type.EXTERNAL_UNMANAGED)
         .setOrigin(ORIGIN)
         .setAllowedElasticProductOrigins(Collections.singletonList(ORIGIN))
-        .setMinimumNodeVersion(NEEDS_UPGRADE_VERSION)
         .setPriorSystemIndexDescriptors(Collections.emptyList())
         .build();
     static final SystemIndexDescriptor INTERNAL_UNMANAGED = SystemIndexDescriptor.builder()
@@ -80,7 +86,6 @@ public abstract class AbstractFeatureMigrationIntegTest extends ESIntegTestCase 
         .setType(SystemIndexDescriptor.Type.INTERNAL_UNMANAGED)
         .setOrigin(ORIGIN)
         .setAllowedElasticProductOrigins(Collections.emptyList())
-        .setMinimumNodeVersion(NEEDS_UPGRADE_VERSION)
         .setPriorSystemIndexDescriptors(Collections.emptyList())
         .build();
 
@@ -89,12 +94,10 @@ public abstract class AbstractFeatureMigrationIntegTest extends ESIntegTestCase 
         .setAliasName(".internal-managed-alias")
         .setPrimaryIndex(INTERNAL_MANAGED_INDEX_NAME)
         .setType(SystemIndexDescriptor.Type.INTERNAL_MANAGED)
-        .setSettings(createSettings(NEEDS_UPGRADE_VERSION, INTERNAL_MANAGED_FLAG_VALUE))
+        .setSettings(createSettings(NEEDS_UPGRADE_INDEX_VERSION, INTERNAL_MANAGED_FLAG_VALUE))
         .setMappings(createMapping(true, true))
         .setOrigin(ORIGIN)
-        .setVersionMetaKey(VERSION_META_KEY)
         .setAllowedElasticProductOrigins(Collections.emptyList())
-        .setMinimumNodeVersion(NEEDS_UPGRADE_VERSION)
         .setPriorSystemIndexDescriptors(Collections.emptyList())
         .build();
     static final int INTERNAL_UNMANAGED_FLAG_VALUE = 2;
@@ -104,12 +107,10 @@ public abstract class AbstractFeatureMigrationIntegTest extends ESIntegTestCase 
         .setAliasName(".external-managed-alias")
         .setPrimaryIndex(".ext-man-old")
         .setType(SystemIndexDescriptor.Type.EXTERNAL_MANAGED)
-        .setSettings(createSettings(NEEDS_UPGRADE_VERSION, EXTERNAL_MANAGED_FLAG_VALUE))
+        .setSettings(createSettings(NEEDS_UPGRADE_INDEX_VERSION, EXTERNAL_MANAGED_FLAG_VALUE))
         .setMappings(createMapping(true, false))
         .setOrigin(ORIGIN)
-        .setVersionMetaKey(VERSION_META_KEY)
         .setAllowedElasticProductOrigins(Collections.singletonList(ORIGIN))
-        .setMinimumNodeVersion(NEEDS_UPGRADE_VERSION)
         .setPriorSystemIndexDescriptors(Collections.emptyList())
         .build();
     static final int EXTERNAL_UNMANAGED_FLAG_VALUE = 4;
@@ -122,7 +123,6 @@ public abstract class AbstractFeatureMigrationIntegTest extends ESIntegTestCase 
         .setType(SystemIndexDescriptor.Type.EXTERNAL_UNMANAGED)
         .setAllowedElasticProductOrigins(Collections.emptyList())
         .setAllowedElasticProductOrigins(Collections.singletonList(ORIGIN))
-        .setMinimumNodeVersion(NEEDS_UPGRADE_VERSION)
         .setPriorSystemIndexDescriptors(Collections.emptyList())
         .setAllowsTemplates()
         .build();
@@ -132,11 +132,6 @@ public abstract class AbstractFeatureMigrationIntegTest extends ESIntegTestCase 
 
     @Before
     public void setup() {
-        assumeTrue(
-            "We can only create the test indices we need if they're in the previous major version",
-            NEEDS_UPGRADE_VERSION.onOrAfter(Version.CURRENT.previousMajor())
-        );
-
         internalCluster().setBootstrapMasterNodeIndex(0);
         masterName = internalCluster().startMasterOnlyNode();
         masterAndDataNode = internalCluster().startNode();
@@ -148,10 +143,10 @@ public abstract class AbstractFeatureMigrationIntegTest extends ESIntegTestCase 
 
     public <T extends Plugin> T getPlugin(Class<T> type) {
         final PluginsService pluginsService = internalCluster().getCurrentMasterNodeInstance(PluginsService.class);
-        return pluginsService.filterPlugins(type).stream().findFirst().get();
+        return pluginsService.filterPlugins(type).findFirst().get();
     }
 
-    public void createSystemIndexForDescriptor(SystemIndexDescriptor descriptor) throws InterruptedException {
+    protected void createSystemIndexForDescriptor(SystemIndexDescriptor descriptor) {
         assertThat(
             "the strategy used below to create index names for descriptors without a primary index name only works for simple patterns",
             descriptor.getIndexPattern(),
@@ -166,7 +161,7 @@ public abstract class AbstractFeatureMigrationIntegTest extends ESIntegTestCase 
             // unmanaged
             createRequest.setSettings(
                 createSettings(
-                    NEEDS_UPGRADE_VERSION,
+                    NEEDS_UPGRADE_INDEX_VERSION,
                     descriptor.isInternal() ? INTERNAL_UNMANAGED_FLAG_VALUE : EXTERNAL_UNMANAGED_FLAG_VALUE
                 )
             );
@@ -174,7 +169,7 @@ public abstract class AbstractFeatureMigrationIntegTest extends ESIntegTestCase 
             // managed
             createRequest.setSettings(
                 Settings.builder()
-                    .put("index.version.created", Version.CURRENT)
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                     .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
                     .build()
             );
@@ -185,16 +180,20 @@ public abstract class AbstractFeatureMigrationIntegTest extends ESIntegTestCase 
         CreateIndexResponse response = createRequest.get();
         Assert.assertTrue(response.isShardsAcknowledged());
 
+        indexDocs(indexName);
+    }
+
+    protected void indexDocs(String indexName) {
         List<IndexRequestBuilder> docs = new ArrayList<>(INDEX_DOC_COUNT);
         for (int i = 0; i < INDEX_DOC_COUNT; i++) {
-            docs.add(ESIntegTestCase.client().prepareIndex(indexName).setId(Integer.toString(i)).setSource("some_field", "words words"));
+            docs.add(ESIntegTestCase.prepareIndex(indexName).setId(Integer.toString(i)).setSource(FIELD_NAME, "words words"));
         }
         indexRandom(true, docs);
-        IndicesStatsResponse indexStats = ESIntegTestCase.client().admin().indices().prepareStats(indexName).setDocs(true).get();
+        IndicesStatsResponse indexStats = ESIntegTestCase.indicesAdmin().prepareStats(indexName).setDocs(true).get();
         Assert.assertThat(indexStats.getIndex(indexName).getTotal().getDocs().getCount(), is((long) INDEX_DOC_COUNT));
     }
 
-    static Settings createSettings(Version creationVersion, int flagSettingValue) {
+    static Settings createSettings(IndexVersion creationVersion, int flagSettingValue) {
         return indexSettings(creationVersion, 1, 0).put(FlAG_SETTING_KEY, flagSettingValue).build();
     }
 
@@ -204,6 +203,7 @@ public abstract class AbstractFeatureMigrationIntegTest extends ESIntegTestCase 
             {
                 builder.startObject("_meta");
                 builder.field(VERSION_META_KEY, META_VERSION);
+                builder.field(SystemIndexDescriptor.VERSION_META_KEY, 1);
                 builder.field(DESCRIPTOR_MANAGED_META_KEY, descriptorManaged);
                 builder.field(DESCRIPTOR_INTERNAL_META_KEY, descriptorInternal);
                 builder.endObject();
@@ -211,7 +211,7 @@ public abstract class AbstractFeatureMigrationIntegTest extends ESIntegTestCase 
                 builder.field("dynamic", "strict");
                 builder.startObject("properties");
                 {
-                    builder.startObject("some_field");
+                    builder.startObject(FIELD_NAME);
                     builder.field("type", "keyword");
                     builder.endObject();
                 }
@@ -225,7 +225,7 @@ public abstract class AbstractFeatureMigrationIntegTest extends ESIntegTestCase 
         }
     }
 
-    public void assertIndexHasCorrectProperties(
+    protected void assertIndexHasCorrectProperties(
         Metadata metadata,
         String indexName,
         int settingsFlagValue,
@@ -246,7 +246,7 @@ public abstract class AbstractFeatureMigrationIntegTest extends ESIntegTestCase 
         Set<String> actualAliasNames = imd.getAliases().keySet();
         assertThat(actualAliasNames, containsInAnyOrder(aliasNames.toArray()));
 
-        IndicesStatsResponse indexStats = client().admin().indices().prepareStats(imd.getIndex().getName()).setDocs(true).get();
+        IndicesStatsResponse indexStats = indicesAdmin().prepareStats(imd.getIndex().getName()).setDocs(true).get();
         assertNotNull(indexStats);
         final IndexStats thisIndexStats = indexStats.getIndex(imd.getIndex().getName());
         assertNotNull(thisIndexStats);

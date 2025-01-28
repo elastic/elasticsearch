@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search;
@@ -18,8 +19,8 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.util.BitSet;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
@@ -45,7 +46,7 @@ public class NestedDocuments {
      * @param filterProducer    a function to build BitSetProducers from filter queries
      * @param indexVersionCreated the index creation version
      */
-    public NestedDocuments(MappingLookup mappingLookup, Function<Query, BitSetProducer> filterProducer, Version indexVersionCreated) {
+    public NestedDocuments(MappingLookup mappingLookup, Function<Query, BitSetProducer> filterProducer, IndexVersion indexVersionCreated) {
         this.nestedLookup = mappingLookup.nestedLookup();
         if (this.nestedLookup == NestedLookup.EMPTY) {
             this.parentDocumentFilter = null;

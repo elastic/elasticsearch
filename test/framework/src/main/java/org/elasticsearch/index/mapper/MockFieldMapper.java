@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -11,6 +12,7 @@ package org.elasticsearch.index.mapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.util.Collections;
+import java.util.List;
 
 // this sucks how much must be overridden just do get a dummy field mapper...
 public class MockFieldMapper extends FieldMapper {
@@ -20,16 +22,20 @@ public class MockFieldMapper extends FieldMapper {
     }
 
     public MockFieldMapper(MappedFieldType fieldType) {
-        this(findSimpleName(fieldType.name()), fieldType, MultiFields.empty(), CopyTo.empty());
+        this(findSimpleName(fieldType.name()), fieldType, BuilderParams.empty());
     }
 
-    public MockFieldMapper(String fullName, MappedFieldType fieldType, MultiFields multifields, CopyTo copyTo) {
-        super(findSimpleName(fullName), fieldType, multifields, copyTo, false, null);
+    public MockFieldMapper(MappedFieldType fieldType, String simpleName) {
+        super(simpleName, fieldType, BuilderParams.empty());
+    }
+
+    public MockFieldMapper(String fullName, MappedFieldType fieldType, BuilderParams params) {
+        super(findSimpleName(fullName), fieldType, params);
     }
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName());
+        return new Builder(leafName());
     }
 
     static String findSimpleName(String fullName) {
@@ -80,14 +86,13 @@ public class MockFieldMapper extends FieldMapper {
         }
 
         public Builder copyTo(String field) {
-            this.copyTo.add(field);
+            this.copyTo = copyTo.withAddedFields(List.of(field));
             return this;
         }
 
         @Override
         public MockFieldMapper build(MapperBuilderContext context) {
-            MultiFields multiFields = multiFieldsBuilder.build(this, context);
-            return new MockFieldMapper(name(), fieldType, multiFields, copyTo.build());
+            return new MockFieldMapper(leafName(), fieldType, builderParams(this, context));
         }
     }
 }

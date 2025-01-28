@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.ql.InvalidArgumentException;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.gen.processor.ConstantProcessor;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -57,33 +58,33 @@ public class DatePartProcessorTests extends AbstractSqlWireSerializingTestCase<D
     }
 
     public void testInvalidInputs() {
-        SqlIllegalArgumentException siae = expectThrows(
+        Exception e = expectThrows(
             SqlIllegalArgumentException.class,
             () -> new DatePart(Source.EMPTY, l(5), randomDatetimeLiteral(), randomZone()).makePipe().asProcessor().process(null)
         );
-        assertEquals("A string is required; received [5]", siae.getMessage());
+        assertEquals("A string is required; received [5]", e.getMessage());
 
-        siae = expectThrows(
+        e = expectThrows(
             SqlIllegalArgumentException.class,
             () -> new DatePart(Source.EMPTY, l("days"), l("foo"), randomZone()).makePipe().asProcessor().process(null)
         );
-        assertEquals("A date/datetime is required; received [foo]", siae.getMessage());
+        assertEquals("A date/datetime is required; received [foo]", e.getMessage());
 
-        siae = expectThrows(
-            SqlIllegalArgumentException.class,
+        e = expectThrows(
+            InvalidArgumentException.class,
             () -> new DatePart(Source.EMPTY, l("invalid"), randomDatetimeLiteral(), randomZone()).makePipe().asProcessor().process(null)
         );
         assertEquals(
             "A value of [YEAR, QUARTER, MONTH, DAYOFYEAR, DAY, WEEK, WEEKDAY, HOUR, MINUTE, SECOND, MILLISECOND, "
                 + "MICROSECOND, NANOSECOND, TZOFFSET] or their aliases is required; received [invalid]",
-            siae.getMessage()
+            e.getMessage()
         );
 
-        siae = expectThrows(
-            SqlIllegalArgumentException.class,
+        e = expectThrows(
+            InvalidArgumentException.class,
             () -> new DatePart(Source.EMPTY, l("dayfyear"), randomDatetimeLiteral(), randomZone()).makePipe().asProcessor().process(null)
         );
-        assertEquals("Received value [dayfyear] is not valid date part for extraction; did you mean [dayofyear, year]?", siae.getMessage());
+        assertEquals("Received value [dayfyear] is not valid date part for extraction; did you mean [dayofyear, year]?", e.getMessage());
     }
 
     public void testWithNulls() {

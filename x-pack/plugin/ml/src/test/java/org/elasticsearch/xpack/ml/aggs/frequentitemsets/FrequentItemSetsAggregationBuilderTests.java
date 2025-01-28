@@ -248,4 +248,9 @@ public class FrequentItemSetsAggregationBuilderTests extends AbstractXContentSer
                 return new IncludeExclude(null, null, null, new TreeSet<>(Set.of(newBytesRef("exclude"))));
         }
     }
+
+    public void testSupportsParallelCollection() {
+        FrequentItemSetsAggregationBuilder frequentItemSetsAggregationBuilder = randomFrequentItemsSetsAggregationBuilder();
+        assertFalse(frequentItemSetsAggregationBuilder.supportsParallelCollection(null));
+    }
 }

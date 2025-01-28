@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.core;
@@ -11,6 +12,7 @@ package org.elasticsearch.core;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Arrays;
+import java.util.Iterator;
 import java.util.concurrent.atomic.AtomicReference;
 
 /** Utility methods to work with {@link Releasable}s. */
@@ -29,10 +31,8 @@ public enum Releasables {
 
     /** Release the provided {@link Releasable}. */
     public static void close(@Nullable Releasable releasable) {
-        try {
-            IOUtils.close(releasable);
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
+        if (releasable != null) {
+            releasable.close();
         }
     }
 
@@ -89,7 +89,7 @@ public enum Releasables {
      *  // the resources will be released when reaching here
      *  </pre>
      */
-    public static Releasable wrap(final Iterable<Releasable> releasables) {
+    public static Releasable wrap(final Iterable<? extends Releasable> releasables) {
         return new Releasable() {
             @Override
             public void close() {
@@ -101,6 +101,24 @@ public enum Releasables {
                 return "wrapped[" + releasables + "]";
             }
         };
+    }
+
+    /**
+     * Similar to {@link #wrap(Iterable)} except that it accepts an {@link Iterator} of releasables. The resulting resource must therefore
+     * only be released once.
+     */
+    public static Releasable wrap(final Iterator<Releasable> releasables) {
+        return assertOnce(wrap(new Iterable<>() {
+            @Override
+            public Iterator<Releasable> iterator() {
+                return releasables;
+            }
+
+            @Override
+            public String toString() {
+                return releasables.toString();
+            }
+        }));
     }
 
     /** @see #wrap(Iterable) */
@@ -132,8 +150,9 @@ public enum Releasables {
                 private final AtomicReference<Exception> firstCompletion = new AtomicReference<>();
 
                 private void assertFirstRun() {
-                    var previousRun = firstCompletion.compareAndExchange(null, new Exception(delegate.toString()));
-                    assert previousRun == null : previousRun; // reports the stack traces of both completions
+                    var previousRun = firstCompletion.compareAndExchange(null, new Exception("already executed"));
+                    // reports the stack traces of both completions
+                    assert previousRun == null : new AssertionError(delegate.toString(), previousRun);
                 }
 
                 @Override
@@ -145,6 +164,20 @@ public enum Releasables {
                 @Override
                 public String toString() {
                     return delegate.toString();
+                }
+
+                @Override
+                public int hashCode() {
+                    // It's legitimate to wrap the delegate twice, with two different assertOnce calls, which would yield different objects
+                    // if and only if assertions are enabled. So we'd better not ever use these things as map keys etc.
+                    throw new AssertionError("almost certainly a mistake to need the hashCode() of a one-shot Releasable");
+                }
+
+                @Override
+                public boolean equals(Object obj) {
+                    // It's legitimate to wrap the delegate twice, with two different assertOnce calls, which would yield different objects
+                    // if and only if assertions are enabled. So we'd better not ever use these things as map keys etc.
+                    throw new AssertionError("almost certainly a mistake to compare a one-shot Releasable for equality");
                 }
             };
         } else {
@@ -159,10 +192,7 @@ public enum Releasables {
 
         @Override
         public void close() {
-            final var acquired = getAndSet(null);
-            if (acquired != null) {
-                acquired.close();
-            }
+            Releasables.close(getAndSet(null));
         }
 
         @Override

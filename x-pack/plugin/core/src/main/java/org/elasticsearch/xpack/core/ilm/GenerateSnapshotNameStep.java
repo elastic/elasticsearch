@@ -60,7 +60,7 @@ public class GenerateSnapshotNameStep extends ClusterStateActionStep {
         // validate that the snapshot repository exists -- because policies are refreshed on later retries, and because
         // this fails prior to the snapshot repository being recorded in the ilm metadata, the policy can just be corrected
         // and everything will pass on the subsequent retry
-        if (clusterState.metadata().custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY).repository(snapshotRepository) == null) {
+        if (RepositoriesMetadata.get(clusterState).repository(snapshotRepository) == null) {
             throw new IllegalStateException(
                 "repository ["
                     + snapshotRepository
@@ -130,11 +130,11 @@ public class GenerateSnapshotNameStep extends ClusterStateActionStep {
      * still result in unique snapshot names.
      */
     public static String generateSnapshotName(String name) {
-        return generateSnapshotName(name, new IndexNameExpressionResolver.ResolverContext());
+        return generateSnapshotName(name, System.currentTimeMillis());
     }
 
-    public static String generateSnapshotName(String name, IndexNameExpressionResolver.Context context) {
-        String candidate = IndexNameExpressionResolver.resolveDateMathExpression(name, context.getStartTime());
+    public static String generateSnapshotName(String name, long now) {
+        String candidate = IndexNameExpressionResolver.resolveDateMathExpression(name, now);
         // TODO: we are breaking the rules of UUIDs by lowercasing this here, find an alternative (snapshot names must be lowercase)
         return candidate + "-" + UUIDs.randomBase64UUID().toLowerCase(Locale.ROOT);
     }

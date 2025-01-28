@@ -44,9 +44,10 @@ public class NdJsonTextStructureFinder implements TextStructureFinder {
 
         List<String> sampleMessages = Arrays.asList(sample.split("\n"));
         for (String sampleMessage : sampleMessages) {
-            XContentParser parser = jsonXContent.createParser(XContentParserConfiguration.EMPTY, sampleMessage);
-            sampleRecords.add(parser.mapOrdered());
-            timeoutChecker.check("NDJSON parsing");
+            try (XContentParser parser = jsonXContent.createParser(XContentParserConfiguration.EMPTY, sampleMessage)) {
+                sampleRecords.add(parser.mapOrdered());
+                timeoutChecker.check("NDJSON parsing");
+            }
         }
 
         TextStructure.Builder structureBuilder = new TextStructure.Builder(TextStructure.Format.NDJSON).setCharset(charsetName)

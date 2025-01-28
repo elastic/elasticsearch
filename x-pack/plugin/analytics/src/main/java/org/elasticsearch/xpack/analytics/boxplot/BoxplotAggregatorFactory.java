@@ -12,8 +12,10 @@ import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.metrics.NonCollectingMultiMetricAggregator;
+import org.elasticsearch.search.aggregations.metrics.TDigestExecutionHint;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.aggregations.support.TimeSeriesValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
@@ -27,12 +29,13 @@ import java.util.function.Predicate;
 public class BoxplotAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     private final double compression;
+    private final TDigestExecutionHint executionHint;
     private final BoxplotAggregatorSupplier aggregatorSupplier;
 
     static void registerAggregators(ValuesSourceRegistry.Builder builder) {
         builder.register(
             BoxplotAggregationBuilder.REGISTRY_KEY,
-            List.of(CoreValuesSourceType.NUMERIC, AnalyticsValuesSourceType.HISTOGRAM),
+            List.of(CoreValuesSourceType.NUMERIC, AnalyticsValuesSourceType.HISTOGRAM, TimeSeriesValuesSourceType.COUNTER),
             BoxplotAggregator::new,
             true
         );
@@ -42,6 +45,7 @@ public class BoxplotAggregatorFactory extends ValuesSourceAggregatorFactory {
         String name,
         ValuesSourceConfig config,
         double compression,
+        TDigestExecutionHint executionHint,
         AggregationContext context,
         AggregatorFactory parent,
         AggregatorFactories.Builder subFactoriesBuilder,
@@ -50,12 +54,13 @@ public class BoxplotAggregatorFactory extends ValuesSourceAggregatorFactory {
     ) throws IOException {
         super(name, config, context, parent, subFactoriesBuilder, metadata);
         this.compression = compression;
+        this.executionHint = executionHint;
         this.aggregatorSupplier = aggregatorSupplier;
     }
 
     @Override
     protected Aggregator createUnmapped(Aggregator parent, Map<String, Object> metadata) throws IOException {
-        final InternalBoxplot empty = InternalBoxplot.empty(name, compression, config.format(), metadata);
+        final InternalBoxplot empty = InternalBoxplot.empty(name, compression, executionHint, config.format(), metadata);
         final Predicate<String> hasMetric = InternalBoxplot.Metrics::hasMetric;
         return new NonCollectingMultiMetricAggregator(name, context, parent, empty, hasMetric, metadata);
     }
@@ -63,6 +68,6 @@ public class BoxplotAggregatorFactory extends ValuesSourceAggregatorFactory {
     @Override
     protected Aggregator doCreateInternal(Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata)
         throws IOException {
-        return aggregatorSupplier.build(name, config, config.format(), compression, context, parent, metadata);
+        return aggregatorSupplier.build(name, config, config.format(), compression, executionHint, context, parent, metadata);
     }
 }

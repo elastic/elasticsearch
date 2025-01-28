@@ -1,22 +1,21 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.ingest;
 
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
+import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequestParameters.Metric;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.MockScriptPlugin;
@@ -43,11 +42,6 @@ public class IngestStatsNamesAndTypesIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return List.of(CustomIngestTestPlugin.class, CustomScriptPlugin.class);
-    }
-
-    @Override
-    protected boolean ignoreExternalCluster() {
-        return true;
     }
 
     @SuppressWarnings("unchecked")
@@ -96,8 +90,7 @@ public class IngestStatsNamesAndTypesIT extends ESIntegTestCase {
               ]
             }
             """, MockScriptEngine.NAME, MockScriptEngine.NAME);
-        BytesReference pipeline1Reference = new BytesArray(pipeline1);
-        client().admin().cluster().putPipeline(new PutPipelineRequest("pipeline1", pipeline1Reference, XContentType.JSON)).actionGet();
+        putJsonPipeline("pipeline1", pipeline1);
 
         // index a single document through the pipeline
         BulkRequest bulkRequest = new BulkRequest();
@@ -105,7 +98,7 @@ public class IngestStatsNamesAndTypesIT extends ESIntegTestCase {
         client().bulk(bulkRequest).actionGet();
 
         {
-            NodesStatsResponse nodesStatsResponse = clusterAdmin().nodesStats(new NodesStatsRequest().addMetric("ingest")).actionGet();
+            NodesStatsResponse nodesStatsResponse = clusterAdmin().nodesStats(new NodesStatsRequest().addMetric(Metric.INGEST)).actionGet();
             assertThat(nodesStatsResponse.getNodes().size(), equalTo(1));
 
             NodeStats stats = nodesStatsResponse.getNodes().get(0);
@@ -143,12 +136,15 @@ public class IngestStatsNamesAndTypesIT extends ESIntegTestCase {
         {
             // the bits that we want to read from the cluster stats response aren't visible in java code (no getters,
             // non-public classes and methods), roundtrip through json so that we can read what we want
-            ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();
+            ClusterStatsResponse response = clusterAdmin().prepareClusterStats().get();
             XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
             builder.startObject();
             response.toXContent(builder, new ToXContent.MapParams(Map.of()));
             builder.endObject();
-            Map<String, Object> stats = createParser(JsonXContent.jsonXContent, Strings.toString(builder)).map();
+            Map<String, Object> stats;
+            try (var parser = createParser(JsonXContent.jsonXContent, Strings.toString(builder))) {
+                stats = parser.map();
+            }
 
             int setProcessorCount = path(stats, "nodes.ingest.processor_stats.set.count");
             assertThat(setProcessorCount, equalTo(3));

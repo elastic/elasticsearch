@@ -1,14 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.bulk;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
@@ -19,9 +19,9 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.seqno.SequenceNumbers;
-import org.elasticsearch.rest.action.document.RestBulkAction;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContent;
@@ -44,7 +44,11 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_T
  * Helper to parse bulk requests. This should be considered an internal class.
  */
 public final class BulkRequestParser {
+
+    @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
+    // Remove deprecation logger when its usages in checkBulkActionIsProperlyClosed are removed
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(BulkRequestParser.class);
+
     private static final Set<String> SUPPORTED_ACTIONS = Set.of("create", "index", "update", "delete");
     private static final String STRICT_ACTION_PARSING_WARNING_KEY = "bulk_request_strict_action_parsing";
 
@@ -61,6 +65,8 @@ public final class BulkRequestParser {
     private static final ParseField IF_SEQ_NO = new ParseField("if_seq_no");
     private static final ParseField IF_PRIMARY_TERM = new ParseField("if_primary_term");
     private static final ParseField REQUIRE_ALIAS = new ParseField(DocWriteRequest.REQUIRE_ALIAS);
+    private static final ParseField REQUIRE_DATA_STREAM = new ParseField(DocWriteRequest.REQUIRE_DATA_STREAM);
+    private static final ParseField LIST_EXECUTED_PIPELINES = new ParseField(DocWriteRequest.LIST_EXECUTED_PIPELINES);
     private static final ParseField DYNAMIC_TEMPLATES = new ParseField("dynamic_templates");
 
     // TODO: Remove this parameter once the BulkMonitoring endpoint has been removed
@@ -75,21 +81,23 @@ public final class BulkRequestParser {
      * Create a new parser.
      *
      * @param deprecateOrErrorOnType whether to allow _type information in the index line; used by BulkMonitoring
+     * @param includeSourceOnError if to include the source in parser error messages
      * @param restApiVersion
      */
-    public BulkRequestParser(boolean deprecateOrErrorOnType, RestApiVersion restApiVersion) {
+    public BulkRequestParser(boolean deprecateOrErrorOnType, boolean includeSourceOnError, RestApiVersion restApiVersion) {
         this.deprecateOrErrorOnType = deprecateOrErrorOnType;
         this.config = XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE)
-            .withRestApiVersion(restApiVersion);
+            .withRestApiVersion(restApiVersion)
+            .withIncludeSourceOnError(includeSourceOnError);
     }
 
-    private static int findNextMarker(byte marker, int from, BytesReference data) {
+    private static int findNextMarker(byte marker, int from, BytesReference data, boolean lastData) {
         final int res = data.indexOf(marker, from);
         if (res != -1) {
             assert res >= 0;
             return res;
         }
-        if (from != data.length()) {
+        if (from != data.length() && lastData) {
             throw new IllegalArgumentException("The bulk request must be terminated by a newline [\\n]");
         }
         return res;
@@ -126,38 +134,183 @@ public final class BulkRequestParser {
         @Nullable FetchSourceContext defaultFetchSourceContext,
         @Nullable String defaultPipeline,
         @Nullable Boolean defaultRequireAlias,
+        @Nullable Boolean defaultRequireDataStream,
+        @Nullable Boolean defaultListExecutedPipelines,
         boolean allowExplicitIndex,
         XContentType xContentType,
         BiConsumer<IndexRequest, String> indexRequestConsumer,
         Consumer<UpdateRequest> updateRequestConsumer,
         Consumer<DeleteRequest> deleteRequestConsumer
     ) throws IOException {
-        XContent xContent = xContentType.xContent();
-        int line = 0;
-        int from = 0;
-        byte marker = xContent.streamSeparator();
+        IncrementalParser incrementalParser = new IncrementalParser(
+            defaultIndex,
+            defaultRouting,
+            defaultFetchSourceContext,
+            defaultPipeline,
+            defaultRequireAlias,
+            defaultRequireDataStream,
+            defaultListExecutedPipelines,
+            allowExplicitIndex,
+            xContentType,
+            indexRequestConsumer,
+            updateRequestConsumer,
+            deleteRequestConsumer
+        );
+
+        incrementalParser.parse(data, true);
+    }
+
+    public IncrementalParser incrementalParser(
+        @Nullable String defaultIndex,
+        @Nullable String defaultRouting,
+        @Nullable FetchSourceContext defaultFetchSourceContext,
+        @Nullable String defaultPipeline,
+        @Nullable Boolean defaultRequireAlias,
+        @Nullable Boolean defaultRequireDataStream,
+        @Nullable Boolean defaultListExecutedPipelines,
+        boolean allowExplicitIndex,
+        XContentType xContentType,
+        BiConsumer<IndexRequest, String> indexRequestConsumer,
+        Consumer<UpdateRequest> updateRequestConsumer,
+        Consumer<DeleteRequest> deleteRequestConsumer
+    ) {
+        return new IncrementalParser(
+            defaultIndex,
+            defaultRouting,
+            defaultFetchSourceContext,
+            defaultPipeline,
+            defaultRequireAlias,
+            defaultRequireDataStream,
+            defaultListExecutedPipelines,
+            allowExplicitIndex,
+            xContentType,
+            indexRequestConsumer,
+            updateRequestConsumer,
+            deleteRequestConsumer
+        );
+    }
+
+    public class IncrementalParser {
+
         // Bulk requests can contain a lot of repeated strings for the index, pipeline and routing parameters. This map is used to
         // deduplicate duplicate strings parsed for these parameters. While it does not prevent instantiating the duplicate strings, it
         // reduces their lifetime to the lifetime of this parse call instead of the lifetime of the full bulk request.
-        final Map<String, String> stringDeduplicator = new HashMap<>();
-        boolean typesDeprecationLogged = false;
+        private final Map<String, String> stringDeduplicator = new HashMap<>();
 
-        while (true) {
-            int nextMarker = findNextMarker(marker, from, data);
-            if (nextMarker == -1) {
-                break;
+        private final String defaultIndex;
+        private final String defaultRouting;
+        private final FetchSourceContext defaultFetchSourceContext;
+        private final String defaultPipeline;
+        private final Boolean defaultRequireAlias;
+        private final Boolean defaultRequireDataStream;
+        private final Boolean defaultListExecutedPipelines;
+        private final boolean allowExplicitIndex;
+
+        private final XContentType xContentType;
+        private final byte marker;
+        private final BiConsumer<IndexRequest, String> indexRequestConsumer;
+        private final Consumer<UpdateRequest> updateRequestConsumer;
+        private final Consumer<DeleteRequest> deleteRequestConsumer;
+
+        private Exception failure = null;
+        private int incrementalFromOffset = 0;
+        private int line = 0;
+
+        private DocWriteRequest<?> currentRequest = null;
+        private String currentType = null;
+        private String currentPipeline = null;
+        private boolean currentListExecutedPipelines = false;
+        private FetchSourceContext currentFetchSourceContext = null;
+
+        private IncrementalParser(
+            @Nullable String defaultIndex,
+            @Nullable String defaultRouting,
+            @Nullable FetchSourceContext defaultFetchSourceContext,
+            @Nullable String defaultPipeline,
+            @Nullable Boolean defaultRequireAlias,
+            @Nullable Boolean defaultRequireDataStream,
+            @Nullable Boolean defaultListExecutedPipelines,
+            boolean allowExplicitIndex,
+            XContentType xContentType,
+            BiConsumer<IndexRequest, String> indexRequestConsumer,
+            Consumer<UpdateRequest> updateRequestConsumer,
+            Consumer<DeleteRequest> deleteRequestConsumer
+        ) {
+            this.defaultIndex = defaultIndex;
+            this.defaultRouting = defaultRouting;
+            this.defaultFetchSourceContext = defaultFetchSourceContext;
+            this.defaultPipeline = defaultPipeline;
+            this.defaultRequireAlias = defaultRequireAlias;
+            this.defaultRequireDataStream = defaultRequireDataStream;
+            this.defaultListExecutedPipelines = defaultListExecutedPipelines;
+            this.allowExplicitIndex = allowExplicitIndex;
+            this.xContentType = xContentType;
+            this.marker = xContentType.xContent().bulkSeparator();
+            this.indexRequestConsumer = indexRequestConsumer;
+            this.updateRequestConsumer = updateRequestConsumer;
+            this.deleteRequestConsumer = deleteRequestConsumer;
+        }
+
+        public int parse(BytesReference data, boolean lastData) throws IOException {
+            if (failure != null) {
+                assert false : failure.getMessage();
+                throw new IllegalStateException("Parser has already encountered exception", failure);
             }
-            line++;
+            try {
+                return tryParse(data, lastData);
+            } catch (Exception e) {
+                failure = e;
+                throw e;
+            }
+        }
 
-            // now parse the action
-            try (XContentParser parser = createParser(xContent, data, from, nextMarker)) {
-                // move pointers
+        private int tryParse(BytesReference data, boolean lastData) throws IOException {
+            int from = 0;
+            int consumed = 0;
+
+            while (true) {
+                int nextMarker = findNextMarker(marker, incrementalFromOffset, data, lastData);
+                if (nextMarker == -1) {
+                    incrementalFromOffset = data.length() - consumed;
+                    break;
+                }
+                incrementalFromOffset = nextMarker + 1;
+                line++;
+
+                if (currentRequest == null) {
+                    if (parseActionLine(data, from, nextMarker)) {
+                        if (currentRequest instanceof DeleteRequest deleteRequest) {
+                            deleteRequestConsumer.accept(deleteRequest);
+                            currentRequest = null;
+                        }
+                    }
+                } else {
+                    parseAndConsumeDocumentLine(data, from, nextMarker);
+                    currentRequest = null;
+                }
+
                 from = nextMarker + 1;
+                consumed = from;
+            }
+
+            return lastData ? from : consumed;
+        }
+
+        private boolean parseActionLine(BytesReference data, int from, int to) throws IOException {
+            assert currentRequest == null;
+
+            // Reset the fields which are accessed during document line parsing
+            currentType = null;
+            currentPipeline = defaultPipeline;
+            currentListExecutedPipelines = defaultListExecutedPipelines != null && defaultListExecutedPipelines;
+            currentFetchSourceContext = defaultFetchSourceContext;
+
+            try (XContentParser parser = createParser(xContentType.xContent(), data, from, to)) {
 
                 // Move to START_OBJECT
                 XContentParser.Token token = parser.nextToken();
                 if (token == null) {
-                    continue;
+                    return false;
                 }
                 if (token != XContentParser.Token.START_OBJECT) {
                     throw new IllegalArgumentException(
@@ -195,18 +348,16 @@ public final class BulkRequestParser {
                 }
 
                 String index = defaultIndex;
-                String type = null;
                 String id = null;
                 String routing = defaultRouting;
-                FetchSourceContext fetchSourceContext = defaultFetchSourceContext;
                 String opType = null;
                 long version = Versions.MATCH_ANY;
                 VersionType versionType = VersionType.INTERNAL;
                 long ifSeqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
                 long ifPrimaryTerm = UNASSIGNED_PRIMARY_TERM;
                 int retryOnConflict = 0;
-                String pipeline = defaultPipeline;
                 boolean requireAlias = defaultRequireAlias != null && defaultRequireAlias;
+                boolean requireDataStream = defaultRequireDataStream != null && defaultRequireDataStream;
                 Map<String, String> dynamicTemplates = Map.of();
 
                 // at this stage, next token can either be END_OBJECT (and use default index and type, with auto generated id)
@@ -225,19 +376,12 @@ public final class BulkRequestParser {
                                 }
                                 index = stringDeduplicator.computeIfAbsent(parser.text(), Function.identity());
                             } else if (TYPE.match(currentFieldName, parser.getDeprecationHandler())) {
-                                if (parser.getRestApiVersion().matches(RestApiVersion.equalTo(RestApiVersion.V_7))) {
-                                    // for bigger bulks, deprecation throttling might not be enough
-                                    if (deprecateOrErrorOnType && typesDeprecationLogged == false) {
-                                        deprecationLogger.compatibleCritical("bulk_with_types", RestBulkAction.TYPES_DEPRECATION_MESSAGE);
-                                        typesDeprecationLogged = true;
-                                    }
-                                } else if (parser.getRestApiVersion().matches(RestApiVersion.onOrAfter(RestApiVersion.V_8))
-                                    && deprecateOrErrorOnType) {
-                                        throw new IllegalArgumentException(
-                                            "Action/metadata line [" + line + "] contains an unknown parameter [" + currentFieldName + "]"
-                                        );
-                                    }
-                                type = stringDeduplicator.computeIfAbsent(parser.text(), Function.identity());
+                                if (deprecateOrErrorOnType) {
+                                    throw new IllegalArgumentException(
+                                        "Action/metadata line [" + line + "] contains an unknown parameter [" + currentFieldName + "]"
+                                    );
+                                }
+                                currentType = stringDeduplicator.computeIfAbsent(parser.text(), Function.identity());
                             } else if (ID.match(currentFieldName, parser.getDeprecationHandler())) {
                                 id = parser.text();
                             } else if (ROUTING.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -255,11 +399,15 @@ public final class BulkRequestParser {
                             } else if (RETRY_ON_CONFLICT.match(currentFieldName, parser.getDeprecationHandler())) {
                                 retryOnConflict = parser.intValue();
                             } else if (PIPELINE.match(currentFieldName, parser.getDeprecationHandler())) {
-                                pipeline = stringDeduplicator.computeIfAbsent(parser.text(), Function.identity());
+                                currentPipeline = stringDeduplicator.computeIfAbsent(parser.text(), Function.identity());
                             } else if (SOURCE.match(currentFieldName, parser.getDeprecationHandler())) {
-                                fetchSourceContext = FetchSourceContext.fromXContent(parser);
+                                currentFetchSourceContext = FetchSourceContext.fromXContent(parser);
                             } else if (REQUIRE_ALIAS.match(currentFieldName, parser.getDeprecationHandler())) {
                                 requireAlias = parser.booleanValue();
+                            } else if (REQUIRE_DATA_STREAM.match(currentFieldName, parser.getDeprecationHandler())) {
+                                requireDataStream = parser.booleanValue();
+                            } else if (LIST_EXECUTED_PIPELINES.match(currentFieldName, parser.getDeprecationHandler())) {
+                                currentListExecutedPipelines = parser.booleanValue();
                             } else {
                                 throw new IllegalArgumentException(
                                     "Action/metadata line [" + line + "] contains an unknown parameter [" + currentFieldName + "]"
@@ -280,7 +428,7 @@ public final class BulkRequestParser {
                                 dynamicTemplates = parser.mapStrings();
                             } else if (token == XContentParser.Token.START_OBJECT
                                 && SOURCE.match(currentFieldName, parser.getDeprecationHandler())) {
-                                    fetchSourceContext = FetchSourceContext.fromXContent(parser);
+                                    currentFetchSourceContext = FetchSourceContext.fromXContent(parser);
                                 } else if (token != XContentParser.Token.VALUE_NULL) {
                                     throw new IllegalArgumentException(
                                         "Malformed action/metadata line ["
@@ -306,7 +454,7 @@ public final class BulkRequestParser {
                             + "]"
                     );
                 }
-                checkBulkActionIsProperlyClosed(parser);
+                checkBulkActionIsProperlyClosed(parser, line);
 
                 if ("delete".equals(action)) {
                     if (dynamicTemplates.isEmpty() == false) {
@@ -314,73 +462,44 @@ public final class BulkRequestParser {
                             "Delete request in line [" + line + "] does not accept " + DYNAMIC_TEMPLATES.getPreferredName()
                         );
                     }
-                    deleteRequestConsumer.accept(
-                        new DeleteRequest(index).id(id)
+                    currentRequest = new DeleteRequest(index).id(id)
+                        .routing(routing)
+                        .version(version)
+                        .versionType(versionType)
+                        .setIfSeqNo(ifSeqNo)
+                        .setIfPrimaryTerm(ifPrimaryTerm);
+                } else {
+                    // we use internalAdd so we don't fork here, this allows us not to copy over the big byte array to small chunks
+                    // of index request.
+                    if ("index".equals(action) || "create".equals(action)) {
+                        var indexRequest = new IndexRequest(index).id(id)
                             .routing(routing)
                             .version(version)
                             .versionType(versionType)
+                            .setPipeline(currentPipeline)
                             .setIfSeqNo(ifSeqNo)
                             .setIfPrimaryTerm(ifPrimaryTerm)
-                    );
-                } else {
-                    nextMarker = findNextMarker(marker, from, data);
-                    if (nextMarker == -1) {
-                        break;
-                    }
-                    line++;
-
-                    // we use internalAdd so we don't fork here, this allows us not to copy over the big byte array to small chunks
-                    // of index request.
-                    if ("index".equals(action)) {
-                        if (opType == null) {
-                            indexRequestConsumer.accept(
-                                new IndexRequest(index).id(id)
-                                    .routing(routing)
-                                    .version(version)
-                                    .versionType(versionType)
-                                    .setPipeline(pipeline)
-                                    .setIfSeqNo(ifSeqNo)
-                                    .setIfPrimaryTerm(ifPrimaryTerm)
-                                    .source(sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType), xContentType)
-                                    .setDynamicTemplates(dynamicTemplates)
-                                    .setRequireAlias(requireAlias),
-                                type
-                            );
-                        } else {
-                            indexRequestConsumer.accept(
-                                new IndexRequest(index).id(id)
-                                    .routing(routing)
-                                    .version(version)
-                                    .versionType(versionType)
-                                    .create("create".equals(opType))
-                                    .setPipeline(pipeline)
-                                    .setIfSeqNo(ifSeqNo)
-                                    .setIfPrimaryTerm(ifPrimaryTerm)
-                                    .source(sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType), xContentType)
-                                    .setDynamicTemplates(dynamicTemplates)
-                                    .setRequireAlias(requireAlias),
-                                type
-                            );
+                            .setDynamicTemplates(dynamicTemplates)
+                            .setRequireAlias(requireAlias)
+                            .setRequireDataStream(requireDataStream)
+                            .setListExecutedPipelines(currentListExecutedPipelines)
+                            .setIncludeSourceOnError(config.includeSourceOnError());
+                        if ("create".equals(action)) {
+                            indexRequest = indexRequest.create(true);
+                        } else if (opType != null) {
+                            indexRequest = indexRequest.create("create".equals(opType));
                         }
-                    } else if ("create".equals(action)) {
-                        indexRequestConsumer.accept(
-                            new IndexRequest(index).id(id)
-                                .routing(routing)
-                                .version(version)
-                                .versionType(versionType)
-                                .create(true)
-                                .setPipeline(pipeline)
-                                .setIfSeqNo(ifSeqNo)
-                                .setIfPrimaryTerm(ifPrimaryTerm)
-                                .source(sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType), xContentType)
-                                .setDynamicTemplates(dynamicTemplates)
-                                .setRequireAlias(requireAlias),
-                            type
-                        );
+                        currentRequest = indexRequest;
                     } else if ("update".equals(action)) {
                         if (version != Versions.MATCH_ANY || versionType != VersionType.INTERNAL) {
                             throw new IllegalArgumentException(
                                 "Update requests do not support versioning. " + "Please use `if_seq_no` and `if_primary_term` instead"
+                            );
+                        }
+                        if (requireDataStream) {
+                            throw new IllegalArgumentException(
+                                "Update requests do not support the `require_data_stream` flag, "
+                                    + "as data streams do not support update operations"
                             );
                         }
                         // TODO: support dynamic_templates in update requests
@@ -397,60 +516,89 @@ public final class BulkRequestParser {
                             .setIfPrimaryTerm(ifPrimaryTerm)
                             .setRequireAlias(requireAlias)
                             .routing(routing);
-                        try (
-                            XContentParser sliceParser = createParser(
-                                xContent,
-                                sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType)
-                            )
-                        ) {
-                            updateRequest.fromXContent(sliceParser);
-                        }
-                        if (fetchSourceContext != null) {
-                            updateRequest.fetchSource(fetchSourceContext);
-                        }
-                        IndexRequest upsertRequest = updateRequest.upsertRequest();
-                        if (upsertRequest != null) {
-                            upsertRequest.setPipeline(pipeline);
-                        }
-
-                        updateRequestConsumer.accept(updateRequest);
+                        currentRequest = updateRequest;
                     }
-                    // move pointers
-                    from = nextMarker + 1;
                 }
             }
+            return true;
         }
+
+        private void parseAndConsumeDocumentLine(BytesReference data, int from, int to) throws IOException {
+            assert currentRequest != null && currentRequest instanceof DeleteRequest == false;
+            if (currentRequest instanceof IndexRequest indexRequest) {
+                indexRequest.source(sliceTrimmingCarriageReturn(data, from, to, xContentType), xContentType);
+                indexRequestConsumer.accept(indexRequest, currentType);
+            } else if (currentRequest instanceof UpdateRequest updateRequest) {
+                try (
+                    XContentParser sliceParser = createParser(
+                        xContentType.xContent(),
+                        sliceTrimmingCarriageReturn(data, from, to, xContentType)
+                    )
+                ) {
+                    updateRequest.fromXContent(sliceParser);
+                }
+                if (currentFetchSourceContext != null) {
+                    updateRequest.fetchSource(currentFetchSourceContext);
+                }
+                IndexRequest upsertRequest = updateRequest.upsertRequest();
+                if (upsertRequest != null) {
+                    upsertRequest.setPipeline(currentPipeline).setListExecutedPipelines(currentListExecutedPipelines);
+                }
+                updateRequestConsumer.accept(updateRequest);
+            }
+        }
+
     }
 
-    private static void checkBulkActionIsProperlyClosed(XContentParser parser) throws IOException {
+    @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT) // Remove lenient parsing in V8 BWC mode
+    private void checkBulkActionIsProperlyClosed(XContentParser parser, int line) throws IOException {
         XContentParser.Token token;
         try {
             token = parser.nextToken();
-        } catch (XContentEOFException ignore) {
-            assert Version.CURRENT.major == Version.V_7_17_0.major + 1;
-            deprecationLogger.compatibleCritical(
-                STRICT_ACTION_PARSING_WARNING_KEY,
-                "A bulk action wasn't closed properly with the closing brace. Malformed objects are currently accepted but will be "
-                    + "rejected in a future version."
-            );
-            return;
+        } catch (XContentEOFException e) {
+            if (config.restApiVersion() == RestApiVersion.V_8) {
+                deprecationLogger.compatibleCritical(
+                    STRICT_ACTION_PARSING_WARNING_KEY,
+                    "A bulk action wasn't closed properly with the closing brace. Malformed objects are currently accepted but will be"
+                        + " rejected in a future version."
+                );
+                return;
+            } else {
+                throw e;
+            }
         }
         if (token != XContentParser.Token.END_OBJECT) {
-            assert Version.CURRENT.major == Version.V_7_17_0.major + 1;
-            deprecationLogger.compatibleCritical(
-                STRICT_ACTION_PARSING_WARNING_KEY,
-                "A bulk action object contained multiple keys. Additional keys are currently ignored but will be rejected in a "
-                    + "future version."
-            );
-            return;
+            if (config.restApiVersion() == RestApiVersion.V_8) {
+                deprecationLogger.compatibleCritical(
+                    STRICT_ACTION_PARSING_WARNING_KEY,
+                    "A bulk action object contained multiple keys. Additional keys are currently ignored but will be rejected in a future"
+                        + " version."
+                );
+                return;
+            } else {
+                throw new IllegalArgumentException(
+                    "Malformed action/metadata line ["
+                        + line
+                        + "], expected "
+                        + XContentParser.Token.END_OBJECT
+                        + " but found ["
+                        + token
+                        + "]"
+                );
+            }
         }
         if (parser.nextToken() != null) {
-            assert Version.CURRENT.major == Version.V_7_17_0.major + 1;
-            deprecationLogger.compatibleCritical(
-                STRICT_ACTION_PARSING_WARNING_KEY,
-                "A bulk action contained trailing data after the closing brace. This is currently ignored but will be rejected in a "
-                    + "future version."
-            );
+            if (config.restApiVersion() == RestApiVersion.V_8) {
+                deprecationLogger.compatibleCritical(
+                    STRICT_ACTION_PARSING_WARNING_KEY,
+                    "A bulk action contained trailing data after the closing brace. This is currently ignored but will be rejected in a"
+                        + " future version."
+                );
+            } else {
+                throw new IllegalArgumentException(
+                    "Malformed action/metadata line [" + line + "], unexpected data after the closing brace"
+                );
+            }
         }
     }
 

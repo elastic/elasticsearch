@@ -6,19 +6,18 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexVersion;
 
-import java.util.Collections;
+import java.util.List;
 import java.util.Locale;
 
 import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
@@ -69,7 +68,7 @@ public class GenerateSnapshotNameStepTests extends AbstractStepTestCase<Generate
     private void testPerformAction(String policyName, String expectedPolicyName) {
         String indexName = randomAlphaOfLength(10);
         final IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
-            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+            .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
             .build();
@@ -83,7 +82,7 @@ public class GenerateSnapshotNameStepTests extends AbstractStepTestCase<Generate
             .metadata(
                 Metadata.builder()
                     .put(indexMetadata, false)
-                    .putCustom(RepositoriesMetadata.TYPE, new RepositoriesMetadata(Collections.singletonList(repo)))
+                    .putCustom(RepositoriesMetadata.TYPE, new RepositoriesMetadata(List.of(repo)))
                     .build()
             )
             .build();
@@ -115,7 +114,7 @@ public class GenerateSnapshotNameStepTests extends AbstractStepTestCase<Generate
         String indexName = randomAlphaOfLength(10);
         String policyName = "test-ilm-policy";
         final IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
-            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+            .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
             .build();
@@ -153,7 +152,7 @@ public class GenerateSnapshotNameStepTests extends AbstractStepTestCase<Generate
         newCustomData.setSnapshotRepository("snapshot-repository-will-be-reset");
 
         final IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
-            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+            .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
             .putCustom(ILM_CUSTOM_METADATA_KEY, newCustomData.build().asMap())
@@ -168,7 +167,7 @@ public class GenerateSnapshotNameStepTests extends AbstractStepTestCase<Generate
             .metadata(
                 Metadata.builder()
                     .put(indexMetadata, false)
-                    .putCustom(RepositoriesMetadata.TYPE, new RepositoriesMetadata(Collections.singletonList(repo)))
+                    .putCustom(RepositoriesMetadata.TYPE, new RepositoriesMetadata(List.of(repo)))
                     .build()
             )
             .build();
@@ -185,13 +184,12 @@ public class GenerateSnapshotNameStepTests extends AbstractStepTestCase<Generate
         assertThat(generateSnapshotName("name"), startsWith("name-"));
         assertThat(generateSnapshotName("name").length(), greaterThan("name-".length()));
 
-        IndexNameExpressionResolver.ResolverContext resolverContext = new IndexNameExpressionResolver.ResolverContext(time);
-        assertThat(generateSnapshotName("<name-{now}>", resolverContext), startsWith("name-2019.03.15-"));
-        assertThat(generateSnapshotName("<name-{now}>", resolverContext).length(), greaterThan("name-2019.03.15-".length()));
+        assertThat(generateSnapshotName("<name-{now}>", time), startsWith("name-2019.03.15-"));
+        assertThat(generateSnapshotName("<name-{now}>", time).length(), greaterThan("name-2019.03.15-".length()));
 
-        assertThat(generateSnapshotName("<name-{now/M}>", resolverContext), startsWith("name-2019.03.01-"));
+        assertThat(generateSnapshotName("<name-{now/M}>", time), startsWith("name-2019.03.01-"));
 
-        assertThat(generateSnapshotName("<name-{now/m{yyyy-MM-dd.HH:mm:ss}}>", resolverContext), startsWith("name-2019-03-15.21:09:00-"));
+        assertThat(generateSnapshotName("<name-{now/m{yyyy-MM-dd.HH:mm:ss}}>", time), startsWith("name-2019-03-15.21:09:00-"));
     }
 
     public void testNameValidation() {

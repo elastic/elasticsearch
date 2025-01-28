@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.fetch.subphase.highlight;
 
@@ -46,6 +47,11 @@ public class SourceSimpleFragmentsBuilder extends SimpleFragmentsBuilder {
     @Override
     protected Field[] getFields(IndexReader reader, int docId, String fieldName) throws IOException {
         // we know its low level reader, and matching docId, since that's how we call the highlighter with
+        return doGetFields(docId, valueFetcher, source, fetchContext, fieldType);
+    }
+
+    static Field[] doGetFields(int docId, ValueFetcher valueFetcher, Source source, FetchContext fetchContext, MappedFieldType fieldType)
+        throws IOException {
         List<Object> values = valueFetcher.fetchValues(source, docId, new ArrayList<>());
         if (values.isEmpty()) {
             return EMPTY_FIELDS;
@@ -63,5 +69,4 @@ public class SourceSimpleFragmentsBuilder extends SimpleFragmentsBuilder {
         }
         return fields;
     }
-
 }

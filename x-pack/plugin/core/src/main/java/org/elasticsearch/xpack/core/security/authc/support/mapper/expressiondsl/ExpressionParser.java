@@ -11,13 +11,11 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.xcontent.ContextParser;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -36,11 +34,11 @@ public final class ExpressionParser {
     }
 
     static List<RoleMapperExpression> readExpressionList(StreamInput in) throws IOException {
-        return in.readNamedWriteableList(RoleMapperExpression.class);
+        return in.readNamedWriteableCollectionAsList(RoleMapperExpression.class);
     }
 
     static void writeExpressionList(List<RoleMapperExpression> list, StreamOutput out) throws IOException {
-        out.writeNamedWriteableList(list);
+        out.writeNamedWriteableCollection(list);
     }
 
     /**
@@ -57,8 +55,8 @@ public final class ExpressionParser {
      * @param content The XContent (typically JSON) DSL representation of the expression
      */
     public RoleMapperExpression parse(String name, XContentSource content) throws IOException {
-        try (InputStream stream = content.getBytes().streamInput()) {
-            return parse(name, content.parser(NamedXContentRegistry.EMPTY, stream));
+        try (var parser = content.parser(content.getBytes())) {
+            return parse(name, parser);
         }
     }
 
@@ -124,12 +122,12 @@ public final class ExpressionParser {
         }
     }
 
-    private RoleMapperExpression parseFieldExpression(XContentParser parser) throws IOException {
+    private static RoleMapperExpression parseFieldExpression(XContentParser parser) throws IOException {
         checkStartObject(parser);
         final String fieldName = readFieldName(Fields.FIELD.getPreferredName(), parser);
         final List<FieldExpression.FieldValue> values;
         if (parser.nextToken() == XContentParser.Token.START_ARRAY) {
-            values = parseArray(Fields.FIELD, parser, this::parseFieldValue);
+            values = parseArray(Fields.FIELD, parser, ExpressionParser::parseFieldValue);
         } else {
             values = Collections.singletonList(parseFieldValue(parser));
         }
@@ -147,14 +145,14 @@ public final class ExpressionParser {
         return new ExceptExpression(parseRulesObject(Fields.EXCEPT.getPreferredName(), parser, false));
     }
 
-    private void checkStartObject(XContentParser parser) throws IOException {
+    private static void checkStartObject(XContentParser parser) throws IOException {
         final XContentParser.Token token = parser.nextToken();
         if (token != XContentParser.Token.START_OBJECT) {
             throw new ElasticsearchParseException("failed to parse rules expression. expected an object but found [{}] instead", token);
         }
     }
 
-    private String readFieldName(String objectName, XContentParser parser) throws IOException {
+    private static String readFieldName(String objectName, XContentParser parser) throws IOException {
         if (parser.nextToken() != XContentParser.Token.FIELD_NAME) {
             throw new ElasticsearchParseException("failed to parse rules expression. object [{}] does not contain any fields", objectName);
         }
@@ -167,8 +165,11 @@ public final class ExpressionParser {
         return parseArray(field, parser, p -> parseRulesObject(field.getPreferredName(), p, allowExcept));
     }
 
-    private <T> List<T> parseArray(ParseField field, XContentParser parser, CheckedFunction<XContentParser, T, IOException> elementParser)
-        throws IOException {
+    private static <T> List<T> parseArray(
+        ParseField field,
+        XContentParser parser,
+        CheckedFunction<XContentParser, T, IOException> elementParser
+    ) throws IOException {
         final XContentParser.Token token = parser.currentToken();
         if (token == XContentParser.Token.START_ARRAY) {
             List<T> list = new ArrayList<>();
@@ -181,7 +182,7 @@ public final class ExpressionParser {
         }
     }
 
-    private FieldExpression.FieldValue parseFieldValue(XContentParser parser) throws IOException {
+    private static FieldExpression.FieldValue parseFieldValue(XContentParser parser) throws IOException {
         return switch (parser.currentToken()) {
             case VALUE_STRING -> new FieldExpression.FieldValue(parser.text());
             case VALUE_BOOLEAN -> new FieldExpression.FieldValue(parser.booleanValue());

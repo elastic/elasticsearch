@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.coordination.stateless;
@@ -11,10 +12,10 @@ package org.elasticsearch.cluster.coordination.stateless;
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
@@ -62,11 +63,11 @@ public class StoreHeartbeatServiceTests extends ESTestCase {
             listener -> listener.onResponse(OptionalLong.of(currentTermProvider.get()))
         );
 
-        PlainActionFuture<Long> completionListener = PlainActionFuture.newFuture();
-        final var currentLeader = TestDiscoveryNode.create("master");
+        PlainActionFuture<Long> completionListener = new PlainActionFuture<>();
+        final var currentLeader = DiscoveryNodeUtils.create("master");
         heartbeatService.start(currentLeader, currentTermProvider.get(), completionListener);
 
-        Heartbeat firstHeartbeat = PlainActionFuture.get(heartbeatStore::readLatestHeartbeat);
+        Heartbeat firstHeartbeat = safeAwait(heartbeatStore::readLatestHeartbeat);
         assertThat(firstHeartbeat, is(notNullValue()));
         assertThat(firstHeartbeat.term(), is(equalTo(1L)));
         assertThat(firstHeartbeat.absoluteTimeInMillis(), is(lessThanOrEqualTo(threadPool.absoluteTimeInMillis())));
@@ -79,7 +80,7 @@ public class StoreHeartbeatServiceTests extends ESTestCase {
 
         assertThat(completionListener.isDone(), is(false));
 
-        Heartbeat secondHeartbeat = PlainActionFuture.get(heartbeatStore::readLatestHeartbeat);
+        Heartbeat secondHeartbeat = safeAwait(heartbeatStore::readLatestHeartbeat);
         assertThat(secondHeartbeat, is(notNullValue()));
         assertThat(secondHeartbeat.term(), is(equalTo(1L)));
         assertThat(secondHeartbeat.absoluteTimeInMillis(), is(greaterThanOrEqualTo(firstHeartbeat.absoluteTimeInMillis())));
@@ -95,7 +96,7 @@ public class StoreHeartbeatServiceTests extends ESTestCase {
         // No new tasks are scheduled after stopping the heart beat service
         assertThat(threadPool.scheduledTasks.poll(), is(nullValue()));
 
-        Heartbeat heartbeatAfterStoppingTheService = PlainActionFuture.get(heartbeatStore::readLatestHeartbeat);
+        Heartbeat heartbeatAfterStoppingTheService = safeAwait(heartbeatStore::readLatestHeartbeat);
         assertThat(heartbeatAfterStoppingTheService, is(equalTo(secondHeartbeat)));
 
         assertThat(completionListener.isDone(), is(false));
@@ -125,8 +126,8 @@ public class StoreHeartbeatServiceTests extends ESTestCase {
             listener -> listener.onResponse(OptionalLong.of(currentTermProvider.get()))
         );
 
-        PlainActionFuture<Long> completionListener = PlainActionFuture.newFuture();
-        final var currentLeader = TestDiscoveryNode.create("master");
+        PlainActionFuture<Long> completionListener = new PlainActionFuture<>();
+        final var currentLeader = DiscoveryNodeUtils.create("master");
 
         final boolean failFirstHeartBeat = randomBoolean();
         injectWriteHeartBeatFailure.set(failFirstHeartBeat);
@@ -134,7 +135,7 @@ public class StoreHeartbeatServiceTests extends ESTestCase {
         heartbeatService.start(currentLeader, currentTermProvider.get(), completionListener);
 
         if (failFirstHeartBeat == false) {
-            Heartbeat firstHeartbeat = PlainActionFuture.get(heartbeatStore::readLatestHeartbeat);
+            Heartbeat firstHeartbeat = safeAwait(heartbeatStore::readLatestHeartbeat);
             assertThat(firstHeartbeat, is(notNullValue()));
 
             var scheduledTask = threadPool.scheduledTasks.poll();
@@ -167,8 +168,8 @@ public class StoreHeartbeatServiceTests extends ESTestCase {
             listener -> listener.onResponse(OptionalLong.of(currentTermProvider.get()))
         );
 
-        PlainActionFuture<Long> completionListener = PlainActionFuture.newFuture();
-        final var currentLeader = TestDiscoveryNode.create("master");
+        PlainActionFuture<Long> completionListener = new PlainActionFuture<>();
+        final var currentLeader = DiscoveryNodeUtils.create("master");
 
         final long currentTerm = currentTermProvider.get();
         boolean termBumpBeforeStart = randomBoolean();
@@ -179,7 +180,7 @@ public class StoreHeartbeatServiceTests extends ESTestCase {
         heartbeatService.start(currentLeader, currentTerm, completionListener);
 
         if (termBumpBeforeStart == false) {
-            Heartbeat firstHeartbeat = PlainActionFuture.get(heartbeatStore::readLatestHeartbeat);
+            Heartbeat firstHeartbeat = safeAwait(heartbeatStore::readLatestHeartbeat);
             assertThat(firstHeartbeat, is(notNullValue()));
 
             var scheduledTask = threadPool.scheduledTasks.poll();
@@ -229,52 +230,50 @@ public class StoreHeartbeatServiceTests extends ESTestCase {
 
         // Empty store
         {
-            Heartbeat heartbeat = PlainActionFuture.get(heartbeatStore::readLatestHeartbeat);
+            Heartbeat heartbeat = safeAwait(heartbeatStore::readLatestHeartbeat);
             assertThat(heartbeat, is(nullValue()));
 
             AtomicBoolean noRecentLeaderFound = new AtomicBoolean();
-            heartbeatService.runIfNoRecentLeader(() -> noRecentLeaderFound.set(true));
+            heartbeatService.checkLeaderHeartbeatAndRun(() -> noRecentLeaderFound.set(true), hb -> {});
             assertThat(noRecentLeaderFound.get(), is(true));
         }
 
         // Recent heartbeat
         {
-            PlainActionFuture.<Void, Exception>get(f -> heartbeatStore.writeHeartbeat(new Heartbeat(1, fakeClock.get()), f));
+            safeAwait((ActionListener<Void> l) -> heartbeatStore.writeHeartbeat(new Heartbeat(1, fakeClock.get()), l));
 
             AtomicBoolean noRecentLeaderFound = new AtomicBoolean();
-            heartbeatService.runIfNoRecentLeader(() -> noRecentLeaderFound.set(true));
+            heartbeatService.checkLeaderHeartbeatAndRun(() -> noRecentLeaderFound.set(true), hb -> {});
             assertThat(noRecentLeaderFound.get(), is(false));
         }
 
         // Stale heartbeat
         {
-            PlainActionFuture.<Void, Exception>get(f -> heartbeatStore.writeHeartbeat(new Heartbeat(1, fakeClock.get()), f));
+            safeAwait((ActionListener<Void> l) -> heartbeatStore.writeHeartbeat(new Heartbeat(1, fakeClock.get()), l));
             fakeClock.set(maxTimeSinceLastHeartbeat.millis() + 1);
 
             AtomicBoolean noRecentLeaderFound = new AtomicBoolean();
-            heartbeatService.runIfNoRecentLeader(() -> noRecentLeaderFound.set(true));
+            heartbeatService.checkLeaderHeartbeatAndRun(() -> noRecentLeaderFound.set(true), hb -> {});
             assertThat(noRecentLeaderFound.get(), is(true));
         }
 
         // Failing store
         {
-            PlainActionFuture.<Void, Exception>get(f -> heartbeatStore.writeHeartbeat(new Heartbeat(1, fakeClock.get()), f));
+            safeAwait((ActionListener<Void> l) -> heartbeatStore.writeHeartbeat(new Heartbeat(1, fakeClock.get()), l));
             fakeClock.set(maxTimeSinceLastHeartbeat.millis() + 1);
-
             failReadingHeartbeat.set(true);
 
-            final var mockAppender = new MockLogAppender();
-            mockAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
-                    "warning log",
-                    StoreHeartbeatService.class.getCanonicalName(),
-                    Level.WARN,
-                    "failed to read heartbeat from store"
-                )
-            );
-            try (var ignored = mockAppender.capturing(StoreHeartbeatService.class)) {
-                heartbeatService.runIfNoRecentLeader(() -> fail("should not be called"));
-                mockAppender.assertAllExpectationsMatched();
+            try (var mockLog = MockLog.capture(StoreHeartbeatService.class)) {
+                mockLog.addExpectation(
+                    new MockLog.SeenEventExpectation(
+                        "warning log",
+                        StoreHeartbeatService.class.getCanonicalName(),
+                        Level.WARN,
+                        "failed to read heartbeat from store"
+                    )
+                );
+                heartbeatService.checkLeaderHeartbeatAndRun(() -> fail("should not be called"), hb -> {});
+                mockLog.assertAllExpectationsMatched();
             }
         }
     }
@@ -282,7 +281,7 @@ public class StoreHeartbeatServiceTests extends ESTestCase {
     public void testRetriesEarlyAfterGettingAnEmptyTerm() {
         final var heartbeatFrequency = TimeValue.timeValueSeconds(randomIntBetween(15, 30));
         final var maxTimeSinceLastHeartbeat = TimeValue.timeValueSeconds(2 * heartbeatFrequency.seconds());
-        final var currentLeader = TestDiscoveryNode.create("master");
+        final var currentLeader = DiscoveryNodeUtils.create("master");
 
         final var currentTermSupplier = new AtomicReference<>(OptionalLong.empty());
         final var fakeClock = new AtomicLong();
@@ -300,7 +299,7 @@ public class StoreHeartbeatServiceTests extends ESTestCase {
             }
         };
 
-        PlainActionFuture<Long> completionListener = PlainActionFuture.newFuture();
+        PlainActionFuture<Long> completionListener = new PlainActionFuture<>();
         heartbeatService.start(currentLeader, 1, completionListener);
 
         var retryTask = threadPool.scheduledTasks.poll();
@@ -311,7 +310,7 @@ public class StoreHeartbeatServiceTests extends ESTestCase {
 
         retryTask.v2().run();
 
-        Heartbeat firstHeartbeat = PlainActionFuture.get(heartbeatStore::readLatestHeartbeat);
+        Heartbeat firstHeartbeat = safeAwait(heartbeatStore::readLatestHeartbeat);
         assertThat(firstHeartbeat, is(notNullValue()));
         assertThat(firstHeartbeat.term(), is(equalTo(1L)));
 

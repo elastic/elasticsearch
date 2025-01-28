@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.search;
@@ -49,7 +50,7 @@ public class SearchShardsGroup implements Writeable {
 
     public SearchShardsGroup(StreamInput in) throws IOException {
         this.shardId = new ShardId(in);
-        this.allocatedNodes = in.readStringList();
+        this.allocatedNodes = in.readStringCollectionAsList();
         this.skipped = in.readBoolean();
         this.preFiltered = true;
     }
@@ -105,5 +106,19 @@ public class SearchShardsGroup implements Writeable {
     @Override
     public int hashCode() {
         return Objects.hash(shardId, allocatedNodes, skipped, preFiltered);
+    }
+
+    @Override
+    public String toString() {
+        return "SearchShardsGroup{"
+            + "shardId="
+            + shardId
+            + ", allocatedNodes="
+            + allocatedNodes
+            + ", skipped="
+            + skipped
+            + ", preFiltered="
+            + preFiltered
+            + '}';
     }
 }

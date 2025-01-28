@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.coordination;
@@ -17,9 +18,10 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.coordination.MasterHistoryService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
@@ -37,7 +39,7 @@ public class MasterHistoryAction extends ActionType<MasterHistoryAction.Response
     public static final String NAME = "internal:cluster/master_history/get";
 
     private MasterHistoryAction() {
-        super(NAME, MasterHistoryAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends ActionRequest {
@@ -129,13 +131,13 @@ public class MasterHistoryAction extends ActionType<MasterHistoryAction.Response
 
         @Inject
         public TransportAction(TransportService transportService, ActionFilters actionFilters, MasterHistoryService masterHistoryService) {
-            super(MasterHistoryAction.NAME, transportService, actionFilters, MasterHistoryAction.Request::new);
+            super(MasterHistoryAction.NAME, transportService, actionFilters, Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
             this.masterHistoryService = masterHistoryService;
         }
 
         @Override
         protected void doExecute(Task task, MasterHistoryAction.Request request, ActionListener<Response> listener) {
-            listener.onResponse(new MasterHistoryAction.Response(masterHistoryService.getLocalMasterHistory().getNodes()));
+            listener.onResponse(new MasterHistoryAction.Response(masterHistoryService.getLocalMasterHistory().getRawNodes()));
         }
     }
 

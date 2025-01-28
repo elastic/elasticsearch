@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.util;
@@ -77,11 +78,16 @@ public class FeatureFlagTests extends ESTestCase {
 
     private static Build randomBuild(boolean isSnapshot) {
         return new Build(
+            randomFrom("flavor1", "flavor2"),
             randomFrom(Build.Type.values()),
             Hex.encodeHexString(randomByteArrayOfLength(20)),
             Instant.now().toString(),
+            VersionUtils.randomVersion(random()).toString(),
+            randomFrom(random(), null, "alpha1", "beta1", "rc2"),
             isSnapshot,
-            VersionUtils.randomVersion(random()).toString()
+            VersionUtils.randomVersion(random()).toString(),
+            VersionUtils.randomVersion(random()).toString(),
+            randomAlphaOfLength(10)
         );
     }
 

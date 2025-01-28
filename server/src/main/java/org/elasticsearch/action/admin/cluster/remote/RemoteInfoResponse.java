@@ -1,15 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.remote;
 
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.transport.RemoteConnectionInfo;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -23,11 +23,6 @@ public final class RemoteInfoResponse extends ActionResponse implements ToXConte
 
     private final List<RemoteConnectionInfo> infos;
 
-    RemoteInfoResponse(StreamInput in) throws IOException {
-        super(in);
-        infos = in.readImmutableList(RemoteConnectionInfo::new);
-    }
-
     public RemoteInfoResponse(Collection<RemoteConnectionInfo> infos) {
         this.infos = List.copyOf(infos);
     }
@@ -38,7 +33,7 @@ public final class RemoteInfoResponse extends ActionResponse implements ToXConte
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeList(infos);
+        out.writeCollection(infos);
     }
 
     @Override

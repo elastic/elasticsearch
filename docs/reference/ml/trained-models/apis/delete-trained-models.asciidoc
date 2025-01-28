@@ -6,6 +6,12 @@
 <titleabbrev>Delete trained models</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-ml-trained-model[{ml-cap} trained model APIs].
+--
+
 Deletes an existing trained {infer} model.
 
 
@@ -27,7 +33,7 @@ Requires the `manage_ml` cluster privilege. This privilege is included in the
 
 `<model_id>`::
 (Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-id]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=model-id]
 
 [[ml-delete-trained-models-query-parms]]
 == {api-query-parms-title}

@@ -1,13 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.action.admin.indices.shards;
 
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -25,14 +26,14 @@ import java.util.EnumSet;
 import java.util.Map;
 
 /**
- * Request for {@link IndicesShardStoresAction}
+ * Request for {@link TransportIndicesShardStoresAction}
  */
 public class IndicesShardStoresRequest extends MasterNodeReadRequest<IndicesShardStoresRequest> implements IndicesRequest.Replaceable {
 
     static final int DEFAULT_MAX_CONCURRENT_SHARD_REQUESTS = 100;
 
     private String[] indices = Strings.EMPTY_ARRAY;
-    private IndicesOptions indicesOptions = IndicesOptions.strictExpand();
+    private IndicesOptions indicesOptions = IndicesOptions.strictExpandHidden();
     private EnumSet<ClusterHealthStatus> statuses = EnumSet.of(ClusterHealthStatus.YELLOW, ClusterHealthStatus.RED);
     private int maxConcurrentShardRequests = DEFAULT_MAX_CONCURRENT_SHARD_REQUESTS;
 
@@ -40,10 +41,13 @@ public class IndicesShardStoresRequest extends MasterNodeReadRequest<IndicesShar
      * Create a request for shard stores info for <code>indices</code>
      */
     public IndicesShardStoresRequest(String... indices) {
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
         this.indices = indices;
     }
 
-    public IndicesShardStoresRequest() {}
+    public IndicesShardStoresRequest() {
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
+    }
 
     public IndicesShardStoresRequest(StreamInput in) throws IOException {
         super(in);
@@ -54,7 +58,7 @@ public class IndicesShardStoresRequest extends MasterNodeReadRequest<IndicesShar
             statuses.add(ClusterHealthStatus.readFrom(in));
         }
         indicesOptions = IndicesOptions.readIndicesOptions(in);
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
             maxConcurrentShardRequests = in.readVInt();
         } else {
             // earlier versions had unlimited concurrency
@@ -68,14 +72,14 @@ public class IndicesShardStoresRequest extends MasterNodeReadRequest<IndicesShar
         out.writeStringArrayNullable(indices);
         out.writeCollection(statuses, (o, v) -> o.writeByte(v.value()));
         indicesOptions.writeIndicesOptions(out);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
             out.writeVInt(maxConcurrentShardRequests);
         } else if (maxConcurrentShardRequests != DEFAULT_MAX_CONCURRENT_SHARD_REQUESTS) {
             throw new IllegalArgumentException(
                 "support for maxConcurrentShardRequests=["
                     + maxConcurrentShardRequests
                     + "] was added in version [8.8.0], cannot send this request using transport version ["
-                    + out.getTransportVersion()
+                    + out.getTransportVersion().toReleaseVersion()
                     + "]"
             );
         } // else just drop the value and use the default behaviour

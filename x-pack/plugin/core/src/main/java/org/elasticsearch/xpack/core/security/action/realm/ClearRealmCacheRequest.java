@@ -13,19 +13,13 @@ import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
 
-public class ClearRealmCacheRequest extends BaseNodesRequest<ClearRealmCacheRequest> {
+public class ClearRealmCacheRequest extends BaseNodesRequest {
 
     String[] realms;
     String[] usernames;
 
     public ClearRealmCacheRequest() {
         super((String[]) null);
-    }
-
-    public ClearRealmCacheRequest(StreamInput in) throws IOException {
-        super(in);
-        realms = in.readStringArray();
-        usernames = in.readStringArray();
     }
 
     /**
@@ -76,13 +70,6 @@ public class ClearRealmCacheRequest extends BaseNodesRequest<ClearRealmCacheRequ
     public ClearRealmCacheRequest usernames(String... usernames) {
         this.usernames = usernames;
         return this;
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeStringArrayNullable(realms);
-        out.writeStringArrayNullable(usernames);
     }
 
     public static class Node extends TransportRequest {

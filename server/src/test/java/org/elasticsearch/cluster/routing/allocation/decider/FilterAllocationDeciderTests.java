@@ -1,13 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.cluster.routing.allocation.decider;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.Decision.Type;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.EmptySnapshotsInfoService;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
@@ -178,11 +179,11 @@ public class FilterAllocationDeciderTests extends ESAllocationTestCase {
     private ClusterState createInitialClusterState(AllocationService service, Settings idxSettings, Settings clusterSettings) {
         Metadata.Builder metadata = Metadata.builder();
         metadata.persistentSettings(clusterSettings);
-        final Settings.Builder indexSettings = settings(Version.CURRENT).put(idxSettings);
+        final Settings.Builder indexSettings = settings(IndexVersion.current()).put(idxSettings);
         final IndexMetadata sourceIndex;
         // put a fake closed source index
         sourceIndex = IndexMetadata.builder("sourceIndex")
-            .settings(settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(2)
             .numberOfReplicas(0)
             .putInSyncAllocationIds(0, Collections.singleton("aid0"))
@@ -237,7 +238,7 @@ public class FilterAllocationDeciderTests extends ESAllocationTestCase {
         );
 
         IndexMetadata.builder("test")
-            .settings(settings(Version.CURRENT).putNull(filterSetting.getKey() + "name"))
+            .settings(settings(IndexVersion.current()).putNull(filterSetting.getKey() + "name"))
             .numberOfShards(2)
             .numberOfReplicas(0)
             .build();
@@ -295,7 +296,7 @@ public class FilterAllocationDeciderTests extends ESAllocationTestCase {
     public void testGetForcedInitialShardAllocationToNodes() {
         var index = IndexMetadata.builder("index")
             .settings(
-                indexSettings(Version.CURRENT, 1, 0).put("index.routing.allocation.initial_recovery._id", "node-1")
+                indexSettings(IndexVersion.current(), 1, 0).put("index.routing.allocation.initial_recovery._id", "node-1")
                     .put(IndexMetadata.SETTING_INDEX_UUID, "uuid")
             )
             .build();

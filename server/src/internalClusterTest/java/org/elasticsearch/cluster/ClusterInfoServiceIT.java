@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster;
@@ -11,7 +12,7 @@ package org.elasticsearch.cluster;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsAction;
+import org.elasticsearch.action.admin.cluster.node.stats.TransportNodesStatsAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilters;
@@ -31,6 +32,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.indices.SystemIndexDescriptorUtils;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
@@ -84,7 +86,7 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
 
         @Override
         public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
-            return List.of(new SystemIndexDescriptor(TEST_SYSTEM_INDEX_NAME + "*", "Test system index"));
+            return List.of(SystemIndexDescriptorUtils.createUnmanaged(TEST_SYSTEM_INDEX_NAME + "*", "Test system index"));
         }
 
         @Override
@@ -142,7 +144,7 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
             )
         );
         if (randomBoolean()) {
-            assertAcked(client().admin().indices().prepareClose(indexName));
+            assertAcked(indicesAdmin().prepareClose(indexName));
         }
         ensureGreen(indexName);
         InternalTestCluster internalTestCluster = internalCluster();
@@ -165,11 +167,11 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
         assertThat("some shard sizes are populated", shardSizes.values().size(), greaterThan(0));
         for (DiskUsage usage : leastUsages.values()) {
             logger.info("--> usage: {}", usage);
-            assertThat("usage has be retrieved", usage.getFreeBytes(), greaterThan(0L));
+            assertThat("usage has be retrieved", usage.freeBytes(), greaterThan(0L));
         }
         for (DiskUsage usage : mostUsages.values()) {
             logger.info("--> usage: {}", usage);
-            assertThat("usage has be retrieved", usage.getFreeBytes(), greaterThan(0L));
+            assertThat("usage has be retrieved", usage.freeBytes(), greaterThan(0L));
         }
         for (Long size : shardSizes.values()) {
             logger.info("--> shard size: {}", size);
@@ -205,7 +207,7 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
         prepareCreate("test").setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)).get();
         ensureGreen("test");
 
-        final IndexShardRoutingTable indexShardRoutingTable = clusterAdmin().prepareState()
+        final IndexShardRoutingTable indexShardRoutingTable = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
             .clear()
             .setRoutingTable(true)
             .get()
@@ -239,21 +241,18 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
             );
         }
 
-        MockTransportService mockTransportService = (MockTransportService) internalCluster().getInstance(
-            TransportService.class,
-            internalTestCluster.getMasterName()
-        );
+        final var masterTransportService = MockTransportService.getInstance(internalTestCluster.getMasterName());
 
         final AtomicBoolean timeout = new AtomicBoolean(false);
         final Set<String> blockedActions = newHashSet(
-            NodesStatsAction.NAME,
-            NodesStatsAction.NAME + "[n]",
+            TransportNodesStatsAction.TYPE.name(),
+            TransportNodesStatsAction.TYPE.name() + "[n]",
             IndicesStatsAction.NAME,
             IndicesStatsAction.NAME + "[n]"
         );
         // drop all outgoing stats requests to force a timeout.
         for (DiscoveryNode node : internalTestCluster.clusterService().state().getNodes()) {
-            mockTransportService.addSendBehavior(
+            masterTransportService.addSendBehavior(
                 internalTestCluster.getInstance(TransportService.class, node.getName()),
                 (connection, requestId, action, request, options) -> {
                     if (blockedActions.contains(action)) {
@@ -322,7 +321,12 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
             assertThat("size for shard " + shardRouting + " found", originalInfo.getShardSize(shardRouting), notNullValue());
         }
 
-        RoutingTable routingTable = clusterAdmin().prepareState().clear().setRoutingTable(true).get().getState().routingTable();
+        RoutingTable routingTable = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
+            .clear()
+            .setRoutingTable(true)
+            .get()
+            .getState()
+            .routingTable();
         for (ShardRouting shard : routingTable.allShardsIterator()) {
             assertTrue(
                 infoAfterRecovery.getReservedSpace(shard.currentNodeId(), infoAfterRecovery.getDataPath(shard))

@@ -350,7 +350,7 @@ public final class TimestampFormatFinder {
                     p -> (("CATALINA_DATESTAMP".equals(p.outputGrokPatternName) == false)
                         && ("TOMCAT_DATESTAMP".equals(p.outputGrokPatternName) == false))
                 )
-                .collect(Collectors.toList())
+                .toList()
         );
 
         ORDERED_CANDIDATE_FORMATS_ECS_V1 = Collections.unmodifiableList(items);

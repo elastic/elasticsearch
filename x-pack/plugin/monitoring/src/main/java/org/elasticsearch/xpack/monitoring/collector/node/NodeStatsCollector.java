@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.monitoring.collector.node;
 
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
+import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequestParameters;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.bootstrap.BootstrapInfo;
@@ -67,15 +68,16 @@ public class NodeStatsCollector extends Collector {
     @Override
     protected Collection<MonitoringDoc> doCollect(final MonitoringDoc.Node node, final long interval, final ClusterState clusterState) {
         NodesStatsRequest request = new NodesStatsRequest("_local");
+        request.setIncludeShardsStats(false);
         request.indices(FLAGS);
         request.addMetrics(
-            NodesStatsRequest.Metric.OS.metricName(),
-            NodesStatsRequest.Metric.JVM.metricName(),
-            NodesStatsRequest.Metric.PROCESS.metricName(),
-            NodesStatsRequest.Metric.THREAD_POOL.metricName(),
-            NodesStatsRequest.Metric.FS.metricName()
+            NodesStatsRequestParameters.Metric.OS,
+            NodesStatsRequestParameters.Metric.JVM,
+            NodesStatsRequestParameters.Metric.PROCESS,
+            NodesStatsRequestParameters.Metric.THREAD_POOL,
+            NodesStatsRequestParameters.Metric.FS
         );
-        request.timeout(getCollectionTimeout());
+        request.setTimeout(getCollectionTimeout());
 
         final NodesStatsResponse response = client.admin().cluster().nodesStats(request).actionGet();
         ensureNoTimeouts(getCollectionTimeout(), response);

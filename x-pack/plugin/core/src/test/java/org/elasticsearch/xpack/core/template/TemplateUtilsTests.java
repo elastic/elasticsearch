@@ -14,6 +14,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -84,13 +86,6 @@ public class TemplateUtilsTests extends ESTestCase {
             }""", version, version))));
     }
 
-    public void testLoad() throws IOException {
-        String resource = Strings.format(SIMPLE_TEST_TEMPLATE, "test");
-        String source = TemplateUtils.load(resource);
-        assertThat(source, notNullValue());
-        assertThat(source.length(), greaterThan(0));
-    }
-
     public void testValidateNullSource() {
         ElasticsearchParseException exception = expectThrows(ElasticsearchParseException.class, () -> TemplateUtils.validate(null));
         assertThat(exception.getMessage(), is("Template must not be null"));
@@ -111,7 +106,10 @@ public class TemplateUtilsTests extends ESTestCase {
 
     public void testValidate() throws IOException {
         String resource = Strings.format(SIMPLE_TEST_TEMPLATE, "test");
-        TemplateUtils.validate(TemplateUtils.load(resource));
+        try (InputStream is = TemplateUtilsTests.class.getResourceAsStream(resource)) {
+            assert is != null;
+            TemplateUtils.validate(new String(is.readAllBytes(), StandardCharsets.UTF_8));
+        }
     }
 
     public void testReplaceVariable() {

@@ -37,6 +37,10 @@ public class CoreWithSecurityClientYamlTestSuiteIT extends ESClientYamlSuiteTest
         .module("x-pack-stack")
         .module("ingest-common")
         .module("reindex")
+        .module("wildcard")
+        .module("analysis-common")
+        .module("health-shards-availability")
+        .module("data-streams")
         .setting("xpack.security.enabled", "true")
         .setting("xpack.watcher.enabled", "false")
         .setting("xpack.ml.enabled", "false")
@@ -44,8 +48,7 @@ public class CoreWithSecurityClientYamlTestSuiteIT extends ESClientYamlSuiteTest
         .setting("xpack.security.autoconfiguration.enabled", "false")
         .user(USER, PASS)
         .feature(FeatureFlag.TIME_SERIES_MODE)
-        .feature(FeatureFlag.DLM_ENABLED)
-        .feature(FeatureFlag.SYNONYMS_ENABLED)
+        .feature(FeatureFlag.SUB_OBJECTS_AUTO_ENABLED)
         .build();
 
     public CoreWithSecurityClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {

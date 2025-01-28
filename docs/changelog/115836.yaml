@@ -1,0 +1,5 @@
+pr: 115836
+summary: Catch and handle disconnect exceptions in search
+area: Search
+type: bug
+issues: []

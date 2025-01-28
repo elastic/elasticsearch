@@ -17,7 +17,7 @@ import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParseException;
@@ -236,7 +236,7 @@ public class CppLogMessageHandler implements Closeable {
     }
 
     private BytesReference parseMessages(XContent xContent, BytesReference bytesRef) {
-        byte marker = xContent.streamSeparator();
+        byte marker = xContent.bulkSeparator();
         int from = 0;
         while (true) {
             int nextMarker = findNextMarker(marker, bytesRef, from);
@@ -264,8 +264,11 @@ public class CppLogMessageHandler implements Closeable {
 
     private void parseMessage(XContent xContent, BytesReference bytesRef) {
         try (
-            InputStream stream = bytesRef.streamInput();
-            XContentParser parser = xContent.createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)
+            XContentParser parser = XContentHelper.createParserNotCompressed(
+                LoggingDeprecationHandler.XCONTENT_PARSER_CONFIG,
+                bytesRef,
+                xContent.type()
+            )
         ) {
             CppLogMessage msg = CppLogMessage.PARSER.apply(parser, null);
             Level level = Level.getLevel(msg.getLevel());

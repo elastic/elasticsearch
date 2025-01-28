@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.engine;
 
@@ -41,10 +42,10 @@ public class InternalEngineMergeIT extends ESIntegTestCase {
                         .source(jsonBuilder().startObject().field("l", randomLong()).endObject())
                 );
             }
-            BulkResponse response = request.execute().actionGet();
+            BulkResponse response = request.get();
             refresh();
             assertNoFailures(response);
-            IndicesStatsResponse stats = client().admin().indices().prepareStats("test").setSegments(true).setMerge(true).get();
+            IndicesStatsResponse stats = indicesAdmin().prepareStats("test").setSegments(true).setMerge(true).get();
             logger.info(
                 "index round [{}] - segments {}, total merges {}, current merge {}",
                 i,
@@ -56,7 +57,7 @@ public class InternalEngineMergeIT extends ESIntegTestCase {
         final long upperNumberSegments = 2 * numOfShards * 10;
 
         assertBusy(() -> {
-            IndicesStatsResponse stats = client().admin().indices().prepareStats().setSegments(true).setMerge(true).get();
+            IndicesStatsResponse stats = indicesAdmin().prepareStats().setSegments(true).setMerge(true).get();
             logger.info(
                 "numshards {}, segments {}, total merges {}, current merge {}",
                 numOfShards,
@@ -70,7 +71,7 @@ public class InternalEngineMergeIT extends ESIntegTestCase {
             assertThat(current, equalTo(0L));
         });
 
-        IndicesStatsResponse stats = client().admin().indices().prepareStats().setSegments(true).setMerge(true).get();
+        IndicesStatsResponse stats = indicesAdmin().prepareStats().setSegments(true).setMerge(true).get();
         logger.info(
             "numshards {}, segments {}, total merges {}, current merge {}",
             numOfShards,

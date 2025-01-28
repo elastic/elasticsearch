@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.plugins;
@@ -78,7 +79,7 @@ public class MockPluginsServiceTests extends ESTestCase {
         Map<String, Plugin> pluginMap = mockPluginsService.pluginMap();
         assertThat(pluginMap.keySet(), containsInAnyOrder(containsString("TestPlugin1"), containsString("TestPlugin2")));
 
-        List<TestPlugin1> plugin1 = mockPluginsService.filterPlugins(TestPlugin1.class);
+        List<TestPlugin1> plugin1 = mockPluginsService.filterPlugins(TestPlugin1.class).toList();
         assertThat(plugin1, contains(instanceOf(TestPlugin1.class)));
     }
 

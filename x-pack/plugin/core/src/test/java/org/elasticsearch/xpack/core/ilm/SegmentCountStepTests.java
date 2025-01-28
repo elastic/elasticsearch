@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.core.ilm;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.segments.IndexSegments;
 import org.elasticsearch.action.admin.indices.segments.IndexShardSegments;
@@ -17,6 +16,7 @@ import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
@@ -45,7 +45,7 @@ public class SegmentCountStepTests extends AbstractStepTestCase<SegmentCountStep
     }
 
     private IndexMetadata makeMeta(Index index) {
-        return IndexMetadata.builder(index.getName()).settings(indexSettings(Version.CURRENT, 1, 0)).build();
+        return IndexMetadata.builder(index.getName()).settings(indexSettings(IndexVersion.current(), 1, 0)).build();
     }
 
     @Override
@@ -77,14 +77,14 @@ public class SegmentCountStepTests extends AbstractStepTestCase<SegmentCountStep
         ShardSegments shardSegmentsOne = Mockito.mock(ShardSegments.class);
         ShardSegments[] shardSegmentsArray = new ShardSegments[] { shardSegmentsOne };
         IndexShardSegments indexShardSegments = new IndexShardSegments(ShardId.fromString("[idx][123]"), shardSegmentsArray);
-        Map<Integer, IndexShardSegments> indexShards = Collections.singletonMap(0, indexShardSegments);
+        Map<Integer, IndexShardSegments> indexShards = Map.of(0, indexShardSegments);
         Spliterator<IndexShardSegments> iss = indexShards.values().spliterator();
         List<Segment> segments = new ArrayList<>();
         for (int i = 0; i < maxNumSegments - randomIntBetween(0, 3); i++) {
             segments.add(null);
         }
         Mockito.when(indicesSegmentResponse.getStatus()).thenReturn(RestStatus.OK);
-        Mockito.when(indicesSegmentResponse.getIndices()).thenReturn(Collections.singletonMap(index.getName(), indexSegments));
+        Mockito.when(indicesSegmentResponse.getIndices()).thenReturn(Map.of(index.getName(), indexSegments));
         Mockito.when(indexSegments.spliterator()).thenReturn(iss);
         Mockito.when(shardSegmentsOne.getSegments()).thenReturn(segments);
 
@@ -129,14 +129,14 @@ public class SegmentCountStepTests extends AbstractStepTestCase<SegmentCountStep
         ShardSegments shardSegmentsOne = Mockito.mock(ShardSegments.class);
         ShardSegments[] shardSegmentsArray = new ShardSegments[] { shardSegmentsOne };
         IndexShardSegments indexShardSegments = new IndexShardSegments(ShardId.fromString("[idx][123]"), shardSegmentsArray);
-        Map<Integer, IndexShardSegments> indexShards = Collections.singletonMap(0, indexShardSegments);
+        Map<Integer, IndexShardSegments> indexShards = Map.of(0, indexShardSegments);
         Spliterator<IndexShardSegments> iss = indexShards.values().spliterator();
         List<Segment> segments = new ArrayList<>();
         for (int i = 0; i < maxNumSegments + randomIntBetween(1, 3); i++) {
             segments.add(null);
         }
         Mockito.when(indicesSegmentResponse.getStatus()).thenReturn(RestStatus.OK);
-        Mockito.when(indicesSegmentResponse.getIndices()).thenReturn(Collections.singletonMap(index.getName(), indexSegments));
+        Mockito.when(indicesSegmentResponse.getIndices()).thenReturn(Map.of(index.getName(), indexSegments));
         Mockito.when(indexSegments.spliterator()).thenReturn(iss);
         Mockito.when(shardSegmentsOne.getSegments()).thenReturn(segments);
 
@@ -181,7 +181,7 @@ public class SegmentCountStepTests extends AbstractStepTestCase<SegmentCountStep
         ShardSegments shardSegmentsOne = Mockito.mock(ShardSegments.class);
         ShardSegments[] shardSegmentsArray = new ShardSegments[] { shardSegmentsOne };
         IndexShardSegments indexShardSegments = new IndexShardSegments(ShardId.fromString("[idx][123]"), shardSegmentsArray);
-        Map<Integer, IndexShardSegments> indexShards = Collections.singletonMap(0, indexShardSegments);
+        Map<Integer, IndexShardSegments> indexShards = Map.of(0, indexShardSegments);
         Spliterator<IndexShardSegments> iss = indexShards.values().spliterator();
         List<Segment> segments = new ArrayList<>();
         for (int i = 0; i < maxNumSegments + randomIntBetween(1, 3); i++) {

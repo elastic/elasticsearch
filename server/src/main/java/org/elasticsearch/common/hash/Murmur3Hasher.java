@@ -1,15 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.hash;
-
-import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.Numbers;
 
 /**
  * Wraps {@link MurmurHash3} to provide an interface similar to {@link java.security.MessageDigest} that
@@ -35,38 +33,50 @@ public class Murmur3Hasher {
 
     /**
      * Supplies some or all of the bytes to be hashed. Multiple calls to this method may
-     * be made to sequentially supply the bytes for hashing. Once all bytes have been supplied, the
-     * {@link #digest()} method should be called to complete the hash calculation.
+     * be made to sequentially supply the bytes for hashing. Once all bytes have been supplied, either the
+     * {@link #digestHash} method (preferred) or the {@link #digest()} method should be called to complete the hash calculation.
      */
     public void update(byte[] inputBytes) {
-        int totalLength = remainderLength + inputBytes.length;
-        if (totalLength >= 16) {
-            // hash as many bytes as available in integer multiples of 16
-            int numBytesToHash = totalLength & 0xFFFFFFF0;
-            byte[] bytesToHash;
-            if (remainderLength > 0) {
-                bytesToHash = new byte[numBytesToHash];
-                System.arraycopy(remainder, 0, bytesToHash, 0, remainderLength);
-                System.arraycopy(inputBytes, 0, bytesToHash, remainderLength, numBytesToHash - remainderLength);
-            } else {
-                bytesToHash = inputBytes;
-            }
+        update(inputBytes, 0, inputBytes.length);
+    }
 
-            MurmurHash3.IntermediateResult result = MurmurHash3.intermediateHash(bytesToHash, 0, numBytesToHash, h1, h2);
-            h1 = result.h1;
-            h2 = result.h2;
-            this.length += numBytesToHash;
+    /**
+     * Similar to {@link #update(byte[])}, but processes a specific portion of the input bytes
+     * starting from the given {@code offset} for the specified {@code length}.
+     * @see #update(byte[])
+     */
+    public void update(byte[] inputBytes, int offset, int length) {
+        if (remainderLength + length >= remainder.length) {
+            if (remainderLength > 0) {
+                // fill rest of remainder from inputBytes and hash remainder
+                int bytesToCopyFromInputToRemainder = remainder.length - remainderLength;
+                System.arraycopy(inputBytes, offset, remainder, remainderLength, bytesToCopyFromInputToRemainder);
+                offset = bytesToCopyFromInputToRemainder;
+                length = length - bytesToCopyFromInputToRemainder;
+
+                MurmurHash3.IntermediateResult result = MurmurHash3.intermediateHash(remainder, 0, remainder.length, h1, h2);
+                h1 = result.h1;
+                h2 = result.h2;
+                remainderLength = 0;
+                this.length += remainder.length;
+            }
+            // hash as many bytes as available in integer multiples of 16 as intermediateHash can only process multiples of 16
+            int numBytesToHash = length & 0xFFFFFFF0;
+            if (numBytesToHash > 0) {
+                MurmurHash3.IntermediateResult result = MurmurHash3.intermediateHash(inputBytes, offset, numBytesToHash, h1, h2);
+                h1 = result.h1;
+                h2 = result.h2;
+                this.length += numBytesToHash;
+            }
 
             // save the remaining bytes, if any
-            if (totalLength > numBytesToHash) {
-                System.arraycopy(inputBytes, numBytesToHash - remainderLength, remainder, 0, totalLength - numBytesToHash);
-                remainderLength = totalLength - numBytesToHash;
-            } else {
-                remainderLength = 0;
+            if (length > numBytesToHash) {
+                this.remainderLength = length - numBytesToHash;
+                System.arraycopy(inputBytes, offset + numBytesToHash, remainder, 0, remainderLength);
             }
         } else {
-            System.arraycopy(inputBytes, 0, remainder, remainderLength, inputBytes.length);
-            remainderLength += inputBytes.length;
+            System.arraycopy(inputBytes, 0, remainder, remainderLength, length);
+            remainderLength += length;
         }
     }
 
@@ -81,29 +91,30 @@ public class Murmur3Hasher {
     }
 
     /**
-     * Completes the hash of all bytes previously passed to {@link #update(byte[])}.
+     * Completes the hash of all bytes previously passed to {@link #update}.
      */
     public byte[] digest() {
+        return digestHash().getBytes();
+    }
+
+    /**
+     * Completes the hash of all bytes previously passed to {@link #update}.
+     */
+    public MurmurHash3.Hash128 digestHash() {
+        return digestHash(new MurmurHash3.Hash128());
+    }
+
+    /**
+     * Completes the hash of all bytes previously passed to {@link #update}.
+     * Allows passing in a re-usable {@link org.elasticsearch.common.hash.MurmurHash3.Hash128} instance to avoid allocations.
+     */
+    public MurmurHash3.Hash128 digestHash(MurmurHash3.Hash128 hash) {
         length += remainderLength;
-        MurmurHash3.Hash128 h = MurmurHash3.finalizeHash(new MurmurHash3.Hash128(), remainder, 0, length, h1, h2);
-        byte[] hash = new byte[16];
-        System.arraycopy(Numbers.longToBytes(h.h1), 0, hash, 0, 8);
-        System.arraycopy(Numbers.longToBytes(h.h2), 0, hash, 8, 8);
+        MurmurHash3.finalizeHash(hash, remainder, 0, length, h1, h2);
         return hash;
     }
 
     public static String getAlgorithm() {
         return METHOD;
-    }
-
-    /**
-     * Converts the 128-bit byte array returned by {@link #digest()} to a
-     * {@link org.elasticsearch.common.hash.MurmurHash3.Hash128}
-     */
-    public static MurmurHash3.Hash128 toHash128(byte[] doubleLongBytes) {
-        MurmurHash3.Hash128 hash128 = new MurmurHash3.Hash128();
-        hash128.h1 = Numbers.bytesToLong(new BytesRef(doubleLongBytes, 0, 8));
-        hash128.h2 = Numbers.bytesToLong(new BytesRef(doubleLongBytes, 8, 8));
-        return hash128;
     }
 }

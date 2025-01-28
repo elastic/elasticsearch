@@ -1,17 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.xcontent.XContentParser;
 
 /**
@@ -34,8 +35,12 @@ public class TestDocumentParserContext extends DocumentParserContext {
         this(MappingLookup.EMPTY, null);
     }
 
+    public TestDocumentParserContext(Settings settings) {
+        this(MappingLookup.EMPTY, null, null, settings);
+    }
+
     public TestDocumentParserContext(XContentParser parser) {
-        this(MappingLookup.EMPTY, null, parser);
+        this(MappingLookup.EMPTY, null, parser, Settings.EMPTY);
     }
 
     /**
@@ -43,23 +48,26 @@ public class TestDocumentParserContext extends DocumentParserContext {
      * that depend on them are called while executing tests.
      */
     public TestDocumentParserContext(MappingLookup mappingLookup, SourceToParse source) {
-        this(mappingLookup, source, null);
+        this(mappingLookup, source, null, Settings.EMPTY);
     }
 
-    private TestDocumentParserContext(MappingLookup mappingLookup, SourceToParse source, XContentParser parser) {
+    private TestDocumentParserContext(MappingLookup mappingLookup, SourceToParse source, XContentParser parser, Settings settings) {
         super(
             mappingLookup,
             new MappingParserContext(
                 s -> null,
                 s -> null,
                 s -> null,
-                Version.CURRENT,
-                () -> TransportVersion.CURRENT,
+                IndexVersion.current(),
+                () -> TransportVersion.current(),
                 () -> null,
                 null,
                 (type, name) -> Lucene.STANDARD_ANALYZER,
-                MapperTestCase.createIndexSettings(Version.CURRENT, Settings.EMPTY),
-                null
+                MapperTestCase.createIndexSettings(IndexVersion.current(), settings),
+                null,
+                query -> {
+                    throw new UnsupportedOperationException();
+                }
             ),
             source,
             mappingLookup.getMapping().getRoot(),

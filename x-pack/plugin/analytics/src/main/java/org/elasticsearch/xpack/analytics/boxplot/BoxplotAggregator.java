@@ -21,6 +21,7 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
+import org.elasticsearch.search.aggregations.metrics.TDigestExecutionHint;
 import org.elasticsearch.search.aggregations.metrics.TDigestState;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -36,12 +37,14 @@ public class BoxplotAggregator extends NumericMetricsAggregator.MultiValue {
     private final DocValueFormat format;
     protected ObjectArray<TDigestState> states;
     protected final double compression;
+    protected final TDigestExecutionHint executionHint;
 
     BoxplotAggregator(
         String name,
         ValuesSourceConfig config,
         DocValueFormat formatter,
         double compression,
+        TDigestExecutionHint executionHint,
         AggregationContext context,
         Aggregator parent,
         Map<String, Object> metadata
@@ -51,6 +54,7 @@ public class BoxplotAggregator extends NumericMetricsAggregator.MultiValue {
         this.valuesSource = config.getValuesSource();
         this.format = formatter;
         this.compression = compression;
+        this.executionHint = executionHint;
         states = context.bigArrays().newObjectArray(1);
     }
 
@@ -68,8 +72,8 @@ public class BoxplotAggregator extends NumericMetricsAggregator.MultiValue {
             return new LeafBucketCollectorBase(sub, values) {
                 @Override
                 public void collect(int doc, long bucket) throws IOException {
-                    TDigestState state = getExistingOrNewHistogram(bigArrays(), bucket);
                     if (values.advanceExact(doc)) {
+                        TDigestState state = getExistingOrNewHistogram(bigArrays(), bucket);
                         final HistogramValue sketch = values.histogram();
                         while (sketch.next()) {
                             state.add(sketch.value(), sketch.count());
@@ -101,7 +105,7 @@ public class BoxplotAggregator extends NumericMetricsAggregator.MultiValue {
         states = bigArrays.grow(states, bucket + 1);
         TDigestState state = states.get(bucket);
         if (state == null) {
-            state = new TDigestState(compression);
+            state = TDigestState.createWithoutCircuitBreaking(compression, executionHint);
             states.set(bucket, state);
         }
         return state;
@@ -140,7 +144,7 @@ public class BoxplotAggregator extends NumericMetricsAggregator.MultiValue {
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return InternalBoxplot.empty(name, compression, format, metadata());
+        return InternalBoxplot.empty(name, compression, executionHint, format, metadata());
     }
 
     @Override

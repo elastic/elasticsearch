@@ -48,7 +48,7 @@ PUT _snapshot/my_fs_backup
 relative path, `my_fs_backup_location`, resolves to
 `/mount/backups/my_fs_backup_location`.
 
-include::{es-repo-dir}/snapshot-restore/register-repository.asciidoc[tag=multi-cluster-repo]
+include::{es-ref-dir}/snapshot-restore/register-repository.asciidoc[tag=multi-cluster-repo]
 
 // tag::fs-repo-read-only[]
 To register a file system repository as read-only using the create snapshot
@@ -119,7 +119,7 @@ PUT _snapshot/my_fs_backup
 relative path, `My_fs_backup_location`, resolves to
 `E:\Mount\Backups\My_fs_backup_location`.
 
-include::{es-repo-dir}/snapshot-restore/register-repository.asciidoc[tag=multi-cluster-repo]
+include::{es-ref-dir}/snapshot-restore/register-repository.asciidoc[tag=multi-cluster-repo]
 
 include::register-fs-repo.asciidoc[tag=fs-repo-read-only]
 

@@ -25,6 +25,8 @@ public class TransportDeleteAutoscalingPolicyActionIT extends AutoscalingIntegTe
     public void testDeletePolicy() {
         final AutoscalingPolicy policy = randomAutoscalingPolicy();
         final PutAutoscalingPolicyAction.Request putRequest = new PutAutoscalingPolicyAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
             policy.name(),
             policy.roles(),
             policy.deciders()
@@ -32,25 +34,33 @@ public class TransportDeleteAutoscalingPolicyActionIT extends AutoscalingIntegTe
         assertAcked(client().execute(PutAutoscalingPolicyAction.INSTANCE, putRequest).actionGet());
         // we trust that the policy is in the cluster state since we have tests for putting policies
         String deleteName = randomFrom("*", policy.name(), policy.name().substring(0, between(0, policy.name().length())) + "*");
-        final DeleteAutoscalingPolicyAction.Request deleteRequest = new DeleteAutoscalingPolicyAction.Request(deleteName);
+        final DeleteAutoscalingPolicyAction.Request deleteRequest = new DeleteAutoscalingPolicyAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            deleteName
+        );
         assertAcked(client().execute(DeleteAutoscalingPolicyAction.INSTANCE, deleteRequest).actionGet());
         // now verify that the policy is not in the cluster state
-        final ClusterState state = client().admin().cluster().prepareState().get().getState();
+        final ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         final AutoscalingMetadata metadata = state.metadata().custom(AutoscalingMetadata.NAME);
         assertNotNull(metadata);
         assertThat(metadata.policies(), not(hasKey(policy.name())));
         // and verify that we can not obtain the policy via get
-        final GetAutoscalingPolicyAction.Request getRequest = new GetAutoscalingPolicyAction.Request(policy.name());
+        final GetAutoscalingPolicyAction.Request getRequest = new GetAutoscalingPolicyAction.Request(TEST_REQUEST_TIMEOUT, policy.name());
         final ResourceNotFoundException e = expectThrows(
             ResourceNotFoundException.class,
-            () -> client().execute(GetAutoscalingPolicyAction.INSTANCE, getRequest).actionGet()
+            client().execute(GetAutoscalingPolicyAction.INSTANCE, getRequest)
         );
         assertThat(e.getMessage(), equalTo("autoscaling policy with name [" + policy.name() + "] does not exist"));
     }
 
     public void testDeleteNonExistentPolicy() {
         final String name = randomAlphaOfLength(8);
-        final DeleteAutoscalingPolicyAction.Request deleteRequest = new DeleteAutoscalingPolicyAction.Request(name);
+        final DeleteAutoscalingPolicyAction.Request deleteRequest = new DeleteAutoscalingPolicyAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            name
+        );
         final ResourceNotFoundException e = expectThrows(
             ResourceNotFoundException.class,
             () -> client().execute(DeleteAutoscalingPolicyAction.INSTANCE, deleteRequest).actionGet()
@@ -60,7 +70,11 @@ public class TransportDeleteAutoscalingPolicyActionIT extends AutoscalingIntegTe
 
     public void testDeleteNonExistentPolicyByWildcard() {
         final String name = randomFrom("*", randomAlphaOfLength(8) + "*");
-        final DeleteAutoscalingPolicyAction.Request deleteRequest = new DeleteAutoscalingPolicyAction.Request(name);
+        final DeleteAutoscalingPolicyAction.Request deleteRequest = new DeleteAutoscalingPolicyAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            name
+        );
         assertAcked(client().execute(DeleteAutoscalingPolicyAction.INSTANCE, deleteRequest).actionGet());
     }
 }

@@ -17,6 +17,6 @@ public final class GetBuiltinPrivilegesAction extends ActionType<GetBuiltinPrivi
     public static final String NAME = "cluster:admin/xpack/security/privilege/builtin/get";
 
     private GetBuiltinPrivilegesAction() {
-        super(NAME, GetBuiltinPrivilegesResponse::new);
+        super(NAME);
     }
 }

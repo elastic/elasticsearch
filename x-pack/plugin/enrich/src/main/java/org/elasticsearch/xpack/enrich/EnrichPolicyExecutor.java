@@ -13,6 +13,7 @@ import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskResponse;
 import org.elasticsearch.client.internal.Client;
@@ -22,6 +23,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
@@ -41,6 +43,7 @@ public class EnrichPolicyExecutor {
     public static final String TASK_ACTION = "policy_execution";
 
     private final ClusterService clusterService;
+    private final IndicesService indicesService;
     private final Client client;
     private final ThreadPool threadPool;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
@@ -54,6 +57,7 @@ public class EnrichPolicyExecutor {
     public EnrichPolicyExecutor(
         Settings settings,
         ClusterService clusterService,
+        IndicesService indicesService,
         Client client,
         ThreadPool threadPool,
         IndexNameExpressionResolver indexNameExpressionResolver,
@@ -61,6 +65,7 @@ public class EnrichPolicyExecutor {
         LongSupplier nowSupplier
     ) {
         this.clusterService = clusterService;
+        this.indicesService = indicesService;
         this.client = client;
         this.threadPool = threadPool;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
@@ -81,7 +86,7 @@ public class EnrichPolicyExecutor {
         String enrichIndexName = EnrichPolicy.getIndexName(request.getName(), nowTimestamp);
         Releasable policyLock = tryLockingPolicy(request.getName(), enrichIndexName);
         try {
-            Request internalRequest = new Request(request.getName(), enrichIndexName);
+            Request internalRequest = new Request(request.masterNodeTimeout(), request.getName(), enrichIndexName);
             internalRequest.setWaitForCompletion(request.isWaitForCompletion());
             internalRequest.setParentTask(request.getParentTask());
             client.execute(InternalExecutePolicyAction.INSTANCE, internalRequest, ActionListener.wrap(response -> {
@@ -122,8 +127,9 @@ public class EnrichPolicyExecutor {
             }
 
             task.setStatus(new ExecuteEnrichPolicyStatus(ExecuteEnrichPolicyStatus.PolicyPhases.SCHEDULED));
-            Runnable runnable = createPolicyRunner(policyName, policy, enrichIndexName, task, listener);
-            threadPool.executor(ThreadPool.Names.GENERIC).execute(runnable);
+            var policyRunner = createPolicyRunner(policyName, policy, enrichIndexName, task);
+            threadPool.executor(ThreadPool.Names.GENERIC)
+                .execute(ActionRunnable.wrap(ActionListener.assertOnce(listener), policyRunner::run));
         } catch (Exception e) {
             task.setStatus(new ExecuteEnrichPolicyStatus(ExecuteEnrichPolicyStatus.PolicyPhases.FAILED));
             throw e;
@@ -202,19 +208,18 @@ public class EnrichPolicyExecutor {
         });
     }
 
-    private Runnable createPolicyRunner(
+    private EnrichPolicyRunner createPolicyRunner(
         String policyName,
         EnrichPolicy policy,
         String enrichIndexName,
-        ExecuteEnrichPolicyTask task,
-        ActionListener<ExecuteEnrichPolicyStatus> listener
+        ExecuteEnrichPolicyTask task
     ) {
         return new EnrichPolicyRunner(
             policyName,
             policy,
             task,
-            listener,
             clusterService,
+            indicesService,
             client,
             indexNameExpressionResolver,
             enrichIndexName,

@@ -49,6 +49,8 @@ public class NodeShutdownDelayedAllocationIT extends ESIntegTestCase {
 
         // Mark the node for shutdown
         PutShutdownNodeAction.Request putShutdownRequest = new PutShutdownNodeAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
             nodeToRestartId,
             SingleNodeShutdownMetadata.Type.RESTART,
             this.getTestName(),
@@ -63,7 +65,7 @@ public class NodeShutdownDelayedAllocationIT extends ESIntegTestCase {
             @Override
             public Settings onNodeStopped(String nodeName) throws Exception {
                 assertBusy(
-                    () -> { assertThat(client().admin().cluster().prepareHealth().get().getDelayedUnassignedShards(), equalTo(1)); }
+                    () -> assertThat(clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).get().getDelayedUnassignedShards(), equalTo(1))
                 );
                 return super.onNodeStopped(nodeName);
             }
@@ -87,6 +89,8 @@ public class NodeShutdownDelayedAllocationIT extends ESIntegTestCase {
 
         // Mark the node for shutdown
         PutShutdownNodeAction.Request putShutdownRequest = new PutShutdownNodeAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
             nodeToRestartId,
             SingleNodeShutdownMetadata.Type.RESTART,
             this.getTestName(),
@@ -118,6 +122,8 @@ public class NodeShutdownDelayedAllocationIT extends ESIntegTestCase {
 
         // Mark the node for shutdown
         PutShutdownNodeAction.Request putShutdownRequest = new PutShutdownNodeAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
             nodeToRestartId,
             SingleNodeShutdownMetadata.Type.RESTART,
             this.getTestName(),
@@ -132,7 +138,7 @@ public class NodeShutdownDelayedAllocationIT extends ESIntegTestCase {
             @Override
             public Settings onNodeStopped(String nodeName) throws Exception {
                 assertBusy(
-                    () -> { assertThat(client().admin().cluster().prepareHealth().get().getDelayedUnassignedShards(), equalTo(1)); }
+                    () -> { assertThat(clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).get().getDelayedUnassignedShards(), equalTo(1)); }
                 );
                 return super.onNodeStopped(nodeName);
             }
@@ -147,6 +153,8 @@ public class NodeShutdownDelayedAllocationIT extends ESIntegTestCase {
 
         // Update the timeout on the shutdown request to something shorter
         PutShutdownNodeAction.Request putShutdownRequest = new PutShutdownNodeAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
             nodeToRestartId,
             SingleNodeShutdownMetadata.Type.RESTART,
             this.getTestName(),
@@ -164,7 +172,11 @@ public class NodeShutdownDelayedAllocationIT extends ESIntegTestCase {
     public void testShardAllocationStartsImmediatelyIfShutdownDeleted() throws Exception {
         String nodeToRestartId = setupLongTimeoutTestCase();
 
-        DeleteShutdownNodeAction.Request deleteShutdownRequest = new DeleteShutdownNodeAction.Request(nodeToRestartId);
+        DeleteShutdownNodeAction.Request deleteShutdownRequest = new DeleteShutdownNodeAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            nodeToRestartId
+        );
         AcknowledgedResponse deleteShutdownResponse = client().execute(DeleteShutdownNodeAction.INSTANCE, deleteShutdownRequest).get();
         assertTrue(deleteShutdownResponse.isAcknowledged());
 
@@ -193,6 +205,8 @@ public class NodeShutdownDelayedAllocationIT extends ESIntegTestCase {
         {
             // Mark the node for shutdown with a delay that we'll never reach in the test
             PutShutdownNodeAction.Request putShutdownRequest = new PutShutdownNodeAction.Request(
+                TEST_REQUEST_TIMEOUT,
+                TEST_REQUEST_TIMEOUT,
                 nodeToRestartId,
                 SingleNodeShutdownMetadata.Type.RESTART,
                 this.getTestName(),
@@ -208,7 +222,9 @@ public class NodeShutdownDelayedAllocationIT extends ESIntegTestCase {
         internalCluster().stopNode(nodeToRestartName);
 
         // Verify that the shard's allocation is delayed
-        assertBusy(() -> { assertThat(client().admin().cluster().prepareHealth().get().getDelayedUnassignedShards(), equalTo(1)); });
+        assertBusy(
+            () -> { assertThat(clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).get().getDelayedUnassignedShards(), equalTo(1)); }
+        );
 
         return nodeToRestartId;
     }
@@ -217,19 +233,19 @@ public class NodeShutdownDelayedAllocationIT extends ESIntegTestCase {
         int numDocs = scaledRandomIntBetween(100, 1000);
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < builders.length; i++) {
-            builders[i] = client().prepareIndex("test").setSource("field", "value");
+            builders[i] = prepareIndex("test").setSource("field", "value");
         }
         indexRandom(true, builders);
     }
 
     private String findIdOfNodeWithShard() {
-        ClusterState state = client().admin().cluster().prepareState().get().getState();
+        ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         List<ShardRouting> startedShards = RoutingNodesHelper.shardsWithState(state.getRoutingNodes(), ShardRoutingState.STARTED);
         return randomFrom(startedShards).currentNodeId();
     }
 
     private String findNodeNameFromId(String id) {
-        ClusterState state = client().admin().cluster().prepareState().get().getState();
+        ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         return state.nodes().get(id).getName();
     }
 }

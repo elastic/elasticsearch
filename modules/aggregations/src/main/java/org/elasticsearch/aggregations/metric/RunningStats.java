@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.aggregations.metric;
 
@@ -178,10 +179,8 @@ public class RunningStats implements Writeable, Cloneable {
     private void updateCovariance(final String[] fieldNames, final Map<String, Double> deltas) {
         // deep copy of hash keys (field names)
         ArrayList<String> cFieldNames = new ArrayList<>(Arrays.asList(fieldNames));
-        String fieldName;
         double dR, newVal;
-        for (int i = 0; i < fieldNames.length; ++i) {
-            fieldName = fieldNames[i];
+        for (String fieldName : fieldNames) {
             cFieldNames.remove(fieldName);
             // update running covariances
             dR = deltas.get(fieldName);
@@ -231,12 +230,12 @@ public class RunningStats implements Writeable, Cloneable {
         } else if (this.docCount == 0) {
             for (Map.Entry<String, Double> fs : other.means.entrySet()) {
                 final String fieldName = fs.getKey();
-                this.means.put(fieldName, fs.getValue().doubleValue());
-                this.counts.put(fieldName, other.counts.get(fieldName).longValue());
-                this.fieldSum.put(fieldName, other.fieldSum.get(fieldName).doubleValue());
-                this.variances.put(fieldName, other.variances.get(fieldName).doubleValue());
-                this.skewness.put(fieldName, other.skewness.get(fieldName).doubleValue());
-                this.kurtosis.put(fieldName, other.kurtosis.get(fieldName).doubleValue());
+                this.means.put(fieldName, fs.getValue());
+                this.counts.put(fieldName, other.counts.get(fieldName));
+                this.fieldSum.put(fieldName, other.fieldSum.get(fieldName));
+                this.variances.put(fieldName, other.variances.get(fieldName));
+                this.skewness.put(fieldName, other.skewness.get(fieldName));
+                this.kurtosis.put(fieldName, other.kurtosis.get(fieldName));
                 if (other.covariances.containsKey(fieldName)) {
                     this.covariances.put(fieldName, other.covariances.get(fieldName));
                 }

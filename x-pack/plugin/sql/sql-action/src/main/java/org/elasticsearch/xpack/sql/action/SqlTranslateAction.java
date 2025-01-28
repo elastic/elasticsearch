@@ -17,6 +17,6 @@ public class SqlTranslateAction extends ActionType<SqlTranslateResponse> {
     public static final String NAME = "indices:data/read/sql/translate";
 
     private SqlTranslateAction() {
-        super(NAME, SqlTranslateResponse::new);
+        super(NAME);
     }
 }

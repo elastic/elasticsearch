@@ -1,7 +1,7 @@
 ---
 setup:
-  - skip:
-      version: " - 8.8.99"
+  - requires:
+      cluster_features: ["gte_v8.9.0"]
       reason: "/_info/_all only available from v8.9"
 
 ---
@@ -14,6 +14,8 @@ setup:
   - is_true: cluster_name
   - is_true: http
   - is_true: ingest
+  - is_true: thread_pool
+  - is_true: script
 
 ---
 "Cluster Info fails when mixing _all with other targets":

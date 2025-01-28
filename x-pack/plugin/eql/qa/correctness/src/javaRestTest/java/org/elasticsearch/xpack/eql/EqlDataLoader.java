@@ -21,6 +21,7 @@ import org.elasticsearch.client.RestClientBuilder.HttpClientConfigCallback;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
 
@@ -30,7 +31,6 @@ import java.util.Properties;
 
 import static org.elasticsearch.test.ESTestCase.assertEquals;
 
-@SuppressWarnings("removal")
 public class EqlDataLoader {
 
     private static final String PROPERTIES_FILENAME = "config.properties";
@@ -69,13 +69,16 @@ public class EqlDataLoader {
         }
     }
 
+    // timeout is not rendered in the JSON so doesn't matter
+    private static final TimeValue DUMMY_TIMEOUT = TimeValue.THIRTY_SECONDS;
+
     static void restoreSnapshot(RestClient client, Properties cfg) throws IOException {
         int status = client.performRequest(new Request("HEAD", "/" + cfg.getProperty("index_name"))).getStatusLine().getStatusCode();
         if (status == 404) {
             Request createRepo = new Request("PUT", "/_snapshot/" + cfg.getProperty("gcs_repo_name"));
             createRepo.setJsonEntity(
                 Strings.toString(
-                    new PutRepositoryRequest().type("gcs")
+                    new PutRepositoryRequest(DUMMY_TIMEOUT, DUMMY_TIMEOUT).type("gcs")
                         .settings(
                             Settings.builder()
                                 .put("bucket", cfg.getProperty("gcs_bucket_name"))

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.core;
@@ -19,6 +20,7 @@ import java.util.Objects;
 public abstract class AbstractRefCounted implements RefCounted {
 
     public static final String ALREADY_CLOSED_MESSAGE = "already closed, can't increment ref count";
+    public static final String INVALID_DECREF_MESSAGE = "invalid decRef call: already closed";
 
     private static final VarHandle VH_REFCOUNT_FIELD;
 
@@ -45,6 +47,12 @@ public abstract class AbstractRefCounted implements RefCounted {
     }
 
     @Override
+    public final void mustIncRef() {
+        // making this implementation `final` (to be consistent with every other `RefCounted` method implementation)
+        RefCounted.super.mustIncRef();
+    }
+
+    @Override
     public final boolean tryIncRef() {
         do {
             int i = refCount;
@@ -63,7 +71,7 @@ public abstract class AbstractRefCounted implements RefCounted {
     public final boolean decRef() {
         touch();
         int i = (int) VH_REFCOUNT_FIELD.getAndAdd(this, -1);
-        assert i > 0 : "invalid decRef call: already closed";
+        assert i > 0 : INVALID_DECREF_MESSAGE;
         if (i == 1) {
             try {
                 closeInternal();

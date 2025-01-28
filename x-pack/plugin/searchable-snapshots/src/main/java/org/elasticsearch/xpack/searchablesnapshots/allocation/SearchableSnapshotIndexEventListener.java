@@ -9,18 +9,19 @@ package org.elasticsearch.xpack.searchablesnapshots.allocation;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.StepListener;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.ByteSizeCachingDirectory;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
@@ -61,6 +62,12 @@ public class SearchableSnapshotIndexEventListener implements IndexEventListener 
     public void beforeIndexShardRecovery(IndexShard indexShard, IndexSettings indexSettings, ActionListener<Void> listener) {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
         ensureSnapshotIsLoaded(indexShard);
+        var sizeCachingDirectory = ByteSizeCachingDirectory.unwrapDirectory(indexShard.store().directory());
+        if (sizeCachingDirectory != null) {
+            // Marks the cached estimation of the directory size as stale in ByteSizeCachingDirectory since we just loaded the snapshot
+            // files list into the searchable snapshot directory.
+            sizeCachingDirectory.markEstimatedSizeAsStale();
+        }
         listener.onResponse(null);
     }
 
@@ -68,12 +75,12 @@ public class SearchableSnapshotIndexEventListener implements IndexEventListener 
         final var store = indexShard.store();
         final SearchableSnapshotDirectory directory = unwrapDirectory(store.directory());
         assert directory != null;
-        final StepListener<Void> preWarmListener = new StepListener<>();
+        final ListenableFuture<Void> preWarmListener = new ListenableFuture<>();
         final boolean success = directory.loadSnapshot(indexShard.recoveryState(), store::isClosing, preWarmListener);
         final ShardRouting shardRouting = indexShard.routingEntry();
         if (success && shardRouting.isRelocationTarget()) {
             final Runnable preWarmCondition = indexShard.addCleanFilesDependency();
-            preWarmListener.whenComplete(v -> preWarmCondition.run(), e -> {
+            preWarmListener.addListener(ActionListener.wrap(v -> preWarmCondition.run(), e -> {
                 logger.warn(
                     () -> format(
                         "pre-warm operation failed for [%s] while it was the target of primary relocation [%s]",
@@ -83,7 +90,7 @@ public class SearchableSnapshotIndexEventListener implements IndexEventListener 
                     e
                 );
                 preWarmCondition.run();
-            });
+            }));
         }
         assert directory.listAll().length > 0 : "expecting directory listing to be non-empty";
         assert success || indexShard.routingEntry().recoverySource().getType() == RecoverySource.Type.PEER

@@ -151,7 +151,7 @@ public abstract class RollupIndexer extends AsyncTwoPhaseIndexer<Map<String, Obj
      * @param config The config for the job.
      * @return The composite aggregation that creates the rollup buckets
      */
-    private CompositeAggregationBuilder createCompositeBuilder(RollupJobConfig config) {
+    private static CompositeAggregationBuilder createCompositeBuilder(RollupJobConfig config) {
         final GroupConfig groupConfig = config.getGroupConfig();
         List<CompositeValuesSourceBuilder<?>> builders = createValueSourceBuilders(groupConfig);
 

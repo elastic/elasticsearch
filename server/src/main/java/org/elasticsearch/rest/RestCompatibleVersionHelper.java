@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.rest;
 
@@ -13,6 +14,8 @@ import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.xcontent.MediaType;
 import org.elasticsearch.xcontent.ParsedMediaType;
 
+import java.util.Optional;
+
 /**
  * A helper that is responsible for parsing a Compatible REST API version from RestRequest.
  * It also performs a validation of allowed combination of versions provided on those headers.
@@ -20,7 +23,10 @@ import org.elasticsearch.xcontent.ParsedMediaType;
  */
 class RestCompatibleVersionHelper {
 
-    static RestApiVersion getCompatibleVersion(
+    /**
+     * @return The requested API version, or {@link Optional#empty()} if there was no explicit version in the request.
+     */
+    static Optional<RestApiVersion> getCompatibleVersion(
         @Nullable ParsedMediaType acceptHeader,
         @Nullable ParsedMediaType contentTypeHeader,
         boolean hasContent
@@ -76,15 +82,19 @@ class RestCompatibleVersionHelper {
                 );
             }
             if (contentTypeVersion < RestApiVersion.current().major) {
-                return RestApiVersion.minimumSupported();
+                return Optional.of(RestApiVersion.minimumSupported());
             }
         }
 
         if (acceptVersion < RestApiVersion.current().major) {
-            return RestApiVersion.minimumSupported();
+            return Optional.of(RestApiVersion.minimumSupported());
         }
 
-        return RestApiVersion.current();
+        if (cVersion == null && aVersion == null) {
+            return Optional.empty();
+        } else {
+            return Optional.of(RestApiVersion.current());
+        }
     }
 
     static Byte parseVersion(ParsedMediaType parsedMediaType) {

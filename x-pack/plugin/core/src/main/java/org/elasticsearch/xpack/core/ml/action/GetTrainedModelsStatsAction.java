@@ -7,13 +7,12 @@
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.ingest.IngestStats;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -34,7 +33,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-import static org.elasticsearch.core.RestApiVersion.onOrAfter;
 import static org.elasticsearch.core.Strings.format;
 
 public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStatsAction.Response> {
@@ -49,10 +47,10 @@ public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStat
     public static final ParseField DEPLOYMENT_STATS = new ParseField("deployment_stats");
 
     private GetTrainedModelsStatsAction() {
-        super(NAME, GetTrainedModelsStatsAction.Response::new);
+        super(NAME);
     }
 
-    public static class Request extends AbstractGetResourcesRequest {
+    public static final class Request extends AbstractGetResourcesRequest {
 
         public static final ParseField ALLOW_NO_MATCH = new ParseField("allow_no_match");
 
@@ -118,15 +116,15 @@ public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStat
 
             public TrainedModelStats(StreamInput in) throws IOException {
                 modelId = in.readString();
-                if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_0_0)) {
+                if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
                     modelSizeStats = in.readOptionalWriteable(TrainedModelSizeStats::new);
                 } else {
                     modelSizeStats = null;
                 }
-                ingestStats = new IngestStats(in);
+                ingestStats = IngestStats.read(in);
                 pipelineCount = in.readVInt();
                 inferenceStats = in.readOptionalWriteable(InferenceStats::new);
-                if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_0_0)) {
+                if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
                     this.deploymentStats = in.readOptionalWriteable(AssignmentStats::new);
                 } else {
                     this.deploymentStats = null;
@@ -172,7 +170,7 @@ public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStat
                 if (this.inferenceStats != null) {
                     builder.field(INFERENCE_STATS.getPreferredName(), this.inferenceStats);
                 }
-                if (deploymentStats != null && builder.getRestApiVersion().matches(onOrAfter(RestApiVersion.V_8))) {
+                if (deploymentStats != null) {
                     builder.field(DEPLOYMENT_STATS.getPreferredName(), this.deploymentStats);
                 }
                 builder.endObject();
@@ -182,13 +180,13 @@ public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStat
             @Override
             public void writeTo(StreamOutput out) throws IOException {
                 out.writeString(modelId);
-                if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_0_0)) {
+                if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
                     out.writeOptionalWriteable(modelSizeStats);
                 }
                 ingestStats.writeTo(out);
                 out.writeVInt(pipelineCount);
                 out.writeOptionalWriteable(inferenceStats);
-                if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_0_0)) {
+                if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
                     out.writeOptionalWriteable(deploymentStats);
                 }
             }

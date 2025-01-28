@@ -21,7 +21,7 @@ setup:
               ],
               "applications": [
                 {
-                  "application": "myapp",
+                  "application": "kibana-.kibana",
                   "privileges": ["*"],
                   "resources": ["*"]
                 }
@@ -43,14 +43,14 @@ setup:
       security.put_privileges:
         body: >
           {
-            "myapp": {
+            "kibana-.kibana": {
               "read": {
-                "application": "myapp",
+                "application": "kibana-.kibana",
                 "name": "read",
                 "actions": [ "data:read/*" ]
               },
               "write": {
-                "application": "myapp",
+                "application": "kibana-.kibana",
                 "name": "write",
                 "actions": [ "data:write/*" ]
               }
@@ -71,7 +71,7 @@ teardown:
 
   - do:
       security.delete_privileges:
-        application: myapp
+        application: "kibana-.kibana"
         name: "read,write"
         ignore: 404
 
@@ -191,6 +191,7 @@ teardown:
         Authorization: "Basic YXBpX2tleV91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" # api_key_user
       security.get_api_key:
         owner: true
+        active_only: true
   - length: { "api_keys" : 1 }
   - match: { "api_keys.0.username": "api_key_user" }
   - match: { "api_keys.0.invalidated": false }
@@ -300,7 +301,7 @@ teardown:
                   ],
                   "applications": [
                     {
-                      "application": "myapp",
+                      "application": "kibana-.kibana",
                       "privileges": ["read"],
                       "resources": ["*"]
                     }
@@ -343,7 +344,7 @@ teardown:
             ],
             "application": [
               {
-                "application" : "myapp",
+                "application" : "kibana-.kibana",
                 "resources" : [ "*", "some-other-res" ],
                 "privileges" : [ "data:read/me", "data:write/me" ]
               }
@@ -368,7 +369,7 @@ teardown:
       }
     } }
   - match: { "application" : {
-      "myapp" : {
+      "kibana-.kibana" : {
         "*" : {
           "data:read/me" : true,
           "data:write/me" : false

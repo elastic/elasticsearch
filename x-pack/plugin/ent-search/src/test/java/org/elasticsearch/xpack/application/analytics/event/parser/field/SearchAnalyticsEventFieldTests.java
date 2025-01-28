@@ -7,14 +7,15 @@
 
 package org.elasticsearch.xpack.application.analytics.event.parser.field;
 
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.xcontent.ContextParser;
 import org.elasticsearch.xpack.application.analytics.event.AnalyticsEvent;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static java.util.Map.entry;
 import static org.elasticsearch.xpack.application.analytics.event.parser.field.PaginationAnalyticsEventField.PAGINATION_FIELD;
 import static org.elasticsearch.xpack.application.analytics.event.parser.field.PaginationAnalyticsEventFieldTests.randomEventSearchPaginationField;
 import static org.elasticsearch.xpack.application.analytics.event.parser.field.SearchAnalyticsEventField.SEARCH_APPLICATION_FIELD;
@@ -34,7 +35,7 @@ public class SearchAnalyticsEventFieldTests extends AnalyticsEventFieldParserTes
 
     @Override
     protected Map<String, Object> createTestInstance() {
-        return randomEventSearchField();
+        return new HashMap<>(randomEventSearchField());
     }
 
     @Override
@@ -43,13 +44,13 @@ public class SearchAnalyticsEventFieldTests extends AnalyticsEventFieldParserTes
     }
 
     public static Map<String, Object> randomEventSearchField() {
-        return MapBuilder.<String, Object>newMapBuilder()
-            .put(SEARCH_QUERY_FIELD.getPreferredName(), randomIdentifier())
-            .put(SEARCH_APPLICATION_FIELD.getPreferredName(), randomIdentifier())
-            .put(SORT_FIELD.getPreferredName(), randomEventSearchSortOrderField())
-            .put(PAGINATION_FIELD.getPreferredName(), randomEventSearchPaginationField())
-            .put(SEARCH_RESULTS_FIELD.getPreferredName(), randomEventSearchResultField())
-            .put(SEARCH_FILTERS_FIELD.getPreferredName(), randomEventSearchFiltersField())
-            .map();
+        return Map.ofEntries(
+            entry(SEARCH_QUERY_FIELD.getPreferredName(), randomIdentifier()),
+            entry(SEARCH_APPLICATION_FIELD.getPreferredName(), randomIdentifier()),
+            entry(SORT_FIELD.getPreferredName(), randomEventSearchSortOrderField()),
+            entry(PAGINATION_FIELD.getPreferredName(), randomEventSearchPaginationField()),
+            entry(SEARCH_RESULTS_FIELD.getPreferredName(), randomEventSearchResultField()),
+            entry(SEARCH_FILTERS_FIELD.getPreferredName(), randomEventSearchFiltersField())
+        );
     }
 }

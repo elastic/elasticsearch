@@ -77,7 +77,7 @@ public abstract class CommonEnrichRestTestCase extends ESRestTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    private <Property> Property unsafeGetProperty(Map<?, ?> map, String key) {
+    private static <Property> Property unsafeGetProperty(Map<?, ?> map, String key) {
         return (Property) map.get(key);
     }
 
@@ -244,6 +244,53 @@ public abstract class CommonEnrichRestTestCase extends ESRestTestCase {
         // verify the delete did not happen
         Request getRequest = new Request("GET", "/_enrich/policy/my_policy");
         assertOK(client().performRequest(getRequest));
+    }
+
+    public void testEnrichSpecialTypes() throws IOException {
+        final String mapping = """
+
+            """;
+        var createIndexRequest = new Request("PUT", "source-enrich-vector");
+        createIndexRequest.setJsonEntity("""
+            {
+                "mappings": {
+                    "properties": {
+                    "keyword_field": { "type": "keyword" },
+                    "content_embedding": { "type": "sparse_vector" },
+                    "arbitrary_sparse_vector": { "type": "sparse_vector" }
+                  }
+                }
+            }
+            """);
+        assertOK(adminClient().performRequest(createIndexRequest));
+        var indexRequest = new Request("PUT", "/source-enrich-vector/_doc/1");
+        indexRequest.setJsonEntity("""
+            {
+             "arbitrary_sparse_vector": { "arbitrary_value": 7 },
+             "content_embedding": { "arbitrary_value": 9},
+             "keyword_field": 1214
+            }
+            """);
+        assertOK(adminClient().performRequest(indexRequest));
+
+        var putEnrich = new Request("PUT", "/_enrich/policy/vector_policy");
+        putEnrich.setJsonEntity("""
+                {
+                 "match": {
+                  "indices": "source-enrich-vector",
+                  "match_field": "keyword_field",
+                  "enrich_fields": ["content_embedding", "arbitrary_sparse_vector"]
+                 }
+                }
+            """);
+        assertOK(adminClient().performRequest(putEnrich));
+        try {
+            var executeEnrich = new Request("PUT", "/_enrich/policy/vector_policy/_execute");
+            assertOK(adminClient().performRequest(executeEnrich));
+        } finally {
+            var deleteEnrich = new Request("DELETE", "/_enrich/policy/vector_policy");
+            assertOK(adminClient().performRequest(deleteEnrich));
+        }
     }
 
     public static String generatePolicySource(String index) throws IOException {

@@ -1,0 +1,45 @@
+---
+"count with min_score":
+  - do:
+      indices.create:
+          index:  test_count_min_score
+          body:
+            settings:
+              number_of_shards: 1
+
+  - do:
+      index:
+          index:  test_count_min_score
+          id:     "1"
+          body:   { field: foo bar }
+
+  - do:
+      index:
+        index: test_count_min_score
+        id: "2"
+        body: { field: foo bar bar bar bar }
+
+  - do:
+      indices.refresh:
+        index: [test_count_min_score]
+
+  - do:
+      count:
+        index: test_count_min_score
+        q: field:foo
+        min_score: 0.2
+  - match: {count : 1}
+
+  - do:
+      count:
+        index: test_count_min_score
+        q: field:foo
+        min_score: 0.1
+  - match: { count: 2 }
+
+  - do:
+      count:
+        index: test_count_min_score
+        q: field:foo
+        min_score: 0.5
+  - match: { count: 0 }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.lucene.search;
@@ -14,7 +15,7 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.TermQuery;
-import org.elasticsearch.Version;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.test.ESTestCase;
 
@@ -22,9 +23,12 @@ public class QueriesTests extends ESTestCase {
 
     public void testNonNestedQuery() {
         // This is a custom query that extends AutomatonQuery and want to make sure the equals method works
-        assertEquals(Queries.newNonNestedFilter(Version.CURRENT), Queries.newNonNestedFilter(Version.CURRENT));
-        assertEquals(Queries.newNonNestedFilter(Version.CURRENT).hashCode(), Queries.newNonNestedFilter(Version.CURRENT).hashCode());
-        assertEquals(Queries.newNonNestedFilter(Version.CURRENT), new FieldExistsQuery(SeqNoFieldMapper.PRIMARY_TERM_NAME));
+        assertEquals(Queries.newNonNestedFilter(IndexVersion.current()), Queries.newNonNestedFilter(IndexVersion.current()));
+        assertEquals(
+            Queries.newNonNestedFilter(IndexVersion.current()).hashCode(),
+            Queries.newNonNestedFilter(IndexVersion.current()).hashCode()
+        );
+        assertEquals(Queries.newNonNestedFilter(IndexVersion.current()), new FieldExistsQuery(SeqNoFieldMapper.PRIMARY_TERM_NAME));
     }
 
     public void testIsNegativeQuery() {

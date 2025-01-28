@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.suggest.completion;
@@ -11,7 +12,6 @@ package org.elasticsearch.search.suggest.completion;
 import org.apache.lucene.analysis.core.SimpleAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
@@ -112,7 +112,7 @@ public class CategoryContextMappingTests extends MapperServiceTestCase {
                 XContentType.JSON
             )
         );
-        List<IndexableField> fields = parsedDocument.rootDoc().getFields(fieldMapper.name());
+        List<IndexableField> fields = parsedDocument.rootDoc().getFields(fieldMapper.fullPath());
         assertContextSuggestFields(fields, 7);
     }
 
@@ -156,7 +156,7 @@ public class CategoryContextMappingTests extends MapperServiceTestCase {
                 XContentType.JSON
             )
         );
-        List<IndexableField> fields = parsedDocument.rootDoc().getFields(fieldMapper.name());
+        List<IndexableField> fields = parsedDocument.rootDoc().getFields(fieldMapper.fullPath());
         assertContextSuggestFields(fields, 3);
     }
 
@@ -200,7 +200,7 @@ public class CategoryContextMappingTests extends MapperServiceTestCase {
                 XContentType.JSON
             )
         );
-        List<IndexableField> fields = parsedDocument.rootDoc().getFields(fieldMapper.name());
+        List<IndexableField> fields = parsedDocument.rootDoc().getFields(fieldMapper.fullPath());
         assertContextSuggestFields(fields, 3);
     }
 
@@ -244,7 +244,7 @@ public class CategoryContextMappingTests extends MapperServiceTestCase {
                 XContentType.JSON
             )
         );
-        List<IndexableField> fields = parsedDocument.rootDoc().getFields(fieldMapper.name());
+        List<IndexableField> fields = parsedDocument.rootDoc().getFields(fieldMapper.fullPath());
         assertContextSuggestFields(fields, 3);
     }
 
@@ -328,7 +328,7 @@ public class CategoryContextMappingTests extends MapperServiceTestCase {
                 XContentType.JSON
             )
         );
-        List<IndexableField> fields = parsedDocument.rootDoc().getFields(fieldMapper.name());
+        List<IndexableField> fields = parsedDocument.rootDoc().getFields(fieldMapper.fullPath());
         assertContextSuggestFields(fields, 3);
     }
 
@@ -370,7 +370,7 @@ public class CategoryContextMappingTests extends MapperServiceTestCase {
                 XContentType.JSON
             )
         );
-        List<IndexableField> fields = parsedDocument.rootDoc().getFields(fieldMapper.name());
+        List<IndexableField> fields = parsedDocument.rootDoc().getFields(fieldMapper.fullPath());
         assertContextSuggestFields(fields, 3);
     }
 
@@ -449,7 +449,7 @@ public class CategoryContextMappingTests extends MapperServiceTestCase {
             .endArray()
             .endObject();
         ParsedDocument parsedDocument = defaultMapper.parse(new SourceToParse("1", BytesReference.bytes(builder), XContentType.JSON));
-        List<IndexableField> fields = parsedDocument.rootDoc().getFields(fieldMapper.name());
+        List<IndexableField> fields = parsedDocument.rootDoc().getFields(fieldMapper.fullPath());
         assertContextSuggestFields(fields, 3);
     }
 
@@ -459,9 +459,9 @@ public class CategoryContextMappingTests extends MapperServiceTestCase {
             CategoryContextMapping mapping = ContextBuilder.category("cat").build();
             List<ContextMapping.InternalQueryContext> internalQueryContexts = mapping.parseQueryContext(parser);
             assertThat(internalQueryContexts.size(), equalTo(1));
-            assertThat(internalQueryContexts.get(0).context, equalTo("context1"));
-            assertThat(internalQueryContexts.get(0).boost, equalTo(1));
-            assertThat(internalQueryContexts.get(0).isPrefix, equalTo(false));
+            assertThat(internalQueryContexts.get(0).context(), equalTo("context1"));
+            assertThat(internalQueryContexts.get(0).boost(), equalTo(1));
+            assertThat(internalQueryContexts.get(0).isPrefix(), equalTo(false));
         }
     }
 
@@ -471,9 +471,9 @@ public class CategoryContextMappingTests extends MapperServiceTestCase {
             CategoryContextMapping mapping = ContextBuilder.category("cat").build();
             List<ContextMapping.InternalQueryContext> internalQueryContexts = mapping.parseQueryContext(parser);
             assertThat(internalQueryContexts.size(), equalTo(1));
-            assertThat(internalQueryContexts.get(0).context, equalTo("true"));
-            assertThat(internalQueryContexts.get(0).boost, equalTo(1));
-            assertThat(internalQueryContexts.get(0).isPrefix, equalTo(false));
+            assertThat(internalQueryContexts.get(0).context(), equalTo("true"));
+            assertThat(internalQueryContexts.get(0).boost(), equalTo(1));
+            assertThat(internalQueryContexts.get(0).isPrefix(), equalTo(false));
         }
     }
 
@@ -483,9 +483,9 @@ public class CategoryContextMappingTests extends MapperServiceTestCase {
             CategoryContextMapping mapping = ContextBuilder.category("cat").build();
             List<ContextMapping.InternalQueryContext> internalQueryContexts = mapping.parseQueryContext(parser);
             assertThat(internalQueryContexts.size(), equalTo(1));
-            assertThat(internalQueryContexts.get(0).context, equalTo("10"));
-            assertThat(internalQueryContexts.get(0).boost, equalTo(1));
-            assertThat(internalQueryContexts.get(0).isPrefix, equalTo(false));
+            assertThat(internalQueryContexts.get(0).context(), equalTo("10"));
+            assertThat(internalQueryContexts.get(0).boost(), equalTo(1));
+            assertThat(internalQueryContexts.get(0).isPrefix(), equalTo(false));
         }
     }
 
@@ -505,12 +505,12 @@ public class CategoryContextMappingTests extends MapperServiceTestCase {
             CategoryContextMapping mapping = ContextBuilder.category("cat").build();
             List<ContextMapping.InternalQueryContext> internalQueryContexts = mapping.parseQueryContext(parser);
             assertThat(internalQueryContexts.size(), equalTo(2));
-            assertThat(internalQueryContexts.get(0).context, equalTo("context1"));
-            assertThat(internalQueryContexts.get(0).boost, equalTo(1));
-            assertThat(internalQueryContexts.get(0).isPrefix, equalTo(false));
-            assertThat(internalQueryContexts.get(1).context, equalTo("context2"));
-            assertThat(internalQueryContexts.get(1).boost, equalTo(1));
-            assertThat(internalQueryContexts.get(1).isPrefix, equalTo(false));
+            assertThat(internalQueryContexts.get(0).context(), equalTo("context1"));
+            assertThat(internalQueryContexts.get(0).boost(), equalTo(1));
+            assertThat(internalQueryContexts.get(0).isPrefix(), equalTo(false));
+            assertThat(internalQueryContexts.get(1).context(), equalTo("context2"));
+            assertThat(internalQueryContexts.get(1).boost(), equalTo(1));
+            assertThat(internalQueryContexts.get(1).isPrefix(), equalTo(false));
         }
     }
 
@@ -520,18 +520,18 @@ public class CategoryContextMappingTests extends MapperServiceTestCase {
             CategoryContextMapping mapping = ContextBuilder.category("cat").build();
             List<ContextMapping.InternalQueryContext> internalQueryContexts = mapping.parseQueryContext(parser);
             assertThat(internalQueryContexts.size(), equalTo(4));
-            assertThat(internalQueryContexts.get(0).context, equalTo("context1"));
-            assertThat(internalQueryContexts.get(0).boost, equalTo(1));
-            assertThat(internalQueryContexts.get(0).isPrefix, equalTo(false));
-            assertThat(internalQueryContexts.get(1).context, equalTo("context2"));
-            assertThat(internalQueryContexts.get(1).boost, equalTo(1));
-            assertThat(internalQueryContexts.get(1).isPrefix, equalTo(false));
-            assertThat(internalQueryContexts.get(2).context, equalTo("true"));
-            assertThat(internalQueryContexts.get(2).boost, equalTo(1));
-            assertThat(internalQueryContexts.get(2).isPrefix, equalTo(false));
-            assertThat(internalQueryContexts.get(3).context, equalTo("10"));
-            assertThat(internalQueryContexts.get(3).boost, equalTo(1));
-            assertThat(internalQueryContexts.get(3).isPrefix, equalTo(false));
+            assertThat(internalQueryContexts.get(0).context(), equalTo("context1"));
+            assertThat(internalQueryContexts.get(0).boost(), equalTo(1));
+            assertThat(internalQueryContexts.get(0).isPrefix(), equalTo(false));
+            assertThat(internalQueryContexts.get(1).context(), equalTo("context2"));
+            assertThat(internalQueryContexts.get(1).boost(), equalTo(1));
+            assertThat(internalQueryContexts.get(1).isPrefix(), equalTo(false));
+            assertThat(internalQueryContexts.get(2).context(), equalTo("true"));
+            assertThat(internalQueryContexts.get(2).boost(), equalTo(1));
+            assertThat(internalQueryContexts.get(2).isPrefix(), equalTo(false));
+            assertThat(internalQueryContexts.get(3).context(), equalTo("10"));
+            assertThat(internalQueryContexts.get(3).boost(), equalTo(1));
+            assertThat(internalQueryContexts.get(3).isPrefix(), equalTo(false));
         }
     }
 
@@ -561,9 +561,9 @@ public class CategoryContextMappingTests extends MapperServiceTestCase {
             CategoryContextMapping mapping = ContextBuilder.category("cat").build();
             List<ContextMapping.InternalQueryContext> internalQueryContexts = mapping.parseQueryContext(parser);
             assertThat(internalQueryContexts.size(), equalTo(1));
-            assertThat(internalQueryContexts.get(0).context, equalTo("context1"));
-            assertThat(internalQueryContexts.get(0).boost, equalTo(10));
-            assertThat(internalQueryContexts.get(0).isPrefix, equalTo(true));
+            assertThat(internalQueryContexts.get(0).context(), equalTo("context1"));
+            assertThat(internalQueryContexts.get(0).boost(), equalTo(10));
+            assertThat(internalQueryContexts.get(0).isPrefix(), equalTo(true));
         }
     }
 
@@ -573,9 +573,9 @@ public class CategoryContextMappingTests extends MapperServiceTestCase {
             CategoryContextMapping mapping = ContextBuilder.category("cat").build();
             List<ContextMapping.InternalQueryContext> internalQueryContexts = mapping.parseQueryContext(parser);
             assertThat(internalQueryContexts.size(), equalTo(1));
-            assertThat(internalQueryContexts.get(0).context, equalTo("false"));
-            assertThat(internalQueryContexts.get(0).boost, equalTo(10));
-            assertThat(internalQueryContexts.get(0).isPrefix, equalTo(true));
+            assertThat(internalQueryContexts.get(0).context(), equalTo("false"));
+            assertThat(internalQueryContexts.get(0).boost(), equalTo(10));
+            assertThat(internalQueryContexts.get(0).isPrefix(), equalTo(true));
         }
     }
 
@@ -585,9 +585,9 @@ public class CategoryContextMappingTests extends MapperServiceTestCase {
             CategoryContextMapping mapping = ContextBuilder.category("cat").build();
             List<ContextMapping.InternalQueryContext> internalQueryContexts = mapping.parseQueryContext(parser);
             assertThat(internalQueryContexts.size(), equalTo(1));
-            assertThat(internalQueryContexts.get(0).context, equalTo("333"));
-            assertThat(internalQueryContexts.get(0).boost, equalTo(10));
-            assertThat(internalQueryContexts.get(0).isPrefix, equalTo(true));
+            assertThat(internalQueryContexts.get(0).context(), equalTo("333"));
+            assertThat(internalQueryContexts.get(0).boost(), equalTo(10));
+            assertThat(internalQueryContexts.get(0).isPrefix(), equalTo(true));
         }
     }
 
@@ -618,12 +618,12 @@ public class CategoryContextMappingTests extends MapperServiceTestCase {
             CategoryContextMapping mapping = ContextBuilder.category("cat").build();
             List<ContextMapping.InternalQueryContext> internalQueryContexts = mapping.parseQueryContext(parser);
             assertThat(internalQueryContexts.size(), equalTo(2));
-            assertThat(internalQueryContexts.get(0).context, equalTo("context1"));
-            assertThat(internalQueryContexts.get(0).boost, equalTo(2));
-            assertThat(internalQueryContexts.get(0).isPrefix, equalTo(true));
-            assertThat(internalQueryContexts.get(1).context, equalTo("context2"));
-            assertThat(internalQueryContexts.get(1).boost, equalTo(3));
-            assertThat(internalQueryContexts.get(1).isPrefix, equalTo(false));
+            assertThat(internalQueryContexts.get(0).context(), equalTo("context1"));
+            assertThat(internalQueryContexts.get(0).boost(), equalTo(2));
+            assertThat(internalQueryContexts.get(0).isPrefix(), equalTo(true));
+            assertThat(internalQueryContexts.get(1).context(), equalTo("context2"));
+            assertThat(internalQueryContexts.get(1).boost(), equalTo(3));
+            assertThat(internalQueryContexts.get(1).isPrefix(), equalTo(false));
         }
     }
 
@@ -654,18 +654,18 @@ public class CategoryContextMappingTests extends MapperServiceTestCase {
             CategoryContextMapping mapping = ContextBuilder.category("cat").build();
             List<ContextMapping.InternalQueryContext> internalQueryContexts = mapping.parseQueryContext(parser);
             assertThat(internalQueryContexts.size(), equalTo(4));
-            assertThat(internalQueryContexts.get(0).context, equalTo("context1"));
-            assertThat(internalQueryContexts.get(0).boost, equalTo(2));
-            assertThat(internalQueryContexts.get(0).isPrefix, equalTo(true));
-            assertThat(internalQueryContexts.get(1).context, equalTo("context2"));
-            assertThat(internalQueryContexts.get(1).boost, equalTo(3));
-            assertThat(internalQueryContexts.get(1).isPrefix, equalTo(false));
-            assertThat(internalQueryContexts.get(2).context, equalTo("true"));
-            assertThat(internalQueryContexts.get(2).boost, equalTo(3));
-            assertThat(internalQueryContexts.get(2).isPrefix, equalTo(false));
-            assertThat(internalQueryContexts.get(3).context, equalTo("333"));
-            assertThat(internalQueryContexts.get(3).boost, equalTo(3));
-            assertThat(internalQueryContexts.get(3).isPrefix, equalTo(false));
+            assertThat(internalQueryContexts.get(0).context(), equalTo("context1"));
+            assertThat(internalQueryContexts.get(0).boost(), equalTo(2));
+            assertThat(internalQueryContexts.get(0).isPrefix(), equalTo(true));
+            assertThat(internalQueryContexts.get(1).context(), equalTo("context2"));
+            assertThat(internalQueryContexts.get(1).boost(), equalTo(3));
+            assertThat(internalQueryContexts.get(1).isPrefix(), equalTo(false));
+            assertThat(internalQueryContexts.get(2).context(), equalTo("true"));
+            assertThat(internalQueryContexts.get(2).boost(), equalTo(3));
+            assertThat(internalQueryContexts.get(2).isPrefix(), equalTo(false));
+            assertThat(internalQueryContexts.get(3).context(), equalTo("333"));
+            assertThat(internalQueryContexts.get(3).boost(), equalTo(3));
+            assertThat(internalQueryContexts.get(3).isPrefix(), equalTo(false));
         }
     }
 
@@ -724,18 +724,18 @@ public class CategoryContextMappingTests extends MapperServiceTestCase {
             CategoryContextMapping mapping = ContextBuilder.category("cat").build();
             List<ContextMapping.InternalQueryContext> internalQueryContexts = mapping.parseQueryContext(parser);
             assertThat(internalQueryContexts.size(), equalTo(4));
-            assertThat(internalQueryContexts.get(0).context, equalTo("context1"));
-            assertThat(internalQueryContexts.get(0).boost, equalTo(2));
-            assertThat(internalQueryContexts.get(0).isPrefix, equalTo(true));
-            assertThat(internalQueryContexts.get(1).context, equalTo("context2"));
-            assertThat(internalQueryContexts.get(1).boost, equalTo(1));
-            assertThat(internalQueryContexts.get(1).isPrefix, equalTo(false));
-            assertThat(internalQueryContexts.get(2).context, equalTo("false"));
-            assertThat(internalQueryContexts.get(2).boost, equalTo(1));
-            assertThat(internalQueryContexts.get(2).isPrefix, equalTo(false));
-            assertThat(internalQueryContexts.get(3).context, equalTo("333"));
-            assertThat(internalQueryContexts.get(3).boost, equalTo(2));
-            assertThat(internalQueryContexts.get(3).isPrefix, equalTo(true));
+            assertThat(internalQueryContexts.get(0).context(), equalTo("context1"));
+            assertThat(internalQueryContexts.get(0).boost(), equalTo(2));
+            assertThat(internalQueryContexts.get(0).isPrefix(), equalTo(true));
+            assertThat(internalQueryContexts.get(1).context(), equalTo("context2"));
+            assertThat(internalQueryContexts.get(1).boost(), equalTo(1));
+            assertThat(internalQueryContexts.get(1).isPrefix(), equalTo(false));
+            assertThat(internalQueryContexts.get(2).context(), equalTo("false"));
+            assertThat(internalQueryContexts.get(2).boost(), equalTo(1));
+            assertThat(internalQueryContexts.get(2).isPrefix(), equalTo(false));
+            assertThat(internalQueryContexts.get(3).context(), equalTo("333"));
+            assertThat(internalQueryContexts.get(3).boost(), equalTo(2));
+            assertThat(internalQueryContexts.get(3).isPrefix(), equalTo(true));
         }
     }
 
@@ -796,7 +796,9 @@ public class CategoryContextMappingTests extends MapperServiceTestCase {
         LuceneDocument document = new LuceneDocument();
 
         KeywordFieldMapper.KeywordFieldType keyword = new KeywordFieldMapper.KeywordFieldType("category");
-        document.add(new KeywordFieldMapper.KeywordField(keyword.name(), new BytesRef("category1"), new FieldType()));
+        document.add(
+            new KeywordFieldMapper.KeywordField(keyword.name(), new BytesRef("category1"), KeywordFieldMapper.Defaults.FIELD_TYPE)
+        );
         // Ignore doc values
         document.add(new SortedSetDocValuesField(keyword.name(), new BytesRef("category1")));
         Set<String> context = mapping.parseContext(document);

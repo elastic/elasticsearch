@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.engine;
@@ -14,7 +15,7 @@ import org.apache.lucene.search.SortedNumericSelector;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.SortedSetSelector;
 import org.apache.lucene.search.SortedSetSortField;
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -52,7 +53,7 @@ public class Segment implements Writeable {
         version = Lucene.parseVersionLenient(in.readOptionalString(), null);
         compound = in.readOptionalBoolean();
         mergeId = in.readOptionalString();
-        if (in.getTransportVersion().before(TransportVersion.V_8_0_0)) {
+        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
             in.readLong(); // memoryInBytes
         }
         if (in.readBoolean()) {
@@ -60,7 +61,7 @@ public class Segment implements Writeable {
         }
         segmentSort = readSegmentSort(in);
         if (in.readBoolean()) {
-            attributes = in.readMap(StreamInput::readString, StreamInput::readString);
+            attributes = in.readMap(StreamInput::readString);
         } else {
             attributes = null;
         }
@@ -159,7 +160,7 @@ public class Segment implements Writeable {
         out.writeOptionalString(version.toString());
         out.writeOptionalBoolean(compound);
         out.writeOptionalString(mergeId);
-        if (out.getTransportVersion().before(TransportVersion.V_8_0_0)) {
+        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
             out.writeLong(0); // memoryInBytes
         }
 
@@ -168,7 +169,7 @@ public class Segment implements Writeable {
         boolean hasAttributes = attributes != null;
         out.writeBoolean(hasAttributes);
         if (hasAttributes) {
-            out.writeMap(attributes, StreamOutput::writeString, StreamOutput::writeString);
+            out.writeMap(attributes, StreamOutput::writeString);
         }
     }
 
@@ -252,7 +253,7 @@ public class Segment implements Writeable {
                 o.writeBoolean(((SortedNumericSortField) field).getSelector() == SortedNumericSelector.Type.MAX);
                 o.writeBoolean(field.getReverse());
             } else if (field.getType().equals(SortField.Type.STRING)) {
-                if (o.getTransportVersion().before(TransportVersion.V_8_5_0)) {
+                if (o.getTransportVersion().before(TransportVersions.V_8_5_0)) {
                     // The closest supported version before 8.5.0 was SortedSet fields, so we mimic that
                     o.writeByte(SORT_STRING_SET);
                     o.writeOptionalBoolean(field.getMissingValue() == null ? null : field.getMissingValue() == SortField.STRING_FIRST);

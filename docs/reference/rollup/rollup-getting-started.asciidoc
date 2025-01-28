@@ -5,10 +5,11 @@
 <titleabbrev>Getting started</titleabbrev>
 ++++
 
-experimental[]
+deprecated::[8.11.0,"Rollups will be removed in a future version. Please <<rollup-migrating-to-downsampling,migrate>> to <<downsampling,downsampling>> instead."]
 
-NOTE: For version 8.5 and above we recommend <<downsampling,downsampling>> over
-rollups as a way to reduce your storage costs for time series data.
+WARNING: From 8.15.0 invoking the put job API in a cluster with no rollup usage will fail with a message about Rollup's
+deprecation and planned removal. A cluster either needs to contain a rollup job or a rollup index in order for the
+put job API to be allowed to execute.
 
 To use the Rollup feature, you need to create one or more "Rollup Jobs". These jobs run continuously in the background
 and rollup the index or indices that you specify, placing the rolled documents in a secondary index (also of your choosing).

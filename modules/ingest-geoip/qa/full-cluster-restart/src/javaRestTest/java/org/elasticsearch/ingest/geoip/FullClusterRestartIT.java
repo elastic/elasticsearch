@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.ingest.geoip;
 
@@ -41,9 +42,8 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
         .distribution(DistributionType.DEFAULT)
         .version(getOldClusterTestVersion())
         .nodes(2)
-        .setting("indices.memory.shard_inactive_time", "60m")
-        .setting("xpack.security.enabled", "false")
         .setting("ingest.geoip.downloader.endpoint", () -> fixture.getAddress(), s -> useFixture)
+        .setting("xpack.security.enabled", "false")
         .feature(FeatureFlag.TIME_SERIES_MODE)
         .build();
 
@@ -92,7 +92,7 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
             Request migrateSystemFeatures = new Request("POST", "/_migration/system_features");
             assertOK(client().performRequest(migrateSystemFeatures));
 
-            assertBusy(() -> testCatIndices(".geoip_databases-reindexed-for-8", "my-index-00001"));
+            assertBusy(() -> testCatIndices(".geoip_databases-reindexed-for-10", "my-index-00001"));
             assertBusy(() -> testIndexGeoDoc());
 
             Request disableDownloader = new Request("PUT", "/_cluster/settings");

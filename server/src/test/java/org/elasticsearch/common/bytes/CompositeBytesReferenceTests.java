@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.common.bytes;
 
@@ -36,6 +37,18 @@ public class CompositeBytesReferenceTests extends AbstractBytesReferenceTestCase
         BytesReference ref = CompositeBytesReference.of(referenceList.toArray(new BytesReference[0]));
         assertEquals(length, ref.length());
         return ref;
+    }
+
+    @Override
+    protected BytesReference newBytesReference(byte[] content) {
+        if (content.length > 1) {
+            int splitOffset = randomIntBetween(1, content.length - 1);
+            return CompositeBytesReference.of(
+                new BytesArray(content, 0, splitOffset),
+                new BytesArray(content, splitOffset, content.length - splitOffset)
+            );
+        }
+        return CompositeBytesReference.of(new BytesArray(content));
     }
 
     private List<BytesReference> newRefList(int length) {

@@ -6,9 +6,8 @@
  */
 package org.elasticsearch.xpack.core.security.action.saml;
 
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -21,26 +20,12 @@ import java.io.IOException;
  */
 public final class SamlAuthenticateResponse extends ActionResponse {
 
-    private String principal;
-    private String tokenString;
-    private String refreshToken;
-    private String realm;
-    private TimeValue expiresIn;
-    private Authentication authentication;
-
-    public SamlAuthenticateResponse(StreamInput in) throws IOException {
-        super(in);
-        principal = in.readString();
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_0_0)) {
-            realm = in.readString();
-        }
-        tokenString = in.readString();
-        refreshToken = in.readString();
-        expiresIn = in.readTimeValue();
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_11_0)) {
-            authentication = new Authentication(in);
-        }
-    }
+    private final String principal;
+    private final String tokenString;
+    private final String refreshToken;
+    private final String realm;
+    private final TimeValue expiresIn;
+    private final Authentication authentication;
 
     public SamlAuthenticateResponse(Authentication authentication, String tokenString, String refreshToken, TimeValue expiresIn) {
         this.principal = authentication.getEffectiveSubject().getUser().principal();
@@ -78,13 +63,13 @@ public final class SamlAuthenticateResponse extends ActionResponse {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(principal);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_0_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
             out.writeString(realm);
         }
         out.writeString(tokenString);
         out.writeString(refreshToken);
         out.writeTimeValue(expiresIn);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_11_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_11_0)) {
             authentication.writeTo(out);
         }
     }

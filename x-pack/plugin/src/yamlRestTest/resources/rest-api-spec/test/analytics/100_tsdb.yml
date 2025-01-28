@@ -1,6 +1,6 @@
 setup:
-  - skip:
-      version: " - 8.0.99"
+  - requires:
+      cluster_features: ["gte_v8.1.0"]
       reason: introduced in 8.1.0
 
   - do:
@@ -61,10 +61,11 @@ setup:
           - '{"@timestamp": "2021-04-28T18:51:03.142Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.3", "network": {"tx": 1434595272, "rx": 530605511}}}}'
 
 ---
-aggretate multi_terms:
-  - skip:
-      version: " - 8.0.99"
-      reason: introduced in 8.1.0
+aggregate multi_terms:
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
+      reason: _tsid hashing introduced in 8.13
+
   - do:
       search:
         size: 0
@@ -78,9 +79,92 @@ aggretate multi_terms:
                   - field: k8s.pod.ip
 
   - length: { aggregations.m_terms.buckets: 3 }
-  - match: { aggregations.m_terms.buckets.0.key_as_string: "{k8s.pod.uid=df3145b3-0563-4d3b-a0f7-897eb2876ea9, metricset=pod}|10.10.55.3" }
+  - match: { aggregations.m_terms.buckets.0.key_as_string: "KCjEJ9R_BgO8TRX2QOd6dpQ5ihHD--qoyLTiOy0pmP6_RAIE-e0-dKQ|10.10.55.3" }
   - match: { aggregations.m_terms.buckets.0.doc_count: 4 }
-  - match: { aggregations.m_terms.buckets.1.key_as_string: "{k8s.pod.uid=947e4ced-1786-4e53-9e0c-5c447e959507, metricset=pod}|10.10.55.1" }
+  - match: { aggregations.m_terms.buckets.1.key_as_string: "KCjEJ9R_BgO8TRX2QOd6dpR12oDh--qoyNZRQPy43y34Qdy2dpsyG0o|10.10.55.1" }
   - match: { aggregations.m_terms.buckets.1.doc_count: 3 }
-  - match: { aggregations.m_terms.buckets.2.key_as_string: "{k8s.pod.uid=947e4ced-1786-4e53-9e0c-5c447e959507, metricset=pod}|10.10.55.2" }
+  - match: { aggregations.m_terms.buckets.2.key_as_string: "KCjEJ9R_BgO8TRX2QOd6dpR12oDh--qoyNZRQPy43y34Qdy2dpsyG0o|10.10.55.2" }
   - match: { aggregations.m_terms.buckets.2.doc_count: 1 }
+
+---
+"multi_terms aggregation with time_series aggregation":
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
+      reason: "multi_terms for time series aggregation fixed in 8.13.0"
+
+  - do:
+      search:
+        index: test
+        body:
+          aggs:
+            ts:
+              time_series: {}
+            m_terms:
+              multi_terms:
+                collect_mode: breadth_first
+                terms:
+                  - field: k8s.pod.name
+                  - field: k8s.pod.ip
+              aggs:
+                max_value:
+                  max:
+                    field: val
+  - length: { aggregations.ts.buckets: 2 }
+  - length: { aggregations.m_terms.buckets: 3 }
+
+---
+"Auto date histogram on counter":
+  - do:
+      indices.create:
+        index: test2
+        body:
+          settings:
+            mode: time_series
+            routing_path: [dim]
+            time_series:
+              start_time: "2023-01-01T00:00:00.000Z"
+          mappings:
+            properties:
+              dim:
+                type: keyword
+                time_series_dimension: true
+              data:
+                type: integer
+                time_series_metric: counter
+              "@timestamp":
+                type: date
+
+  - do:
+      bulk:
+        index: test2
+        refresh: true
+        body:
+          - '{ "index": {} }'
+          - '{ "@timestamp":"2023-01-01T13:03:08.138Z","data":"10", "dim": "A"}'
+          - '{ "index": {}}'
+          - '{ "@timestamp":"2023-01-02T13:03:09.138Z","data":"20", "dim": "A"}'
+          - '{ "index": {}}'
+          - '{ "@timestamp":"2023-02-01T13:03:10.138Z","data":"30", "dim": "B"}'
+
+  - do:
+      catch: /Wrapping a time-series rate aggregation within a DeferableBucketAggregator is not supported/
+      search:
+        size: 0
+        index: test2
+        body:
+          aggs:
+            histo:
+              auto_date_histogram:
+                field: "@timestamp"
+                "buckets": 4
+              aggs:
+                ts_data_rate:
+                  time_series:
+                    keyed: false
+                  aggs:
+                    data_rate:
+                      rate:
+                        field: data
+                        unit: day
+
+

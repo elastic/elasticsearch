@@ -13,9 +13,12 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Randomness;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.inference.InferenceResults;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
@@ -31,14 +34,18 @@ import org.elasticsearch.xpack.core.ml.action.InferModelAction;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction.Request;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction.Response;
 import org.elasticsearch.xpack.core.ml.action.InferTrainedModelDeploymentAction;
+import org.elasticsearch.xpack.core.ml.inference.ModelAliasMetadata;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelType;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentState;
+import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingState;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
-import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentMetadata;
+import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
-import org.elasticsearch.xpack.ml.inference.ModelAliasMetadata;
-import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentMetadata;
+import org.elasticsearch.xpack.ml.inference.InferenceWaitForAllocation;
+import org.elasticsearch.xpack.ml.inference.adaptiveallocations.AdaptiveAllocationsScalerService;
+import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentService;
 import org.elasticsearch.xpack.ml.inference.loadingservice.LocalModel;
 import org.elasticsearch.xpack.ml.inference.loadingservice.ModelLoadingService;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
@@ -63,6 +70,9 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
     private final ClusterService clusterService;
     private final XPackLicenseState licenseState;
     private final TrainedModelProvider trainedModelProvider;
+    private final AdaptiveAllocationsScalerService adaptiveAllocationsScalerService;
+    private final InferenceWaitForAllocation waitForAllocation;
+    private final ThreadPool threadPool;
 
     TransportInternalInferModelAction(
         String actionName,
@@ -72,14 +82,20 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
         Client client,
         ClusterService clusterService,
         XPackLicenseState licenseState,
-        TrainedModelProvider trainedModelProvider
+        TrainedModelProvider trainedModelProvider,
+        AdaptiveAllocationsScalerService adaptiveAllocationsScalerService,
+        TrainedModelAssignmentService assignmentService,
+        ThreadPool threadPool
     ) {
-        super(actionName, transportService, actionFilters, InferModelAction.Request::new);
+        super(actionName, transportService, actionFilters, InferModelAction.Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.modelLoadingService = modelLoadingService;
         this.client = client;
         this.clusterService = clusterService;
         this.licenseState = licenseState;
         this.trainedModelProvider = trainedModelProvider;
+        this.adaptiveAllocationsScalerService = adaptiveAllocationsScalerService;
+        this.waitForAllocation = new InferenceWaitForAllocation(assignmentService, this::inferOnBlockedRequest);
+        this.threadPool = threadPool;
     }
 
     @Inject
@@ -90,7 +106,10 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
         Client client,
         ClusterService clusterService,
         XPackLicenseState licenseState,
-        TrainedModelProvider trainedModelProvider
+        TrainedModelProvider trainedModelProvider,
+        AdaptiveAllocationsScalerService adaptiveAllocationsScalerService,
+        TrainedModelAssignmentService assignmentService,
+        ThreadPool threadPool
     ) {
         this(
             InferModelAction.NAME,
@@ -100,7 +119,10 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
             client,
             clusterService,
             licenseState,
-            trainedModelProvider
+            trainedModelProvider,
+            adaptiveAllocationsScalerService,
+            assignmentService,
+            threadPool
         );
     }
 
@@ -109,6 +131,11 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
 
         Response.Builder responseBuilder = Response.builder();
         TaskId parentTaskId = new TaskId(clusterService.localNode().getId(), task.getId());
+
+        if (request.numberOfDocuments() == 0) {
+            listener.onResponse(responseBuilder.setId(request.getId()).build());
+            return;
+        }
 
         if (MachineLearning.INFERENCE_AGG_FEATURE.check(licenseState)) {
             responseBuilder.setLicensed(true);
@@ -171,11 +198,11 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
     ) {
         ActionListener<LocalModel> getModelListener = ActionListener.wrap(model -> {
             TypedChainTaskExecutor<InferenceResults> typedChainTaskExecutor = new TypedChainTaskExecutor<>(
-                client.threadPool().executor(ThreadPool.Names.SAME),
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
                 // run through all tasks
-                r -> true,
+                Predicates.always(),
                 // Always fail immediately and return an error
-                ex -> true
+                Predicates.always()
             );
             request.getObjectsToInfer().forEach(stringObjectMap -> typedChainTaskExecutor.add(chainedTask -> {
                 if (task.isCancelled()) {
@@ -242,18 +269,68 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
 
         // Get a list of nodes to send the requests to and the number of
         // documents for each node.
-        var nodes = assignment.selectRandomStartedNodesWeighedOnAllocationsForNRequests(request.numberOfDocuments());
+        var nodes = assignment.selectRandomNodesWeighedOnAllocations(request.numberOfDocuments(), RoutingState.STARTED);
+
+        // We couldn't find any nodes in the started state so let's look for ones that are stopping in case we're shutting down some nodes
         if (nodes.isEmpty()) {
-            logger.trace(() -> format("[%s] model deployment not allocated to any node", assignment.getDeploymentId()));
-            listener.onFailure(
-                ExceptionsHelper.conflictStatusException("Trained model deployment [" + request.getId() + "] is not allocated to any nodes")
-            );
+            nodes = assignment.selectRandomNodesWeighedOnAllocations(request.numberOfDocuments(), RoutingState.STOPPING);
+        }
+
+        if (nodes.isEmpty()) {
+            String message = "Trained model deployment [" + request.getId() + "] is not allocated to any nodes";
+            boolean starting = adaptiveAllocationsScalerService.maybeStartAllocation(assignment);
+            if (starting) {
+                message += "; starting deployment of one allocation";
+                logger.debug(message);
+                waitForAllocation.waitForAssignment(
+                    new InferenceWaitForAllocation.WaitingRequest(request, responseBuilder, parentTaskId, listener)
+                );
+                return;
+            }
+
+            logger.debug(message);
+            listener.onFailure(ExceptionsHelper.conflictStatusException(message));
             return;
         }
 
         assert nodes.stream().mapToInt(Tuple::v2).sum() == request.numberOfDocuments()
             : "mismatch; sum of node requests does not match number of documents in request";
+        inferOnAssignmentNodes(assignment.getDeploymentId(), nodes, request, responseBuilder, parentTaskId, listener);
+    }
 
+    private void inferOnBlockedRequest(InferenceWaitForAllocation.WaitingRequest request, TrainedModelAssignment assignment) {
+        threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() -> {
+
+            var nodes = assignment.selectRandomNodesWeighedOnAllocations(request.request().numberOfDocuments(), RoutingState.STARTED);
+
+            if (nodes.isEmpty()) {
+                request.listener()
+                    .onFailure(
+                        new IllegalStateException(
+                            "[" + request.deploymentId() + "] error waiting for started allocations. The assignment has 0 started nodes"
+                        )
+                    );
+            }
+
+            inferOnAssignmentNodes(
+                assignment.getDeploymentId(),
+                nodes,
+                request.request(),
+                request.responseBuilder(),
+                request.parentTaskId(),
+                request.listener()
+            );
+        });
+    }
+
+    private void inferOnAssignmentNodes(
+        String deploymentId,
+        List<Tuple<String, Integer>> nodes,
+        Request request,
+        Response.Builder responseBuilder,
+        TaskId parentTaskId,
+        ActionListener<Response> listener
+    ) {
         AtomicInteger count = new AtomicInteger();
         AtomicArray<List<InferenceResults>> results = new AtomicArray<>(nodes.size());
         AtomicReference<Exception> failure = new AtomicReference<>();
@@ -264,22 +341,24 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
             InferTrainedModelDeploymentAction.Request deploymentRequest;
             if (request.getTextInput() == null) {
                 deploymentRequest = InferTrainedModelDeploymentAction.Request.forDocs(
-                    assignment.getDeploymentId(),
+                    deploymentId,
                     request.getUpdate(),
                     request.getObjectsToInfer().subList(startPos, startPos + node.v2()),
                     request.getInferenceTimeout()
                 );
             } else {
                 deploymentRequest = InferTrainedModelDeploymentAction.Request.forTextInput(
-                    assignment.getDeploymentId(),
+                    deploymentId,
                     request.getUpdate(),
                     request.getTextInput().subList(startPos, startPos + node.v2()),
                     request.getInferenceTimeout()
                 );
             }
             deploymentRequest.setHighPriority(request.isHighPriority());
+            deploymentRequest.setPrefixType(request.getPrefixType());
             deploymentRequest.setNodes(node.v1());
             deploymentRequest.setParentTask(parentTaskId);
+            deploymentRequest.setChunkResults(request.isChunked());
 
             startPos += node.v2();
 
@@ -321,7 +400,7 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
         throw new IllegalStateException();
     }
 
-    private ActionListener<InferTrainedModelDeploymentAction.Response> collectingListener(
+    private static ActionListener<InferTrainedModelDeploymentAction.Response> collectingListener(
         AtomicInteger count,
         AtomicArray<List<InferenceResults>> results,
         AtomicReference<Exception> failure,
@@ -348,15 +427,26 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
             }
 
             private void sendResponse() {
-                if (results.nonNullLength() > 0) {
+                if (failure.get() != null) {
+                    finalListener.onFailure(failure.get());
+                } else {
                     for (int i = 0; i < results.length(); i++) {
-                        if (results.get(i) != null) {
-                            responseBuilder.addInferenceResults(results.get(i));
+                        var resultList = results.get(i);
+                        if (resultList == null) {
+                            continue;
                         }
+
+                        for (var result : resultList) {
+                            if (result instanceof ErrorInferenceResults errorResult) {
+                                // Any failure fails all requests
+                                // TODO is this the correct behaviour for batched requests?
+                                finalListener.onFailure(errorResult.getException());
+                                return;
+                            }
+                        }
+                        responseBuilder.addInferenceResults(resultList);
                     }
                     finalListener.onResponse(responseBuilder.build());
-                } else {
-                    finalListener.onFailure(failure.get());
                 }
             }
         };

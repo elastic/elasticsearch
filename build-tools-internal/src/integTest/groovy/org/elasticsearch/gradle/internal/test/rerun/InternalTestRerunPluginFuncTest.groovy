@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal.test.rerun
@@ -25,11 +26,11 @@ class InternalTestRerunPluginFuncTest extends AbstractGradleFuncTest {
         repositories {
             mavenCentral()
         }
-        
+
         dependencies {
             testImplementation 'junit:junit:4.13.1'
         }
-        
+
         tasks.named("test").configure {
             maxParallelForks = 4
             testLogging {
@@ -37,7 +38,7 @@ class InternalTestRerunPluginFuncTest extends AbstractGradleFuncTest {
                 exceptionFormat "short"
             }
         }
-        
+
         """
         createTest("SimpleTest")
         createTest("SimpleTest2")
@@ -81,11 +82,11 @@ Test jvm system exit trace:""") == false
         repositories {
             mavenCentral()
         }
-        
+
         dependencies {
             testImplementation 'junit:junit:4.13.1'
         }
-        
+
         tasks.named("test").configure {
             maxParallelForks = 4
             testLogging {
@@ -94,7 +95,7 @@ Test jvm system exit trace:""") == false
                 exceptionFormat "short"
             }
         }
-        
+
         """
         createTest("AnotherTest")
         createTest("AnotherTest2")
@@ -137,11 +138,11 @@ Gradle Test Executor 1 > AnotherTest6 > someTest
         repositories {
             mavenCentral()
         }
-        
+
         dependencies {
             testImplementation 'junit:junit:4.13.1'
         }
-        
+
         tasks.named("test").configure {
             maxParallelForks = 5
             testLogging {
@@ -149,7 +150,7 @@ Gradle Test Executor 1 > AnotherTest6 > someTest
                 exceptionFormat "short"
             }
         }
-        
+
         """
         createSystemExitTest("AnotherTest6")
         createFailedTest("SimpleTest1")
@@ -178,11 +179,11 @@ Gradle Test Executor 1 > AnotherTest6 > someTest
         repositories {
             mavenCentral()
         }
-        
+
         dependencies {
             testImplementation 'junit:junit:4.13.1'
         }
-        
+
         tasks.named("test").configure {
             rerun {
                 maxReruns = 4
@@ -247,24 +248,24 @@ Gradle Test Executor 1 > AnotherTest6 > someTest
             import java.nio.*;
             import java.nio.file.*;
             import java.io.IOException;
-            
+
             public class $clazzName {
                 Path executionLogPath = Paths.get("test-executions" + getClass().getSimpleName() +".log");
-                
-                @Before 
+
+                @Before
                 public void beforeTest() {
                     logExecution();
                 }
-                
-                @After 
+
+                @After
                 public void afterTest() {
                 }
-                
-                @Test 
+
+                @Test
                 public void someTest() {
                     ${content}
                 }
-                
+
                 int countExecutions() {
                     try {
                         return Files.readAllLines(executionLogPath).size();
@@ -273,7 +274,7 @@ Gradle Test Executor 1 > AnotherTest6 > someTest
                         return 0;
                     }
                 }
-               
+
                 void logExecution() {
                     try {
                         Files.write(executionLogPath, "Test executed\\n".getBytes(), StandardOpenOption.CREATE, StandardOpenOption.APPEND);

@@ -125,6 +125,7 @@ public class TransformUpdater {
         final boolean dryRun,
         final boolean checkAccess,
         final TimeValue timeout,
+        final Settings destIndexSettings,
         ActionListener<UpdateResult> listener
     ) {
         // rewrite config into a new format if necessary
@@ -185,6 +186,7 @@ public class TransformUpdater {
                 destIndexMappings,
                 seqNoPrimaryTermAndIndex,
                 clusterState,
+                destIndexSettings,
                 ActionListener.wrap(r -> updateTransformListener.onResponse(null), listener::onFailure)
             );
         }, listener::onFailure);
@@ -297,9 +299,10 @@ public class TransformUpdater {
         TransformAuditor auditor,
         IndexNameExpressionResolver indexNameExpressionResolver,
         TransformConfig config,
-        Map<String, String> mappings,
+        Map<String, String> destIndexMappings,
         SeqNoPrimaryTermAndIndex seqNoPrimaryTermAndIndex,
         ClusterState clusterState,
+        Settings destIndexSettings,
         ActionListener<Void> listener
     ) {
         // <3> Return to the listener
@@ -351,7 +354,8 @@ public class TransformUpdater {
                 indexNameExpressionResolver,
                 clusterState,
                 config,
-                mappings,
+                destIndexSettings,
+                destIndexMappings,
                 createDestinationListener
             );
         } else {

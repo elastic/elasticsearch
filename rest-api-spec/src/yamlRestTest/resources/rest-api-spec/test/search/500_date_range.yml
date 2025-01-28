@@ -1,6 +1,6 @@
 setup:
-  - skip:
-      version: " - 8.5.0"
+  - requires:
+      cluster_features: ["gte_v8.5.1"]
       reason: fixed in 8.5.1
   - do:
       indices.create:

@@ -1,14 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.NamedDiff;
@@ -41,7 +43,7 @@ import java.util.stream.Collectors;
  */
 public class NodesShutdownMetadata implements Metadata.Custom {
     public static final String TYPE = "node_shutdown";
-    public static final TransportVersion NODE_SHUTDOWN_VERSION = TransportVersion.V_7_13_0;
+    public static final TransportVersion NODE_SHUTDOWN_VERSION = TransportVersions.V_7_13_0;
     public static final NodesShutdownMetadata EMPTY = new NodesShutdownMetadata(Map.of());
 
     private static final ParseField NODES_FIELD = new ParseField("nodes");
@@ -74,12 +76,12 @@ public class NodesShutdownMetadata implements Metadata.Custom {
     }
 
     public NodesShutdownMetadata(StreamInput in) throws IOException {
-        this(in.readImmutableMap(StreamInput::readString, SingleNodeShutdownMetadata::new));
+        this(in.readImmutableMap(SingleNodeShutdownMetadata::new));
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(nodes, StreamOutput::writeString, (outStream, v) -> v.writeTo(outStream));
+        out.writeMap(nodes, StreamOutput::writeWriteable);
     }
 
     /**
@@ -122,6 +124,14 @@ public class NodesShutdownMetadata implements Metadata.Custom {
 
     public boolean contains(String nodeId, SingleNodeShutdownMetadata.Type type) {
         return get(nodeId, type) != null;
+    }
+
+    /**
+     * Checks if the provided node is scheduled for being permanently removed from the cluster.
+     */
+    public boolean isNodeMarkedForRemoval(String nodeId) {
+        var singleNodeShutdownMetadata = get(nodeId);
+        return singleNodeShutdownMetadata != null && singleNodeShutdownMetadata.getType().isRemovalType();
     }
 
     /**
@@ -180,8 +190,8 @@ public class NodesShutdownMetadata implements Metadata.Custom {
     }
 
     @Override
-    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
-        return ChunkedToXContentHelper.xContentValuesMap(NODES_FIELD.getPreferredName(), nodes);
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
+        return ChunkedToXContentHelper.xContentObjectFields(NODES_FIELD.getPreferredName(), nodes);
     }
 
     /**

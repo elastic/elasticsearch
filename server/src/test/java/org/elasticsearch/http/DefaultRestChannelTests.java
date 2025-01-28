@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.http;
@@ -12,7 +13,7 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.ListenableActionFuture;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -20,7 +21,7 @@ import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.BytesStream;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
-import org.elasticsearch.common.logging.ChunkedLoggingStreamTests;
+import org.elasticsearch.common.logging.ChunkedLoggingStreamTestUtils;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
@@ -30,19 +31,19 @@ import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
-import org.elasticsearch.rest.ChunkedRestResponseBody;
+import org.elasticsearch.rest.ChunkedRestResponseBodyPart;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -51,12 +52,15 @@ import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
 import java.io.IOException;
+import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.nio.channels.ClosedChannelException;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
@@ -172,8 +176,7 @@ public class DefaultRestChannelTests extends ESTestCase {
             threadPool.getThreadContext(),
             CorsHandler.fromSettings(settings),
             httpTracer,
-            tracer,
-            false
+            tracer
         );
         RestResponse resp = testRestResponse();
         final String customHeader = "custom-header";
@@ -193,35 +196,6 @@ public class DefaultRestChannelTests extends ESTestCase {
         assertEquals(resp.contentType(), headers.get(DefaultRestChannel.CONTENT_TYPE).get(0));
     }
 
-    public void testCloseConnection() {
-        Settings settings = Settings.builder().build();
-        final TestHttpRequest httpRequest = new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/");
-        final RestRequest request = RestRequest.request(parserConfig(), httpRequest, httpChannel);
-        HttpHandlingSettings handlingSettings = HttpHandlingSettings.fromSettings(settings);
-        // send a response
-        DefaultRestChannel channel = new DefaultRestChannel(
-            httpChannel,
-            httpRequest,
-            request,
-            bigArrays,
-            handlingSettings,
-            threadPool.getThreadContext(),
-            CorsHandler.fromSettings(settings),
-            httpTracer,
-            tracer,
-            true
-        );
-
-        RestResponse resp = testRestResponse();
-        channel.sendResponse(resp);
-        // inspect what was written
-        ArgumentCaptor<TestHttpResponse> responseCaptor = ArgumentCaptor.forClass(TestHttpResponse.class);
-        verify(httpChannel).sendResponse(responseCaptor.capture(), any());
-        TestHttpResponse httpResponse = responseCaptor.getValue();
-        Map<String, List<String>> headers = httpResponse.headers();
-        assertThat(headers.get(DefaultRestChannel.CONNECTION), containsInAnyOrder(DefaultRestChannel.CLOSE));
-    }
-
     public void testNormallyNoConnectionClose() {
         Settings settings = Settings.builder().build();
         final TestHttpRequest httpRequest = new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/");
@@ -237,8 +211,7 @@ public class DefaultRestChannelTests extends ESTestCase {
             threadPool.getThreadContext(),
             CorsHandler.fromSettings(settings),
             httpTracer,
-            tracer,
-            false
+            tracer
         );
 
         RestResponse resp = testRestResponse();
@@ -269,8 +242,7 @@ public class DefaultRestChannelTests extends ESTestCase {
             threadPool.getThreadContext(),
             CorsHandler.fromSettings(settings),
             httpTracer,
-            tracer,
-            false
+            tracer
         );
         channel.sendResponse(testRestResponse());
 
@@ -299,8 +271,7 @@ public class DefaultRestChannelTests extends ESTestCase {
             threadPool.getThreadContext(),
             CorsHandler.fromSettings(settings),
             httpTracer,
-            tracer,
-            false
+            tracer
         );
         final RestResponse response = new RestResponse(
             RestStatus.INTERNAL_SERVER_ERROR,
@@ -368,8 +339,7 @@ public class DefaultRestChannelTests extends ESTestCase {
             threadPool.getThreadContext(),
             CorsHandler.fromSettings(settings),
             httpTracer,
-            tracer,
-            false
+            tracer
         );
         channel.sendResponse(testRestResponse());
         Class<ActionListener<Void>> listenerClass = (Class<ActionListener<Void>>) (Class) ActionListener.class;
@@ -401,8 +371,7 @@ public class DefaultRestChannelTests extends ESTestCase {
             threadPool.getThreadContext(),
             CorsHandler.fromSettings(Settings.EMPTY),
             httpTracer,
-            tracer,
-            false
+            tracer
         );
         doAnswer(invocationOnMock -> {
             ActionListener<?> listener = invocationOnMock.getArgument(1);
@@ -449,8 +418,7 @@ public class DefaultRestChannelTests extends ESTestCase {
             threadPool.getThreadContext(),
             CorsHandler.fromSettings(Settings.EMPTY),
             httpTracer,
-            tracer,
-            false
+            tracer
         );
 
         // ESTestCase#after will invoke ensureAllArraysAreReleased which will fail if the response content was not released
@@ -497,8 +465,7 @@ public class DefaultRestChannelTests extends ESTestCase {
             threadPool.getThreadContext(),
             CorsHandler.fromSettings(Settings.EMPTY),
             httpTracer,
-            tracer,
-            false
+            tracer
         );
 
         // ESTestCase#after will invoke ensureAllArraysAreReleased which will fail if the response content was not released
@@ -531,7 +498,7 @@ public class DefaultRestChannelTests extends ESTestCase {
 
         executeRequest(Settings.EMPTY, "request-host");
 
-        verify(tracer).setAttribute(argThat(id -> id.getRawId().startsWith("rest-")), eq("http.status_code"), eq(200L));
+        verify(tracer).setAttribute(argThat(id -> id.getSpanId().startsWith("rest-")), eq("http.status_code"), eq(200L));
         verify(tracer).stopTrace(any(RestRequest.class));
     }
 
@@ -547,8 +514,7 @@ public class DefaultRestChannelTests extends ESTestCase {
             threadPool.getThreadContext(),
             CorsHandler.fromSettings(Settings.EMPTY),
             httpTracer,
-            tracer,
-            false
+            tracer
         );
         ArgumentCaptor<HttpResponse> requestCaptor = ArgumentCaptor.forClass(HttpResponse.class);
         {
@@ -563,11 +529,22 @@ public class DefaultRestChannelTests extends ESTestCase {
         }
         {
             // chunked response
-            channel.sendResponse(new RestResponse(RestStatus.OK, new ChunkedRestResponseBody() {
+            final var isClosed = new AtomicBoolean();
+            channel.sendResponse(RestResponse.chunked(RestStatus.OK, new ChunkedRestResponseBodyPart() {
 
                 @Override
-                public boolean isDone() {
-                    throw new AssertionError("should not try to serialize response body for HEAD request");
+                public boolean isPartComplete() {
+                    return false;
+                }
+
+                @Override
+                public boolean isLastPart() {
+                    throw new AssertionError("should not check for end-of-response for HEAD request");
+                }
+
+                @Override
+                public void getNextPart(ActionListener<ChunkedRestResponseBodyPart> listener) {
+                    throw new AssertionError("should not get any continuations for HEAD request");
                 }
 
                 @Override
@@ -579,17 +556,29 @@ public class DefaultRestChannelTests extends ESTestCase {
                 public String getResponseContentTypeString() {
                     return RestResponse.TEXT_CONTENT_TYPE;
                 }
-            }));
-            verify(httpChannel, times(2)).sendResponse(requestCaptor.capture(), any());
+            }, () -> assertTrue(isClosed.compareAndSet(false, true))));
+            @SuppressWarnings("unchecked")
+            Class<ActionListener<Void>> listenerClass = (Class<ActionListener<Void>>) (Class<?>) ActionListener.class;
+            ArgumentCaptor<ActionListener<Void>> listenerCaptor = ArgumentCaptor.forClass(listenerClass);
+            verify(httpChannel, times(2)).sendResponse(requestCaptor.capture(), listenerCaptor.capture());
             HttpResponse response = requestCaptor.getValue();
             assertThat(response, instanceOf(TestHttpResponse.class));
             assertThat(((TestHttpResponse) response).content().length(), equalTo(0));
+
+            ActionListener<Void> listener = listenerCaptor.getValue();
+            assertFalse(isClosed.get());
+            if (randomBoolean()) {
+                listener.onResponse(null);
+            } else {
+                listener.onFailure(new ClosedChannelException());
+            }
+            assertTrue(isClosed.get());
         }
     }
 
     @TestLogging(reason = "Get HttpTracer to output trace logs", value = "org.elasticsearch.http.HttpTracer:TRACE")
     public void testHttpTracerSendResponseSuccess() {
-        final ListenableActionFuture<Void> sendResponseFuture = new ListenableActionFuture<>();
+        final SubscribableListener<Void> sendResponseFuture = new SubscribableListener<>();
         final HttpChannel httpChannel = new FakeRestRequest.FakeHttpChannel(InetSocketAddress.createUnresolved("127.0.0.1", 9200)) {
             @Override
             public void sendResponse(HttpResponse response, ActionListener<Void> listener) {
@@ -608,14 +597,12 @@ public class DefaultRestChannelTests extends ESTestCase {
             threadPool.getThreadContext(),
             new CorsHandler(CorsHandler.buildConfig(Settings.EMPTY)),
             new HttpTracer(),
-            tracer,
-            false
+            tracer
         );
 
-        final MockLogAppender sendingResponseMockLog = new MockLogAppender();
-        try (var ignored = sendingResponseMockLog.capturing(HttpTracer.class)) {
+        try (var sendingResponseMockLog = MockLog.capture(HttpTracer.class)) {
             sendingResponseMockLog.addExpectation(
-                new MockLogAppender.UnseenEventExpectation(
+                new MockLog.UnseenEventExpectation(
                     "no response should be logged",
                     HttpTracer.class.getName(),
                     Level.TRACE,
@@ -629,10 +616,9 @@ public class DefaultRestChannelTests extends ESTestCase {
             sendingResponseMockLog.assertAllExpectationsMatched();
         }
 
-        final MockLogAppender sendingResponseCompleteMockLog = new MockLogAppender();
-        try (var ignored = sendingResponseCompleteMockLog.capturing(HttpTracer.class)) {
+        try (var sendingResponseCompleteMockLog = MockLog.capture(HttpTracer.class)) {
             sendingResponseCompleteMockLog.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+                new MockLog.SeenEventExpectation(
                     "response should be logged",
                     HttpTracer.class.getName(),
                     Level.TRACE,
@@ -671,14 +657,12 @@ public class DefaultRestChannelTests extends ESTestCase {
             threadPool.getThreadContext(),
             new CorsHandler(CorsHandler.buildConfig(Settings.EMPTY)),
             new HttpTracer(),
-            tracer,
-            false
+            tracer
         );
 
-        MockLogAppender mockLogAppender = new MockLogAppender();
-        try (var ignored = mockLogAppender.capturing(HttpTracer.class)) {
-            mockLogAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+        try (var mockLog = MockLog.capture(HttpTracer.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "response should be logged with success = false",
                     HttpTracer.class.getName(),
                     Level.TRACE,
@@ -687,7 +671,7 @@ public class DefaultRestChannelTests extends ESTestCase {
             );
 
             expectThrows(RuntimeException.class, () -> channel.sendResponse(new RestResponse(RestStatus.OK, "ignored")));
-            mockLogAppender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 
@@ -704,17 +688,25 @@ public class DefaultRestChannelTests extends ESTestCase {
 
         HttpRequest httpRequest = new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/") {
             @Override
-            public HttpResponse createResponse(RestStatus status, ChunkedRestResponseBody content) {
+            public HttpResponse createResponse(RestStatus status, ChunkedRestResponseBodyPart firstBodyPart) {
                 try (var bso = new BytesStreamOutput()) {
-                    while (content.isDone() == false) {
-                        try (var bytes = content.encodeChunk(1 << 14, BytesRefRecycler.NON_RECYCLING_INSTANCE)) {
-                            bytes.writeTo(bso);
-                        }
-                    }
+                    writeContent(bso, firstBodyPart);
                     return new TestHttpResponse(status, bso.bytes());
                 } catch (IOException e) {
-                    throw new AssertionError("unexpected", e);
+                    return fail(e);
                 }
+            }
+
+            private static void writeContent(OutputStream bso, ChunkedRestResponseBodyPart content) throws IOException {
+                while (content.isPartComplete() == false) {
+                    try (var bytes = content.encodeChunk(1 << 14, BytesRefRecycler.NON_RECYCLING_INSTANCE)) {
+                        bytes.writeTo(bso);
+                    }
+                }
+                if (content.isLastPart()) {
+                    return;
+                }
+                writeContent(bso, safeAwait(content::getNextPart));
             }
         };
 
@@ -728,14 +720,13 @@ public class DefaultRestChannelTests extends ESTestCase {
             threadPool.getThreadContext(),
             CorsHandler.fromSettings(Settings.EMPTY),
             new HttpTracer(),
-            tracer,
-            false
+            tracer
         );
 
         var responseBody = new BytesArray(randomUnicodeOfLengthBetween(1, 100).getBytes(StandardCharsets.UTF_8));
         assertEquals(
             responseBody,
-            ChunkedLoggingStreamTests.getDecodedLoggedBody(
+            ChunkedLoggingStreamTestUtils.getDecodedLoggedBody(
                 LogManager.getLogger(HttpTracerTests.HTTP_BODY_TRACER_LOGGER),
                 Level.TRACE,
                 "[" + request.getRequestId() + "] response body",
@@ -744,37 +735,76 @@ public class DefaultRestChannelTests extends ESTestCase {
             )
         );
 
+        final var parts = new ArrayList<ChunkedRestResponseBodyPart>();
+        class TestBodyPart implements ChunkedRestResponseBodyPart {
+            boolean isDone;
+            final BytesReference thisChunk;
+            final BytesReference remainingChunks;
+            final int remainingContinuations;
+
+            TestBodyPart(BytesReference content, int remainingContinuations) {
+                if (remainingContinuations == 0) {
+                    thisChunk = content;
+                    remainingChunks = BytesArray.EMPTY;
+                } else {
+                    var splitAt = between(0, content.length());
+                    thisChunk = content.slice(0, splitAt);
+                    remainingChunks = content.slice(splitAt, content.length() - splitAt);
+                }
+                this.remainingContinuations = remainingContinuations;
+            }
+
+            @Override
+            public boolean isPartComplete() {
+                return isDone;
+            }
+
+            @Override
+            public boolean isLastPart() {
+                return remainingContinuations == 0;
+            }
+
+            @Override
+            public void getNextPart(ActionListener<ChunkedRestResponseBodyPart> listener) {
+                final var continuation = new TestBodyPart(remainingChunks, remainingContinuations - 1);
+                parts.add(continuation);
+                listener.onResponse(continuation);
+            }
+
+            @Override
+            public ReleasableBytesReference encodeChunk(int sizeHint, Recycler<BytesRef> recycler) {
+                assertFalse(isDone);
+                isDone = true;
+                return ReleasableBytesReference.wrap(thisChunk);
+            }
+
+            @Override
+            public String getResponseContentTypeString() {
+                return RestResponse.TEXT_CONTENT_TYPE;
+            }
+        }
+
+        final var isClosed = new AtomicBoolean();
+        final var firstPart = new TestBodyPart(responseBody, between(0, 3));
+        parts.add(firstPart);
         assertEquals(
             responseBody,
-            ChunkedLoggingStreamTests.getDecodedLoggedBody(
+            ChunkedLoggingStreamTestUtils.getDecodedLoggedBody(
                 LogManager.getLogger(HttpTracerTests.HTTP_BODY_TRACER_LOGGER),
                 Level.TRACE,
                 "[" + request.getRequestId() + "] response body",
                 ReferenceDocs.HTTP_TRACER,
-                () -> channel.sendResponse(new RestResponse(RestStatus.OK, new ChunkedRestResponseBody() {
-
-                    boolean isDone;
-
-                    @Override
-                    public boolean isDone() {
-                        return isDone;
-                    }
-
-                    @Override
-                    public ReleasableBytesReference encodeChunk(int sizeHint, Recycler<BytesRef> recycler) {
-                        assertFalse(isDone);
-                        isDone = true;
-                        return ReleasableBytesReference.wrap(responseBody);
-                    }
-
-                    @Override
-                    public String getResponseContentTypeString() {
-                        return RestResponse.TEXT_CONTENT_TYPE;
+                () -> channel.sendResponse(RestResponse.chunked(RestStatus.OK, firstPart, () -> {
+                    assertTrue(isClosed.compareAndSet(false, true));
+                    for (int i = 0; i < parts.size(); i++) {
+                        assertTrue("isPartComplete " + i, parts.get(i).isPartComplete());
+                        assertEquals("isLastPart " + i, i == parts.size() - 1, parts.get(i).isLastPart());
                     }
                 }))
             )
         );
 
+        assertTrue(isClosed.get());
     }
 
     private TestHttpResponse executeRequest(final Settings settings, final String host) {
@@ -799,8 +829,7 @@ public class DefaultRestChannelTests extends ESTestCase {
             threadPool.getThreadContext(),
             new CorsHandler(CorsHandler.buildConfig(settings)),
             httpTracer,
-            tracer,
-            false
+            tracer
         );
         channel.sendResponse(testRestResponse());
 

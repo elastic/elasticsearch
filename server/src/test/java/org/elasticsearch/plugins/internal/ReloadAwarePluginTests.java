@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.plugins.internal;
@@ -18,7 +19,7 @@ import org.elasticsearch.transport.netty4.Netty4Plugin;
 
 import java.util.List;
 
-import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.instanceOf;
 
 @ESTestCase.WithoutSecurityManager
@@ -31,15 +32,13 @@ public class ReloadAwarePluginTests extends ESTestCase {
         ) {
             PluginsService pluginsService = node.injector().getInstance(PluginsService.class);
 
-            var reloadAwarePlugins = pluginsService.filterPlugins(ReloadAwarePlugin.class).stream().toList();
-            var reloadablePlugins = pluginsService.filterPlugins(ReloadablePlugin.class).stream().toList();
+            var reloadAwarePlugins = pluginsService.filterPlugins(ReloadAwarePlugin.class).toList();
+            var reloadablePlugins = pluginsService.filterPlugins(ReloadablePlugin.class).toList();
 
-            assertThat(reloadAwarePlugins.size(), equalTo(1));
-            assertThat(reloadAwarePlugins.get(0), instanceOf(TestReloadAwarePlugin.class));
+            assertThat(reloadAwarePlugins, contains(instanceOf(TestReloadAwarePlugin.class)));
             TestReloadAwarePlugin reloadAwarePlugin = (TestReloadAwarePlugin) reloadAwarePlugins.get(0);
 
-            assertThat(reloadablePlugins.size(), equalTo(1));
-            assertThat(reloadablePlugins.get(0), instanceOf(TestReloadablePlugin.class));
+            assertThat(reloadablePlugins, contains(instanceOf(TestReloadablePlugin.class)));
             TestReloadablePlugin reloadablePlugin = (TestReloadablePlugin) reloadablePlugins.get(0);
 
             assertFalse("Plugin has been reloaded", reloadablePlugin.isReloaded());

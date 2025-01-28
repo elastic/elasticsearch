@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.cli;
@@ -54,7 +55,7 @@ public abstract class EnvironmentAwareCommand extends Command {
         execute(terminal, options, createEnv(options, processInfo), processInfo);
     }
 
-    private void putDockerEnvSettings(Map<String, String> settings, Map<String, String> envVars) {
+    private static void putDockerEnvSettings(Map<String, String> settings, Map<String, String> envVars) {
         for (var envVar : envVars.entrySet()) {
             String key = envVar.getKey();
             if (DOCKER_LOWERCASE_SETTING_REGEX.matcher(key).matches()) {
@@ -118,7 +119,7 @@ public abstract class EnvironmentAwareCommand extends Command {
 
     // protected to allow tests to override
     protected Build.Type getBuildType() {
-        return Build.CURRENT.type();
+        return Build.current().type();
     }
 
     @SuppressForbidden(reason = "need path to construct environment")

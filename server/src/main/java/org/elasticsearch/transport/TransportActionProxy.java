@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.transport;
 
@@ -12,14 +13,14 @@ import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.Map;
+import java.util.concurrent.Executor;
 import java.util.function.Function;
 
 /**
@@ -56,22 +57,18 @@ public final class TransportActionProxy {
             wrappedRequest.setParentTask(taskId);
             service.sendRequest(targetNode, action, wrappedRequest, new TransportResponseHandler<>() {
                 @Override
+                public Executor executor() {
+                    return TransportResponseHandler.TRANSPORT_WORKER;
+                }
+
+                @Override
                 public void handleResponse(TransportResponse response) {
-                    try {
-                        response.incRef();
-                        channel.sendResponse(response);
-                    } catch (IOException e) {
-                        throw new UncheckedIOException(e);
-                    }
+                    channel.sendResponse(response);
                 }
 
                 @Override
                 public void handleException(TransportException exp) {
-                    try {
-                        channel.sendResponse(exp);
-                    } catch (IOException e) {
-                        throw new UncheckedIOException(e);
-                    }
+                    channel.sendResponse(exp);
                 }
 
                 @Override
@@ -182,7 +179,7 @@ public final class TransportActionProxy {
         RequestHandlerRegistry<? extends TransportRequest> requestHandler = service.getRequestHandler(action);
         service.registerRequestHandler(
             getProxyAction(action),
-            ThreadPool.Names.SAME,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
             true,
             false,
             in -> cancellable

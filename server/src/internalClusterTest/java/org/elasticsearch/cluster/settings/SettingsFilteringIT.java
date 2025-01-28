@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.settings;
@@ -80,7 +81,6 @@ public class SettingsFilteringIT extends ESIntegTestCase {
                         .put("filter_test.notfoo", "test")
                         .build()
                 )
-                .get()
         );
         GetSettingsResponse response = indicesAdmin().prepareGetSettings("test-idx").get();
         Settings settings = response.getIndexToSettings().get("test-idx");
@@ -93,7 +93,7 @@ public class SettingsFilteringIT extends ESIntegTestCase {
     }
 
     public void testNodeInfoIsFiltered() {
-        NodesInfoResponse nodeInfos = client().admin().cluster().prepareNodesInfo().clear().setSettings(true).get();
+        NodesInfoResponse nodeInfos = clusterAdmin().prepareNodesInfo().clear().setSettings(true).get();
         for (NodeInfo info : nodeInfos.getNodes()) {
             Settings settings = info.getSettings();
             assertNotNull(settings);

@@ -18,7 +18,7 @@ import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.coordination.NoMasterBlockService;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -30,6 +30,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskAwareRequest;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockUtils;
 import org.elasticsearch.test.RandomObjects;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -95,9 +96,8 @@ public class TransportMonitoringBulkActionTests extends ESTestCase {
         exporters = mock(Exporters.class);
         threadPool = mock(ThreadPool.class);
         clusterService = mock(ClusterService.class);
-        transportService = mock(TransportService.class);
+        transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(threadPool);
         filters = mock(ActionFilters.class);
-
         when(transportService.getTaskManager()).thenReturn(taskManager);
         when(taskManager.register(anyString(), eq(MonitoringBulkAction.NAME), any(TaskAwareRequest.class))).thenReturn(mock(Task.class));
         when(filters.filters()).thenReturn(new ActionFilter[0]);
@@ -124,9 +124,11 @@ public class TransportMonitoringBulkActionTests extends ESTestCase {
         );
 
         final MonitoringBulkRequest request = randomRequest();
-        final ClusterBlockException e = expectThrows(ClusterBlockException.class, () -> ActionTestUtils.executeBlocking(action, request));
 
-        assertThat(e, hasToString(containsString("ClusterBlockException: blocked by: [SERVICE_UNAVAILABLE/2/no master]")));
+        assertThat(
+            safeAwaitFailure(ClusterBlockException.class, MonitoringBulkResponse.class, l -> action.execute(null, request, l)),
+            hasToString(containsString("ClusterBlockException: blocked by: [SERVICE_UNAVAILABLE/2/no master]"))
+        );
     }
 
     public void testExecuteIgnoresRequestWhenCollectionIsDisabled() throws Exception {
@@ -169,20 +171,21 @@ public class TransportMonitoringBulkActionTests extends ESTestCase {
             monitoringService
         );
 
-        final MonitoringBulkRequest request = new MonitoringBulkRequest();
-        final ActionRequestValidationException e = expectThrows(
-            ActionRequestValidationException.class,
-            () -> ActionTestUtils.executeBlocking(action, request)
+        assertThat(
+            safeAwaitFailure(
+                ActionRequestValidationException.class,
+                MonitoringBulkResponse.class,
+                l -> action.execute(null, new MonitoringBulkRequest(), l)
+            ),
+            hasToString(containsString("no monitoring documents added"))
         );
-
-        assertThat(e, hasToString(containsString("no monitoring documents added")));
     }
 
     @SuppressWarnings("unchecked")
     public void testExecuteRequest() {
         when(monitoringService.isMonitoringActive()).thenReturn(true);
 
-        final DiscoveryNode discoveryNode = TestDiscoveryNode.create("_id", new TransportAddress(TransportAddress.META_ADDRESS, 9300));
+        final DiscoveryNode discoveryNode = DiscoveryNodeUtils.create("_id", new TransportAddress(TransportAddress.META_ADDRESS, 9300));
         when(clusterService.localNode()).thenReturn(discoveryNode);
 
         final String clusterUUID = UUIDs.randomBase64UUID();

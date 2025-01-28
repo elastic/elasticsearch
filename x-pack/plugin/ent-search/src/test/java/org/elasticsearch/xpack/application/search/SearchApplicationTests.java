@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.application.search;
 
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -23,6 +23,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.application.EnterpriseSearchModuleTestUtils;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -46,7 +47,7 @@ public class SearchApplicationTests extends ESTestCase {
 
     public final void testRandomSerialization() throws IOException {
         for (int runs = 0; runs < 10; runs++) {
-            SearchApplication testInstance = SearchApplicationTestUtils.randomSearchApplication();
+            SearchApplication testInstance = EnterpriseSearchModuleTestUtils.randomSearchApplication();
             assertTransportSerialization(testInstance);
             assertXContent(testInstance, randomBoolean());
             assertIndexSerialization(testInstance);
@@ -140,7 +141,7 @@ public class SearchApplicationTests extends ESTestCase {
             SearchApplicationIndexService.writeSearchApplicationBinaryWithVersion(
                 testInstance,
                 output,
-                TransportVersion.MINIMUM_COMPATIBLE
+                TransportVersions.MINIMUM_COMPATIBLE
             );
             try (
                 StreamInput in = new NamedWriteableAwareStreamInput(
@@ -148,7 +149,7 @@ public class SearchApplicationTests extends ESTestCase {
                     namedWriteableRegistry
                 )
             ) {
-                deserializedInstance = SearchApplicationIndexService.parseSearchApplicationBinaryWithVersion(in);
+                deserializedInstance = SearchApplicationIndexService.parseSearchApplicationBinaryWithVersion(in, testInstance.indices());
             }
         }
         assertNotSame(testInstance, deserializedInstance);

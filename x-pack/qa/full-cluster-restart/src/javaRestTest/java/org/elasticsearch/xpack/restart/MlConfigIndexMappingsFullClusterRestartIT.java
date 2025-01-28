@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.restart;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.settings.Settings;
@@ -28,8 +27,6 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.nullValue;
 
 public class MlConfigIndexMappingsFullClusterRestartIT extends AbstractXpackFullClusterRestartTestCase {
 
@@ -50,11 +47,7 @@ public class MlConfigIndexMappingsFullClusterRestartIT extends AbstractXpackFull
     public void waitForMlTemplates() throws Exception {
         // We shouldn't wait for ML templates during the upgrade - production won't
         if (isRunningAgainstOldCluster()) {
-            XPackRestTestHelper.waitForTemplates(
-                client(),
-                XPackRestTestConstants.ML_POST_V7120_TEMPLATES,
-                getOldClusterVersion().onOrAfter(Version.V_7_8_0)
-            );
+            XPackRestTestHelper.waitForTemplates(client(), XPackRestTestConstants.ML_POST_V7120_TEMPLATES);
         }
     }
 
@@ -62,13 +55,8 @@ public class MlConfigIndexMappingsFullClusterRestartIT extends AbstractXpackFull
         if (isRunningAgainstOldCluster()) {
             // trigger .ml-config index creation
             createAnomalyDetectorJob(OLD_CLUSTER_JOB_ID);
-            if (getOldClusterVersion().onOrAfter(Version.V_7_3_0)) {
-                // .ml-config has mappings for analytics as the feature was introduced in 7.3.0
-                assertThat(getDataFrameAnalysisMappings().keySet(), hasItem("outlier_detection"));
-            } else {
-                // .ml-config does not yet have correct mappings, it will need an update after cluster is upgraded
-                assertThat(getDataFrameAnalysisMappings(), is(nullValue()));
-            }
+            // .ml-config has mappings for analytics as the feature was introduced in 7.3.0
+            assertThat(getDataFrameAnalysisMappings().keySet(), hasItem("outlier_detection"));
         } else {
             // trigger .ml-config index mappings update
             createAnomalyDetectorJob(NEW_CLUSTER_JOB_ID);

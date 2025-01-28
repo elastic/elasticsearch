@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.security.authc.support;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -478,13 +479,10 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
                     for (int i1 = 0; i1 < numberOfIterations; i1++) {
                         UsernamePasswordToken token = new UsernamePasswordToken(username, password);
 
-                        realm.authenticate(token, ActionListener.wrap((result) -> {
+                        realm.authenticate(token, ActionTestUtils.assertNoFailureListener((result) -> {
                             if (result.isAuthenticated() == false) {
                                 throw new IllegalStateException("proper password led to an unauthenticated result: " + result);
                             }
-                        }, (e) -> {
-                            logger.error("caught exception", e);
-                            fail("unexpected exception - " + e);
                         }));
                     }
 
@@ -639,16 +637,13 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
                     for (int i1 = 0; i1 < numberOfIterations; i1++) {
                         UsernamePasswordToken token = new UsernamePasswordToken(username, invalidPassword ? randomPassword : password);
 
-                        realm.authenticate(token, ActionListener.wrap((result) -> {
+                        realm.authenticate(token, ActionTestUtils.assertNoFailureListener((result) -> {
                             assertThat(threadPool.getThreadContext().getTransient("key"), is(threadNum));
                             if (invalidPassword && result.isAuthenticated()) {
                                 throw new RuntimeException("invalid password led to an authenticated user: " + result);
                             } else if (invalidPassword == false && result.isAuthenticated() == false) {
                                 throw new RuntimeException("proper password led to an unauthenticated result: " + result);
                             }
-                        }, (e) -> {
-                            logger.error("caught exception", e);
-                            fail("unexpected exception - " + e);
                         }));
                     }
 
@@ -705,14 +700,11 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
                     latch.countDown();
                     latch.await();
                     for (int i1 = 0; i1 < numberOfIterations; i1++) {
-                        realm.lookupUser(username, ActionListener.wrap((user) -> {
+                        realm.lookupUser(username, ActionTestUtils.assertNoFailureListener((user) -> {
                             assertThat(threadPool.getThreadContext().getTransient("key"), is(threadNum));
                             if (user == null) {
                                 throw new RuntimeException("failed to lookup user");
                             }
-                        }, (e) -> {
-                            logger.error("caught exception", e);
-                            fail("unexpected exception");
                         }));
                     }
 

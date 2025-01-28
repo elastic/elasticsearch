@@ -1,20 +1,21 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.test;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.injection.guice.AbstractModule;
 
 import java.util.Arrays;
 import java.util.HashSet;
@@ -49,13 +50,14 @@ public class IndexSettingsModule extends AbstractModule {
     }
 
     public static IndexSettings newIndexSettings(Index index, Settings indexSetting, Settings nodeSettings, Setting<?>... setting) {
-        Settings build = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+        Settings build = ESTestCase.indexSettings(1, 1)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put(indexSetting)
             .build();
-        IndexMetadata metadata = IndexMetadata.builder(index.getName()).settings(build).build();
+        IndexMetadata metadata = IndexMetadata.builder(index.getName())
+            .system(IndexSettings.INDEX_FAST_REFRESH_SETTING.get(indexSetting)) // using fast refresh requires a system index
+            .settings(build)
+            .build();
         Set<Setting<?>> settingSet = new HashSet<>(IndexScopedSettings.BUILT_IN_INDEX_SETTINGS);
         if (setting.length > 0) {
             settingSet.addAll(Arrays.asList(setting));
@@ -64,13 +66,14 @@ public class IndexSettingsModule extends AbstractModule {
     }
 
     public static IndexSettings newIndexSettings(Index index, Settings settings, IndexScopedSettings indexScopedSettings) {
-        Settings build = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+        Settings build = ESTestCase.indexSettings(1, 1)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put(settings)
             .build();
-        IndexMetadata metadata = IndexMetadata.builder(index.getName()).settings(build).build();
+        IndexMetadata metadata = IndexMetadata.builder(index.getName())
+            .system(IndexSettings.INDEX_FAST_REFRESH_SETTING.get(settings)) // using fast refresh requires a system index
+            .settings(build)
+            .build();
         return new IndexSettings(metadata, Settings.EMPTY, indexScopedSettings);
     }
 

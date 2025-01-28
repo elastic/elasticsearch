@@ -37,8 +37,17 @@ To enable downsampling, add a <<ilm-downsample,Downsample action>> and set
 which you want to aggregate the original time series data.
 
 In this example, an ILM policy is configured for the `hot` phase. The downsample
-takes place after the initial index rollover, which for demonstration
-purposes is set to run after five minutes.
+takes place after the index is rolled over and the <<index-time-series-end-time, index time series end time>>
+has lapsed as the source index is still expected to receive major writes until then.
+{ilm-cap} will not proceed with any action that expects the index to not receive
+writes anymore until the <<index-time-series-end-time, index's end time>> has 
+passed. The {ilm-cap} actions that wait on the end time before proceeding are:
+- <<ilm-delete>>
+- <<ilm-downsample>>
+- <<ilm-forcemerge>>
+- <<ilm-readonly>>
+- <<ilm-searchable-snapshot>>
+- <<ilm-shrink>>
 
 [source,console]
 ----
@@ -317,6 +326,7 @@ following. Note the original `index_name`: `.ds-datastream-<timestamp>-000001`.
       "system": false,
       "allow_custom_routing": false,
       "replicated": false,
+      "rollover_on_write": false,
       "time_series": {
         "temporal_ranges": [
           {

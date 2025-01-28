@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster;
@@ -35,14 +36,14 @@ public record ClusterSnapshotStats(
     List<PerRepositoryStats> statsByRepository
 ) implements ToXContentObject, Writeable {
 
-    public static ClusterSnapshotStats EMPTY = new ClusterSnapshotStats(0, 0, 0, 0, List.of());
+    public static final ClusterSnapshotStats EMPTY = new ClusterSnapshotStats(0, 0, 0, 0, List.of());
 
     public static ClusterSnapshotStats of(ClusterState clusterState, long currentTimeMillis) {
         return of(
-            clusterState.metadata().custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY),
-            clusterState.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY),
-            clusterState.custom(SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress.EMPTY),
-            clusterState.custom(RepositoryCleanupInProgress.TYPE, RepositoryCleanupInProgress.EMPTY),
+            RepositoriesMetadata.get(clusterState),
+            SnapshotsInProgress.get(clusterState),
+            SnapshotDeletionsInProgress.get(clusterState),
+            RepositoryCleanupInProgress.get(clusterState),
             currentTimeMillis
         );
     }
@@ -106,9 +107,9 @@ public record ClusterSnapshotStats(
 
             for (SnapshotDeletionsInProgress.Entry entry : snapshotDeletionsInProgress.getEntries()) {
                 if (entry.repository().equals(repositoryName)) {
-                    firstStartTimeMillis = Math.min(firstStartTimeMillis, entry.getStartTime());
+                    firstStartTimeMillis = Math.min(firstStartTimeMillis, entry.startTime());
                     deletionsCount += 1;
-                    snapshotDeletionsCount += entry.getSnapshots().size();
+                    snapshotDeletionsCount += entry.snapshots().size();
                     if (entry.state() == SnapshotDeletionsInProgress.State.STARTED) {
                         activeDeletionsCount += 1;
                     }
@@ -175,7 +176,7 @@ public record ClusterSnapshotStats(
         out.writeVInt(incompleteShardSnapshotCount);
         out.writeVInt(deletionsInProgressCount);
         out.writeVInt(cleanupsInProgressCount);
-        out.writeList(statsByRepository);
+        out.writeCollection(statsByRepository);
     }
 
     public static ClusterSnapshotStats readFrom(StreamInput in) throws IOException {
@@ -184,7 +185,7 @@ public record ClusterSnapshotStats(
             in.readVInt(),
             in.readVInt(),
             in.readVInt(),
-            in.readList(PerRepositoryStats::readFrom)
+            in.readCollectionAsList(PerRepositoryStats::readFrom)
         );
     }
 
@@ -227,7 +228,7 @@ public record ClusterSnapshotStats(
             builder.endObject();
             builder.endObject();
 
-            builder.timeField("oldest_start_time_millis", "oldest_start_time", firstStartTimeMillis);
+            builder.timestampFieldsFromUnixEpochMillis("oldest_start_time_millis", "oldest_start_time", firstStartTimeMillis);
 
             return builder.endObject();
         }

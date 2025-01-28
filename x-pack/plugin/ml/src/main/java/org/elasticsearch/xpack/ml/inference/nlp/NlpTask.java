@@ -7,10 +7,11 @@
 
 package org.elasticsearch.xpack.ml.inference.nlp;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Releasable;
-import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
+import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.Tokenization;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.NlpTokenizer;
@@ -26,7 +27,7 @@ public class NlpTask {
     private final NlpConfig config;
     private final NlpTokenizer tokenizer;
 
-    public NlpTask(NlpConfig config, Vocabulary vocabulary) {
+    public NlpTask(NlpConfig config, Vocabulary vocabulary) throws IOException {
         this.config = config;
         this.tokenizer = NlpTokenizer.build(vocabulary, config.getTokenization());
     }
@@ -41,11 +42,12 @@ public class NlpTask {
     }
 
     public interface RequestBuilder {
-        Request buildRequest(List<String> inputs, String requestId, Tokenization.Truncate truncate, int span) throws IOException;
+        Request buildRequest(List<String> inputs, String requestId, Tokenization.Truncate truncate, int span, Integer windowSize)
+            throws IOException;
     }
 
     public interface ResultProcessor {
-        InferenceResults processResult(TokenizationResult tokenization, PyTorchInferenceResult pyTorchResult);
+        InferenceResults processResult(TokenizationResult tokenization, PyTorchInferenceResult pyTorchResult, boolean chunkResult);
     }
 
     public abstract static class Processor implements Releasable {
@@ -72,6 +74,10 @@ public class NlpTask {
         public abstract RequestBuilder getRequestBuilder(NlpConfig config);
 
         public abstract ResultProcessor getResultProcessor(NlpConfig config);
+
+        static ElasticsearchException chunkingNotSupportedException(TaskType taskType) {
+            throw chunkingNotSupportedException(TaskType.NER);
+        }
     }
 
     public record Request(TokenizationResult tokenization, BytesReference processInput) {

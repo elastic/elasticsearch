@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.NamedDiff;
@@ -37,7 +38,6 @@ public class LifecycleOperationMetadata implements Metadata.Custom {
     public static final ParseField SLM_OPERATION_MODE_FIELD = new ParseField("slm_operation_mode");
     public static final LifecycleOperationMetadata EMPTY = new LifecycleOperationMetadata(OperationMode.RUNNING, OperationMode.RUNNING);
 
-    @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<LifecycleOperationMetadata, Void> PARSER = new ConstructingObjectParser<>(
         TYPE,
         a -> new LifecycleOperationMetadata(OperationMode.valueOf((String) a[0]), OperationMode.valueOf((String) a[1]))
@@ -126,7 +126,7 @@ public class LifecycleOperationMetadata implements Metadata.Custom {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.V_8_7_0;
+        return TransportVersions.V_8_7_0;
     }
 
     @Override
@@ -196,7 +196,7 @@ public class LifecycleOperationMetadata implements Metadata.Custom {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersion.V_8_7_0;
+            return TransportVersions.V_8_7_0;
         }
     }
 }

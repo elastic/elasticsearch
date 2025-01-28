@@ -21,7 +21,6 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.common.ResultsAndErrors;
-import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.user.ProfileHasPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.user.ProfileHasPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -64,34 +63,30 @@ import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class TransportProfileHasPrivilegesActionTests extends ESTestCase {
 
     private ThreadPool threadPool;
-    private TransportService transportService;
-    private ActionFilters actionFilters;
     private AuthorizationService authorizationService;
     private NativePrivilegeStore nativePrivilegeStore;
     private ProfileService profileService;
-    private SecurityContext securityContext;
     private TransportProfileHasPrivilegesAction transportProfileHasPrivilegesAction;
 
     @Before
     public void setup() {
         threadPool = new TestThreadPool(TransportProfileHasPrivilegesActionTests.class.getSimpleName());
-        transportService = mock(TransportService.class);
-        actionFilters = mock(ActionFilters.class);
+        TransportService transportService = mock(TransportService.class);
+        when(transportService.getThreadPool()).thenReturn(threadPool);
         authorizationService = mock(AuthorizationService.class);
         nativePrivilegeStore = mock(NativePrivilegeStore.class);
         profileService = mock(ProfileService.class);
-        securityContext = mock(SecurityContext.class);
         transportProfileHasPrivilegesAction = new TransportProfileHasPrivilegesAction(
             transportService,
-            actionFilters,
+            mock(ActionFilters.class),
             authorizationService,
             nativePrivilegeStore,
             profileService,
-            securityContext,
             threadPool
         );
     }

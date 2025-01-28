@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.application.analytics.event.parser.field;
 
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -15,19 +14,20 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.application.analytics.event.AnalyticsEvent;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 
 public class PaginationAnalyticsEventField {
 
-    public static ParseField PAGINATION_FIELD = new ParseField("page");
+    public static final ParseField PAGINATION_FIELD = new ParseField("page");
 
-    public static ParseField CURRENT_PAGE_FIELD = new ParseField("current");
+    public static final ParseField CURRENT_PAGE_FIELD = new ParseField("current");
 
-    public static ParseField PAGE_SIZE_FIELD = new ParseField("size");
+    public static final ParseField PAGE_SIZE_FIELD = new ParseField("size");
 
-    private static final ObjectParser<MapBuilder<String, Integer>, AnalyticsEvent.Context> PARSER = new ObjectParser<>(
+    private static final ObjectParser<Map<String, Integer>, AnalyticsEvent.Context> PARSER = new ObjectParser<>(
         PAGINATION_FIELD.getPreferredName(),
-        MapBuilder::newMapBuilder
+        HashMap::new
     );
 
     private static int requirePositiveInt(int i, String field) {
@@ -52,6 +52,6 @@ public class PaginationAnalyticsEventField {
     private PaginationAnalyticsEventField() {}
 
     public static Map<String, Integer> fromXContent(XContentParser parser, AnalyticsEvent.Context context) throws IOException {
-        return PARSER.parse(parser, context).immutableMap();
+        return Map.copyOf(PARSER.parse(parser, context));
     }
 }

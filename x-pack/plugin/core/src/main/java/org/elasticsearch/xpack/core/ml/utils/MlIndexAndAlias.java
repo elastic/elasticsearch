@@ -16,10 +16,12 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
-import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
@@ -50,9 +52,20 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
  */
 public final class MlIndexAndAlias {
 
+    /**
+     * ML managed index mappings used to be updated based on the product version.
+     * They are now updated based on per-index mappings versions. However, older
+     * nodes will still look for a product version in the mappings metadata, so
+     * we have to put <em>something</em> in that field that will allow the older
+     * node to realise that the mappings are ahead of what it knows about. The
+     * easiest solution is to hardcode 8.11.0 in this field, because any node
+     * from 8.10.0 onwards should be using per-index mappings versions to determine
+     * whether mappings are up-to-date.
+     */
+    public static final String BWC_MAPPINGS_VERSION = "8.11.0";
+
     private static final Logger logger = LogManager.getLogger(MlIndexAndAlias.class);
 
-    // Visible for testing
     static final Comparator<String> INDEX_NAME_COMPARATOR = new Comparator<>() {
 
         private final Predicate<String> HAS_SIX_DIGIT_SUFFIX = Pattern.compile("\\d{6}").asMatchPredicate();
@@ -92,6 +105,7 @@ public final class MlIndexAndAlias {
         String indexPatternPrefix,
         String alias,
         TimeValue masterNodeTimeout,
+        ActiveShardCount waitForShardCount,
         ActionListener<Boolean> finalListener
     ) {
 
@@ -101,13 +115,13 @@ public final class MlIndexAndAlias {
         });
 
         // If both the index and alias were successfully created then wait for the shards of the index that the alias points to be ready
-        ActionListener<Boolean> indexCreatedListener = ActionListener.wrap(created -> {
+        ActionListener<Boolean> indexCreatedListener = loggingListener.delegateFailureAndWrap((delegate, created) -> {
             if (created) {
-                waitForShardsReady(client, alias, masterNodeTimeout, loggingListener);
+                waitForShardsReady(client, alias, masterNodeTimeout, delegate);
             } else {
-                loggingListener.onResponse(false);
+                delegate.onResponse(false);
             }
-        }, loggingListener::onFailure);
+        });
 
         String legacyIndexWithoutSuffix = indexPatternPrefix;
         String indexPattern = indexPatternPrefix + "*";
@@ -120,7 +134,7 @@ public final class MlIndexAndAlias {
 
         if (concreteIndexNames.length == 0) {
             if (indexPointedByCurrentWriteAlias.isEmpty()) {
-                createFirstConcreteIndex(client, firstConcreteIndex, alias, true, indexCreatedListener);
+                createFirstConcreteIndex(client, firstConcreteIndex, alias, true, waitForShardCount, indexCreatedListener);
                 return;
             }
             logger.error(
@@ -131,7 +145,7 @@ public final class MlIndexAndAlias {
             );
         } else if (concreteIndexNames.length == 1 && concreteIndexNames[0].equals(legacyIndexWithoutSuffix)) {
             if (indexPointedByCurrentWriteAlias.isEmpty()) {
-                createFirstConcreteIndex(client, firstConcreteIndex, alias, true, indexCreatedListener);
+                createFirstConcreteIndex(client, firstConcreteIndex, alias, true, waitForShardCount, indexCreatedListener);
                 return;
             }
             if (indexPointedByCurrentWriteAlias.get().equals(legacyIndexWithoutSuffix)) {
@@ -140,9 +154,9 @@ public final class MlIndexAndAlias {
                     firstConcreteIndex,
                     alias,
                     false,
-                    ActionListener.wrap(
-                        unused -> updateWriteAlias(client, alias, legacyIndexWithoutSuffix, firstConcreteIndex, indexCreatedListener),
-                        loggingListener::onFailure
+                    waitForShardCount,
+                    indexCreatedListener.delegateFailureAndWrap(
+                        (l, unused) -> updateWriteAlias(client, alias, legacyIndexWithoutSuffix, firstConcreteIndex, l)
                     )
                 );
                 return;
@@ -157,7 +171,7 @@ public final class MlIndexAndAlias {
         } else {
             if (indexPointedByCurrentWriteAlias.isEmpty()) {
                 assert concreteIndexNames.length > 0;
-                String latestConcreteIndexName = Arrays.stream(concreteIndexNames).max(INDEX_NAME_COMPARATOR).get();
+                String latestConcreteIndexName = latestIndex(concreteIndexNames);
                 updateWriteAlias(client, alias, null, latestConcreteIndexName, loggingListener);
                 return;
             }
@@ -206,27 +220,20 @@ public final class MlIndexAndAlias {
             client.threadPool().getThreadContext(),
             ML_ORIGIN,
             createIndexRequest,
-            ActionListener.<CreateIndexResponse>wrap(
-                r -> indexCreatedListener.onResponse(r.isAcknowledged()),
-                indexCreatedListener::onFailure
-            ),
+            indexCreatedListener.<CreateIndexResponse>delegateFailureAndWrap((l, r) -> l.onResponse(r.isAcknowledged())),
             client.admin().indices()::create
         );
     }
 
     private static void waitForShardsReady(Client client, String index, TimeValue masterNodeTimeout, ActionListener<Boolean> listener) {
-        ClusterHealthRequest healthRequest = new ClusterHealthRequest(index).waitForYellowStatus()
+        ClusterHealthRequest healthRequest = new ClusterHealthRequest(masterNodeTimeout, index).waitForYellowStatus()
             .waitForNoRelocatingShards(true)
-            .waitForNoInitializingShards(true)
-            .masterNodeTimeout(masterNodeTimeout);
+            .waitForNoInitializingShards(true);
         executeAsyncWithOrigin(
             client.threadPool().getThreadContext(),
             ML_ORIGIN,
             healthRequest,
-            ActionListener.<ClusterHealthResponse>wrap(
-                response -> listener.onResponse(response.isTimedOut() == false),
-                listener::onFailure
-            ),
+            listener.<ClusterHealthResponse>delegateFailureAndWrap((l, response) -> l.onResponse(response.isTimedOut() == false)),
             client.admin().cluster()::health
         );
     }
@@ -236,6 +243,7 @@ public final class MlIndexAndAlias {
         String index,
         String alias,
         boolean addAlias,
+        ActiveShardCount waitForShardCount,
         ActionListener<Boolean> listener
     ) {
         logger.info("About to create first concrete index [{}] with alias [{}]", index, alias);
@@ -243,6 +251,7 @@ public final class MlIndexAndAlias {
         if (addAlias) {
             requestBuilder.addAlias(new Alias(alias).isHidden(true));
         }
+        requestBuilder.setWaitForActiveShards(waitForShardCount);
         CreateIndexRequest request = requestBuilder.request();
 
         executeAsyncWithOrigin(
@@ -269,18 +278,22 @@ public final class MlIndexAndAlias {
         );
     }
 
-    private static void updateWriteAlias(
+    public static void updateWriteAlias(
         Client client,
         String alias,
         @Nullable String currentIndex,
         String newIndex,
         ActionListener<Boolean> listener
     ) {
-        logger.info("About to move write alias [{}] from index [{}] to index [{}]", alias, currentIndex, newIndex);
+        if (currentIndex != null) {
+            logger.info("About to move write alias [{}] from index [{}] to index [{}]", alias, currentIndex, newIndex);
+        } else {
+            logger.info("About to create write alias [{}] for index [{}]", alias, newIndex);
+        }
         IndicesAliasesRequestBuilder requestBuilder = client.admin()
             .indices()
             .prepareAliases()
-            .addAliasAction(IndicesAliasesRequest.AliasActions.add().index(newIndex).alias(alias).isHidden(true));
+            .addAliasAction(IndicesAliasesRequest.AliasActions.add().index(newIndex).alias(alias).isHidden(true).writeIndex(true));
         if (currentIndex != null) {
             requestBuilder.removeAlias(currentIndex, alias);
         }
@@ -290,7 +303,7 @@ public final class MlIndexAndAlias {
             client.threadPool().getThreadContext(),
             ML_ORIGIN,
             request,
-            ActionListener.<AcknowledgedResponse>wrap(resp -> listener.onResponse(resp.isAcknowledged()), listener::onFailure),
+            listener.<IndicesAliasesResponse>delegateFailureAndWrap((l, resp) -> l.onResponse(resp.isAcknowledged())),
             client.admin().indices()::aliases
         );
     }
@@ -323,12 +336,10 @@ public final class MlIndexAndAlias {
             return;
         }
 
-        PutComposableIndexTemplateAction.Request request;
-        try {
-            request = new PutComposableIndexTemplateAction.Request(templateConfig.getTemplateName()).indexTemplate(
-                ComposableIndexTemplate.parse(
-                    JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, templateConfig.loadBytes())
-                )
+        TransportPutComposableIndexTemplateAction.Request request;
+        try (var parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, templateConfig.loadBytes())) {
+            request = new TransportPutComposableIndexTemplateAction.Request(templateConfig.getTemplateName()).indexTemplate(
+                ComposableIndexTemplate.parse(parser)
             ).masterNodeTimeout(masterTimeout);
         } catch (IOException e) {
             throw new ElasticsearchParseException("unable to parse composable template " + templateConfig.getTemplateName(), e);
@@ -350,7 +361,7 @@ public final class MlIndexAndAlias {
     public static void installIndexTemplateIfRequired(
         ClusterState clusterState,
         Client client,
-        PutComposableIndexTemplateAction.Request templateRequest,
+        TransportPutComposableIndexTemplateAction.Request templateRequest,
         ActionListener<Boolean> listener
     ) {
         // The check for existence of the template is against the cluster state, so very cheap
@@ -359,17 +370,29 @@ public final class MlIndexAndAlias {
             return;
         }
 
-        ActionListener<AcknowledgedResponse> innerListener = ActionListener.wrap(response -> {
+        ActionListener<AcknowledgedResponse> innerListener = listener.delegateFailureAndWrap((l, response) -> {
             if (response.isAcknowledged() == false) {
                 logger.warn("error adding template [{}], request was not acknowledged", templateRequest.name());
             }
-            listener.onResponse(response.isAcknowledged());
-        }, listener::onFailure);
+            l.onResponse(response.isAcknowledged());
+        });
 
-        executeAsyncWithOrigin(client, ML_ORIGIN, PutComposableIndexTemplateAction.INSTANCE, templateRequest, innerListener);
+        executeAsyncWithOrigin(client, ML_ORIGIN, TransportPutComposableIndexTemplateAction.TYPE, templateRequest, innerListener);
     }
 
     public static boolean hasIndexTemplate(ClusterState state, String templateName) {
         return state.getMetadata().templatesV2().containsKey(templateName);
+    }
+
+    /**
+     * Returns the latest index. Latest is the index with the highest
+     * 6 digit suffix.
+     * @param concreteIndices List of index names
+     * @return The latest index by index name version suffix
+     */
+    public static String latestIndex(String[] concreteIndices) {
+        return concreteIndices.length == 1
+            ? concreteIndices[0]
+            : Arrays.stream(concreteIndices).max(MlIndexAndAlias.INDEX_NAME_COMPARATOR).get();
     }
 }

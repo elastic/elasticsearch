@@ -1,16 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.test.InternalAggregationTestCase;
 
@@ -42,19 +42,6 @@ public class MaxTests extends InternalAggregationTestCase<Max> {
     @Override
     protected void assertSampled(Max sampled, Max reduced, SamplingContext samplingContext) {
         assertThat(sampled.value(), equalTo(reduced.value()));
-    }
-
-    @Override
-    protected void assertFromXContent(Max max, ParsedAggregation parsedAggregation) {
-        ParsedMax parsed = ((ParsedMax) parsedAggregation);
-        if (Double.isInfinite(max.value()) == false) {
-            assertEquals(max.value(), parsed.value(), Double.MIN_VALUE);
-            assertEquals(max.getValueAsString(), parsed.getValueAsString());
-        } else {
-            // we write Double.NEGATIVE_INFINITY and Double.POSITIVE_INFINITY to xContent as 'null', so we
-            // cannot differentiate between them. Also we cannot recreate the exact String representation
-            assertEquals(parsed.value(), Double.NEGATIVE_INFINITY, 0);
-        }
     }
 
     @Override

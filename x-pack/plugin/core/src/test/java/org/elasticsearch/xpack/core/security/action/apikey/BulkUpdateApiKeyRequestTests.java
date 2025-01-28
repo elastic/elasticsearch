@@ -8,13 +8,10 @@
 package org.elasticsearch.xpack.core.security.action.apikey;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 
-import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -23,42 +20,13 @@ import static org.hamcrest.Matchers.containsStringIgnoringCase;
 import static org.hamcrest.Matchers.equalTo;
 
 public class BulkUpdateApiKeyRequestTests extends ESTestCase {
-
-    public void testSerialization() throws IOException {
-        final boolean roleDescriptorsPresent = randomBoolean();
-        final List<RoleDescriptor> descriptorList;
-        if (roleDescriptorsPresent == false) {
-            descriptorList = null;
-        } else {
-            final int numDescriptors = randomIntBetween(0, 4);
-            descriptorList = new ArrayList<>();
-            for (int i = 0; i < numDescriptors; i++) {
-                descriptorList.add(new RoleDescriptor("role_" + i, new String[] { "all" }, null, null));
-            }
-        }
-
-        final List<String> ids = randomList(1, 5, () -> randomAlphaOfLength(10));
-        final Map<String, Object> metadata = ApiKeyTests.randomMetadata();
-        final var request = new BulkUpdateApiKeyRequest(ids, descriptorList, metadata);
-
-        try (BytesStreamOutput out = new BytesStreamOutput()) {
-            request.writeTo(out);
-            try (StreamInput in = out.bytes().streamInput()) {
-                final var serialized = new BulkUpdateApiKeyRequest(in);
-                assertEquals(ids, serialized.getIds());
-                assertEquals(descriptorList, serialized.getRoleDescriptors());
-                assertEquals(metadata, request.getMetadata());
-            }
-        }
-    }
-
     public void testNullValuesValidForNonIds() {
         final var request = BulkUpdateApiKeyRequest.usingApiKeyIds("id");
         assertNull(request.validate());
     }
 
     public void testEmptyIdsNotValid() {
-        final var request = new BulkUpdateApiKeyRequest(List.of(), null, null);
+        final var request = new BulkUpdateApiKeyRequest(List.of(), null, null, null);
         final ActionRequestValidationException ve = request.validate();
         assertNotNull(ve);
         assertThat(ve.validationErrors().size(), equalTo(1));
@@ -68,10 +36,12 @@ public class BulkUpdateApiKeyRequestTests extends ESTestCase {
     public void testMetadataKeyValidation() {
         final var reservedKey = "_" + randomAlphaOfLengthBetween(0, 10);
         final var metadataValue = randomAlphaOfLengthBetween(1, 10);
+        final TimeValue expiration = ApiKeyTests.randomFutureExpirationTime();
         final var request = new BulkUpdateApiKeyRequest(
             randomList(1, 5, () -> randomAlphaOfLength(10)),
             null,
-            Map.of(reservedKey, metadataValue)
+            Map.of(reservedKey, metadataValue),
+            expiration
         );
         final ActionRequestValidationException ve = request.validate();
         assertNotNull(ve);
@@ -80,6 +50,7 @@ public class BulkUpdateApiKeyRequestTests extends ESTestCase {
     }
 
     public void testRoleDescriptorValidation() {
+        final String[] unknownWorkflows = randomArray(1, 2, String[]::new, () -> randomAlphaOfLengthBetween(4, 10));
         final var request = new BulkUpdateApiKeyRequest(
             randomList(1, 5, () -> randomAlphaOfLength(10)),
             List.of(
@@ -97,9 +68,14 @@ public class BulkUpdateApiKeyRequestTests extends ESTestCase {
                     null,
                     null,
                     Map.of("_key", "value"),
+                    null,
+                    null,
+                    null,
+                    new RoleDescriptor.Restriction(unknownWorkflows),
                     null
                 )
             ),
+            null,
             null
         );
         final ActionRequestValidationException ve = request.validate();
@@ -109,5 +85,8 @@ public class BulkUpdateApiKeyRequestTests extends ESTestCase {
         assertThat(ve.validationErrors().get(2), containsStringIgnoringCase("application name"));
         assertThat(ve.validationErrors().get(3), containsStringIgnoringCase("Application privilege names"));
         assertThat(ve.validationErrors().get(4), containsStringIgnoringCase("role descriptor metadata keys may not start with "));
+        for (int i = 0; i < unknownWorkflows.length; i++) {
+            assertThat(ve.validationErrors().get(5 + i), containsStringIgnoringCase("unknown workflow [" + unknownWorkflows[i] + "]"));
+        }
     }
 }

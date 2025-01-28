@@ -12,7 +12,10 @@ repeated failures before reporting a warning is controlled by the
 In the event that an automated {slm} policy execution is experiencing repeated failures, follow these steps to get more
 information about the problem:
 
-include::{es-repo-dir}/tab-widgets/troubleshooting/snapshot/repeated-snapshot-failures-widget.asciidoc[]
+include::{es-ref-dir}/tab-widgets/troubleshooting/snapshot/repeated-snapshot-failures-widget.asciidoc[]
 
+****
+If you're using Elastic Cloud Hosted, then you can use AutoOps to monitor your cluster. AutoOps significantly simplifies cluster management with performance recommendations, resource utilization visibility, real-time issue detection and resolution paths. For more information, refer to https://www.elastic.co/guide/en/cloud/current/ec-autoops.html[Monitor with AutoOps].
+****
 
 

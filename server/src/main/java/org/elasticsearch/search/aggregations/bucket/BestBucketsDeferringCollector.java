@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket;
@@ -19,6 +20,7 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.packed.PackedInts;
 import org.apache.lucene.util.packed.PackedLongValues;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -40,10 +42,10 @@ import java.util.function.LongUnaryOperator;
  * this collector.
  */
 public class BestBucketsDeferringCollector extends DeferringBucketCollector {
-    static class Entry {
-        final AggregationExecutionContext aggCtx;
-        final PackedLongValues docDeltas;
-        final PackedLongValues buckets;
+    private static class Entry {
+        AggregationExecutionContext aggCtx;
+        PackedLongValues docDeltas;
+        PackedLongValues buckets;
 
         Entry(AggregationExecutionContext aggCtx, PackedLongValues docDeltas, PackedLongValues buckets) {
             this.aggCtx = Objects.requireNonNull(aggCtx);
@@ -145,7 +147,7 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
      * Replay the wrapped collector, but only on a selection of buckets.
      */
     @Override
-    public void prepareSelectedBuckets(long... selectedBuckets) throws IOException {
+    public void prepareSelectedBuckets(LongArray selectedBuckets) throws IOException {
         if (finished == false) {
             throw new IllegalStateException("Cannot replay yet, collection is not finished: postCollect() has not been called");
         }
@@ -153,9 +155,9 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
             throw new IllegalStateException("Already been replayed");
         }
 
-        this.selectedBuckets = new LongHash(selectedBuckets.length, BigArrays.NON_RECYCLING_INSTANCE);
-        for (long ord : selectedBuckets) {
-            this.selectedBuckets.add(ord);
+        this.selectedBuckets = new LongHash(selectedBuckets.size(), BigArrays.NON_RECYCLING_INSTANCE);
+        for (long i = 0; i < selectedBuckets.size(); i++) {
+            this.selectedBuckets.add(selectedBuckets.get(i));
         }
 
         boolean needsScores = scoreMode().needsScores();
@@ -184,7 +186,7 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
                 final PackedLongValues.Iterator buckets = entry.buckets.iterator();
                 int doc = 0;
                 for (long i = 0, end = entry.docDeltas.size(); i < end; ++i) {
-                    doc += docDeltaIterator.next();
+                    doc += (int) docDeltaIterator.next();
                     final long bucket = buckets.next();
                     final long rebasedBucket = this.selectedBuckets.find(bucket);
                     if (rebasedBucket != -1) {
@@ -204,6 +206,9 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
                 // collection was terminated prematurely
                 // continue with the following leaf
             }
+            // release resources
+            entry.buckets = null;
+            entry.docDeltas = null;
         }
         collector.postCollection();
     }
@@ -228,21 +233,22 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
      * been collected directly.
      */
     @Override
-    public Aggregator wrap(final Aggregator in) {
+    public Aggregator wrap(final Aggregator in, BigArrays bigArrays) {
         return new WrappedAggregator(in) {
             @Override
-            public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
+            public InternalAggregation[] buildAggregations(LongArray owningBucketOrds) throws IOException {
                 if (selectedBuckets == null) {
                     throw new IllegalStateException("Collection has not been replayed yet.");
                 }
-                long[] rebasedOrds = new long[owningBucketOrds.length];
-                for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
-                    rebasedOrds[ordIdx] = selectedBuckets.find(owningBucketOrds[ordIdx]);
-                    if (rebasedOrds[ordIdx] == -1) {
-                        throw new IllegalStateException("Cannot build for a bucket which has not been collected");
+                try (LongArray rebasedOrds = bigArrays.newLongArray(owningBucketOrds.size())) {
+                    for (long ordIdx = 0; ordIdx < owningBucketOrds.size(); ordIdx++) {
+                        rebasedOrds.set(ordIdx, selectedBuckets.find(owningBucketOrds.get(ordIdx)));
+                        if (rebasedOrds.get(ordIdx) == -1) {
+                            throw new IllegalStateException("Cannot build for a bucket which has not been collected");
+                        }
                     }
+                    return in.buildAggregations(rebasedOrds);
                 }
-                return in.buildAggregations(rebasedOrds);
             }
         };
     }
@@ -259,29 +265,10 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
     public void rewriteBuckets(LongUnaryOperator howToRewrite) {
         List<Entry> newEntries = new ArrayList<>(entries.size());
         for (Entry sourceEntry : entries) {
-            PackedLongValues.Builder newBuckets = PackedLongValues.packedBuilder(PackedInts.DEFAULT);
             PackedLongValues.Builder newDocDeltas = PackedLongValues.packedBuilder(PackedInts.DEFAULT);
             PackedLongValues.Iterator docDeltasItr = sourceEntry.docDeltas.iterator();
 
-            long lastGoodDelta = 0;
-            for (PackedLongValues.Iterator itr = sourceEntry.buckets.iterator(); itr.hasNext();) {
-                long bucket = itr.next();
-                assert docDeltasItr.hasNext();
-                long delta = docDeltasItr.next();
-
-                // Only merge in the ordinal if it hasn't been "removed", signified with -1
-                long ordinal = howToRewrite.applyAsLong(bucket);
-
-                if (ordinal != -1) {
-                    newBuckets.add(ordinal);
-                    newDocDeltas.add(delta + lastGoodDelta);
-                    lastGoodDelta = 0;
-                } else {
-                    // we are skipping this ordinal, which means we need to accumulate the
-                    // doc delta's since the last "good" delta
-                    lastGoodDelta += delta;
-                }
-            }
+            PackedLongValues.Builder newBuckets = merge(howToRewrite, newDocDeltas, docDeltasItr, sourceEntry.buckets);
             // Only create an entry if this segment has buckets after merging
             if (newBuckets.size() > 0) {
                 assert newDocDeltas.size() > 0 : "docDeltas was empty but we had buckets";
@@ -294,33 +281,13 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
         // we need to update the bucket ordinals there too
         if (bucketsBuilder != null && bucketsBuilder.size() > 0) {
             PackedLongValues currentBuckets = bucketsBuilder.build();
-            PackedLongValues.Builder newBuckets = PackedLongValues.packedBuilder(PackedInts.DEFAULT);
             PackedLongValues.Builder newDocDeltas = PackedLongValues.packedBuilder(PackedInts.DEFAULT);
 
             // The current segment's deltas aren't built yet, so build to a temp object
             PackedLongValues currentDeltas = docDeltasBuilder.build();
             PackedLongValues.Iterator docDeltasItr = currentDeltas.iterator();
 
-            long lastGoodDelta = 0;
-            for (PackedLongValues.Iterator itr = currentBuckets.iterator(); itr.hasNext();) {
-                long bucket = itr.next();
-                assert docDeltasItr.hasNext();
-                long delta = docDeltasItr.next();
-                long ordinal = howToRewrite.applyAsLong(bucket);
-
-                // Only merge in the ordinal if it hasn't been "removed", signified with -1
-                if (ordinal != -1) {
-                    newBuckets.add(ordinal);
-                    newDocDeltas.add(delta + lastGoodDelta);
-                    lastGoodDelta = 0;
-                } else {
-                    // we are skipping this ordinal, which means we need to accumulate the
-                    // doc delta's since the last "good" delta.
-                    // The first is skipped because the original deltas are stored as offsets from first doc,
-                    // not offsets from 0
-                    lastGoodDelta += delta;
-                }
-            }
+            PackedLongValues.Builder newBuckets = merge(howToRewrite, newDocDeltas, docDeltasItr, currentBuckets);
             if (newDocDeltas.size() == 0) {
                 // We've decided not to keep *anything* in the current leaf so we should just pitch our state.
                 clearLeaf();
@@ -329,5 +296,35 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
                 bucketsBuilder = newBuckets;
             }
         }
+    }
+
+    private static PackedLongValues.Builder merge(
+        LongUnaryOperator howToRewrite,
+        PackedLongValues.Builder newDocDeltas,
+        PackedLongValues.Iterator docDeltasItr,
+        PackedLongValues currentBuckets
+    ) {
+        PackedLongValues.Builder newBuckets = PackedLongValues.packedBuilder(PackedInts.DEFAULT);
+        long lastGoodDelta = 0;
+        var itr = currentBuckets.iterator();
+        while (itr.hasNext()) {
+            long bucket = itr.next();
+            assert docDeltasItr.hasNext();
+            long delta = docDeltasItr.next();
+
+            // Only merge in the ordinal if it hasn't been "removed", signified with -1
+            long ordinal = howToRewrite.applyAsLong(bucket);
+
+            if (ordinal != -1) {
+                newBuckets.add(ordinal);
+                newDocDeltas.add(delta + lastGoodDelta);
+                lastGoodDelta = 0;
+            } else {
+                // we are skipping this ordinal, which means we need to accumulate the
+                // doc delta's since the last "good" delta
+                lastGoodDelta += delta;
+            }
+        }
+        return newBuckets;
     }
 }

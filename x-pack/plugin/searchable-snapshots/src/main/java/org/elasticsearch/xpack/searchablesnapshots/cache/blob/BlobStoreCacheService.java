@@ -12,19 +12,17 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexFileNames;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.block.ClusterBlockException;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
@@ -57,11 +55,6 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent {
 
     private static final Logger logger = LogManager.getLogger(BlobStoreCacheService.class);
 
-    /**
-     * Before 7.12.0 blobs were cached using a 4KB or 8KB maximum length.
-     */
-    private static final Version OLD_CACHED_BLOB_SIZE_VERSION = Version.V_7_12_0;
-
     public static final int DEFAULT_CACHED_BLOB_SIZE = ByteSizeUnit.KB.toIntBytes(1);
     private static final Cache<String, String> LOG_EXCEEDING_FILES_CACHE = CacheBuilder.<String, String>builder()
         .setExpireAfterAccess(TimeValue.timeValueMinutes(60L))
@@ -69,17 +62,15 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent {
 
     static final int MAX_IN_FLIGHT_CACHE_FILLS = Integer.MAX_VALUE;
 
-    private final ClusterService clusterService;
     private final Semaphore inFlightCacheFills;
     private final AtomicBoolean closed;
     private final Client client;
     private final String index;
 
-    public BlobStoreCacheService(ClusterService clusterService, Client client, String index) {
+    public BlobStoreCacheService(Client client, String index) {
         this.client = new OriginSettingClient(client, SEARCHABLE_SNAPSHOTS_ORIGIN);
         this.inFlightCacheFills = new Semaphore(MAX_IN_FLIGHT_CACHE_FILLS);
         this.closed = new AtomicBoolean(false);
-        this.clusterService = clusterService;
         this.index = index;
     }
 
@@ -129,7 +120,7 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent {
         assert Thread.currentThread().getName().contains('[' + ThreadPool.Names.SYSTEM_READ + ']') == false
             : "must not block [" + Thread.currentThread().getName() + "] for a cache read";
 
-        final PlainActionFuture<CachedBlob> future = PlainActionFuture.newFuture();
+        final PlainActionFuture<CachedBlob> future = new PlainActionFuture<>();
         getAsync(repository, snapshotId, indexId, shardId, name, range, future);
         try {
             return future.actionGet(5, TimeUnit.SECONDS);
@@ -250,7 +241,6 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent {
         try {
             final CachedBlob cachedBlob = new CachedBlob(
                 Instant.ofEpochMilli(timeInEpochMillis),
-                Version.CURRENT,
                 repository,
                 name,
                 generatePath(snapshotId, indexId, shardId),
@@ -274,7 +264,7 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent {
                 final ActionListener<Void> wrappedListener = ActionListener.runAfter(listener, release);
                 innerPut(request, new ActionListener<>() {
                     @Override
-                    public void onResponse(IndexResponse indexResponse) {
+                    public void onResponse(DocWriteResponse indexResponse) {
                         logger.trace("cache fill ({}): [{}]", indexResponse.status(), request.id());
                         wrappedListener.onResponse(null);
                     }
@@ -297,7 +287,7 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent {
         }
     }
 
-    protected void innerPut(final IndexRequest request, final ActionListener<IndexResponse> listener) {
+    protected void innerPut(final IndexRequest request, final ActionListener<DocWriteResponse> listener) {
         client.index(request, listener);
     }
 
@@ -333,14 +323,6 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent {
     public ByteRange computeBlobCacheByteRange(ShardId shardId, String fileName, long fileLength, ByteSizeValue maxMetadataLength) {
         final LuceneFilesExtensions fileExtension = LuceneFilesExtensions.fromExtension(IndexFileNames.getExtension(fileName));
 
-        if (useLegacyCachedBlobSizes()) {
-            if (fileLength <= ByteSizeUnit.KB.toBytes(8L)) {
-                return ByteRange.of(0L, fileLength);
-            } else {
-                return ByteRange.of(0L, ByteSizeUnit.KB.toBytes(4L));
-            }
-        }
-
         if (fileExtension != null && fileExtension.isMetadata()) {
             final long maxAllowedLengthInBytes = maxMetadataLength.getBytes();
             if (fileLength > maxAllowedLengthInBytes) {
@@ -349,11 +331,6 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent {
             return ByteRange.of(0L, Math.min(fileLength, maxAllowedLengthInBytes));
         }
         return ByteRange.of(0L, Math.min(fileLength, DEFAULT_CACHED_BLOB_SIZE));
-    }
-
-    protected boolean useLegacyCachedBlobSizes() {
-        final Version minNodeVersion = clusterService.state().nodes().getMinNodeVersion();
-        return minNodeVersion.before(OLD_CACHED_BLOB_SIZE_VERSION);
     }
 
     private static void logExceedingFile(ShardId shardId, LuceneFilesExtensions extension, long length, ByteSizeValue maxAllowedLength) {

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.client.benchmark;
 
@@ -18,7 +19,6 @@ import java.lang.management.GarbageCollectorMXBean;
 import java.lang.management.ManagementFactory;
 import java.util.Arrays;
 import java.util.List;
-import java.util.stream.Collectors;
 
 public abstract class AbstractBenchmark<T extends Closeable> {
     private static final int SEARCH_BENCHMARK_ITERATIONS = 10_000;
@@ -92,7 +92,7 @@ public abstract class AbstractBenchmark<T extends Closeable> {
         String benchmarkTargetHost = args[1];
         String indexName = args[2];
         String searchBody = args[3];
-        List<Integer> throughputRates = Arrays.asList(args[4].split(",")).stream().map(Integer::valueOf).collect(Collectors.toList());
+        List<Integer> throughputRates = Arrays.stream(args[4].split(",")).map(Integer::valueOf).toList();
 
         T client = client(benchmarkTargetHost);
 

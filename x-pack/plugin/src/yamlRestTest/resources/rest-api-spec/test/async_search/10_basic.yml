@@ -172,8 +172,8 @@ setup:
 
 ---
 "Auto date histogram interval is saved":
-  - skip:
-      version: " - 8.2.99"
+  - requires:
+      cluster_features: ["gte_v8.3.0"]
       reason: "interval is only serialized from 8.3 on"
   - do:
       async_search.submit:

@@ -30,7 +30,7 @@ public class AuditMlNotificationAction extends ActionType<AcknowledgedResponse> 
     public static final String NAME = "cluster:internal/xpack/ml/notification";
 
     private AuditMlNotificationAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
+        super(NAME);
     }
 
     public enum AuditType {

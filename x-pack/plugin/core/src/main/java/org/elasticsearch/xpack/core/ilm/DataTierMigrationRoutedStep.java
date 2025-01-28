@@ -13,12 +13,12 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DesiredNodes;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
 import org.elasticsearch.xpack.core.ilm.step.info.AllocationInfo;
 
 import java.util.List;
-import java.util.Locale;
 import java.util.Optional;
 
 import static org.elasticsearch.xpack.core.ilm.AllocationRoutedStep.getPendingAllocations;
@@ -56,7 +56,8 @@ public class DataTierMigrationRoutedStep extends ClusterStateWaitStep {
         Optional<String> availableDestinationTier = DataTierAllocationDecider.preferredAvailableTier(
             preferredTierConfiguration,
             clusterState.getNodes(),
-            DesiredNodes.latestFromClusterState(clusterState)
+            DesiredNodes.latestFromClusterState(clusterState),
+            clusterState.metadata().nodeShutdowns()
         );
 
         if (ActiveShardCount.ALL.enoughShardsActive(clusterState, index.getName()) == false) {
@@ -102,8 +103,7 @@ public class DataTierMigrationRoutedStep extends ClusterStateWaitStep {
 
         if (allocationPendingAllShards > 0) {
             String statusMessage = availableDestinationTier.map(
-                s -> String.format(
-                    Locale.ROOT,
+                s -> Strings.format(
                     "[%s] lifecycle action [%s] waiting for [%s] shards to be moved to the [%s] tier (tier "
                         + "migration preference configuration is %s)",
                     index.getName(),
@@ -114,9 +114,8 @@ public class DataTierMigrationRoutedStep extends ClusterStateWaitStep {
                 )
             )
                 .orElseGet(
-                    () -> String.format(
-                        Locale.ROOT,
-                        "index [%s] has a preference for tiers %s, but no nodes for any of those tiers are " + "available in the cluster",
+                    () -> Strings.format(
+                        "index [%s] has a preference for tiers %s, but no nodes for any of those tiers are available in the cluster",
                         index.getName(),
                         preferredTierConfiguration
                     )

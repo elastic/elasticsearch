@@ -67,8 +67,6 @@ PUT /my-time-series-index-0/_bulk
 --------------------------------------------------
 // NOTCONSOLE
 
-//////////////////////////
-
 To perform a time series aggregation, specify "time_series" as the aggregation type. When the boolean "keyed"
 is true, each bucket is given a unique key.
 
@@ -85,8 +83,6 @@ GET /_search
 --------------------------------------------------
 // NOTCONSOLE
 
-//////////////////////////
-
 This will return all results in the time series, however a more typical query will use sub aggregations to reduce the
 date returned to something more relevant.
 
@@ -101,3 +97,14 @@ further. Alternatively, using sub aggregations can limit the amount of values re
 
 The `keyed` parameter determines if buckets are returned as a map with unique keys per bucket. By default with `keyed`
 set to false, buckets are returned as an array.
+
+[[times-series-aggregations-limitations]]
+==== Limitations
+
+The `time_series` aggregation has many limitations. Many aggregation performance optimizations are disabled when using
+the `time_series` aggregation. For example the filter by filter optimization or collect mode breath first (`terms` and
+`multi_terms` aggregation forcefully use the depth first collect mode).
+
+The following aggregations also fail to work if used in combination with the `time_series` aggregation:
+`auto_date_histogram`, `variable_width_histogram`, `rare_terms`, `global`, `composite`, `sampler`, `random_sampler` and
+`diversified_sampler`.

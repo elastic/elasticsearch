@@ -1,0 +1,22 @@
+---
+"Allocation stats":
+  - requires:
+      cluster_features: ["gte_v8.14.0"]
+      reason: "allocation stats was added in 8.14.0"
+      test_runner_features: [arbitrary_key]
+
+  - do:
+      nodes.info: {}
+  - set:
+      nodes._arbitrary_key_: node_id
+
+  - do:
+      nodes.stats:
+        metric: [ allocations ]
+
+  - exists: nodes.$node_id.allocations
+  - exists: nodes.$node_id.allocations.shards
+  - exists: nodes.$node_id.allocations.undesired_shards
+  - exists: nodes.$node_id.allocations.forecasted_ingest_load
+  - exists: nodes.$node_id.allocations.forecasted_disk_usage_in_bytes
+  - exists: nodes.$node_id.allocations.current_disk_usage_in_bytes

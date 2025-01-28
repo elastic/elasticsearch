@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common;
@@ -12,7 +13,6 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.CharArrays;
 
 import java.util.Arrays;
-import java.util.Base64;
 import java.util.Random;
 
 class RandomBasedUUIDGenerator implements UUIDGenerator {
@@ -35,7 +35,7 @@ class RandomBasedUUIDGenerator implements UUIDGenerator {
         byte[] encodedBytes = null;
         try {
             uuidBytes = getUUIDBytes(SecureRandomHolder.INSTANCE);
-            encodedBytes = Base64.getUrlEncoder().withoutPadding().encode(uuidBytes);
+            encodedBytes = Strings.BASE_64_NO_PADDING_URL_ENCODER.encode(uuidBytes);
             return new SecureString(CharArrays.utf8BytesToChars(encodedBytes));
         } finally {
             if (uuidBytes != null) {
@@ -53,11 +53,13 @@ class RandomBasedUUIDGenerator implements UUIDGenerator {
      * as defined here: http://www.ietf.org/rfc/rfc4122.txt
      */
     public static String getBase64UUID(Random random) {
-        return Base64.getUrlEncoder().withoutPadding().encodeToString(getUUIDBytes(random));
+        return Strings.BASE_64_NO_PADDING_URL_ENCODER.encodeToString(getUUIDBytes(random));
     }
 
+    static final int SIZE_IN_BYTES = 16;
+
     private static byte[] getUUIDBytes(Random random) {
-        final byte[] randomBytes = new byte[16];
+        final byte[] randomBytes = new byte[SIZE_IN_BYTES];
         random.nextBytes(randomBytes);
         /* Set the version to version 4 (see http://www.ietf.org/rfc/rfc4122.txt)
          * The randomly or pseudo-randomly generated version.
@@ -70,7 +72,7 @@ class RandomBasedUUIDGenerator implements UUIDGenerator {
          * The high field of th clock sequence multiplexed with the variant.
          * We set only the MSB of the variant*/
         randomBytes[8] &= 0x3f; /* clear the 2 most significant bits */
-        randomBytes[8] |= 0x80; /* set the variant (MSB is set)*/
+        randomBytes[8] |= (byte) 0x80; /* set the variant (MSB is set)*/
         return randomBytes;
     }
 }

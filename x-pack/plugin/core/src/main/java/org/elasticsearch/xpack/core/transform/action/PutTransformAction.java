@@ -14,6 +14,9 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.common.validation.SourceDestValidator;
 import org.elasticsearch.xpack.core.transform.TransformField;
@@ -22,6 +25,7 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.utils.TransformStrings;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
@@ -31,11 +35,24 @@ public class PutTransformAction extends ActionType<AcknowledgedResponse> {
     public static final PutTransformAction INSTANCE = new PutTransformAction();
     public static final String NAME = "cluster:admin/transform/put";
 
+    /**
+     * Minimum transform frequency used for validation.
+     *
+     * Note: Depending on the environment (on-prem or serverless) the minimum frequency used by scheduler can be higher than this constant.
+     * The actual value used by scheduler is specified by the {@code TransformExtension.getMinFrequency} method.
+     *
+     * Example:
+     * If the user configures transform with frequency=3s but the TransformExtension.getMinFrequency method returns 5s, the validation will
+     * pass but the scheduler will silently use 5s instead of 3s.
+     */
     private static final TimeValue MIN_FREQUENCY = TimeValue.timeValueSeconds(1);
+    /**
+     * Maximum transform frequency used for validation.
+     */
     private static final TimeValue MAX_FREQUENCY = TimeValue.timeValueHours(1);
 
     private PutTransformAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
+        super(NAME);
     }
 
     public static class Request extends AcknowledgedRequest<Request> {
@@ -44,7 +61,7 @@ public class PutTransformAction extends ActionType<AcknowledgedResponse> {
         private final boolean deferValidation;
 
         public Request(TransformConfig config, boolean deferValidation, TimeValue timeout) {
-            super(timeout);
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, timeout);
             this.config = config;
             this.deferValidation = deferValidation;
         }
@@ -123,7 +140,7 @@ public class PutTransformAction extends ActionType<AcknowledgedResponse> {
         @Override
         public int hashCode() {
             // the base class does not implement hashCode, therefore we need to hash timeout ourselves
-            return Objects.hash(timeout(), config, deferValidation);
+            return Objects.hash(ackTimeout(), config, deferValidation);
         }
 
         @Override
@@ -139,7 +156,12 @@ public class PutTransformAction extends ActionType<AcknowledgedResponse> {
             // the base class does not implement equals, therefore we need to check timeout ourselves
             return Objects.equals(config, other.config)
                 && this.deferValidation == other.deferValidation
-                && timeout().equals(other.timeout());
+                && ackTimeout().equals(other.ackTimeout());
+        }
+
+        @Override
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+            return new CancellableTask(id, type, action, getDescription(), parentTaskId, headers);
         }
     }
 

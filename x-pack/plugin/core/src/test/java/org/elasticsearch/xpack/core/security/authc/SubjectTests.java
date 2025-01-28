@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.security.authc;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -45,6 +46,7 @@ import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.CR
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.CROSS_CLUSTER_ACCESS_REALM_TYPE;
 import static org.elasticsearch.xpack.core.security.authc.Subject.FLEET_SERVER_ROLE_DESCRIPTOR_BYTES_V_7_14;
 import static org.elasticsearch.xpack.core.security.authz.store.RoleReference.CrossClusterAccessRoleReference;
+import static org.elasticsearch.xpack.core.security.authz.store.RoleReference.CrossClusterApiKeyRoleReference;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.contains;
@@ -60,7 +62,7 @@ public class SubjectTests extends ESTestCase {
         final Subject subject = new Subject(
             user,
             new Authentication.RealmRef(randomAlphaOfLength(5), randomAlphaOfLength(5), "node"),
-            TransportVersion.CURRENT,
+            TransportVersion.current(),
             Map.of()
         );
 
@@ -83,7 +85,7 @@ public class SubjectTests extends ESTestCase {
         final Subject subject = new Subject(
             anonymousUser,
             new Authentication.RealmRef(randomAlphaOfLength(5), randomAlphaOfLength(5), "node"),
-            TransportVersion.CURRENT,
+            TransportVersion.current(),
             Map.of()
         );
 
@@ -101,7 +103,7 @@ public class SubjectTests extends ESTestCase {
         final Subject subject = new Subject(
             serviceUser,
             new Authentication.RealmRef(ServiceAccountSettings.REALM_NAME, ServiceAccountSettings.REALM_TYPE, "node"),
-            TransportVersion.CURRENT,
+            TransportVersion.current(),
             Map.of()
         );
 
@@ -133,7 +135,7 @@ public class SubjectTests extends ESTestCase {
         final Subject subject = new Subject(
             new User("joe"),
             new Authentication.RealmRef(API_KEY_REALM_NAME, API_KEY_REALM_TYPE, "node"),
-            TransportVersion.CURRENT,
+            TransportVersion.current(),
             authMetadata
         );
 
@@ -177,11 +179,11 @@ public class SubjectTests extends ESTestCase {
         final Subject subject = new Subject(
             new User("joe"),
             new Authentication.RealmRef(API_KEY_REALM_NAME, API_KEY_REALM_TYPE, "node"),
-            TransportVersion.CURRENT,
+            TransportVersion.current(),
             authMetadata
         );
 
-        final ApiKeyRoleReference roleReference = subject.buildRoleReferenceForCrossClusterApiKey();
+        final CrossClusterApiKeyRoleReference roleReference = subject.buildRoleReferenceForCrossClusterApiKey();
         assertThat(roleReference.getApiKeyId(), equalTo(apiKeyId));
         assertThat(roleReference.getRoleDescriptorsBytes(), equalTo(authMetadata.get(API_KEY_ROLE_DESCRIPTORS_KEY)));
     }
@@ -213,12 +215,12 @@ public class SubjectTests extends ESTestCase {
         final Subject subject = new Subject(
             new User("joe"),
             new Authentication.RealmRef(CROSS_CLUSTER_ACCESS_REALM_NAME, CROSS_CLUSTER_ACCESS_REALM_TYPE, "node"),
-            TransportVersion.CURRENT,
+            TransportVersion.current(),
             authMetadata
         );
 
         final Authentication authentication = crossClusterAccessSubjectInfo.getAuthentication();
-        final boolean isInternalUser = authentication.getEffectiveSubject().getUser() == InternalUsers.CROSS_CLUSTER_ACCESS_USER;
+        final boolean isInternalUser = authentication.getEffectiveSubject().getUser() == InternalUsers.SYSTEM_USER;
         final RoleReferenceIntersection roleReferenceIntersection = subject.getRoleReferenceIntersection(getAnonymousUser());
         // Number of role references depends on the authentication and its number of roles.
         // Test setup can randomly authentication with 0, 1 or 2 (in case of API key) role descriptors,
@@ -232,26 +234,29 @@ public class SubjectTests extends ESTestCase {
                 contains(
                     isA(CrossClusterAccessRoleReference.class),
                     isA(CrossClusterAccessRoleReference.class),
-                    isA(ApiKeyRoleReference.class)
+                    isA(CrossClusterApiKeyRoleReference.class)
                 )
             );
 
             expectCrossClusterAccessReferenceAtIndex(0, roleReferences, crossClusterAccessSubjectInfo);
             expectCrossClusterAccessReferenceAtIndex(1, roleReferences, crossClusterAccessSubjectInfo);
 
-            final ApiKeyRoleReference roleReference = (ApiKeyRoleReference) roleReferences.get(2);
+            final CrossClusterApiKeyRoleReference roleReference = (CrossClusterApiKeyRoleReference) roleReferences.get(2);
             assertThat(roleReference.getApiKeyId(), equalTo(apiKeyId));
             assertThat(roleReference.getRoleDescriptorsBytes(), equalTo(authMetadata.get(API_KEY_ROLE_DESCRIPTORS_KEY)));
         } else {
             if (isInternalUser) {
-                assertThat(roleReferences, contains(isA(FixedRoleReference.class), isA(ApiKeyRoleReference.class)));
+                assertThat(roleReferences, contains(isA(FixedRoleReference.class), isA(CrossClusterApiKeyRoleReference.class)));
                 expectFixedReferenceAtIndex(0, roleReferences);
             } else {
-                assertThat(roleReferences, contains(isA(CrossClusterAccessRoleReference.class), isA(ApiKeyRoleReference.class)));
+                assertThat(
+                    roleReferences,
+                    contains(isA(CrossClusterAccessRoleReference.class), isA(CrossClusterApiKeyRoleReference.class))
+                );
                 expectCrossClusterAccessReferenceAtIndex(0, roleReferences, crossClusterAccessSubjectInfo);
             }
 
-            final ApiKeyRoleReference roleReference = (ApiKeyRoleReference) roleReferences.get(1);
+            final CrossClusterApiKeyRoleReference roleReference = (CrossClusterApiKeyRoleReference) roleReferences.get(1);
             assertThat(roleReference.getApiKeyId(), equalTo(apiKeyId));
             assertThat(roleReference.getRoleDescriptorsBytes(), equalTo(authMetadata.get(API_KEY_ROLE_DESCRIPTORS_KEY)));
         }
@@ -276,7 +281,7 @@ public class SubjectTests extends ESTestCase {
     private static void expectFixedReferenceAtIndex(int index, List<RoleReference> roleReferences) {
         final FixedRoleReference fixedRoleReference = (FixedRoleReference) roleReferences.get(index);
         final RoleKey expectedKey = new RoleKey(
-            Set.of(InternalUsers.CROSS_CLUSTER_ACCESS_USER.getRemoteAccessRoleDescriptor().get().getName()),
+            Set.of(InternalUsers.SYSTEM_USER.getRemoteAccessRoleDescriptor().get().getName()),
             "cross_cluster_access_internal"
         );
         assertThat(fixedRoleReference.id(), equalTo(expectedKey));
@@ -302,7 +307,7 @@ public class SubjectTests extends ESTestCase {
         final Subject subject = new Subject(
             new User("joe"),
             new Authentication.RealmRef(API_KEY_REALM_NAME, API_KEY_REALM_TYPE, "node"),
-            TransportVersionUtils.randomVersionBetween(random(), TransportVersion.V_7_0_0, TransportVersion.V_7_8_1),
+            TransportVersionUtils.randomVersionBetween(random(), TransportVersions.V_7_0_0, TransportVersions.V_7_8_1),
             authMetadata
         );
 
@@ -332,7 +337,7 @@ public class SubjectTests extends ESTestCase {
         final Subject subject = new Subject(
             new User("elastic/fleet-server"),
             new Authentication.RealmRef(API_KEY_REALM_NAME, API_KEY_REALM_TYPE, "node"),
-            TransportVersion.CURRENT,
+            TransportVersion.current(),
             Map.of(
                 AuthenticationField.API_KEY_CREATOR_REALM_NAME,
                 ServiceAccountSettings.REALM_NAME,

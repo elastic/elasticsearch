@@ -1,0 +1,33 @@
+{
+  "security.query_role": {
+    "documentation": {
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-query-role.html",
+      "description": "Retrieves information for Roles using a subset of query DSL"
+    },
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_security/_query/role",
+          "methods": [
+            "GET",
+            "POST"
+          ]
+        }
+      ]
+    },
+    "body": {
+      "description": "From, size, query, sort and search_after",
+      "required": false
+    }
+  }
+}

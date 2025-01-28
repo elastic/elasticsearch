@@ -1,20 +1,21 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.settings;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.env.BuildVersion;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.reservedstate.service.ReservedStateVersion;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -65,7 +66,7 @@ import static org.elasticsearch.xcontent.XContentType.JSON;
  *              }
  *         }
  */
-public class LocallyMountedSecrets implements SecureSettings {
+public final class LocallyMountedSecrets implements SecureSettings {
 
     public static final String SECRETS_FILE_NAME = "secrets.json";
     public static final String SECRETS_DIRECTORY = "secrets";
@@ -129,7 +130,7 @@ public class LocallyMountedSecrets implements SecureSettings {
                 throw new IllegalStateException("Error processing secrets file", e);
             }
         } else {
-            secrets.set(new LocalFileSecrets(Map.of(), new ReservedStateVersion(-1L, Version.CURRENT)));
+            secrets.set(new LocalFileSecrets(Map.of(), new ReservedStateVersion(-1L, BuildVersion.current())));
         }
         this.secretsDir = secretsDirPath.toString();
         this.secretsFile = secretsFilePath.toString();
@@ -248,23 +249,23 @@ public class LocallyMountedSecrets implements SecureSettings {
          * Read LocalFileSecrets from stream input
          *
          * <p>This class should only be used node-locally, to represent the local secrets on a particular
-         * node. Thus, the transport version should always be {@link TransportVersion#CURRENT}
+         * node. Thus, the transport version should always be {@link TransportVersion#current()}
          */
         public static LocalFileSecrets readFrom(StreamInput in) throws IOException {
-            assert in.getTransportVersion() == TransportVersion.CURRENT;
-            return new LocalFileSecrets(in.readMap(StreamInput::readString, StreamInput::readByteArray), ReservedStateVersion.readFrom(in));
+            assert in.getTransportVersion() == TransportVersion.current();
+            return new LocalFileSecrets(in.readMap(StreamInput::readByteArray), ReservedStateVersion.readFrom(in));
         }
 
         /**
          * Write LocalFileSecrets to stream output
          *
          * <p>This class should only be used node-locally, to represent the local secrets on a particular
-         * node. Thus, the transport version should always be {@link TransportVersion#CURRENT}
+         * node. Thus, the transport version should always be {@link TransportVersion#current()}
          */
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            assert out.getTransportVersion() == TransportVersion.CURRENT;
-            out.writeMap((entries == null) ? Map.of() : entries, StreamOutput::writeString, StreamOutput::writeByteArray);
+            assert out.getTransportVersion() == TransportVersion.current();
+            out.writeMap((entries == null) ? Map.of() : entries, StreamOutput::writeByteArray);
             metadata.writeTo(out);
         }
     }

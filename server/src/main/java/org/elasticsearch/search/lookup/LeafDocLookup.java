@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.lookup;
 
@@ -102,30 +103,27 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
 
         // Load the field data on behalf of the script. Otherwise, it would require
         // additional permissions to deal with pagedbytes/ramusagestimator/etc.
-        return AccessController.doPrivileged(new PrivilegedAction<FieldFactoryWrapper>() {
-            @Override
-            public FieldFactoryWrapper run() {
-                FieldFactoryWrapper fieldFactory = null;
-                IndexFieldData<?> indexFieldData = fieldDataLookup.apply(fieldType, SCRIPT);
+        return AccessController.doPrivileged((PrivilegedAction<FieldFactoryWrapper>) () -> {
+            IndexFieldData<?> indexFieldData = fieldDataLookup.apply(fieldType, SCRIPT);
 
-                FieldFactoryWrapper docFactory = null;
+            FieldFactoryWrapper docFactory = null;
 
-                if (docFactoryCache.isEmpty() == false) {
-                    docFactory = docFactoryCache.get(fieldName);
-                }
-
-                // if this field has already been accessed via the doc-access API and the field-access API
-                // uses doc values then we share to avoid double-loading
-                if (docFactory != null && indexFieldData instanceof SourceValueFetcherIndexFieldData == false) {
-                    fieldFactory = docFactory;
-                } else {
-                    fieldFactory = new FieldFactoryWrapper(indexFieldData.load(reader).getScriptFieldFactory(fieldName));
-                }
-
-                fieldFactoryCache.put(fieldName, fieldFactory);
-
-                return fieldFactory;
+            if (docFactoryCache.isEmpty() == false) {
+                docFactory = docFactoryCache.get(fieldName);
             }
+
+            // if this field has already been accessed via the doc-access API and the field-access API
+            // uses doc values then we share to avoid double-loading
+            FieldFactoryWrapper fieldFactory;
+            if (docFactory != null && indexFieldData instanceof SourceValueFetcherIndexFieldData == false) {
+                fieldFactory = docFactory;
+            } else {
+                fieldFactory = new FieldFactoryWrapper(indexFieldData.load(reader).getScriptFieldFactory(fieldName));
+            }
+
+            fieldFactoryCache.put(fieldName, fieldFactory);
+
+            return fieldFactory;
         });
     }
 
@@ -150,35 +148,32 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
 
         // Load the field data on behalf of the script. Otherwise, it would require
         // additional permissions to deal with pagedbytes/ramusagestimator/etc.
-        return AccessController.doPrivileged(new PrivilegedAction<FieldFactoryWrapper>() {
-            @Override
-            public FieldFactoryWrapper run() {
-                FieldFactoryWrapper docFactory = null;
-                FieldFactoryWrapper fieldFactory = null;
+        return AccessController.doPrivileged((PrivilegedAction<FieldFactoryWrapper>) () -> {
+            FieldFactoryWrapper docFactory = null;
+            FieldFactoryWrapper fieldFactory = null;
 
-                if (fieldFactoryCache.isEmpty() == false) {
-                    fieldFactory = fieldFactoryCache.get(fieldName);
-                }
-
-                if (fieldFactory != null) {
-                    IndexFieldData<?> fieldIndexFieldData = fieldDataLookup.apply(fieldType, SCRIPT);
-
-                    // if this field has already been accessed via the field-access API and the field-access API
-                    // uses doc values then we share to avoid double-loading
-                    if (fieldIndexFieldData instanceof SourceValueFetcherIndexFieldData == false) {
-                        docFactory = fieldFactory;
-                    }
-                }
-
-                if (docFactory == null) {
-                    IndexFieldData<?> indexFieldData = fieldDataLookup.apply(fieldType, SEARCH);
-                    docFactory = new FieldFactoryWrapper(indexFieldData.load(reader).getScriptFieldFactory(fieldName));
-                }
-
-                docFactoryCache.put(fieldName, docFactory);
-
-                return docFactory;
+            if (fieldFactoryCache.isEmpty() == false) {
+                fieldFactory = fieldFactoryCache.get(fieldName);
             }
+
+            if (fieldFactory != null) {
+                IndexFieldData<?> fieldIndexFieldData = fieldDataLookup.apply(fieldType, SCRIPT);
+
+                // if this field has already been accessed via the field-access API and the field-access API
+                // uses doc values then we share to avoid double-loading
+                if (fieldIndexFieldData instanceof SourceValueFetcherIndexFieldData == false) {
+                    docFactory = fieldFactory;
+                }
+            }
+
+            if (docFactory == null) {
+                IndexFieldData<?> indexFieldData = fieldDataLookup.apply(fieldType, SEARCH);
+                docFactory = new FieldFactoryWrapper(indexFieldData.load(reader).getScriptFieldFactory(fieldName));
+            }
+
+            docFactoryCache.put(fieldName, docFactory);
+
+            return docFactory;
         });
     }
 

@@ -5,7 +5,6 @@ setup:
           body:
             settings:
               number_of_shards: 1
-              number_of_replicas: 0
             mappings:
               properties:
                 date:
@@ -26,8 +25,8 @@ setup:
 
 ---
 "basic":
-  - skip:
-      version: " - 7.8.99"
+  - requires:
+      cluster_features: ["gte_v7.9.0"]
       reason:  interval had a in bug before 7.9.0
   - do:
       search:
@@ -48,8 +47,8 @@ setup:
 
 ---
 "avg_bucket":
-  - skip:
-      version: " - 7.7.99"
+  - requires:
+      cluster_features: ["gte_v7.8.0"]
       reason: Fixed in 7.8.0
   - do:
       search:
@@ -79,8 +78,8 @@ setup:
 
 ---
 "profile at top level":
-  - skip:
-      version: " - 7.9.99"
+  - requires:
+      cluster_features: ["gte_v7.10.0"]
       reason: introduced in 7.10.0
 
   - do:
@@ -105,8 +104,6 @@ setup:
       indices.create:
         index: date_field_type_date
         body:
-          settings:
-            number_of_replicas: 0
           mappings:
             properties:
               date_field:
@@ -116,8 +113,6 @@ setup:
       indices.create:
         index: date_field_type_date_nanos
         body:
-          settings:
-            number_of_replicas: 0
           mappings:
             properties:
               date_field:

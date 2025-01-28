@@ -1,32 +1,32 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.shards.ShardCounts;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.cluster.metadata.MetadataIndexStateServiceTests.addClosedIndex;
@@ -42,7 +42,13 @@ public class ShardLimitValidatorTests extends ESTestCase {
 
     @FunctionalInterface
     interface CheckShardLimitMethod {
-        ShardLimitValidator.Result call(int maxConfiguredShardsPerNode, int numberOfNewShards, int replicas, ClusterState state);
+        ShardLimitValidator.Result call(
+            int maxConfiguredShardsPerNode,
+            int numberOfNewShards,
+            int replicas,
+            DiscoveryNodes discoveryNodes,
+            Metadata metadata
+        );
     }
 
     public void testOverShardLimit() {
@@ -64,7 +70,8 @@ public class ShardLimitValidatorTests extends ESTestCase {
             counts.getShardsPerNode(),
             counts.getFailingIndexShards(),
             counts.getFailingIndexReplicas(),
-            state
+            state.nodes(),
+            state.metadata()
         );
 
         int totalShards = counts.getFailingIndexShards() * (1 + counts.getFailingIndexReplicas());
@@ -81,7 +88,8 @@ public class ShardLimitValidatorTests extends ESTestCase {
                 + maxShards
                 + "] maximum "
                 + group
-                + " shards open",
+                + " shards open; for more information, see "
+                + ReferenceDocs.MAX_SHARDS_PER_NODE,
             ShardLimitValidator.errorMessageFrom(shardLimitsResult)
         );
         assertEquals(shardLimitsResult.maxShardsInCluster(), maxShards);
@@ -113,7 +121,13 @@ public class ShardLimitValidatorTests extends ESTestCase {
         int existingShards = counts.getFirstIndexShards() * (1 + counts.getFirstIndexReplicas());
         int availableRoom = maxShardsInCluster - existingShards;
         int shardsToAdd = randomIntBetween(1, Math.max(availableRoom / (replicas + 1), 1));
-        ShardLimitValidator.Result shardLimitsResult = targetMethod.call(counts.getShardsPerNode(), shardsToAdd, replicas, state);
+        ShardLimitValidator.Result shardLimitsResult = targetMethod.call(
+            counts.getShardsPerNode(),
+            shardsToAdd,
+            replicas,
+            state.nodes(),
+            state.metadata()
+        );
         assertTrue(shardLimitsResult.canAddShards());
         assertEquals(shardLimitsResult.maxShardsInCluster(), counts.getShardsPerNode() * nodesInCluster);
         assertEquals(shardLimitsResult.totalShardsToAdd(), shardsToAdd * (replicas + 1));
@@ -142,7 +156,7 @@ public class ShardLimitValidatorTests extends ESTestCase {
         ShardLimitValidator shardLimitValidator = createTestShardLimitService(counts.getShardsPerNode(), group);
         ValidationException exception = expectThrows(
             ValidationException.class,
-            () -> shardLimitValidator.validateShardLimit(state, indices)
+            () -> shardLimitValidator.validateShardLimit(state.nodes(), state.metadata(), indices)
         );
         assertEquals(
             "Validation Failed: 1: this action would add ["
@@ -153,7 +167,9 @@ public class ShardLimitValidatorTests extends ESTestCase {
                 + maxShards
                 + "] maximum "
                 + group
-                + " shards open;",
+                + " shards open; for more information, see "
+                + ReferenceDocs.MAX_SHARDS_PER_NODE
+                + ";",
             exception.getMessage()
         );
     }
@@ -166,11 +182,11 @@ public class ShardLimitValidatorTests extends ESTestCase {
 
         final Index[] indices = getIndices(state);
         final ShardLimitValidator shardLimitValidator = createTestShardLimitService(shardsPerNode, group);
-        shardLimitValidator.validateShardLimitOnReplicaUpdate(state, indices, nodesInCluster - 1);
+        shardLimitValidator.validateShardLimitOnReplicaUpdate(state.nodes(), state.metadata(), indices, nodesInCluster - 1);
 
         ValidationException exception = expectThrows(
             ValidationException.class,
-            () -> shardLimitValidator.validateShardLimitOnReplicaUpdate(state, indices, nodesInCluster)
+            () -> shardLimitValidator.validateShardLimitOnReplicaUpdate(state.nodes(), state.metadata(), indices, nodesInCluster)
         );
         assertEquals(
             "Validation Failed: 1: this action would add ["
@@ -181,7 +197,9 @@ public class ShardLimitValidatorTests extends ESTestCase {
                 + shardsPerNode * nodesInCluster
                 + "] maximum "
                 + group
-                + " shards open;",
+                + " shards open; for more information, see "
+                + ReferenceDocs.MAX_SHARDS_PER_NODE
+                + ";",
             exception.getMessage()
         );
     }
@@ -209,7 +227,7 @@ public class ShardLimitValidatorTests extends ESTestCase {
     ) {
         DiscoveryNodes nodes = createDiscoveryNodes(nodesInCluster, group);
 
-        Settings.Builder settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT);
+        Settings.Builder settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current());
         if (ShardLimitValidator.FROZEN_GROUP.equals(group) || randomBoolean()) {
             settings.put(ShardLimitValidator.INDEX_SETTING_SHARD_LIMIT_GROUP.getKey(), group);
         }
@@ -260,22 +278,13 @@ public class ShardLimitValidatorTests extends ESTestCase {
     }
 
     public static DiscoveryNodes createDiscoveryNodes(int nodesInCluster, String group) {
-        Map<String, DiscoveryNode> dataNodes = new HashMap<>();
+        DiscoveryNodes.Builder builder = DiscoveryNodes.builder();
         for (int i = 0; i < nodesInCluster; i++) {
-            dataNodes.put(randomAlphaOfLengthBetween(5, 15), createNode(group));
-        }
-        DiscoveryNodes nodes = mock(DiscoveryNodes.class);
-        when(nodes.getDataNodes()).thenReturn(dataNodes);
-        return nodes;
-    }
-
-    private static DiscoveryNode createNode(String group) {
-        DiscoveryNode mock = mock(DiscoveryNode.class);
-        if (ShardLimitValidator.FROZEN_GROUP.equals(group)) {
-            when(mock.getRoles()).thenReturn(randomBoolean() ? DiscoveryNodeRole.roles() : Set.of(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE));
-        } else {
-            when(mock.getRoles()).thenReturn(
-                randomBoolean()
+            Set<DiscoveryNodeRole> roles;
+            if (ShardLimitValidator.FROZEN_GROUP.equals(group)) {
+                roles = randomBoolean() ? DiscoveryNodeRole.roles() : Set.of(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE);
+            } else {
+                roles = randomBoolean()
                     ? DiscoveryNodeRole.roles()
                     : Set.of(
                         randomFrom(
@@ -284,10 +293,12 @@ public class ShardLimitValidatorTests extends ESTestCase {
                             DiscoveryNodeRole.DATA_WARM_NODE_ROLE,
                             DiscoveryNodeRole.DATA_COLD_NODE_ROLE
                         )
-                    )
-            );
+                    );
+            }
+
+            builder.add(DiscoveryNodeUtils.builder(randomAlphaOfLengthBetween(5, 15)).roles(roles).build());
         }
-        return mock;
+        return builder.build();
     }
 
     private static Metadata.Builder freezeMetadata(Metadata.Builder builder, Metadata metadata) {

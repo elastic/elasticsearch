@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.internal;
@@ -15,6 +16,7 @@ import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
+import org.elasticsearch.index.mapper.IdLoader;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -33,7 +35,8 @@ import org.elasticsearch.search.fetch.subphase.ScriptFieldsContext;
 import org.elasticsearch.search.fetch.subphase.highlight.SearchHighlightContext;
 import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.query.QuerySearchResult;
-import org.elasticsearch.search.rank.RankShardContext;
+import org.elasticsearch.search.rank.context.QueryPhaseRankShardContext;
+import org.elasticsearch.search.rank.feature.RankFeatureResult;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
@@ -139,18 +142,13 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public void suggest(SuggestionSearchContext suggest) {
-        in.suggest(suggest);
+    public QueryPhaseRankShardContext queryPhaseRankShardContext() {
+        return in.queryPhaseRankShardContext();
     }
 
     @Override
-    public RankShardContext rankShardContext() {
-        return in.rankShardContext();
-    }
-
-    @Override
-    public void rankShardContext(RankShardContext rankShardContext) {
-        in.rankShardContext(rankShardContext);
+    public void queryPhaseRankShardContext(QueryPhaseRankShardContext queryPhaseRankShardContext) {
+        in.queryPhaseRankShardContext(queryPhaseRankShardContext);
     }
 
     @Override
@@ -171,11 +169,6 @@ public abstract class FilteredSearchContext extends SearchContext {
     @Override
     public boolean sourceRequested() {
         return in.sourceRequested();
-    }
-
-    @Override
-    public boolean hasFetchSourceContext() {
-        return in.hasFetchSourceContext();
     }
 
     @Override
@@ -206,11 +199,6 @@ public abstract class FilteredSearchContext extends SearchContext {
     @Override
     public TimeValue timeout() {
         return in.timeout();
-    }
-
-    @Override
-    public void timeout(TimeValue timeout) {
-        in.timeout(timeout);
     }
 
     @Override
@@ -339,11 +327,6 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public void groupStats(List<String> groupStats) {
-        in.groupStats(groupStats);
-    }
-
-    @Override
     public boolean version() {
         return in.version();
     }
@@ -361,16 +344,6 @@ public abstract class FilteredSearchContext extends SearchContext {
     @Override
     public void seqNoAndPrimaryTerm(boolean seqNoAndPrimaryTerm) {
         in.seqNoAndPrimaryTerm(seqNoAndPrimaryTerm);
-    }
-
-    @Override
-    public int[] docIdsToLoad() {
-        return in.docIdsToLoad();
-    }
-
-    @Override
-    public SearchContext docIdsToLoad(int[] docIdsToLoad) {
-        return in.docIdsToLoad(docIdsToLoad);
     }
 
     @Override
@@ -404,6 +377,16 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
+    public void addRankFeatureResult() {
+        in.addRankFeatureResult();
+    }
+
+    @Override
+    public RankFeatureResult rankFeatureResult() {
+        return in.rankFeatureResult();
+    }
+
+    @Override
     public FetchSearchResult fetchResult() {
         return in.fetchResult();
     }
@@ -421,11 +404,6 @@ public abstract class FilteredSearchContext extends SearchContext {
     @Override
     public long getRelativeTimeInMillis() {
         return in.getRelativeTimeInMillis();
-    }
-
-    @Override
-    public void addSearchExt(SearchExtBuilder searchExtBuilder) {
-        in.addSearchExt(searchExtBuilder);
     }
 
     @Override
@@ -459,11 +437,6 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public SearchContext collapse(CollapseContext collapse) {
-        return in.collapse(collapse);
-    }
-
-    @Override
     public CollapseContext collapse() {
         return in.collapse();
     }
@@ -481,5 +454,10 @@ public abstract class FilteredSearchContext extends SearchContext {
     @Override
     public SourceLoader newSourceLoader() {
         return in.newSourceLoader();
+    }
+
+    @Override
+    public IdLoader newIdLoader() {
+        return in.newIdLoader();
     }
 }

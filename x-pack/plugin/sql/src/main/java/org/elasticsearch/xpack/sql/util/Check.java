@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.sql.util;
 
+import org.elasticsearch.xpack.ql.InvalidArgumentException;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 
 /**
@@ -26,12 +27,6 @@ public abstract class Check {
         }
     }
 
-    public static void notNull(Object object, String message) {
-        if (object == null) {
-            throw new SqlIllegalArgumentException(message);
-        }
-    }
-
     public static void notNull(Object object, String message, Object... values) {
         if (object == null) {
             throw new SqlIllegalArgumentException(message, values);
@@ -40,7 +35,7 @@ public abstract class Check {
 
     public static void isFixedNumberAndInRange(Object object, String objectName, Long from, Long to) {
         if ((object instanceof Number) == false || object instanceof Float || object instanceof Double) {
-            throw new SqlIllegalArgumentException(
+            throw new InvalidArgumentException(
                 "A fixed point number is required for [{}]; received [{}]",
                 objectName,
                 object.getClass().getTypeName()
@@ -48,7 +43,7 @@ public abstract class Check {
         }
         Long longValue = ((Number) object).longValue();
         if (longValue < from || longValue > to) {
-            throw new SqlIllegalArgumentException("[{}] out of the allowed range [{}, {}], received [{}]", objectName, from, to, longValue);
+            throw new InvalidArgumentException("[{}] out of the allowed range [{}, {}], received [{}]", objectName, from, to, longValue);
         }
     }
 }

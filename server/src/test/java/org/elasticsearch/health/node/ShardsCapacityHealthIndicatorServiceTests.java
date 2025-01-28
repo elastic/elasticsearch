@@ -1,27 +1,29 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.health.node;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.health.HealthIndicatorDetails;
 import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.health.metadata.HealthMetadata;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
@@ -57,6 +59,10 @@ import static org.elasticsearch.health.node.ShardsCapacityHealthIndicatorService
 import static org.elasticsearch.indices.ShardLimitValidator.FROZEN_GROUP;
 import static org.elasticsearch.indices.ShardLimitValidator.INDEX_SETTING_SHARD_LIMIT_GROUP;
 import static org.elasticsearch.indices.ShardLimitValidator.NORMAL_GROUP;
+import static org.elasticsearch.indices.ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE;
+import static org.elasticsearch.indices.ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE_FROZEN;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -75,21 +81,15 @@ public class ShardsCapacityHealthIndicatorServiceTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
 
-        dataNode = TestDiscoveryNode.create(
-            "data_node",
-            "data_node",
-            ESTestCase.buildNewFakeTransportAddress(),
-            Map.of(),
-            Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE)
-        );
+        dataNode = DiscoveryNodeUtils.builder("data_node")
+            .name("data_node")
+            .roles(Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE))
+            .build();
 
-        frozenNode = TestDiscoveryNode.create(
-            "frozen_node",
-            "frozen_node",
-            ESTestCase.buildNewFakeTransportAddress(),
-            Map.of(),
-            Set.of(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE)
-        );
+        frozenNode = DiscoveryNodeUtils.builder("frozen_node")
+            .name("frozen_node")
+            .roles(Set.of(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE))
+            .build();
 
         clusterService = ClusterServiceUtils.createClusterService(threadPool);
     }
@@ -149,6 +149,30 @@ public class ShardsCapacityHealthIndicatorServiceTests extends ESTestCase {
                     Map.of("max_shards_in_cluster", maxShardsPerNodeFrozen)
                 )
             )
+        );
+    }
+
+    public void testDiagnoses() {
+        assertEquals("shards_capacity", SHARDS_MAX_CAPACITY_REACHED_DATA_NODES.definition().indicatorName());
+        assertEquals("decrease_shards_per_non_frozen_node", SHARDS_MAX_CAPACITY_REACHED_DATA_NODES.definition().id());
+        assertThat(
+            SHARDS_MAX_CAPACITY_REACHED_DATA_NODES.definition().cause(),
+            allOf(containsString("maximum number of shards"), containsString(SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey()))
+        );
+        assertThat(
+            SHARDS_MAX_CAPACITY_REACHED_DATA_NODES.definition().action(),
+            allOf(containsString("Increase the number of nodes in your cluster"), containsString("remove some non-frozen indices"))
+        );
+
+        assertEquals("shards_capacity", SHARDS_MAX_CAPACITY_REACHED_FROZEN_NODES.definition().indicatorName());
+        assertEquals("decrease_shards_per_frozen_node", SHARDS_MAX_CAPACITY_REACHED_FROZEN_NODES.definition().id());
+        assertThat(
+            SHARDS_MAX_CAPACITY_REACHED_FROZEN_NODES.definition().cause(),
+            allOf(containsString("maximum number of shards"), containsString(SETTING_CLUSTER_MAX_SHARDS_PER_NODE_FROZEN.getKey()))
+        );
+        assertThat(
+            SHARDS_MAX_CAPACITY_REACHED_FROZEN_NODES.definition().action(),
+            allOf(containsString("Increase the number of nodes in your cluster"), containsString("remove some frozen indices"))
         );
     }
 
@@ -317,8 +341,10 @@ public class ShardsCapacityHealthIndicatorServiceTests extends ESTestCase {
             maxConfiguredShardsPerNode,
             numberOfNewShards,
             replicas,
-            state) -> {
-            assertEquals(mockedState, state);
+            discoveryNodes,
+            metadata) -> {
+            assertEquals(mockedState.nodes(), discoveryNodes);
+            assertEquals(mockedState.metadata(), metadata);
             assertEquals(randomMaxShardsPerNodeSetting, maxConfiguredShardsPerNode);
             return new ShardLimitValidator.Result(
                 numberOfNewShards != shardsToAdd && replicas == 1,
@@ -329,13 +355,19 @@ public class ShardsCapacityHealthIndicatorServiceTests extends ESTestCase {
             );
         };
 
-        assertEquals(calculateFrom(randomMaxShardsPerNodeSetting, mockedState, checkerWrapper.apply(5)).status(), RED);
-        assertEquals(calculateFrom(randomMaxShardsPerNodeSetting, mockedState, checkerWrapper.apply(10)).status(), YELLOW);
+        assertEquals(
+            calculateFrom(randomMaxShardsPerNodeSetting, mockedState.nodes(), mockedState.metadata(), checkerWrapper.apply(5)).status(),
+            RED
+        );
+        assertEquals(
+            calculateFrom(randomMaxShardsPerNodeSetting, mockedState.nodes(), mockedState.metadata(), checkerWrapper.apply(10)).status(),
+            YELLOW
+        );
 
         // Let's cover the holes :)
         Stream.of(randomIntBetween(1, 4), randomIntBetween(6, 9), randomIntBetween(11, Integer.MAX_VALUE))
             .map(checkerWrapper)
-            .map(checker -> calculateFrom(randomMaxShardsPerNodeSetting, mockedState, checker))
+            .map(checker -> calculateFrom(randomMaxShardsPerNodeSetting, mockedState.nodes(), mockedState.metadata(), checker))
             .map(ShardsCapacityHealthIndicatorService.StatusResult::status)
             .forEach(status -> assertEquals(status, GREEN));
     }
@@ -345,13 +377,25 @@ public class ShardsCapacityHealthIndicatorServiceTests extends ESTestCase {
     public void testMappedFieldsForTelemetry() {
         assertEquals(ShardsCapacityHealthIndicatorService.NAME, "shards_capacity");
         assertEquals(
-            "elasticsearch:health:shards_capacity:diagnosis:increase_max_shards_per_node",
+            "elasticsearch:health:shards_capacity:diagnosis:decrease_shards_per_non_frozen_node",
             SHARDS_MAX_CAPACITY_REACHED_DATA_NODES.definition().getUniqueId()
         );
         assertEquals(
-            "elasticsearch:health:shards_capacity:diagnosis:increase_max_shards_per_node_frozen",
+            "elasticsearch:health:shards_capacity:diagnosis:decrease_shards_per_frozen_node",
             SHARDS_MAX_CAPACITY_REACHED_FROZEN_NODES.definition().getUniqueId()
         );
+    }
+
+    public void testSkippingFieldsWhenVerboseIsFalse() {
+        int maxShardsPerNodeFrozen = randomValidMaxShards();
+        var clusterService = createClusterService(25, maxShardsPerNodeFrozen, createIndexInDataNode(11));
+        var indicatorResult = new ShardsCapacityHealthIndicatorService(clusterService).calculate(false, HealthInfo.EMPTY_HEALTH_INFO);
+
+        assertEquals(indicatorResult.status(), RED);
+        assertEquals(indicatorResult.symptom(), "Cluster is close to reaching the configured maximum number of shards for data nodes.");
+        assertThat(indicatorResult.impacts(), equalTo(RED_INDICATOR_IMPACTS));
+        assertThat(indicatorResult.diagnosisList(), hasSize(0));
+        assertThat(indicatorResult.details(), is(HealthIndicatorDetails.EMPTY));
     }
 
     private static int randomValidMaxShards() {
@@ -394,7 +438,7 @@ public class ShardsCapacityHealthIndicatorServiceTests extends ESTestCase {
         var metadata = Metadata.builder()
             .persistentSettings(
                 Settings.builder()
-                    .put(ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey(), maxShardsPerNode)
+                    .put(SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey(), maxShardsPerNode)
                     .put(ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE_FROZEN.getKey(), maxShardsPerNodeFrozen)
                     .build()
             );
@@ -417,7 +461,7 @@ public class ShardsCapacityHealthIndicatorServiceTests extends ESTestCase {
     private static IndexMetadata.Builder createIndex(int shards, String group) {
         return IndexMetadata.builder("index-" + randomAlphaOfLength(20))
             .settings(
-                indexSettings(Version.CURRENT, shards, 1).put(SETTING_CREATION_DATE, System.currentTimeMillis())
+                indexSettings(IndexVersion.current(), shards, 1).put(SETTING_CREATION_DATE, System.currentTimeMillis())
                     .put(INDEX_SETTING_SHARD_LIMIT_GROUP.getKey(), group)
             );
     }

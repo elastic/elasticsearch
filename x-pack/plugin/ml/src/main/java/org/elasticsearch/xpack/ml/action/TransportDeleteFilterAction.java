@@ -8,16 +8,17 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
@@ -48,7 +49,13 @@ public class TransportDeleteFilterAction extends HandledTransportAction<DeleteFi
         Client client,
         JobConfigProvider jobConfigProvider
     ) {
-        super(DeleteFilterAction.NAME, transportService, actionFilters, DeleteFilterAction.Request::new);
+        super(
+            DeleteFilterAction.NAME,
+            transportService,
+            actionFilters,
+            DeleteFilterAction.Request::new,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
         this.client = client;
         this.jobConfigProvider = jobConfigProvider;
     }
@@ -56,16 +63,16 @@ public class TransportDeleteFilterAction extends HandledTransportAction<DeleteFi
     @Override
     protected void doExecute(Task task, DeleteFilterAction.Request request, ActionListener<AcknowledgedResponse> listener) {
         final String filterId = request.getFilterId();
-        jobConfigProvider.findJobsWithCustomRules(ActionListener.wrap(jobs -> {
+        jobConfigProvider.findJobsWithCustomRules(listener.delegateFailureAndWrap((delegate, jobs) -> {
             List<String> currentlyUsedBy = findJobsUsingFilter(jobs, filterId);
             if (currentlyUsedBy.isEmpty() == false) {
-                listener.onFailure(
+                delegate.onFailure(
                     ExceptionsHelper.conflictStatusException(Messages.getMessage(Messages.FILTER_CANNOT_DELETE, filterId, currentlyUsedBy))
                 );
             } else {
-                deleteFilter(filterId, listener);
+                deleteFilter(filterId, delegate);
             }
-        }, listener::onFailure));
+        }));
     }
 
     private static List<String> findJobsUsingFilter(List<Job> jobs, String filterId) {
@@ -87,22 +94,28 @@ public class TransportDeleteFilterAction extends HandledTransportAction<DeleteFi
         BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
         bulkRequestBuilder.add(deleteRequest);
         bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-        executeAsyncWithOrigin(client, ML_ORIGIN, BulkAction.INSTANCE, bulkRequestBuilder.request(), new ActionListener<BulkResponse>() {
-            @Override
-            public void onResponse(BulkResponse bulkResponse) {
-                if (bulkResponse.getItems()[0].status() == RestStatus.NOT_FOUND) {
-                    listener.onFailure(
-                        new ResourceNotFoundException("Could not delete filter with ID [" + filterId + "] because it does not exist")
-                    );
-                } else {
-                    listener.onResponse(AcknowledgedResponse.TRUE);
+        executeAsyncWithOrigin(
+            client,
+            ML_ORIGIN,
+            TransportBulkAction.TYPE,
+            bulkRequestBuilder.request(),
+            new ActionListener<BulkResponse>() {
+                @Override
+                public void onResponse(BulkResponse bulkResponse) {
+                    if (bulkResponse.getItems()[0].status() == RestStatus.NOT_FOUND) {
+                        listener.onFailure(
+                            new ResourceNotFoundException("Could not delete filter with ID [" + filterId + "] because it does not exist")
+                        );
+                    } else {
+                        listener.onResponse(AcknowledgedResponse.TRUE);
+                    }
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    listener.onFailure(ExceptionsHelper.serverError("Could not delete filter with ID [" + filterId + "]", e));
                 }
             }
-
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(ExceptionsHelper.serverError("Could not delete filter with ID [" + filterId + "]", e));
-            }
-        });
+        );
     }
 }

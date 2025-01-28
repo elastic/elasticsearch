@@ -17,17 +17,12 @@ import java.io.IOException;
 /**
  * Request to gather usage statistics
  */
-public class SqlStatsRequest extends BaseNodesRequest<SqlStatsRequest> {
+public class SqlStatsRequest extends BaseNodesRequest {
 
     private boolean includeStats;
 
     public SqlStatsRequest() {
         super((String[]) null);
-    }
-
-    public SqlStatsRequest(StreamInput in) throws IOException {
-        super(in);
-        includeStats = in.readBoolean();
     }
 
     public boolean includeStats() {
@@ -36,12 +31,6 @@ public class SqlStatsRequest extends BaseNodesRequest<SqlStatsRequest> {
 
     public void includeStats(boolean includeStats) {
         this.includeStats = includeStats;
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeBoolean(includeStats);
     }
 
     @Override

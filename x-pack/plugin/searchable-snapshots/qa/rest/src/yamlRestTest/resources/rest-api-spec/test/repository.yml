@@ -53,8 +53,8 @@ setup:
 
 ---
 "Delete repository when a snapshot is mounted as an index":
-  - skip:
-      version: " - 7.99.99"
+  - requires:
+      cluster_features: ["gte_v8.0.0"]
       reason: "starting 8.0, an error occurs when a repository used by snapshot backed indices is deleted"
 
   - do:

@@ -111,12 +111,12 @@ Refer to <<security-clients-integrations,Securing clients and integrations>>.
 [role="exclude",id="cross-cluster-configuring"]
 === {ccs-cap} and security
 
-Refer to <<remote-clusters-security,configure remote clusters with security>>.
+Refer to <<remote-clusters>>.
 
 [role="exclude",id="cross-cluster-kibana"]
 ==== {ccs-cap} and {kib}
 
-Refer to <<clusters-privileges-ccs-kibana,Configure privileges for {ccs} and {kib}>>.
+Refer to <<remote-clusters>>.
 
 [role="exclude",id="ccr-getting-started"]
 === Configure {ccr}
@@ -156,9 +156,15 @@ See <<restore-entire-cluster>>.
 The freeze index API was removed in 8.0.
 // tag::frozen-removal-explanation[]
 Frozen indices are no longer useful due to
-https://www.elastic.co/blog/significantly-decrease-your-elasticsearch-heap-memory-usage[recent
-improvements in heap memory usage].
+https://www.elastic.co/blog/significantly-decrease-your-elasticsearch-heap-memory-usage[improvements
+in heap memory usage].
 // end::frozen-removal-explanation[]
+
+[role="exclude",id="unfreeze-index-api"]
+=== Unfreeze index API
+
+The unfreeze index API was removed in 9.0.
+include::redirects.asciidoc[tag=frozen-removal-explanation]
 
 [role="exclude",id="ilm-freeze"]
 === Freeze {ilm-init} action
@@ -326,7 +332,7 @@ See <<configuring-stack-security,Configuring security for the Elastic Stack>>.
 See <<security-api-suggest-user-profile,Suggest user profile API>>.
 // [END] Security redirects
 
-[roles="exclude",id="modules-scripting-stored-scripts"]
+[role="exclude",id="modules-scripting-stored-scripts"]
 === Stored scripts
 
 See <<script-stored-scripts,Store and retrieve scripts>>
@@ -1720,11 +1726,6 @@ See <<rollup-apis>>.
 
 See <<configuring-stack-security>>.
 
-[role="exclude",id="getting-started"]
-=== Quick start
-
-See {estc-welcome}/getting-started-general-purpose.html[Set up a general purpose Elastic deployment].
-
 [role="exclude",id="getting-started-index"]
 === Index some documents
 
@@ -1754,8 +1755,10 @@ See <<search-terms-enum>>.
 === Frozen indices
 
 // tag::frozen-index-redirect[]
-
-For API documentation, see <<unfreeze-index-api>>.
+Older versions of {es} provided the option to reduce the amount of data kept in memory for an index, at the expense of
+increasing search latency. This was known as 'freezing' the index.
+include::redirects.asciidoc[tag=frozen-removal-explanation]
+The freeze index API was removed in 8.0, and the unfreeze index API was removed in 9.0.
 // end::frozen-index-redirect[]
 
 [role="exclude",id="best_practices"]
@@ -1881,3 +1884,74 @@ Refer to <<example-watches>> for other Watcher examples.
 === Fix watermark errors
 
 Refer to <<fix-watermark-errors>>.
+
+[role="exclude",id="dlm-delete-lifecycle"]
+=== Delete the lifecycle of a data stream
+
+Refer to <<data-streams-delete-lifecycle,Delete data stream lifecycle API>>.
+
+[role="exclude",id="dlm-explain-lifecycle"]
+=== Explain the lifecycle of a data stream
+
+Refer to <<data-streams-explain-lifecycle,Explain data stream lifecycle API>>.
+
+[role="exclude",id="dlm-get-lifecycle"]
+=== Get the lifecycle of a data stream
+
+Refer to <<data-streams-get-lifecycle,Get data stream lifecycle API>>.
+
+[role="exclude",id="dlm-put-lifecycle"]
+=== Update the lifecycle of a data stream
+
+Refer to <<data-streams-delete-lifecycle,Update data stream lifecycle API>>.
+
+[role="exclude",id="get-synonyms"]
+=== Get synonyms set API
+
+See <<get-synonyms-set>>
+
+[role="exclude",id="delete-synonyms"]
+=== Delete synonyms sets API
+
+See <<delete-synonyms-set>>
+
+[role="exclude",id="put-synonyms"]
+=== Create or delete synonyms sets API
+
+See <<put-synonyms-set>>
+
+[role="exclude",id="remote-clusters-connect"]
+=== Remote clusters
+
+Refer to <<remote-clusters>>
+
+[float]
+[[configure-remote-clusters-dynamic]]
+==== Dynamically configure remote clusters
+
+Refer to <<remote-clusters>>.
+
+[role="exclude",id="remote-clusters-privileges"]
+=== Configure roles and users for remote clusters
+
+Refer to <<remote-clusters>>.
+
+[role="exclude",id="put-geoip-database-api"]
+=== Create or update geoip database configuration API
+
+Refer to <<put-ip-location-database-api>>.
+
+[role="exclude",id="get-geoip-database-api"]
+=== Get geoip database configuration
+
+Refer to <<get-ip-location-database-api>>.
+
+[role="exclude",id="delete-geoip-database-api"]
+=== Delete geoip database configuration API
+
+Refer to <<delete-ip-location-database-api>>.
+
+[role="exclude",id="knn-search-api"]
+=== Delete _knn_search API
+
+Refer to <<search-api-knn>>.

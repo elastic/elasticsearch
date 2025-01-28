@@ -9,7 +9,6 @@ package org.elasticsearch.integration;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSourceField;
@@ -46,7 +45,7 @@ public class KibanaSystemRoleIntegTests extends SecurityIntegTestCase {
             assertThat(createIndexResponse.isAcknowledged(), is(true));
         }
 
-        IndexResponse response = client().filterWithHeader(
+        DocWriteResponse response = client().filterWithHeader(
             singletonMap("Authorization", UsernamePasswordToken.basicAuthHeaderValue("my_kibana_system", USERS_PASSWD))
         ).prepareIndex().setIndex(index).setSource("foo", "bar").setRefreshPolicy(IMMEDIATE).get();
         assertEquals(DocWriteResponse.Result.CREATED, response.getResult());

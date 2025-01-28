@@ -23,8 +23,8 @@ public class GeoPointField extends DocValueField {
     }
 
     @Override
-    public Object[] value(SearchHit hit) {
-        Object[] value = super.value(hit);
+    public Object[] value(SearchHit hit, SourceSupplier source) {
+        Object[] value = super.value(hit, source);
         if (value.length == 0) {
             return value;
         }
@@ -40,7 +40,7 @@ public class GeoPointField extends DocValueField {
         return value;
     }
 
-    private String handleString(String geoString) {
+    private static String handleString(String geoString) {
         if (geoString.contains(",")) { // Entry is of the form "38.897676, -77.03653"
             return geoString.replace(" ", "");
         } else {

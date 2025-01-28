@@ -4,6 +4,12 @@
 <titleabbrev>Flush</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-indices[Index APIs].
+--
+
 Flushes one or more data streams or indices.
 
 [source,console]
@@ -66,11 +72,11 @@ this parameter or use `*` or `_all`.
 [[flush-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
 +
 Defaults to `true`.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 +
 Defaults to `open`.
 
@@ -81,7 +87,7 @@ Defaults to `open`.
 If `true`,
 the request forces a flush
 even if there are no changes to commit to the index.
-Defaults to `true`.
+Defaults to `false`.
 
 You can use this parameter
 to increment the generation number of the transaction log.
@@ -90,7 +96,7 @@ This parameter is considered internal.
 --
 
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
 
 `wait_if_ongoing`::
 +

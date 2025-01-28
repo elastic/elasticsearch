@@ -13,13 +13,13 @@ import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 import org.apache.http.HttpHost;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
 import org.apache.lucene.tests.util.TimeUnits;
 import org.elasticsearch.client.HttpAsyncResponseConsumerFactory;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
-import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -38,7 +38,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
@@ -47,14 +46,13 @@ import static org.elasticsearch.xpack.ql.TestUtils.assertNoSearchContexts;
 
 @TimeoutSuite(millis = 30 * TimeUnits.MINUTE)
 @TestLogging(value = "org.elasticsearch.xpack.eql.EsEQLCorrectnessIT:INFO", reason = "Log query execution time")
-@SuppressWarnings("removal")
+@AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/112572")
 public class EsEQLCorrectnessIT extends ESRestTestCase {
 
     private static final String PARAM_FORMATTING = "%1$s";
     private static final String QUERIES_FILENAME = "queries.toml";
 
     private static Properties CFG;
-    private static RestHighLevelClient highLevelClient;
     private static RequestOptions COMMON_REQUEST_OPTIONS;
     private static long totalTime = 0;
 
@@ -115,14 +113,6 @@ public class EsEQLCorrectnessIT extends ESRestTestCase {
 
     public EsEQLCorrectnessIT(EqlSpec spec) {
         this.spec = spec;
-    }
-
-    private RestHighLevelClient highLevelClient() {
-        if (highLevelClient == null) {
-            highLevelClient = new RestHighLevelClient(client(), ignore -> {}, Collections.emptyList()) {
-            };
-        }
-        return highLevelClient;
     }
 
     @ParametersFactory(shuffle = false, argumentFormatting = PARAM_FORMATTING)

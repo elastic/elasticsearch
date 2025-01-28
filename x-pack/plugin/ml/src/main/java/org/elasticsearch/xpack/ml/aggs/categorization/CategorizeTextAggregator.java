@@ -11,7 +11,9 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.util.BytesRefHash;
+import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Releasables;
@@ -93,11 +95,11 @@ public class CategorizeTextAggregator extends DeferableBucketAggregator {
                 true
             );
         }
-        this.categorizers = bigArrays().newObjectArray(1);
+        this.categorizers = context.bigArrays().newObjectArray(1);
         this.similarityThreshold = similarityThreshold;
-        this.bucketOrds = LongKeyedBucketOrds.build(bigArrays(), CardinalityUpperBound.MANY);
+        this.bucketOrds = LongKeyedBucketOrds.build(context.bigArrays(), CardinalityUpperBound.MANY);
         this.bucketCountThresholds = bucketCountThresholds;
-        this.bytesRefHash = new CategorizationBytesRefHash(new BytesRefHash(2048, bigArrays()));
+        this.bytesRefHash = new CategorizationBytesRefHash(new BytesRefHash(2048, context.bigArrays()));
         // TODO: make it possible to choose a language instead of or as well as English for the part-of-speech dictionary
         this.partOfSpeechDictionary = CategorizationPartOfSpeechDictionary.getInstance();
     }
@@ -109,30 +111,33 @@ public class CategorizeTextAggregator extends DeferableBucketAggregator {
     }
 
     @Override
-    public InternalAggregation[] buildAggregations(long[] ordsToCollect) throws IOException {
-        Bucket[][] topBucketsPerOrd = new Bucket[ordsToCollect.length][];
-        for (int ordIdx = 0; ordIdx < ordsToCollect.length; ordIdx++) {
-            final TokenListCategorizer categorizer = categorizers.get(ordsToCollect[ordIdx]);
-            if (categorizer == null) {
-                topBucketsPerOrd[ordIdx] = new Bucket[0];
-                continue;
+    public InternalAggregation[] buildAggregations(LongArray ordsToCollect) throws IOException {
+        try (ObjectArray<Bucket[]> topBucketsPerOrd = bigArrays().newObjectArray(ordsToCollect.size())) {
+            for (long ordIdx = 0; ordIdx < ordsToCollect.size(); ordIdx++) {
+                final long ord = ordsToCollect.get(ordIdx);
+                final TokenListCategorizer categorizer = (ord < categorizers.size()) ? categorizers.get(ord) : null;
+                if (categorizer == null) {
+                    topBucketsPerOrd.set(ordIdx, new Bucket[0]);
+                    continue;
+                }
+                int size = (int) Math.min(bucketOrds.bucketsInOrd(ordIdx), bucketCountThresholds.getShardSize());
+                checkRealMemoryCBForInternalBucket();
+                topBucketsPerOrd.set(ordIdx, categorizer.toOrderedBuckets(size));
             }
-            int size = (int) Math.min(bucketOrds.bucketsInOrd(ordIdx), bucketCountThresholds.getShardSize());
-            topBucketsPerOrd[ordIdx] = categorizer.toOrderedBuckets(size);
-        }
-        buildSubAggsForAllBuckets(topBucketsPerOrd, Bucket::getBucketOrd, Bucket::setAggregations);
-        InternalAggregation[] results = new InternalAggregation[ordsToCollect.length];
-        for (int ordIdx = 0; ordIdx < ordsToCollect.length; ordIdx++) {
-            results[ordIdx] = new InternalCategorizationAggregation(
-                name,
-                bucketCountThresholds.getRequiredSize(),
-                bucketCountThresholds.getMinDocCount(),
-                similarityThreshold,
-                metadata(),
-                Arrays.asList(topBucketsPerOrd[ordIdx])
+            buildSubAggsForAllBuckets(topBucketsPerOrd, Bucket::getBucketOrd, Bucket::setAggregations);
+
+            return buildAggregations(
+                Math.toIntExact(ordsToCollect.size()),
+                ordIdx -> new InternalCategorizationAggregation(
+                    name,
+                    bucketCountThresholds.getRequiredSize(),
+                    bucketCountThresholds.getMinDocCount(),
+                    similarityThreshold,
+                    metadata(),
+                    Arrays.asList(topBucketsPerOrd.get(ordIdx))
+                )
             );
         }
-        return results;
     }
 
     @Override
@@ -163,12 +168,15 @@ public class CategorizeTextAggregator extends DeferableBucketAggregator {
 
             private void collectFromSource(int doc, long owningBucketOrd, TokenListCategorizer categorizer) throws IOException {
                 Source source = sourceProvider.getSource(aggCtx.getLeafReaderContext(), doc).filter(sourceFilter);
-                Iterator<String> itr = XContentMapValues.extractRawValues(sourceFieldName, source.source()).stream().map(obj -> {
-                    if (obj instanceof BytesRef) {
-                        return fieldType.valueForDisplay(obj).toString();
+                Iterator<String> itr = Iterators.map(
+                    XContentMapValues.extractRawValues(sourceFieldName, source.source()).iterator(),
+                    obj -> {
+                        if (obj instanceof BytesRef) {
+                            return fieldType.valueForDisplay(obj).toString();
+                        }
+                        return (obj == null) ? null : obj.toString();
                     }
-                    return (obj == null) ? null : obj.toString();
-                }).iterator();
+                );
                 while (itr.hasNext()) {
                     String string = itr.next();
                     try (TokenStream ts = analyzer.tokenStream(fieldType.name(), string)) {

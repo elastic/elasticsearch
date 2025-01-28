@@ -7,24 +7,26 @@
 
 package org.elasticsearch.xpack.core.security.action.apikey;
 
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.action.admin.cluster.node.info.ComponentVersionNumber;
+import org.elasticsearch.common.VersionId;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.transport.TcpTransport;
+import org.elasticsearch.xcontent.AbstractObjectParser;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -35,11 +37,13 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xpack.core.security.action.apikey.CrossClusterApiKeyRoleDescriptorBuilder.CCR_INDICES_PRIVILEGE_NAMES;
+import static org.elasticsearch.xpack.core.security.action.apikey.CrossClusterApiKeyRoleDescriptorBuilder.CCS_INDICES_PRIVILEGE_NAMES;
 
 /**
  * API key information
  */
-public final class ApiKey implements ToXContentObject, Writeable {
+public final class ApiKey implements ToXContentObject {
 
     public enum Type {
         /**
@@ -79,14 +83,39 @@ public final class ApiKey implements ToXContentObject, Writeable {
         }
     }
 
+    public record Version(int version) implements VersionId<Version> {
+        @Override
+        public int id() {
+            return version;
+        }
+    }
+
+    public static class VersionComponent implements ComponentVersionNumber {
+
+        @Override
+        public String componentId() {
+            return "api_key_version";
+        }
+
+        @Override
+        public VersionId<?> versionNumber() {
+            return CURRENT_API_KEY_VERSION;
+        }
+    }
+
+    public static final ApiKey.Version CURRENT_API_KEY_VERSION = new ApiKey.Version(8_15_00_99);
+
     private final String name;
     private final String id;
     private final Type type;
     private final Instant creation;
     private final Instant expiration;
     private final boolean invalidated;
+    private final Instant invalidation;
     private final String username;
     private final String realm;
+    @Nullable
+    private final String realmType;
     private final Map<String, Object> metadata;
     @Nullable
     private final List<RoleDescriptor> roleDescriptors;
@@ -100,8 +129,10 @@ public final class ApiKey implements ToXContentObject, Writeable {
         Instant creation,
         Instant expiration,
         boolean invalidated,
+        @Nullable Instant invalidation,
         String username,
         String realm,
+        @Nullable String realmType,
         @Nullable Map<String, Object> metadata,
         @Nullable List<RoleDescriptor> roleDescriptors,
         @Nullable List<RoleDescriptor> limitedByRoleDescriptors
@@ -113,8 +144,10 @@ public final class ApiKey implements ToXContentObject, Writeable {
             creation,
             expiration,
             invalidated,
+            invalidation,
             username,
             realm,
+            realmType,
             metadata,
             roleDescriptors,
             limitedByRoleDescriptors == null ? null : new RoleDescriptorsIntersection(List.of(Set.copyOf(limitedByRoleDescriptors)))
@@ -128,8 +161,10 @@ public final class ApiKey implements ToXContentObject, Writeable {
         Instant creation,
         Instant expiration,
         boolean invalidated,
+        Instant invalidation,
         String username,
         String realm,
+        @Nullable String realmType,
         @Nullable Map<String, Object> metadata,
         @Nullable List<RoleDescriptor> roleDescriptors,
         @Nullable RoleDescriptorsIntersection limitedBy
@@ -143,8 +178,10 @@ public final class ApiKey implements ToXContentObject, Writeable {
         this.creation = Instant.ofEpochMilli(creation.toEpochMilli());
         this.expiration = (expiration != null) ? Instant.ofEpochMilli(expiration.toEpochMilli()) : null;
         this.invalidated = invalidated;
+        this.invalidation = (invalidation != null) ? Instant.ofEpochMilli(invalidation.toEpochMilli()) : null;
         this.username = username;
         this.realm = realm;
+        this.realmType = realmType;
         this.metadata = metadata == null ? Map.of() : metadata;
         this.roleDescriptors = roleDescriptors != null ? List.copyOf(roleDescriptors) : null;
         // This assertion will need to be changed (or removed) when derived keys are properly supported
@@ -152,39 +189,24 @@ public final class ApiKey implements ToXContentObject, Writeable {
         this.limitedBy = limitedBy;
     }
 
-    public ApiKey(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_5_0)) {
-            this.name = in.readOptionalString();
-        } else {
-            this.name = in.readString();
-        }
-        this.id = in.readString();
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_001)) {
-            this.type = in.readEnum(Type.class);
-        } else {
-            // This default is safe because
-            // 1. ApiKey objects never transfer between nodes
-            // 2. Creating cross-cluster API keys mandates minimal node version that understands the API key type
-            this.type = Type.REST;
-        }
-        this.creation = in.readInstant();
-        this.expiration = in.readOptionalInstant();
-        this.invalidated = in.readBoolean();
-        this.username = in.readString();
-        this.realm = in.readString();
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_0_0)) {
-            this.metadata = in.readMap();
-        } else {
-            this.metadata = Map.of();
-        }
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_5_0)) {
-            final List<RoleDescriptor> roleDescriptors = in.readOptionalList(RoleDescriptor::new);
-            this.roleDescriptors = roleDescriptors != null ? List.copyOf(roleDescriptors) : null;
-            this.limitedBy = in.readOptionalWriteable(RoleDescriptorsIntersection::new);
-        } else {
-            this.roleDescriptors = null;
-            this.limitedBy = null;
-        }
+    // Should only be used by XContent parsers
+    @SuppressWarnings("unchecked")
+    ApiKey(Object[] parsed) {
+        this(
+            (String) parsed[0],
+            (String) parsed[1],
+            (Type) parsed[2],
+            Instant.ofEpochMilli((Long) parsed[3]),
+            (parsed[4] == null) ? null : Instant.ofEpochMilli((Long) parsed[4]),
+            (Boolean) parsed[5],
+            (parsed[6] == null) ? null : Instant.ofEpochMilli((Long) parsed[6]),
+            (String) parsed[7],
+            (String) parsed[8],
+            (String) parsed[9],
+            (parsed[10] == null) ? null : (Map<String, Object>) parsed[10],
+            (List<RoleDescriptor>) parsed[11],
+            (RoleDescriptorsIntersection) parsed[12]
+        );
     }
 
     public String getId() {
@@ -211,12 +233,27 @@ public final class ApiKey implements ToXContentObject, Writeable {
         return invalidated;
     }
 
+    public Instant getInvalidation() {
+        return invalidation;
+    }
+
     public String getUsername() {
         return username;
     }
 
     public String getRealm() {
         return realm;
+    }
+
+    public @Nullable String getRealmType() {
+        return realmType;
+    }
+
+    public @Nullable RealmConfig.RealmIdentifier getRealmIdentifier() {
+        if (realm != null && realmType != null) {
+            return new RealmConfig.RealmIdentifier(realmType, realm);
+        }
+        return null;
     }
 
     public Map<String, Object> getMetadata() {
@@ -240,23 +277,30 @@ public final class ApiKey implements ToXContentObject, Writeable {
 
     public XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field("id", id).field("name", name);
-        if (TcpTransport.isUntrustedRemoteClusterEnabled()) {
-            builder.field("type", type.value());
-        }
+        builder.field("type", type.value());
         builder.field("creation", creation.toEpochMilli());
         if (expiration != null) {
             builder.field("expiration", expiration.toEpochMilli());
         }
-        builder.field("invalidated", invalidated)
-            .field("username", username)
-            .field("realm", realm)
-            .field("metadata", (metadata == null ? Map.of() : metadata));
+        builder.field("invalidated", invalidated);
+        if (invalidation != null) {
+            builder.field("invalidation", invalidation.toEpochMilli());
+        }
+        builder.field("username", username).field("realm", realm);
+        if (realmType != null) {
+            builder.field("realm_type", realmType);
+        }
+        builder.field("metadata", (metadata == null ? Map.of() : metadata));
         if (roleDescriptors != null) {
             builder.startObject("role_descriptors");
             for (var roleDescriptor : roleDescriptors) {
                 builder.field(roleDescriptor.getName(), roleDescriptor);
             }
             builder.endObject();
+            if (type == Type.CROSS_CLUSTER) {
+                assert roleDescriptors.size() == 1;
+                buildXContentForCrossClusterApiKeyAccess(builder, roleDescriptors.iterator().next());
+            }
         }
         if (limitedBy != null) {
             assert type != Type.CROSS_CLUSTER;
@@ -265,34 +309,56 @@ public final class ApiKey implements ToXContentObject, Writeable {
         return builder;
     }
 
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_5_0)) {
-            out.writeOptionalString(name);
-        } else {
-            out.writeString(name);
+    private void buildXContentForCrossClusterApiKeyAccess(XContentBuilder builder, RoleDescriptor roleDescriptor) throws IOException {
+        if (Assertions.ENABLED) {
+            CrossClusterApiKeyRoleDescriptorBuilder.validate(roleDescriptor);
         }
-        out.writeString(id);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_001)) {
-            out.writeEnum(type);
+        final List<RoleDescriptor.IndicesPrivileges> search = new ArrayList<>();
+        final List<RoleDescriptor.IndicesPrivileges> replication = new ArrayList<>();
+        for (RoleDescriptor.IndicesPrivileges indicesPrivileges : roleDescriptor.getIndicesPrivileges()) {
+            if (Arrays.equals(CCS_INDICES_PRIVILEGE_NAMES, indicesPrivileges.getPrivileges())) {
+                search.add(indicesPrivileges);
+            } else {
+                assert Arrays.equals(CCR_INDICES_PRIVILEGE_NAMES, indicesPrivileges.getPrivileges());
+                replication.add(indicesPrivileges);
+            }
         }
-        out.writeInstant(creation);
-        out.writeOptionalInstant(expiration);
-        out.writeBoolean(invalidated);
-        out.writeString(username);
-        out.writeString(realm);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_0_0)) {
-            out.writeGenericMap(metadata);
+        builder.startObject("access");
+        final Params params = new MapParams(Map.of("_with_privileges", "false"));
+        if (false == search.isEmpty()) {
+            builder.startArray("search");
+            for (RoleDescriptor.IndicesPrivileges indicesPrivileges : search) {
+                indicesPrivileges.toXContent(builder, params);
+            }
+            builder.endArray();
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_5_0)) {
-            out.writeOptionalCollection(roleDescriptors);
-            out.writeOptionalWriteable(limitedBy);
+        if (false == replication.isEmpty()) {
+            builder.startArray("replication");
+            for (RoleDescriptor.IndicesPrivileges indicesPrivileges : replication) {
+                indicesPrivileges.toXContent(builder, params);
+            }
+            builder.endArray();
         }
+        builder.endObject();
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, id, type, creation, expiration, invalidated, username, realm, metadata, roleDescriptors, limitedBy);
+        return Objects.hash(
+            name,
+            id,
+            type,
+            creation,
+            expiration,
+            invalidated,
+            invalidation,
+            username,
+            realm,
+            realmType,
+            metadata,
+            roleDescriptors,
+            limitedBy
+        );
     }
 
     @Override
@@ -313,54 +379,13 @@ public final class ApiKey implements ToXContentObject, Writeable {
             && Objects.equals(creation, other.creation)
             && Objects.equals(expiration, other.expiration)
             && Objects.equals(invalidated, other.invalidated)
+            && Objects.equals(invalidation, other.invalidation)
             && Objects.equals(username, other.username)
             && Objects.equals(realm, other.realm)
+            && Objects.equals(realmType, other.realmType)
             && Objects.equals(metadata, other.metadata)
             && Objects.equals(roleDescriptors, other.roleDescriptors)
             && Objects.equals(limitedBy, other.limitedBy);
-    }
-
-    @SuppressWarnings("unchecked")
-    static final ConstructingObjectParser<ApiKey, Void> PARSER = new ConstructingObjectParser<>("api_key", args -> {
-        return new ApiKey(
-            (String) args[0],
-            (String) args[1],
-            // TODO: remove null check once TcpTransport.isUntrustedRemoteClusterEnabled() is removed
-            args[2] == null ? Type.REST : (Type) args[2],
-            Instant.ofEpochMilli((Long) args[3]),
-            (args[4] == null) ? null : Instant.ofEpochMilli((Long) args[4]),
-            (Boolean) args[5],
-            (String) args[6],
-            (String) args[7],
-            (args[8] == null) ? null : (Map<String, Object>) args[8],
-            (List<RoleDescriptor>) args[9],
-            (RoleDescriptorsIntersection) args[10]
-        );
-    });
-    static {
-        PARSER.declareString(constructorArg(), new ParseField("name"));
-        PARSER.declareString(constructorArg(), new ParseField("id"));
-        PARSER.declareField(optionalConstructorArg(), Type::fromXContent, new ParseField("type"), ObjectParser.ValueType.STRING);
-        PARSER.declareLong(constructorArg(), new ParseField("creation"));
-        PARSER.declareLong(optionalConstructorArg(), new ParseField("expiration"));
-        PARSER.declareBoolean(constructorArg(), new ParseField("invalidated"));
-        PARSER.declareString(constructorArg(), new ParseField("username"));
-        PARSER.declareString(constructorArg(), new ParseField("realm"));
-        PARSER.declareObject(optionalConstructorArg(), (p, c) -> p.map(), new ParseField("metadata"));
-        PARSER.declareNamedObjects(optionalConstructorArg(), (p, c, n) -> {
-            p.nextToken();
-            return RoleDescriptor.parse(n, p, false);
-        }, new ParseField("role_descriptors"));
-        PARSER.declareField(
-            optionalConstructorArg(),
-            (p, c) -> RoleDescriptorsIntersection.fromXContent(p),
-            new ParseField("limited_by"),
-            ObjectParser.ValueType.OBJECT_ARRAY
-        );
-    }
-
-    public static ApiKey fromXContent(XContentParser parser) throws IOException {
-        return PARSER.parse(parser, null);
     }
 
     @Override
@@ -377,10 +402,14 @@ public final class ApiKey implements ToXContentObject, Writeable {
             + expiration
             + ", invalidated="
             + invalidated
+            + ", invalidation="
+            + invalidation
             + ", username="
             + username
             + ", realm="
             + realm
+            + ", realm_type="
+            + realmType
             + ", metadata="
             + metadata
             + ", role_descriptors="
@@ -390,4 +419,39 @@ public final class ApiKey implements ToXContentObject, Writeable {
             + "]";
     }
 
+    private static final RoleDescriptor.Parser ROLE_DESCRIPTOR_PARSER = RoleDescriptor.parserBuilder().allowRestriction(true).build();
+    static final ConstructingObjectParser<ApiKey, Void> PARSER;
+    static {
+        PARSER = new ConstructingObjectParser<>("api_key", true, ApiKey::new);
+        initializeParser(PARSER);
+    }
+
+    public static ApiKey fromXContent(XContentParser parser) throws IOException {
+        return PARSER.parse(parser, null);
+    }
+
+    static int initializeParser(AbstractObjectParser<?, Void> parser) {
+        parser.declareString(constructorArg(), new ParseField("name"));
+        parser.declareString(constructorArg(), new ParseField("id"));
+        parser.declareField(constructorArg(), Type::fromXContent, new ParseField("type"), ObjectParser.ValueType.STRING);
+        parser.declareLong(constructorArg(), new ParseField("creation"));
+        parser.declareLong(optionalConstructorArg(), new ParseField("expiration"));
+        parser.declareBoolean(constructorArg(), new ParseField("invalidated"));
+        parser.declareLong(optionalConstructorArg(), new ParseField("invalidation"));
+        parser.declareString(constructorArg(), new ParseField("username"));
+        parser.declareString(constructorArg(), new ParseField("realm"));
+        parser.declareStringOrNull(optionalConstructorArg(), new ParseField("realm_type"));
+        parser.declareObject(optionalConstructorArg(), (p, c) -> p.map(), new ParseField("metadata"));
+        parser.declareNamedObjects(optionalConstructorArg(), (p, c, n) -> {
+            p.nextToken();
+            return ROLE_DESCRIPTOR_PARSER.parse(n, p);
+        }, new ParseField("role_descriptors"));
+        parser.declareField(
+            optionalConstructorArg(),
+            (p, c) -> RoleDescriptorsIntersection.fromXContent(p),
+            new ParseField("limited_by"),
+            ObjectParser.ValueType.OBJECT_ARRAY
+        );
+        return 13; // the number of fields to parse
+    }
 }

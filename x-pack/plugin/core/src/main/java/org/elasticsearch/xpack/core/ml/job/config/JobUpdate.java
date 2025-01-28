@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.ml.job.config;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -19,6 +18,7 @@ import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
@@ -34,57 +34,43 @@ public class JobUpdate implements Writeable, ToXContentObject {
     public static final ParseField DETECTORS = new ParseField("detectors");
     public static final ParseField CLEAR_JOB_FINISH_TIME = new ParseField("clear_job_finish_time");
 
-    // For internal updates
-    static final ConstructingObjectParser<Builder, Void> INTERNAL_PARSER = new ConstructingObjectParser<>(
-        "job_update",
-        args -> new Builder((String) args[0])
-    );
-
     // For parsing REST requests
-    public static final ConstructingObjectParser<Builder, Void> EXTERNAL_PARSER = new ConstructingObjectParser<>(
+    public static final ConstructingObjectParser<Builder, Void> PARSER = new ConstructingObjectParser<>(
         "job_update",
         args -> new Builder((String) args[0])
     );
 
     static {
-        for (ConstructingObjectParser<Builder, Void> parser : Arrays.asList(INTERNAL_PARSER, EXTERNAL_PARSER)) {
-            parser.declareString(ConstructingObjectParser.optionalConstructorArg(), Job.ID);
-            parser.declareStringArray(Builder::setGroups, Job.GROUPS);
-            parser.declareStringOrNull(Builder::setDescription, Job.DESCRIPTION);
-            parser.declareObjectArray(Builder::setDetectorUpdates, DetectorUpdate.PARSER, DETECTORS);
-            parser.declareObject(Builder::setModelPlotConfig, ModelPlotConfig.STRICT_PARSER, Job.MODEL_PLOT_CONFIG);
-            parser.declareObject(Builder::setAnalysisLimits, AnalysisLimits.STRICT_PARSER, Job.ANALYSIS_LIMITS);
-            parser.declareString(
-                (builder, val) -> builder.setBackgroundPersistInterval(
-                    TimeValue.parseTimeValue(val, Job.BACKGROUND_PERSIST_INTERVAL.getPreferredName())
-                ),
-                Job.BACKGROUND_PERSIST_INTERVAL
-            );
-            parser.declareLong(Builder::setRenormalizationWindowDays, Job.RENORMALIZATION_WINDOW_DAYS);
-            parser.declareLong(Builder::setResultsRetentionDays, Job.RESULTS_RETENTION_DAYS);
-            parser.declareLong(Builder::setModelSnapshotRetentionDays, Job.MODEL_SNAPSHOT_RETENTION_DAYS);
-            parser.declareLong(Builder::setDailyModelSnapshotRetentionAfterDays, Job.DAILY_MODEL_SNAPSHOT_RETENTION_AFTER_DAYS);
-            parser.declareStringArray(Builder::setCategorizationFilters, AnalysisConfig.CATEGORIZATION_FILTERS);
-            parser.declareObject(
-                Builder::setPerPartitionCategorizationConfig,
-                PerPartitionCategorizationConfig.STRICT_PARSER,
-                AnalysisConfig.PER_PARTITION_CATEGORIZATION
-            );
-            parser.declareField(Builder::setCustomSettings, (p, c) -> p.map(), Job.CUSTOM_SETTINGS, ObjectParser.ValueType.OBJECT);
-            parser.declareBoolean(Builder::setAllowLazyOpen, Job.ALLOW_LAZY_OPEN);
-            parser.declareString(
-                (builder, val) -> builder.setModelPruneWindow(
-                    TimeValue.parseTimeValue(val, AnalysisConfig.MODEL_PRUNE_WINDOW.getPreferredName())
-                ),
-                AnalysisConfig.MODEL_PRUNE_WINDOW
-            );
-        }
-        // These fields should not be set by a REST request
-        INTERNAL_PARSER.declareString(Builder::setModelSnapshotId, Job.MODEL_SNAPSHOT_ID);
-        INTERNAL_PARSER.declareString(Builder::setModelSnapshotMinVersion, Job.MODEL_SNAPSHOT_MIN_VERSION);
-        INTERNAL_PARSER.declareString(Builder::setJobVersion, Job.JOB_VERSION);
-        INTERNAL_PARSER.declareBoolean(Builder::setClearFinishTime, CLEAR_JOB_FINISH_TIME);
-        INTERNAL_PARSER.declareObject(Builder::setBlocked, Blocked.STRICT_PARSER, Job.BLOCKED);
+        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), Job.ID);
+        PARSER.declareStringArray(Builder::setGroups, Job.GROUPS);
+        PARSER.declareStringOrNull(Builder::setDescription, Job.DESCRIPTION);
+        PARSER.declareObjectArray(Builder::setDetectorUpdates, DetectorUpdate.PARSER, DETECTORS);
+        PARSER.declareObject(Builder::setModelPlotConfig, ModelPlotConfig.STRICT_PARSER, Job.MODEL_PLOT_CONFIG);
+        PARSER.declareObject(Builder::setAnalysisLimits, AnalysisLimits.STRICT_PARSER, Job.ANALYSIS_LIMITS);
+        PARSER.declareString(
+            (builder, val) -> builder.setBackgroundPersistInterval(
+                TimeValue.parseTimeValue(val, Job.BACKGROUND_PERSIST_INTERVAL.getPreferredName())
+            ),
+            Job.BACKGROUND_PERSIST_INTERVAL
+        );
+        PARSER.declareLong(Builder::setRenormalizationWindowDays, Job.RENORMALIZATION_WINDOW_DAYS);
+        PARSER.declareLong(Builder::setResultsRetentionDays, Job.RESULTS_RETENTION_DAYS);
+        PARSER.declareLong(Builder::setModelSnapshotRetentionDays, Job.MODEL_SNAPSHOT_RETENTION_DAYS);
+        PARSER.declareLong(Builder::setDailyModelSnapshotRetentionAfterDays, Job.DAILY_MODEL_SNAPSHOT_RETENTION_AFTER_DAYS);
+        PARSER.declareStringArray(Builder::setCategorizationFilters, AnalysisConfig.CATEGORIZATION_FILTERS);
+        PARSER.declareObject(
+            Builder::setPerPartitionCategorizationConfig,
+            PerPartitionCategorizationConfig.STRICT_PARSER,
+            AnalysisConfig.PER_PARTITION_CATEGORIZATION
+        );
+        PARSER.declareField(Builder::setCustomSettings, (p, c) -> p.map(), Job.CUSTOM_SETTINGS, ObjectParser.ValueType.OBJECT);
+        PARSER.declareBoolean(Builder::setAllowLazyOpen, Job.ALLOW_LAZY_OPEN);
+        PARSER.declareString(
+            (builder, val) -> builder.setModelPruneWindow(
+                TimeValue.parseTimeValue(val, AnalysisConfig.MODEL_PRUNE_WINDOW.getPreferredName())
+            ),
+            AnalysisConfig.MODEL_PRUNE_WINDOW
+        );
     }
 
     private final String jobId;
@@ -102,8 +88,8 @@ public class JobUpdate implements Writeable, ToXContentObject {
     private final PerPartitionCategorizationConfig perPartitionCategorizationConfig;
     private final Map<String, Object> customSettings;
     private final String modelSnapshotId;
-    private final Version modelSnapshotMinVersion;
-    private final Version jobVersion;
+    private final MlConfigVersion modelSnapshotMinVersion;
+    private final MlConfigVersion jobVersion;
     private final Boolean clearJobFinishTime;
     private final Boolean allowLazyOpen;
     private final Blocked blocked;
@@ -125,8 +111,8 @@ public class JobUpdate implements Writeable, ToXContentObject {
         @Nullable PerPartitionCategorizationConfig perPartitionCategorizationConfig,
         @Nullable Map<String, Object> customSettings,
         @Nullable String modelSnapshotId,
-        @Nullable Version modelSnapshotMinVersion,
-        @Nullable Version jobVersion,
+        @Nullable MlConfigVersion modelSnapshotMinVersion,
+        @Nullable MlConfigVersion jobVersion,
         @Nullable Boolean clearJobFinishTime,
         @Nullable Boolean allowLazyOpen,
         @Nullable Blocked blocked,
@@ -161,7 +147,7 @@ public class JobUpdate implements Writeable, ToXContentObject {
         groups = groupsArray == null ? null : Arrays.asList(groupsArray);
         description = in.readOptionalString();
         if (in.readBoolean()) {
-            detectorUpdates = in.readList(DetectorUpdate::new);
+            detectorUpdates = in.readCollectionAsList(DetectorUpdate::new);
         } else {
             detectorUpdates = null;
         }
@@ -173,21 +159,21 @@ public class JobUpdate implements Writeable, ToXContentObject {
         dailyModelSnapshotRetentionAfterDays = in.readOptionalLong();
         resultsRetentionDays = in.readOptionalLong();
         if (in.readBoolean()) {
-            categorizationFilters = in.readStringList();
+            categorizationFilters = in.readStringCollectionAsList();
         } else {
             categorizationFilters = null;
         }
         perPartitionCategorizationConfig = in.readOptionalWriteable(PerPartitionCategorizationConfig::new);
-        customSettings = in.readMap();
+        customSettings = in.readGenericMap();
         modelSnapshotId = in.readOptionalString();
         if (in.readBoolean()) {
-            jobVersion = Version.readVersion(in);
+            jobVersion = MlConfigVersion.readVersion(in);
         } else {
             jobVersion = null;
         }
         clearJobFinishTime = in.readOptionalBoolean();
         if (in.readBoolean()) {
-            modelSnapshotMinVersion = Version.readVersion(in);
+            modelSnapshotMinVersion = MlConfigVersion.readVersion(in);
         } else {
             modelSnapshotMinVersion = null;
         }
@@ -205,7 +191,7 @@ public class JobUpdate implements Writeable, ToXContentObject {
         out.writeOptionalString(description);
         out.writeBoolean(detectorUpdates != null);
         if (detectorUpdates != null) {
-            out.writeList(detectorUpdates);
+            out.writeCollection(detectorUpdates);
         }
         out.writeOptionalWriteable(modelPlotConfig);
         out.writeOptionalWriteable(analysisLimits);
@@ -223,14 +209,14 @@ public class JobUpdate implements Writeable, ToXContentObject {
         out.writeOptionalString(modelSnapshotId);
         if (jobVersion != null) {
             out.writeBoolean(true);
-            Version.writeVersion(jobVersion, out);
+            MlConfigVersion.writeVersion(jobVersion, out);
         } else {
             out.writeBoolean(false);
         }
         out.writeOptionalBoolean(clearJobFinishTime);
         if (modelSnapshotMinVersion != null) {
             out.writeBoolean(true);
-            Version.writeVersion(modelSnapshotMinVersion, out);
+            MlConfigVersion.writeVersion(modelSnapshotMinVersion, out);
         } else {
             out.writeBoolean(false);
         }
@@ -300,11 +286,11 @@ public class JobUpdate implements Writeable, ToXContentObject {
         return modelSnapshotId;
     }
 
-    public Version getModelSnapshotMinVersion() {
+    public MlConfigVersion getModelSnapshotMinVersion() {
         return modelSnapshotMinVersion;
     }
 
-    public Version getJobVersion() {
+    public MlConfigVersion getJobVersion() {
         return jobVersion;
     }
 
@@ -701,7 +687,7 @@ public class JobUpdate implements Writeable, ToXContentObject {
             detectorIndex = in.readInt();
             description = in.readOptionalString();
             if (in.readBoolean()) {
-                rules = in.readList(DetectionRule::new);
+                rules = in.readCollectionAsList(DetectionRule::new);
             } else {
                 rules = null;
             }
@@ -725,7 +711,7 @@ public class JobUpdate implements Writeable, ToXContentObject {
             out.writeOptionalString(description);
             out.writeBoolean(rules != null);
             if (rules != null) {
-                out.writeList(rules);
+                out.writeCollection(rules);
             }
         }
 
@@ -783,8 +769,8 @@ public class JobUpdate implements Writeable, ToXContentObject {
         private PerPartitionCategorizationConfig perPartitionCategorizationConfig;
         private Map<String, Object> customSettings;
         private String modelSnapshotId;
-        private Version modelSnapshotMinVersion;
-        private Version jobVersion;
+        private MlConfigVersion modelSnapshotMinVersion;
+        private MlConfigVersion jobVersion;
         private Boolean clearJobFinishTime;
         private Boolean allowLazyOpen;
         private Blocked blocked;
@@ -869,23 +855,23 @@ public class JobUpdate implements Writeable, ToXContentObject {
             return this;
         }
 
-        public Builder setModelSnapshotMinVersion(Version modelSnapshotMinVersion) {
+        public Builder setModelSnapshotMinVersion(MlConfigVersion modelSnapshotMinVersion) {
             this.modelSnapshotMinVersion = modelSnapshotMinVersion;
             return this;
         }
 
         public Builder setModelSnapshotMinVersion(String modelSnapshotMinVersion) {
-            this.modelSnapshotMinVersion = Version.fromString(modelSnapshotMinVersion);
+            this.modelSnapshotMinVersion = MlConfigVersion.fromString(modelSnapshotMinVersion);
             return this;
         }
 
-        public Builder setJobVersion(Version version) {
+        public Builder setJobVersion(MlConfigVersion version) {
             this.jobVersion = version;
             return this;
         }
 
         public Builder setJobVersion(String version) {
-            this.jobVersion = Version.fromString(version);
+            this.jobVersion = MlConfigVersion.fromString(version);
             return this;
         }
 

@@ -1,14 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.routing.ShardRoutingHelper;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.shard.IndexingStats;
 import org.elasticsearch.index.shard.ShardId;
@@ -37,7 +38,7 @@ import static org.mockito.Mockito.when;
 public class IndexMetadataStatsTests extends ESTestCase {
     public void testFromStatsCreation() {
         final String indexName = "idx";
-        final IndexMetadata indexMetadata = IndexMetadata.builder(indexName).settings(indexSettings(Version.CURRENT, 3, 1)).build();
+        final IndexMetadata indexMetadata = IndexMetadata.builder(indexName).settings(indexSettings(IndexVersion.current(), 3, 1)).build();
 
         final IndicesStatsResponse response = mock(IndicesStatsResponse.class);
         final IndexStats indexStats = mock(IndexStats.class);
@@ -112,7 +113,21 @@ public class IndexMetadataStatsTests extends ESTestCase {
         commonStats.getIndexing()
             .getTotal()
             .add(
-                new IndexingStats.Stats(0, 0, 0, 0, 0, 0, 0, 0, false, 0, totalIndexingTimeSinceShardStartedInNanos, totalActiveTimeInNanos)
+                new IndexingStats.Stats(
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    false,
+                    0,
+                    totalIndexingTimeSinceShardStartedInNanos,
+                    totalActiveTimeInNanos
+                )
             );
         return new ShardStats(shardRouting, commonStats, null, null, null, null, null, false, false, 0);
     }

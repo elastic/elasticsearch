@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal.precommit;
@@ -116,8 +117,9 @@ public class JavaModulePrecommitTask extends PrecommitTask {
 
     private void checkModuleNamePrefix(ModuleReference mref) {
         getLogger().info("{} checking module name prefix for {}", this, mref.descriptor().name());
-        if (mref.descriptor().name().startsWith("org.elasticsearch.") == false) {
-            throw new GradleException("Expected name starting with \"org.elasticsearch.\", in " + mref.descriptor());
+        if (mref.descriptor().name().startsWith("org.elasticsearch.") == false
+            && mref.descriptor().name().startsWith("co.elastic.") == false) {
+            throw new GradleException("Expected name starting with \"org.elasticsearch.\" or \"co.elastic\" in " + mref.descriptor());
         }
     }
 
@@ -159,8 +161,7 @@ public class JavaModulePrecommitTask extends PrecommitTask {
         return ModuleFinder.of(filePath.toPath())
             .findAll()
             .stream()
-            .sorted(Comparator.comparing(ModuleReference::descriptor))
-            .findFirst()
+            .min(Comparator.comparing(ModuleReference::descriptor))
             .orElseThrow(() -> new GradleException("module not found in " + filePath));
     }
 }

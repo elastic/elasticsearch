@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.action.bulk;
 
@@ -11,14 +12,13 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
 
-import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -26,6 +26,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -67,8 +68,8 @@ public class BulkProcessor2RetryIT extends ESIntegTestCase {
     private void executeBulkRejectionLoad(int maxRetries, boolean rejectedExecutionExpected) throws Throwable {
         int numberOfAsyncOps = randomIntBetween(600, 700);
         final CountDownLatch latch = new CountDownLatch(numberOfAsyncOps);
-        final Set<BulkResponse> successfulResponses = Collections.newSetFromMap(new ConcurrentHashMap<>());
-        final Set<Tuple<BulkRequest, Throwable>> failedResponses = Collections.newSetFromMap(new ConcurrentHashMap<>());
+        final Set<BulkResponse> successfulResponses = ConcurrentCollections.newConcurrentSet();
+        final Set<Tuple<BulkRequest, Throwable>> failedResponses = ConcurrentCollections.newConcurrentSet();
 
         assertAcked(prepareCreate(INDEX_NAME));
         ensureGreen();
@@ -134,25 +135,25 @@ public class BulkProcessor2RetryIT extends ESIntegTestCase {
             }
         }
 
-        client().admin().indices().refresh(new RefreshRequest()).get();
+        indicesAdmin().refresh(new RefreshRequest()).get();
 
-        SearchResponse results = client().prepareSearch(INDEX_NAME).setQuery(QueryBuilders.matchAllQuery()).setSize(0).get();
-        assertThat(bulkProcessor.getTotalBytesInFlight(), equalTo(0L));
-        if (rejectedExecutionExpected) {
-            assertThat((int) results.getHits().getTotalHits().value, lessThanOrEqualTo(numberOfAsyncOps));
-        } else if (rejectedAfterAllRetries) {
-            assertThat((int) results.getHits().getTotalHits().value, lessThan(numberOfAsyncOps));
-        } else {
-            assertThat((int) results.getHits().getTotalHits().value, equalTo(numberOfAsyncOps));
-        }
+        final boolean finalRejectedAfterAllRetries = rejectedAfterAllRetries;
+        assertResponse(prepareSearch(INDEX_NAME).setQuery(QueryBuilders.matchAllQuery()).setSize(0), results -> {
+            assertThat(bulkProcessor.getTotalBytesInFlight(), equalTo(0L));
+            if (rejectedExecutionExpected) {
+                assertThat((int) results.getHits().getTotalHits().value(), lessThanOrEqualTo(numberOfAsyncOps));
+            } else if (finalRejectedAfterAllRetries) {
+                assertThat((int) results.getHits().getTotalHits().value(), lessThan(numberOfAsyncOps));
+            } else {
+                assertThat((int) results.getHits().getTotalHits().value(), equalTo(numberOfAsyncOps));
+            }
+        });
     }
 
     private static void indexDocs(BulkProcessor2 processor, int numDocs) {
         for (int i = 1; i <= numDocs; i++) {
             processor.add(
-                client().prepareIndex()
-                    .setIndex(INDEX_NAME)
-                    .setId(Integer.toString(i))
+                prepareIndex(INDEX_NAME).setId(Integer.toString(i))
                     .setSource("field", randomRealisticUnicodeOfLengthBetween(1, 30))
                     .request()
             );

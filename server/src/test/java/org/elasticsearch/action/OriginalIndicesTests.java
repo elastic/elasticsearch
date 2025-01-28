@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action;
 
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -43,11 +44,9 @@ public class OriginalIndicesTests extends ESTestCase {
 
             assertThat(originalIndices2.indices(), equalTo(originalIndices.indices()));
             // indices options are not equivalent when sent to an older version and re-read due
-            // to the addition of hidden indices as expand to hidden indices is always true when
-            // read from a prior version
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_7_0) || originalIndices.indicesOptions().expandWildcardsHidden()) {
-                assertThat(originalIndices2.indicesOptions(), equalTo(originalIndices.indicesOptions()));
-            } else if (originalIndices.indicesOptions().expandWildcardsHidden()) {
+            // to the addition of selector settings. Allow selectors is always true when read
+            // from a version prior to its addition, since true is the default value.
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0) || originalIndices.indicesOptions().allowSelectors()) {
                 assertThat(originalIndices2.indicesOptions(), equalTo(originalIndices.indicesOptions()));
             }
         }

@@ -8,8 +8,10 @@
 package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.xpack.core.ml.utils.MapHelper;
 
@@ -103,8 +105,16 @@ public class TextExpansionQueryIT extends PyTorchModelRestTestCase {
         RAW_MODEL_SIZE = Base64.getDecoder().decode(BASE_64_ENCODED_MODEL).length;
     }
 
+    public void testRankFeaturesTextExpansionQuery() throws IOException {
+        testTextExpansionQuery("rank_features");
+    }
+
+    public void testSparseVectorTextExpansionQuery() throws IOException {
+        testTextExpansionQuery("sparse_vector");
+    }
+
     @SuppressWarnings("unchecked")
-    public void testTextExpansionQuery() throws IOException {
+    private void testTextExpansionQuery(String tokensFieldType) throws IOException {
         String modelId = "text-expansion-test";
         String indexName = modelId + "-index";
 
@@ -140,7 +150,7 @@ public class TextExpansionQueryIT extends PyTorchModelRestTestCase {
         }
 
         // index tokens
-        createRankFeaturesIndex(indexName);
+        createIndex(indexName, tokensFieldType);
         bulkIndexDocs(inputs, tokenWeights, indexName);
 
         // Test text expansion search against the indexed rank features
@@ -157,7 +167,15 @@ public class TextExpansionQueryIT extends PyTorchModelRestTestCase {
         }
     }
 
-    public void testWithPipelineIngest() throws IOException {
+    public void testRankFeaturesWithPipelineIngest() throws IOException {
+        testWithPipelineIngest("rank_features");
+    }
+
+    public void testSparseVectorWithPipelineIngest() throws IOException {
+        testWithPipelineIngest("sparse_vector");
+    }
+
+    private void testWithPipelineIngest(String tokensFieldType) throws IOException {
         String modelId = "text-expansion-pipeline-test";
         String indexName = modelId + "-index";
 
@@ -182,7 +200,7 @@ public class TextExpansionQueryIT extends PyTorchModelRestTestCase {
         );
 
         // index tokens
-        createRankFeaturesIndex(indexName);
+        createIndex(indexName, tokensFieldType);
         var pipelineId = putPipeline(modelId);
         bulkIndexThroughPipeline(inputs, indexName, pipelineId);
 
@@ -201,7 +219,15 @@ public class TextExpansionQueryIT extends PyTorchModelRestTestCase {
         }
     }
 
-    public void testWithDotsInTokenNames() throws IOException {
+    public void testRankFeaturesWithDotsInTokenNames() throws IOException {
+        testWithDotsInTokenNames("rank_features");
+    }
+
+    public void testSparseVectorWithDotsInTokenNames() throws IOException {
+        testWithDotsInTokenNames("sparse_vector");
+    }
+
+    private void testWithDotsInTokenNames(String tokensFieldType) throws IOException {
         String modelId = "text-expansion-dots-in-tokens";
         String indexName = modelId + "-index";
 
@@ -214,7 +240,7 @@ public class TextExpansionQueryIT extends PyTorchModelRestTestCase {
         List<String> inputs = List.of("these are my words.");
 
         // index tokens
-        createRankFeaturesIndex(indexName);
+        createIndex(indexName, tokensFieldType);
         var pipelineId = putPipeline(modelId);
         bulkIndexThroughPipeline(inputs, indexName, pipelineId);
 
@@ -237,12 +263,16 @@ public class TextExpansionQueryIT extends PyTorchModelRestTestCase {
     public void testSearchWithMissingModel() throws IOException {
         String modelId = "missing-model";
         String indexName = modelId + "-index";
+        createIndex(indexName, "sparse_vector");
+
         var e = expectThrows(ResponseException.class, () -> textExpansionSearch(indexName, "the machine is leaking", modelId, "ml.tokens"));
-        assertThat(e.getMessage(), containsString("Could not find trained model [missing-model]"));
+        assertThat(e.getMessage(), containsString("[missing-model] is not an inference service model or a deployed ml model"));
     }
 
     protected Response textExpansionSearch(String index, String modelText, String modelId, String fieldName) throws IOException {
         Request request = new Request("GET", index + "/_search?error_trace=true");
+        // Handle REST deprecation for text_expansion query
+        request.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
 
         request.setJsonEntity(Strings.format("""
             {
@@ -255,6 +285,7 @@ public class TextExpansionQueryIT extends PyTorchModelRestTestCase {
                   }
                 }
             }""", fieldName, modelId, modelText));
+
         return client().performRequest(request);
     }
 
@@ -278,18 +309,18 @@ public class TextExpansionQueryIT extends PyTorchModelRestTestCase {
         client().performRequest(request);
     }
 
-    private void createRankFeaturesIndex(String indexName) throws IOException {
+    private void createIndex(String indexName, String tokensFieldType) throws IOException {
         Request createIndex = new Request("PUT", "/" + indexName);
         createIndex.setJsonEntity("""
-            {
-              "mappings": {
-                "properties": {
-                  "text_field": {
-                    "type": "text"
-                  },
-                  "ml.tokens": {
-                    "type": "rank_features"
-                  }
+              {
+                "mappings": {
+                  "properties": {
+                    "text_field": {
+                      "type": "text"
+                    },
+                    "ml.tokens": {
+            """ + "\"type\": \"" + tokensFieldType + "\"" + """
+                    }
                 }
               }
             }""");

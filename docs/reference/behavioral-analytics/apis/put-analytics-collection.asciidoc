@@ -2,11 +2,27 @@
 [[put-analytics-collection]]
 === Put Analytics Collection
 
+beta::[]
+
 ++++
 <titleabbrev>Put Analytics Collection</titleabbrev>
 ++++
 
-Creates an Analytics Collection.
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-analytics[Behavioral analytics APIs].
+--
+
+////
+[source,console]
+----
+DELETE _application/analytics/my_analytics_collection
+----
+// TEARDOWN
+////
+
+Creates a <<behavioral-analytics-overview,Behavioral Analytics>> Collection.
 
 [[put-analytics-collection-request]]
 ==== {api-request-title}
@@ -38,6 +54,4 @@ The following example creates a new Analytics Collection called `my_analytics_co
 [source,console]
 ----
 PUT _application/analytics/my_analytics_collection
-
 ----
-// TEST[skip:TBD]

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.lucene.search.uhighlight;
 
@@ -131,15 +132,16 @@ public class BoundedBreakIteratorScanner extends BreakIterator {
     }
 
     /**
-     * Can be invoked only after a call to preceding(offset+1).
+     * Can be invoked only after a call to preceding().
+     *
      * See {@link FieldHighlighter} for usage.
      */
     @Override
     public int following(int offset) {
-        if (offset != lastPrecedingOffset || innerEnd == -1) {
-            throw new IllegalArgumentException("offset != lastPrecedingOffset: " + "usage doesn't look like UnifiedHighlighter");
+        if (innerEnd == -1) {
+            throw new IllegalArgumentException("preceding should be called first, usage doesn't look like UnifiedHighlighter");
         }
-        return innerEnd;
+        return Math.max(offset, innerEnd);
     }
 
     /**

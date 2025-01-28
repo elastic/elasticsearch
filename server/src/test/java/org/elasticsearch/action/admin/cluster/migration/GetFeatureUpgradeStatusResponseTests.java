@@ -1,15 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.migration;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.util.Collections;
@@ -89,7 +91,7 @@ public class GetFeatureUpgradeStatusResponseTests extends AbstractWireSerializin
     private static GetFeatureUpgradeStatusResponse.FeatureUpgradeStatus createFeatureStatus() {
         return new GetFeatureUpgradeStatusResponse.FeatureUpgradeStatus(
             randomAlphaOfLengthBetween(3, 20),
-            randomFrom(Version.CURRENT, Version.CURRENT.minimumCompatibilityVersion()),
+            randomFrom(IndexVersion.current(), IndexVersions.MINIMUM_COMPATIBLE),
             randomFrom(org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusResponse.UpgradeStatus.values()),
             randomList(4, GetFeatureUpgradeStatusResponseTests::getIndexInfo)
         );
@@ -98,7 +100,7 @@ public class GetFeatureUpgradeStatusResponseTests extends AbstractWireSerializin
     private static GetFeatureUpgradeStatusResponse.IndexInfo getIndexInfo() {
         return new GetFeatureUpgradeStatusResponse.IndexInfo(
             randomAlphaOfLengthBetween(3, 20),
-            randomFrom(Version.CURRENT, Version.CURRENT.minimumCompatibilityVersion()),
+            randomFrom(IndexVersion.current(), IndexVersions.MINIMUM_COMPATIBLE),
             null
         );
     }

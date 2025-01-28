@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.graph.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.ExceptionsHelper;
@@ -21,11 +21,12 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.protocol.xpack.graph.Connection;
@@ -97,7 +98,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
         ActionFilters actionFilters,
         XPackLicenseState licenseState
     ) {
-        super(GraphExploreAction.NAME, transportService, actionFilters, GraphExploreRequest::new);
+        super(GraphExploreAction.NAME, transportService, actionFilters, GraphExploreRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.threadPool = threadPool;
         this.client = client;
         this.licenseState = licenseState;
@@ -549,7 +550,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
             });
         }
 
-        private void addUserDefinedIncludesToQuery(Hop hop, BoolQueryBuilder sourceTermsOrClause) {
+        private static void addUserDefinedIncludesToQuery(Hop hop, BoolQueryBuilder sourceTermsOrClause) {
             for (int i = 0; i < hop.getNumberVertexRequests(); i++) {
                 VertexRequest vr = hop.getVertexRequest(i);
                 if (vr.hasIncludeClauses()) {
@@ -558,12 +559,12 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
             }
         }
 
-        private void addBigOrClause(Map<String, Set<Vertex>> lastHopFindings, BoolQueryBuilder sourceTermsOrClause) {
+        private static void addBigOrClause(Map<String, Set<Vertex>> lastHopFindings, BoolQueryBuilder sourceTermsOrClause) {
             int numClauses = sourceTermsOrClause.should().size();
             for (Entry<String, Set<Vertex>> entry : lastHopFindings.entrySet()) {
                 numClauses += entry.getValue().size();
             }
-            if (numClauses < BooleanQuery.getMaxClauseCount()) {
+            if (numClauses < IndexSearcher.getMaxClauseCount()) {
                 // We can afford to build a Boolean OR query with individual
                 // boosts for interesting terms
                 for (Entry<String, Set<Vertex>> entry : lastHopFindings.entrySet()) {
@@ -751,10 +752,10 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
             }
         }
 
-        private void addNormalizedBoosts(BoolQueryBuilder includesContainer, VertexRequest vr) {
+        private static void addNormalizedBoosts(BoolQueryBuilder includesContainer, VertexRequest vr) {
             TermBoost[] termBoosts = vr.includeValues();
 
-            if ((includesContainer.should().size() + termBoosts.length) > BooleanQuery.getMaxClauseCount()) {
+            if ((includesContainer.should().size() + termBoosts.length) > IndexSearcher.getMaxClauseCount()) {
                 // Too many terms - we need a cheaper form of query to execute this
                 List<String> termValues = new ArrayList<>();
                 for (TermBoost tb : termBoosts) {

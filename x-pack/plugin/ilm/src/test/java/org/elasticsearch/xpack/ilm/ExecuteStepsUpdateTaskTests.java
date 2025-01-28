@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.ilm;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -15,11 +14,13 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.NodeRoles;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -41,9 +42,8 @@ import org.junit.Before;
 import org.mockito.Mockito;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
@@ -90,42 +90,33 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
         Phase mixedPhase = new Phase(
             "first_phase",
             TimeValue.ZERO,
-            Collections.singletonMap(MockAction.NAME, new MockAction(Arrays.asList(firstStep, secondStep, thirdStep)))
+            Map.of(MockAction.NAME, new MockAction(List.of(firstStep, secondStep, thirdStep)))
         );
         Phase allClusterPhase = new Phase(
             "first_phase",
             TimeValue.ZERO,
-            Collections.singletonMap(MockAction.NAME, new MockAction(Arrays.asList(firstStep, allClusterSecondStep)))
+            Map.of(MockAction.NAME, new MockAction(List.of(firstStep, allClusterSecondStep)))
         );
         Phase invalidPhase = new Phase(
             "invalid_phase",
             TimeValue.ZERO,
-            Collections.singletonMap(
-                MockAction.NAME,
-                new MockAction(Arrays.asList(new MockClusterStateActionStep(firstStepKey, invalidStepKey)))
-            )
+            Map.of(MockAction.NAME, new MockAction(List.of(new MockClusterStateActionStep(firstStepKey, invalidStepKey))))
         );
-        LifecyclePolicy mixedPolicy = newTestLifecyclePolicy(mixedPolicyName, Collections.singletonMap(mixedPhase.getName(), mixedPhase));
-        LifecyclePolicy allClusterPolicy = newTestLifecyclePolicy(
-            allClusterPolicyName,
-            Collections.singletonMap(allClusterPhase.getName(), allClusterPhase)
-        );
-        LifecyclePolicy invalidPolicy = newTestLifecyclePolicy(
-            invalidPolicyName,
-            Collections.singletonMap(invalidPhase.getName(), invalidPhase)
-        );
+        LifecyclePolicy mixedPolicy = newTestLifecyclePolicy(mixedPolicyName, Map.of(mixedPhase.getName(), mixedPhase));
+        LifecyclePolicy allClusterPolicy = newTestLifecyclePolicy(allClusterPolicyName, Map.of(allClusterPhase.getName(), allClusterPhase));
+        LifecyclePolicy invalidPolicy = newTestLifecyclePolicy(invalidPolicyName, Map.of(invalidPhase.getName(), invalidPhase));
         Map<String, LifecyclePolicyMetadata> policyMap = new HashMap<>();
         policyMap.put(
             mixedPolicyName,
-            new LifecyclePolicyMetadata(mixedPolicy, Collections.emptyMap(), randomNonNegativeLong(), randomNonNegativeLong())
+            new LifecyclePolicyMetadata(mixedPolicy, Map.of(), randomNonNegativeLong(), randomNonNegativeLong())
         );
         policyMap.put(
             allClusterPolicyName,
-            new LifecyclePolicyMetadata(allClusterPolicy, Collections.emptyMap(), randomNonNegativeLong(), randomNonNegativeLong())
+            new LifecyclePolicyMetadata(allClusterPolicy, Map.of(), randomNonNegativeLong(), randomNonNegativeLong())
         );
         policyMap.put(
             invalidPolicyName,
-            new LifecyclePolicyMetadata(invalidPolicy, Collections.emptyMap(), randomNonNegativeLong(), randomNonNegativeLong())
+            new LifecyclePolicyMetadata(invalidPolicy, Map.of(), randomNonNegativeLong(), randomNonNegativeLong())
         );
         policyStepsRegistry = new PolicyStepsRegistry(NamedXContentRegistry.EMPTY, client, null);
 
@@ -141,23 +132,22 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
         lifecycleState.setAction("init");
         lifecycleState.setStep("init");
         indexMetadata = IndexMetadata.builder(indexName)
-            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+            .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
             .putCustom(ILM_CUSTOM_METADATA_KEY, lifecycleState.build().asMap())
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
             .build();
         index = indexMetadata.getIndex();
         Metadata metadata = Metadata.builder()
-            .persistentSettings(settings(Version.CURRENT).build())
+            .persistentSettings(settings(IndexVersion.current()).build())
             .putCustom(IndexLifecycleMetadata.TYPE, lifecycleMetadata)
             .put(IndexMetadata.builder(indexMetadata))
             .build();
         String nodeId = randomAlphaOfLength(10);
-        DiscoveryNode masterNode = DiscoveryNode.createLocal(
-            NodeRoles.masterNode(settings(Version.CURRENT).build()),
-            new TransportAddress(TransportAddress.META_ADDRESS, 9300),
-            nodeId
-        );
+        DiscoveryNode masterNode = DiscoveryNodeUtils.builder(nodeId)
+            .applySettings(NodeRoles.masterNode(settings(IndexVersion.current()).build()))
+            .address(new TransportAddress(TransportAddress.META_ADDRESS, 9300))
+            .build();
         clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(metadata)
             .nodes(DiscoveryNodes.builder().localNodeId(nodeId).masterNodeId(nodeId).add(masterNode).build())

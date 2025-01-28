@@ -44,6 +44,24 @@ public class TrainedModelDefinitionDocTests extends AbstractXContentTestCase<Tra
         }
     }
 
+    /**
+     * A helper method for creating a random {@link TrainedModelDefinitionDoc}.
+     *
+     * @return a random {@link TrainedModelDefinitionDoc} instance
+     */
+    public static TrainedModelDefinitionDoc createDefinitionDocInstance() {
+        int length = randomIntBetween(4, 10);
+
+        return new TrainedModelDefinitionDoc.Builder().setModelId(randomAlphaOfLength(6))
+            .setDefinitionLength(length)
+            .setTotalDefinitionLength(randomIntBetween(length, length * 2))
+            .setBinaryData(new BytesArray(randomByteArrayOfLength(length)))
+            .setDocNum(randomIntBetween(0, 10))
+            .setCompressionVersion(randomIntBetween(1, 5))
+            .setEos(randomBoolean())
+            .build();
+    }
+
     @Override
     protected TrainedModelDefinitionDoc doParseInstance(XContentParser parser) throws IOException {
         return TrainedModelDefinitionDoc.fromXContent(parser, isLenient).build();
@@ -56,15 +74,6 @@ public class TrainedModelDefinitionDocTests extends AbstractXContentTestCase<Tra
 
     @Override
     protected TrainedModelDefinitionDoc createTestInstance() {
-        int length = randomIntBetween(4, 10);
-
-        return new TrainedModelDefinitionDoc.Builder().setModelId(randomAlphaOfLength(6))
-            .setDefinitionLength(length)
-            .setTotalDefinitionLength(randomIntBetween(length, length * 2))
-            .setBinaryData(new BytesArray(randomByteArrayOfLength(length)))
-            .setDocNum(randomIntBetween(0, 10))
-            .setCompressionVersion(randomIntBetween(1, 5))
-            .setEos(randomBoolean())
-            .build();
+        return createDefinitionDocInstance();
     }
 }

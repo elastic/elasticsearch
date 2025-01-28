@@ -1,15 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.geometry.Rectangle;
+
+import static org.apache.lucene.geo.GeoEncodingUtils.encodeLatitude;
+import static org.apache.lucene.geo.GeoEncodingUtils.encodeLongitude;
 
 /**
  * Filters out tiles using the provided bounds at the provided precision. In order to be efficient it works on the X/Y coordinates of the
@@ -35,15 +39,15 @@ public class GeoTileBoundedPredicate {
             final int minY = GeoTileUtils.getYTile(bbox.top(), tiles);
             final Rectangle minTile = GeoTileUtils.toBoundingBox(minX, minY, precision);
             // touching tiles are excluded, they need to share at least one interior point
-            this.leftX = minTile.getMaxX() == bbox.left() ? minX + 1 : minX;
-            this.minY = minTile.getMinY() == bbox.top() ? minY + 1 : minY;
+            this.leftX = encodeLongitude(minTile.getMaxX()) == encodeLongitude(bbox.left()) ? minX + 1 : minX;
+            this.minY = encodeLatitude(minTile.getMinY()) == encodeLatitude(bbox.top()) ? minY + 1 : minY;
             // compute maxX, maxY
             final int maxX = GeoTileUtils.getXTile(bbox.right(), tiles);
             final int maxY = GeoTileUtils.getYTile(bbox.bottom(), tiles);
             final Rectangle maxTile = GeoTileUtils.toBoundingBox(maxX, maxY, precision);
             // touching tiles are excluded, they need to share at least one interior point
-            this.rightX = maxTile.getMinX() == bbox.right() ? maxX : maxX + 1;
-            this.maxY = maxTile.getMaxY() == bbox.bottom() ? maxY : maxY + 1;
+            this.rightX = encodeLongitude(maxTile.getMinX()) == encodeLongitude(bbox.right()) ? maxX : maxX + 1;
+            this.maxY = encodeLatitude(maxTile.getMaxY()) == encodeLatitude(bbox.bottom()) ? maxY : maxY + 1;
             if (crossesDateline) {
                 this.maxTiles = ((long) tiles + this.rightX - this.leftX) * (this.maxY - this.minY);
             } else {

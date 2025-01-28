@@ -1,58 +1,57 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.template.post;
 
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
-import org.elasticsearch.action.support.master.MasterNodeReadRequest;
-import org.elasticsearch.cluster.metadata.DataLifecycle;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
+import org.elasticsearch.action.support.local.LocalClusterStateRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Objects;
 
-public class SimulateIndexTemplateRequest extends MasterNodeReadRequest<SimulateIndexTemplateRequest> {
+public class SimulateIndexTemplateRequest extends LocalClusterStateRequest {
 
     private String indexName;
 
     @Nullable
-    private PutComposableIndexTemplateAction.Request indexTemplateRequest;
+    private TransportPutComposableIndexTemplateAction.Request indexTemplateRequest;
 
     private boolean includeDefaults = false;
 
-    public SimulateIndexTemplateRequest(String indexName) {
+    public SimulateIndexTemplateRequest(TimeValue masterTimeout, String indexName) {
+        super(masterTimeout);
         if (Strings.isNullOrEmpty(indexName)) {
             throw new IllegalArgumentException("index name cannot be null or empty");
         }
         this.indexName = indexName;
     }
 
+    /**
+     * NB prior to 9.0 this was a TransportMasterNodeReadAction so for BwC we must remain able to read these requests until
+     * we no longer need to support calling this action remotely.
+     */
     public SimulateIndexTemplateRequest(StreamInput in) throws IOException {
         super(in);
         indexName = in.readString();
-        indexTemplateRequest = in.readOptionalWriteable(PutComposableIndexTemplateAction.Request::new);
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0) && DataLifecycle.isEnabled()) {
+        indexTemplateRequest = in.readOptionalWriteable(TransportPutComposableIndexTemplateAction.Request::new);
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
             includeDefaults = in.readBoolean();
-        }
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeString(indexName);
-        out.writeOptionalWriteable(indexTemplateRequest);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0) && DataLifecycle.isEnabled()) {
-            out.writeBoolean(includeDefaults);
         }
     }
 
@@ -65,6 +64,11 @@ public class SimulateIndexTemplateRequest extends MasterNodeReadRequest<Simulate
         return validationException;
     }
 
+    @Override
+    public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+        return new CancellableTask(id, type, action, "", parentTaskId, headers);
+    }
+
     public String getIndexName() {
         return indexName;
     }
@@ -74,7 +78,7 @@ public class SimulateIndexTemplateRequest extends MasterNodeReadRequest<Simulate
     }
 
     @Nullable
-    public PutComposableIndexTemplateAction.Request getIndexTemplateRequest() {
+    public TransportPutComposableIndexTemplateAction.Request getIndexTemplateRequest() {
         return indexTemplateRequest;
     }
 
@@ -83,7 +87,7 @@ public class SimulateIndexTemplateRequest extends MasterNodeReadRequest<Simulate
         return this;
     }
 
-    public SimulateIndexTemplateRequest indexTemplateRequest(PutComposableIndexTemplateAction.Request indexTemplateRequest) {
+    public SimulateIndexTemplateRequest indexTemplateRequest(TransportPutComposableIndexTemplateAction.Request indexTemplateRequest) {
         this.indexTemplateRequest = indexTemplateRequest;
         return this;
     }

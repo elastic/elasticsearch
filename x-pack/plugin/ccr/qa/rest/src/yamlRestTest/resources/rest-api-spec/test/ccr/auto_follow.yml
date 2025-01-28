@@ -54,8 +54,8 @@
         name: my_pattern
 ---
 "Test put and delete auto follow pattern without specifying exclusion patterns":
-  - skip:
-      version: " - 7.13.99"
+  - requires:
+      cluster_features: ["gte_v7.14.0"]
       reason: "auto-follow exclusion patterns is supported since 7.14.0"
 
   - do:
@@ -114,8 +114,8 @@
         name: my_pattern
 ---
 "Test put and delete auto follow pattern with exclusion patterns":
-  - skip:
-      version: " - 7.13.99"
+  - requires:
+      cluster_features: ["gte_v7.14.0"]
       reason: "auto-follow exclusion patterns is supported since 7.14.0"
 
   - do:
@@ -175,8 +175,8 @@
         name: my_pattern
 ---
 "Test pause and resume auto follow pattern":
-  - skip:
-      version: " - 7.4.99"
+  - requires:
+      cluster_features: ["gte_v7.5.0"]
       reason: "pause/resume auto-follow patterns is supported since 7.5.0"
 
   - do:
@@ -201,6 +201,7 @@
   - do:
       ccr.put_auto_follow_pattern:
         name: pattern_test
+        master_timeout: 10s
         body:
           remote_cluster: local
           leader_index_patterns: ['logs-*']
@@ -224,6 +225,7 @@
   - do:
       ccr.pause_auto_follow_pattern:
         name: pattern_test
+        master_timeout: 10s
   - is_true: acknowledged
 
   - do:
@@ -243,6 +245,7 @@
   - do:
       ccr.resume_auto_follow_pattern:
         name: pattern_test
+        master_timeout: 10s
   - is_true: acknowledged
 
   - do:

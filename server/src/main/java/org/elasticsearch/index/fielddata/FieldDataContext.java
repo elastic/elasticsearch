@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.fielddata;
 
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.lookup.SearchLookup;
 
@@ -25,6 +27,7 @@ import java.util.function.Supplier;
  */
 public record FieldDataContext(
     String fullyQualifiedIndexName,
+    IndexSettings indexSettings,
     Supplier<SearchLookup> lookupSupplier,
     Function<String, Set<String>> sourcePathsLookup,
     MappedFieldType.FielddataOperation fielddataOperation
@@ -38,11 +41,8 @@ public record FieldDataContext(
      * @param reason the reason that runtime fields are not supported
      */
     public static FieldDataContext noRuntimeFields(String reason) {
-        return new FieldDataContext(
-            "",
-            () -> { throw new UnsupportedOperationException("Runtime fields not supported for [" + reason + "]"); },
-            Set::of,
-            MappedFieldType.FielddataOperation.SEARCH
-        );
+        return new FieldDataContext("", null, () -> {
+            throw new UnsupportedOperationException("Runtime fields not supported for [" + reason + "]");
+        }, Set::of, MappedFieldType.FielddataOperation.SEARCH);
     }
 }

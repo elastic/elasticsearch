@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.autoscaling.storage;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterName;
@@ -20,6 +19,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
@@ -35,6 +35,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
@@ -42,6 +43,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.xpack.autoscaling.AutoscalingTestCase;
@@ -250,9 +252,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
                 .stream()
                 .filter(ShardRouting::primary)
                 .filter(s -> warmShards.contains(s.shardId()))
-                .forEach(
-                    shard -> allocation.routingNodes().startShard(logger, shard, allocation.changes(), UNAVAILABLE_EXPECTED_SHARD_SIZE)
-                )
+                .forEach(shard -> allocation.routingNodes().startShard(shard, allocation.changes(), UNAVAILABLE_EXPECTED_SHARD_SIZE))
         );
 
         do {
@@ -273,12 +273,12 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
                 .forEach(
                     shard -> allocation.routingNodes()
                         .startShard(
-                            logger,
                             allocation.routingNodes()
                                 .relocateShard(
                                     shard,
                                     randomNodeId(allocation.routingNodes(), DATA_WARM_NODE_ROLE),
                                     0L,
+                                    "test",
                                     allocation.changes()
                                 )
                                 .v2(),
@@ -348,9 +348,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
             allocation -> RoutingNodesHelper.shardsWithState(allocation.routingNodes(), ShardRoutingState.INITIALIZING)
                 .stream()
                 .filter(ShardRouting::primary)
-                .forEach(
-                    shard -> allocation.routingNodes().startShard(logger, shard, allocation.changes(), UNAVAILABLE_EXPECTED_SHARD_SIZE)
-                )
+                .forEach(shard -> allocation.routingNodes().startShard(shard, allocation.changes(), UNAVAILABLE_EXPECTED_SHARD_SIZE))
         );
 
         verify(
@@ -642,17 +640,16 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
     }
 
     private static AllocationDeciders createAllocationDeciders(AllocationDecider... extraDeciders) {
-        ClusterSettings clusterSettings = ClusterSettings.createBuiltInClusterSettings(
-            Settings.builder()
-                .put(
-                    ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING.getKey(),
-                    Integer.MAX_VALUE
-                )
-                .build()
-        );
+        Settings settings = Settings.builder()
+            .put(
+                ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING.getKey(),
+                Integer.MAX_VALUE
+            )
+            .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)
+            .build();
         Collection<AllocationDecider> systemAllocationDeciders = ClusterModule.createAllocationDeciders(
-            Settings.EMPTY,
-            clusterSettings,
+            settings,
+            ClusterSettings.createBuiltInClusterSettings(settings),
             Collections.emptyList()
         );
         return new AllocationDeciders(
@@ -694,10 +691,10 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
             // replicas before primaries, since replicas can be reinit'ed, resulting in a new ShardRouting instance.
             shards.stream()
                 .filter(not(ShardRouting::primary))
-                .forEach(s -> allocation.routingNodes().startShard(logger, s, allocation.changes(), UNAVAILABLE_EXPECTED_SHARD_SIZE));
+                .forEach(s -> allocation.routingNodes().startShard(s, allocation.changes(), UNAVAILABLE_EXPECTED_SHARD_SIZE));
             shards.stream()
                 .filter(ShardRouting::primary)
-                .forEach(s -> allocation.routingNodes().startShard(logger, s, allocation.changes(), UNAVAILABLE_EXPECTED_SHARD_SIZE));
+                .forEach(s -> allocation.routingNodes().startShard(s, allocation.changes(), UNAVAILABLE_EXPECTED_SHARD_SIZE));
             SHARDS_ALLOCATOR.allocate(allocation);
 
             // ensure progress by only relocating a shard if we started more than one shard.
@@ -710,7 +707,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
                         .filter(n -> allocation.deciders().canAllocate(toMove, n, allocation) == Decision.YES)
                         .collect(toSet());
                     if (candidates.isEmpty() == false) {
-                        allocation.routingNodes().relocateShard(toMove, randomFrom(candidates).nodeId(), 0L, allocation.changes());
+                        allocation.routingNodes().relocateShard(toMove, randomFrom(candidates).nodeId(), 0L, "test", allocation.changes());
                     }
                 }
             }
@@ -810,12 +807,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
             }
 
             @Override
-            public long getShardSize(ShardRouting shardRouting, long defaultValue) {
-                return 1L;
-            }
-
-            @Override
-            public Long getShardSize(ShardRouting shardRouting) {
+            public Long getShardSize(ShardId shardId, boolean primary) {
                 return 1L;
             }
         };
@@ -828,7 +820,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
         while (shards > 0) {
             IndexMetadata indexMetadata = IndexMetadata.builder("test" + "-" + shards)
-                .settings(settings(Version.CURRENT).put(randomFrom(tierSettingNames), "data_hot"))
+                .settings(settings(IndexVersion.current()).put(randomFrom(tierSettingNames), "data_hot"))
                 .numberOfShards(randomIntBetween(1, 5))
                 .numberOfReplicas(randomIntBetween(0, maxShardCopies - 1))
                 .build();
@@ -848,15 +840,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
     }
 
     static DiscoveryNode newDataNode(DiscoveryNodeRole role, String nodeName) {
-        return new DiscoveryNode(
-            nodeName,
-            nodeName,
-            UUIDs.randomBase64UUID(),
-            buildNewFakeTransportAddress(),
-            Map.of(),
-            Set.of(role),
-            Version.CURRENT
-        );
+        return DiscoveryNodeUtils.builder(nodeName).name(nodeName).externalId(UUIDs.randomBase64UUID()).roles(Set.of(role)).build();
     }
 
     private static String randomNodeId(RoutingNodes routingNodes, DiscoveryNodeRole role) {

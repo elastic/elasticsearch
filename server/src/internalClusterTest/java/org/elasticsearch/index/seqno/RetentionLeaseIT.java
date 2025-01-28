@@ -1,15 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.seqno;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -334,7 +336,7 @@ public class RetentionLeaseIT extends ESIntegTestCase {
             .getShardOrNull(new ShardId(resolveIndex("index"), 0));
         final int length = randomIntBetween(1, 8);
         final Map<String, RetentionLease> currentRetentionLeases = new LinkedHashMap<>();
-        logger.info("adding retention [{}}] leases", length);
+        logger.info("adding retention [{}] leases", length);
         for (int i = 0; i < length; i++) {
             final String id = randomValueOtherThanMany(currentRetentionLeases.keySet()::contains, () -> randomAlphaOfLength(8));
             final long retainingSequenceNumber = randomLongBetween(0, Long.MAX_VALUE);
@@ -351,10 +353,7 @@ public class RetentionLeaseIT extends ESIntegTestCase {
             Settings.builder().put(INDICES_RECOVERY_RETRY_DELAY_NETWORK_SETTING.getKey(), TimeValue.timeValueMillis(100))
         );
         final Semaphore recoveriesToDisrupt = new Semaphore(scaledRandomIntBetween(0, 4));
-        final MockTransportService primaryTransportService = (MockTransportService) internalCluster().getInstance(
-            TransportService.class,
-            primaryShardNodeName
-        );
+        final var primaryTransportService = MockTransportService.getInstance(primaryShardNodeName);
         primaryTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
             if (action.equals(PeerRecoveryTargetService.Actions.FINALIZE) && recoveriesToDisrupt.tryAcquire()) {
                 if (randomBoolean()) {
@@ -431,7 +430,7 @@ public class RetentionLeaseIT extends ESIntegTestCase {
                     )
                 );
             } catch (final Exception e) {
-                failWithException(e);
+                fail(e);
             }
         });
 
@@ -487,7 +486,7 @@ public class RetentionLeaseIT extends ESIntegTestCase {
 
                 @Override
                 public void onFailure(final Exception e) {
-                    failWithException(e);
+                    fail(e);
                 }
 
             });
@@ -532,7 +531,7 @@ public class RetentionLeaseIT extends ESIntegTestCase {
                     )
                 );
             } catch (final Exception e) {
-                failWithException(e);
+                fail(e);
             }
         });
 
@@ -560,7 +559,7 @@ public class RetentionLeaseIT extends ESIntegTestCase {
             .build();
         assertAcked(prepareCreate("index").setSettings(settings));
         ensureYellowAndNoInitializingShards("index");
-        assertFalse(clusterAdmin().prepareHealth("index").setWaitForActiveShards(numDataNodes).get().isTimedOut());
+        assertFalse(clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT, "index").setWaitForActiveShards(numDataNodes).get().isTimedOut());
 
         final String primaryShardNodeId = clusterService().state().routingTable().index("index").shard(0).primaryShard().currentNodeId();
         final String primaryShardNodeName = clusterService().state().nodes().get(primaryShardNodeId).getName();
@@ -579,31 +578,17 @@ public class RetentionLeaseIT extends ESIntegTestCase {
         final CountDownLatch actionLatch = new CountDownLatch(1);
         final AtomicBoolean success = new AtomicBoolean();
 
-        primaryConsumer.accept(primary, new ActionListener<ReplicationResponse>() {
-
-            @Override
-            public void onResponse(final ReplicationResponse replicationResponse) {
-                success.set(true);
-                actionLatch.countDown();
-            }
-
-            @Override
-            public void onFailure(final Exception e) {
-                failWithException(e);
-            }
-
-        });
+        primaryConsumer.accept(primary, ActionTestUtils.assertNoFailureListener(ignored -> {
+            success.set(true);
+            actionLatch.countDown();
+        }));
         actionLatch.await();
         assertTrue(success.get());
         afterSync.accept(primary);
     }
 
-    private static void failWithException(Exception e) {
-        throw new AssertionError("unexpected", e);
-    }
-
     private static ActionListener<ReplicationResponse> countDownLatchListener(CountDownLatch latch) {
-        return ActionListener.wrap(r -> latch.countDown(), RetentionLeaseIT::failWithException);
+        return ActionTestUtils.assertNoFailureListener(r -> latch.countDown());
     }
 
 }

@@ -34,10 +34,10 @@ public class GetDatafeedsAction extends ActionType<GetDatafeedsAction.Response> 
     public static final String ALL = "_all";
 
     private GetDatafeedsAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
-    public static class Request extends MasterNodeReadRequest<Request> {
+    public static final class Request extends MasterNodeReadRequest<Request> {
 
         public static final String ALLOW_NO_MATCH = "allow_no_match";
 
@@ -50,6 +50,7 @@ public class GetDatafeedsAction extends ActionType<GetDatafeedsAction.Response> 
         }
 
         public Request() {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
             local(true);
         }
 

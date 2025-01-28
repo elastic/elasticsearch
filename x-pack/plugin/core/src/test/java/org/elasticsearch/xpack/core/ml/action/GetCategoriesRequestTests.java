@@ -41,11 +41,6 @@ public class GetCategoriesRequestTests extends AbstractXContentSerializingTestCa
     }
 
     @Override
-    protected boolean supportsUnknownFields() {
-        return false;
-    }
-
-    @Override
     protected GetCategoriesAction.Request doParseInstance(XContentParser parser) {
         return GetCategoriesAction.Request.parseRequest(null, parser);
     }

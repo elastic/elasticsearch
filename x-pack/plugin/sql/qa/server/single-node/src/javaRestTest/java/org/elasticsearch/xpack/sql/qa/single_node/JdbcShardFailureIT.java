@@ -8,7 +8,9 @@ package org.elasticsearch.xpack.sql.qa.single_node;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.sql.qa.jdbc.JdbcIntegrationTestCase;
+import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.sql.Connection;
@@ -22,7 +24,27 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class JdbcShardFailureIT extends JdbcIntegrationTestCase {
+    @ClassRule
+    public static final ElasticsearchCluster cluster = SqlTestCluster.getCluster(false);
+
+    private String nodeAddresses;
+
+    /**
+     * Caches the node addresses when called for the first time.
+     * Once cluster is in red health, calling this will time out if it was not called before.
+     */
+    @Override
+    protected String getTestRestCluster() {
+        if (nodeAddresses == null) {
+            nodeAddresses = cluster.getHttpAddresses();
+        }
+        return nodeAddresses;
+    }
+
     private void createTestIndex() throws IOException {
+        // This method will put the cluster into a red state intentionally, so cache the node addresses first.
+        getTestRestCluster();
+
         Request createTest1 = new Request("PUT", "/test1");
         String body1 = """
             {"aliases":{"test":{}}, "mappings": {"properties": {"test_field":{"type":"integer"}}}}""";
@@ -67,7 +89,7 @@ public class JdbcShardFailureIT extends JdbcIntegrationTestCase {
         createTestIndex();
         try (Connection c = esJdbc(); Statement s = c.createStatement()) {
             SQLException exception = expectThrows(SQLException.class, () -> s.executeQuery("SELECT * FROM test ORDER BY test_field ASC"));
-            assertThat(exception.getMessage(), containsString("Search rejected due to missing shards"));
+            assertThat(exception.getMessage(), containsString("[open_point_in_time] action requires all shards to be available"));
         }
     }
 
@@ -76,6 +98,9 @@ public class JdbcShardFailureIT extends JdbcIntegrationTestCase {
             {
               "aliases": {
                 "test": {}
+              },
+              "settings": {
+                "number_of_shards": 1
               },
               "mappings": {
                 "properties": {

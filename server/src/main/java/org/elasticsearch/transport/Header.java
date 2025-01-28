@@ -1,14 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.transport;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Tuple;
@@ -49,11 +51,7 @@ public class Header {
         return requestId;
     }
 
-    byte getStatus() {
-        return status;
-    }
-
-    boolean isRequest() {
+    public boolean isRequest() {
         return TransportStatus.isRequest(status);
     }
 
@@ -65,7 +63,7 @@ public class Header {
         return TransportStatus.isError(status);
     }
 
-    boolean isHandshake() {
+    public boolean isHandshake() {
         return TransportStatus.isHandshake(status);
     }
 
@@ -81,6 +79,11 @@ public class Header {
         return compressionScheme;
     }
 
+    public Map<String, String> getRequestHeaders() {
+        var allHeaders = getHeaders();
+        return allHeaders == null ? null : allHeaders.v1();
+    }
+
     boolean needsToReadVariableHeader() {
         return headers == null;
     }
@@ -93,7 +96,7 @@ public class Header {
         this.headers = ThreadContext.readHeadersFromStream(input);
 
         if (isRequest()) {
-            if (version.before(TransportVersion.V_8_0_0)) {
+            if (version.before(TransportVersions.V_8_0_0)) {
                 // discard features
                 input.readStringArray();
             }

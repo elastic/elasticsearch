@@ -55,9 +55,9 @@ The response will look like this:
     "load_time_boxplot": {
       "min": 0.0,
       "max": 990.0,
-      "q1": 165.0,
+      "q1": 167.5,
       "q2": 445.0,
-      "q3": 725.0,
+      "q3": 722.5,
       "lower": 0.0,
       "upper": 990.0
     }
@@ -114,9 +114,9 @@ GET latency/_search
     "load_time_boxplot": {
       "min": 0.0,
       "max": 99.0,
-      "q1": 16.5,
+      "q1": 16.75,
       "q2": 44.5,
-      "q3": 72.5,
+      "q3": 72.25,
       "lower": 0.0,
       "upper": 99.0
     }
@@ -165,6 +165,35 @@ GET latency/_search
 <1> Compression controls memory usage and approximation error
 
 include::percentile-aggregation.asciidoc[tags=t-digest]
+
+==== Execution hint
+
+The default implementation of TDigest is optimized for performance, scaling to millions or even
+billions of sample values while maintaining acceptable accuracy levels (close to 1% relative error
+for millions of samples in some cases). There's an option to use an implementation optimized
+for accuracy by setting parameter `execution_hint` to value `high_accuracy`:
+
+[source,console]
+--------------------------------------------------
+GET latency/_search
+{
+  "size": 0,
+  "aggs": {
+    "load_time_boxplot": {
+      "boxplot": {
+        "field": "load_time",
+        "execution_hint": "high_accuracy"    <1>
+      }
+    }
+  }
+}
+--------------------------------------------------
+// TEST[setup:latency]
+
+<1> Optimize TDigest for accuracy, at the expense of performance
+
+This option can lead to improved accuracy (relative error close to 0.01% for millions of samples in some
+cases) but then percentile queries take 2x-10x longer to complete.
 
 ==== Missing value
 

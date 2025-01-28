@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ml.integration;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
@@ -43,6 +42,8 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertCheckedResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -303,13 +304,16 @@ public class CategorizationIT extends MlNativeAutodetectIntegTestCase {
         // before closing the job to prove that it was persisted in the background at the
         // end of lookback rather than when the job was closed.
         assertBusy(() -> {
-            SearchResponse stateDocsResponse = client().prepareSearch(AnomalyDetectorsIndex.jobStateIndexPattern())
-                .setQuery(QueryBuilders.idsQuery().addIds(CategorizerState.documentId(job.getId(), 1)))
-                .get();
-
-            SearchHit[] hits = stateDocsResponse.getHits().getHits();
-            assertThat(hits, arrayWithSize(1));
-            assertThat(hits[0].getSourceAsMap(), hasKey("compressed"));
+            assertResponse(
+                prepareSearch(AnomalyDetectorsIndex.jobStateIndexPattern()).setQuery(
+                    QueryBuilders.idsQuery().addIds(CategorizerState.documentId(job.getId(), 1))
+                ),
+                stateDocsResponse -> {
+                    SearchHit[] hits = stateDocsResponse.getHits().getHits();
+                    assertThat(hits, arrayWithSize(1));
+                    assertThat(hits[0].getSourceAsMap(), hasKey("compressed"));
+                }
+            );
         }, 30, TimeUnit.SECONDS);
 
         stopDatafeed(datafeedId);
@@ -553,29 +557,28 @@ public class CategorizationIT extends MlNativeAutodetectIntegTestCase {
     }
 
     private List<CategorizerStats> getCategorizerStats(String jobId) throws IOException {
-
-        SearchResponse searchResponse = client().prepareSearch(AnomalyDetectorsIndex.jobResultsAliasedName(jobId))
-            .setQuery(
+        List<CategorizerStats> stats = new ArrayList<>();
+        assertCheckedResponse(
+            prepareSearch(AnomalyDetectorsIndex.jobResultsAliasedName(jobId)).setQuery(
                 QueryBuilders.boolQuery()
                     .filter(QueryBuilders.termQuery(Result.RESULT_TYPE.getPreferredName(), CategorizerStats.RESULT_TYPE_VALUE))
                     .filter(QueryBuilders.termQuery(Job.ID.getPreferredName(), jobId))
-            )
-            .setSize(1000)
-            .get();
-
-        List<CategorizerStats> stats = new ArrayList<>();
-        for (SearchHit hit : searchResponse.getHits().getHits()) {
-            try (
-                XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                    .createParser(
-                        NamedXContentRegistry.EMPTY,
-                        DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                        hit.getSourceRef().streamInput()
-                    )
-            ) {
-                stats.add(CategorizerStats.LENIENT_PARSER.apply(parser, null).build());
+            ).setSize(1000),
+            searchResponse -> {
+                for (SearchHit hit : searchResponse.getHits().getHits()) {
+                    try (
+                        XContentParser parser = XContentFactory.xContent(XContentType.JSON)
+                            .createParser(
+                                NamedXContentRegistry.EMPTY,
+                                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                                hit.getSourceRef().streamInput()
+                            )
+                    ) {
+                        stats.add(CategorizerStats.LENIENT_PARSER.apply(parser, null).build());
+                    }
+                }
             }
-        }
+        );
         return stats;
     }
 }

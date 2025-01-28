@@ -7,6 +7,12 @@
 <titleabbrev>Start {dfeeds}</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-ml-anomaly[{ml-cap}  {anomaly-detect} APIs].
+--
+
 Starts one or more {dfeeds}.
 
 [[ml-start-datafeed-request]]
@@ -43,7 +49,7 @@ you created or updated the {dfeed}, those credentials are used instead.
 
 `<feed_id>`::
 (Required, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=datafeed-id]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=datafeed-id]
 
 [[ml-start-datafeed-query-parms]]
 == {api-query-parms-title}

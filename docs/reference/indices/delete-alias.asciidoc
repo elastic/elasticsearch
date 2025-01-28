@@ -4,6 +4,12 @@
 <titleabbrev>Delete alias</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-indices[Index APIs].
+--
+
 Removes a data stream or index from an <<aliases,alias>>.
 
 [source,console]
@@ -42,4 +48,4 @@ the request. Supports wildcards (`*`).
 [[delete-alias-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]

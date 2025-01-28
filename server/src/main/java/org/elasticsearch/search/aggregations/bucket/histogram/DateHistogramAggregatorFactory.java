@@ -1,17 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.Rounding;
-import org.elasticsearch.common.logging.DeprecationCategory;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -30,7 +29,6 @@ import java.util.List;
 import java.util.Map;
 
 public final class DateHistogramAggregatorFactory extends ValuesSourceAggregatorFactory {
-    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(DateHistogramAggregatorFactory.class);
 
     public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
         builder.register(
@@ -41,53 +39,13 @@ public final class DateHistogramAggregatorFactory extends ValuesSourceAggregator
         );
 
         builder.register(DateHistogramAggregationBuilder.REGISTRY_KEY, CoreValuesSourceType.RANGE, DateRangeHistogramAggregator::new, true);
-
-        builder.register(
-            DateHistogramAggregationBuilder.REGISTRY_KEY,
-            CoreValuesSourceType.BOOLEAN,
-            (
-                name,
-                factories,
-                rounding,
-                order,
-                keyed,
-                minDocCount,
-                extendedBounds,
-                hardBounds,
-                valuesSourceConfig,
-                context,
-                parent,
-                cardinality,
-                metadata) -> {
-                DEPRECATION_LOGGER.warn(
-                    DeprecationCategory.AGGREGATIONS,
-                    "date-histogram-boolean",
-                    "Running DateHistogram aggregations on [boolean] fields is deprecated"
-                );
-                return DateHistogramAggregator.build(
-                    name,
-                    factories,
-                    rounding,
-                    order,
-                    keyed,
-                    minDocCount,
-                    extendedBounds,
-                    hardBounds,
-                    valuesSourceConfig,
-                    context,
-                    parent,
-                    cardinality,
-                    metadata
-                );
-            },
-            true
-        );
     }
 
     private final DateHistogramAggregationSupplier aggregatorSupplier;
     private final BucketOrder order;
     private final boolean keyed;
     private final long minDocCount;
+    private final boolean downsampledResultsOffset;
     private final LongBounds extendedBounds;
     private final LongBounds hardBounds;
     private final Rounding rounding;
@@ -98,6 +56,7 @@ public final class DateHistogramAggregatorFactory extends ValuesSourceAggregator
         BucketOrder order,
         boolean keyed,
         long minDocCount,
+        boolean downsampledResultsOffset,
         Rounding rounding,
         LongBounds extendedBounds,
         LongBounds hardBounds,
@@ -111,14 +70,11 @@ public final class DateHistogramAggregatorFactory extends ValuesSourceAggregator
         this.aggregatorSupplier = aggregationSupplier;
         this.order = order;
         this.keyed = keyed;
+        this.downsampledResultsOffset = downsampledResultsOffset;
         this.minDocCount = minDocCount;
         this.extendedBounds = extendedBounds;
         this.hardBounds = hardBounds;
         this.rounding = rounding;
-    }
-
-    public long minDocCount() {
-        return minDocCount;
     }
 
     @Override
@@ -143,6 +99,7 @@ public final class DateHistogramAggregatorFactory extends ValuesSourceAggregator
             order,
             keyed,
             minDocCount,
+            downsampledResultsOffset,
             extendedBounds,
             hardBounds,
             config,
@@ -163,6 +120,7 @@ public final class DateHistogramAggregatorFactory extends ValuesSourceAggregator
             order,
             keyed,
             minDocCount,
+            downsampledResultsOffset,
             extendedBounds,
             hardBounds,
             config,

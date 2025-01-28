@@ -1,16 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.discovery;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.Coordinator;
@@ -24,18 +24,19 @@ import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterApplier;
 import org.elasticsearch.cluster.service.MasterService;
+import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.logging.DeprecationCategory;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.gateway.GatewayMetaState;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.injection.guice.AbstractModule;
 import org.elasticsearch.monitor.NodeHealthService;
 import org.elasticsearch.plugins.ClusterCoordinationPlugin;
 import org.elasticsearch.plugins.DiscoveryPlugin;
@@ -53,7 +54,6 @@ import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
 import java.util.function.BiConsumer;
-import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
@@ -61,18 +61,15 @@ import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 /**
  * A module for loading classes for node discovery.
  */
-public class DiscoveryModule {
+public class DiscoveryModule extends AbstractModule {
     private static final Logger logger = LogManager.getLogger(DiscoveryModule.class);
 
     public static final String MULTI_NODE_DISCOVERY_TYPE = "multi-node";
     public static final String SINGLE_NODE_DISCOVERY_TYPE = "single-node";
-    @Deprecated
-    public static final String LEGACY_MULTI_NODE_DISCOVERY_TYPE = "zen";
 
-    public static final Setting<String> DISCOVERY_TYPE_SETTING = new Setting<>(
+    public static final Setting<String> DISCOVERY_TYPE_SETTING = Setting.simpleString(
         "discovery.type",
         MULTI_NODE_DISCOVERY_TYPE,
-        Function.identity(),
         Property.NodeScope
     );
 
@@ -83,14 +80,14 @@ public class DiscoveryModule {
 
     public static final String DEFAULT_ELECTION_STRATEGY = "default";
 
-    public static final Setting<String> ELECTION_STRATEGY_SETTING = new Setting<>(
+    public static final Setting<String> ELECTION_STRATEGY_SETTING = Setting.simpleString(
         "cluster.election.strategy",
         DEFAULT_ELECTION_STRATEGY,
-        Function.identity(),
         Property.NodeScope
     );
 
     private final Coordinator coordinator;
+    private final Reconfigurator reconfigurator;
 
     public DiscoveryModule(
         Settings settings,
@@ -108,7 +105,9 @@ public class DiscoveryModule {
         GatewayMetaState gatewayMetaState,
         RerouteService rerouteService,
         NodeHealthService nodeHealthService,
-        CircuitBreakerService circuitBreakerService
+        CircuitBreakerService circuitBreakerService,
+        CompatibilityVersions compatibilityVersions,
+        FeatureService featureService
     ) {
         final Collection<BiConsumer<DiscoveryNode, ClusterState>> joinValidators = new ArrayList<>();
         final Map<String, Supplier<SeedHostsProvider>> hostProviders = new HashMap<>();
@@ -168,27 +167,11 @@ public class DiscoveryModule {
             throw new IllegalArgumentException("Unknown election strategy " + ELECTION_STRATEGY_SETTING.get(settings));
         }
 
-        if (LEGACY_MULTI_NODE_DISCOVERY_TYPE.equals(discoveryType)) {
-            assert Version.CURRENT.major == Version.V_7_0_0.major + 1;
-            DeprecationLogger.getLogger(DiscoveryModule.class)
-                .critical(
-                    DeprecationCategory.SETTINGS,
-                    "legacy-discovery-type",
-                    "Support for setting [{}] to [{}] is deprecated and will be removed in a future version. Set this setting to [{}] "
-                        + "instead.",
-                    DISCOVERY_TYPE_SETTING.getKey(),
-                    LEGACY_MULTI_NODE_DISCOVERY_TYPE,
-                    MULTI_NODE_DISCOVERY_TYPE
-                );
-        }
-
-        var reconfigurator = getReconfigurator(settings, clusterSettings, clusterCoordinationPlugins);
+        this.reconfigurator = getReconfigurator(settings, clusterSettings, clusterCoordinationPlugins);
         var preVoteCollectorFactory = getPreVoteCollectorFactory(clusterCoordinationPlugins);
         var leaderHeartbeatService = getLeaderHeartbeatService(settings, clusterCoordinationPlugins);
 
-        if (MULTI_NODE_DISCOVERY_TYPE.equals(discoveryType)
-            || LEGACY_MULTI_NODE_DISCOVERY_TYPE.equals(discoveryType)
-            || SINGLE_NODE_DISCOVERY_TYPE.equals(discoveryType)) {
+        if (MULTI_NODE_DISCOVERY_TYPE.equals(discoveryType) || SINGLE_NODE_DISCOVERY_TYPE.equals(discoveryType)) {
             coordinator = new Coordinator(
                 NODE_NAME_SETTING.get(settings),
                 settings,
@@ -209,7 +192,9 @@ public class DiscoveryModule {
                 circuitBreakerService,
                 reconfigurator,
                 leaderHeartbeatService,
-                preVoteCollectorFactory
+                preVoteCollectorFactory,
+                compatibilityVersions,
+                featureService
             );
         } else {
             throw new IllegalArgumentException("Unknown discovery type [" + discoveryType + "]");
@@ -279,7 +264,17 @@ public class DiscoveryModule {
         return SINGLE_NODE_DISCOVERY_TYPE.equals(DISCOVERY_TYPE_SETTING.get(settings));
     }
 
+    @Override
+    protected void configure() {
+        bind(Coordinator.class).toInstance(coordinator);
+        bind(Reconfigurator.class).toInstance(reconfigurator);
+    }
+
     public Coordinator getCoordinator() {
         return coordinator;
+    }
+
+    public Reconfigurator getReconfigurator() {
+        return reconfigurator;
     }
 }

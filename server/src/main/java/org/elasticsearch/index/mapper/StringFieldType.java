@@ -1,16 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.AutomatonQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PrefixQuery;
@@ -23,6 +23,8 @@ import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.common.lucene.search.CaseInsensitivePrefixQuery;
+import org.elasticsearch.common.lucene.search.CaseInsensitiveWildcardQuery;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -31,8 +33,6 @@ import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import static org.elasticsearch.common.lucene.search.AutomatonQueries.caseInsensitivePrefix;
-import static org.elasticsearch.common.lucene.search.AutomatonQueries.toCaseInsensitiveWildcardAutomaton;
 import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 
 /** Base class for {@link MappedFieldType} implementations that use the same
@@ -70,13 +70,22 @@ public abstract class StringFieldType extends TermBasedFieldType {
             );
         }
         failIfNotIndexed();
-        return new FuzzyQuery(
-            new Term(name(), indexedValueForSearch(value)),
-            fuzziness.asDistance(BytesRefs.toString(value)),
-            prefixLength,
-            maxExpansions,
-            transpositions
-        );
+        return rewriteMethod == null
+            ? new FuzzyQuery(
+                new Term(name(), indexedValueForSearch(value)),
+                fuzziness.asDistance(BytesRefs.toString(value)),
+                prefixLength,
+                maxExpansions,
+                transpositions
+            )
+            : new FuzzyQuery(
+                new Term(name(), indexedValueForSearch(value)),
+                fuzziness.asDistance(BytesRefs.toString(value)),
+                prefixLength,
+                maxExpansions,
+                transpositions,
+                rewriteMethod
+            );
     }
 
     @Override
@@ -92,15 +101,7 @@ public abstract class StringFieldType extends TermBasedFieldType {
         failIfNotIndexed();
         Term prefix = new Term(name(), indexedValueForSearch(value));
         if (caseInsensitive) {
-            return method == null
-                ? new AutomatonQuery(prefix, caseInsensitivePrefix(prefix.text()), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, false)
-                : new AutomatonQuery(
-                    prefix,
-                    caseInsensitivePrefix(prefix.text()),
-                    Operations.DEFAULT_DETERMINIZE_WORK_LIMIT,
-                    false,
-                    method
-                );
+            return method == null ? new CaseInsensitivePrefixQuery(prefix, false) : new CaseInsensitivePrefixQuery(prefix, false, method);
         }
         return method == null ? new PrefixQuery(prefix) : new PrefixQuery(prefix, method);
     }
@@ -167,15 +168,7 @@ public abstract class StringFieldType extends TermBasedFieldType {
             term = new Term(name(), indexedValueForSearch(value));
         }
         if (caseInsensitive) {
-            return method == null
-                ? new AutomatonQuery(term, toCaseInsensitiveWildcardAutomaton(term, Integer.MAX_VALUE))
-                : new AutomatonQuery(
-                    term,
-                    toCaseInsensitiveWildcardAutomaton(term, Integer.MAX_VALUE),
-                    Operations.DEFAULT_DETERMINIZE_WORK_LIMIT,
-                    false,
-                    method
-                );
+            return method == null ? new CaseInsensitiveWildcardQuery(term) : new CaseInsensitiveWildcardQuery(term, false, method);
         }
         return method == null ? new WildcardQuery(term) : new WildcardQuery(term, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, method);
     }

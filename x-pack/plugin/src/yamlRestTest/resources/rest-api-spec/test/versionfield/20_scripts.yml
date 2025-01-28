@@ -3,15 +3,17 @@
 ---
 setup:
 
-  - skip:
-      features: headers
-      version: " - 7.10.0"
+  - requires:
+      test_runner_features: headers
+      cluster_features: ["gte_v7.10.1"]
       reason: "version field is added to 7.10"
 
   - do:
         indices.create:
           index: test_index
           body:
+              settings:
+                number_of_shards: 1
               mappings:
                 properties:
                   version:
@@ -56,8 +58,8 @@ setup:
 
 ---
 "Sort script returning version value":
-  - skip:
-      version: " - 8.2.99"
+  - requires:
+      cluster_features: ["gte_v8.3.0"]
       reason: "order by script returning version supported in v 8.3"
   - do:
       search:
@@ -72,8 +74,8 @@ setup:
 
 ---
 "Sort script with field() returning version value":
-  - skip:
-      version: " - 8.2.99"
+  - requires:
+      cluster_features: ["gte_v8.3.0"]
       reason: "order by script returning version supported in v 8.3"
   - do:
       search:

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.http;
@@ -89,7 +90,7 @@ public class ClusterStateRestCancellationIT extends HttpSmokeTestCase {
         logger.info("--> checking cluster state task completed");
         assertBusy(() -> {
             updateClusterState(clusterService, s -> ClusterState.builder(s).build());
-            final List<TaskInfo> tasks = client().admin().cluster().prepareListTasks().get().getTasks();
+            final List<TaskInfo> tasks = clusterAdmin().prepareListTasks().get().getTasks();
             assertTrue(tasks.toString(), tasks.stream().noneMatch(t -> t.action().equals(ClusterStateAction.NAME)));
         });
 
@@ -108,7 +109,7 @@ public class ClusterStateRestCancellationIT extends HttpSmokeTestCase {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersion.CURRENT;
+            return TransportVersion.current();
         }
 
         @Override

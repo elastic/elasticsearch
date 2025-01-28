@@ -1,129 +1,137 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.qa.die_with_dignity;
 
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.LogType;
+import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.hamcrest.Matcher;
+import org.junit.ClassRule;
 
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
+
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 
 public class DieWithDignityIT extends ESRestTestCase {
 
+    @ClassRule
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
+        .distribution(DistributionType.INTEG_TEST)
+        .module("test-die-with-dignity")
+        .setting("xpack.security.enabled", "false")
+        .jvmArg("-Ddie.with.dignity.test=true")
+        .jvmArg("-XX:-ExitOnOutOfMemoryError")
+        .build();
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
+
     public void testDieWithDignity() throws Exception {
-        assumeFalse("Mute on Windows, see https://github.com/elastic/elasticsearch/issues/77282", Constants.WINDOWS);
-        // there should be an Elasticsearch process running with the die.with.dignity.test system property
-        {
-            final Map<String, String> esCommandLines = getElasticsearchCommandLines();
-            final boolean found = esCommandLines.values().stream().anyMatch(line -> line.contains("-Ddie.with.dignity.test=true"));
-            assertTrue(esCommandLines.toString(), found);
-        }
+        final long pid = getElasticsearchPid();
+        assertJvmArgs(pid, containsString("-Ddie.with.dignity.test=true"));
 
         expectThrows(IOException.class, () -> client().performRequest(new Request("GET", "/_die_with_dignity")));
 
-        // the Elasticsearch process should die and disappear from the output of jps
-        assertBusy(() -> {
-            final Map<String, String> esCommandLines = getElasticsearchCommandLines();
-            final boolean notFound = esCommandLines.values().stream().noneMatch(line -> line.contains("-Ddie.with.dignity.test=true"));
-            assertTrue(esCommandLines.toString(), notFound);
-        });
+        // the Elasticsearch process should die
+        assertBusy(() -> assertJvmArgs(pid, not(containsString("-Ddie.with.dignity.test=true"))));
 
         // parse the logs and ensure that Elasticsearch died with the expected cause
-        final List<String> lines = Files.readAllLines(PathUtils.get(System.getProperty("log")));
-        final Iterator<String> it = lines.iterator();
-
         boolean fatalError = false;
         boolean fatalErrorInThreadExiting = false;
+        for (String line : readLines(cluster.getNodeLog(0, LogType.SERVER_JSON))) {
+            if (containsAll(line, ".*ERROR.*", ".*ExceptionsHelper.*", ".*fatal error.*")) {
+                fatalError = true;
+            } else if (containsAll(
+                line,
+                ".*ERROR.*",
+                ".*ElasticsearchUncaughtExceptionHandler.*",
+                ".*fatal error in thread \\[elasticsearch-error-rethrower\\], exiting.*",
+                ".*java.lang.OutOfMemoryError: Requested array size exceeds VM limit.*"
+            )) {
+                fatalErrorInThreadExiting = true;
+            }
+        }
+        assertTrue(fatalError);
+        assertTrue(fatalErrorInThreadExiting);
+    }
+
+    private Process startJcmd(long pid) throws IOException {
+        final String jcmdPath = PathUtils.get(System.getProperty("java.home"), "bin/jcmd").toString();
+        return new ProcessBuilder().command(jcmdPath, Long.toString(pid), "VM.command_line").redirectErrorStream(true).start();
+    }
+
+    private void assertJvmArgs(long pid, Matcher<String> matcher) throws IOException, InterruptedException {
+        Process jcmdProcess = startJcmd(pid);
+
+        if (Constants.WINDOWS) {
+            // jcmd on windows appears to have a subtle bug where if the process being connected to
+            // dies while jcmd is running, it can hang indefinitely. Here we detect this case by
+            // waiting a fixed amount of time, and then killing/retrying the process
+            boolean exited = jcmdProcess.waitFor(10, TimeUnit.SECONDS);
+            if (exited == false) {
+                logger.warn("jcmd hung, killing process and retrying");
+                jcmdProcess.destroyForcibly();
+                jcmdProcess = startJcmd(pid);
+            }
+        }
+
+        List<String> outputLines = readLines(jcmdProcess.getInputStream());
+
+        String jvmArgs = null;
         try {
-            while (it.hasNext() && (fatalError == false || fatalErrorInThreadExiting == false)) {
-                final String line = it.next();
-                if (containsAll(line, ".*ERROR.*", ".*ExceptionsHelper.*", ".*javaRestTest-0.*", ".*fatal error.*")) {
-                    fatalError = true;
-                } else if (containsAll(
-                    line,
-                    ".*ERROR.*",
-                    ".*ElasticsearchUncaughtExceptionHandler.*",
-                    ".*javaRestTest-0.*",
-                    ".*fatal error in thread \\[Thread-\\d+\\], exiting.*",
-                    ".*java.lang.OutOfMemoryError: Requested array size exceeds VM limit.*"
-                )) {
-                    fatalErrorInThreadExiting = true;
+            for (String line : outputLines) {
+                if (line.startsWith("jvm_args")) {
+                    jvmArgs = line;
+                    break;
                 }
             }
-
-            assertTrue(fatalError);
-            assertTrue(fatalErrorInThreadExiting);
+            assertThat(jvmArgs, matcher);
 
         } catch (AssertionError ae) {
-            Path path = PathUtils.get(System.getProperty("log"));
-            debugLogs(path);
+            logger.error("Failed matcher for jvm pid " + pid);
+            logger.error("jcmd output: " + String.join("\n", outputLines));
             throw ae;
         }
     }
 
-    private Map<String, String> getElasticsearchCommandLines() throws IOException {
-        /*
-         * jps will truncate the command line to 1024 characters; so we collect the pids and then run jcmd <pid> VM.command_line to get the
-         * full command line.
-         */
-        final String jpsPath = PathUtils.get(System.getProperty("runtime.java.home"), "bin/jps").toString();
-        final Process process = new ProcessBuilder().command(jpsPath, "-q").start();
+    private long getElasticsearchPid() throws IOException {
+        Response response = client().performRequest(new Request("GET", "/_nodes/process"));
+        @SuppressWarnings("unchecked")
+        var nodesInfo = (Map<String, Object>) entityAsMap(response).get("nodes");
+        @SuppressWarnings("unchecked")
+        var nodeInfo = (Map<String, Object>) nodesInfo.values().iterator().next();
+        @SuppressWarnings("unchecked")
+        var processInfo = (Map<String, Object>) nodeInfo.get("process");
+        Object stringPid = processInfo.get("id");
+        return Long.parseLong(stringPid.toString());
+    }
 
-        final List<String> pids = new ArrayList<>();
-        try (
-            InputStream is = process.getInputStream();
-            BufferedReader in = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8))
-        ) {
-            String line;
-            while ((line = in.readLine()) != null) {
-                pids.add(line);
-            }
+    private List<String> readLines(InputStream is) throws IOException {
+        try (BufferedReader in = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8))) {
+            return in.lines().toList();
         }
-
-        final String jcmdPath = PathUtils.get(System.getProperty("runtime.java.home"), "bin/jcmd").toString();
-        final Map<String, String> esCommandLines = new HashMap<>();
-        for (final String pid : pids) {
-            final Process jcmdProcess = new ProcessBuilder().command(jcmdPath, pid, "VM.command_line").start();
-            try (
-                InputStream is = jcmdProcess.getInputStream();
-                BufferedReader in = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8))
-            ) {
-                boolean isElasticsearch = false;
-                String jvmArgs = null;
-                String line;
-                while ((line = in.readLine()) != null) {
-                    if (line.equals("java_command: org.elasticsearch.server/org.elasticsearch.bootstrap.Elasticsearch")) {
-                        isElasticsearch = true;
-                    }
-                    if (line.startsWith("jvm_args")) {
-                        jvmArgs = line;
-                    }
-                }
-                if (isElasticsearch) {
-                    assertNotNull(pid, jvmArgs);
-                    esCommandLines.put(pid, jvmArgs);
-                }
-            }
-        }
-        return esCommandLines;
     }
 
     private boolean containsAll(String line, String... subStrings) {
@@ -133,12 +141,6 @@ public class DieWithDignityIT extends ESRestTestCase {
             }
         }
         return true;
-    }
-
-    private void debugLogs(Path path) throws IOException {
-        try (BufferedReader reader = Files.newBufferedReader(path)) {
-            reader.lines().forEach(line -> logger.info(line));
-        }
     }
 
     @Override

@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.eql;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.ToXContent;
@@ -15,14 +16,14 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 
-import static org.elasticsearch.KnownTransportVersions.ALL_VERSIONS;
 import static org.hamcrest.Matchers.equalTo;
 
 public abstract class AbstractBWCSerializationTestCase<T extends Writeable & ToXContent> extends AbstractXContentSerializingTestCase<T> {
 
     private static List<TransportVersion> getAllBWCVersions() {
-        int minCompatVersion = Collections.binarySearch(ALL_VERSIONS, TransportVersion.MINIMUM_COMPATIBLE);
-        return ALL_VERSIONS.subList(minCompatVersion, ALL_VERSIONS.size());
+        List<TransportVersion> allVersions = TransportVersion.getAllVersions();
+        int minCompatVersion = Collections.binarySearch(allVersions, TransportVersions.MINIMUM_COMPATIBLE);
+        return allVersions.subList(minCompatVersion, allVersions.size());
     }
 
     private static final List<TransportVersion> DEFAULT_BWC_VERSIONS = getAllBWCVersions();

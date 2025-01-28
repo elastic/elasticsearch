@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.core.security.action.saml;
 
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
@@ -17,16 +16,9 @@ import java.io.IOException;
  */
 public final class SamlInvalidateSessionResponse extends ActionResponse {
 
-    private String realmName;
-    private int count;
-    private String redirectUrl;
-
-    public SamlInvalidateSessionResponse(StreamInput in) throws IOException {
-        super(in);
-        realmName = in.readString();
-        count = in.readInt();
-        redirectUrl = in.readString();
-    }
+    private final String realmName;
+    private final int count;
+    private final String redirectUrl;
 
     public SamlInvalidateSessionResponse(String realmName, int count, String redirectUrl) {
         this.realmName = realmName;

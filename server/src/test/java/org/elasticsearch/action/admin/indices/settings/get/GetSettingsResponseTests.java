@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.settings.get;
@@ -11,6 +12,7 @@ package org.elasticsearch.action.admin.indices.settings.get;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.index.RandomCreateIndexGenerator;
 import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
@@ -18,6 +20,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
 
@@ -70,7 +73,58 @@ public class GetSettingsResponseTests extends AbstractChunkedSerializingTestCase
 
     @Override
     protected GetSettingsResponse doParseInstance(XContentParser parser) throws IOException {
-        return GetSettingsResponse.fromXContent(parser);
+        HashMap<String, Settings> indexToSettings = new HashMap<>();
+        HashMap<String, Settings> indexToDefaultSettings = new HashMap<>();
+
+        if (parser.currentToken() == null) {
+            parser.nextToken();
+        }
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
+        parser.nextToken();
+
+        while (parser.isClosed() == false) {
+            if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
+                // we must assume this is an index entry
+                parseIndexEntry(parser, indexToSettings, indexToDefaultSettings);
+            } else if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
+                parser.skipChildren();
+            } else {
+                parser.nextToken();
+            }
+        }
+
+        return new GetSettingsResponse(Map.copyOf(indexToSettings), Map.copyOf(indexToDefaultSettings));
+    }
+
+    private static void parseIndexEntry(
+        XContentParser parser,
+        Map<String, Settings> indexToSettings,
+        Map<String, Settings> indexToDefaultSettings
+    ) throws IOException {
+        String indexName = parser.currentName();
+        parser.nextToken();
+        while (parser.isClosed() == false && parser.currentToken() != XContentParser.Token.END_OBJECT) {
+            parseSettingsField(parser, indexName, indexToSettings, indexToDefaultSettings);
+        }
+    }
+
+    private static void parseSettingsField(
+        XContentParser parser,
+        String currentIndexName,
+        Map<String, Settings> indexToSettings,
+        Map<String, Settings> indexToDefaultSettings
+    ) throws IOException {
+
+        if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
+            switch (parser.currentName()) {
+                case "settings" -> indexToSettings.put(currentIndexName, Settings.fromXContent(parser));
+                case "defaults" -> indexToDefaultSettings.put(currentIndexName, Settings.fromXContent(parser));
+                default -> parser.skipChildren();
+            }
+        } else if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
+            parser.skipChildren();
+        }
+        parser.nextToken();
     }
 
     @Override

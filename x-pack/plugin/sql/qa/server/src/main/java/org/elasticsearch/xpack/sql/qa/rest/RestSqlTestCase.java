@@ -10,7 +10,6 @@ import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
-import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -23,12 +22,13 @@ import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.NotEqualMessageBuilder;
-import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonStringEncoder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.sql.proto.CoreProtocol;
 import org.elasticsearch.xpack.sql.proto.Mode;
+import org.elasticsearch.xpack.sql.proto.SqlVersion;
+import org.elasticsearch.xpack.sql.proto.SqlVersions;
 import org.elasticsearch.xpack.sql.proto.StringUtils;
 import org.elasticsearch.xpack.sql.qa.ErrorsTestCase;
 import org.hamcrest.Matcher;
@@ -60,7 +60,6 @@ import static java.util.Collections.singletonMap;
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.common.Strings.hasText;
 import static org.elasticsearch.xpack.ql.TestUtils.getNumberOfSearchContexts;
-import static org.elasticsearch.xpack.ql.index.VersionCompatibilityChecks.INTRODUCING_UNSIGNED_LONG;
 import static org.elasticsearch.xpack.sql.proto.CoreProtocol.COLUMNS_NAME;
 import static org.elasticsearch.xpack.sql.proto.CoreProtocol.HEADER_NAME_ASYNC_ID;
 import static org.elasticsearch.xpack.sql.proto.CoreProtocol.HEADER_NAME_ASYNC_PARTIAL;
@@ -76,6 +75,7 @@ import static org.elasticsearch.xpack.sql.proto.CoreProtocol.SQL_ASYNC_STATUS_RE
 import static org.elasticsearch.xpack.sql.proto.CoreProtocol.URL_PARAM_DELIMITER;
 import static org.elasticsearch.xpack.sql.proto.CoreProtocol.URL_PARAM_FORMAT;
 import static org.elasticsearch.xpack.sql.proto.CoreProtocol.WAIT_FOR_COMPLETION_TIMEOUT_NAME;
+import static org.elasticsearch.xpack.sql.proto.VersionCompatibility.INTRODUCING_UNSIGNED_LONG;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -1159,12 +1159,233 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
 
     public void testPreventedUnsignedLongMaskedAccess() throws IOException {
         loadUnsignedLongTestData();
-        Version version = VersionUtils.randomVersionBetween(random(), null, VersionUtils.getPreviousVersion(INTRODUCING_UNSIGNED_LONG));
+        var preVersionCompat = SqlVersions.getAllVersions().stream().filter(v -> v.onOrAfter(INTRODUCING_UNSIGNED_LONG) == false).toList();
+        SqlVersion version = preVersionCompat.get(random().nextInt(preVersionCompat.size()));
         String query = query("SELECT unsigned_long::STRING FROM " + indexPattern("test")).version(version.toString()).toString();
         expectBadRequest(
             () -> runSql(new StringEntity(query, ContentType.APPLICATION_JSON), "", randomMode()),
             containsString("Cannot use field [unsigned_long] with unsupported type [UNSIGNED_LONG]")
         );
+    }
+
+    public void testTsdbMetrics() throws IOException {
+        createTsdb1();
+        createTsdb2();
+
+        String mode = randomMode();
+        // select all from tsdb1
+        Map<String, Object> expected = new HashMap<>();
+        expected.put(
+            "columns",
+            Arrays.asList(
+                columnInfo(mode, "@timestamp", "datetime", JDBCType.DATE, 34),
+                columnInfo(mode, "k8s.pod.ip", "ip", JDBCType.VARCHAR, 45),
+                columnInfo(mode, "k8s.pod.name", "keyword", JDBCType.VARCHAR, 32766),
+                columnInfo(mode, "k8s.pod.network.rx", "long", JDBCType.BIGINT, 20),
+                columnInfo(mode, "k8s.pod.network.tx", "long", JDBCType.BIGINT, 20),
+                columnInfo(mode, "k8s.pod.uid", "keyword", JDBCType.VARCHAR, 32766),
+                columnInfo(mode, "metricset", "keyword", JDBCType.VARCHAR, 32766)
+            )
+        );
+        expected.put(
+            "rows",
+            singletonList(
+                Arrays.asList(
+                    "2021-04-28T18:50:04.467Z",
+                    "10.10.55.1",
+                    "cat",
+                    802133794,
+                    2001818691,
+                    "947e4ced-1786-4e53-9e0c-5c447e959507",
+                    "pod"
+                )
+            )
+        );
+        assertResponse(expected, runSql(mode, "SELECT * FROM tsdb1", false));
+
+        // select all from tsdb2
+        expected = new HashMap<>();
+        expected.put(
+            "columns",
+            Arrays.asList(
+                columnInfo(mode, "@timestamp", "datetime", JDBCType.DATE, 34),
+                columnInfo(mode, "dim", "keyword", JDBCType.VARCHAR, 32766),
+                columnInfo(mode, "k8s.pod.ip", "ip", JDBCType.VARCHAR, 45),
+                columnInfo(mode, "k8s.pod.network.tx", "long", JDBCType.BIGINT, 20)
+            )
+        );
+        expected.put("rows", singletonList(Arrays.asList("2021-04-28T18:50:04.467Z", "A", null, null)));
+        assertResponse(expected, runSql(mode, "SELECT * FROM tsdb2", false));
+
+        // select all from both indices
+        expected = new HashMap<>();
+        expected.put(
+            "columns",
+            Arrays.asList(
+                columnInfo(mode, "@timestamp", "datetime", JDBCType.DATE, 34),
+                columnInfo(mode, "dim", "keyword", JDBCType.VARCHAR, 32766),
+                columnInfo(mode, "k8s.pod.ip", "ip", JDBCType.VARCHAR, 45),
+                columnInfo(mode, "k8s.pod.name", "keyword", JDBCType.VARCHAR, 32766),
+                columnInfo(mode, "k8s.pod.network.rx", "long", JDBCType.BIGINT, 20),
+                columnInfo(mode, "k8s.pod.network.tx", "long", JDBCType.BIGINT, 20),
+                columnInfo(mode, "k8s.pod.uid", "keyword", JDBCType.VARCHAR, 32766),
+                columnInfo(mode, "metricset", "keyword", JDBCType.VARCHAR, 32766)
+            )
+        );
+        expected.put(
+            "rows",
+            Arrays.asList(
+                Arrays.asList(
+                    "2021-04-28T18:50:04.467Z",
+                    null,
+                    "10.10.55.1",
+                    "cat",
+                    802133794,
+                    2001818691,
+                    "947e4ced-1786-4e53-9e0c-5c447e959507",
+                    "pod"
+                ),
+                Arrays.asList("2021-04-28T18:50:04.467Z", "A", null, null, null, null, null, null)
+            )
+        );
+        assertResponse(expected, runSql(mode, "SELECT * FROM \\\"tsdb*\\\"", false));
+
+        // select the column that is both mapped as counter and as long
+        expected = new HashMap<>();
+        expected.put("columns", Arrays.asList(columnInfo(mode, "k8s.pod.network.tx", "long", JDBCType.BIGINT, 20)));
+        expected.put("rows", Arrays.asList(singletonList(2001818691), singletonList(null)));
+        assertResponse(expected, runSql(mode, "SELECT k8s.pod.network.tx FROM \\\"tsdb*\\\"", false));
+
+        deleteIndex(client(), "tsdb1");
+        deleteIndex(client(), "tsdb2");
+    }
+
+    private void createTsdb2() throws IOException {
+        Request request = new Request("PUT", "/tsdb2");
+        request.setJsonEntity("""
+            {
+                  "settings": {
+                      "index": {
+                          "mode": "time_series",
+                          "routing_path": ["dim"],
+                          "time_series": {
+                              "start_time": "2021-04-28T00:00:00Z",
+                              "end_time": "2021-04-29T00:00:00Z"
+                          }
+                      }
+                  },
+                  "mappings": {
+                      "properties": {
+                          "@timestamp": {
+                              "type": "date"
+                          },
+                          "dim": {
+                              "type": "keyword",
+                              "time_series_dimension": "true"
+                          },
+                          "agg_metric": {
+                              "type": "aggregate_metric_double",
+                              "metrics": ["max"],
+                              "default_metric": "max"
+                          },
+                          "k8s": {
+                              "properties": {
+                                  "pod": {
+                                      "properties": {
+                                          "ip": {
+                                              "type": "ip"
+                                          },
+                                          "network": {
+                                              "properties": {
+                                                  "tx": {
+                                                      "type": "long"
+                                                  }
+                                              }
+                                          }
+                                      }
+                                  }
+                              }
+                          }
+                      }
+                  }
+              }""");
+        assertOK(client().performRequest(request));
+
+        request = new Request("POST", "/tsdb2/_doc");
+        request.addParameter("refresh", "true");
+        request.setJsonEntity("{\"@timestamp\": \"2021-04-28T18:50:04.467Z\", \"dim\": \"A\", \"agg_metric\": {\"max\": 10}}");
+        client().performRequest(request);
+    }
+
+    private void createTsdb1() throws IOException {
+        Request request = new Request("PUT", "/tsdb1");
+        request.setJsonEntity("""
+            {
+                 "settings": {
+                     "index": {
+                         "mode": "time_series",
+                         "routing_path": [
+                             "metricset",
+                             "k8s.pod.uid"
+                         ],
+                         "time_series": {
+                             "start_time": "2021-04-28T00:00:00Z",
+                             "end_time": "2021-04-29T00:00:00Z"
+                         }
+                     }
+                 },
+                 "mappings": {
+                     "properties": {
+                         "@timestamp": {
+                             "type": "date"
+                         },
+                         "metricset": {
+                             "type": "keyword",
+                             "time_series_dimension": true
+                         },
+                         "k8s": {
+                             "properties": {
+                                 "pod": {
+                                     "properties": {
+                                         "uid": {
+                                             "type": "keyword",
+                                             "time_series_dimension": true
+                                         },
+                                         "name": {
+                                             "type": "keyword"
+                                         },
+                                         "ip": {
+                                             "type": "ip"
+                                         },
+                                         "network": {
+                                             "properties": {
+                                                 "tx": {
+                                                     "type": "long",
+                                                     "time_series_metric": "counter"
+                                                 },
+                                                 "rx": {
+                                                     "type": "long",
+                                                     "time_series_metric": "counter"
+                                                 }
+                                             }
+                                         }
+                                     }
+                                 }
+                             }
+                         }
+                     }
+                 }
+             }""");
+        assertOK(client().performRequest(request));
+
+        request = new Request("POST", "/tsdb1/_doc");
+        request.addParameter("refresh", "true");
+        request.setJsonEntity(
+            "{\"@timestamp\": \"2021-04-28T18:50:04.467Z\", \"metricset\": \"pod\","
+                + "\"k8s\": {\"pod\": {\"name\": \"cat\", \"uid\":\"947e4ced-1786-4e53-9e0c-5c447e959507\", \"ip\": \"10.10.55.1\","
+                + "\"network\": {\"tx\": 2001818691, \"rx\": 802133794}}}}"
+        );
+        client().performRequest(request);
     }
 
     private void executeQueryWithNextPage(String format, String expectedHeader, String expectedLineFormat) throws IOException {
@@ -1214,7 +1435,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         assertEquals(0, getNumberOfSearchContexts(provisioningClient(), "test"));
     }
 
-    private static void bulkLoadTestData(int count) throws IOException {
+    private void bulkLoadTestData(int count) throws IOException {
         Request request = new Request("POST", "/test/_bulk");
         request.addParameter("refresh", "true");
         StringBuilder bulk = new StringBuilder();
@@ -1291,18 +1512,19 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
     public void testAsyncTextWait() throws IOException {
         RequestObjectBuilder builder = query("SELECT 1").waitForCompletionTimeout("1d").keepOnCompletion(false);
 
-        Map<String, String> contentMap = new HashMap<>() {
-            {
-                put("txt", "       1       \n---------------\n1              \n");
-                put("csv", "1\r\n1\r\n");
-                put("tsv", "1\n1\n");
-            }
-        };
+        Map<String, String> contentMap = Map.of(
+            "txt",
+            "       1       \n---------------\n1              \n",
+            "csv",
+            "1\r\n1\r\n",
+            "tsv",
+            "1\n1\n"
+        );
 
-        for (String format : contentMap.keySet()) {
-            Response response = runSqlAsTextWithFormat(builder, format);
+        for (var format : contentMap.entrySet()) {
+            Response response = runSqlAsTextWithFormat(builder, format.getKey());
 
-            assertEquals(contentMap.get(format), responseBody(response));
+            assertEquals(format.getValue(), responseBody(response));
 
             assertTrue(hasText(response.getHeader(HEADER_NAME_ASYNC_ID)));
             assertEquals("false", response.getHeader(HEADER_NAME_ASYNC_PARTIAL));
@@ -1312,13 +1534,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/80089")
     public void testAsyncTextPaginated() throws IOException, InterruptedException {
-        final Map<String, String> acceptMap = new HashMap<>() {
-            {
-                put("txt", "text/plain");
-                put("csv", "text/csv");
-                put("tsv", "text/tab-separated-values");
-            }
-        };
+        final Map<String, String> acceptMap = Map.of("txt", "text/plain", "csv", "text/csv", "tsv", "text/tab-separated-values");
         final int fetchSize = randomIntBetween(1, 10);
         final int fetchCount = randomIntBetween(1, 9);
         bulkLoadTestData(fetchSize * fetchCount); // NB: product needs to stay below 100, for txt format tests
@@ -1539,7 +1755,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
      * 2. There are at most `expectedValues.size() / pageSize + 1` pages (the last one might or might not be empty)
      * 3. Optionally: That the last page is not empty.
      */
-    private void testFetchAllPages(String format, String query, List<String> expectedValues, int pageSize, boolean emptyLastPage)
+    private static void testFetchAllPages(String format, String query, List<String> expectedValues, int pageSize, boolean emptyLastPage)
         throws IOException {
         int remainingPages = expectedValues.size() / pageSize + 1;
 

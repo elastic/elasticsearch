@@ -1,73 +1,87 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.test.hamcrest;
 
+import org.hamcrest.BaseMatcher;
 import org.hamcrest.Description;
+import org.hamcrest.Matcher;
 import org.hamcrest.TypeSafeMatcher;
 
 import java.util.Optional;
 
+import static org.hamcrest.Matchers.anything;
+import static org.hamcrest.Matchers.equalTo;
+
 public class OptionalMatchers {
 
     private static class IsEmptyMatcher extends TypeSafeMatcher<Optional<?>> {
-
         @Override
-        protected boolean matchesSafely(final Optional<?> item) {
-            // noinspection OptionalAssignedToNull
-            return item != null && item.isEmpty();
+        protected boolean matchesSafely(Optional<?> item) {
+            return item.isEmpty();
         }
 
         @Override
-        public void describeTo(final Description description) {
-            description.appendText("expected empty optional");
+        protected void describeMismatchSafely(Optional<?> item, Description mismatchDescription) {
+            mismatchDescription.appendText("a non-empty optional ").appendValue(item.get());
         }
 
         @Override
-        protected void describeMismatchSafely(final Optional<?> item, final Description mismatchDescription) {
-            if (item == null) {
-                mismatchDescription.appendText("was null");
-            } else {
-                mismatchDescription.appendText("was ").appendText(item.toString());
-            }
+        public void describeTo(Description description) {
+            description.appendText("an empty optional");
         }
-
     }
 
-    public static IsEmptyMatcher isEmpty() {
+    public static Matcher<Optional<?>> isEmpty() {
         return new IsEmptyMatcher();
     }
 
-    private static class IsPresentMatcher extends TypeSafeMatcher<Optional<?>> {
+    private static class IsPresentMatcher<T> extends BaseMatcher<Optional<? extends T>> {
+        private final Matcher<? super T> contents;
 
-        @Override
-        protected boolean matchesSafely(final Optional<?> item) {
-            return item != null && item.isPresent();
+        private IsPresentMatcher(Matcher<? super T> contents) {
+            this.contents = contents;
         }
 
         @Override
-        public void describeTo(final Description description) {
-            description.appendText("expected non-empty optional");
+        public boolean matches(Object actual) {
+            Optional<?> opt = (Optional<?>) actual;
+            return opt.isPresent() && contents.matches(opt.get());
         }
 
         @Override
-        protected void describeMismatchSafely(final Optional<?> item, final Description mismatchDescription) {
-            if (item == null) {
-                mismatchDescription.appendText("was null");
-            } else {
-                mismatchDescription.appendText("was empty");
+        public void describeTo(Description description) {
+            description.appendText("a non-empty optional ").appendDescriptionOf(contents);
+        }
+
+        @Override
+        public void describeMismatch(Object item, Description description) {
+            Optional<?> opt = (Optional<?>) item;
+            if (opt.isEmpty()) {
+                description.appendText("an empty optional");
+                return;
             }
+
+            description.appendText("an optional ");
+            contents.describeMismatch(opt.get(), description);
         }
-
     }
 
-    public static IsPresentMatcher isPresent() {
-        return new IsPresentMatcher();
+    public static Matcher<Optional<?>> isPresent() {
+        return new IsPresentMatcher<>(anything());
     }
 
+    public static <T> Matcher<Optional<? extends T>> isPresentWith(T contents) {
+        return new IsPresentMatcher<>(equalTo(contents));
+    }
+
+    public static <T> Matcher<Optional<? extends T>> isPresentWith(Matcher<? super T> contents) {
+        return new IsPresentMatcher<>(contents);
+    }
 }

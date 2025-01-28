@@ -16,7 +16,7 @@ public class GetLifecycleRequestTests extends AbstractWireSerializingTestCase<Re
 
     @Override
     protected Request createTestInstance() {
-        return new Request(randomAlphaOfLengthBetween(1, 20));
+        return new Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, randomAlphaOfLengthBetween(1, 20));
     }
 
     @Override
@@ -29,6 +29,6 @@ public class GetLifecycleRequestTests extends AbstractWireSerializingTestCase<Re
         String[] originalPolicies = request.getPolicyNames();
         String[] newPolicies = Arrays.copyOf(originalPolicies, originalPolicies.length + 1);
         newPolicies[originalPolicies.length] = randomAlphaOfLength(5);
-        return new Request(newPolicies);
+        return new Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, newPolicies);
     }
 }

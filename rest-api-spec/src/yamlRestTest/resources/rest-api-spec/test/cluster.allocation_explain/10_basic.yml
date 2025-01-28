@@ -49,10 +49,10 @@
 
 ---
 "Cluster shard allocation explanation test with a closed index":
-  - skip:
-      version: " - 7.1.99"
+  - requires:
+      cluster_features: ["gte_v7.2.0"]
       reason: closed indices are replicated starting version 7.2.0
-      features: ["allowed_warnings"]
+      test_runner_features: ["allowed_warnings"]
 
   - do:
       indices.create:
@@ -69,8 +69,6 @@
   - do:
       indices.close:
         index: test_closed
-      allowed_warnings:
-        - "the default value for the ?wait_for_active_shards parameter will change from '0' to 'index-setting' in version 8; specify '?wait_for_active_shards=index-setting' to adopt the future default behaviour, or '?wait_for_active_shards=0' to preserve today's behaviour"
 
   - match: { acknowledged: true }
 
@@ -92,3 +90,21 @@
   - is_true: can_rebalance_cluster
   - is_true: can_rebalance_to_other_node
   - is_true: rebalance_explanation
+
+---
+"Cluster allocation explanation response includes node's roles":
+  - requires:
+      cluster_features: ["gte_v8.11.0"]
+      reason: The roles field was introduced in 8.11.0
+
+  - do:
+      indices.create:
+        index: test
+
+  - match: { acknowledged: true }
+
+  - do:
+      cluster.allocation_explain:
+        body: { "index": "test", "shard": 0, "primary": true }
+
+  - is_true: current_node.roles

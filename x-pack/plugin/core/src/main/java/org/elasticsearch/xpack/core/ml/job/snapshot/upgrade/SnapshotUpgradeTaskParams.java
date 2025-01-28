@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.ml.job.snapshot.upgrade;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.persistent.PersistentTaskParams;
@@ -68,7 +69,7 @@ public class SnapshotUpgradeTaskParams implements PersistentTaskParams, MlTaskPa
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.V_7_11_0;
+        return TransportVersions.V_7_11_0;
     }
 
     @Override

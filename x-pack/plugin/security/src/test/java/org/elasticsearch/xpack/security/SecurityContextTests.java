@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.security;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -23,6 +24,7 @@ import org.elasticsearch.xpack.core.security.authc.Authentication.Authentication
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
+import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.ParentActionAuthorization;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
@@ -77,6 +79,20 @@ public class SecurityContextTests extends ESTestCase {
         assertEquals(user, securityContext.getUser());
     }
 
+    public void testGetUserForAPIKeyBasedCrossCluster() throws IOException {
+        final User user = new User("test");
+        final CrossClusterAccessSubjectInfo crossClusterAccessSubjectInfo = AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo(
+            AuthenticationTestHelper.builder().user(user).realmRef(new RealmRef("ldap", "foo", "node1")).build(false)
+        );
+        final Authentication authentication = AuthenticationTestHelper.builder()
+            .crossClusterAccess(randomAlphaOfLengthBetween(10, 20), crossClusterAccessSubjectInfo)
+            .build(false);
+        User apiKeyUser = authentication.getEffectiveSubject().getUser();
+        authentication.writeToContext(threadContext);
+        assertEquals(user, securityContext.getUser());
+        assertNotEquals(apiKeyUser, securityContext.getUser());
+    }
+
     public void testGetAuthenticationDoesNotSwallowIOException() {
         threadContext.putHeader(AuthenticationField.AUTHENTICATION_KEY, ""); // an intentionally corrupt header
         final SecurityContext securityContext = new SecurityContext(Settings.EMPTY, threadContext);
@@ -89,13 +105,13 @@ public class SecurityContextTests extends ESTestCase {
         final InternalUser internalUser = AuthenticationTestHelper.randomInternalUser();
         assertNull(securityContext.getAuthentication());
         assertNull(securityContext.getUser());
-        securityContext.setInternalUser(internalUser, TransportVersion.CURRENT);
+        securityContext.setInternalUser(internalUser, TransportVersion.current());
         assertEquals(internalUser, securityContext.getUser());
         assertEquals(AuthenticationType.INTERNAL, securityContext.getAuthentication().getAuthenticationType());
 
         IllegalStateException e = expectThrows(
             IllegalStateException.class,
-            () -> securityContext.setInternalUser(randomFrom(internalUser, InternalUsers.SYSTEM_USER), TransportVersion.CURRENT)
+            () -> securityContext.setInternalUser(randomFrom(internalUser, InternalUsers.SYSTEM_USER), TransportVersion.current())
         );
         assertEquals("authentication ([_xpack_security_authentication]) is already present in the context", e.getMessage());
     }
@@ -116,7 +132,7 @@ public class SecurityContextTests extends ESTestCase {
 
         final InternalUser executionUser = AuthenticationTestHelper.randomInternalUserWithLocalRoleDescriptor();
         final AtomicReference<StoredContext> contextAtomicReference = new AtomicReference<>();
-        securityContext.executeAsInternalUser(executionUser, TransportVersion.CURRENT, (originalCtx) -> {
+        securityContext.executeAsInternalUser(executionUser, TransportVersion.current(), (originalCtx) -> {
             assertEquals(executionUser, securityContext.getUser());
             assertEquals(AuthenticationType.INTERNAL, securityContext.getAuthentication().getAuthenticationType());
             contextAtomicReference.set(originalCtx);
@@ -190,7 +206,7 @@ public class SecurityContextTests extends ESTestCase {
         final Authentication original = AuthenticationTestHelper.builder()
             .apiKey()
             .metadata(metadata)
-            .transportVersion(TransportVersion.V_8_0_0)
+            .transportVersion(TransportVersions.V_8_0_0)
             .build();
         original.writeToContext(threadContext);
 
@@ -205,17 +221,17 @@ public class SecurityContextTests extends ESTestCase {
                 Map.of("limitedBy role", Map.of("cluster", List.of("all"))),
                 authentication.getAuthenticatingSubject().getMetadata().get(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY)
             );
-        }, TransportVersion.V_7_8_0);
+        }, TransportVersions.V_7_8_0);
 
         // If target is new node, no need to rewrite the new style API key metadata
         securityContext.executeAfterRewritingAuthentication(originalCtx -> {
             Authentication authentication = securityContext.getAuthentication();
             assertSame(original.getAuthenticatingSubject().getMetadata(), authentication.getAuthenticatingSubject().getMetadata());
-        }, TransportVersionUtils.randomVersionBetween(random(), VERSION_API_KEY_ROLES_AS_BYTES, TransportVersion.CURRENT));
+        }, TransportVersionUtils.randomVersionBetween(random(), VERSION_API_KEY_ROLES_AS_BYTES, TransportVersion.current()));
     }
 
     public void testExecuteAfterRewritingAuthenticationWillConditionallyRewriteOldApiKeyMetadata() throws IOException {
-        final Authentication original = AuthenticationTestHelper.builder().apiKey().transportVersion(TransportVersion.V_7_8_0).build();
+        final Authentication original = AuthenticationTestHelper.builder().apiKey().transportVersion(TransportVersions.V_7_8_0).build();
 
         // original authentication has the old style of role descriptor maps
         assertThat(
@@ -233,7 +249,7 @@ public class SecurityContextTests extends ESTestCase {
         securityContext.executeAfterRewritingAuthentication(originalCtx -> {
             Authentication authentication = securityContext.getAuthentication();
             assertSame(original.getAuthenticatingSubject().getMetadata(), authentication.getAuthenticatingSubject().getMetadata());
-        }, TransportVersion.V_7_8_0);
+        }, TransportVersions.V_7_8_0);
 
         // If target is new node, ensure old map style API key metadata is rewritten to bytesreference
         securityContext.executeAfterRewritingAuthentication(originalCtx -> {
@@ -251,7 +267,7 @@ public class SecurityContextTests extends ESTestCase {
                         equalTo(original.getAuthenticatingSubject().getMetadata().get(key))
                     );
                 });
-        }, TransportVersionUtils.randomVersionBetween(random(), VERSION_API_KEY_ROLES_AS_BYTES, TransportVersion.CURRENT));
+        }, TransportVersionUtils.randomVersionBetween(random(), VERSION_API_KEY_ROLES_AS_BYTES, TransportVersion.current()));
     }
 
     public void testExecuteAfterRemovingParentAuthorization() {

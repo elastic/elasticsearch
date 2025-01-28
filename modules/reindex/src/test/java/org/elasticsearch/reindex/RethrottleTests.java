@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.reindex;
@@ -81,7 +82,7 @@ public class RethrottleTests extends ReindexTestCase {
 
         List<IndexRequestBuilder> docs = new ArrayList<>();
         for (int i = 0; i < numSlices * 10; i++) {
-            docs.add(client().prepareIndex("test").setId(Integer.toString(i)).setSource("foo", "bar"));
+            docs.add(prepareIndex("test").setId(Integer.toString(i)).setSource("foo", "bar"));
         }
         indexRandom(true, docs);
 
@@ -100,15 +101,13 @@ public class RethrottleTests extends ReindexTestCase {
             assertThat(taskGroupToRethrottle.childTasks(), hasSize(allOf(greaterThanOrEqualTo(1), lessThanOrEqualTo(numSlices))));
             // Wait for all of the sub tasks to start (or finish, some might finish early, all that matters is that not all do)
             assertBusy(() -> {
-                BulkByScrollTask.Status parent = (BulkByScrollTask.Status) client().admin()
-                    .cluster()
-                    .prepareGetTask(taskToRethrottle)
+                BulkByScrollTask.Status parent = (BulkByScrollTask.Status) clusterAdmin().prepareGetTask(taskToRethrottle)
                     .get()
                     .getTask()
                     .getTask()
                     .status();
                 long finishedSubTasks = parent.getSliceStatuses().stream().filter(Objects::nonNull).count();
-                ListTasksResponse list = client().admin().cluster().prepareListTasks().setTargetParentTaskId(taskToRethrottle).get();
+                ListTasksResponse list = clusterAdmin().prepareListTasks().setTargetParentTaskId(taskToRethrottle).get();
                 list.rethrowFailures("subtasks");
                 assertThat(finishedSubTasks + list.getTasks().size(), greaterThanOrEqualTo((long) numSlices));
                 assertThat(list.getTasks().size(), greaterThan(0));
@@ -223,7 +222,7 @@ public class RethrottleTests extends ReindexTestCase {
     private TaskGroup findTaskToRethrottle(String actionName, int sliceCount) {
         long start = System.nanoTime();
         do {
-            ListTasksResponse tasks = client().admin().cluster().prepareListTasks().setActions(actionName).setDetailed(true).get();
+            ListTasksResponse tasks = clusterAdmin().prepareListTasks().setActions(actionName).setDetailed(true).get();
             tasks.rethrowFailures("Finding tasks to rethrottle");
             assertThat("tasks are left over from the last execution of this test", tasks.getTaskGroups(), hasSize(lessThan(2)));
             if (0 == tasks.getTaskGroups().size()) {
@@ -257,7 +256,7 @@ public class RethrottleTests extends ReindexTestCase {
             return taskGroup;
         } while (System.nanoTime() - start < TimeUnit.SECONDS.toNanos(10));
         throw new AssertionError(
-            "Couldn't find tasks to rethrottle. Here are the running tasks " + client().admin().cluster().prepareListTasks().get()
+            "Couldn't find tasks to rethrottle. Here are the running tasks " + clusterAdmin().prepareListTasks().get()
         );
     }
 }

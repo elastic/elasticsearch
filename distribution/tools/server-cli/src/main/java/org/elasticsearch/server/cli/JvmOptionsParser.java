@@ -1,15 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.server.cli;
 
 import org.elasticsearch.bootstrap.ServerArgs;
 import org.elasticsearch.cli.ExitCodes;
+import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.UserException;
 
 import java.io.BufferedReader;
@@ -39,7 +41,7 @@ import java.util.stream.StreamSupport;
 /**
  * Parses JVM options from a file and prints a single line with all JVM options to standard output.
  */
-final class JvmOptionsParser {
+public final class JvmOptionsParser {
 
     static class JvmOptionsFileParserException extends Exception {
 
@@ -59,7 +61,6 @@ final class JvmOptionsParser {
             this.jvmOptionsFile = jvmOptionsFile;
             this.invalidLines = invalidLines;
         }
-
     }
 
     /**
@@ -70,25 +71,32 @@ final class JvmOptionsParser {
      * variable.
      *
      * @param args            the start-up arguments
-     * @param configDir       the ES config dir
+     * @param processInfo     information about the CLI process.
      * @param tmpDir          the directory that should be passed to {@code -Djava.io.tmpdir}
-     * @param envOptions      the options passed through the ES_JAVA_OPTS env var
+     * @param machineDependentHeap the heap configurator to use
      * @return the list of options to put on the Java command line
      * @throws InterruptedException if the java subprocess is interrupted
      * @throws IOException          if there is a problem reading any of the files
      * @throws UserException        if there is a problem parsing the `jvm.options` file or `jvm.options.d` files
      */
-    static List<String> determineJvmOptions(ServerArgs args, Path configDir, Path tmpDir, String envOptions) throws InterruptedException,
-        IOException, UserException {
-
+    public static List<String> determineJvmOptions(
+        ServerArgs args,
+        ProcessInfo processInfo,
+        Path tmpDir,
+        MachineDependentHeap machineDependentHeap
+    ) throws InterruptedException, IOException, UserException {
         final JvmOptionsParser parser = new JvmOptionsParser();
 
         final Map<String, String> substitutions = new HashMap<>();
         substitutions.put("ES_TMPDIR", tmpDir.toString());
-        substitutions.put("ES_PATH_CONF", configDir.toString());
+        substitutions.put("ES_PATH_CONF", args.configDir().toString());
+
+        final String envOptions = processInfo.envVars().get("ES_JAVA_OPTS");
 
         try {
-            return parser.jvmOptions(args, configDir, tmpDir, envOptions, substitutions);
+            return Collections.unmodifiableList(
+                parser.jvmOptions(args, args.configDir(), tmpDir, envOptions, substitutions, processInfo.sysprops(), machineDependentHeap)
+            );
         } catch (final JvmOptionsFileParserException e) {
             final String errorMessage = String.format(
                 Locale.ROOT,
@@ -122,7 +130,9 @@ final class JvmOptionsParser {
         final Path config,
         Path tmpDir,
         final String esJavaOpts,
-        final Map<String, String> substitutions
+        final Map<String, String> substitutions,
+        final Map<String, String> cliSysprops,
+        final MachineDependentHeap machineDependentHeap
     ) throws InterruptedException, IOException, JvmOptionsFileParserException, UserException {
 
         final List<String> jvmOptions = readJvmOptionsFiles(config);
@@ -132,14 +142,12 @@ final class JvmOptionsParser {
         }
 
         final List<String> substitutedJvmOptions = substitutePlaceholders(jvmOptions, Collections.unmodifiableMap(substitutions));
-        final MachineDependentHeap machineDependentHeap = new MachineDependentHeap(
-            new OverridableSystemMemoryInfo(substitutedJvmOptions, new DefaultSystemMemoryInfo())
-        );
-        substitutedJvmOptions.addAll(machineDependentHeap.determineHeapSettings(config, substitutedJvmOptions));
-        final List<String> ergonomicJvmOptions = JvmErgonomics.choose(substitutedJvmOptions);
-        final List<String> systemJvmOptions = SystemJvmOptions.systemJvmOptions();
+        final SystemMemoryInfo memoryInfo = new OverridableSystemMemoryInfo(substitutedJvmOptions, new DefaultSystemMemoryInfo());
+        substitutedJvmOptions.addAll(machineDependentHeap.determineHeapSettings(args.nodeSettings(), memoryInfo, substitutedJvmOptions));
+        final List<String> ergonomicJvmOptions = JvmErgonomics.choose(substitutedJvmOptions, args.nodeSettings());
+        final List<String> systemJvmOptions = SystemJvmOptions.systemJvmOptions(args.nodeSettings(), cliSysprops);
 
-        final List<String> apmOptions = APMJvmOptions.apmJvmOptions(args.nodeSettings(), args.secrets(), tmpDir);
+        final List<String> apmOptions = APMJvmOptions.apmJvmOptions(args.nodeSettings(), args.secrets(), args.logsDir(), tmpDir);
 
         final List<String> finalJvmOptions = new ArrayList<>(
             systemJvmOptions.size() + substitutedJvmOptions.size() + ergonomicJvmOptions.size() + apmOptions.size()

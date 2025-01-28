@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.common.util.concurrent;
 
@@ -14,6 +15,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.util.Objects;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.core.Strings.format;
@@ -25,6 +27,7 @@ public abstract class AbstractAsyncTask implements Runnable, Closeable {
 
     private final Logger logger;
     private final ThreadPool threadPool;
+    private final Executor executor;
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final boolean autoReschedule;
     private volatile Scheduler.Cancellable cancellable;
@@ -32,9 +35,10 @@ public abstract class AbstractAsyncTask implements Runnable, Closeable {
     private volatile Exception lastThrownException;
     private volatile TimeValue interval;
 
-    protected AbstractAsyncTask(Logger logger, ThreadPool threadPool, TimeValue interval, boolean autoReschedule) {
+    protected AbstractAsyncTask(Logger logger, ThreadPool threadPool, Executor executor, TimeValue interval, boolean autoReschedule) {
         this.logger = logger;
         this.threadPool = threadPool;
+        this.executor = executor;
         this.interval = interval;
         this.autoReschedule = autoReschedule;
     }
@@ -81,7 +85,7 @@ public abstract class AbstractAsyncTask implements Runnable, Closeable {
             if (logger.isTraceEnabled()) {
                 logger.trace("scheduling {} every {}", toString(), interval);
             }
-            cancellable = threadPool.schedule(this, interval, getThreadPool());
+            cancellable = threadPool.schedule(this, interval, executor);
             isScheduledOrRunning = true;
         } else {
             logger.trace("scheduled {} disabled", toString());
@@ -167,12 +171,4 @@ public abstract class AbstractAsyncTask implements Runnable, Closeable {
     }
 
     protected abstract void runInternal();
-
-    /**
-     * Use the same threadpool by default.
-     * Derived classes can change this if required.
-     */
-    protected String getThreadPool() {
-        return ThreadPool.Names.SAME;
-    }
 }

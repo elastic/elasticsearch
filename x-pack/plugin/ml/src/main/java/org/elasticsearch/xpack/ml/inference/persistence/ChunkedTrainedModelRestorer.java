@@ -9,23 +9,28 @@ package org.elasticsearch.xpack.ml.inference.persistence;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
@@ -34,8 +39,8 @@ import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.core.Strings.format;
@@ -58,6 +63,8 @@ public class ChunkedTrainedModelRestorer {
     private static final Logger logger = LogManager.getLogger(ChunkedTrainedModelRestorer.class);
 
     private static final int MAX_NUM_DEFINITION_DOCS = 20;
+    private static final int SEARCH_RETRY_LIMIT = 5;
+    private static final TimeValue SEARCH_FAILURE_RETRY_WAIT_TIME = new TimeValue(5, TimeUnit.SECONDS);
 
     private final Client client;
     private final NamedXContentRegistry xContentRegistry;
@@ -142,61 +149,114 @@ public class ChunkedTrainedModelRestorer {
                     UTILITY_THREAD_POOL_NAME,
                     Thread.currentThread().getName()
                 );
-            SearchResponse searchResponse = client.search(searchRequest).actionGet();
-            if (searchResponse.getHits().getHits().length == 0) {
-                errorConsumer.accept(new ResourceNotFoundException(Messages.getMessage(Messages.MODEL_DEFINITION_NOT_FOUND, modelId)));
-                return;
-            }
 
-            // Set lastNum to a non-zero to prevent an infinite loop of
-            // search after requests in the absolute worse case where
-            // it has all gone wrong.
-            // Docs are numbered 0..N. we must have seen at least
-            // this many docs so far.
-            int lastNum = numDocsWritten - 1;
-            for (SearchHit hit : searchResponse.getHits().getHits()) {
-                logger.debug(() -> format("[%s] Restoring model definition doc with id [%s]", modelId, hit.getId()));
-                try {
-                    TrainedModelDefinitionDoc doc = parseModelDefinitionDocLenientlyFromSource(
-                        hit.getSourceRef(),
-                        modelId,
-                        xContentRegistry
-                    );
-                    lastNum = doc.getDocNum();
-
-                    boolean continueSearching = modelConsumer.apply(doc);
-                    if (continueSearching == false) {
-                        // signal the search has finished early
-                        successConsumer.accept(Boolean.FALSE);
-                        return;
-                    }
-
-                } catch (IOException e) {
-                    logger.error(() -> "[" + modelId + "] error writing model definition", e);
-                    errorConsumer.accept(e);
+            SearchResponse searchResponse = retryingSearch(
+                client,
+                modelId,
+                searchRequest,
+                SEARCH_RETRY_LIMIT,
+                SEARCH_FAILURE_RETRY_WAIT_TIME
+            );
+            try {
+                if (searchResponse.getHits().getHits().length == 0) {
+                    errorConsumer.accept(new ResourceNotFoundException(Messages.getMessage(Messages.MODEL_DEFINITION_NOT_FOUND, modelId)));
                     return;
                 }
-            }
 
-            numDocsWritten += searchResponse.getHits().getHits().length;
+                // Set lastNum to a non-zero to prevent an infinite loop of
+                // search after requests in the absolute worse case where
+                // it has all gone wrong.
+                // Docs are numbered 0..N. we must have seen at least
+                // this many docs so far.
+                int lastNum = numDocsWritten - 1;
+                for (SearchHit hit : searchResponse.getHits().getHits()) {
+                    logger.debug(() -> format("[%s] Restoring model definition doc with id [%s]", modelId, hit.getId()));
+                    try {
+                        TrainedModelDefinitionDoc doc = parseModelDefinitionDocLenientlyFromSource(
+                            hit.getSourceRef(),
+                            modelId,
+                            xContentRegistry
+                        );
+                        lastNum = doc.getDocNum();
 
-            boolean endOfSearch = searchResponse.getHits().getHits().length < searchSize
-                || searchResponse.getHits().getTotalHits().value == numDocsWritten;
+                        boolean continueSearching = modelConsumer.apply(doc);
+                        if (continueSearching == false) {
+                            // signal the search has finished early
+                            successConsumer.accept(Boolean.FALSE);
+                            return;
+                        }
 
-            if (endOfSearch) {
-                successConsumer.accept(Boolean.TRUE);
-            } else {
-                // search again with after
-                SearchHit lastHit = searchResponse.getHits().getAt(searchResponse.getHits().getHits().length - 1);
-                SearchRequestBuilder searchRequestBuilder = buildSearchBuilder(client, modelId, index, searchSize);
-                searchRequestBuilder.searchAfter(new Object[] { lastHit.getIndex(), lastNum });
-                executorService.execute(() -> doSearch(searchRequestBuilder.request(), modelConsumer, successConsumer, errorConsumer));
+                    } catch (IOException e) {
+                        logger.error(() -> "[" + modelId + "] error writing model definition", e);
+                        errorConsumer.accept(e);
+                        return;
+                    }
+                }
+
+                numDocsWritten += searchResponse.getHits().getHits().length;
+
+                boolean endOfSearch = searchResponse.getHits().getHits().length < searchSize
+                    || searchResponse.getHits().getTotalHits().value() == numDocsWritten;
+
+                if (endOfSearch) {
+                    successConsumer.accept(Boolean.TRUE);
+                } else {
+                    // search again with after
+                    SearchHit lastHit = searchResponse.getHits().getAt(searchResponse.getHits().getHits().length - 1);
+                    SearchRequestBuilder searchRequestBuilder = buildSearchBuilder(client, modelId, index, searchSize);
+                    searchRequestBuilder.searchAfter(new Object[] { lastHit.getIndex(), lastNum });
+                    executorService.execute(() -> doSearch(searchRequestBuilder.request(), modelConsumer, successConsumer, errorConsumer));
+                }
+            } finally {
+                searchResponse.decRef();
             }
         } catch (Exception e) {
             if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
                 errorConsumer.accept(new ResourceNotFoundException(Messages.getMessage(Messages.MODEL_DEFINITION_NOT_FOUND, modelId)));
             } else {
                 errorConsumer.accept(e);
+            }
+        }
+    }
+
+    static SearchResponse retryingSearch(Client client, String modelId, SearchRequest searchRequest, int retries, TimeValue sleep)
+        throws InterruptedException {
+        int failureCount = 0;
+
+        while (true) {
+            try {
+                return client.search(searchRequest).actionGet();
+            } catch (Exception e) {
+                if (ExceptionsHelper.unwrapCause(e) instanceof SearchPhaseExecutionException == false
+                    && ExceptionsHelper.unwrapCause(e) instanceof CircuitBreakingException == false) {
+                    throw e;
+                }
+
+                if (failureCount >= retries) {
+                    logger.warn(format("[%s] searching for model part failed %s times, returning failure", modelId, retries));
+                    /*
+                     * ElasticsearchException does not implement the ElasticsearchWrapperException interface so this exception cannot
+                     * be unwrapped. This is important because the TrainedModelAssignmentNodeService has retry logic when a
+                     * SearchPhaseExecutionException occurs:
+                     * https://github.com/elastic/elasticsearch/blob/main/x-pack/plugin/ml/src/main/java/org/elasticsearch/xpack/ml/inference/assignment/TrainedModelAssignmentNodeService.java#L219
+                     * This intentionally prevents that code from attempting to retry loading the entire model. If the retry logic here
+                     * fails after the set retries we should not retry loading the entire model to avoid additional strain on the cluster.
+                     */
+                    throw new ElasticsearchStatusException(
+                        format(
+                            "loading model [%s] failed after [%s] retries. The deployment is now in a failed state, "
+                                + "the error may be transient please stop the deployment and restart",
+                            modelId,
+                            retries
+                        ),
+                        RestStatus.TOO_MANY_REQUESTS,
+                        e
+                    );
+                }
+
+                failureCount++;
+                logger.debug(format("[%s] searching for model part failed %s times, retrying", modelId, failureCount));
+                TimeUnit.SECONDS.sleep(sleep.getSeconds());
             }
         }
     }
@@ -237,9 +297,11 @@ public class ChunkedTrainedModelRestorer {
     ) throws IOException {
 
         try (
-            InputStream stream = source.streamInput();
-            XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, stream)
+            XContentParser parser = XContentHelper.createParserNotCompressed(
+                LoggingDeprecationHandler.XCONTENT_PARSER_CONFIG.withRegistry(xContentRegistry),
+                source,
+                XContentType.JSON
+            )
         ) {
             return TrainedModelDefinitionDoc.fromXContent(parser, true).build();
         } catch (IOException e) {

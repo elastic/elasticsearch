@@ -1,7 +1,7 @@
 ---
 setup:
-  - skip:
-      version: "- 8.1.99"
+  - requires:
+      cluster_features: "gte_v8.2.0"
       reason: Field type filters were added in 8.2
   - do:
       indices.create:

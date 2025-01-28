@@ -6,9 +6,8 @@
  */
 package org.elasticsearch.xpack.watcher.history;
 
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchResponse;
-import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.xpack.core.watcher.execution.ExecutionState;
 import org.elasticsearch.xpack.core.watcher.history.HistoryStoreField;
@@ -17,6 +16,7 @@ import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.indexAction;
 import static org.elasticsearch.xpack.watcher.client.WatchSourceBuilders.watchBuilder;
 import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
@@ -48,19 +48,22 @@ public class HistoryTemplateIndexActionMappingsTests extends AbstractWatcherInte
         flush();
         refresh();
 
-        SearchResponse response = client().prepareSearch(HistoryStoreField.DATA_STREAM + "*")
-            .setSource(searchSource().aggregation(terms("index_action_indices").field("result.actions.index.response.index")))
-            .get();
+        assertResponse(
+            prepareSearch(HistoryStoreField.DATA_STREAM + "*").setSource(
+                searchSource().aggregation(terms("index_action_indices").field("result.actions.index.response.index"))
+            ),
+            response -> {
+                assertThat(response, notNullValue());
+                assertThat(response.getHits().getTotalHits().value(), is(oneOf(1L, 2L)));
+                InternalAggregations aggs = response.getAggregations();
+                assertThat(aggs, notNullValue());
 
-        assertThat(response, notNullValue());
-        assertThat(response.getHits().getTotalHits().value, is(oneOf(1L, 2L)));
-        Aggregations aggs = response.getAggregations();
-        assertThat(aggs, notNullValue());
-
-        Terms terms = aggs.get("index_action_indices");
-        assertThat(terms, notNullValue());
-        assertThat(terms.getBuckets().size(), is(1));
-        assertThat(terms.getBucketByKey(index), notNullValue());
-        assertThat(terms.getBucketByKey(index).getDocCount(), is(1L));
+                Terms terms = aggs.get("index_action_indices");
+                assertThat(terms, notNullValue());
+                assertThat(terms.getBuckets().size(), is(1));
+                assertThat(terms.getBucketByKey(index), notNullValue());
+                assertThat(terms.getBucketByKey(index).getDocCount(), is(1L));
+            }
+        );
     }
 }

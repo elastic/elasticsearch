@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket.filter;
@@ -13,23 +14,26 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.LeafCollector;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.function.BiConsumer;
-import java.util.function.IntPredicate;
 
 /**
  * Adapts a Lucene {@link Query} to the behaviors used be the
@@ -169,16 +173,20 @@ public class QueryToFilterAdapter {
     }
 
     /**
-     * Build a predicate that the "compatible" implementation of the
-     * {@link FiltersAggregator} will use to figure out if the filter matches.
-     * <p>
-     * Consumers of this method will always call it with non-negative,
-     * increasing {@code int}s. A sequence like {@code 0, 1, 7, 8, 10} is fine.
-     * It won't call with {@code 0, 1, 0} or {@code -1, 0, 1}.
+     * Returns the {@link Scorer} that the "compatible" implementation of the {@link FiltersAggregator} will use
+     * to get an iterator over the docs matching the filter. The scorer is optimized for random access, since
+     * it will be skipping documents that don't match the main query or other filters.
+     * If the passed context contains no scorer, it returns a dummy scorer that matches no docs.
      */
-    @SuppressWarnings("resource")  // Closing the reader is someone else's problem
-    IntPredicate matchingDocIds(LeafReaderContext ctx) throws IOException {
-        return Lucene.asSequentialAccessBits(ctx.reader().maxDoc(), weight().scorerSupplier(ctx))::get;
+    Scorer randomAccessScorer(LeafReaderContext ctx) throws IOException {
+        Weight weight = weight();
+        ScorerSupplier scorerSupplier = weight.scorerSupplier(ctx);
+        if (scorerSupplier == null) {
+            return null;
+        }
+
+        // A leading cost of 0 instructs the scorer to optimize for random access as opposed to sequential access
+        return scorerSupplier.get(0L);
     }
 
     /**
@@ -208,7 +216,7 @@ public class QueryToFilterAdapter {
             // No hits in this segment.
             return 0;
         }
-        scorer.score(counter, live);
+        scorer.score(counter, live, 0, DocIdSetIterator.NO_MORE_DOCS);
         return counter.readAndReset(ctx);
     }
 
@@ -221,7 +229,7 @@ public class QueryToFilterAdapter {
             // No hits in this segment.
             return;
         }
-        scorer.score(collector, live);
+        scorer.score(collector, live, 0, DocIdSetIterator.NO_MORE_DOCS);
     }
 
     /**
@@ -245,5 +253,20 @@ public class QueryToFilterAdapter {
             weight = searcher().createWeight(query, ScoreMode.COMPLETE_NO_SCORES, 1.0f);
         }
         return weight;
+    }
+
+    /**
+     * Checks if all passed filters contain MatchNoDocsQuery queries. In this case, filter aggregation produces
+     * no docs for the given segment.
+     * @param filters list of filters to check
+     * @return true if all filters match no docs, otherwise false
+     */
+    static boolean matchesNoDocs(List<QueryToFilterAdapter> filters) {
+        for (QueryToFilterAdapter filter : filters) {
+            if (filter.query() instanceof MatchNoDocsQuery == false) {
+                return false;
+            }
+        }
+        return true;
     }
 }

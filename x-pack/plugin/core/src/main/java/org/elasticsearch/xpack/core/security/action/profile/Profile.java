@@ -43,7 +43,7 @@ public record Profile(
         public ProfileUser(StreamInput in) throws IOException {
             this(
                 in.readString(),
-                in.readStringList(),
+                in.readStringCollectionAsList(),
                 in.readString(),
                 in.readOptionalString(),
                 in.readOptionalString(),
@@ -108,7 +108,15 @@ public record Profile(
     }
 
     public Profile(StreamInput in) throws IOException {
-        this(in.readString(), in.readBoolean(), in.readLong(), new ProfileUser(in), in.readMap(), in.readMap(), new VersionControl(in));
+        this(
+            in.readString(),
+            in.readBoolean(),
+            in.readLong(),
+            new ProfileUser(in),
+            in.readGenericMap(),
+            in.readGenericMap(),
+            new VersionControl(in)
+        );
     }
 
     @Override

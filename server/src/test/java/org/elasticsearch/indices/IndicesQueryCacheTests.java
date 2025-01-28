@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices;
@@ -69,8 +70,9 @@ public class IndicesQueryCacheTests extends ESTestCase {
         public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
             return new ConstantScoreWeight(this, boost) {
                 @Override
-                public Scorer scorer(LeafReaderContext context) throws IOException {
-                    return new ConstantScoreScorer(this, score(), scoreMode, DocIdSetIterator.all(context.reader().maxDoc()));
+                public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
+                    Scorer scorer = new ConstantScoreScorer(score(), scoreMode, DocIdSetIterator.all(context.reader().maxDoc()));
+                    return new DefaultScorerSupplier(scorer);
                 }
 
                 @Override
@@ -289,7 +291,7 @@ public class IndicesQueryCacheTests extends ESTestCase {
         w1.close();
         ShardId shard1 = new ShardId("index", "_na_", 0);
         r1 = ElasticsearchDirectoryReader.wrap(r1, shard1);
-        IndexSearcher s1 = new IndexSearcher(r1);
+        IndexSearcher s1 = newSearcher(r1, false);
         s1.setQueryCachingPolicy(TrivialQueryCachingPolicy.ALWAYS);
 
         Directory dir2 = newDirectory();
@@ -299,7 +301,7 @@ public class IndicesQueryCacheTests extends ESTestCase {
         w2.close();
         ShardId shard2 = new ShardId("index", "_na_", 1);
         r2 = ElasticsearchDirectoryReader.wrap(r2, shard2);
-        IndexSearcher s2 = new IndexSearcher(r2);
+        IndexSearcher s2 = newSearcher(r2, false);
         s2.setQueryCachingPolicy(TrivialQueryCachingPolicy.ALWAYS);
 
         Settings settings = Settings.builder()
@@ -348,15 +350,21 @@ public class IndicesQueryCacheTests extends ESTestCase {
         }
 
         @Override
-        public Scorer scorer(LeafReaderContext context) throws IOException {
-            scorerCalled = true;
-            return weight.scorer(context);
-        }
-
-        @Override
         public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
             scorerSupplierCalled = true;
-            return weight.scorerSupplier(context);
+            ScorerSupplier inScorerSupplier = weight.scorerSupplier(context);
+            return new ScorerSupplier() {
+                @Override
+                public Scorer get(long leadCost) throws IOException {
+                    scorerCalled = true;
+                    return inScorerSupplier.get(leadCost);
+                }
+
+                @Override
+                public long cost() {
+                    return inScorerSupplier.cost();
+                }
+            };
         }
 
         @Override
@@ -374,7 +382,7 @@ public class IndicesQueryCacheTests extends ESTestCase {
         w.close();
         ShardId shard = new ShardId("index", "_na_", 0);
         r = ElasticsearchDirectoryReader.wrap(r, shard);
-        IndexSearcher s = new IndexSearcher(r);
+        IndexSearcher s = newSearcher(r, false);
         s.setQueryCachingPolicy(TrivialQueryCachingPolicy.NEVER);
 
         Settings settings = Settings.builder()

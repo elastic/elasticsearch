@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.vectors;
@@ -25,7 +26,6 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.lucene.LuceneTests;
-import org.elasticsearch.index.mapper.vectors.XKnnFloatVectorField;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -41,7 +41,7 @@ public class VectorSimilarityQueryTests extends ESTestCase {
         try (Directory d = newDirectory()) {
             try (IndexWriter w = new IndexWriter(d, new IndexWriterConfig())) {
                 Document document = new Document();
-                KnnFloatVectorField vectorField = new XKnnFloatVectorField("float_vector", new float[] { 1, 1, 1 });
+                KnnFloatVectorField vectorField = new KnnFloatVectorField("float_vector", new float[] { 1, 1, 1 });
                 document.add(vectorField);
                 w.addDocument(document);
                 vectorField.setVectorValue(new float[] { 2, 1, 1 });
@@ -62,14 +62,14 @@ public class VectorSimilarityQueryTests extends ESTestCase {
                     new VectorSimilarityQuery(new KnnFloatVectorQuery("float_vector", new float[] { 1, 1, 1 }, 5), 3f, 0.25f),
                     5
                 );
-                assertThat(docs.totalHits.value, equalTo(5L));
+                assertThat(docs.totalHits.value(), equalTo(5L));
 
                 // Should match only 4
                 docs = searcher.search(
                     new VectorSimilarityQuery(new KnnFloatVectorQuery("float_vector", new float[] { 1, 1, 1 }, 5), 1f, 0.5f),
                     5
                 );
-                assertThat(docs.totalHits.value, equalTo(4L));
+                assertThat(docs.totalHits.value(), equalTo(4L));
             }
         }
     }
@@ -82,7 +82,7 @@ public class VectorSimilarityQueryTests extends ESTestCase {
         Supplier<float[]> vectorValue = () -> new float[] { randomFloat(), randomFloat(), randomFloat(), randomFloat() };
         try (Directory d = newDirectory()) {
             try (IndexWriter w = new IndexWriter(d, new IndexWriterConfig())) {
-                KnnFloatVectorField vectorField = new XKnnFloatVectorField(fieldName, vectorValue.get());
+                KnnFloatVectorField vectorField = new KnnFloatVectorField(fieldName, vectorValue.get());
                 Document document = new Document();
                 document.add(vectorField);
                 for (int i = 0; i < n; i++) {
@@ -113,7 +113,7 @@ public class VectorSimilarityQueryTests extends ESTestCase {
         try (Directory d = newDirectory()) {
             try (IndexWriter w = new IndexWriter(d, new IndexWriterConfig())) {
                 Document document = new Document();
-                KnnFloatVectorField vectorField = new XKnnFloatVectorField(
+                KnnFloatVectorField vectorField = new KnnFloatVectorField(
                     "float_vector",
                     new float[] { 1, 1, 1 },
                     VectorSimilarityFunction.COSINE
@@ -138,14 +138,14 @@ public class VectorSimilarityQueryTests extends ESTestCase {
                     new VectorSimilarityQuery(new KnnFloatVectorQuery("float_vector", new float[] { 1, 1, 1 }, 5), .8f, .9f),
                     5
                 );
-                assertThat(docs.totalHits.value, equalTo(5L));
+                assertThat(docs.totalHits.value(), equalTo(5L));
 
                 // Should match only 4
                 docs = searcher.search(
                     new VectorSimilarityQuery(new KnnFloatVectorQuery("float_vector", new float[] { 1, 1, 1 }, 5), .9f, 0.95f),
                     5
                 );
-                assertThat(docs.totalHits.value, equalTo(4L));
+                assertThat(docs.totalHits.value(), equalTo(4L));
             }
         }
     }
@@ -158,7 +158,7 @@ public class VectorSimilarityQueryTests extends ESTestCase {
         Supplier<float[]> vectorValue = () -> new float[] { randomFloat(), randomFloat(), randomFloat(), randomFloat() };
         try (Directory d = newDirectory()) {
             try (IndexWriter w = new IndexWriter(d, new IndexWriterConfig())) {
-                KnnFloatVectorField vectorField = new XKnnFloatVectorField(fieldName, vectorValue.get(), VectorSimilarityFunction.COSINE);
+                KnnFloatVectorField vectorField = new KnnFloatVectorField(fieldName, vectorValue.get(), VectorSimilarityFunction.COSINE);
                 Document document = new Document();
                 document.add(vectorField);
                 for (int i = 0; i < n; i++) {
@@ -192,7 +192,7 @@ public class VectorSimilarityQueryTests extends ESTestCase {
         try (Directory d = newDirectory()) {
             try (IndexWriter w = new IndexWriter(d, new IndexWriterConfig())) {
                 Document document = new Document();
-                KnnFloatVectorField vectorField = new XKnnFloatVectorField("float_vector", new float[] { 1, 1, 1 });
+                KnnFloatVectorField vectorField = new KnnFloatVectorField("float_vector", new float[] { 1, 1, 1 });
                 document.add(vectorField);
                 w.addDocument(document);
                 vectorField.setVectorValue(new float[] { 2, 1, 1 });

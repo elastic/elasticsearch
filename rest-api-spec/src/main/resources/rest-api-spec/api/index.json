@@ -101,6 +101,14 @@
       "require_alias": {
         "type": "boolean",
         "description": "When true, requires destination to be an alias. Default is false"
+      },
+      "require_data_stream": {
+        "type": "boolean",
+        "description": "When true, requires the destination to be a data stream (existing or to-be-created). Default is false"
+      },
+      "include_source_on_error": {
+        "type": "boolean",
+        "description": "True or false if to include the document source in the error message in case of parsing errors. Defaults to true."
       }
     },
     "body":{

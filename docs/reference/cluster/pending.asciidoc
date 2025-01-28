@@ -4,6 +4,12 @@
 <titleabbrev>Pending cluster tasks</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-cluster[Cluster APIs].
+--
+
 Returns cluster-level changes that have not yet been executed.
 
 
@@ -34,9 +40,9 @@ might be reported by both task api and pending cluster tasks API.
 [[cluster-pending-api-path-params]]
 ==== {api-path-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=local]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=local]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
 
 [[cluster-pending-api-response-body]]

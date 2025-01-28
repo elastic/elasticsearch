@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.benchmark.search.aggregations;
@@ -34,6 +35,7 @@ import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.support.NestedScope;
+import org.elasticsearch.indices.breaker.CircuitBreakerMetrics;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
@@ -108,7 +110,12 @@ public class AggConstructionContentionBenchmark {
     @Setup
     public void setup() {
         breakerService = switch (breaker) {
-            case "real", "preallocate" -> new HierarchyCircuitBreakerService(Settings.EMPTY, List.of(), clusterSettings);
+            case "real", "preallocate" -> new HierarchyCircuitBreakerService(
+                CircuitBreakerMetrics.NOOP,
+                Settings.EMPTY,
+                List.of(),
+                clusterSettings
+            );
             case "noop" -> new NoneCircuitBreakerService();
             default -> throw new UnsupportedOperationException();
         };
@@ -225,11 +232,6 @@ public class AggConstructionContentionBenchmark {
         }
 
         @Override
-        public boolean isFieldMapped(String field) {
-            return field.startsWith("int");
-        }
-
-        @Override
         public <FactoryType> FactoryType compile(Script script, ScriptContext<FactoryType> context) {
             throw new UnsupportedOperationException();
         }
@@ -266,6 +268,11 @@ public class AggConstructionContentionBenchmark {
 
         @Override
         public IndexSettings getIndexSettings() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public ClusterSettings getClusterSettings() {
             throw new UnsupportedOperationException();
         }
 

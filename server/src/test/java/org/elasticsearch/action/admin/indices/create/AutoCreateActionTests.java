@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.create;
@@ -15,7 +16,6 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
 
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -26,17 +26,19 @@ public class AutoCreateActionTests extends ESTestCase {
         {
             Metadata.Builder mdBuilder = new Metadata.Builder();
             DataStreamTemplate dataStreamTemplate = new DataStreamTemplate();
-            mdBuilder.put("1", new ComposableIndexTemplate.Builder().indexPatterns(List.of("legacy-logs-*")).priority(10L).build());
+            mdBuilder.put("1", ComposableIndexTemplate.builder().indexPatterns(List.of("legacy-logs-*")).priority(10L).build());
             mdBuilder.put(
                 "2",
-                new ComposableIndexTemplate.Builder().indexPatterns(List.of("logs-*"))
+                ComposableIndexTemplate.builder()
+                    .indexPatterns(List.of("logs-*"))
                     .priority(20L)
                     .dataStreamTemplate(dataStreamTemplate)
                     .build()
             );
             mdBuilder.put(
                 "3",
-                new ComposableIndexTemplate.Builder().indexPatterns(List.of("logs-*"))
+                ComposableIndexTemplate.builder()
+                    .indexPatterns(List.of("logs-*"))
                     .priority(30L)
                     .dataStreamTemplate(dataStreamTemplate)
                     .build()
@@ -48,13 +50,11 @@ public class AutoCreateActionTests extends ESTestCase {
         ComposableIndexTemplate result = AutoCreateAction.resolveTemplate(request, metadata);
         assertThat(result, notNullValue());
         assertThat(result.getDataStreamTemplate(), notNullValue());
-        assertThat(DataStreamTemplate.getTimestampField(), equalTo("@timestamp"));
 
         request = new CreateIndexRequest("logs-barbaz");
         result = AutoCreateAction.resolveTemplate(request, metadata);
         assertThat(result, notNullValue());
         assertThat(result.getDataStreamTemplate(), notNullValue());
-        assertThat(DataStreamTemplate.getTimestampField(), equalTo("@timestamp"));
 
         // An index that matches with a template without a data steam definition
         request = new CreateIndexRequest("legacy-logs-foobaz");

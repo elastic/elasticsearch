@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.restart;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -38,7 +37,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
 
 public class MlHiddenIndicesFullClusterRestartIT extends AbstractXpackFullClusterRestartTestCase {
 
@@ -65,50 +63,15 @@ public class MlHiddenIndicesFullClusterRestartIT extends AbstractXpackFullCluste
     public void waitForMlTemplates() throws Exception {
         // We shouldn't wait for ML templates during the upgrade - production won't
         if (isRunningAgainstOldCluster()) {
-            XPackRestTestHelper.waitForTemplates(
-                client(),
-                XPackRestTestConstants.ML_POST_V7120_TEMPLATES,
-                getOldClusterVersion().onOrAfter(Version.V_7_8_0)
-            );
+            XPackRestTestHelper.waitForTemplates(client(), XPackRestTestConstants.ML_POST_V7120_TEMPLATES);
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/93521")
     public void testMlIndicesBecomeHidden() throws Exception {
         if (isRunningAgainstOldCluster()) {
             // trigger ML indices creation
             createAnomalyDetectorJob(JOB_ID);
             openAnomalyDetectorJob(JOB_ID);
-
-            if (getOldClusterVersion().before(Version.V_7_7_0)) {
-                Map<String, Object> indexSettingsMap = contentAsMap(getMlIndicesSettings());
-                Map<String, Object> aliasesMap = contentAsMap(getMlAliases());
-
-                assertThat("Index settings map was: " + indexSettingsMap, indexSettingsMap, is(aMapWithSize(greaterThanOrEqualTo(4))));
-                for (Map.Entry<String, Object> e : indexSettingsMap.entrySet()) {
-                    String indexName = e.getKey();
-                    @SuppressWarnings("unchecked")
-                    Map<String, Object> settings = (Map<String, Object>) e.getValue();
-                    assertThat(settings, is(notNullValue()));
-                    assertThat(
-                        "Index " + indexName + " expected not to be hidden but was, settings = " + settings,
-                        XContentMapValues.extractValue(settings, "settings", "index", "hidden"),
-                        is(nullValue())
-                    );
-                }
-
-                for (Tuple<List<String>, String> indexAndAlias : EXPECTED_INDEX_ALIAS_PAIRS) {
-                    List<String> indices = indexAndAlias.v1();
-                    String alias = indexAndAlias.v2();
-                    for (String index : indices) {
-                        assertThat(
-                            indexAndAlias + " expected not be hidden but was, aliasesMap = " + aliasesMap,
-                            XContentMapValues.extractValue(aliasesMap, index, "aliases", alias, "is_hidden"),
-                            is(nullValue())
-                        );
-                    }
-                }
-            }
         } else {
             // The 5 operations in MlInitializationService.makeMlInternalIndicesHidden() run sequentially, so might
             // not all be finished when this test runs. The desired state should exist within a few seconds of startup,

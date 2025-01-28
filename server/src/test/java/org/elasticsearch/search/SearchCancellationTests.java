@@ -1,18 +1,21 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.IntPoint;
+import org.apache.lucene.document.KnnFloatVectorField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.PointValues;
@@ -20,14 +23,13 @@ import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
-import org.apache.lucene.search.TotalHitCountCollector;
+import org.apache.lucene.search.TotalHitCountCollectorManager;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.core.IOUtils;
-import org.elasticsearch.index.mapper.vectors.XKnnFloatVectorField;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
@@ -67,7 +69,7 @@ public class SearchCancellationTests extends ESTestCase {
             Document doc = new Document();
             doc.add(new StringField(STRING_FIELD_NAME, "a".repeat(i), Field.Store.NO));
             doc.add(new IntPoint(POINT_FIELD_NAME, i, i + 1));
-            doc.add(new XKnnFloatVectorField(KNN_FIELD_NAME, new float[] { 1.0f, 0.5f, 42.0f }));
+            doc.add(new KnnFloatVectorField(KNN_FIELD_NAME, new float[] { 1.0f, 0.5f, 42.0f }));
             w.addDocument(doc);
         }
     }
@@ -92,12 +94,9 @@ public class SearchCancellationTests extends ESTestCase {
 
         Runnable r = () -> {};
         searcher.addQueryCancellation(r);
-        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> searcher.addQueryCancellation(r));
-        assertEquals("Cancellation runnable already added", iae.getMessage());
     }
 
     public void testCancellableCollector() throws IOException {
-        TotalHitCountCollector collector1 = new TotalHitCountCollector();
         Runnable cancellation = () -> { throw new TaskCancelledException("cancelled"); };
         ContextIndexSearcher searcher = new ContextIndexSearcher(
             reader,
@@ -107,16 +106,18 @@ public class SearchCancellationTests extends ESTestCase {
             true
         );
 
-        searcher.search(new MatchAllDocsQuery(), collector1);
-        assertThat(collector1.getTotalHits(), equalTo(reader.numDocs()));
+        Integer totalHits = searcher.search(new MatchAllDocsQuery(), new TotalHitCountCollectorManager(searcher.getSlices()));
+        assertThat(totalHits, equalTo(reader.numDocs()));
 
         searcher.addQueryCancellation(cancellation);
-        expectThrows(TaskCancelledException.class, () -> searcher.search(new MatchAllDocsQuery(), collector1));
+        expectThrows(
+            TaskCancelledException.class,
+            () -> searcher.search(new MatchAllDocsQuery(), new TotalHitCountCollectorManager(searcher.getSlices()))
+        );
 
         searcher.removeQueryCancellation(cancellation);
-        TotalHitCountCollector collector2 = new TotalHitCountCollector();
-        searcher.search(new MatchAllDocsQuery(), collector2);
-        assertThat(collector2.getTotalHits(), equalTo(reader.numDocs()));
+        Integer totalHits2 = searcher.search(new MatchAllDocsQuery(), new TotalHitCountCollectorManager(searcher.getSlices()));
+        assertThat(totalHits2, equalTo(reader.numDocs()));
     }
 
     public void testExitableDirectoryReader() throws IOException {
@@ -206,15 +207,17 @@ public class SearchCancellationTests extends ESTestCase {
         cancelled.set(false); // Avoid exception during construction of the wrapper objects
         FloatVectorValues vectorValues = searcher.getIndexReader().leaves().get(0).reader().getFloatVectorValues(KNN_FIELD_NAME);
         cancelled.set(true);
+        KnnVectorValues.DocIndexIterator iterator = vectorValues.iterator();
         // On the first doc when already canceled, it throws
-        expectThrows(TaskCancelledException.class, vectorValues::nextDoc);
+        expectThrows(TaskCancelledException.class, iterator::nextDoc);
 
         cancelled.set(false); // Avoid exception during construction of the wrapper objects
         FloatVectorValues uncancelledVectorValues = searcher.getIndexReader().leaves().get(0).reader().getFloatVectorValues(KNN_FIELD_NAME);
+        uncancelledVectorValues.iterator();
         cancelled.set(true);
         searcher.removeQueryCancellation(cancellation);
         // On the first doc when already canceled, it throws, but with the cancellation removed, it should not
-        uncancelledVectorValues.nextDoc();
+        iterator.nextDoc();
     }
 
     private static class PointValuesIntersectVisitor implements PointValues.IntersectVisitor {

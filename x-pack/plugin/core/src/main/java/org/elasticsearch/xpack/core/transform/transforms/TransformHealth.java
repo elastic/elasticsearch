@@ -38,7 +38,7 @@ public class TransformHealth implements Writeable, ToXContentObject {
 
     public TransformHealth(StreamInput in) throws IOException {
         this.status = in.readEnum(HealthStatus.class);
-        this.issues = in.readOptionalList(TransformHealthIssue::new);
+        this.issues = in.readOptionalCollectionAsList(TransformHealthIssue::new);
     }
 
     public HealthStatus getStatus() {

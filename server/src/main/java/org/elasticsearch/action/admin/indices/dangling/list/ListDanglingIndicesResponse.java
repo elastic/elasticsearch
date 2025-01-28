@@ -1,21 +1,23 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.dangling.list;
 
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.admin.indices.dangling.DanglingIndexInfo;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -34,11 +36,7 @@ import java.util.Objects;
  * information for each dangling index is presented under the "dangling_indices" key. If any nodes
  * in the cluster failed to answer, the details are presented under the "_nodes.failures" key.
  */
-public class ListDanglingIndicesResponse extends BaseNodesResponse<NodeListDanglingIndicesResponse> implements StatusToXContentObject {
-
-    public ListDanglingIndicesResponse(StreamInput in) throws IOException {
-        super(in);
-    }
+public class ListDanglingIndicesResponse extends BaseNodesResponse<NodeListDanglingIndicesResponse> implements ToXContentObject {
 
     public ListDanglingIndicesResponse(
         ClusterName clusterName,
@@ -48,7 +46,6 @@ public class ListDanglingIndicesResponse extends BaseNodesResponse<NodeListDangl
         super(clusterName, nodes, failures);
     }
 
-    @Override
     public RestStatus status() {
         return this.hasFailures() ? RestStatus.INTERNAL_SERVER_ERROR : RestStatus.OK;
     }
@@ -82,7 +79,7 @@ public class ListDanglingIndicesResponse extends BaseNodesResponse<NodeListDangl
 
             builder.field("index_name", info.indexName);
             builder.field("index_uuid", info.indexUUID);
-            builder.timeField("creation_date_millis", "creation_date", info.creationDateMillis);
+            builder.timestampFieldsFromUnixEpochMillis("creation_date_millis", "creation_date", info.creationDateMillis);
 
             builder.array("node_ids", info.nodeIds.toArray(new String[0]));
 
@@ -94,12 +91,12 @@ public class ListDanglingIndicesResponse extends BaseNodesResponse<NodeListDangl
 
     @Override
     protected List<NodeListDanglingIndicesResponse> readNodesFrom(StreamInput in) throws IOException {
-        return in.readList(NodeListDanglingIndicesResponse::new);
+        return TransportAction.localOnly();
     }
 
     @Override
     protected void writeNodesTo(StreamOutput out, List<NodeListDanglingIndicesResponse> nodes) throws IOException {
-        out.writeList(nodes);
+        TransportAction.localOnly();
     }
 
     // visible for testing

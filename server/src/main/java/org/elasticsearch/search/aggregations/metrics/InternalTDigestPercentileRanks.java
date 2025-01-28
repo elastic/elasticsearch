@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations.metrics;
 
@@ -13,6 +14,7 @@ import org.elasticsearch.search.DocValueFormat;
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.Objects;
 
 public class InternalTDigestPercentileRanks extends AbstractInternalTDigestPercentiles implements PercentileRanks {
     public static final String NAME = "tdigest_percentile_ranks";
@@ -44,15 +46,20 @@ public class InternalTDigestPercentileRanks extends AbstractInternalTDigestPerce
         String name,
         double[] keys,
         double compression,
+        TDigestExecutionHint executionHint,
         boolean keyed,
         DocValueFormat format,
         Map<String, Object> metadata
     ) {
-        return new InternalTDigestPercentileRanks(name, keys, new TDigestState(compression), keyed, format, metadata);
+        TDigestState state = TDigestState.createWithoutCircuitBreaking(compression, executionHint);
+        return new InternalTDigestPercentileRanks(name, keys, state, keyed, format, metadata);
     }
 
     @Override
     public Iterator<Percentile> iterator() {
+        if (state == null) {
+            return EMPTY_ITERATOR;
+        }
         return new Iter(keys, state);
     }
 
@@ -100,7 +107,7 @@ public class InternalTDigestPercentileRanks extends AbstractInternalTDigestPerce
 
         public Iter(double[] values, TDigestState state) {
             this.values = values;
-            this.state = state;
+            this.state = Objects.requireNonNull(state);
             i = 0;
         }
 

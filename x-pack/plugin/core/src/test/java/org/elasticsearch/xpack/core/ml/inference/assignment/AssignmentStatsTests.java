@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.core.ml.inference.assignment;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
@@ -27,7 +27,7 @@ public class AssignmentStatsTests extends AbstractWireSerializingTestCase<Assign
         List<AssignmentStats.NodeStats> nodeStatsList = new ArrayList<>();
         int numNodes = randomIntBetween(1, 4);
         for (int i = 0; i < numNodes; i++) {
-            var node = TestDiscoveryNode.create("node_" + i);
+            var node = DiscoveryNodeUtils.create("node_" + i);
             if (randomBoolean()) {
                 nodeStatsList.add(randomNodeStats(node));
             } else {
@@ -50,6 +50,7 @@ public class AssignmentStatsTests extends AbstractWireSerializingTestCase<Assign
             modelId,
             randomBoolean() ? null : randomIntBetween(1, 8),
             randomBoolean() ? null : randomIntBetween(1, 8),
+            null,
             randomBoolean() ? null : randomIntBetween(1, 10000),
             randomBoolean() ? null : ByteSizeValue.ofBytes(randomLongBetween(1, 10000000)),
             Instant.now(),
@@ -102,12 +103,13 @@ public class AssignmentStatsTests extends AbstractWireSerializingTestCase<Assign
             modelId,
             randomBoolean() ? null : randomIntBetween(1, 8),
             randomBoolean() ? null : randomIntBetween(1, 8),
+            null,
             randomBoolean() ? null : randomIntBetween(1, 10000),
             randomBoolean() ? null : ByteSizeValue.ofBytes(randomLongBetween(1, 1000000)),
             Instant.now(),
             List.of(
                 AssignmentStats.NodeStats.forStartedState(
-                    TestDiscoveryNode.create("node_started_1"),
+                    DiscoveryNodeUtils.create("node_started_1"),
                     10L,
                     randomDoubleBetween(0.0, 100.0, true),
                     randomDoubleBetween(0.0, 100.0, true),
@@ -126,7 +128,7 @@ public class AssignmentStatsTests extends AbstractWireSerializingTestCase<Assign
                     1L
                 ),
                 AssignmentStats.NodeStats.forStartedState(
-                    TestDiscoveryNode.create("node_started_2"),
+                    DiscoveryNodeUtils.create("node_started_2"),
                     12L,
                     randomDoubleBetween(0.0, 100.0, true),
                     randomDoubleBetween(0.0, 100.0, true),
@@ -145,7 +147,7 @@ public class AssignmentStatsTests extends AbstractWireSerializingTestCase<Assign
                     1L
                 ),
                 AssignmentStats.NodeStats.forNotStartedState(
-                    TestDiscoveryNode.create("node_not_started_3"),
+                    DiscoveryNodeUtils.create("node_not_started_3"),
                     randomFrom(RoutingState.values()),
                     randomBoolean() ? null : "a good reason"
                 )
@@ -166,6 +168,7 @@ public class AssignmentStatsTests extends AbstractWireSerializingTestCase<Assign
             modelId,
             randomBoolean() ? null : randomIntBetween(1, 8),
             randomBoolean() ? null : randomIntBetween(1, 8),
+            null,
             randomBoolean() ? null : randomIntBetween(1, 10000),
             randomBoolean() ? null : ByteSizeValue.ofBytes(randomLongBetween(1, 1000000)),
             Instant.now(),
@@ -187,17 +190,18 @@ public class AssignmentStatsTests extends AbstractWireSerializingTestCase<Assign
             modelId,
             randomBoolean() ? null : randomIntBetween(1, 8),
             randomBoolean() ? null : randomIntBetween(1, 8),
+            null,
             randomBoolean() ? null : randomIntBetween(1, 10000),
             randomBoolean() ? null : ByteSizeValue.ofBytes(randomLongBetween(1, 1000000)),
             Instant.now(),
             List.of(
                 AssignmentStats.NodeStats.forNotStartedState(
-                    TestDiscoveryNode.create("node_not_started_1"),
+                    DiscoveryNodeUtils.create("node_not_started_1"),
                     randomFrom(RoutingState.values()),
                     randomBoolean() ? null : "a good reason"
                 ),
                 AssignmentStats.NodeStats.forNotStartedState(
-                    TestDiscoveryNode.create("node_not_started_2"),
+                    DiscoveryNodeUtils.create("node_not_started_2"),
                     randomFrom(RoutingState.values()),
                     randomBoolean() ? null : "a good reason"
                 )

@@ -1,14 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.test.rest.yaml;
-
-import org.elasticsearch.test.rest.ESRestTestCase;
 
 import java.util.List;
 
@@ -39,7 +38,9 @@ public final class Features {
         "arbitrary_key",
         "allowed_warnings",
         "allowed_warnings_regex",
-        "close_to"
+        "close_to",
+        "is_after",
+        "capabilities"
     );
 
     private Features() {
@@ -51,15 +52,7 @@ public final class Features {
      */
     public static boolean areAllSupported(List<String> features) {
         for (String feature : features) {
-            if (feature.equals("xpack")) {
-                if (false == ESRestTestCase.hasXPack()) {
-                    return false;
-                }
-            } else if (feature.equals("no_xpack")) {
-                if (ESRestTestCase.hasXPack()) {
-                    return false;
-                }
-            } else if (false == SUPPORTED.contains(feature)) {
+            if (false == SUPPORTED.contains(feature)) {
                 return false;
             }
         }

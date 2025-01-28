@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.metrics;
@@ -30,9 +31,13 @@ public class InternalHDRPercentilesRanksTests extends InternalPercentilesRanksTe
         boolean keyed,
         DocValueFormat format,
         double[] percents,
-        double[] values
+        double[] values,
+        boolean empty
     ) {
 
+        if (empty) {
+            return new InternalHDRPercentileRanks(name, percents, null, keyed, format, metadata);
+        }
         final DoubleHistogram state = new DoubleHistogram(3);
         Arrays.stream(values).forEach(state::recordValue);
 
@@ -61,11 +66,6 @@ public class InternalHDRPercentilesRanksTests extends InternalPercentilesRanksTe
         while (it1.hasNext() && it2.hasNext()) {
             assertThat(it1.next(), equalTo(it2.next()));
         }
-    }
-
-    @Override
-    protected Class<? extends ParsedPercentiles> implementationClass() {
-        return ParsedHDRPercentileRanks.class;
     }
 
     @Override

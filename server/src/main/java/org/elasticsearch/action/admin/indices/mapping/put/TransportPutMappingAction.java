@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.mapping.put;
@@ -11,6 +12,7 @@ package org.elasticsearch.action.admin.indices.mapping.put;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.RequestValidators;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -18,15 +20,18 @@ import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAc
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataMappingService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.SystemIndices;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -37,15 +42,18 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.SortedMap;
 
 /**
  * Put mapping action.
  */
 public class TransportPutMappingAction extends AcknowledgedTransportMasterNodeAction<PutMappingRequest> {
 
+    public static final ActionType<AcknowledgedResponse> TYPE = new ActionType<>("indices:admin/mapping/put");
     private static final Logger logger = LogManager.getLogger(TransportPutMappingAction.class);
 
     private final MetadataMappingService metadataMappingService;
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final RequestValidators<PutMappingRequest> requestValidators;
     private final SystemIndices systemIndices;
 
@@ -61,16 +69,16 @@ public class TransportPutMappingAction extends AcknowledgedTransportMasterNodeAc
         final SystemIndices systemIndices
     ) {
         super(
-            PutMappingAction.NAME,
+            TYPE.name(),
             transportService,
             clusterService,
             threadPool,
             actionFilters,
             PutMappingRequest::new,
-            indexNameExpressionResolver,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.metadataMappingService = metadataMappingService;
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.requestValidators = Objects.requireNonNull(requestValidators);
         this.systemIndices = systemIndices;
     }
@@ -102,14 +110,21 @@ public class TransportPutMappingAction extends AcknowledgedTransportMasterNodeAc
                 return;
             }
 
-            final String message = checkForSystemIndexViolations(systemIndices, concreteIndices, request);
+            String message = checkForFailureStoreViolations(clusterService.state(), concreteIndices, request);
             if (message != null) {
                 logger.warn(message);
                 listener.onFailure(new IllegalStateException(message));
                 return;
             }
 
-            performMappingUpdate(concreteIndices, request, listener, metadataMappingService);
+            message = checkForSystemIndexViolations(systemIndices, concreteIndices, request);
+            if (message != null) {
+                logger.warn(message);
+                listener.onFailure(new IllegalStateException(message));
+                return;
+            }
+
+            performMappingUpdate(concreteIndices, request, listener, metadataMappingService, false);
         } catch (IndexNotFoundException ex) {
             logger.debug(() -> "failed to put mappings on indices [" + Arrays.asList(request.indices() + "]"), ex);
             throw ex;
@@ -144,7 +159,8 @@ public class TransportPutMappingAction extends AcknowledgedTransportMasterNodeAc
         Index[] concreteIndices,
         PutMappingRequest request,
         ActionListener<AcknowledgedResponse> listener,
-        MetadataMappingService metadataMappingService
+        MetadataMappingService metadataMappingService,
+        boolean autoUpdate
     ) {
         final ActionListener<AcknowledgedResponse> wrappedListener = listener.delegateResponse((l, e) -> {
             logger.debug(() -> "failed to put mappings on indices [" + Arrays.asList(concreteIndices) + "]", e);
@@ -152,15 +168,46 @@ public class TransportPutMappingAction extends AcknowledgedTransportMasterNodeAc
         });
         final PutMappingClusterStateUpdateRequest updateRequest;
         try {
-            updateRequest = new PutMappingClusterStateUpdateRequest(request.source()).indices(concreteIndices)
-                .ackTimeout(request.timeout())
-                .masterNodeTimeout(request.masterNodeTimeout());
+            updateRequest = new PutMappingClusterStateUpdateRequest(
+                request.masterNodeTimeout(),
+                request.ackTimeout(),
+                request.source(),
+                autoUpdate,
+                concreteIndices
+            );
         } catch (IOException e) {
             wrappedListener.onFailure(e);
             return;
         }
 
         metadataMappingService.putMapping(updateRequest, wrappedListener);
+    }
+
+    static String checkForFailureStoreViolations(ClusterState clusterState, Index[] concreteIndices, PutMappingRequest request) {
+        // Requests that a cluster generates itself are permitted to make changes to mappings
+        // so that rolling upgrade scenarios still work. We check this via the request's origin.
+        if (Strings.isNullOrEmpty(request.origin()) == false) {
+            return null;
+        }
+
+        List<String> violations = new ArrayList<>();
+        SortedMap<String, IndexAbstraction> indicesLookup = clusterState.metadata().getIndicesLookup();
+        for (Index index : concreteIndices) {
+            IndexAbstraction indexAbstraction = indicesLookup.get(index.getName());
+            if (indexAbstraction != null) {
+                DataStream maybeDataStream = indexAbstraction.getParentDataStream();
+                if (maybeDataStream != null && maybeDataStream.isFailureStoreIndex(index.getName())) {
+                    violations.add(index.getName());
+                }
+            }
+        }
+
+        if (violations.isEmpty() == false) {
+            return "Cannot update mappings in "
+                + violations
+                + ": mappings for indices contained in data stream failure stores cannot be updated";
+        }
+        return null;
     }
 
     static String checkForSystemIndexViolations(SystemIndices systemIndices, Index[] concreteIndices, PutMappingRequest request) {

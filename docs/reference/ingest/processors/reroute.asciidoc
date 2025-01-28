@@ -4,8 +4,6 @@
 <titleabbrev>Reroute</titleabbrev>
 ++++
 
-experimental::[]
-
 The `reroute` processor allows to route a document to another target index or data stream.
 It has two main modes:
 

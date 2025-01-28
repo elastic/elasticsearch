@@ -1,10 +1,11 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
+
+import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
 
 apply plugin: 'elasticsearch.legacy-java-rest-test'
 apply plugin: 'elasticsearch.rest-resources'
@@ -25,7 +26,7 @@ tasks.withType(Test).configureEach {
   doFirst {
     delete(repoDir)
   }
-  systemProperty 'tests.path.repo', repoDir
+  nonInputProperties.systemProperty 'tests.path.repo', repoDir
 }
 
 testClusters.matching { it.name == "javaRestTest" }.configureEach {
@@ -33,6 +34,6 @@ testClusters.matching { it.name == "javaRestTest" }.configureEach {
   numberOfNodes = 3
 
   setting 'xpack.license.self_generated.type', 'trial'
-  setting 'path.repo', repoDir.absolutePath
+  setting 'path.repo', repoDir.absolutePath, IGNORE_VALUE
   setting 'xpack.security.enabled', 'false'
 }

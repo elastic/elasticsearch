@@ -1,0 +1,106 @@
+---
+"get cluster stats returns synonym sets stats":
+
+  - requires:
+      cluster_features: ["gte_v8.10.0"]
+      reason:  "synonym sets stats are added for v8.10.0"
+
+  - do:
+      cluster.stats: {}
+
+  - length: { indices.analysis.synonyms: 0 }
+
+  - do:
+      indices.create:
+        index: test-index1
+        body:
+          settings:
+            analysis:
+              filter:
+                bigram_max_size:
+                  type: length
+                  max: 16
+                  min: 0
+                synonyms_inline_filter:
+                  type: synonym
+                  synonyms: ["foo bar", "bar => baz"]
+
+                other_inline_filter:
+                  type: synonym
+                  synonyms: ["foo bar baz"]
+
+                synonyms_path_filter:
+                  type: synonym
+                  synonyms_path: "/a/reused/path"
+
+                other_synonyms_path_filter:
+                  type: synonym_graph
+                  synonyms_path: "/a/different/path"
+
+                another_synonyms_path_filter:
+                  type: synonym_graph
+                  synonyms_path: "/another/different/path"
+
+                synonyms_set_filter:
+                  type: synonym_graph
+                  synonyms_set: reused-synonym-set
+
+
+
+  - do:
+      indices.create:
+        index: test-index2
+        body:
+          settings:
+            analysis:
+              filter:
+                en-stem-filter:
+                  name: light_english
+                  type: stemmer
+                  language: light_english
+
+                other_synonyms_filter:
+                  type: synonym
+                  synonyms_set: another-synonym-set
+
+                a_repeated_synonyms_set_filter:
+                  type: synonym
+                  synonyms_set: reused-synonym-set
+
+                repeated_inline_filter:
+                  type: synonym
+                  synonyms: ["foo bar", "bar => baz"]
+
+
+
+  - do:
+      indices.create:
+        index: test-index3
+        body:
+          settings:
+            analysis:
+              filter:
+                other_synonyms_filter:
+                  type: synonym
+                  synonyms_set: a-different-synonym-set
+
+                a_repeated_synonyms_set_filter:
+                  type: synonym
+                  synonyms_set: reused-synonym-set
+
+                more_inline_filter:
+                  type: synonym
+                  synonyms: ["foo bar", "bar => baz"]
+
+
+
+  - do:
+      cluster.stats: {}
+
+  - length: { indices.analysis.synonyms: 3 }
+  - match: { indices.analysis.synonyms.inline.count: 4 }
+  - match: { indices.analysis.synonyms.inline.index_count: 3 }
+  - match: { indices.analysis.synonyms.paths.count: 3 }
+  - match: { indices.analysis.synonyms.paths.index_count: 1 }
+  - match: { indices.analysis.synonyms.sets.count: 3 }
+  - match: { indices.analysis.synonyms.sets.index_count: 3 }

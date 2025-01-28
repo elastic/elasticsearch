@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -33,7 +34,7 @@ import java.util.Set;
 /**
  * A {@link ClusterStateListener} that completes any {@link ShardFollowTask} which concerns a deleted index.
  */
-public class ShardFollowTaskCleaner implements ClusterStateListener {
+public final class ShardFollowTaskCleaner implements ClusterStateListener {
 
     private static final Logger logger = LogManager.getLogger(ShardFollowTaskCleaner.class);
 
@@ -110,6 +111,7 @@ public class ShardFollowTaskCleaner implements ClusterStateListener {
                 client.execute(
                     CompletionPersistentTaskAction.INSTANCE,
                     new CompletionPersistentTaskAction.Request(
+                        MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT,
                         persistentTask.getId(),
                         persistentTask.getAllocationId(),
                         new IndexNotFoundException(followerIndex),

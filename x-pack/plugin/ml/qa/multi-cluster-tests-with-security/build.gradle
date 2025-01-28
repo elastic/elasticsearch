@@ -1,6 +1,14 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
 import org.elasticsearch.gradle.internal.test.RestIntegTestTask
 import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.VersionProperties
+import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
 
 apply plugin: 'elasticsearch.internal-testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
@@ -10,7 +18,7 @@ dependencies {
   testImplementation project(':x-pack:qa')
 }
 
-Version ccsCompatVersion = new Version(VersionProperties.getElasticsearchVersion().getMajor(), VersionProperties.getElasticsearchVersion().getMinor() - 1, 0)
+Version ccsCompatVersion = buildParams.bwcVersions.minimumWireCompatibleVersion
 
 restResources {
   restApi {
@@ -22,7 +30,7 @@ def remoteCluster = testClusters.register('remote-cluster') {
     testDistribution = 'DEFAULT'
     versions = [ccsCompatVersion.toString(), project.version]
     numberOfNodes = 2
-    setting 'node.roles', '[data,ingest,master]'
+    setting 'node.roles', '[data,ingest,master,ml]'
     setting 'xpack.security.enabled', 'true'
     setting 'xpack.watcher.enabled', 'false'
     setting 'xpack.license.self_generated.type', 'trial'
@@ -33,13 +41,13 @@ def remoteCluster = testClusters.register('remote-cluster') {
 testClusters.register('mixed-cluster') {
     testDistribution = 'DEFAULT'
     numberOfNodes = 2
-    setting 'node.roles', '[data,ingest,master]'
+    setting 'node.roles', '[data,ingest,master,ml]'
     setting 'xpack.security.enabled', 'true'
     setting 'xpack.watcher.enabled', 'false'
     setting 'xpack.license.self_generated.type', 'trial'
     setting 'cluster.remote.my_remote_cluster.seeds', {
       remoteCluster.get().getAllTransportPortURI().collect { "\"$it\"" }.toString()
-    }
+    }, IGNORE_VALUE
     setting 'cluster.remote.connections_per_cluster', "1"
 
     user username: "test_user", password: "x-pack-test-password"

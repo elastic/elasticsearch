@@ -15,11 +15,12 @@ import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.application.search.SearchApplicationListItem;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
@@ -28,18 +29,22 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-public class ListSearchApplicationAction extends ActionType<ListSearchApplicationAction.Response> {
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
-    public static final ListSearchApplicationAction INSTANCE = new ListSearchApplicationAction();
+public class ListSearchApplicationAction {
+
     public static final String NAME = "cluster:admin/xpack/application/search_application/list";
+    public static final ActionType<ListSearchApplicationAction.Response> INSTANCE = new ActionType<>(NAME);
 
-    public ListSearchApplicationAction() {
-        super(NAME, ListSearchApplicationAction.Response::new);
-    }
+    private ListSearchApplicationAction() {/* no instances */}
 
-    public static class Request extends ActionRequest {
+    public static class Request extends ActionRequest implements ToXContentObject {
 
         private static final String DEFAULT_QUERY = "*";
+        public static final ParseField QUERY = new ParseField("query");
+        public static final ParseField PAGE_PARAMS = new ParseField("pageParams");
+
         private final String query;
         private final PageParams pageParams;
 
@@ -91,9 +96,31 @@ public class ListSearchApplicationAction extends ActionType<ListSearchApplicatio
         public int hashCode() {
             return Objects.hash(query, pageParams);
         }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field(QUERY.getPreferredName(), query);
+            builder.field(PAGE_PARAMS.getPreferredName(), pageParams);
+            builder.endObject();
+            return null;
+        }
+
+        private static final ConstructingObjectParser<Request, Void> PARSER = new ConstructingObjectParser<>(
+            "list_search_application_request",
+            p -> new Request((String) p[0], (PageParams) p[1])
+        );
+        static {
+            PARSER.declareString(optionalConstructorArg(), QUERY);
+            PARSER.declareObject(constructorArg(), (p, c) -> PageParams.fromXContent(p), PAGE_PARAMS);
+        }
+
+        public static Request parse(XContentParser parser) {
+            return PARSER.apply(parser, null);
+        }
     }
 
-    public static class Response extends ActionResponse implements StatusToXContentObject {
+    public static class Response extends ActionResponse implements ToXContentObject {
 
         public static final ParseField RESULT_FIELD = new ParseField("results");
 
@@ -116,11 +143,6 @@ public class ListSearchApplicationAction extends ActionType<ListSearchApplicatio
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             return queryPage.toXContent(builder, params);
-        }
-
-        @Override
-        public RestStatus status() {
-            return RestStatus.OK;
         }
 
         public QueryPage<SearchApplicationListItem> queryPage() {

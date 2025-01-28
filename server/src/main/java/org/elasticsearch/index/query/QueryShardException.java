@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.query;
@@ -18,13 +19,13 @@ import java.io.IOException;
 /**
  * Exception that is thrown when creating lucene queries on the shard
  */
-public class QueryShardException extends ElasticsearchException {
+public final class QueryShardException extends ElasticsearchException {
 
-    public QueryShardException(SearchExecutionContext context, String msg, Object... args) {
+    public QueryShardException(QueryRewriteContext context, String msg, Object... args) {
         this(context, msg, null, args);
     }
 
-    public QueryShardException(SearchExecutionContext context, String msg, Throwable cause, Object... args) {
+    public QueryShardException(QueryRewriteContext context, String msg, Throwable cause, Object... args) {
         this(context.getFullyQualifiedIndex(), msg, cause, args);
     }
 

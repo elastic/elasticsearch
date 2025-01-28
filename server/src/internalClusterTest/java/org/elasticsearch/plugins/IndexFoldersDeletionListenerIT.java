@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.plugins;
@@ -73,9 +74,7 @@ public class IndexFoldersDeletionListenerIT extends ESIntegTestCase {
 
         final NumShards numShards = getNumShards(indexName);
         assertFalse(
-            client().admin()
-                .cluster()
-                .prepareHealth()
+            clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
                 .setIndices(indexName)
                 .setWaitForGreenStatus()
                 .setWaitForEvents(Priority.LANGUID)
@@ -94,7 +93,7 @@ public class IndexFoldersDeletionListenerIT extends ESIntegTestCase {
             assertNoDeletions(shardsByNode.getKey());
         }
 
-        assertAcked(client().admin().indices().prepareDelete(indexName));
+        assertAcked(indicesAdmin().prepareDelete(indexName));
         assertPendingDeletesProcessed();
 
         assertBusy(() -> {
@@ -142,9 +141,7 @@ public class IndexFoldersDeletionListenerIT extends ESIntegTestCase {
 
         final NumShards numShards = getNumShards(indexName);
         assertFalse(
-            client().admin()
-                .cluster()
-                .prepareHealth()
+            clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
                 .setIndices(indexName)
                 .setWaitForGreenStatus()
                 .setWaitForEvents(Priority.LANGUID)
@@ -210,9 +207,7 @@ public class IndexFoldersDeletionListenerIT extends ESIntegTestCase {
 
         final NumShards numShards = getNumShards(indexName);
         assertFalse(
-            client().admin()
-                .cluster()
-                .prepareHealth()
+            clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
                 .setIndices(indexName)
                 .setWaitForGreenStatus()
                 .setWaitForEvents(Priority.LANGUID)
@@ -236,7 +231,7 @@ public class IndexFoldersDeletionListenerIT extends ESIntegTestCase {
         internalCluster().stopNode(stoppedNode);
         ensureStableCluster(3 + 1, masterNode);
 
-        assertAcked(client().admin().indices().prepareDelete(indexName));
+        assertAcked(indicesAdmin().prepareDelete(indexName));
 
         final String restartedNode = internalCluster().startNode(stoppedNodeDataPathSettings);
         ensureStableCluster(4 + 1, masterNode);
@@ -276,7 +271,7 @@ public class IndexFoldersDeletionListenerIT extends ESIntegTestCase {
         ensureStableCluster(1, masterNode);
 
         logger.debug("--> deleting leftover indices");
-        assertAcked(client().admin().indices().prepareDelete("index-*"));
+        assertAcked(indicesAdmin().prepareDelete("index-*"));
 
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
 
@@ -356,7 +351,7 @@ public class IndexFoldersDeletionListenerIT extends ESIntegTestCase {
 
                 @Override
                 public void beforeShardFoldersDeleted(ShardId shardId, IndexSettings indexSettings, Path[] shardPaths) {
-                    deletedShards.computeIfAbsent(shardId.getIndex(), i -> new ArrayList<>()).add(shardId);
+                    deletedShards.computeIfAbsent(shardId.getIndex(), i -> Collections.synchronizedList(new ArrayList<>())).add(shardId);
                 }
             });
         }
@@ -369,7 +364,8 @@ public class IndexFoldersDeletionListenerIT extends ESIntegTestCase {
 
     private static IndexFoldersDeletionListenerPlugin plugin(String nodeId) {
         final PluginsService pluginsService = internalCluster().getInstance(PluginsService.class, nodeId);
-        final List<IndexFoldersDeletionListenerPlugin> plugins = pluginsService.filterPlugins(IndexFoldersDeletionListenerPlugin.class);
+        final List<IndexFoldersDeletionListenerPlugin> plugins = pluginsService.filterPlugins(IndexFoldersDeletionListenerPlugin.class)
+            .toList();
         assertThat(plugins, hasSize(1));
         return plugins.get(0);
     }

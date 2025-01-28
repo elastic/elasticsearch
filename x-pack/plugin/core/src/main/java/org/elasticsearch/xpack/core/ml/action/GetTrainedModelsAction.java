@@ -33,7 +33,7 @@ public class GetTrainedModelsAction extends ActionType<GetTrainedModelsAction.Re
     public static final String NAME = "cluster:monitor/xpack/ml/inference/get";
 
     private GetTrainedModelsAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
     public static class Includes implements Writeable {
@@ -81,12 +81,12 @@ public class GetTrainedModelsAction extends ActionType<GetTrainedModelsAction.Re
         }
 
         public Includes(StreamInput in) throws IOException {
-            this.includes = in.readSet(StreamInput::readString);
+            this.includes = in.readCollectionAsSet(StreamInput::readString);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeCollection(this.includes, StreamOutput::writeString);
+            out.writeStringCollection(this.includes);
         }
 
         public boolean isIncludeModelDefinition() {
@@ -123,7 +123,7 @@ public class GetTrainedModelsAction extends ActionType<GetTrainedModelsAction.Re
         }
     }
 
-    public static class Request extends AbstractGetResourcesRequest {
+    public static final class Request extends AbstractGetResourcesRequest {
 
         public static final ParseField INCLUDE = new ParseField("include");
         public static final ParseField ALLOW_NO_MATCH = new ParseField("allow_no_match");
@@ -146,7 +146,7 @@ public class GetTrainedModelsAction extends ActionType<GetTrainedModelsAction.Re
         public Request(StreamInput in) throws IOException {
             super(in);
             this.includes = new Includes(in);
-            this.tags = in.readStringList();
+            this.tags = in.readStringCollectionAsList();
         }
 
         @Override

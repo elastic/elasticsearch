@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
+import org.elasticsearch.xpack.core.ilm.OperationModeUpdateTask;
 import org.elasticsearch.xpack.core.ilm.SetSingleNodeAllocateStep;
 import org.elasticsearch.xpack.core.ilm.ShrinkAction;
 import org.elasticsearch.xpack.core.ilm.ShrinkStep;
@@ -53,7 +54,6 @@ import org.elasticsearch.xpack.ilm.history.ILMHistoryStore;
 import java.io.Closeable;
 import java.time.Clock;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.LongSupplier;
@@ -89,6 +89,7 @@ public class IndexLifecycleService
     private final LongSupplier nowSupplier;
     private SchedulerEngine.Job scheduledJob;
 
+    @SuppressWarnings("this-escape")
     public IndexLifecycleService(
         Settings settings,
         Client client,
@@ -351,8 +352,8 @@ public class IndexLifecycleService
 
     @Override
     public void triggered(SchedulerEngine.Event event) {
-        if (event.getJobName().equals(XPackField.INDEX_LIFECYCLE)) {
-            logger.trace("job triggered: " + event.getJobName() + ", " + event.getScheduledTime() + ", " + event.getTriggeredTime());
+        if (event.jobName().equals(XPackField.INDEX_LIFECYCLE)) {
+            logger.trace("job triggered: {}, {}, {}", event.jobName(), event.scheduledTime(), event.triggeredTime());
             triggerPolicies(clusterService.state(), false);
         }
     }
@@ -498,7 +499,7 @@ public class IndexLifecycleService
             SingleNodeShutdownMetadata.Type.REPLACE
         );
         if (shutdownNodes.isEmpty()) {
-            return Collections.emptySet();
+            return Set.of();
         }
 
         Set<String> indicesPreventingShutdown = state.metadata()

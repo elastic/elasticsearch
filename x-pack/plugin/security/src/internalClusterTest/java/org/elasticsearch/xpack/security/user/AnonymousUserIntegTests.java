@@ -9,9 +9,9 @@ package org.elasticsearch.xpack.security.user;
 import org.apache.http.Header;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.get.TransportGetAction;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -39,6 +39,9 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.NONE;
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.WAIT_UNTIL;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItems;
@@ -107,10 +110,9 @@ public class AnonymousUserIntegTests extends SecurityIntegTestCase {
     }
 
     public void testAnonymousRoleShouldBeCaptureWhenCreatingApiKey() throws IOException {
-        final CreateApiKeyResponse createApiKeyResponse = client().execute(
-            CreateApiKeyAction.INSTANCE,
-            new CreateApiKeyRequest(randomAlphaOfLength(8), null, null)
-        ).actionGet();
+        CreateApiKeyRequest createApiKeyRequest = new CreateApiKeyRequest(randomAlphaOfLength(8), null, null);
+        createApiKeyRequest.setRefreshPolicy(randomFrom(NONE, WAIT_UNTIL, IMMEDIATE));
+        final CreateApiKeyResponse createApiKeyResponse = client().execute(CreateApiKeyAction.INSTANCE, createApiKeyRequest).actionGet();
 
         final Map<String, Object> apiKeyDocument = getApiKeyDocument(createApiKeyResponse.getId());
 
@@ -130,9 +132,11 @@ public class AnonymousUserIntegTests extends SecurityIntegTestCase {
             createServiceAccountTokenRequest
         ).actionGet();
 
+        CreateApiKeyRequest createApiKeyRequest = new CreateApiKeyRequest(randomAlphaOfLength(8), null, null);
+        createApiKeyRequest.setRefreshPolicy(randomFrom(NONE, IMMEDIATE, WAIT_UNTIL));
         final CreateApiKeyResponse createApiKeyResponse = client().filterWithHeader(
             Map.of("Authorization", "Bearer " + createServiceAccountTokenResponse.getValue())
-        ).execute(CreateApiKeyAction.INSTANCE, new CreateApiKeyRequest(randomAlphaOfLength(8), null, null)).actionGet();
+        ).execute(CreateApiKeyAction.INSTANCE, createApiKeyRequest).actionGet();
 
         final Map<String, Object> apiKeyDocument = getApiKeyDocument(createApiKeyResponse.getId());
 
@@ -153,6 +157,7 @@ public class AnonymousUserIntegTests extends SecurityIntegTestCase {
 
         final GrantApiKeyRequest grantApiKeyRequest = new GrantApiKeyRequest();
         grantApiKeyRequest.getApiKeyRequest().setName("granted-api-key-cannot-have-anonymous-user-token-with-run-as");
+        grantApiKeyRequest.setRefreshPolicy(randomFrom(IMMEDIATE, WAIT_UNTIL, NONE));
         grantApiKeyRequest.getGrant().setType("access_token");
         grantApiKeyRequest.getGrant().setAccessToken(new SecureString(oAuth2Token.accessToken().toCharArray()));
         grantApiKeyRequest.getGrant().setRunAsUsername("test_user");
@@ -164,7 +169,7 @@ public class AnonymousUserIntegTests extends SecurityIntegTestCase {
     }
 
     private Map<String, Object> getApiKeyDocument(String apiKeyId) {
-        final GetResponse getResponse = client().execute(GetAction.INSTANCE, new GetRequest(".security-7", apiKeyId)).actionGet();
+        final GetResponse getResponse = client().execute(TransportGetAction.TYPE, new GetRequest(".security-7", apiKeyId)).actionGet();
         return getResponse.getSource();
     }
 }

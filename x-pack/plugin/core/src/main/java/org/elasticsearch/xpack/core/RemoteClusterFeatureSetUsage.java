@@ -17,13 +17,13 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.List;
 
-public class RemoteClusterFeatureSetUsage extends XPackFeatureSet.Usage {
+public class RemoteClusterFeatureSetUsage extends XPackFeatureUsage {
 
     private final List<RemoteConnectionInfo> remoteConnectionInfos;
 
     public RemoteClusterFeatureSetUsage(StreamInput in) throws IOException {
         super(in);
-        this.remoteConnectionInfos = in.readImmutableList(RemoteConnectionInfo::new);
+        this.remoteConnectionInfos = in.readCollectionAsImmutableList(RemoteConnectionInfo::new);
     }
 
     public RemoteClusterFeatureSetUsage(List<RemoteConnectionInfo> remoteConnectionInfos) {
@@ -33,13 +33,13 @@ public class RemoteClusterFeatureSetUsage extends XPackFeatureSet.Usage {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS;
+        return RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeList(remoteConnectionInfos);
+        out.writeCollection(remoteConnectionInfos);
     }
 
     @Override

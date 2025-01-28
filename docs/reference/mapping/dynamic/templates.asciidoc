@@ -7,8 +7,8 @@ dynamic mapping by setting the dynamic parameter to `true` or `runtime`. You
 can then use dynamic templates to define custom mappings that can be applied to
 dynamically added fields based on the matching condition:
 
-* <<match-mapping-type,`match_mapping_type`>> operates on the data type that
-{es} detects
+* <<match-mapping-type,`match_mapping_type` and `unmatch_mapping_type`>>
+operate on the data type that {es} detects
 * <<match-unmatch,`match` and `unmatch`>> use a pattern to match on the field
 name
 * <<path-match-unmatch,`path_match` and `path_unmatch`>> operate on the full
@@ -116,10 +116,13 @@ See <<text-only-mappings-strings,this example>> for how to use dynamic templates
 to map `string` fields as either indexed fields or runtime fields.
 
 [[match-mapping-type]]
-==== `match_mapping_type`
+==== `match_mapping_type` and `unmatch_mapping_type`
 
-The `match_mapping_type` is the data type detected by the JSON parser. Because
-JSON doesn't distinguish a `long` from an `integer` or a `double` from
+The `match_mapping_type` parameter matches fields by the data type detected by
+the JSON parser, while `unmatch_mapping_type` excludes fields based on the data
+type.
+
+Because JSON doesn't distinguish a `long` from an `integer` or a `double` from
 a `float`, any parsed floating point number is considered a `double` JSON data
 type, while any parsed `integer` number is considered a `long`.
 
@@ -132,7 +135,10 @@ which is why `"dynamic":"runtime"` uses `double`.
 
 include::field-mapping.asciidoc[tag=dynamic-field-mapping-types-tag]
 
-Use a wildcard (`*`) to match all data types.
+You can specify either a single data type or a list of data types for either
+the `match_mapping_type` or `unmatch_mapping_type` parameters. You can also
+use a wildcard (`*`) for the `match_mapping_type` parameter to match all
+data types.
 
 For example, if we wanted to map all integer fields as `integer` instead of
 `long`, and all `string` fields as both `text` and `keyword`, we
@@ -144,6 +150,16 @@ PUT my-index-000001
 {
   "mappings": {
     "dynamic_templates": [
+      {
+        "numeric_counts": {
+          "match_mapping_type": ["long", "double"],
+          "match": "count",
+          "mapping": {
+            "type": "{dynamic_type}",
+            "index": false
+          }
+        }
+      },
       {
         "integers": {
           "match_mapping_type": "long",
@@ -165,6 +181,15 @@ PUT my-index-000001
             }
           }
         }
+      },
+      {
+        "non_objects_keyword": {
+          "match_mapping_type": "*",
+          "unmatch_mapping_type": "object",
+          "mapping": {
+            "type": "keyword"
+          }
+        }
       }
     ]
   }
@@ -173,12 +198,16 @@ PUT my-index-000001
 PUT my-index-000001/_doc/1
 {
   "my_integer": 5, <1>
-  "my_string": "Some string" <2>
+  "my_string": "Some string", <2>
+  "my_boolean": "false", <3>
+  "field": {"count": 4} <4>
 }
 --------------------------------------------------
 
 <1> The `my_integer` field is mapped as an `integer`.
 <2> The `my_string` field is mapped as a `text`, with a `keyword` <<multi-fields,multi-field>>.
+<3> The `my_boolean` field is mapped as a `keyword`.
+<4> The `field.count` field is mapped as a `long`.
 
 [[match-unmatch]]
 ==== `match` and `unmatch`

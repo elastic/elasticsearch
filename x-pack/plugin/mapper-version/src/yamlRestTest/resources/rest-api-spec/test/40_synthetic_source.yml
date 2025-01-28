@@ -1,15 +1,16 @@
 setup:
-  - skip:
-      version: " - 8.4.99"
-      reason: "synthetic source support added in 8.5.0"
+  - requires:
+      cluster_features: [ "mapper.source.mode_from_index_setting" ]
+      reason: "Source mode configured through index setting"
 
   - do:
       indices.create:
         index:  test1
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               ver:
                 type: version
@@ -65,3 +66,40 @@ script values:
   - match: { hits.hits.1.fields.field.0: "1.2.3.4.5" }
   - match: { hits.hits.2.fields.field.0: "1.2.3-abc+def" }
   - match: { hits.hits.3.fields.field.0: "1.0.0" }
+
+---
+synthetic source with copy_to:
+  - do:
+      indices.create:
+        index: synthetic_source_test
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              ver:
+                type: version
+                copy_to: copy
+              copy:
+                type: keyword
+
+  - do:
+      bulk:
+        index: synthetic_source_test
+        refresh: true
+        body: |
+          { "index": {"_id" : "1"} }
+          { "ver": "1.2.3-abc+def" }
+
+  - do:
+      search:
+        index: synthetic_source_test
+        body:
+          fields: ["copy"]
+
+  - match: { "hits.total.value": 1 }
+  - match:
+      hits.hits.0._source.ver: "1.2.3-abc+def"
+  - match:
+      hits.hits.0.fields.copy.0: "1.2.3-abc+def"

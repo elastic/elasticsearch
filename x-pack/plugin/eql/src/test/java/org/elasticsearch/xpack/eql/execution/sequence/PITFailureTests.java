@@ -27,6 +27,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.elasticsearch.xpack.eql.action.EqlSearchAction;
 import org.elasticsearch.xpack.eql.action.EqlSearchTask;
@@ -51,6 +52,7 @@ import org.elasticsearch.xpack.ql.type.DefaultDataTypeRegistry;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import static java.util.Collections.emptyList;
@@ -58,6 +60,7 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.action.ActionListener.wrap;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.xpack.eql.EqlTestUtils.booleanArrayOf;
 
 public class PITFailureTests extends ESTestCase {
 
@@ -65,7 +68,8 @@ public class PITFailureTests extends ESTestCase {
     private final List<HitExtractor> keyExtractors = emptyList();
 
     public void testHandlingPitFailure() {
-        try (ESMockClient esClient = new ESMockClient();) {
+        try (var threadPool = createThreadPool()) {
+            final var esClient = new ESMockClient(threadPool);
 
             EqlConfiguration eqlConfiguration = new EqlConfiguration(
                 new String[] { "test" },
@@ -79,6 +83,8 @@ public class PITFailureTests extends ESTestCase {
                 null,
                 123,
                 1,
+                randomBoolean(),
+                randomBoolean(),
                 "",
                 new TaskId("test", 123),
                 new EqlSearchTask(
@@ -122,12 +128,21 @@ public class PITFailureTests extends ESTestCase {
                     TimestampExtractor.INSTANCE,
                     null,
                     ImplicitTiebreakerHitExtractor.INSTANCE,
+                    false,
                     false
                 )
             );
 
-            SequenceMatcher matcher = new SequenceMatcher(1, false, TimeValue.MINUS_ONE, null, cb);
-            TumblingWindow window = new TumblingWindow(eqlClient, criteria, null, matcher);
+            SequenceMatcher matcher = new SequenceMatcher(1, false, TimeValue.MINUS_ONE, null, booleanArrayOf(1, false), cb);
+            TumblingWindow window = new TumblingWindow(
+                eqlClient,
+                criteria,
+                null,
+                matcher,
+                Collections.emptyList(),
+                randomBoolean(),
+                randomBoolean()
+            );
             window.execute(
                 wrap(
                     p -> { fail("Search succeeded despite PIT failure"); },
@@ -143,8 +158,8 @@ public class PITFailureTests extends ESTestCase {
      */
     private class ESMockClient extends NoOpClient {
 
-        ESMockClient() {
-            super(getTestName());
+        ESMockClient(ThreadPool threadPool) {
+            super(threadPool);
         }
 
         @SuppressWarnings("unchecked")

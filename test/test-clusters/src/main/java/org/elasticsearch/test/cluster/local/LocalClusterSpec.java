@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.test.cluster.local;
@@ -12,6 +13,7 @@ import org.elasticsearch.test.cluster.ClusterSpec;
 import org.elasticsearch.test.cluster.EnvironmentProvider;
 import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.SettingsProvider;
+import org.elasticsearch.test.cluster.SystemPropertyProvider;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.local.model.User;
 import org.elasticsearch.test.cluster.util.Version;
@@ -20,6 +22,7 @@ import org.elasticsearch.test.cluster.util.resource.Resource;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -27,12 +30,14 @@ public class LocalClusterSpec implements ClusterSpec {
     private final String name;
     private final List<User> users;
     private final List<Resource> roleFiles;
+    private final boolean shared;
     private List<LocalNodeSpec> nodes;
 
-    public LocalClusterSpec(String name, List<User> users, List<Resource> roleFiles) {
+    public LocalClusterSpec(String name, List<User> users, List<Resource> roleFiles, boolean shared) {
         this.name = name;
         this.users = users;
         this.roleFiles = roleFiles;
+        this.shared = shared;
     }
 
     public String getName() {
@@ -51,6 +56,10 @@ public class LocalClusterSpec implements ClusterSpec {
         return nodes;
     }
 
+    public boolean isShared() {
+        return shared;
+    }
+
     public void setNodes(List<LocalNodeSpec> nodes) {
         this.nodes = nodes;
     }
@@ -64,6 +73,15 @@ public class LocalClusterSpec implements ClusterSpec {
         if (nodeNames.isEmpty() == false) {
             throw new IllegalArgumentException("Cluster cannot contain nodes with duplicates names: " + nodeNames);
         }
+
+        // Ensure we do not configure older version nodes with the integTest distribution
+        if (nodes.stream().anyMatch(n -> n.getVersion() != Version.CURRENT && n.getDistributionType() == DistributionType.INTEG_TEST)) {
+            throw new IllegalArgumentException(
+                "Error configuring test cluster '"
+                    + name
+                    + "'. When configuring a node for a prior Elasticsearch version, the default distribution type must be used."
+            );
+        }
     }
 
     public static class LocalNodeSpec {
@@ -73,8 +91,8 @@ public class LocalClusterSpec implements ClusterSpec {
         private final Map<String, String> settings;
         private final List<EnvironmentProvider> environmentProviders;
         private final Map<String, String> environment;
-        private final Set<String> modules;
-        private final Set<String> plugins;
+        private final Map<String, DefaultPluginInstallSpec> modules;
+        private final Map<String, DefaultPluginInstallSpec> plugins;
         private final DistributionType distributionType;
         private final Set<FeatureFlag> features;
         private final List<SettingsProvider> keystoreProviders;
@@ -82,8 +100,9 @@ public class LocalClusterSpec implements ClusterSpec {
         private final Map<String, Resource> keystoreFiles;
         private final String keystorePassword;
         private final Map<String, Resource> extraConfigFiles;
+        private final List<SystemPropertyProvider> systemPropertyProviders;
         private final Map<String, String> systemProperties;
-        private final Map<String, String> secrets;
+        private final List<String> jvmArgs;
         private Version version;
 
         public LocalNodeSpec(
@@ -94,8 +113,8 @@ public class LocalClusterSpec implements ClusterSpec {
             Map<String, String> settings,
             List<EnvironmentProvider> environmentProviders,
             Map<String, String> environment,
-            Set<String> modules,
-            Set<String> plugins,
+            Map<String, DefaultPluginInstallSpec> modules,
+            Map<String, DefaultPluginInstallSpec> plugins,
             DistributionType distributionType,
             Set<FeatureFlag> features,
             List<SettingsProvider> keystoreProviders,
@@ -103,8 +122,9 @@ public class LocalClusterSpec implements ClusterSpec {
             Map<String, Resource> keystoreFiles,
             String keystorePassword,
             Map<String, Resource> extraConfigFiles,
+            List<SystemPropertyProvider> systemPropertyProviders,
             Map<String, String> systemProperties,
-            Map<String, String> secrets
+            List<String> jvmArgs
         ) {
             this.cluster = cluster;
             this.name = name;
@@ -122,8 +142,9 @@ public class LocalClusterSpec implements ClusterSpec {
             this.keystoreFiles = keystoreFiles;
             this.keystorePassword = keystorePassword;
             this.extraConfigFiles = extraConfigFiles;
+            this.systemPropertyProviders = systemPropertyProviders;
             this.systemProperties = systemProperties;
-            this.secrets = secrets;
+            this.jvmArgs = jvmArgs;
         }
 
         void setVersion(Version version) {
@@ -135,7 +156,7 @@ public class LocalClusterSpec implements ClusterSpec {
         }
 
         public String getName() {
-            return name == null ? cluster.getName() + "-" + cluster.getNodes().indexOf(this) : name;
+            return name;
         }
 
         public Version getVersion() {
@@ -154,11 +175,11 @@ public class LocalClusterSpec implements ClusterSpec {
             return distributionType;
         }
 
-        public Set<String> getModules() {
+        public Map<String, DefaultPluginInstallSpec> getModules() {
             return modules;
         }
 
-        public Set<String> getPlugins() {
+        public Map<String, DefaultPluginInstallSpec> getPlugins() {
             return plugins;
         }
 
@@ -178,16 +199,16 @@ public class LocalClusterSpec implements ClusterSpec {
             return extraConfigFiles;
         }
 
-        public Map<String, String> getSystemProperties() {
-            return systemProperties;
-        }
-
-        public Map<String, String> getSecrets() {
-            return secrets;
+        public List<String> getJvmArgs() {
+            return jvmArgs;
         }
 
         public boolean isSecurityEnabled() {
             return Boolean.parseBoolean(getSetting("xpack.security.enabled", getVersion().onOrAfter("8.0.0") ? "true" : "false"));
+        }
+
+        public boolean isRemoteClusterServerEnabled() {
+            return Boolean.parseBoolean(getSetting("remote_cluster_server.enabled", "false"));
         }
 
         public boolean isMasterEligible() {
@@ -195,7 +216,7 @@ public class LocalClusterSpec implements ClusterSpec {
         }
 
         public boolean hasRole(String role) {
-            return getSetting("node.roles", "[]").contains("search");
+            return getSetting("node.roles", "[]").contains(role);
         }
 
         /**
@@ -269,6 +290,24 @@ public class LocalClusterSpec implements ClusterSpec {
         }
 
         /**
+         * Resolve node system properties. Order of precedence is as follows:
+         * <ol>
+         *     <li>SystemProperties from cluster configured {@link SystemPropertyProvider}</li>
+         *     <li>SystemProperties variables from node configured {@link SystemPropertyProvider}</li>
+         *     <li>SystemProperties variables cluster settings</li>
+         *     <li>SystemProperties variables node settings</li>
+         * </ol>
+         *
+         * @return resolved system properties for node
+         */
+        public Map<String, String> resolveSystemProperties() {
+            Map<String, String> resolvedSystemProperties = new HashMap<>();
+            systemPropertyProviders.forEach(p -> resolvedSystemProperties.putAll(p.get(this)));
+            resolvedSystemProperties.putAll(systemProperties);
+            return resolvedSystemProperties;
+        }
+
+        /**
          * Returns a new {@link LocalNodeSpec} without the given {@link SettingsProvider}s. This is needed when resolving settings from a
          * settings provider to avoid infinite recursion.
          *
@@ -277,7 +316,7 @@ public class LocalClusterSpec implements ClusterSpec {
          * @return a new local node spec
          */
         private LocalNodeSpec getFilteredSpec(SettingsProvider filteredProvider, SettingsProvider filteredKeystoreProvider) {
-            LocalClusterSpec newCluster = new LocalClusterSpec(cluster.name, cluster.users, cluster.roleFiles);
+            LocalClusterSpec newCluster = new LocalClusterSpec(cluster.name, cluster.users, cluster.roleFiles, cluster.shared);
 
             List<LocalNodeSpec> nodeSpecs = cluster.nodes.stream()
                 .map(
@@ -298,15 +337,16 @@ public class LocalClusterSpec implements ClusterSpec {
                         n.keystoreFiles,
                         n.keystorePassword,
                         n.extraConfigFiles,
+                        n.systemPropertyProviders,
                         n.systemProperties,
-                        n.secrets
+                        n.jvmArgs
                     )
                 )
                 .toList();
 
             newCluster.setNodes(nodeSpecs);
 
-            return nodeSpecs.stream().filter(n -> n.getName().equals(this.getName())).findFirst().get();
+            return nodeSpecs.stream().filter(n -> Objects.equals(n.getName(), this.getName())).findFirst().get();
         }
     }
 }

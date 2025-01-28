@@ -1,14 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.NodeStatsLevel;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
@@ -33,9 +35,11 @@ import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.stats.SearchStats;
+import org.elasticsearch.index.shard.DenseVectorStats;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.shard.IndexingStats;
 import org.elasticsearch.index.shard.ShardCountStats;
+import org.elasticsearch.index.shard.SparseVectorStats;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.index.warmer.WarmerStats;
@@ -56,7 +60,8 @@ import java.util.Objects;
  */
 public class NodeIndicesStats implements Writeable, ChunkedToXContent {
 
-    private static final TransportVersion VERSION_SUPPORTING_STATS_BY_INDEX = TransportVersion.V_8_5_0;
+    private static final TransportVersion VERSION_SUPPORTING_STATS_BY_INDEX = TransportVersions.V_8_5_0;
+    private static final Map<Index, List<IndexShardStats>> EMPTY_STATS_BY_SHARD = Map.of();
 
     private final CommonStats stats;
     private final Map<Index, List<IndexShardStats>> statsByShard;
@@ -84,8 +89,17 @@ public class NodeIndicesStats implements Writeable, ChunkedToXContent {
         }
     }
 
-    public NodeIndicesStats(CommonStats oldStats, Map<Index, CommonStats> statsByIndex, Map<Index, List<IndexShardStats>> statsByShard) {
-        this.statsByShard = Objects.requireNonNull(statsByShard);
+    public NodeIndicesStats(
+        CommonStats oldStats,
+        Map<Index, CommonStats> statsByIndex,
+        Map<Index, List<IndexShardStats>> statsByShard,
+        boolean includeShardsStats
+    ) {
+        if (includeShardsStats) {
+            this.statsByShard = Objects.requireNonNull(statsByShard);
+        } else {
+            this.statsByShard = EMPTY_STATS_BY_SHARD;
+        }
         this.statsByIndex = Objects.requireNonNull(statsByIndex);
 
         // make a total common stats from old ones and current ones
@@ -197,12 +211,22 @@ public class NodeIndicesStats implements Writeable, ChunkedToXContent {
         return stats.getNodeMappings();
     }
 
+    @Nullable
+    public DenseVectorStats getDenseVectorStats() {
+        return stats.getDenseVectorStats();
+    }
+
+    @Nullable
+    public SparseVectorStats getSparseVectorStats() {
+        return stats.getSparseVectorStats();
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         stats.writeTo(out);
-        out.writeMap(statsByShard, (o, k) -> k.writeTo(o), StreamOutput::writeList);
+        out.writeMap(statsByShard, StreamOutput::writeWriteable, StreamOutput::writeCollection);
         if (out.getTransportVersion().onOrAfter(VERSION_SUPPORTING_STATS_BY_INDEX)) {
-            out.writeMap(statsByIndex, (o, k) -> k.writeTo(o), (o, v) -> v.writeTo(o));
+            out.writeMap(statsByIndex);
         }
     }
 
@@ -235,14 +259,11 @@ public class NodeIndicesStats implements Writeable, ChunkedToXContent {
 
                 case INDICES -> Iterators.concat(
                     ChunkedToXContentHelper.startObject(Fields.INDICES),
-                    Iterators.flatMap(
-                        createCommonStatsByIndex().entrySet().iterator(),
-                        entry -> Iterators.<ToXContent>single((builder, params) -> {
-                            builder.startObject(entry.getKey().getName());
-                            entry.getValue().toXContent(builder, params);
-                            return builder.endObject();
-                        })
-                    ),
+                    Iterators.map(createCommonStatsByIndex().entrySet().iterator(), entry -> (builder, params) -> {
+                        builder.startObject(entry.getKey().getName());
+                        entry.getValue().toXContent(builder, params);
+                        return builder.endObject();
+                    }),
                     ChunkedToXContentHelper.endObject()
                 );
 
@@ -254,7 +275,7 @@ public class NodeIndicesStats implements Writeable, ChunkedToXContent {
                             ChunkedToXContentHelper.startArray(entry.getKey().getName()),
                             Iterators.flatMap(
                                 entry.getValue().iterator(),
-                                indexShardStats -> Iterators.<ToXContent>concat(
+                                indexShardStats -> Iterators.concat(
                                     Iterators.single(
                                         (b, p) -> b.startObject().startObject(String.valueOf(indexShardStats.getShardId().getId()))
                                     ),

@@ -271,8 +271,15 @@ public class RestSqlSecurityIT extends SqlSecurityTestCase {
         }
     }
 
+    private final Actions actions;
+
+    @Override
+    Actions actions() {
+        return actions;
+    }
+
     public RestSqlSecurityIT() {
-        super(new RestActions());
+        actions = new RestActions();
     }
 
     @Override

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.coordination;
@@ -20,14 +21,13 @@ import org.elasticsearch.cluster.coordination.stateless.SingleNodeReconfigurator
 import org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatService;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.gateway.ClusterStateUpdaters;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -46,6 +46,13 @@ import static org.elasticsearch.cluster.coordination.CoordinationStateTests.clus
 import static org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatService.HEARTBEAT_FREQUENCY;
 import static org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatService.MAX_MISSED_HEARTBEATS;
 
+/**
+ * Tests that the Coordinator code runs correctly relying on atomic register compare-and-swap. Stateless will use implementations of atomic
+ * register CAS in the cloud blob stores.
+ *
+ * StatelessCoordinationTests extends AtomicRegisterCoordinatorTests for testing, inheriting all the tests but using different
+ * {@link ElectionStrategy} implementations, etc.
+ */
 @TestLogging(reason = "these tests do a lot of log-worthy things but we usually don't care", value = "org.elasticsearch:FATAL")
 public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
 
@@ -87,23 +94,23 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
     }
 
     @Override
-    @AwaitsFix(bugUrl = "ES-5645")
     public void testAckListenerReceivesNacksIfPublicationTimesOut() {
         // The leader still has access to the register, therefore it acknowledges the state update
+        testAckListenerReceivesNacksIfPublicationTimesOut(true);
     }
 
     @Override
-    @AwaitsFix(bugUrl = "ES-5645")
-    public void testClusterCannotFormWithFailingJoinValidation() {
-        // A single node can form a cluster in this case
+    public void testClusterCannotFormWithFailingJoinValidation() throws Exception {
+        // A single node can form a cluster if it is able to join (vote for) its own cluster, so we must disable all nodes from successfully
+        // joining a cluster.
+        clusterCannotFormWithFailingJoinValidation(true);
     }
 
     @Override
-    @AwaitsFix(bugUrl = "ES-5645")
+    @AwaitsFix(bugUrl = "ES-8099")
     public void testCannotJoinClusterWithDifferentUUID() {
-        // The cluster2 leader is considered dead since we only run the nodes in cluster 1
-        // therefore the node coming from cluster 2 ends up taking over the old master in cluster 2
-        // TODO: add more checks to avoid forming a mixed cluster between register based and traditional clusters
+        // Placeholder to implement a test wherein the blob store cluster state is suddenly swapped out with a different cluster's state
+        // with a different UUID. The cluster nodes should recognize the UUID change and refuse to load the foreign cluster state.
     }
 
     @Override
@@ -137,12 +144,11 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
             cluster.stabilise();
             final var clusterNode = cluster.getAnyLeader();
 
-            final var mockAppender = new MockLogAppender();
-            try (var ignored = mockAppender.capturing(Coordinator.class, Coordinator.CoordinatorPublication.class)) {
+            try (var mockLog = MockLog.capture(Coordinator.class, Coordinator.CoordinatorPublication.class)) {
 
                 clusterNode.disconnect();
-                mockAppender.addExpectation(
-                    new MockLogAppender.SeenEventExpectation(
+                mockLog.addExpectation(
+                    new MockLog.SeenEventExpectation(
                         "write heartbeat failure",
                         Coordinator.class.getCanonicalName(),
                         Level.WARN,
@@ -150,12 +156,12 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
                     )
                 );
                 cluster.runFor(HEARTBEAT_FREQUENCY.get(Settings.EMPTY).millis(), "warnings");
-                mockAppender.assertAllExpectationsMatched();
+                mockLog.assertAllExpectationsMatched();
                 clusterNode.heal();
 
                 coordinatorStrategy.disruptElections = true;
-                mockAppender.addExpectation(
-                    new MockLogAppender.SeenEventExpectation(
+                mockLog.addExpectation(
+                    new MockLog.SeenEventExpectation(
                         "acquire term failure",
                         Coordinator.class.getCanonicalName(),
                         Level.WARN,
@@ -163,12 +169,12 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
                     )
                 );
                 cluster.runFor(DEFAULT_ELECTION_DELAY, "warnings");
-                mockAppender.assertAllExpectationsMatched();
+                mockLog.assertAllExpectationsMatched();
                 coordinatorStrategy.disruptElections = false;
 
                 coordinatorStrategy.disruptPublications = true;
-                mockAppender.addExpectation(
-                    new MockLogAppender.SeenEventExpectation(
+                mockLog.addExpectation(
+                    new MockLog.SeenEventExpectation(
                         "verify term failure",
                         Coordinator.CoordinatorPublication.class.getCanonicalName(),
                         Level.WARN,
@@ -176,7 +182,7 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
                     )
                 );
                 cluster.runFor(DEFAULT_ELECTION_DELAY + DEFAULT_CLUSTER_STATE_UPDATE_DELAY, "publication warnings");
-                mockAppender.assertAllExpectationsMatched();
+                mockLog.assertAllExpectationsMatched();
                 coordinatorStrategy.disruptPublications = false;
             }
 
@@ -185,10 +191,17 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
     }
 
     @Override
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/98488") // also #98419
+    public void testElectionSchedulingAfterDiscoveryOutage() {}
+
+    @Override
     protected CoordinatorStrategy createCoordinatorStrategy() {
         return new AtomicRegisterCoordinatorStrategy();
     }
 
+    /**
+     * Strategy used to inject custom behavior into the {@link AbstractCoordinatorTestCase} test infrastructure.
+     */
     class AtomicRegisterCoordinatorStrategy implements CoordinatorStrategy {
         private final AtomicLong currentTermRef = new AtomicLong();
         private final AtomicReference<Heartbeat> heartBeatRef = new AtomicReference<>();
@@ -265,6 +278,13 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
             ThreadPool threadPool
         ) {
             return new AtomicRegisterPersistedState(newLocalNode, sharedStore);
+        }
+
+        @Override
+        public boolean verifyElectionSchedulerState(Cluster.ClusterNode clusterNode) {
+            // If the register is disrupted then today we remain HEALTHY and retry via the election mechanism. We should use a different
+            // retry mechanism instead. See https://github.com/elastic/elasticsearch/issues/98488.
+            return (clusterNode.isRegisterDisconnected() || clusterNode.isRegisterBlackholed()) == false;
         }
     }
 
@@ -529,7 +549,7 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
                                     )
                             )
                             .version(latestClusterState.version())
-                            .nodes(DiscoveryNodes.builder(latestAcceptedState.nodes()).masterNodeId(null))
+                            .nodes(latestAcceptedState.nodes().withMasterNodeId(null))
                             .build()
                     )
                 );
@@ -541,6 +561,11 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
                 || latestClusterState.term() > latestAcceptedState.term()
                 || (latestClusterState.term() == latestAcceptedState.term()
                     && latestClusterState.version() > latestAcceptedState.version());
+        }
+
+        @Override
+        public String toString() {
+            return "AtomicRegisterPersistedState[" + localNode.descriptionWithoutAttributes() + "]";
         }
     }
 }

@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.ilm;
 
-import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -31,12 +31,12 @@ import org.elasticsearch.xpack.core.ilm.Phase;
 import org.elasticsearch.xpack.core.ilm.RolloverAction;
 import org.elasticsearch.xpack.core.ilm.ShrinkAction;
 import org.elasticsearch.xpack.core.ilm.action.ExplainLifecycleAction;
-import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction;
+import org.elasticsearch.xpack.core.ilm.action.ILMActions;
+import org.elasticsearch.xpack.core.ilm.action.PutLifecycleRequest;
 
-import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
@@ -49,7 +49,7 @@ public class ILMMultiNodeWithCCRDisabledIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(LocalStateCompositeXPackPlugin.class, DataStreamsPlugin.class, IndexLifecycle.class, Ccr.class);
+        return List.of(LocalStateCompositeXPackPlugin.class, DataStreamsPlugin.class, IndexLifecycle.class, Ccr.class);
     }
 
     @Override
@@ -69,13 +69,13 @@ public class ILMMultiNodeWithCCRDisabledIT extends ESIntegTestCase {
         ensureGreen();
         Map<String, LifecycleAction> actions = new HashMap<>();
         RolloverAction rolloverAction = new RolloverAction(null, null, null, 1L, null, null, null, null, null, null);
-        ShrinkAction shrinkAction = new ShrinkAction(1, null);
+        ShrinkAction shrinkAction = new ShrinkAction(1, null, false);
         actions.put(rolloverAction.getWriteableName(), rolloverAction);
         actions.put(shrinkAction.getWriteableName(), shrinkAction);
         Phase hotPhase = new Phase("hot", TimeValue.ZERO, actions);
 
-        LifecyclePolicy lifecyclePolicy = new LifecyclePolicy("shrink-policy", Collections.singletonMap(hotPhase.getName(), hotPhase));
-        client().execute(PutLifecycleAction.INSTANCE, new PutLifecycleAction.Request(lifecyclePolicy)).get();
+        LifecyclePolicy lifecyclePolicy = new LifecyclePolicy("shrink-policy", Map.of(hotPhase.getName(), hotPhase));
+        client().execute(ILMActions.PUT, new PutLifecycleRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, lifecyclePolicy)).get();
 
         Template t = new Template(
             Settings.builder()
@@ -87,25 +87,22 @@ public class ILMMultiNodeWithCCRDisabledIT extends ESIntegTestCase {
             null
         );
 
-        ComposableIndexTemplate template = new ComposableIndexTemplate(
-            Collections.singletonList(index),
-            t,
-            null,
-            null,
-            null,
-            null,
-            new ComposableIndexTemplate.DataStreamTemplate(),
-            null
-        );
+        ComposableIndexTemplate template = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of(index))
+            .template(t)
+            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+            .build();
         client().execute(
-            PutComposableIndexTemplateAction.INSTANCE,
-            new PutComposableIndexTemplateAction.Request("template").indexTemplate(template)
+            TransportPutComposableIndexTemplateAction.TYPE,
+            new TransportPutComposableIndexTemplateAction.Request("template").indexTemplate(template)
         ).actionGet();
-        client().prepareIndex(index).setCreate(true).setId("1").setSource("@timestamp", "2020-09-09").get();
+        prepareIndex(index).setCreate(true).setId("1").setSource("@timestamp", "2020-09-09").get();
 
         assertBusy(() -> {
-            ExplainLifecycleResponse explain = client().execute(ExplainLifecycleAction.INSTANCE, new ExplainLifecycleRequest().indices("*"))
-                .get();
+            ExplainLifecycleResponse explain = client().execute(
+                ExplainLifecycleAction.INSTANCE,
+                new ExplainLifecycleRequest(TEST_REQUEST_TIMEOUT).indices("*")
+            ).get();
             logger.info("--> explain: {}", Strings.toString(explain));
 
             String backingIndexName = DataStream.getDefaultBackingIndexName(index, 1);
@@ -125,12 +122,12 @@ public class ILMMultiNodeWithCCRDisabledIT extends ESIntegTestCase {
     }
 
     public void startHotOnlyNode() {
-        Settings nodeSettings = Settings.builder().putList("node.roles", Arrays.asList("master", "data_hot", "ingest")).build();
+        Settings nodeSettings = Settings.builder().putList("node.roles", List.of("master", "data_hot", "ingest")).build();
         internalCluster().startNode(nodeSettings);
     }
 
     public void startWarmOnlyNode() {
-        Settings nodeSettings = Settings.builder().putList("node.roles", Arrays.asList("master", "data_warm", "ingest")).build();
+        Settings nodeSettings = Settings.builder().putList("node.roles", List.of("master", "data_warm", "ingest")).build();
         internalCluster().startNode(nodeSettings);
     }
 }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.coordination.stateless;
@@ -12,8 +13,8 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
@@ -31,7 +32,7 @@ public class SingleNodeReconfiguratorTests extends ESTestCase {
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
         );
 
-        final var currentLeader = TestDiscoveryNode.create("current-leader");
+        final var currentLeader = DiscoveryNodeUtils.create("current-leader");
         final var currentVotingConfig = new CoordinationMetadata.VotingConfiguration(Set.of(currentLeader.getId()));
 
         assertThat(
@@ -46,8 +47,8 @@ public class SingleNodeReconfiguratorTests extends ESTestCase {
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
         );
 
-        final var oldLeader = TestDiscoveryNode.create("old-leader");
-        final var currentLeader = TestDiscoveryNode.create("current-leader");
+        final var oldLeader = DiscoveryNodeUtils.create("old-leader");
+        final var currentLeader = DiscoveryNodeUtils.create("current-leader");
         final var currentVotingConfig = new CoordinationMetadata.VotingConfiguration(Set.of(oldLeader.getId()));
 
         final var updatedState = reconfigurator.maybeReconfigureAfterNewMasterIsElected(

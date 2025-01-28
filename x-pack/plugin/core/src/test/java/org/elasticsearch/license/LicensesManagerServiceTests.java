@@ -42,6 +42,7 @@ public class LicensesManagerServiceTests extends ESSingleNodeTestCase {
             .put(XPackSettings.GRAPH_ENABLED.getKey(), false)
             .put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), false)
             .put(XPackSettings.PROFILING_ENABLED.getKey(), false)
+            .put(XPackSettings.APM_DATA_ENABLED.getKey(), false)
             .build();
     }
 
@@ -126,7 +127,7 @@ public class LicensesManagerServiceTests extends ESSingleNodeTestCase {
     private void removeAndAckSignedLicenses(final MutableLicenseService licenseService) {
         final CountDownLatch latch = new CountDownLatch(1);
         final AtomicBoolean success = new AtomicBoolean(false);
-        licenseService.removeLicense(new ActionListener<PostStartBasicResponse>() {
+        licenseService.removeLicense(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new ActionListener<PostStartBasicResponse>() {
             @Override
             public void onResponse(PostStartBasicResponse postStartBasicResponse) {
                 if (postStartBasicResponse.isAcknowledged()) {

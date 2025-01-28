@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices.analysis;
@@ -18,6 +19,8 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.AnalyzerProvider;
@@ -52,7 +55,7 @@ import static org.elasticsearch.plugins.AnalysisPlugin.requiresAnalysisSettings;
 public final class AnalysisModule {
     static {
         Settings build = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .build();
@@ -135,7 +138,7 @@ public final class AnalysisModule {
         tokenFilters.register("standard", new AnalysisProvider<TokenFilterFactory>() {
             @Override
             public TokenFilterFactory get(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
-                if (indexSettings.getIndexVersionCreated().before(Version.V_7_0_0)) {
+                if (indexSettings.getIndexVersionCreated().before(IndexVersions.V_7_0_0)) {
                     deprecationLogger.warn(
                         DeprecationCategory.ANALYSIS,
                         "standard_deprecation",
@@ -144,7 +147,7 @@ public final class AnalysisModule {
                 } else {
                     throw new IllegalArgumentException("The [standard] token filter has been removed.");
                 }
-                return new AbstractTokenFilterFactory(name, settings) {
+                return new AbstractTokenFilterFactory(name) {
                     @Override
                     public TokenStream create(TokenStream tokenStream) {
                         return tokenStream;
@@ -152,10 +155,6 @@ public final class AnalysisModule {
                 };
             }
 
-            @Override
-            public boolean requiresAnalysisSettings() {
-                return false;
-            }
         });
         tokenFilters.register("shingle", ShingleTokenFilterFactory::new);
         tokenFilters.register(
@@ -200,24 +199,21 @@ public final class AnalysisModule {
         // Add filters available in lucene-core
         preConfiguredTokenFilters.register("lowercase", PreConfiguredTokenFilter.singleton("lowercase", true, LowerCaseFilter::new));
         // Add "standard" for old indices (bwc)
-        preConfiguredTokenFilters.register(
-            "standard",
-            PreConfiguredTokenFilter.elasticsearchVersion("standard", true, (reader, version) -> {
-                // This was originally removed in 7_0_0 but due to a cacheing bug it was still possible
-                // in certain circumstances to create a new index referencing the standard token filter
-                // until version 7_5_2
-                if (version.before(Version.V_7_6_0)) {
-                    deprecationLogger.warn(
-                        DeprecationCategory.ANALYSIS,
-                        "standard_deprecation",
-                        "The [standard] token filter is deprecated and will be removed in a future version."
-                    );
-                } else {
-                    throw new IllegalArgumentException("The [standard] token filter has been removed.");
-                }
-                return reader;
-            })
-        );
+        preConfiguredTokenFilters.register("standard", PreConfiguredTokenFilter.indexVersion("standard", true, (reader, version) -> {
+            // This was originally removed in 7_0_0 but due to a cacheing bug it was still possible
+            // in certain circumstances to create a new index referencing the standard token filter
+            // until version 7_5_2
+            if (version.before(IndexVersions.V_7_6_0)) {
+                deprecationLogger.warn(
+                    DeprecationCategory.ANALYSIS,
+                    "standard_deprecation",
+                    "The [standard] token filter is deprecated and will be removed in a future version."
+                );
+            } else {
+                throw new IllegalArgumentException("The [standard] token filter has been removed.");
+            }
+            return reader;
+        }));
         /* Note that "stop" is available in lucene-core but it's pre-built
          * version uses a set of English stop words that are in
          * lucene-analyzers-common so "stop" is defined in the analysis-common

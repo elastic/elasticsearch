@@ -1,0 +1,45 @@
+// To mute tests follow example in file: example.csv-spec
+
+//
+// CSV spec used by the docs
+//
+
+///////////////////////////////
+//
+// Show Tables
+//
+///////////////////////////////
+
+//
+// include FROZEN
+//
+showTablesIncludeFrozen
+// tag::showTablesIncludeFrozen
+SHOW TABLES INCLUDE FROZEN;
+
+ catalog       |     name      | type     |     kind
+---------------+---------------+----------+---------------
+javaRestTest      |archive        |TABLE     |FROZEN INDEX
+javaRestTest      |emp            |TABLE     |INDEX
+javaRestTest      |employees      |VIEW      |ALIAS
+javaRestTest      |library        |TABLE     |INDEX
+
+// end::showTablesIncludeFrozen
+;
+
+///////////////////////////////
+//
+// Select
+//
+///////////////////////////////
+
+fromTableIncludeFrozen
+// tag::fromTableIncludeFrozen
+SELECT * FROM FROZEN archive LIMIT 1;
+
+     author      |        name        |  page_count   |    release_date    
+-----------------+--------------------+---------------+--------------------
+James S.A. Corey |Leviathan Wakes     |561            |2011-06-02T00:00:00Z
+
+// end::fromTableIncludeFrozen
+;

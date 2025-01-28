@@ -1,17 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.rest.root;
 
 import org.elasticsearch.Build;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
@@ -33,10 +34,16 @@ public class RestMainActionTests extends ESTestCase {
         final String nodeName = "node1";
         final ClusterName clusterName = new ClusterName("cluster1");
         final String clusterUUID = randomAlphaOfLengthBetween(10, 20);
-        final Version version = Version.CURRENT;
-        final Build build = Build.CURRENT;
+        final IndexVersion indexVersion = IndexVersion.current();
+        final Build build = Build.current();
 
-        final MainResponse mainResponse = new MainResponse(nodeName, version, clusterName, clusterUUID, build);
+        final MainResponse mainResponse = new MainResponse(
+            nodeName,
+            indexVersion.luceneVersion().toString(),
+            clusterName,
+            clusterUUID,
+            build
+        );
         XContentBuilder builder = JsonXContent.contentBuilder();
         RestRequest restRequest = new FakeRestRequest() {
             @Override
@@ -57,11 +64,17 @@ public class RestMainActionTests extends ESTestCase {
         final String nodeName = "node1";
         final ClusterName clusterName = new ClusterName("cluster1");
         final String clusterUUID = randomAlphaOfLengthBetween(10, 20);
-        final Version version = Version.CURRENT;
-        final Build build = Build.CURRENT;
+        final IndexVersion indexVersion = IndexVersion.current();
+        final Build build = Build.current();
         final boolean prettyPrint = randomBoolean();
 
-        final MainResponse mainResponse = new MainResponse(nodeName, version, clusterName, clusterUUID, build);
+        final MainResponse mainResponse = new MainResponse(
+            nodeName,
+            indexVersion.luceneVersion().toString(),
+            clusterName,
+            clusterUUID,
+            build
+        );
         XContentBuilder builder = JsonXContent.contentBuilder();
 
         Map<String, String> params = new HashMap<>();

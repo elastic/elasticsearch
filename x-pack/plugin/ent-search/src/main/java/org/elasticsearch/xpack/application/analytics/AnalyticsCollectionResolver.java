@@ -13,8 +13,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.injection.guice.Inject;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -82,7 +82,7 @@ public class AnalyticsCollectionResolver {
         // Listing data streams that are matching the analytics collection pattern.
         List<String> dataStreams = indexNameExpressionResolver.dataStreamNames(
             state,
-            IndicesOptions.lenientExpandOpen(),
+            IndicesOptions.lenientExpandOpenNoSelectors(),
             EVENT_DATA_STREAM_INDEX_PATTERN
         );
 
@@ -104,7 +104,7 @@ public class AnalyticsCollectionResolver {
         return new ArrayList<>(collections.values());
     }
 
-    private boolean matchExpression(String collectionName, String expression) {
+    private static boolean matchExpression(String collectionName, String expression) {
         if (Strings.isNullOrEmpty(expression)) {
             return false;
         }
@@ -120,7 +120,7 @@ public class AnalyticsCollectionResolver {
         return collectionName.equals(expression);
     }
 
-    private boolean matchAnyExpression(String collectionName, String... expressions) {
+    private static boolean matchAnyExpression(String collectionName, String... expressions) {
         if (expressions.length < 1) {
             return true;
         }
@@ -128,7 +128,7 @@ public class AnalyticsCollectionResolver {
         return Arrays.stream(expressions).anyMatch(expression -> matchExpression(collectionName, expression));
     }
 
-    private boolean matchAnyExpression(AnalyticsCollection collection, String... expressions) {
+    private static boolean matchAnyExpression(AnalyticsCollection collection, String... expressions) {
         return matchAnyExpression(collection.getName(), expressions);
     }
 }

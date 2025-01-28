@@ -158,7 +158,7 @@ public final class CrossClusterAccessSubjectInfo {
         out.setTransportVersion(authentication.getEffectiveSubject().getTransportVersion());
         TransportVersion.writeVersion(authentication.getEffectiveSubject().getTransportVersion(), out);
         authentication.writeTo(out);
-        out.writeCollection(roleDescriptorsBytesList, (o, rdb) -> rdb.writeTo(o));
+        out.writeCollection(roleDescriptorsBytesList);
         return Base64.getEncoder().encodeToString(BytesReference.toBytes(out.bytes()));
     }
 
@@ -169,7 +169,7 @@ public final class CrossClusterAccessSubjectInfo {
         final TransportVersion version = TransportVersion.readVersion(in);
         in.setTransportVersion(version);
         final Authentication authentication = new Authentication(in);
-        final List<RoleDescriptorsBytes> roleDescriptorsBytesList = in.readImmutableList(RoleDescriptorsBytes::new);
+        final List<RoleDescriptorsBytes> roleDescriptorsBytesList = in.readCollectionAsImmutableList(RoleDescriptorsBytes::new);
         return new CrossClusterAccessSubjectInfo(authentication, roleDescriptorsBytesList);
     }
 
@@ -205,10 +205,10 @@ public final class CrossClusterAccessSubjectInfo {
         assert false == authentication.isCrossClusterAccess();
         authentication.checkConsistency();
         final User user = authentication.getEffectiveSubject().getUser();
-        if (user == InternalUsers.CROSS_CLUSTER_ACCESS_USER) {
+        if (user == InternalUsers.SYSTEM_USER) {
             if (false == getRoleDescriptorsBytesList().isEmpty()) {
                 logger.warn(
-                    "Received non-empty role descriptors bytes list for internal cross cluster access user. "
+                    "Received non-empty remote access role descriptors bytes list for _system user. "
                         + "These will be ignored during authorization."
                 );
                 assert false : "role descriptors bytes list for internal cross cluster access user must be empty";
@@ -223,6 +223,12 @@ public final class CrossClusterAccessSubjectInfo {
     public static final class RoleDescriptorsBytes implements Writeable {
 
         public static final RoleDescriptorsBytes EMPTY = new RoleDescriptorsBytes(new BytesArray("{}"));
+
+        private static final RoleDescriptor.Parser ROLE_DESCRIPTOR_PARSER = RoleDescriptor.parserBuilder()
+            .allowRestriction(true)
+            .allowDescription(true)
+            .build();
+
         private final BytesReference rawBytes;
 
         public RoleDescriptorsBytes(BytesReference rawBytes) {
@@ -263,7 +269,7 @@ public final class CrossClusterAccessSubjectInfo {
                 while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
                     parser.nextToken();
                     final String roleName = parser.currentName();
-                    roleDescriptors.add(RoleDescriptor.parse(roleName, parser, false));
+                    roleDescriptors.add(ROLE_DESCRIPTOR_PARSER.parse(roleName, parser));
                 }
                 return Set.copyOf(roleDescriptors);
             } catch (IOException e) {

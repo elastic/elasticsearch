@@ -53,9 +53,7 @@ public class TemplateUpgraderTests extends SecurityIntegTestCase {
             return map;
         };
 
-        AcknowledgedResponse putIndexTemplateResponse = client().admin()
-            .indices()
-            .preparePutTemplate("removed-template")
+        AcknowledgedResponse putIndexTemplateResponse = indicesAdmin().preparePutTemplate("removed-template")
             .setOrder(1)
             .setPatterns(Collections.singletonList(randomAlphaOfLength(10)))
             .get();
@@ -81,7 +79,7 @@ public class TemplateUpgraderTests extends SecurityIntegTestCase {
     }
 
     private void assertTemplates(String existingTemplate, String deletedTemplate) {
-        GetIndexTemplatesResponse response = client().admin().indices().prepareGetTemplates().get();
+        GetIndexTemplatesResponse response = client().admin().indices().prepareGetTemplates(TEST_REQUEST_TIMEOUT).get();
         List<String> templateNames = response.getIndexTemplates().stream().map(IndexTemplateMetadata::name).collect(Collectors.toList());
         assertThat(templateNames, hasItem(existingTemplate));
         assertThat(templateNames, not(hasItem(deletedTemplate)));

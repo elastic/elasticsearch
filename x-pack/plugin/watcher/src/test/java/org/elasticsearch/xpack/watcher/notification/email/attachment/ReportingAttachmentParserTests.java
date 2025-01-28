@@ -47,6 +47,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
@@ -108,7 +109,7 @@ public class ReportingAttachmentParserTests extends ESTestCase {
         TimeValue interval = null;
         boolean withInterval = randomBoolean();
         if (withInterval) {
-            interval = TimeValue.parseTimeValue(randomTimeValue(1, 100, "s", "m", "h"), "interval");
+            interval = randomTimeValue(1, 100, TimeUnit.SECONDS, TimeUnit.MINUTES, TimeUnit.HOURS);
             builder.field("interval", interval.getStringRep());
         }
 
@@ -673,7 +674,7 @@ public class ReportingAttachmentParserTests extends ESTestCase {
             String keyName = randomAlphaOfLength(5) + "notavalidsettingname";
             IllegalArgumentException expectedException = expectThrows(
                 IllegalArgumentException.class,
-                () -> reportingAttachmentParser.warningValidator(keyName, randomAlphaOfLength(10))
+                () -> ReportingAttachmentParser.warningValidator(keyName, randomAlphaOfLength(10))
             );
             assertThat(expectedException.getMessage(), containsString(keyName));
             assertThat(expectedException.getMessage(), containsString("is not supported"));

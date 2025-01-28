@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.settings.put;
@@ -15,7 +16,6 @@ import org.elasticsearch.common.settings.Settings.Builder;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -31,9 +31,9 @@ public class UpdateSettingsRequestSerializationTests extends AbstractWireSeriali
     protected UpdateSettingsRequest mutateInstance(UpdateSettingsRequest request) {
         UpdateSettingsRequest mutation = copyRequest(request);
         List<Runnable> mutators = new ArrayList<>();
-        Supplier<TimeValue> timeValueSupplier = () -> TimeValue.parseTimeValue(ESTestCase.randomTimeValue(), "_setting");
+        Supplier<TimeValue> timeValueSupplier = () -> randomTimeValue();
         mutators.add(() -> mutation.masterNodeTimeout(randomValueOtherThan(request.masterNodeTimeout(), timeValueSupplier)));
-        mutators.add(() -> mutation.timeout(randomValueOtherThan(request.timeout(), timeValueSupplier)));
+        mutators.add(() -> mutation.ackTimeout(randomValueOtherThan(request.ackTimeout(), timeValueSupplier)));
         mutators.add(() -> mutation.settings(mutateSettings(request.settings())));
         mutators.add(() -> mutation.indices(mutateIndices(request.indices())));
         mutators.add(
@@ -45,6 +45,7 @@ public class UpdateSettingsRequestSerializationTests extends AbstractWireSeriali
             )
         );
         mutators.add(() -> mutation.setPreserveExisting(request.isPreserveExisting() == false));
+        mutators.add(() -> mutation.reopen(request.reopen() == false));
         randomFrom(mutators).run();
         return mutation;
     }
@@ -64,16 +65,17 @@ public class UpdateSettingsRequestSerializationTests extends AbstractWireSeriali
             ? new UpdateSettingsRequest(randomSettings(0, 2))
             : new UpdateSettingsRequest(randomSettings(0, 2), randomIndicesNames(0, 2));
         request.masterNodeTimeout(randomTimeValue());
-        request.timeout(randomTimeValue());
+        request.ackTimeout(randomTimeValue());
         request.indicesOptions(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()));
         request.setPreserveExisting(randomBoolean());
+        request.reopen(randomBoolean());
         return request;
     }
 
     private static UpdateSettingsRequest copyRequest(UpdateSettingsRequest request) {
         UpdateSettingsRequest result = new UpdateSettingsRequest(request.settings(), request.indices());
         result.masterNodeTimeout(request.masterNodeTimeout());
-        result.timeout(request.timeout());
+        result.ackTimeout(request.ackTimeout());
         result.indicesOptions(request.indicesOptions());
         result.setPreserveExisting(request.isPreserveExisting());
         return result;

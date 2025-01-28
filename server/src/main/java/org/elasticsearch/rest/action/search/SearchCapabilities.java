@@ -24,11 +24,14 @@ public final class SearchCapabilities {
     private static final String BIT_DENSE_VECTOR_SYNTHETIC_SOURCE_CAPABILITY = "bit_dense_vector_synthetic_source";
     private static final String NESTED_RETRIEVER_INNER_HITS_SUPPORT = "nested_retriever_inner_hits_support";
     private static final String RANDOM_SAMPLER_WITH_SCORED_SUBAGGS = "random_sampler_with_scored_subaggs";
+    /** Support deprecated window_size field in rank. */
+    private static final String RRF_WINDOW_SIZE_SUPPORT_DEPRECATED = "rrf_window_size_support_deprecated";
 
     public static final Set<String> CAPABILITIES = Set.of(
         RANGE_REGEX_INTERVAL_QUERY_CAPABILITY,
         BIT_DENSE_VECTOR_SYNTHETIC_SOURCE_CAPABILITY,
         NESTED_RETRIEVER_INNER_HITS_SUPPORT,
-        RANDOM_SAMPLER_WITH_SCORED_SUBAGGS
+        RANDOM_SAMPLER_WITH_SCORED_SUBAGGS,
+        RRF_WINDOW_SIZE_SUPPORT_DEPRECATED
     );
 }

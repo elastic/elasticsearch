@@ -42,6 +42,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.FieldData;
@@ -391,7 +392,7 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         @Override
         public KeywordFieldMapper build(MapperBuilderContext context) {
-            FieldType fieldtype = resolveFieldType(indexSortConfig, indexMode, context.buildFullName(leafName()));
+            FieldType fieldtype = resolveFieldType(indexCreatedVersion, indexSortConfig, indexMode, context.buildFullName(leafName()));
             fieldtype.setOmitNorms(this.hasNorms.getValue() == false);
             fieldtype.setIndexOptions(TextParams.toIndexOptions(this.indexed.getValue(), this.indexOptions.getValue()));
             fieldtype.setStored(this.stored.getValue());
@@ -415,8 +416,14 @@ public final class KeywordFieldMapper extends FieldMapper {
             );
         }
 
-        private FieldType resolveFieldType(final IndexSortConfig indexSortConfig, final IndexMode indexMode, final String fullFieldName) {
+        private FieldType resolveFieldType(
+            final IndexVersion indexCreatedVersion,
+            final IndexSortConfig indexSortConfig,
+            final IndexMode indexMode,
+            final String fullFieldName
+        ) {
             if (FieldMapper.DOC_VALUES_SPARSE_INDEX.isEnabled()
+                && indexCreatedVersion.onOrAfter(IndexVersions.HOSTNAME_DOC_VALUES_SPARSE_INDEX)
                 && shouldUseDocValuesSparseIndex(indexSortConfig, indexMode, fullFieldName)) {
                 return new FieldType(Defaults.FIELD_TYPE_WITH_SKIP_DOC_VALUES);
             }

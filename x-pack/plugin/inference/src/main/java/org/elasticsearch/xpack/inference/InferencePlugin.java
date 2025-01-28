@@ -113,6 +113,7 @@ import org.elasticsearch.xpack.inference.services.cohere.CohereService;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceComponents;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettings;
+import org.elasticsearch.xpack.inference.services.elastic.authorization.ElasticInferenceServiceAuthorizationHandler;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService;
 import org.elasticsearch.xpack.inference.services.googleaistudio.GoogleAiStudioService;
 import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiService;
@@ -282,14 +283,23 @@ public class InferencePlugin extends Plugin
 
             ElasticInferenceServiceSettings inferenceServiceSettings = new ElasticInferenceServiceSettings(settings);
             String elasticInferenceUrl = this.getElasticInferenceServiceUrl(inferenceServiceSettings);
-            elasticInferenceServiceComponents.set(new ElasticInferenceServiceComponents(elasticInferenceUrl));
+
+            var elasticInferenceServiceComponentsInstance = new ElasticInferenceServiceComponents(elasticInferenceUrl);
+            elasticInferenceServiceComponents.set(elasticInferenceServiceComponentsInstance);
+
+            var authorizationHandler = new ElasticInferenceServiceAuthorizationHandler(
+                elasticInferenceServiceComponentsInstance.elasticInferenceServiceUrl(),
+                services.threadPool()
+            );
 
             inferenceServices.add(
                 () -> List.of(
                     context -> new ElasticInferenceService(
                         elasicInferenceServiceFactory.get(),
                         serviceComponents.get(),
-                        elasticInferenceServiceComponents.get()
+                        elasticInferenceServiceComponentsInstance,
+                        modelRegistry,
+                        authorizationHandler
                     )
                 )
             );

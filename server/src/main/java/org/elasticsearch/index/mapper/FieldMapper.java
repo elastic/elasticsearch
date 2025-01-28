@@ -560,10 +560,26 @@ public abstract class FieldMapper extends Mapper {
 
         SyntheticSourceSupport FALLBACK = new Fallback();
 
-        record Native(SourceLoader.SyntheticFieldLoader loader) implements SyntheticSourceSupport {
+        final class Native implements SyntheticSourceSupport {
+            Supplier<SourceLoader.SyntheticFieldLoader> loaderSupplier;
+            private SourceLoader.SyntheticFieldLoader loader;
+
+            @SuppressWarnings("checkstyle:RedundantModifier")
+            public Native(Supplier<SourceLoader.SyntheticFieldLoader> loaderSupplier) {
+                this.loaderSupplier = loaderSupplier;
+            }
+
             @Override
             public SyntheticSourceMode mode() {
                 return SyntheticSourceMode.NATIVE;
+            }
+
+            @Override
+            public SourceLoader.SyntheticFieldLoader loader() {
+                if (loader == null) {
+                    loader = loaderSupplier.get();
+                }
+                return loader;
             }
         }
 

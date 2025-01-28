@@ -24,18 +24,21 @@ public class ElasticInferenceServiceSparseEmbeddingsRequestEntityTests extends E
     public void testToXContent_SingleInput_UnspecifiedUsageContext() throws IOException {
         var entity = new ElasticInferenceServiceSparseEmbeddingsRequestEntity(
             List.of("abc"),
+			"my-model-id",
             ElasticInferenceServiceUsageContext.UNSPECIFIED
         );
         String xContentString = xContentEntityToString(entity);
         assertThat(xContentString, equalToIgnoringWhitespaceInJsonString("""
             {
-                "input": ["abc"]
+                "input": ["abc"],
+                "model_id": "my-model-id"
             }"""));
     }
 
     public void testToXContent_MultipleInputs_UnspecifiedUsageContext() throws IOException {
         var entity = new ElasticInferenceServiceSparseEmbeddingsRequestEntity(
             List.of("abc", "def"),
+			"my-model-id",
             ElasticInferenceServiceUsageContext.UNSPECIFIED
         );
         String xContentString = xContentEntityToString(entity);
@@ -44,7 +47,8 @@ public class ElasticInferenceServiceSparseEmbeddingsRequestEntityTests extends E
                 "input": [
                     "abc",
                     "def"
-                ]
+                ],
+                "model_id": "my-model-id"
             }
             """));
     }

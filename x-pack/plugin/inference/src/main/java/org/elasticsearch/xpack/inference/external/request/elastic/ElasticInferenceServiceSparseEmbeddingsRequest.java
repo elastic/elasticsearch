@@ -55,7 +55,7 @@ public class ElasticInferenceServiceSparseEmbeddingsRequest implements ElasticIn
         var httpPost = new HttpPost(uri);
         var usageContext = inputTypeToUsageContext(inputType);
         var requestEntity = Strings.toString(
-            new ElasticInferenceServiceSparseEmbeddingsRequestEntity(truncationResult.input(), usageContext)
+            new ElasticInferenceServiceSparseEmbeddingsRequestEntity(truncationResult.input(), model.getServiceSettings().modelId(), usageContext)
         );
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(requestEntity.getBytes(StandardCharsets.UTF_8));

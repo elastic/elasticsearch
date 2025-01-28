@@ -11,7 +11,6 @@ import org.elasticsearch.inference.EmptySecretSettings;
 import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.inference.services.elasticsearch.ElserModels;
 
 public class ElasticInferenceServiceSparseEmbeddingsModelTests extends ESTestCase {
 
@@ -24,7 +23,7 @@ public class ElasticInferenceServiceSparseEmbeddingsModelTests extends ESTestCas
             "id",
             TaskType.SPARSE_EMBEDDING,
             "service",
-            new ElasticInferenceServiceSparseEmbeddingsServiceSettings(ElserModels.ELSER_V2_MODEL, maxInputTokens, null),
+            new ElasticInferenceServiceSparseEmbeddingsServiceSettings("my-model-id", maxInputTokens, null),
             EmptyTaskSettings.INSTANCE,
             EmptySecretSettings.INSTANCE,
             new ElasticInferenceServiceComponents(url)

@@ -45,6 +45,7 @@ public class ElasticInferenceServiceSparseEmbeddingsRequestTests extends ESTestC
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
         assertThat(requestMap.size(), equalTo(2));
         assertThat(requestMap.get("input"), is(List.of(input)));
+        assertThat(requestMap.get("model_id"), is("my-model-id"));
         assertThat(requestMap.get("usage_context"), equalTo("search"));
     }
 
@@ -77,8 +78,9 @@ public class ElasticInferenceServiceSparseEmbeddingsRequestTests extends ESTestC
 
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
-        assertThat(requestMap, aMapWithSize(1));
+        assertThat(requestMap, aMapWithSize(2));
         assertThat(requestMap.get("input"), is(List.of("ab")));
+        assertThat(requestMap.get("model_id"), is("my-model-id"));
     }
 
     public void testIsTruncated_ReturnsTrue() {

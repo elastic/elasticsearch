@@ -323,11 +323,21 @@ In the current version there is no impact. In a future version, users of the `el
 [[breaking_90_anomaly_detection_results]]
 === Anomaly detection results migration
 
-[[prepare_anomaly_detection_result_indices_for_upgrade]]
-.Preparing anomaly detection result indices for upgrade
+The {anomaly-detect} result indices `.ml-anomalies-*` created in {es} 7.x must be either reindexed, marked read-only, or deleted before upgrading to 9.x. 
+
+**Reindexing**: While anomaly detection results are being reindexed, jobs continue to run and process new data.
+However, you cannot completely delete an {anomaly-job} that stores results in this index until the reindexing is complete.
+
+**Marking indices as read-only**: This is useful for large indexes that contain the results of only one or a few {anomaly-jobs}.
+If you delete these jobs later, you will not be able to create a new job with the same name.
+
+**Deleting**: Delete jobs that are no longer needed in the {ml-app} in {kib}.
+The result index is deleted when all jobs that store results in it have been deleted.
+
+[[which_indices_require_attention]]
+.Which indices require attention?
 [%collapsible]
 ====
-The {anomaly-detect} result indices `.ml-anomalies-*` created in {es} 7.x must be either reindexed, marked read-only, or deleted before upgrading to 9.x. 
 
 To identify indices that require action, use the <<migration-api-deprecation,Deprecation info API>>:
 
@@ -355,17 +365,10 @@ The response contains the list of critical deprecation warnings in the `index_se
 ------------------------------------------------------------
 // NOTCONSOLE
 
-**Reindexing**: While anomaly detection results are being reindexed, jobs continue to run and process new data.
-However, you cannot completely delete an {anomaly-job} that stores results in this index until the reindexing is complete.
 
-**Marking indices as read-only**: This is useful for large indexes that contain the results of only one or a few {anomaly-jobs}.
-If you delete these jobs later, you will not be able to create a new job with the same name.
-
-**Deleting**: Delete jobs that are no longer needed in the {ml-app} in {kib}.
-The result index is deleted when all jobs that store results in it have been deleted.
 ====
 
-[[reindex_anomaly_result_index_read_only]]
+[[reindex_anomaly_result_index]]
 .Reindexing anomaly result indices
 [%collapsible]
 ====
@@ -586,6 +589,26 @@ POST _aliases
 --
 ====
 
+[[mark_anomaly_result_index_read_only]]
+.Marking anomaly result indices as read-only
+[%collapsible]
+====
+Legacy indexes created in {es} 7.x can be made read-only and supported in {es} 9.x.
+Making an index with a large amount of historical results read-only allows for a quick migration to the next major release, since you don't have to wait for the data to be reindexed into the new format.
+However, it has the limitation that even after deleting an {anomaly-job}, the historical results associated with this job are not completely deleted.
+Therefore, the system will prevent you from creating a new job with the same name.
+
+To set the index as read-only, add the `write` block to the index:
+
+[source,console]
+------------------------------------------------------------
+PUT .ml-anomalies-custom-example/_block/write
+------------------------------------------------------------
+// TEST[skip:TBD]
+
+Indices created in {es} 7.x that have a `write` block will not raise a critical deprecation warning.
+====
+
 [[delete_anomaly_result_index]]
 .Deleting anomaly result indices
 [%collapsible]
@@ -612,24 +635,4 @@ GET .ml-anomalies-custom-example/_search
 
 The jobs can be deleted in the UI.
 After the last job is deleted, the index will be deleted as well.
-====
-
-[[mark_anomaly_result_index_read_only]]
-.Marking anomaly result indices as read-only
-[%collapsible]
-====
-Legacy indexes created in {es} 7.x can be made read-only and supported in {es} 9.x.
-Making an index with a large amount of historical results read-only allows for a quick migration to the next major release, since you don't have to wait for the data to be reindexed into the new format.
-However, it has the limitation that even after deleting an {anomaly-job}, the historical results associated with this job are not completely deleted.
-Therefore, the system will prevent you from creating a new job with the same name.
-
-To set the index as read-only, add the `write` block to the index:
-
-[source,console]
-------------------------------------------------------------
-PUT .ml-anomalies-custom-example/_block/write
-------------------------------------------------------------
-// TEST[skip:TBD]
-
-Indices created in {es} 7.x that have a `write` block will not raise a critical deprecation warning.
 ====

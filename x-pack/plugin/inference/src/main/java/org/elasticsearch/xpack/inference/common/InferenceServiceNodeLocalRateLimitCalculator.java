@@ -138,8 +138,7 @@ public class InferenceServiceNodeLocalRateLimitCalculator implements ClusterStat
         var nodes = newClusterState.nodes().getAllNodes();
 
         // Sort nodes by id (every node lands on the same result)
-        var sortedNodes = new ArrayList<>(nodes);
-        sortedNodes.sort(Comparator.comparing(DiscoveryNode::getId));
+        var sortedNodes = nodes.stream().sorted(Comparator.comparing(DiscoveryNode::getId)).toList()
 
         // Sort inference services by name (every node lands on the same result)
         var sortedServices = new ArrayList<>(serviceRegistry.getServices().values());

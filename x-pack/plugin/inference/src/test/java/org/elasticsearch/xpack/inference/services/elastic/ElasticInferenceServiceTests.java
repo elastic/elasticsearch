@@ -24,6 +24,7 @@ import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
+import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
@@ -900,7 +901,11 @@ public class ElasticInferenceServiceTests extends ESTestCase {
             assertThat(service.supportedStreamingTasks(), is(EnumSet.noneOf(TaskType.class)));
             assertThat(
                 service.defaultConfigIds(),
-                is(List.of(new InferenceService.DefaultConfigId(".rainbow-sprinkles-elastic", TaskType.CHAT_COMPLETION, service)))
+                is(
+                    List.of(
+                        new InferenceService.DefaultConfigId(".rainbow-sprinkles-elastic", MinimalServiceSettings.chatCompletion(), service)
+                    )
+                )
             );
             assertThat(service.supportedTaskTypes(), is(EnumSet.of(TaskType.SPARSE_EMBEDDING)));
 
@@ -930,7 +935,11 @@ public class ElasticInferenceServiceTests extends ESTestCase {
             assertThat(service.supportedStreamingTasks(), is(EnumSet.of(TaskType.CHAT_COMPLETION, TaskType.ANY)));
             assertThat(
                 service.defaultConfigIds(),
-                is(List.of(new InferenceService.DefaultConfigId(".rainbow-sprinkles-elastic", TaskType.CHAT_COMPLETION, service)))
+                is(
+                    List.of(
+                        new InferenceService.DefaultConfigId(".rainbow-sprinkles-elastic", MinimalServiceSettings.chatCompletion(), service)
+                    )
+                )
             );
             assertThat(service.supportedTaskTypes(), is(EnumSet.of(TaskType.CHAT_COMPLETION)));
 

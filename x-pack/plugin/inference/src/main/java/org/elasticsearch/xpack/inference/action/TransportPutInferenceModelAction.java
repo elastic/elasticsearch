@@ -108,7 +108,7 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
             return;
         }
 
-        if (modelRegistry.matchesDefaultConfigId(request.getInferenceEntityId())) {
+        if (modelRegistry.containsDefaultConfigId(request.getInferenceEntityId())) {
             listener.onFailure(
                 new ElasticsearchStatusException(
                     "[{}] is a reserved inference ID. Cannot create a new inference endpoint with a reserved ID.",

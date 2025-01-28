@@ -85,7 +85,11 @@ public final class DocumentParser {
         XContentMeteringParserDecorator meteringParserDecorator = source.getMeteringParserDecorator();
         try (
             XContentParser parser = meteringParserDecorator.decorate(
-                XContentHelper.createParser(parserConfiguration, source.source(), xContentType)
+                XContentHelper.createParser(
+                    parserConfiguration.withIncludeSourceOnError(source.getIncludeSourceOnError()),
+                    source.source(),
+                    xContentType
+                )
             )
         ) {
             context = new RootDocumentParserContext(mappingLookup, mappingParserContext, source, parser);

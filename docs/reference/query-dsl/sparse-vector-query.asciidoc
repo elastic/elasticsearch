@@ -66,12 +66,9 @@ The <<inference-apis,inference ID>> to use to convert the query text into token-
 It must be the same inference ID that was used to create the tokens from the input text.
 Only one of `inference_id` and `query_vector` is allowed.
 If `inference_id` is specified, `query` must also be specified.
-<<<<<<< HEAD
-=======
 If all queried fields are of type <<semantic-text, semantic_text>>, the inference ID associated with the `semantic_text` field will be inferred.
 You can reference a `deployment_id` of a {ml} trained model deployment as an `inference_id`.
 For example, if you download and deploy the ELSER model in the {ml-cap} trained models UI in {kib}, you can use the `deployment_id` of that deployment as the `inference_id`.
->>>>>>> 7400a149951 ([DOCS] Documents that deployment_id can be used as inference_id in certain cases. (#121055))
 
 `query`::
 (Optional, string) The query text you want to use for search.

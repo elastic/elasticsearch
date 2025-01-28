@@ -8,13 +8,11 @@ package org.elasticsearch.xpack.esql.plan.logical;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.IndexMode;
-import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.core.capabilities.Unresolvable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
-import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 
 import java.util.Collections;
 import java.util.List;
@@ -22,7 +20,7 @@ import java.util.Objects;
 
 import static java.util.Collections.singletonList;
 
-public class UnresolvedRelation extends LeafPlan implements Unresolvable, TelemetryAware {
+public class UnresolvedRelation extends LeafPlan implements Unresolvable {
 
     private final IndexPattern indexPattern;
     private final boolean frozen;
@@ -58,17 +56,6 @@ public class UnresolvedRelation extends LeafPlan implements Unresolvable, Teleme
         this.commandName = commandName;
     }
 
-    public UnresolvedRelation(
-        Source source,
-        IndexPattern table,
-        boolean frozen,
-        List<Attribute> metadataFields,
-        IndexMode indexMode,
-        String unresolvedMessage
-    ) {
-        this(source, table, frozen, metadataFields, indexMode, unresolvedMessage, null);
-    }
-
     @Override
     public void writeTo(StreamOutput out) {
         throw new UnsupportedOperationException("not serialized");
@@ -99,7 +86,7 @@ public class UnresolvedRelation extends LeafPlan implements Unresolvable, Teleme
 
     /**
      *
-     * This is used by {@link PlanTelemetry} to collect query statistics
+     * This is used by {@link org.elasticsearch.xpack.esql.stats.PlanningMetrics} to collect query statistics
      * It can return
      * <ul>
      *     <li>"FROM" if this a <code>|FROM idx</code> command</li>
@@ -108,7 +95,7 @@ public class UnresolvedRelation extends LeafPlan implements Unresolvable, Teleme
      * </ul>
      */
     @Override
-    public String telemetryLabel() {
+    public String commandName() {
         return commandName;
     }
 

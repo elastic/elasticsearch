@@ -98,10 +98,6 @@ public final class ExceptionRootCauseFinder {
             if (elasticsearchException instanceof SearchContextMissingException) {
                 return false;
             }
-            // We can safely retry timeout exceptions
-            if (elasticsearchException instanceof ElasticsearchTimeoutException) {
-                return false;
-            }
             return true;
         }
         return false;

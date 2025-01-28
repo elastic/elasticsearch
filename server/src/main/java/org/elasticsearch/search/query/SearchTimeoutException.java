@@ -31,7 +31,7 @@ public class SearchTimeoutException extends SearchException {
 
     @Override
     public RestStatus status() {
-        return RestStatus.BAD_REQUEST;
+        return RestStatus.TOO_MANY_REQUESTS;
     }
 
     /**

@@ -138,7 +138,8 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
                 docs.add(doc);
             }
         }
-        return docs.stream().sorted(Comparator.comparing((RankFeatureDoc doc) -> doc.score).reversed()).toArray(RankFeatureDoc[]::new);
+        docs.sort(RankFeatureDoc::compareTo);
+        return docs.toArray(new RankFeatureDoc[0]);
     }
 
     protected InferenceAction.Request generateRequest(List<String> docFeatures) {

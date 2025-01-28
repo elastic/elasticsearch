@@ -46,6 +46,7 @@ public final class InferenceFieldMetadata implements SimpleDiffable<InferenceFie
     private final String[] sourceFields;
     private final Map<String, Object> chunkingSettings;
 
+    // TODO can this be ChunkingSettings instead of Map<String, Object>?
     public InferenceFieldMetadata(String name, String inferenceId, String[] sourceFields, Map<String, Object> chunkingSettings) {
         this(name, inferenceId, inferenceId, sourceFields, chunkingSettings);
     }

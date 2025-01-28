@@ -82,11 +82,7 @@ public record StreamingChatCompletionResults(Flow.Publisher<? extends ChunkedToX
 
         @Override
         public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-            return Iterators.concat(
-                ChunkedToXContentHelper.startObject(),
-                ChunkedToXContentHelper.field(RESULT, delta),
-                ChunkedToXContentHelper.endObject()
-            );
+            return ChunkedToXContentHelper.chunk((b, p) -> b.startObject().field(RESULT, delta).endObject());
         }
     }
 }

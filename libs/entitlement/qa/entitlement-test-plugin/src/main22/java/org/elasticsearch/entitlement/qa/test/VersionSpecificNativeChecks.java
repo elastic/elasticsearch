@@ -26,6 +26,8 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Set;
 
+import org.elasticsearch.entitlement.qa.entitled.EntitledPlugin;
+
 import static java.lang.foreign.ValueLayout.ADDRESS;
 import static java.lang.foreign.ValueLayout.JAVA_LONG;
 
@@ -34,15 +36,15 @@ class VersionSpecificNativeChecks {
     static void enableNativeAccess() throws Exception {
         ModuleLayer parent = ModuleLayer.boot();
 
-        var location = EntitlementTestPlugin.class.getProtectionDomain().getCodeSource().getLocation();
+        var location = EntitledPlugin.class.getProtectionDomain().getCodeSource().getLocation();
 
         // We create a layer for our own module, so we have a controller to try and call enableNativeAccess on it.
         // This works in both the modular and non-modular case: the target module has to be present in the new layer, but its entitlements
         // and policies do not matter to us: we are checking that the caller is (or isn't) entitled to use enableNativeAccess
         Configuration cf = parent.configuration()
-            .resolve(ModuleFinder.of(Path.of(location.toURI())), ModuleFinder.of(), Set.of("org.elasticsearch.entitlement.qa.test"));
+            .resolve(ModuleFinder.of(Path.of(location.toURI())), ModuleFinder.of(), Set.of("org.elasticsearch.entitlement.qa.entitled"));
         var controller = ModuleLayer.defineModulesWithOneLoader(cf, List.of(parent), ClassLoader.getSystemClassLoader());
-        var targetModule = controller.layer().findModule("org.elasticsearch.entitlement.qa.test");
+        var targetModule = controller.layer().findModule("org.elasticsearch.entitlement.qa.entitled");
 
         controller.enableNativeAccess(targetModule.get());
     }

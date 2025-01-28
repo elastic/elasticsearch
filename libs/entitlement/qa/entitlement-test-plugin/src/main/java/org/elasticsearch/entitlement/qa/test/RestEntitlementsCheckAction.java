@@ -199,7 +199,21 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
         entry("runtime_load", forPlugins(LoadNativeLibrariesCheckActions::runtimeLoad)),
         entry("runtime_load_library", forPlugins(LoadNativeLibrariesCheckActions::runtimeLoadLibrary)),
         entry("system_load", forPlugins(LoadNativeLibrariesCheckActions::systemLoad)),
-        entry("system_load_library", forPlugins(LoadNativeLibrariesCheckActions::systemLoadLibrary))
+        entry("system_load_library", forPlugins(LoadNativeLibrariesCheckActions::systemLoadLibrary)),
+
+        entry("enable_native_access", new CheckAction(VersionSpecificNativeChecks::enableNativeAccess, false, 22)),
+        entry("address_target_layout", new CheckAction(VersionSpecificNativeChecks::addressLayoutWithTargetLayout, false, 22)),
+        entry("donwncall_handle", new CheckAction(VersionSpecificNativeChecks::linkerDowncallHandle, false, 22)),
+        entry("donwncall_handle_with_address", new CheckAction(VersionSpecificNativeChecks::linkerDowncallHandleWithAddress, false, 22)),
+        entry("upcall_stub", new CheckAction(VersionSpecificNativeChecks::linkerUpcallStub, false, 22)),
+        entry("reinterpret", new CheckAction(VersionSpecificNativeChecks::memorySegmentReinterpret, false, 22)),
+        entry("reinterpret_cleanup", new CheckAction(VersionSpecificNativeChecks::memorySegmentReinterpretWithCleanup, false, 22)),
+        entry(
+            "reinterpret_size_cleanup",
+            new CheckAction(VersionSpecificNativeChecks::memorySegmentReinterpretWithSizeAndCleanup, false, 22)
+        ),
+        entry("symbol_lookup_name", new CheckAction(VersionSpecificNativeChecks::symbolLookupWithName, false, 22)),
+        entry("symbol_lookup_path", new CheckAction(VersionSpecificNativeChecks::symbolLookupWithPath, false, 22))
     )
         .filter(entry -> entry.getValue().fromJavaVersion() == null || Runtime.version().feature() >= entry.getValue().fromJavaVersion())
         .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));

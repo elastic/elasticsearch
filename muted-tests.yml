@@ -470,3 +470,6 @@ tests:
 - class: org.elasticsearch.xpack.security.authc.jwt.JwtRealmSingleNodeTests
   method: testActivateProfileForJWT
   issue: https://github.com/elastic/elasticsearch/issues/120983
+- class: org.elasticsearch.xpack.security.profile.ProfileIntegTests
+  method: testProfileIndexAutoCreation
+  issue: https://github.com/elastic/elasticsearch/issues/120987

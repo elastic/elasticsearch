@@ -74,7 +74,6 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
     record CheckAction(CheckedRunnable<Exception> action, boolean isAlwaysDeniedToPlugins, Integer fromJavaVersion) {
         /**
          * These cannot be granted to plugins, so our test plugins cannot test the "allowed" case.
-         * Used both for always-denied entitlements and those granted only to the server itself.
          */
         static CheckAction deniedToPlugins(CheckedRunnable<Exception> action) {
             return new CheckAction(action, true, null);
@@ -122,6 +121,10 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
         entry("localeNameProvider", alwaysDenied(RestEntitlementsCheckAction::localeNameProvider$)),
         entry("timeZoneNameProvider", alwaysDenied(RestEntitlementsCheckAction::timeZoneNameProvider$)),
         entry("logManager", alwaysDenied(RestEntitlementsCheckAction::logManager$)),
+
+        entry("locale_setDefault", alwaysDenied(WritePropertiesCheckActions::setDefaultLocale)),
+        entry("locale_setDefaultForCategory", alwaysDenied(WritePropertiesCheckActions::setDefaultLocaleForCategory)),
+        entry("timeZone_setDefault", alwaysDenied(WritePropertiesCheckActions::setDefaultTimeZone)),
 
         entry("system_setProperty", forPlugins(WritePropertiesCheckActions::setSystemProperty)),
         entry("system_clearProperty", forPlugins(WritePropertiesCheckActions::clearSystemProperty)),

@@ -79,9 +79,7 @@ public class TransportStatelessAutoshardAction extends TransportMasterNodeAction
         );
     }
 
-    private AutoshardIndexClusterStateUpdateRequest buildUpdateRequest(
-        AutoshardIndexRequest request
-    ) {
+    private AutoshardIndexClusterStateUpdateRequest buildUpdateRequest(AutoshardIndexRequest request) {
         return new AutoshardIndexClusterStateUpdateRequest(request.cause(), request.index());
     }
 }

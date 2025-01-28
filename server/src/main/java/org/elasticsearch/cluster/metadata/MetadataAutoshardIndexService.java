@@ -149,7 +149,7 @@ public class MetadataAutoshardIndexService {
 
         Settings.Builder settingsBuilder = Settings.builder().put(sourceMetadata.getSettings());
         settingsBuilder.remove(IndexMetadata.SETTING_NUMBER_OF_SHARDS);
-        settingsBuilder.put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, sourceNumShards*2);
+        settingsBuilder.put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, sourceNumShards * 2);
 
         final Map<Index, Settings> updates = Maps.newHashMapWithExpectedSize(1);
         updates.put(sourceMetadata.getIndex(), settingsBuilder.build());

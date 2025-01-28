@@ -23,6 +23,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -57,7 +58,7 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
 
     public static final Setting<Float> REINDEX_MAX_REQUESTS_PER_SECOND_SETTING = new Setting<>(
         REINDEX_MAX_REQUESTS_PER_SECOND_KEY,
-        Float.toString(10f),
+        Float.toString(1000f),
         s -> {
             if (s.equals("-1")) {
                 return Float.POSITIVE_INFINITY;
@@ -118,7 +119,7 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
         IndexMetadata sourceIndex = clusterService.state().getMetadata().index(sourceIndexName);
         Settings settingsBefore = sourceIndex.getSettings();
 
-        var hasOldVersion = DeprecatedIndexPredicate.getReindexRequiredPredicate(clusterService.state().metadata());
+        var hasOldVersion = DeprecatedIndexPredicate.getReindexRequiredPredicate(clusterService.state().metadata(), false);
         if (hasOldVersion.test(sourceIndex.getIndex()) == false) {
             logger.warn(
                 "Migrating index [{}] with version [{}] is unnecessary as its version is not before [{}]",
@@ -140,6 +141,7 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
         }
 
         SubscribableListener.<AcknowledgedResponse>newForked(l -> setBlockWrites(sourceIndexName, l, taskId))
+            .<BroadcastResponse>andThen(l -> refresh(sourceIndexName, l, taskId))
             .<AcknowledgedResponse>andThen(l -> deleteDestIfExists(destIndexName, l, taskId))
             .<AcknowledgedResponse>andThen(l -> createIndex(sourceIndex, destIndexName, l, taskId))
             .<BulkByScrollResponse>andThen(l -> reindex(sourceIndexName, destIndexName, l, taskId))
@@ -175,6 +177,13 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
         }, parentTaskId);
     }
 
+    private void refresh(String sourceIndexName, ActionListener<BroadcastResponse> listener, TaskId parentTaskId) {
+        logger.debug("Refreshing source index [{}]", sourceIndexName);
+        var refreshRequest = new RefreshRequest(sourceIndexName);
+        refreshRequest.setParentTask(parentTaskId);
+        client.execute(RefreshAction.INSTANCE, refreshRequest, listener);
+    }
+
     private void deleteDestIfExists(String destIndexName, ActionListener<AcknowledgedResponse> listener, TaskId parentTaskId) {
         logger.debug("Attempting to delete index [{}]", destIndexName);
         var deleteIndexRequest = new DeleteIndexRequest(destIndexName).indicesOptions(IGNORE_MISSING_OPTIONS)
@@ -192,12 +201,7 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
     ) {
         logger.debug("Creating destination index [{}] for source index [{}]", destIndexName, sourceIndex.getIndex().getName());
 
-        var removeReadOnlyOverride = Settings.builder()
-            // remove read-only settings if they exist
-            .putNull(IndexMetadata.SETTING_READ_ONLY)
-            .putNull(IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE)
-            .putNull(IndexMetadata.SETTING_BLOCKS_WRITE)
-            // settings to optimize reindex
+        var settingsOverride = Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
             .build();
@@ -205,8 +209,9 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
         var request = new CreateIndexFromSourceAction.Request(
             sourceIndex.getIndex().getName(),
             destIndexName,
-            removeReadOnlyOverride,
-            Map.of()
+            settingsOverride,
+            Map.of(),
+            true
         );
         request.setParentTask(parentTaskId);
         var errorMessage = String.format(Locale.ROOT, "Could not create index [%s]", request.destIndex());

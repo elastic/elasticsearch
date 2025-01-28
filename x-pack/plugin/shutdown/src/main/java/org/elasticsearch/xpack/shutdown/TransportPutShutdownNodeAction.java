@@ -165,7 +165,6 @@ public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterN
             threadPool,
             actionFilters,
             Request::new,
-            indexNameExpressionResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.allocationService = allocationService;

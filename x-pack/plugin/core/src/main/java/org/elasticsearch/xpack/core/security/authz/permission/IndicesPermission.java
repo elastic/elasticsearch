@@ -217,10 +217,14 @@ public final class IndicesPermission {
             return test(indexAbstraction.getName(), indexAbstraction);
         }
 
-        // TODO: [Jake] is this right ? and use combine, not string concat
+        /**
+         * Similar to {@link #test(IndexAbstraction)} but for the failures component of a data stream. Adds ::failures to name of the
+         * index abstraction to test if ::failures are allowed
+         */
         public final boolean testDataStreamForFailureAccess(IndexAbstraction indexAbstraction) {
             assert indexAbstraction != null && indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM;
-            return resourceNameMatcher.test(indexAbstraction.getName() + "::failures");
+            return resourceNameMatcher.test(IndexNameExpressionResolver.combineSelector(indexAbstraction.getName(),
+                IndexComponentSelector.FAILURES));
         }
 
         /**

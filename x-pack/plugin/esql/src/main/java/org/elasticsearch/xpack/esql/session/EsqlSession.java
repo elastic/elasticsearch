@@ -76,7 +76,7 @@ import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
-import org.elasticsearch.xpack.esql.stats.PlanningMetrics;
+import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -116,7 +116,7 @@ public class EsqlSession {
 
     private final Mapper mapper;
     private final PhysicalPlanOptimizer physicalPlanOptimizer;
-    private final PlanningMetrics planningMetrics;
+    private final PlanTelemetry planTelemetry;
     private final IndicesExpressionGrouper indicesExpressionGrouper;
     private final QueryBuilderResolver queryBuilderResolver;
     private final InferenceService inferenceService;
@@ -131,7 +131,7 @@ public class EsqlSession {
         LogicalPlanOptimizer logicalPlanOptimizer,
         Mapper mapper,
         Verifier verifier,
-        PlanningMetrics planningMetrics,
+        PlanTelemetry planTelemetry,
         IndicesExpressionGrouper indicesExpressionGrouper,
         QueryBuilderResolver queryBuilderResolver,
         InferenceService inferenceService
@@ -146,7 +146,7 @@ public class EsqlSession {
         this.mapper = mapper;
         this.logicalPlanOptimizer = logicalPlanOptimizer;
         this.physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(configuration));
-        this.planningMetrics = planningMetrics;
+        this.planTelemetry = planTelemetry;
         this.indicesExpressionGrouper = indicesExpressionGrouper;
         this.queryBuilderResolver = queryBuilderResolver;
         this.inferenceService = inferenceService;
@@ -287,7 +287,7 @@ public class EsqlSession {
     }
 
     private LogicalPlan parse(String query, QueryParams params) {
-        var parsed = new EsqlParser().createStatement(query, params);
+        var parsed = new EsqlParser().createStatement(query, params, planTelemetry);
         LOGGER.debug("Parsed logical plan:\n{}", parsed);
         return parsed;
     }
@@ -304,7 +304,6 @@ public class EsqlSession {
         }
 
         Function<PreAnalysisResult, LogicalPlan> analyzeAction = (l) -> {
-            planningMetrics.gatherPreAnalysisMetrics(parsed);
             Analyzer analyzer = new Analyzer(
                 new AnalyzerContext(configuration, functionRegistry, l.indices, l.lookupIndices, l.enrichResolution),
                 verifier

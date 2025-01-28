@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.stats;
+package org.elasticsearch.xpack.esql.telemetry;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;

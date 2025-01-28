@@ -252,7 +252,7 @@ Sets the timeout of the internal search and delete call.
 `xpack.security.authc.api_key.hashing.algorithm`::
 (<<static-cluster-setting,Static>>)
 Specifies the hashing algorithm that is used for securing API key credentials.
-See <<secure-token-hash-algo>>. Defaults to `ssha256`, or `pbkdf2` if running in <<fips-140-compliance, FIPS mode>>.
+See <<secure-token-hash-algo>>. Defaults to `ssha256`.
 
 [discrete]
 [[security-domain-settings]]

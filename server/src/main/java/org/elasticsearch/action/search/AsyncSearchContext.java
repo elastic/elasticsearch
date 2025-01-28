@@ -341,6 +341,7 @@ public abstract class AsyncSearchContext<Result extends SearchPhaseResult> {
                 }
             }
         });
+        OUTSTANDING_SHARDS.setVolatile(this, 0); // we're done no more shards to process, the phase has failed
         listener.onFailure(exception);
     }
 

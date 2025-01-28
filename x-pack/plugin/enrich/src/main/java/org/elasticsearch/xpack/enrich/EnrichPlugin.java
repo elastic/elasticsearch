@@ -14,6 +14,8 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -23,6 +25,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.MemorySizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.ingest.Processor;
@@ -73,6 +76,8 @@ import java.util.function.Supplier;
 import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.ENRICH_INDEX_PATTERN;
 
 public class EnrichPlugin extends Plugin implements SystemIndexPlugin, IngestPlugin {
+
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(EnrichPlugin.class);
 
     static final Setting<Integer> ENRICH_FETCH_SIZE_SETTING = Setting.intSetting(
         "enrich.fetch_size",
@@ -126,9 +131,9 @@ public class EnrichPlugin extends Plugin implements SystemIndexPlugin, IngestPlu
         return String.valueOf(maxConcurrentRequests * maxLookupsPerRequest);
     }, val -> Setting.parseInt(val, 1, Integer.MAX_VALUE, QUEUE_CAPACITY_SETTING_NAME), Setting.Property.NodeScope);
 
-    public static final String CACHE_SIZE_SETTING_NAME = "enrich.cache.size";
+    public static final String CACHE_SIZE_SETTING_NAME = "enrich.cache_size";
     public static final Setting<FlatNumberOrByteSizeValue> CACHE_SIZE = new Setting<>(
-        "enrich.cache.size",
+        CACHE_SIZE_SETTING_NAME,
         (String) null,
         (String s) -> FlatNumberOrByteSizeValue.parse(
             s,
@@ -138,16 +143,59 @@ public class EnrichPlugin extends Plugin implements SystemIndexPlugin, IngestPlu
         Setting.Property.NodeScope
     );
 
+    /**
+     * This setting solely exists because the original setting was accidentally renamed in
+     * https://github.com/elastic/elasticsearch/pull/111412.
+     */
+    @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
+    public static final String CACHE_SIZE_SETTING_BWC_NAME = "enrich.cache.size";
+    public static final Setting<FlatNumberOrByteSizeValue> CACHE_SIZE_BWC = new Setting<>(
+        CACHE_SIZE_SETTING_BWC_NAME,
+        (String) null,
+        (String s) -> FlatNumberOrByteSizeValue.parse(
+            s,
+            CACHE_SIZE_SETTING_BWC_NAME,
+            new FlatNumberOrByteSizeValue(ByteSizeValue.ofBytes((long) (0.01 * JvmInfo.jvmInfo().getConfiguredMaxHeapSize())))
+        ),
+        Setting.Property.NodeScope,
+        Setting.Property.Deprecated
+    );
+
     private final Settings settings;
     private final EnrichCache enrichCache;
+    private final long maxCacheSize;
 
     public EnrichPlugin(final Settings settings) {
         this.settings = settings;
-        FlatNumberOrByteSizeValue maxSize = CACHE_SIZE.get(settings);
+        FlatNumberOrByteSizeValue maxSize;
+        if (settings.hasValue(CACHE_SIZE_SETTING_BWC_NAME)) {
+            if (settings.hasValue(CACHE_SIZE_SETTING_NAME)) {
+                throw new IllegalArgumentException(
+                    Strings.format(
+                        "Both [%s] and [%s] are set, please use [%s]",
+                        CACHE_SIZE_SETTING_NAME,
+                        CACHE_SIZE_SETTING_BWC_NAME,
+                        CACHE_SIZE_SETTING_NAME
+                    )
+                );
+            }
+            deprecationLogger.warn(
+                DeprecationCategory.SETTINGS,
+                "enrich_cache_size_name",
+                "The [{}] setting is deprecated and will be removed in a future version. Please use [{}] instead.",
+                CACHE_SIZE_SETTING_BWC_NAME,
+                CACHE_SIZE_SETTING_NAME
+            );
+            maxSize = CACHE_SIZE_BWC.get(settings);
+        } else {
+            maxSize = CACHE_SIZE.get(settings);
+        }
         if (maxSize.byteSizeValue() != null) {
             this.enrichCache = new EnrichCache(maxSize.byteSizeValue());
+            this.maxCacheSize = maxSize.byteSizeValue().getBytes();
         } else {
             this.enrichCache = new EnrichCache(maxSize.flatNumber());
+            this.maxCacheSize = maxSize.flatNumber();
         }
     }
 
@@ -260,7 +308,8 @@ public class EnrichPlugin extends Plugin implements SystemIndexPlugin, IngestPlu
             COORDINATOR_PROXY_MAX_LOOKUPS_PER_REQUEST,
             COORDINATOR_PROXY_QUEUE_CAPACITY,
             ENRICH_MAX_FORCE_MERGE_ATTEMPTS,
-            CACHE_SIZE
+            CACHE_SIZE,
+            CACHE_SIZE_BWC
         );
     }
 
@@ -284,6 +333,11 @@ public class EnrichPlugin extends Plugin implements SystemIndexPlugin, IngestPlu
     @Override
     public String getFeatureDescription() {
         return "Manages data related to Enrich policies";
+    }
+
+    // Visible for testing
+    long getMaxCacheSize() {
+        return maxCacheSize;
     }
 
     /**

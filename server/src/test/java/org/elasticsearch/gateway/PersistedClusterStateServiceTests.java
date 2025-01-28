@@ -1391,7 +1391,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
         }
     }
 
-    public void testOverrideLuceneVersion() throws IOException {
+    public void testOverrideNodeVersion() throws IOException {
         try (NodeEnvironment nodeEnvironment = newNodeEnvironment(createDataPaths())) {
             final PersistedClusterStateService persistedClusterStateService = newPersistedClusterStateService(nodeEnvironment);
             final String clusterUUID = UUIDs.randomBase64UUID(random());
@@ -1414,14 +1414,15 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                 assertThat(clusterState.metadata().version(), equalTo(version));
 
             }
+            BuildVersion overrideVersion = BuildVersion.fromVersionId(Version.V_8_0_0.id);
             NodeMetadata prevMetadata = PersistedClusterStateService.nodeMetadata(persistedClusterStateService.getDataPaths());
             assertEquals(BuildVersion.current(), prevMetadata.nodeVersion());
-            PersistedClusterStateService.overrideVersion(Version.V_8_0_0, persistedClusterStateService.getDataPaths());
+            PersistedClusterStateService.overrideVersion(overrideVersion, persistedClusterStateService.getDataPaths());
             NodeMetadata metadata = PersistedClusterStateService.nodeMetadata(persistedClusterStateService.getDataPaths());
-            assertEquals(BuildVersion.fromVersionId(Version.V_8_0_0.id()), metadata.nodeVersion());
+            assertEquals(overrideVersion, metadata.nodeVersion());
             for (Path p : persistedClusterStateService.getDataPaths()) {
                 NodeMetadata individualMetadata = PersistedClusterStateService.nodeMetadata(p);
-                assertEquals(BuildVersion.fromVersionId(Version.V_8_0_0.id()), individualMetadata.nodeVersion());
+                assertEquals(overrideVersion, individualMetadata.nodeVersion());
             }
         }
     }

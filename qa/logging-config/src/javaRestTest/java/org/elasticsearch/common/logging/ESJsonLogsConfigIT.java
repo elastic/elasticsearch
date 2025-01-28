@@ -8,49 +8,45 @@
  */
 package org.elasticsearch.common.logging;
 
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.LogType;
+import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.hamcrest.Matcher;
+import org.junit.ClassRule;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
+import java.io.InputStream;
 
 import static org.hamcrest.Matchers.is;
 
 /**
  * Test to verify ES JSON log format. Used in ES v7. Some users might decide to keep that format.
+ * Provide a custom log4j configuration where layout is an old style pattern and confirm that Elasticsearch can successfully startup.
  */
 public class ESJsonLogsConfigIT extends JsonLogsIntegTestCase {
+
+    private static final String NODE_NAME = "test-node-0";
+
+    @ClassRule
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
+        .setting("xpack.security.enabled", "false")
+        .withNode(localNodeSpecBuilder -> localNodeSpecBuilder.name(NODE_NAME))
+        .configFile("log4j2.properties", Resource.fromClasspath("es-v7-log4j2.properties"))
+        .build();
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
+
+    @Override
+    protected InputStream openLogsStream() {
+        return cluster.getNodeLog(0, LogType.SERVER_JSON);
+    }
+
     @Override
     protected Matcher<String> nodeNameMatcher() {
-        return is("javaRestTest-0");
-    }
-
-    @Override
-    protected BufferedReader openReader(Path logFile) {
-        assumeFalse(
-            "Skipping test because it is being run against an external cluster.",
-            logFile.getFileName().toString().equals("--external--")
-        );
-
-        return AccessController.doPrivileged((PrivilegedAction<BufferedReader>) () -> {
-            try {
-                String temp = Files.readString(logFile);
-
-                return Files.newBufferedReader(logFile, StandardCharsets.UTF_8);
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-        });
-    }
-
-    @Override
-    protected String getLogFileName() {
-        return System.getProperty("tests.jsonLogfile");
+        return is(NODE_NAME);
     }
 
     @Override

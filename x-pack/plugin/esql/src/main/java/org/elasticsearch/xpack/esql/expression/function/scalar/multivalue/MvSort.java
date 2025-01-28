@@ -29,10 +29,11 @@ import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeBytesRef;
 import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeDouble;
 import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeInt;
 import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeLong;
-import org.elasticsearch.xpack.esql.capabilities.Validatable;
+import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -58,7 +59,7 @@ import static org.elasticsearch.xpack.esql.expression.Validations.isFoldable;
 /**
  * Sorts a multivalued field in lexicographical order.
  */
-public class MvSort extends EsqlScalarFunction implements OptionalArgument, Validatable {
+public class MvSort extends EsqlScalarFunction implements OptionalArgument, PostOptimizationVerificationAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "MvSort", MvSort::new);
 
     private final Expression field, order;
@@ -69,7 +70,7 @@ public class MvSort extends EsqlScalarFunction implements OptionalArgument, Vali
     private static final String INVALID_ORDER_ERROR = "Invalid order value in [{}], expected one of [{}, {}] but got [{}]";
 
     @FunctionInfo(
-        returnType = { "boolean", "date", "double", "integer", "ip", "keyword", "long", "text", "version" },
+        returnType = { "boolean", "date", "date_nanos", "double", "integer", "ip", "keyword", "long", "version" },
         description = "Sorts a multivalued field in lexicographical order.",
         examples = @Example(file = "ints", tag = "mv_sort")
     )
@@ -77,7 +78,7 @@ public class MvSort extends EsqlScalarFunction implements OptionalArgument, Vali
         Source source,
         @Param(
             name = "field",
-            type = { "boolean", "date", "double", "integer", "ip", "keyword", "long", "text", "version" },
+            type = { "boolean", "date", "date_nanos", "double", "integer", "ip", "keyword", "long", "text", "version" },
             description = "Multivalue expression. If `null`, the function returns `null`."
         ) Expression field,
         @Param(
@@ -155,12 +156,12 @@ public class MvSort extends EsqlScalarFunction implements OptionalArgument, Vali
                     sourceText(),
                     ASC.value(),
                     DESC.value(),
-                    ((BytesRef) order.fold()).utf8ToString()
+                    ((BytesRef) order.fold(toEvaluator.foldCtx())).utf8ToString()
                 )
             );
         }
         if (order != null && order.foldable()) {
-            ordering = ((BytesRef) order.fold()).utf8ToString().equalsIgnoreCase((String) ASC.value());
+            ordering = ((BytesRef) order.fold(toEvaluator.foldCtx())).utf8ToString().equalsIgnoreCase((String) ASC.value());
         }
 
         return switch (PlannerUtils.toElementType(field.dataType())) {
@@ -226,11 +227,11 @@ public class MvSort extends EsqlScalarFunction implements OptionalArgument, Vali
 
     @Override
     public DataType dataType() {
-        return field.dataType();
+        return field.dataType().noText();
     }
 
     @Override
-    public void validate(Failures failures) {
+    public void postOptimizationVerification(Failures failures) {
         if (order == null) {
             return;
         }
@@ -238,7 +239,14 @@ public class MvSort extends EsqlScalarFunction implements OptionalArgument, Vali
         failures.add(isFoldable(order, operation, SECOND));
         if (isValidOrder() == false) {
             failures.add(
-                Failure.fail(order, INVALID_ORDER_ERROR, sourceText(), ASC.value(), DESC.value(), ((BytesRef) order.fold()).utf8ToString())
+                Failure.fail(
+                    order,
+                    INVALID_ORDER_ERROR,
+                    sourceText(),
+                    ASC.value(),
+                    DESC.value(),
+                    ((BytesRef) order.fold(FoldContext.small() /* TODO remove me */)).utf8ToString()
+                )
             );
         }
     }
@@ -246,7 +254,7 @@ public class MvSort extends EsqlScalarFunction implements OptionalArgument, Vali
     private boolean isValidOrder() {
         boolean isValidOrder = true;
         if (order != null && order.foldable()) {
-            Object obj = order.fold();
+            Object obj = order.fold(FoldContext.small() /* TODO remove me */);
             String o = null;
             if (obj instanceof BytesRef ob) {
                 o = ob.utf8ToString();

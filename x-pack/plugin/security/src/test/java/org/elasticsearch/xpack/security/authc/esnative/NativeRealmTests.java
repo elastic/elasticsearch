@@ -43,6 +43,7 @@ public class NativeRealmTests extends ESTestCase {
             null,
             null,
             null,
+            null,
             concreteSecurityIndexName,
             indexStatus,
             IndexMetadata.State.OPEN,

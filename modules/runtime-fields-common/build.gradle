@@ -12,17 +12,13 @@ apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.yaml-rest-compat-test'
 
 esplugin {
-  description 'Module for runtime fields features and extensions that have large dependencies'
-  classname 'org.elasticsearch.runtimefields.RuntimeFieldsCommonPlugin'
+  description = 'Module for runtime fields features and extensions that have large dependencies'
+  classname = 'org.elasticsearch.runtimefields.RuntimeFieldsCommonPlugin'
   extendedPlugins = ['lang-painless']
 }
 
 dependencies {
   compileOnly project(':modules:lang-painless:spi')
-  api project(':libs:elasticsearch-grok')
-  api project(':libs:elasticsearch-dissect')
+  api project(':libs:grok')
+  api project(':libs:dissect')
 }
-
-tasks.named("yamlRestCompatTestTransform").configure({ task ->
-  task.skipTestsByFilePattern("**/runtime_fields/110_composite.yml", "warning does not exist for compatibility")
-})

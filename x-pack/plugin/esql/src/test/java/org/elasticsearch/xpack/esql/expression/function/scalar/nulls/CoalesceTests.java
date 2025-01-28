@@ -12,10 +12,16 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.test.TestBlockFactory;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -28,6 +34,7 @@ import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.scalar.VaragsTestCaseBuilder;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesFunctionTestCase;
 import org.elasticsearch.xpack.esql.planner.Layout;
+import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.time.ZonedDateTime;
@@ -39,6 +46,9 @@ import java.util.function.Supplier;
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomLiteral;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class CoalesceTests extends AbstractScalarFunctionTestCase {
     public CoalesceTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
@@ -48,7 +58,7 @@ public class CoalesceTests extends AbstractScalarFunctionTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         List<TestCaseSupplier> noNullsSuppliers = new ArrayList<>();
-        VaragsTestCaseBuilder builder = new VaragsTestCaseBuilder(type -> "Coalesce");
+        VaragsTestCaseBuilder builder = new VaragsTestCaseBuilder(type -> "Coalesce" + type + "Eager");
         builder.expectString(strings -> strings.filter(v -> v != null).findFirst());
         builder.expectLong(longs -> longs.filter(v -> v != null).findFirst());
         builder.expectInt(ints -> ints.filter(v -> v != null).findFirst());
@@ -63,7 +73,7 @@ public class CoalesceTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(first, DataType.IP, "first"),
                     new TestCaseSupplier.TypedData(second, DataType.IP, "second")
                 ),
-                "CoalesceEvaluator[values=[Attribute[channel=0], Attribute[channel=1]]]",
+                "CoalesceBytesRefEagerEvaluator[values=[Attribute[channel=0], Attribute[channel=1]]]",
                 DataType.IP,
                 equalTo(first == null ? second : first)
             );
@@ -78,7 +88,7 @@ public class CoalesceTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(first, DataType.VERSION, "first"),
                     new TestCaseSupplier.TypedData(second, DataType.VERSION, "second")
                 ),
-                "CoalesceEvaluator[values=[Attribute[channel=0], Attribute[channel=1]]]",
+                "CoalesceBytesRefEagerEvaluator[values=[Attribute[channel=0], Attribute[channel=1]]]",
                 DataType.VERSION,
                 equalTo(first == null ? second : first)
             );
@@ -91,8 +101,21 @@ public class CoalesceTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(firstDate, DataType.DATETIME, "first"),
                     new TestCaseSupplier.TypedData(secondDate, DataType.DATETIME, "second")
                 ),
-                "CoalesceEvaluator[values=[Attribute[channel=0], Attribute[channel=1]]]",
+                "CoalesceLongEagerEvaluator[values=[Attribute[channel=0], Attribute[channel=1]]]",
                 DataType.DATETIME,
+                equalTo(firstDate == null ? secondDate : firstDate)
+            );
+        }));
+        noNullsSuppliers.add(new TestCaseSupplier(List.of(DataType.DATE_NANOS, DataType.DATE_NANOS), () -> {
+            Long firstDate = randomBoolean() ? null : randomNonNegativeLong();
+            Long secondDate = randomNonNegativeLong();
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(firstDate, DataType.DATE_NANOS, "first"),
+                    new TestCaseSupplier.TypedData(secondDate, DataType.DATE_NANOS, "second")
+                ),
+                "CoalesceLongEagerEvaluator[values=[Attribute[channel=0], Attribute[channel=1]]]",
+                DataType.DATE_NANOS,
                 equalTo(firstDate == null ? secondDate : firstDate)
             );
         }));
@@ -115,6 +138,20 @@ public class CoalesceTests extends AbstractScalarFunctionTestCase {
                 suppliers.add(new TestCaseSupplier(nullCaseName(s, nullUpTo, true), types, () -> nullCase(s.get(), finalNullUpTo, true)));
             }
         }
+        suppliers.add(
+            new TestCaseSupplier(
+                List.of(DataType.NULL, DataType.NULL),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(null, DataType.NULL, "first"),
+                        new TestCaseSupplier.TypedData(null, DataType.NULL, "second")
+                    ),
+                    "ConstantNull",
+                    DataType.NULL,
+                    nullValue()
+                )
+            )
+        );
 
         return parameterSuppliersFromTypedData(suppliers);
     }
@@ -153,7 +190,7 @@ public class CoalesceTests extends AbstractScalarFunctionTestCase {
                 TestCaseSupplier.testCaseSupplier(
                     leftDataSupplier,
                     rightDataSupplier,
-                    (l, r) -> equalTo("CoalesceEvaluator[values=[Attribute[channel=0], Attribute[channel=1]]]"),
+                    (l, r) -> equalTo("CoalesceBytesRefEagerEvaluator[values=[Attribute[channel=0], Attribute[channel=1]]]"),
                     dataType,
                     (l, r) -> l
                 )
@@ -174,19 +211,27 @@ public class CoalesceTests extends AbstractScalarFunctionTestCase {
         Layout.Builder builder = new Layout.Builder();
         buildLayout(builder, exp);
         Layout layout = builder.build();
-        EvaluatorMapper.ToEvaluator toEvaluator = child -> {
-            if (child == evil) {
-                return dvrCtx -> new EvalOperator.ExpressionEvaluator() {
-                    @Override
-                    public Block eval(Page page) {
-                        throw new AssertionError("shouldn't be called");
-                    }
+        EvaluatorMapper.ToEvaluator toEvaluator = new EvaluatorMapper.ToEvaluator() {
+            @Override
+            public EvalOperator.ExpressionEvaluator.Factory apply(Expression expression) {
+                if (expression == evil) {
+                    return dvrCtx -> new EvalOperator.ExpressionEvaluator() {
+                        @Override
+                        public Block eval(Page page) {
+                            throw new AssertionError("shouldn't be called");
+                        }
 
-                    @Override
-                    public void close() {}
-                };
+                        @Override
+                        public void close() {}
+                    };
+                }
+                return EvalMapper.toEvaluator(FoldContext.small(), expression, layout);
             }
-            return EvalMapper.toEvaluator(child, layout);
+
+            @Override
+            public FoldContext foldCtx() {
+                return FoldContext.small();
+            }
         };
         try (
             EvalOperator.ExpressionEvaluator eval = exp.toEvaluator(toEvaluator).get(driverContext());
@@ -213,6 +258,69 @@ public class CoalesceTests extends AbstractScalarFunctionTestCase {
         sub.add(between(0, sub.size()), randomLiteral(sub.get(sub.size() - 1).dataType()));
         Coalesce exp = build(Source.EMPTY, sub);
         // Known not to be nullable because it contains a non-null literal
-        assertThat(exp.nullable(), equalTo(Nullability.FALSE));
+        if (testCase.expectedType() == DataType.NULL) {
+            assertThat(exp.nullable(), equalTo(Nullability.UNKNOWN));
+        } else {
+            assertThat(exp.nullable(), equalTo(Nullability.FALSE));
+        }
+    }
+
+    /**
+     * Inserts random non-null garbage <strong>around</strong> the expected data and runs COALESCE.
+     * <p>
+     *     This is important for catching the case where your value is null, but the rest of the block
+     *     isn't null. An off-by-one error in the evaluators can break this in a way that the standard
+     *     tests weren't catching and this does.
+     * </p>
+     */
+    public void testEvaluateWithGarbage() {
+        DriverContext context = driverContext();
+        Expression expression = randomBoolean() ? buildDeepCopyOfFieldExpression(testCase) : buildFieldExpression(testCase);
+        int positions = between(2, 1024);
+        List<TestCaseSupplier.TypedData> data = testCase.getData();
+        Page onePositionPage = row(testCase.getDataValues());
+        Block[] blocks = new Block[Math.toIntExact(data.stream().filter(d -> d.isForceLiteral() == false).count())];
+        int realPosition = between(0, positions - 1);
+        try {
+            int blocksIndex = 0;
+            for (TestCaseSupplier.TypedData d : data) {
+                blocks[blocksIndex] = blockWithRandomGarbage(
+                    context.blockFactory(),
+                    d.type(),
+                    onePositionPage.getBlock(blocksIndex),
+                    positions,
+                    realPosition
+                );
+                blocksIndex++;
+            }
+            try (
+                EvalOperator.ExpressionEvaluator eval = evaluator(expression).get(context);
+                Block block = eval.eval(new Page(positions, blocks))
+            ) {
+                assertThat(block.getPositionCount(), is(positions));
+                assertThat(toJavaObjectUnsignedLongAware(block, realPosition), testCase.getMatcher());
+                assertThat("evaluates to tracked block", block.blockFactory(), sameInstance(context.blockFactory()));
+            }
+        } finally {
+            Releasables.close(onePositionPage::releaseBlocks, Releasables.wrap(blocks));
+        }
+    }
+
+    private Block blockWithRandomGarbage(
+        BlockFactory blockFactory,
+        DataType type,
+        Block singlePositionBlock,
+        int totalPositions,
+        int insertLocation
+    ) {
+        try (Block.Builder builder = PlannerUtils.toElementType(type).newBlockBuilder(totalPositions, blockFactory)) {
+            for (int p = 0; p < totalPositions; p++) {
+                Block copyFrom = p == insertLocation
+                    ? singlePositionBlock
+                    : BlockUtils.constantBlock(TestBlockFactory.getNonBreakingInstance(), randomLiteral(type).value(), 1);
+                builder.copyFrom(copyFrom, 0, 1);
+            }
+            return builder.build();
+        }
     }
 }

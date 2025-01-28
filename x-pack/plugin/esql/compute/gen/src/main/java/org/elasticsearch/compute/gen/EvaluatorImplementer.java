@@ -16,6 +16,7 @@ import com.squareup.javapoet.TypeName;
 import com.squareup.javapoet.TypeSpec;
 
 import org.elasticsearch.compute.ann.Fixed;
+import org.elasticsearch.compute.ann.Fixed.Scope;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -725,7 +726,7 @@ public class EvaluatorImplementer {
         }
     }
 
-    private record FixedProcessFunctionArg(TypeName type, String name, boolean includeInToString, boolean build, boolean releasable)
+    private record FixedProcessFunctionArg(TypeName type, String name, boolean includeInToString, Scope scope, boolean releasable)
         implements
             ProcessFunctionArg {
         @Override
@@ -762,12 +763,18 @@ public class EvaluatorImplementer {
         }
 
         private TypeName factoryFieldType() {
-            return build ? ParameterizedTypeName.get(ClassName.get(Function.class), DRIVER_CONTEXT, type.box()) : type;
+            return switch (scope) {
+                case SINGLETON -> type;
+                case THREAD_LOCAL -> ParameterizedTypeName.get(ClassName.get(Function.class), DRIVER_CONTEXT, type.box());
+            };
         }
 
         @Override
         public String factoryInvocation(MethodSpec.Builder factoryMethodBuilder) {
-            return build ? name + ".apply(context)" : name;
+            return switch (scope) {
+                case SINGLETON -> name;
+                case THREAD_LOCAL -> name + ".apply(context)";
+            };
         }
 
         @Override
@@ -1020,7 +1027,7 @@ public class EvaluatorImplementer {
                             type,
                             name,
                             fixed.includeInToString(),
-                            fixed.build(),
+                            fixed.scope(),
                             Types.extendsSuper(types, v.asType(), "org.elasticsearch.core.Releasable")
                         )
                     );

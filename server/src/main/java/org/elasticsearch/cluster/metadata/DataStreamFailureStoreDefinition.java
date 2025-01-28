@@ -9,6 +9,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -19,6 +20,8 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 
 import java.io.IOException;
+import java.util.HashSet;
+import java.util.Set;
 
 /**
  * A utility class that contains the mappings and settings logic for failure store indices that are a part of data streams.
@@ -26,12 +29,30 @@ import java.io.IOException;
 public class DataStreamFailureStoreDefinition {
 
     public static final String FAILURE_STORE_REFRESH_INTERVAL_SETTING_NAME = "data_streams.failure_store.refresh_interval";
+    public static final String INDEX_FAILURE_STORE_VERSION_SETTING_NAME = "index.failure_store.version";
     public static final Settings DATA_STREAM_FAILURE_STORE_SETTINGS;
+    // Only a subset of user configurable settings is applicable for a failure index. Here we have an
+    // allowlist that will filter all other settings out.
+    public static final Set<String> SUPPORTED_USER_SETTINGS = Set.of(
+        DataTier.TIER_PREFERENCE,
+        IndexMetadata.SETTING_INDEX_HIDDEN,
+        INDEX_FAILURE_STORE_VERSION_SETTING_NAME,
+        IndexMetadata.SETTING_NUMBER_OF_SHARDS,
+        IndexMetadata.SETTING_NUMBER_OF_REPLICAS,
+        IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS,
+        IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(),
+        IndexMetadata.LIFECYCLE_NAME
+    );
+    public static final Set<String> SUPPORTED_USER_SETTINGS_PREFIXES = Set.of(
+        IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + ".",
+        IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_PREFIX + ".",
+        IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "."
+    );
     public static final CompressedXContent DATA_STREAM_FAILURE_STORE_MAPPING;
 
     public static final int FAILURE_STORE_DEFINITION_VERSION = 1;
     public static final Setting<Integer> FAILURE_STORE_DEFINITION_VERSION_SETTING = Setting.intSetting(
-        "index.failure_store.version",
+        INDEX_FAILURE_STORE_VERSION_SETTING_NAME,
         0,
         Setting.Property.IndexScope
     );
@@ -40,11 +61,6 @@ public class DataStreamFailureStoreDefinition {
         DATA_STREAM_FAILURE_STORE_SETTINGS = Settings.builder()
             // Always start with the hidden settings for a backing index.
             .put(IndexMetadata.SETTING_INDEX_HIDDEN, true)
-            // Override any pipeline settings on the failure store to not use any
-            // specified by the data stream template. Default pipelines are very much
-            // meant for the backing indices only.
-            .putNull(IndexSettings.DEFAULT_PIPELINE.getKey())
-            .putNull(IndexSettings.FINAL_PIPELINE.getKey())
             .put(FAILURE_STORE_DEFINITION_VERSION_SETTING.getKey(), FAILURE_STORE_DEFINITION_VERSION)
             .build();
 
@@ -196,6 +212,25 @@ public class DataStreamFailureStoreDefinition {
         TimeValue refreshInterval = getFailureStoreRefreshInterval(nodeSettings);
         if (refreshInterval != null) {
             builder.put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), refreshInterval);
+        }
+        return builder;
+    }
+
+    /**
+     * Removes the unsupported by the failure store settings from the settings provided.
+     * ATTENTION: This method should be applied BEFORE we set the necessary settings for an index
+     * @param builder the settings builder that is going to be updated
+     * @return the original settings builder, with the unsupported settings removed.
+     */
+    public static Settings.Builder filterUserDefinedSettings(Settings.Builder builder) {
+        if (builder.keys().isEmpty() == false) {
+            Set<String> existingKeys = new HashSet<>(builder.keys());
+            for (String setting : existingKeys) {
+                if (SUPPORTED_USER_SETTINGS.contains(setting) == false
+                    && SUPPORTED_USER_SETTINGS_PREFIXES.stream().anyMatch(setting::startsWith) == false) {
+                    builder.remove(setting);
+                }
+            }
         }
         return builder;
     }

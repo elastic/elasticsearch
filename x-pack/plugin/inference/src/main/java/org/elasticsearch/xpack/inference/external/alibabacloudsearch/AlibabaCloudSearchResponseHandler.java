@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.external.alibabacloudsearch;
 
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.retry.BaseResponseHandler;
@@ -15,9 +14,6 @@ import org.elasticsearch.xpack.inference.external.http.retry.ResponseParser;
 import org.elasticsearch.xpack.inference.external.http.retry.RetryException;
 import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.external.response.alibabacloudsearch.AlibabaCloudSearchErrorResponseEntity;
-import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
-
-import static org.elasticsearch.xpack.inference.external.http.HttpUtils.checkForEmptyBody;
 
 /**
  * Defines how to handle various errors returned from the AlibabaCloudSearch integration.
@@ -28,13 +24,6 @@ public class AlibabaCloudSearchResponseHandler extends BaseResponseHandler {
         super(requestType, parseFunction, AlibabaCloudSearchErrorResponseEntity::fromResponse);
     }
 
-    @Override
-    public void validateResponse(ThrottlerManager throttlerManager, Logger logger, Request request, HttpResult result)
-        throws RetryException {
-        checkForFailureStatusCode(request, result);
-        checkForEmptyBody(throttlerManager, logger, request, result);
-    }
-
     /**
      * Validates the status code throws an RetryException if not in the range [200, 300).
      *
@@ -42,7 +31,8 @@ public class AlibabaCloudSearchResponseHandler extends BaseResponseHandler {
      * @param result  The http response and body
      * @throws RetryException Throws if status code is {@code >= 300 or < 200 }
      */
-    void checkForFailureStatusCode(Request request, HttpResult result) throws RetryException {
+    @Override
+    protected void checkForFailureStatusCode(Request request, HttpResult result) throws RetryException {
         int statusCode = result.response().getStatusLine().getStatusCode();
         if (RestStatus.isSuccessful(statusCode)) {
             return;

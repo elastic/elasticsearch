@@ -96,11 +96,10 @@ import static org.junit.Assume.assumeTrue;
 /**
  * This class tests the Elasticsearch Docker images. We have several:
  * <ul>
- *     <li>The default image with a custom, small base image</li>
- *     <li>A UBI-based image</li>
+ *     <li>The default image UBI-based image</li>
  *     <li>Another UBI image for Iron Bank</li>
  *     <li>A WOLFI-based image</li>
- *     <li>Images for Cloud</li>
+ *     <li>Image for Cloud</li>
  * </ul>
  */
 @ThreadLeakFilters(defaultFilters = true, filters = { HttpClientThreadsFilter.class })
@@ -169,10 +168,7 @@ public class DockerTests extends PackagingTestCase {
      * Checks that no plugins are initially active.
      */
     public void test020PluginsListWithNoPlugins() {
-        assumeTrue(
-            "Only applies to non-Cloud images",
-            distribution.packaging != Packaging.DOCKER_CLOUD && distribution().packaging != Packaging.DOCKER_CLOUD_ESS
-        );
+        assumeTrue("Only applies to non-Cloud images", distribution().packaging != Packaging.DOCKER_CLOUD_ESS);
 
         final Installation.Executables bin = installation.executables();
         final Result r = sh.run(bin.pluginTool + " list");
@@ -386,15 +382,14 @@ public class DockerTests extends PackagingTestCase {
     public void test040JavaUsesTheOsProvidedKeystore() {
         final String path = sh.run("realpath jdk/lib/security/cacerts").stdout();
 
-        if (distribution.packaging == Packaging.DOCKER_UBI || distribution.packaging == Packaging.DOCKER_IRON_BANK) {
+        if (distribution.packaging == Packaging.DOCKER || distribution.packaging == Packaging.DOCKER_IRON_BANK) {
             // In these images, the `cacerts` file ought to be a symlink here
             assertThat(path, equalTo("/etc/pki/ca-trust/extracted/java/cacerts"));
         } else if (distribution.packaging == Packaging.DOCKER_WOLFI || distribution.packaging == Packaging.DOCKER_CLOUD_ESS) {
             // In these images, the `cacerts` file ought to be a symlink here
             assertThat(path, equalTo("/etc/ssl/certs/java/cacerts"));
         } else {
-            // Whereas on other images, it's a real file so the real path is the same
-            assertThat(path, equalTo("/usr/share/elasticsearch/jdk/lib/security/cacerts"));
+            fail("Unknown distribution: " + distribution.packaging);
         }
     }
 
@@ -1116,8 +1111,8 @@ public class DockerTests extends PackagingTestCase {
      */
     public void test171AdditionalCliOptionsAreForwarded() throws Exception {
         assumeTrue(
-            "Does not apply to Cloud and Cloud ESS images, because they don't use the default entrypoint",
-            distribution.packaging != Packaging.DOCKER_CLOUD && distribution().packaging != Packaging.DOCKER_CLOUD_ESS
+            "Does not apply to Cloud ESS images, because they don't use the default entrypoint",
+            distribution().packaging != Packaging.DOCKER_CLOUD_ESS
         );
 
         runContainer(distribution(), builder().runArgs("bin/elasticsearch", "-Ecluster.name=kimchy").envVar("ELASTIC_PASSWORD", PASSWORD));
@@ -1129,25 +1124,25 @@ public class DockerTests extends PackagingTestCase {
     }
 
     /**
-     * Check that the UBI images has the correct license information in the correct place.
+     * Check that the Docker images have the correct license information in the correct place.
      */
-    public void test200UbiImagesHaveLicenseDirectory() {
-        assumeTrue(distribution.packaging == Packaging.DOCKER_UBI);
+    public void test200ImagesHaveLicenseDirectory() {
+        assumeTrue(distribution.packaging != Packaging.DOCKER_IRON_BANK);
 
         final String[] files = sh.run("find /licenses -type f").stdout().split("\n");
         assertThat(files, arrayContaining("/licenses/LICENSE"));
 
         // UBI image doesn't contain `diff`
-        final String ubiLicense = sh.run("cat /licenses/LICENSE").stdout();
+        final String imageLicense = sh.run("cat /licenses/LICENSE").stdout();
         final String distroLicense = sh.run("cat /usr/share/elasticsearch/LICENSE.txt").stdout();
-        assertThat(ubiLicense, equalTo(distroLicense));
+        assertThat(imageLicense, equalTo(distroLicense));
     }
 
     /**
-     * Check that the UBI image has the expected labels
+     * Check that the images has the expected labels
      */
-    public void test210UbiLabels() throws Exception {
-        assumeTrue(distribution.packaging == Packaging.DOCKER_UBI);
+    public void test210Labels() throws Exception {
+        assumeTrue(distribution.packaging != Packaging.DOCKER_IRON_BANK);
 
         final Map<String, String> labels = getImageLabels(distribution);
 
@@ -1204,7 +1199,7 @@ public class DockerTests extends PackagingTestCase {
      * Check that the Cloud image contains the required Beats
      */
     public void test400CloudImageBundlesBeats() {
-        assumeTrue(distribution.packaging == Packaging.DOCKER_CLOUD || distribution.packaging == Packaging.DOCKER_CLOUD_ESS);
+        assumeTrue(distribution.packaging == Packaging.DOCKER_CLOUD_ESS);
 
         final List<String> contents = listContents("/opt");
         assertThat("Expected beats in /opt", contents, hasItems("filebeat", "metricbeat"));

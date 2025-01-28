@@ -5,8 +5,6 @@
  * 2.0.
  */
 
-
-import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.internal.test.RestIntegTestTask
 
 apply plugin: 'elasticsearch.internal-java-rest-test'
@@ -46,7 +44,7 @@ tasks.named("javaRestTest") {
   systemProperty 'test.azure.sas_token', azureSasToken
   systemProperty 'test.azure.tenant_id', azureTenantId
   systemProperty 'test.azure.client_id', azureClientId
-  nonInputProperties.systemProperty 'test.azure.base_path', azureBasePath + "_repository_test_kit_tests_" + BuildParams.testSeed
+  nonInputProperties.systemProperty 'test.azure.base_path', azureBasePath + "_repository_test_kit_tests_" + buildParams.testSeed
 }
 
 tasks.register("azureThirdPartyTest") {
@@ -61,7 +59,7 @@ tasks.register("managedIdentityJavaRestTest", RestIntegTestTask) {
   systemProperty 'test.azure.container', azureContainer
   // omitting key and sas_token so that we use a bearer token from the metadata service
   // omitting client_id and tenant_id so that we use a bearer token from the metadata service, not from workload identity
-  nonInputProperties.systemProperty 'test.azure.base_path', azureBasePath + "_repository_test_kit_tests_" + BuildParams.testSeed
+  nonInputProperties.systemProperty 'test.azure.base_path', azureBasePath + "_repository_test_kit_tests_" + buildParams.testSeed
 }
 
 tasks.register("workloadIdentityJavaRestTest", RestIntegTestTask) {
@@ -74,10 +72,10 @@ tasks.register("workloadIdentityJavaRestTest", RestIntegTestTask) {
   systemProperty 'test.azure.tenant_id', azureTenantId ?: "583d4f71-148a-4163-bad5-2311e13c60dc"
   systemProperty 'test.azure.client_id', azureClientId ?: "86dd1b33-96c1-4a2e-92ac-b844404fc691"
   // omitting key and sas_token so that we use a bearer token from workload identity
-  nonInputProperties.systemProperty 'test.azure.base_path', azureBasePath + "_repository_test_kit_tests_" + BuildParams.testSeed
+  nonInputProperties.systemProperty 'test.azure.base_path', azureBasePath + "_repository_test_kit_tests_" + buildParams.testSeed
 }
 
-if (BuildParams.inFipsJvm) {
+if (buildParams.inFipsJvm) {
   // Cannot override the trust store in FIPS mode, and these tasks require a HTTPS fixture
   tasks.named("managedIdentityJavaRestTest").configure { enabled = false }
   tasks.named("workloadIdentityJavaRestTest").configure { enabled = false }

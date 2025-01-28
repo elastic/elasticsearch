@@ -319,8 +319,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
             BlockSourceReader.LeafIteratorLookup lookup = isStored() || isIndexed()
                 ? BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), name())
                 : BlockSourceReader.lookupMatchingAll();
-            var sourceMode = blContext.indexSettings().getIndexMappingSourceMode();
-            return new BlockSourceReader.DoublesBlockLoader(valueFetcher, lookup, sourceMode);
+            return new BlockSourceReader.DoublesBlockLoader(valueFetcher, lookup);
         }
 
         @Override
@@ -708,14 +707,14 @@ public class ScaledFloatFieldMapper extends FieldMapper {
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport() {
         if (hasDocValues) {
-            var loader = new SortedNumericDocValuesSyntheticFieldLoader(fullPath(), leafName(), ignoreMalformed.value()) {
-                @Override
-                protected void writeValue(XContentBuilder b, long value) throws IOException {
-                    b.value(decodeForSyntheticSource(value, scalingFactor));
+            return new SyntheticSourceSupport.Native(
+                () -> new SortedNumericDocValuesSyntheticFieldLoader(fullPath(), leafName(), ignoreMalformed.value()) {
+                    @Override
+                    protected void writeValue(XContentBuilder b, long value) throws IOException {
+                        b.value(decodeForSyntheticSource(value, scalingFactor));
+                    }
                 }
-            };
-
-            return new SyntheticSourceSupport.Native(loader);
+            );
         }
 
         return super.syntheticSourceSupport();

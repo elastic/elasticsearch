@@ -23,9 +23,9 @@ import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.mocksocket.MockHttpServer;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.fixture.HttpHeaderParser;
 import org.junit.After;
 import org.junit.Before;
 
@@ -40,8 +40,6 @@ import java.util.Locale;
 import java.util.OptionalInt;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
 import static org.elasticsearch.test.NeverMatcher.never;
@@ -371,28 +369,24 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
         return randomByteArrayOfLength(randomIntBetween(minSize, frequently() ? 512 : 1 << 20)); // rarely up to 1mb
     }
 
-    private static final Pattern RANGE_PATTERN = Pattern.compile("^bytes=([0-9]+)-([0-9]+)$");
-
-    protected static Tuple<Long, Long> getRange(HttpExchange exchange) {
+    protected static HttpHeaderParser.Range getRange(HttpExchange exchange) {
         final String rangeHeader = exchange.getRequestHeaders().getFirst("Range");
         if (rangeHeader == null) {
-            return Tuple.tuple(0L, MAX_RANGE_VAL);
+            return new HttpHeaderParser.Range(0L, MAX_RANGE_VAL);
         }
 
-        final Matcher matcher = RANGE_PATTERN.matcher(rangeHeader);
-        assertTrue(rangeHeader + " matches expected pattern", matcher.matches());
-        long rangeStart = Long.parseLong(matcher.group(1));
-        long rangeEnd = Long.parseLong(matcher.group(2));
-        assertThat(rangeStart, lessThanOrEqualTo(rangeEnd));
-        return Tuple.tuple(rangeStart, rangeEnd);
+        final HttpHeaderParser.Range range = HttpHeaderParser.parseRangeHeader(rangeHeader);
+        assertNotNull(rangeHeader + " matches expected pattern", range);
+        assertThat(range.start(), lessThanOrEqualTo(range.end()));
+        return range;
     }
 
     protected static int getRangeStart(HttpExchange exchange) {
-        return Math.toIntExact(getRange(exchange).v1());
+        return Math.toIntExact(getRange(exchange).start());
     }
 
     protected static OptionalInt getRangeEnd(HttpExchange exchange) {
-        final long rangeEnd = getRange(exchange).v2();
+        final long rangeEnd = getRange(exchange).end();
         if (rangeEnd == MAX_RANGE_VAL) {
             return OptionalInt.empty();
         }

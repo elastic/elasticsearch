@@ -48,7 +48,7 @@ public interface SourceProvider {
      * but it is not safe to use this to access documents from the same segment across
      * multiple threads.
      */
-    static SourceProvider fromSyntheticSource(Mapping mapping, SourceFieldMetrics metrics) {
-        return new SyntheticSourceProvider(new SourceLoader.Synthetic(mapping::syntheticFieldLoader, metrics));
+    static SourceProvider fromSyntheticSource(Mapping mapping, SourceFilter filter, SourceFieldMetrics metrics) {
+        return new SyntheticSourceProvider(new SourceLoader.Synthetic(filter, () -> mapping.syntheticFieldLoader(filter), metrics));
     }
 }

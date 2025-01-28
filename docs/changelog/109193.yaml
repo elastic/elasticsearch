@@ -1,6 +1,0 @@
-pr: 109193
-summary: "[ES|QL] explicit cast a string literal to `date_period` and `time_duration`\
-  \ in arithmetic operations"
-area: ES|QL
-type: enhancement
-issues: []

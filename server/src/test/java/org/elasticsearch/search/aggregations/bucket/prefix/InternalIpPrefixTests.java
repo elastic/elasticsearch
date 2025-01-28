@@ -75,16 +75,7 @@ public class InternalIpPrefixTests extends InternalMultiBucketAggregationTestCas
             BytesRef key = itr.next();
             boolean v6 = InetAddressPoint.decode(key.bytes) instanceof Inet6Address;
             buckets.add(
-                new InternalIpPrefix.Bucket(
-                    DocValueFormat.IP,
-                    key,
-                    keyed,
-                    v6,
-                    prefixLength,
-                    appendPrefixLength,
-                    randomLongBetween(0, Long.MAX_VALUE),
-                    aggregations
-                )
+                new InternalIpPrefix.Bucket(key, v6, prefixLength, appendPrefixLength, randomLongBetween(0, Long.MAX_VALUE), aggregations)
             );
         }
 
@@ -126,7 +117,6 @@ public class InternalIpPrefixTests extends InternalMultiBucketAggregationTestCas
         Map<BytesRef, Long> expectedCounts = new HashMap<>();
         for (InternalIpPrefix i : inputs) {
             for (InternalIpPrefix.Bucket b : i.getBuckets()) {
-                assertThat(b.getFormat(), equalTo(DocValueFormat.IP));
                 long acc = expectedCounts.getOrDefault(b.getKey(), 0L);
                 acc += b.getDocCount();
                 expectedCounts.put(b.getKey(), acc);
@@ -146,9 +136,7 @@ public class InternalIpPrefixTests extends InternalMultiBucketAggregationTestCas
 
     public void testPartialReduceNoMinDocCount() {
         InternalIpPrefix.Bucket b1 = new InternalIpPrefix.Bucket(
-            DocValueFormat.IP,
             new BytesRef(InetAddressPoint.encode(InetAddresses.forString("192.168.0.1"))),
-            false,
             false,
             1,
             false,
@@ -156,9 +144,7 @@ public class InternalIpPrefixTests extends InternalMultiBucketAggregationTestCas
             InternalAggregations.EMPTY
         );
         InternalIpPrefix.Bucket b2 = new InternalIpPrefix.Bucket(
-            DocValueFormat.IP,
             new BytesRef(InetAddressPoint.encode(InetAddresses.forString("200.0.0.1"))),
-            false,
             false,
             1,
             false,

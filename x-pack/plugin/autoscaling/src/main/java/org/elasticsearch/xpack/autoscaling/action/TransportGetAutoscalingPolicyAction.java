@@ -50,7 +50,6 @@ public class TransportGetAutoscalingPolicyAction extends TransportMasterNodeActi
             threadPool,
             actionFilters,
             GetAutoscalingPolicyAction.Request::new,
-            indexNameExpressionResolver,
             GetAutoscalingPolicyAction.Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );

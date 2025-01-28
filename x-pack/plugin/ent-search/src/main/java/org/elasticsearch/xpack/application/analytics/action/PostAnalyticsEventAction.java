@@ -311,7 +311,7 @@ public class PostAnalyticsEventAction {
     }
 
     public static class Response extends ActionResponse implements ToXContentObject {
-        public static Response ACCEPTED = new Response(true);
+        public static final Response ACCEPTED = new Response(true);
 
         public static Response readFromStreamInput(StreamInput in) throws IOException {
             boolean accepted = in.readBoolean();

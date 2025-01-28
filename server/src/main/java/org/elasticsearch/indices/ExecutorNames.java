@@ -20,7 +20,7 @@ public record ExecutorNames(String threadPoolForGet, String threadPoolForSearch,
     /**
      * The thread pools for a typical system index.
      */
-    public static ExecutorNames DEFAULT_SYSTEM_INDEX_THREAD_POOLS = new ExecutorNames(
+    public static final ExecutorNames DEFAULT_SYSTEM_INDEX_THREAD_POOLS = new ExecutorNames(
         ThreadPool.Names.SYSTEM_READ,
         ThreadPool.Names.SYSTEM_READ,
         ThreadPool.Names.SYSTEM_WRITE
@@ -29,7 +29,7 @@ public record ExecutorNames(String threadPoolForGet, String threadPoolForSearch,
     /**
      * The thread pools for a typical system data stream. These are also the usual thread pools for non-system indices and data streams.
      */
-    public static ExecutorNames DEFAULT_SYSTEM_DATA_STREAM_THREAD_POOLS = new ExecutorNames(
+    public static final ExecutorNames DEFAULT_SYSTEM_DATA_STREAM_THREAD_POOLS = new ExecutorNames(
         ThreadPool.Names.GET,
         ThreadPool.Names.SEARCH,
         ThreadPool.Names.WRITE
@@ -38,7 +38,7 @@ public record ExecutorNames(String threadPoolForGet, String threadPoolForSearch,
     /**
      * The thread pools that should be used for critical system index operations.
      */
-    public static ExecutorNames CRITICAL_SYSTEM_INDEX_THREAD_POOLS = new ExecutorNames(
+    public static final ExecutorNames CRITICAL_SYSTEM_INDEX_THREAD_POOLS = new ExecutorNames(
         ThreadPool.Names.SYSTEM_CRITICAL_READ,
         ThreadPool.Names.SYSTEM_CRITICAL_READ,
         ThreadPool.Names.SYSTEM_CRITICAL_WRITE

@@ -200,6 +200,18 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitFunctionName(EsqlBaseParser.FunctionNameContext ctx);
   /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#mapExpression}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitMapExpression(EsqlBaseParser.MapExpressionContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#entryExpression}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitEntryExpression(EsqlBaseParser.EntryExpressionContext ctx);
+  /**
    * Visit a parse tree produced by the {@code toDataType}
    * labeled alternative in {@link EsqlBaseParser#dataType}.
    * @param ctx the parse tree
@@ -254,18 +266,6 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    * @return the visitor result
    */
   T visitMetadata(EsqlBaseParser.MetadataContext ctx);
-  /**
-   * Visit a parse tree produced by {@link EsqlBaseParser#metadataOption}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitMetadataOption(EsqlBaseParser.MetadataOptionContext ctx);
-  /**
-   * Visit a parse tree produced by {@link EsqlBaseParser#deprecated_metadata}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitDeprecated_metadata(EsqlBaseParser.Deprecated_metadataContext ctx);
   /**
    * Visit a parse tree produced by {@link EsqlBaseParser#metricsCommand}.
    * @param ctx the parse tree
@@ -567,4 +567,28 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    * @return the visitor result
    */
   T visitInlinestatsCommand(EsqlBaseParser.InlinestatsCommandContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#joinCommand}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitJoinCommand(EsqlBaseParser.JoinCommandContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#joinTarget}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitJoinTarget(EsqlBaseParser.JoinTargetContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#joinCondition}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitJoinCondition(EsqlBaseParser.JoinConditionContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#joinPredicate}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitJoinPredicate(EsqlBaseParser.JoinPredicateContext ctx);
 }

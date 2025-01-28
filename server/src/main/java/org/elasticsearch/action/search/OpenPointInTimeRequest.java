@@ -63,7 +63,7 @@ public final class OpenPointInTimeRequest extends ActionRequest implements Indic
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             this.indexFilter = in.readOptionalNamedWriteable(QueryBuilder.class);
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ALLOW_PARTIAL_SEARCH_RESULTS_IN_PIT)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             this.allowPartialSearchResults = in.readBoolean();
         }
     }
@@ -82,7 +82,7 @@ public final class OpenPointInTimeRequest extends ActionRequest implements Indic
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             out.writeOptionalWriteable(indexFilter);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ALLOW_PARTIAL_SEARCH_RESULTS_IN_PIT)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             out.writeBoolean(allowPartialSearchResults);
         } else if (allowPartialSearchResults) {
             throw new IOException("[allow_partial_search_results] is not supported on nodes with version " + out.getTransportVersion());

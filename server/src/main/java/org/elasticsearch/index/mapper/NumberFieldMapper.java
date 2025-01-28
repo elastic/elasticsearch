@@ -89,8 +89,6 @@ public class NumberFieldMapper extends FieldMapper {
         return (NumberFieldMapper) in;
     }
 
-    private static final IndexVersion MINIMUM_COMPATIBILITY_VERSION = IndexVersion.fromId(5000099);
-
     public static final class Builder extends FieldMapper.DimensionBuilder {
 
         private final Parameter<Boolean> indexed;
@@ -462,12 +460,8 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            BlockLoader blockLoaderFromSource(
-                SourceValueFetcher sourceValueFetcher,
-                BlockSourceReader.LeafIteratorLookup lookup,
-                SourceFieldMapper.Mode sourceMode
-            ) {
-                return new BlockSourceReader.DoublesBlockLoader(sourceValueFetcher, lookup, sourceMode);
+            BlockLoader blockLoaderFromSource(SourceValueFetcher sourceValueFetcher, BlockSourceReader.LeafIteratorLookup lookup) {
+                return new BlockSourceReader.DoublesBlockLoader(sourceValueFetcher, lookup);
             }
         },
         FLOAT("float", NumericType.FLOAT) {
@@ -650,12 +644,8 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            BlockLoader blockLoaderFromSource(
-                SourceValueFetcher sourceValueFetcher,
-                BlockSourceReader.LeafIteratorLookup lookup,
-                SourceFieldMapper.Mode sourceMode
-            ) {
-                return new BlockSourceReader.DoublesBlockLoader(sourceValueFetcher, lookup, sourceMode);
+            BlockLoader blockLoaderFromSource(SourceValueFetcher sourceValueFetcher, BlockSourceReader.LeafIteratorLookup lookup) {
+                return new BlockSourceReader.DoublesBlockLoader(sourceValueFetcher, lookup);
             }
         },
         DOUBLE("double", NumericType.DOUBLE) {
@@ -804,12 +794,8 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            BlockLoader blockLoaderFromSource(
-                SourceValueFetcher sourceValueFetcher,
-                BlockSourceReader.LeafIteratorLookup lookup,
-                SourceFieldMapper.Mode sourceMode
-            ) {
-                return new BlockSourceReader.DoublesBlockLoader(sourceValueFetcher, lookup, sourceMode);
+            BlockLoader blockLoaderFromSource(SourceValueFetcher sourceValueFetcher, BlockSourceReader.LeafIteratorLookup lookup) {
+                return new BlockSourceReader.DoublesBlockLoader(sourceValueFetcher, lookup);
             }
         },
         BYTE("byte", NumericType.BYTE) {
@@ -921,12 +907,8 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            BlockLoader blockLoaderFromSource(
-                SourceValueFetcher sourceValueFetcher,
-                BlockSourceReader.LeafIteratorLookup lookup,
-                SourceFieldMapper.Mode sourceMode
-            ) {
-                return new BlockSourceReader.IntsBlockLoader(sourceValueFetcher, lookup, sourceMode);
+            BlockLoader blockLoaderFromSource(SourceValueFetcher sourceValueFetcher, BlockSourceReader.LeafIteratorLookup lookup) {
+                return new BlockSourceReader.IntsBlockLoader(sourceValueFetcher, lookup);
             }
 
             private boolean isOutOfRange(Object value) {
@@ -1038,12 +1020,8 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            BlockLoader blockLoaderFromSource(
-                SourceValueFetcher sourceValueFetcher,
-                BlockSourceReader.LeafIteratorLookup lookup,
-                SourceFieldMapper.Mode sourceMode
-            ) {
-                return new BlockSourceReader.IntsBlockLoader(sourceValueFetcher, lookup, sourceMode);
+            BlockLoader blockLoaderFromSource(SourceValueFetcher sourceValueFetcher, BlockSourceReader.LeafIteratorLookup lookup) {
+                return new BlockSourceReader.IntsBlockLoader(sourceValueFetcher, lookup);
             }
 
             private boolean isOutOfRange(Object value) {
@@ -1229,12 +1207,8 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            BlockLoader blockLoaderFromSource(
-                SourceValueFetcher sourceValueFetcher,
-                BlockSourceReader.LeafIteratorLookup lookup,
-                SourceFieldMapper.Mode sourceMode
-            ) {
-                return new BlockSourceReader.IntsBlockLoader(sourceValueFetcher, lookup, sourceMode);
+            BlockLoader blockLoaderFromSource(SourceValueFetcher sourceValueFetcher, BlockSourceReader.LeafIteratorLookup lookup) {
+                return new BlockSourceReader.IntsBlockLoader(sourceValueFetcher, lookup);
             }
         },
         LONG("long", NumericType.LONG) {
@@ -1380,12 +1354,8 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            BlockLoader blockLoaderFromSource(
-                SourceValueFetcher sourceValueFetcher,
-                BlockSourceReader.LeafIteratorLookup lookup,
-                SourceFieldMapper.Mode sourceMode
-            ) {
-                return new BlockSourceReader.LongsBlockLoader(sourceValueFetcher, lookup, sourceMode);
+            BlockLoader blockLoaderFromSource(SourceValueFetcher sourceValueFetcher, BlockSourceReader.LeafIteratorLookup lookup) {
+                return new BlockSourceReader.LongsBlockLoader(sourceValueFetcher, lookup);
             }
 
             private boolean isOutOfRange(Object value) {
@@ -1406,16 +1376,8 @@ public class NumberFieldMapper extends FieldMapper {
         NumberType(String name, NumericType numericType) {
             this.name = name;
             this.numericType = numericType;
-            this.parser = new TypeParser(
-                (n, c) -> new Builder(
-                    n,
-                    this,
-                    c.scriptCompiler(),
-                    c.getSettings(),
-                    c.indexVersionCreated(),
-                    c.getIndexSettings().getMode()
-                ),
-                MINIMUM_COMPATIBILITY_VERSION
+            this.parser = createTypeParserWithLegacySupport(
+                (n, c) -> new Builder(n, this, c.scriptCompiler(), c.getSettings(), c.indexVersionCreated(), c.getIndexSettings().getMode())
             );
         }
 
@@ -1663,11 +1625,7 @@ public class NumberFieldMapper extends FieldMapper {
 
         abstract BlockLoader blockLoaderFromDocValues(String fieldName);
 
-        abstract BlockLoader blockLoaderFromSource(
-            SourceValueFetcher sourceValueFetcher,
-            BlockSourceReader.LeafIteratorLookup lookup,
-            SourceFieldMapper.Mode sourceMode
-        );
+        abstract BlockLoader blockLoaderFromSource(SourceValueFetcher sourceValueFetcher, BlockSourceReader.LeafIteratorLookup lookup);
     }
 
     public static class NumberFieldType extends SimpleMappedFieldType {
@@ -1806,8 +1764,7 @@ public class NumberFieldMapper extends FieldMapper {
             BlockSourceReader.LeafIteratorLookup lookup = isStored() || isIndexed()
                 ? BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), name())
                 : BlockSourceReader.lookupMatchingAll();
-            var sourceMode = blContext.indexSettings().getIndexMappingSourceMode();
-            return type.blockLoaderFromSource(sourceValueFetcher(blContext.sourcePaths(name())), lookup, sourceMode);
+            return type.blockLoaderFromSource(sourceValueFetcher(blContext.sourcePaths(name())), lookup);
         }
 
         @Override
@@ -2024,7 +1981,7 @@ public class NumberFieldMapper extends FieldMapper {
      */
     public void indexValue(DocumentParserContext context, Number numericValue) {
         if (dimension && numericValue != null) {
-            context.getDimensions().addLong(fieldType().name(), numericValue.longValue()).validate(context.indexSettings());
+            context.getRoutingFields().addLong(fieldType().name(), numericValue.longValue());
         }
         fieldType().type.addFields(context.doc(), fieldType().name(), numericValue, indexed, hasDocValues, stored);
 
@@ -2073,7 +2030,7 @@ public class NumberFieldMapper extends FieldMapper {
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport() {
         if (hasDocValues) {
-            return new SyntheticSourceSupport.Native(type.syntheticFieldLoader(fullPath(), leafName(), ignoreMalformed.value()));
+            return new SyntheticSourceSupport.Native(() -> type.syntheticFieldLoader(fullPath(), leafName(), ignoreMalformed.value()));
         }
 
         return super.syntheticSourceSupport();

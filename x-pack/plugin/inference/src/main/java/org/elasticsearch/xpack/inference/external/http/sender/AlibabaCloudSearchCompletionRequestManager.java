@@ -69,7 +69,7 @@ public class AlibabaCloudSearchCompletionRequestManager extends AlibabaCloudSear
         Supplier<Boolean> hasRequestCompletedFunction,
         ActionListener<InferenceServiceResults> listener
     ) {
-        List<String> input = DocumentsOnlyInput.of(inferenceInputs).getInputs();
+        List<String> input = inferenceInputs.castTo(ChatCompletionInput.class).getInputs();
         AlibabaCloudSearchCompletionRequest request = new AlibabaCloudSearchCompletionRequest(account, input, model);
         execute(new ExecutableInferenceRequest(requestSender, logger, request, HANDLER, hasRequestCompletedFunction, listener));
     }

@@ -12,8 +12,10 @@ package org.elasticsearch.index.reindex;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
+import org.junit.ClassRule;
 
 public class ReindexClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
     public ReindexClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
@@ -23,5 +25,19 @@ public class ReindexClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {
         return ESClientYamlSuiteTestCase.createParameters();
+    }
+
+    @ClassRule
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
+        .module("reindex")
+        .module("lang-painless")
+        .module("parent-join")
+        .module("rest-root")
+        .setting("reindex.remote.whitelist", "127.0.0.1:*")
+        .build();
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
     }
 }

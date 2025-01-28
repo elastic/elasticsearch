@@ -68,8 +68,16 @@ Synthetic source may sort `binary` values in order of their byte representation.
 ----
 PUT idx
 {
+  "settings": {
+    "index": {
+      "mapping": {
+        "source": {
+          "mode": "synthetic"
+        }
+      }
+    }
+  },
   "mappings": {
-    "_source": { "mode": "synthetic" },
     "properties": {
       "binary": { "type": "binary", "doc_values": true }
     }

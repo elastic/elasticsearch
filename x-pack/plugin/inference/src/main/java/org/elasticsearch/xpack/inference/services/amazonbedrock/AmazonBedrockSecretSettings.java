@@ -13,12 +13,18 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.SecretSettings;
+import org.elasticsearch.inference.SettingsConfiguration;
+import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -112,5 +118,41 @@ public class AmazonBedrockSecretSettings implements SecretSettings {
     @Override
     public SecretSettings newSecretSettings(Map<String, Object> newSecrets) {
         return fromMap(new HashMap<>(newSecrets));
+    }
+
+    public static class Configuration {
+        public static Map<String, SettingsConfiguration> get() {
+            return configuration.getOrCompute();
+        }
+
+        private static final LazyInitializable<Map<String, SettingsConfiguration>, RuntimeException> configuration =
+            new LazyInitializable<>(() -> {
+                var configurationMap = new HashMap<String, SettingsConfiguration>();
+                configurationMap.put(
+                    ACCESS_KEY_FIELD,
+                    new SettingsConfiguration.Builder(EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.COMPLETION)).setDescription(
+                        "A valid AWS access key that has permissions to use Amazon Bedrock."
+                    )
+                        .setLabel("Access Key")
+                        .setRequired(true)
+                        .setSensitive(true)
+                        .setUpdatable(true)
+                        .setType(SettingsConfigurationFieldType.STRING)
+                        .build()
+                );
+                configurationMap.put(
+                    SECRET_KEY_FIELD,
+                    new SettingsConfiguration.Builder(EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.COMPLETION)).setDescription(
+                        "A valid AWS secret key that is paired with the access_key."
+                    )
+                        .setLabel("Secret Key")
+                        .setRequired(true)
+                        .setSensitive(true)
+                        .setUpdatable(true)
+                        .setType(SettingsConfigurationFieldType.STRING)
+                        .build()
+                );
+                return Collections.unmodifiableMap(configurationMap);
+            });
     }
 }

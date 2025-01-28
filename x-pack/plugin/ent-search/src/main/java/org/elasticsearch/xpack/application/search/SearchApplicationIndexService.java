@@ -19,8 +19,6 @@ import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
-import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
-import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetRequest;
@@ -130,7 +128,6 @@ public class SearchApplicationIndexService {
             .setMappings(getIndexMappings())
             .setSettings(getIndexSettings())
             .setAliasName(SEARCH_APPLICATION_ALIAS_NAME)
-            .setVersionMetaKey("version")
             .setOrigin(ENT_SEARCH_ORIGIN)
             .setThreadPools(ExecutorNames.DEFAULT_SYSTEM_INDEX_THREAD_POOLS)
             .build();
@@ -320,10 +317,6 @@ public class SearchApplicationIndexService {
         } catch (Exception e) {
             listener.onFailure(e);
         }
-    }
-
-    GetAliasesResponse getAlias(String searchAliasName) {
-        return client.admin().indices().getAliases(new GetAliasesRequest(searchAliasName)).actionGet();
     }
 
     private void removeAlias(String searchAliasName, ActionListener<AcknowledgedResponse> listener) {

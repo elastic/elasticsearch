@@ -12,8 +12,6 @@ package org.elasticsearch.search.fetch.subphase;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -30,9 +28,6 @@ import java.util.Objects;
  * display values of this field.
  */
 public final class FieldAndFormat implements Writeable, ToXContentObject {
-    private static final String USE_DEFAULT_FORMAT = "use_field_mapping";
-    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(FetchDocValuesPhase.class);
-
     public static final ParseField FIELD_FIELD = new ParseField("field");
     public static final ParseField FORMAT_FIELD = new ParseField("format");
     public static final ParseField INCLUDE_UNMAPPED_FIELD = new ParseField("include_unmapped");
@@ -46,28 +41,6 @@ public final class FieldAndFormat implements Writeable, ToXContentObject {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), FIELD_FIELD);
         PARSER.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), FORMAT_FIELD);
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), INCLUDE_UNMAPPED_FIELD);
-    }
-
-    private static CheckedFunction<XContentParser, String, IOException> ignoreUseFieldMappingStringParser() {
-        return (p) -> {
-            if (p.currentToken() == XContentParser.Token.VALUE_NULL) {
-                return null;
-            } else {
-                String text = p.text();
-                if (text.equals(USE_DEFAULT_FORMAT)) {
-                    DEPRECATION_LOGGER.compatibleCritical(
-                        "explicit_default_format",
-                        "["
-                            + USE_DEFAULT_FORMAT
-                            + "] is a special format that was only used to "
-                            + "ease the transition to 7.x. It has become the default and shouldn't be set explicitly anymore."
-                    );
-                    return null;
-                } else {
-                    return text;
-                }
-            }
-        };
     }
 
     /**

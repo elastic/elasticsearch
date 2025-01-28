@@ -231,21 +231,9 @@ public final class CombinedFieldsQueryBuilder extends AbstractQueryBuilder<Combi
         return this;
     }
 
-    public ZeroTermsQueryOption zeroTermsQuery() {
-        return zeroTermsQuery;
-    }
-
     public CombinedFieldsQueryBuilder autoGenerateSynonymsPhraseQuery(boolean enable) {
         this.autoGenerateSynonymsPhraseQuery = enable;
         return this;
-    }
-
-    /**
-     * Whether phrase queries should be automatically generated for multi terms synonyms.
-     * Defaults to {@code true}.
-     */
-    public boolean autoGenerateSynonymsPhraseQuery() {
-        return autoGenerateSynonymsPhraseQuery;
     }
 
     private static void validateFieldBoost(float boost) {

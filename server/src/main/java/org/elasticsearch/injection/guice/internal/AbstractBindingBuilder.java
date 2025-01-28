@@ -77,7 +77,7 @@ public abstract class AbstractBindingBuilder<T> {
             return;
         }
 
-        if (binding.getScoping().isExplicitlyScoped()) {
+        if (binding.getScoping() != Scoping.UNSCOPED) {
             binder.addError(SCOPE_ALREADY_SET);
         }
     }

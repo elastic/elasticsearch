@@ -7,23 +7,35 @@
 
 package org.elasticsearch.xpack.inference.external.request.googlevertexai;
 
-import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.InputType;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsTaskSettings;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-public record GoogleVertexAiEmbeddingsRequestEntity(List<String> inputs, @Nullable Boolean autoTruncation) implements ToXContentObject {
+import static org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsTaskSettings.invalidInputTypeMessage;
+
+public record GoogleVertexAiEmbeddingsRequestEntity(List<String> inputs, GoogleVertexAiEmbeddingsTaskSettings taskSettings)
+    implements
+        ToXContentObject {
 
     private static final String INSTANCES_FIELD = "instances";
     private static final String CONTENT_FIELD = "content";
     private static final String PARAMETERS_FIELD = "parameters";
     private static final String AUTO_TRUNCATE_FIELD = "autoTruncate";
+    private static final String TASK_TYPE_FIELD = "task_type";
+
+    private static final String CLASSIFICATION_TASK_TYPE = "CLASSIFICATION";
+    private static final String CLUSTERING_TASK_TYPE = "CLUSTERING";
+    private static final String RETRIEVAL_DOCUMENT_TASK_TYPE = "RETRIEVAL_DOCUMENT";
+    private static final String RETRIEVAL_QUERY_TASK_TYPE = "RETRIEVAL_QUERY";
 
     public GoogleVertexAiEmbeddingsRequestEntity {
         Objects.requireNonNull(inputs);
+        Objects.requireNonNull(taskSettings);
     }
 
     @Override
@@ -35,21 +47,38 @@ public record GoogleVertexAiEmbeddingsRequestEntity(List<String> inputs, @Nullab
             builder.startObject();
             {
                 builder.field(CONTENT_FIELD, input);
+
+                if (taskSettings.getInputType() != null) {
+                    builder.field(TASK_TYPE_FIELD, convertToString(taskSettings.getInputType()));
+                }
             }
             builder.endObject();
         }
 
         builder.endArray();
 
-        if (autoTruncation != null) {
+        if (taskSettings.autoTruncate() != null) {
             builder.startObject(PARAMETERS_FIELD);
             {
-                builder.field(AUTO_TRUNCATE_FIELD, autoTruncation);
+                builder.field(AUTO_TRUNCATE_FIELD, taskSettings.autoTruncate());
             }
             builder.endObject();
         }
         builder.endObject();
 
         return builder;
+    }
+
+    static String convertToString(InputType inputType) {
+        return switch (inputType) {
+            case INGEST -> RETRIEVAL_DOCUMENT_TASK_TYPE;
+            case SEARCH -> RETRIEVAL_QUERY_TASK_TYPE;
+            case CLASSIFICATION -> CLASSIFICATION_TASK_TYPE;
+            case CLUSTERING -> CLUSTERING_TASK_TYPE;
+            default -> {
+                assert false : invalidInputTypeMessage(inputType);
+                yield null;
+            }
+        };
     }
 }

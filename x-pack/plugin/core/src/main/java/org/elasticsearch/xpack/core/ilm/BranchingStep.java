@@ -71,7 +71,7 @@ public class BranchingStep extends ClusterStateActionStep {
      * This method returns the next step to execute based on the predicate. If
      * the predicate returned true, then nextStepKeyOnTrue is the key of the
      * next step to run, otherwise nextStepKeyOnFalse is.
-     *
+     * <p>
      * throws {@link UnsupportedOperationException} if performAction was not called yet
      *
      * @return next step to execute

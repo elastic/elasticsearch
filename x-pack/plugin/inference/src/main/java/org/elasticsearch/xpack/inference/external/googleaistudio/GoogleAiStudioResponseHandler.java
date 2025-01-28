@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.external.googleaistudio;
 
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xcontent.XContentParser;
@@ -20,13 +19,11 @@ import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.external.response.googleaistudio.GoogleAiStudioErrorResponseEntity;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEventParser;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEventProcessor;
-import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 
 import java.io.IOException;
 import java.util.concurrent.Flow;
 
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.xpack.inference.external.http.HttpUtils.checkForEmptyBody;
 
 public class GoogleAiStudioResponseHandler extends BaseResponseHandler {
 
@@ -52,13 +49,6 @@ public class GoogleAiStudioResponseHandler extends BaseResponseHandler {
         this.content = content;
     }
 
-    @Override
-    public void validateResponse(ThrottlerManager throttlerManager, Logger logger, Request request, HttpResult result)
-        throws RetryException {
-        checkForFailureStatusCode(request, result);
-        checkForEmptyBody(throttlerManager, logger, request, result);
-    }
-
     /**
      * Validates the status code and throws a RetryException if not in the range [200, 300).
      *
@@ -67,7 +57,8 @@ public class GoogleAiStudioResponseHandler extends BaseResponseHandler {
      * @param result The http response and body
      * @throws RetryException Throws if status code is {@code >= 300 or < 200 }
      */
-    void checkForFailureStatusCode(Request request, HttpResult result) throws RetryException {
+    @Override
+    protected void checkForFailureStatusCode(Request request, HttpResult result) throws RetryException {
         if (result.isSuccessfulResponse()) {
             return;
         }

@@ -480,11 +480,8 @@ public final class TextFieldMapper extends FieldMapper {
         }
     }
 
-    private static final IndexVersion MINIMUM_COMPATIBILITY_VERSION = IndexVersion.fromId(5000099);
-
-    public static final TypeParser PARSER = new TypeParser(
-        (n, c) -> new Builder(n, c.indexVersionCreated(), c.getIndexAnalyzers(), SourceFieldMapper.isSynthetic(c.getIndexSettings())),
-        MINIMUM_COMPATIBILITY_VERSION
+    public static final TypeParser PARSER = createTypeParserWithLegacySupport(
+        (n, c) -> new Builder(n, c.indexVersionCreated(), c.getIndexAnalyzers(), SourceFieldMapper.isSynthetic(c.getIndexSettings()))
     );
 
     private static class PhraseWrappedAnalyzer extends AnalyzerWrapper {
@@ -968,15 +965,27 @@ public final class TextFieldMapper extends FieldMapper {
             return fielddata;
         }
 
-        public boolean canUseSyntheticSourceDelegateForQuerying() {
+        /**
+         * Returns true if the delegate sub-field can be used for loading and querying (ie. either isIndexed or isStored is true)
+         */
+        public boolean canUseSyntheticSourceDelegateForLoading() {
             return syntheticSourceDelegate != null
                 && syntheticSourceDelegate.ignoreAbove() == Integer.MAX_VALUE
                 && (syntheticSourceDelegate.isIndexed() || syntheticSourceDelegate.isStored());
         }
 
+        /**
+         * Returns true if the delegate sub-field can be used for querying only (ie. isIndexed must be true)
+         */
+        public boolean canUseSyntheticSourceDelegateForQuerying() {
+            return syntheticSourceDelegate != null
+                && syntheticSourceDelegate.ignoreAbove() == Integer.MAX_VALUE
+                && syntheticSourceDelegate.isIndexed();
+        }
+
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
-            if (canUseSyntheticSourceDelegateForQuerying()) {
+            if (canUseSyntheticSourceDelegateForLoading()) {
                 return new BlockLoader.Delegating(syntheticSourceDelegate.blockLoader(blContext)) {
                     @Override
                     protected String delegatingTo() {
@@ -1007,20 +1016,8 @@ public final class TextFieldMapper extends FieldMapper {
             if (isStored()) {
                 return new BlockStoredFieldsReader.BytesFromStringsBlockLoader(name());
             }
-            if (isSyntheticSource && syntheticSourceDelegate == null) {
-                /*
-                 * When we're in synthetic source mode we don't currently
-                 * support text fields that are not stored and are not children
-                 * of perfect keyword fields. We'd have to load from the parent
-                 * field and then convert the result to a string. In this case,
-                 * even if we would synthesize the source, the current field
-                 * would be missing.
-                 */
-                return null;
-            }
             SourceValueFetcher fetcher = SourceValueFetcher.toString(blContext.sourcePaths(name()));
-            var sourceMode = blContext.indexSettings().getIndexMappingSourceMode();
-            return new BlockSourceReader.BytesRefsBlockLoader(fetcher, blockReaderDisiLookup(blContext), sourceMode);
+            return new BlockSourceReader.BytesRefsBlockLoader(fetcher, blockReaderDisiLookup(blContext));
         }
 
         /**
@@ -1481,19 +1478,17 @@ public final class TextFieldMapper extends FieldMapper {
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport() {
         if (store) {
-            var loader = new StringStoredFieldFieldLoader(fullPath(), leafName()) {
+            return new SyntheticSourceSupport.Native(() -> new StringStoredFieldFieldLoader(fullPath(), leafName()) {
                 @Override
                 protected void write(XContentBuilder b, Object value) throws IOException {
                     b.value((String) value);
                 }
-            };
-
-            return new SyntheticSourceSupport.Native(loader);
+            });
         }
 
         var kwd = SyntheticSourceHelper.getKeywordFieldMapperForSyntheticSource(this);
         if (kwd != null) {
-            return new SyntheticSourceSupport.Native(kwd.syntheticFieldLoader(fullPath(), leafName()));
+            return new SyntheticSourceSupport.Native(() -> kwd.syntheticFieldLoader(fullPath(), leafName()));
         }
 
         return super.syntheticSourceSupport();

@@ -1,0 +1,18 @@
+pr: 117933
+summary: Change `deprecation.elasticsearch` keyword to `elasticsearch.deprecation`
+area: Infra/Logging
+type: bug
+issues:
+ - 83251
+breaking:
+  title: Deprecation logging value change for "data_stream.dataset" and "event.dataset"
+  area: Logging
+  details: |-
+    This change modifies the "data_stream.dataset" and "event.dataset" value for deprecation logging
+    to use the value `elasticsearch.deprecation` instead of `deprecation.elasticsearch`. This is now
+    consistent with other values where the name of the service is the first part of the key.
+  impact: |-
+    If you are directly consuming deprecation logs for "data_stream.dataset" and "event.dataset" and filtering on
+    this value, you will need to update your filters to use `elasticsearch.deprecation` instead of
+    `deprecation.elasticsearch`.
+  notable: false

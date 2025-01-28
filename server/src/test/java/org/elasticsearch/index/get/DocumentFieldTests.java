@@ -14,6 +14,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
+import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.RandomObjects;
@@ -122,7 +123,7 @@ public class DocumentFieldTests extends ESTestCase {
         if (isMetafield) {
             String metaField = randomValueOtherThanMany(excludeMetaFieldFilter, () -> randomFrom(IndicesModule.getBuiltInMetadataFields()));
             DocumentField documentField;
-            if (metaField.equals(IgnoredFieldMapper.NAME)) {
+            if (IgnoredFieldMapper.NAME.equals(metaField) || IgnoredSourceFieldMapper.NAME.equals(metaField)) {
                 int numValues = randomIntBetween(1, 3);
                 List<Object> ignoredFields = new ArrayList<>(numValues);
                 for (int i = 0; i < numValues; i++) {
@@ -130,7 +131,7 @@ public class DocumentFieldTests extends ESTestCase {
                 }
                 documentField = new DocumentField(metaField, ignoredFields);
             } else {
-                // meta fields are single value only, besides _ignored
+                // meta fields are single value only, besides _ignored and _ignored_source
                 documentField = new DocumentField(metaField, Collections.singletonList(randomAlphaOfLengthBetween(3, 10)));
             }
             return Tuple.tuple(documentField, documentField);

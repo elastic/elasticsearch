@@ -149,7 +149,7 @@ $endif$
                 int valueCount = getValueCount(pos);
                 int first = getFirstValueIndex(pos);
                 if (valueCount == 1) {
-                    builder.append$Type$(get$Type$(getFirstValueIndex(pos)$if(BytesRef)$, scratch$endif$));
+                    builder.append$Type$(get$Type$(first$if(BytesRef)$, scratch$endif$));
                 } else {
                     builder.beginPositionEntry();
                     for (int c = 0; c < valueCount; c++) {

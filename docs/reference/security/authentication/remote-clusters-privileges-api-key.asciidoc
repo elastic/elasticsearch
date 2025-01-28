@@ -2,7 +2,8 @@
 === Configure roles and users
 
 To use a remote cluster for {ccr} or {ccs}, you need to create user roles with
-<<roles-remote-indices-priv,remote indices privileges>> on the local cluster.
+<<roles-remote-indices-priv,remote indices privileges>> or
+<<roles-remote-cluster-priv, remote cluster privileges>> on the local cluster.
 
 You can manage users and roles from Stack Management in {kib} by selecting
 *Security > Roles* from the side navigation. You can also use the
@@ -80,7 +81,7 @@ POST /_security/role/remote-search
       "privileges": [
         "read",
         "read_cross_cluster",
-        "view_index_metadata" 
+        "view_index_metadata"
       ]
     }
   ]

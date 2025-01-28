@@ -8,4 +8,3 @@ template:
     index:
       lifecycle:
         name: metrics-apm.service_transaction_10m_metrics-default_policy
-        prefer_ilm: false

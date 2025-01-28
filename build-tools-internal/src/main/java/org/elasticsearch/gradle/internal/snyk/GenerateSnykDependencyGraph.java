@@ -11,7 +11,6 @@ package org.elasticsearch.gradle.internal.snyk;
 
 import groovy.json.JsonOutput;
 
-import org.elasticsearch.gradle.internal.info.BuildParams;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.GradleException;
 import org.gradle.api.artifacts.Configuration;
@@ -118,7 +117,7 @@ public class GenerateSnykDependencyGraph extends DefaultTask {
     }
 
     private Object buildTargetData() {
-        return Map.of("remoteUrl", remoteUrl.get(), "branch", BuildParams.getGitRevision());
+        return Map.of("remoteUrl", remoteUrl.get(), "branch", getGitRevision().get());
     }
 
     @InputFiles
@@ -158,6 +157,11 @@ public class GenerateSnykDependencyGraph extends DefaultTask {
 
     @Input
     public Property<String> getTargetReference() {
+        return targetReference;
+    }
+
+    @Input
+    public Property<String> getGitRevision() {
         return targetReference;
     }
 }

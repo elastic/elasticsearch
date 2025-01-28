@@ -7,29 +7,19 @@
 
 package org.elasticsearch.xpack.inference.external.ibmwatsonx;
 
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.retry.BaseResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseParser;
 import org.elasticsearch.xpack.inference.external.http.retry.RetryException;
 import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.external.response.ibmwatsonx.IbmWatsonxErrorResponseEntity;
-import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.xpack.inference.external.http.HttpUtils.checkForEmptyBody;
 
 public class IbmWatsonxResponseHandler extends BaseResponseHandler {
 
     public IbmWatsonxResponseHandler(String requestType, ResponseParser parseFunction) {
         super(requestType, parseFunction, IbmWatsonxErrorResponseEntity::fromResponse);
-    }
-
-    @Override
-    public void validateResponse(ThrottlerManager throttlerManager, Logger logger, Request request, HttpResult result)
-        throws RetryException {
-        checkForFailureStatusCode(request, result);
-        checkForEmptyBody(throttlerManager, logger, request, result);
     }
 
     /**
@@ -41,7 +31,8 @@ public class IbmWatsonxResponseHandler extends BaseResponseHandler {
      * @param result the http response and body
      * @throws RetryException thrown if status code is {@code >= 300 or < 200}
      */
-    void checkForFailureStatusCode(Request request, HttpResult result) throws RetryException {
+    @Override
+    protected void checkForFailureStatusCode(Request request, HttpResult result) throws RetryException {
         if (result.isSuccessfulResponse()) {
             return;
         }

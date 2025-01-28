@@ -23,7 +23,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.VersionType;
@@ -52,7 +51,6 @@ public class MultiGetRequest extends ActionRequest
         CompositeIndicesRequest,
         RealtimeRequest,
         ToXContentObject {
-    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(MultiGetRequest.class);
 
     private static final ParseField DOCS = new ParseField("docs");
     private static final ParseField INDEX = new ParseField("_index");

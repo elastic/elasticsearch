@@ -1,6 +1,0 @@
-pr: 113897
-summary: "Add chunking settings configuration to `CohereService,` `AmazonBedrockService,`\
-  \ and `AzureOpenAiService`"
-area: Machine Learning
-type: enhancement
-issues: []

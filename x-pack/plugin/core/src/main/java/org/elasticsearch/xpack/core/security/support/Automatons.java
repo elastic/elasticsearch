@@ -20,6 +20,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.lucene.util.automaton.MinimizationOperations;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -76,7 +77,7 @@ public final class Automatons {
     static final char WILDCARD_ESCAPE = '\\';    // Escape character
 
     // for testing only -Dtests.jvm.argline="-Dtests.automaton.record.patterns=true"
-    public static boolean recordPatterns = System.getProperty("tests.automaton.record.patterns", "false").equals("true");
+    public static final boolean recordPatterns = System.getProperty("tests.automaton.record.patterns", "false").equals("true");
     private static final Map<Automaton, List<String>> patternsMap = new HashMap<>();
 
     private Automatons() {}
@@ -293,7 +294,7 @@ public final class Automatons {
     }
 
     private static Automaton minimize(Automaton automaton) {
-        return Operations.determinize(automaton, maxDeterminizedStates);
+        return MinimizationOperations.minimize(automaton, maxDeterminizedStates);
     }
 
     public static Predicate<String> predicate(String... patterns) {

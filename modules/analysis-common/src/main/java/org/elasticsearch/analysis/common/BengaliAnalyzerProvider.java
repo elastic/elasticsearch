@@ -22,7 +22,7 @@ public class BengaliAnalyzerProvider extends AbstractIndexAnalyzerProvider<Benga
     private final BengaliAnalyzer analyzer;
 
     BengaliAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
-        super(name, settings);
+        super(name);
         analyzer = new BengaliAnalyzer(
             Analysis.parseStopWords(env, settings, BengaliAnalyzer.getDefaultStopSet()),
             Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET)

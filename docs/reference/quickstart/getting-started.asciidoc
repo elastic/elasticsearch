@@ -15,12 +15,17 @@ You can {kibana-ref}/console-kibana.html#import-export-console-requests[convert 
 ====
 
 [discrete]
-[[getting-started-prerequisites]]
-=== Prerequisites
+[[getting-started-requirements]]
+=== Requirements
 
-Before you begin, you need to have a running {es} cluster.
-The fastest way to get started is with a <<run-elasticsearch-locally,local development environment>>.
-Refer to <<elasticsearch-intro-deploy,Run {es}>> for other deployment options.
+You'll need a running {es} cluster, together with {kib} to use the Dev Tools API Console.
+Run the following command in your terminal to set up a <<run-elasticsearch-locally,single-node local cluster in Docker>>:
+
+[source,sh]
+----
+curl -fsSL https://elastic.co/start-local | sh
+----
+// NOTCONSOLE
 
 ////
 [source,console]

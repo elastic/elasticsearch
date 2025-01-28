@@ -207,7 +207,7 @@ public class ScheduledEventTests extends AbstractXContentSerializingTestCase<Sch
         String description = randomAlphaOfLength(10);
         String calendarId = randomAlphaOfLength(10);
         Instant startTime = Instant.ofEpochMilli(Instant.now().toEpochMilli());
-        Instant endTime = startTime.plusSeconds(randomInt(3600));
+        Instant endTime = startTime.plusSeconds(randomIntBetween(1, 3600));
 
         ScheduledEvent.Builder builder = new ScheduledEvent.Builder().description(description)
             .calendarId(calendarId)

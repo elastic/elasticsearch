@@ -270,7 +270,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
             IndexService indexService = service.indexService(resolveIndex("test"));
             if (indexService != null) {
                 assertEquals(indexService.getIndexSettings().getRefreshInterval().millis(), -1);
-                assertEquals(indexService.getIndexSettings().getFlushThresholdSize(new ByteSizeValue(1, ByteSizeUnit.TB)).getBytes(), 1024);
+                assertEquals(indexService.getIndexSettings().getFlushThresholdSize(ByteSizeValue.of(1, ByteSizeUnit.TB)).getBytes(), 1024);
                 assertEquals(indexService.getIndexSettings().getGenerationThresholdSize().getBytes(), 4096);
             }
         }
@@ -281,7 +281,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
             IndexService indexService = service.indexService(resolveIndex("test"));
             if (indexService != null) {
                 assertEquals(indexService.getIndexSettings().getRefreshInterval().millis(), 1000);
-                assertEquals(indexService.getIndexSettings().getFlushThresholdSize(new ByteSizeValue(1, ByteSizeUnit.TB)).getBytes(), 1024);
+                assertEquals(indexService.getIndexSettings().getFlushThresholdSize(ByteSizeValue.of(1, ByteSizeUnit.TB)).getBytes(), 1024);
                 assertEquals(indexService.getIndexSettings().getGenerationThresholdSize().getBytes(), 4096);
             }
         }

@@ -11,24 +11,29 @@ import org.apache.logging.log4j.Level;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
-import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -73,6 +78,29 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         assertThat(issue.getLevel(), equalTo(DeprecationIssue.Level.CRITICAL));
         assertThat(issue.getMessage(), equalTo("Setting [node.removed_setting] is deprecated"));
         assertThat(issue.getDetails(), equalTo("Remove the [node.removed_setting] setting. Some detail."));
+        assertThat(issue.getUrl(), equalTo("https://removed-setting.example.com"));
+    }
+
+    public void testMultipleRemovedSettings() {
+        final Settings clusterSettings = Settings.EMPTY;
+        final Settings nodeSettings = Settings.builder()
+            .put("node.removed_setting1", "value")
+            .put("node.removed_setting2", "value")
+            .build();
+        final Setting<?> removedSetting1 = Setting.simpleString("node.removed_setting1");
+        final Setting<?> removedSetting2 = Setting.simpleString("node.removed_setting2");
+        final DeprecationIssue issue = NodeDeprecationChecks.checkMultipleRemovedSettings(
+            clusterSettings,
+            nodeSettings,
+            shuffledList(List.of(removedSetting1, removedSetting2)),
+            "https://removed-setting.example.com",
+            "Some detail.",
+            DeprecationIssue.Level.CRITICAL
+        );
+        assertThat(issue, not(nullValue()));
+        assertThat(issue.getLevel(), equalTo(DeprecationIssue.Level.CRITICAL));
+        assertThat(issue.getMessage(), equalTo("Settings [node.removed_setting1, node.removed_setting2] are deprecated"));
+        assertThat(issue.getDetails(), equalTo("Remove each setting in [node.removed_setting1, node.removed_setting2]. Some detail."));
         assertThat(issue.getUrl(), equalTo("https://removed-setting.example.com"));
     }
 
@@ -208,33 +236,6 @@ public class NodeDeprecationChecksTests extends ESTestCase {
                 + "]. "
                 + "In a future major release, node will fail to start if any realm names start with reserved prefix.",
             deprecationIssue.getDetails()
-        );
-    }
-
-    public void testSingleDataNodeWatermarkSetting() {
-        Settings settings = Settings.builder().put(DiskThresholdDecider.ENABLE_FOR_SINGLE_DATA_NODE.getKey(), true).build();
-
-        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(
-            NODE_SETTINGS_CHECKS,
-            c -> c.apply(settings, null, ClusterState.EMPTY_STATE, new XPackLicenseState(() -> 0))
-        );
-
-        final String expectedUrl = "https://www.elastic.co/guide/en/elasticsearch/reference/7.14/"
-            + "breaking-changes-7.14.html#deprecate-single-data-node-watermark";
-        assertThat(
-            issues,
-            hasItem(
-                new DeprecationIssue(
-                    DeprecationIssue.Level.CRITICAL,
-                    "setting [cluster.routing.allocation.disk.watermark.enable_for_single_data_node] is deprecated and"
-                        + " will not be available in a future version",
-                    expectedUrl,
-                    "found [cluster.routing.allocation.disk.watermark.enable_for_single_data_node] configured."
-                        + " Discontinue use of this setting.",
-                    false,
-                    null
-                )
-            )
         );
     }
 
@@ -832,6 +833,44 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             "One or more of your nodes is configured with node.attributes.data settings. This is typically used to create a "
                 + "hot/warm or tiered architecture, based on legacy guidelines. Data tiers are a recommended replacement for tiered "
                 + "architecture clusters.",
+            false,
+            null
+        );
+        assertThat(issues, hasItem(expected));
+    }
+
+    public void testCheckSourceModeInComponentTemplates() throws IOException {
+        Template template = Template.builder().mappings(CompressedXContent.fromJSON("""
+            { "_doc": { "_source": { "mode": "stored"} } }""")).build();
+        ComponentTemplate componentTemplate = new ComponentTemplate(template, 1L, new HashMap<>());
+
+        Template template2 = Template.builder().mappings(CompressedXContent.fromJSON("""
+            { "_doc": { "_source": { "enabled": false} } }""")).build();
+        ComponentTemplate componentTemplate2 = new ComponentTemplate(template2, 1L, new HashMap<>());
+
+        ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .metadata(
+                Metadata.builder()
+                    .componentTemplates(
+                        Map.of("my-template-1", componentTemplate, "my-template-2", componentTemplate, "my-template-3", componentTemplate2)
+                    )
+            )
+            .build();
+
+        final List<DeprecationIssue> issues = DeprecationChecks.filterChecks(
+            DeprecationChecks.NODE_SETTINGS_CHECKS,
+            c -> c.apply(
+                Settings.EMPTY,
+                new PluginsAndModules(Collections.emptyList(), Collections.emptyList()),
+                clusterState,
+                new XPackLicenseState(() -> 0)
+            )
+        );
+        final DeprecationIssue expected = new DeprecationIssue(
+            DeprecationIssue.Level.CRITICAL,
+            SourceFieldMapper.DEPRECATION_WARNING,
+            "https://github.com/elastic/elasticsearch/pull/117172",
+            SourceFieldMapper.DEPRECATION_WARNING + " Affected component templates: [my-template-1, my-template-2]",
             false,
             null
         );

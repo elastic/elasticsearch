@@ -14,6 +14,7 @@ import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.common.util.Int3Hash;
 import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.common.util.LongLongHash;
+import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.data.Block;
@@ -24,6 +25,7 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.ReleasableIterator;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
 
 import java.util.Iterator;
 import java.util.List;
@@ -58,9 +60,7 @@ import java.util.List;
  *     leave a big gap, even if we never see {@code null}.
  * </p>
  */
-public abstract sealed class BlockHash implements Releasable, SeenGroupIds //
-    permits BooleanBlockHash, BytesRefBlockHash, DoubleBlockHash, IntBlockHash, LongBlockHash, BytesRef2BlockHash, BytesRef3BlockHash, //
-    NullBlockHash, PackedValuesBlockHash, BytesRefLongBlockHash, LongLongBlockHash, TimeSeriesBlockHash {
+public abstract class BlockHash implements Releasable, SeenGroupIds {
 
     protected final BlockFactory blockFactory;
 
@@ -91,6 +91,9 @@ public abstract sealed class BlockHash implements Releasable, SeenGroupIds //
 
     /**
      * Returns a {@link Block} that contains all the keys that are inserted by {@link #add}.
+     * <p>
+     *     Keys must be in the same order as the IDs returned by {@link #nonEmpty()}.
+     * </p>
      */
     public abstract Block[] getKeys();
 
@@ -100,6 +103,9 @@ public abstract sealed class BlockHash implements Releasable, SeenGroupIds //
      * {@link BooleanBlockHash} does this by always assigning {@code false} to {@code 0}
      * and {@code true} to {@code 1}. It's only <strong>after</strong> collection when we
      * know if there actually were any {@code true} or {@code false} values received.
+     * <p>
+     *     IDs must be in the same order as the keys returned by {@link #getKeys()}.
+     * </p>
      */
     public abstract IntVector nonEmpty();
 
@@ -107,7 +113,15 @@ public abstract sealed class BlockHash implements Releasable, SeenGroupIds //
     @Override
     public abstract BitArray seenGroupIds(BigArrays bigArrays);
 
-    public record GroupSpec(int channel, ElementType elementType) {}
+    /**
+     * @param isCategorize Whether this group is a CATEGORIZE() or not.
+     *                     May be changed in the future when more stateful grouping functions are added.
+     */
+    public record GroupSpec(int channel, ElementType elementType, boolean isCategorize) {
+        public GroupSpec(int channel, ElementType elementType) {
+            this(channel, elementType, false);
+        }
+    }
 
     /**
      * Creates a specialized hash table that maps one or more {@link Block}s to ids.
@@ -157,6 +171,25 @@ public abstract sealed class BlockHash implements Releasable, SeenGroupIds //
      */
     public static BlockHash buildPackedValuesBlockHash(List<GroupSpec> groups, BlockFactory blockFactory, int emitBatchSize) {
         return new PackedValuesBlockHash(groups, blockFactory, emitBatchSize);
+    }
+
+    /**
+     * Builds a BlockHash for the Categorize grouping function.
+     */
+    public static BlockHash buildCategorizeBlockHash(
+        List<GroupSpec> groups,
+        AggregatorMode aggregatorMode,
+        BlockFactory blockFactory,
+        AnalysisRegistry analysisRegistry,
+        int emitBatchSize
+    ) {
+        if (groups.size() == 1) {
+            return new CategorizeBlockHash(blockFactory, groups.get(0).channel, aggregatorMode, analysisRegistry);
+        } else {
+            assert groups.get(0).isCategorize();
+            assert groups.subList(1, groups.size()).stream().noneMatch(GroupSpec::isCategorize);
+            return new CategorizePackedValuesBlockHash(groups, blockFactory, aggregatorMode, analysisRegistry, emitBatchSize);
+        }
     }
 
     /**

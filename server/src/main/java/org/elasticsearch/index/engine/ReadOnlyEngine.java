@@ -97,8 +97,8 @@ public class ReadOnlyEngine extends Engine {
     @SuppressWarnings("this-escape")
     public ReadOnlyEngine(
         EngineConfig config,
-        SeqNoStats seqNoStats,
-        TranslogStats translogStats,
+        @Nullable SeqNoStats seqNoStats,
+        @Nullable TranslogStats translogStats,
         boolean obtainLock,
         Function<DirectoryReader, DirectoryReader> readerWrapperFunction,
         boolean requireCompleteHistory,
@@ -220,7 +220,7 @@ public class ReadOnlyEngine extends Engine {
         assert Transports.assertNotTransportThread("opening index commit of a read-only engine");
         DirectoryReader directoryReader = DirectoryReader.open(
             commit,
-            org.apache.lucene.util.Version.MIN_SUPPORTED_MAJOR,
+            IndexVersions.MINIMUM_READONLY_COMPATIBLE.luceneVersion().major,
             engineConfig.getLeafSorter()
         );
         if (lazilyLoadSoftDeletes) {
@@ -251,6 +251,7 @@ public class ReadOnlyEngine extends Engine {
     }
 
     private static TranslogStats translogStats(final EngineConfig config, final SegmentInfos infos) throws IOException {
+        assert config.getTranslogConfig().hasTranslog();
         final String translogUuid = infos.getUserData().get(Translog.TRANSLOG_UUID_KEY);
         if (translogUuid == null) {
             throw new IllegalStateException("commit doesn't contain translog unique id");
@@ -266,7 +267,8 @@ public class ReadOnlyEngine extends Engine {
                 translogDeletionPolicy,
                 config.getGlobalCheckpointSupplier(),
                 config.getPrimaryTermSupplier(),
-                seqNo -> {}
+                seqNo -> {},
+                TranslogOperationAsserter.DEFAULT
             )
         ) {
             return translog.stats();
@@ -356,7 +358,7 @@ public class ReadOnlyEngine extends Engine {
 
     @Override
     public int countChanges(String source, long fromSeqNo, long toSeqNo) throws IOException {
-        try (Translog.Snapshot snapshot = newChangesSnapshot(source, fromSeqNo, toSeqNo, false, true, true)) {
+        try (Translog.Snapshot snapshot = newChangesSnapshot(source, fromSeqNo, toSeqNo, false, true, true, -1)) {
             return snapshot.totalOperations();
         }
     }
@@ -368,7 +370,8 @@ public class ReadOnlyEngine extends Engine {
         long toSeqNo,
         boolean requiredFullRange,
         boolean singleConsumer,
-        boolean accessStats
+        boolean accessStats,
+        long maxChunkSize
     ) {
         return Translog.Snapshot.EMPTY;
     }
@@ -573,7 +576,8 @@ public class ReadOnlyEngine extends Engine {
 
     protected DirectoryReader openDirectory(Directory directory) throws IOException {
         assert Transports.assertNotTransportThread("opening directory reader of a read-only engine");
-        final DirectoryReader reader = DirectoryReader.open(directory);
+        var commit = Lucene.getIndexCommit(Lucene.readSegmentInfos(directory), directory);
+        final DirectoryReader reader = DirectoryReader.open(commit, IndexVersions.MINIMUM_READONLY_COMPATIBLE.luceneVersion().major, null);
         if (lazilyLoadSoftDeletes) {
             return new LazySoftDeletesDirectoryReaderWrapper(reader, Lucene.SOFT_DELETES_FIELD);
         } else {

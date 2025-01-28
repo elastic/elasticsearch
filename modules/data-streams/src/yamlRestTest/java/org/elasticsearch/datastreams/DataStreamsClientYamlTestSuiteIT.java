@@ -50,6 +50,9 @@ public class DataStreamsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase 
             .setting("xpack.security.enabled", "true")
             .keystore("bootstrap.password", "x-pack-test-password")
             .user("x_pack_rest_user", "x-pack-test-password");
+        if (initTestSeed().nextBoolean()) {
+            clusterBuilder.setting("xpack.license.self_generated.type", "trial");
+        }
         boolean setNodes = Boolean.parseBoolean(System.getProperty("yaml.rest.tests.set_num_nodes", "true"));
         if (setNodes) {
             clusterBuilder.nodes(2);

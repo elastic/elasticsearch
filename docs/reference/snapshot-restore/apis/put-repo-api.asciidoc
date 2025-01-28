@@ -4,6 +4,12 @@
 <titleabbrev>Create or update snapshot repository</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-snapshot[Snapshot and restore APIs].
+--
+
 Registers or updates a <<snapshots-register-repository,snapshot repository>>.
 
 [source,console]

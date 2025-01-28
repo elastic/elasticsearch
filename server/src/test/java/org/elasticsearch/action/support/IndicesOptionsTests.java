@@ -30,11 +30,9 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 
@@ -57,13 +55,7 @@ public class IndicesOptionsTests extends ESTestCase {
                         .ignoreThrottled(randomBoolean())
                         .allowAliasToMultipleIndices(randomBoolean())
                         .allowClosedIndices(randomBoolean())
-                )
-                .selectorOptions(
-                    IndicesOptions.SelectorOptions.builder()
-                        .setDefaultSelectors(
-                            EnumSet.copyOf(randomNonEmptySubsetOf(Set.of(IndexComponentSelector.DATA, IndexComponentSelector.FAILURES)))
-                        )
-                        .build()
+                        .allowSelectors(randomBoolean())
                 )
                 .build();
 
@@ -349,12 +341,15 @@ public class IndicesOptionsTests extends ESTestCase {
             randomBoolean(),
             randomBoolean()
         );
-        GatekeeperOptions gatekeeperOptions = new GatekeeperOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean());
-        IndicesOptions.SelectorOptions selectorOptions = new IndicesOptions.SelectorOptions(
-            EnumSet.copyOf(randomNonEmptySubsetOf(Set.of(IndexComponentSelector.DATA, IndexComponentSelector.FAILURES)))
+        GatekeeperOptions gatekeeperOptions = new GatekeeperOptions(
+            randomBoolean(),
+            randomBoolean(),
+            randomBoolean(),
+            randomBoolean(),
+            randomBoolean()
         );
 
-        IndicesOptions indicesOptions = new IndicesOptions(concreteTargetOptions, wildcardOptions, gatekeeperOptions, selectorOptions);
+        IndicesOptions indicesOptions = new IndicesOptions(concreteTargetOptions, wildcardOptions, gatekeeperOptions);
 
         XContentType type = randomFrom(XContentType.values());
         BytesReference xContentBytes = toXContentBytes(indicesOptions, type);
@@ -369,15 +364,6 @@ public class IndicesOptionsTests extends ESTestCase {
         assertThat(map.get("ignore_unavailable"), equalTo(concreteTargetOptions.allowUnavailableTargets()));
         assertThat(map.get("allow_no_indices"), equalTo(wildcardOptions.allowEmptyExpressions()));
         assertThat(map.get("ignore_throttled"), equalTo(gatekeeperOptions.ignoreThrottled()));
-        String displayValue;
-        if (IndicesOptions.SelectorOptions.DATA_AND_FAILURE.equals(selectorOptions)) {
-            displayValue = "include";
-        } else if (IndicesOptions.SelectorOptions.ONLY_DATA.equals(selectorOptions)) {
-            displayValue = "exclude";
-        } else {
-            displayValue = "only";
-        }
-        assertThat(map.get("failure_store"), equalTo(displayValue));
     }
 
     public void testFromXContent() throws IOException {

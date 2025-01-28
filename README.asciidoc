@@ -4,7 +4,7 @@ Elasticsearch is a distributed search and analytics engine, scalable data store 
 
 Use cases enabled by Elasticsearch include:
 
-* https://www.elastic.co/search-labs/blog/articles/retrieval-augmented-generation-rag[Retrieval Augmented Generation (RAG)] 
+* https://www.elastic.co/search-labs/blog/articles/retrieval-augmented-generation-rag[Retrieval Augmented Generation (RAG)]
 * https://www.elastic.co/search-labs/blog/categories/vector-search[Vector search]
 * Full-text search
 * Logs
@@ -17,7 +17,7 @@ Use cases enabled by Elasticsearch include:
 To learn more about Elasticsearch's features and capabilities, see our
 https://www.elastic.co/products/elasticsearch[product page].
 
-To access information on https://www.elastic.co/search-labs/blog/categories/ml-research[machine learning innovations] and the latest https://www.elastic.co/search-labs/blog/categories/lucene[Lucene contributions from Elastic], more information can be found in https://www.elastic.co/search-labs[Search Labs]. 
+To access information on https://www.elastic.co/search-labs/blog/categories/ml-research[machine learning innovations] and the latest https://www.elastic.co/search-labs/blog/categories/lucene[Lucene contributions from Elastic], more information can be found in https://www.elastic.co/search-labs[Search Labs].
 
 [[get-started]]
 == Get started
@@ -27,20 +27,20 @@ https://www.elastic.co/cloud/as-a-service[Elasticsearch Service on Elastic
 Cloud].
 
 If you prefer to install and manage Elasticsearch yourself, you can download
-the latest version from 
+the latest version from
 https://www.elastic.co/downloads/elasticsearch[elastic.co/downloads/elasticsearch].
 
 === Run Elasticsearch locally
 
-//// 
+////
 IMPORTANT: This content is replicated in the Elasticsearch repo. See `run-elasticsearch-locally.asciidoc`.
 Ensure both files are in sync.
 
 https://github.com/elastic/start-local is the source of truth.
-//// 
+////
 
 [WARNING]
-==== 
+====
 DO NOT USE THESE INSTRUCTIONS FOR PRODUCTION DEPLOYMENTS.
 
 This setup is intended for local development and testing only.
@@ -56,8 +56,8 @@ Quickly set up Elasticsearch and Kibana in Docker for local development or testi
 - If you're using Microsoft Windows, then install https://learn.microsoft.com/en-us/windows/wsl/install[Windows Subsystem for Linux (WSL)].
 
 ==== Trial license
+This setup comes with a one-month trial license that includes all Elastic features.
 
-This setup comes with a one-month trial of the Elastic *Platinum* license.
 After the trial period, the license reverts to *Free and open - Basic*.
 Refer to https://www.elastic.co/subscriptions[Elastic subscriptions] for more information.
 
@@ -93,7 +93,7 @@ Use this key to connect to Elasticsearch with a https://www.elastic.co/guide/en/
 From the `elastic-start-local` folder, check the connection to Elasticsearch using `curl`:
 
 [source,sh]
-----     
+----
 source .env
 curl $ES_LOCAL_URL -H "Authorization: ApiKey ${ES_LOCAL_API_KEY}"
 ----
@@ -101,12 +101,12 @@ curl $ES_LOCAL_URL -H "Authorization: ApiKey ${ES_LOCAL_API_KEY}"
 
 === Send requests to Elasticsearch
 
-You send data and other requests to Elasticsearch through REST APIs. 
-You can interact with Elasticsearch using any client that sends HTTP requests, 
+You send data and other requests to Elasticsearch through REST APIs.
+You can interact with Elasticsearch using any client that sends HTTP requests,
 such as the https://www.elastic.co/guide/en/elasticsearch/client/index.html[Elasticsearch
-language clients] and https://curl.se[curl]. 
+language clients] and https://curl.se[curl].
 
-==== Using curl 
+==== Using curl
 
 Here's an example curl command to create a new Elasticsearch index, using basic auth:
 
@@ -149,19 +149,19 @@ print(client.info())
 
 ==== Using the Dev Tools Console
 
-Kibana's developer console provides an easy way to experiment and test requests. 
+Kibana's developer console provides an easy way to experiment and test requests.
 To access the console, open Kibana, then go to **Management** > **Dev Tools**.
 
 **Add data**
 
-You index data into Elasticsearch by sending JSON objects (documents) through the REST APIs.  
-Whether you have structured or unstructured text, numerical data, or geospatial data, 
-Elasticsearch efficiently stores and indexes it in a way that supports fast searches. 
+You index data into Elasticsearch by sending JSON objects (documents) through the REST APIs.
+Whether you have structured or unstructured text, numerical data, or geospatial data,
+Elasticsearch efficiently stores and indexes it in a way that supports fast searches.
 
 For timestamped data such as logs and metrics, you typically add documents to a
 data stream made up of multiple auto-generated backing indices.
 
-To add a single document to an index, submit an HTTP post request that targets the index. 
+To add a single document to an index, submit an HTTP post request that targets the index.
 
 ----
 POST /customer/_doc/1
@@ -171,11 +171,11 @@ POST /customer/_doc/1
 }
 ----
 
-This request automatically creates the `customer` index if it doesn't exist, 
-adds a new document that has an ID of 1, and 
+This request automatically creates the `customer` index if it doesn't exist,
+adds a new document that has an ID of 1, and
 stores and indexes the `firstname` and `lastname` fields.
 
-The new document is available immediately from any node in the cluster. 
+The new document is available immediately from any node in the cluster.
 You can retrieve it with a GET request that specifies its document ID:
 
 ----
@@ -183,7 +183,7 @@ GET /customer/_doc/1
 ----
 
 To add multiple documents in one request, use the `_bulk` API.
-Bulk data must be newline-delimited JSON (NDJSON). 
+Bulk data must be newline-delimited JSON (NDJSON).
 Each line must end in a newline character (`\n`), including the last line.
 
 ----
@@ -200,15 +200,15 @@ PUT customer/_bulk
 
 **Search**
 
-Indexed documents are available for search in near real-time. 
-The following search matches all customers with a first name of _Jennifer_ 
+Indexed documents are available for search in near real-time.
+The following search matches all customers with a first name of _Jennifer_
 in the `customer` index.
 
 ----
 GET customer/_search
 {
   "query" : {
-    "match" : { "firstname": "Jennifer" }  
+    "match" : { "firstname": "Jennifer" }
   }
 }
 ----
@@ -223,9 +223,9 @@ data streams, or index aliases.
 
 . Go to **Management > Stack Management > Kibana > Data Views**.
 . Select **Create data view**.
-. Enter a name for the data view and a pattern that matches one or more indices, 
-such as _customer_. 
-. Select **Save data view to Kibana**.  
+. Enter a name for the data view and a pattern that matches one or more indices,
+such as _customer_.
+. Select **Save data view to Kibana**.
 
 To start exploring, go to **Analytics > Discover**.
 
@@ -254,11 +254,6 @@ To build a distribution for another platform, run the related command:
 ./gradlew :distribution:archives:windows-zip:assemble
 ----
 
-To build distributions for all supported platforms, run:
-----
-./gradlew assemble
-----
-
 Distributions are output to `distribution/archives`.
 
 To run the test suite, see xref:TESTING.asciidoc[TESTING].
@@ -281,7 +276,7 @@ The https://github.com/elastic/elasticsearch-labs[`elasticsearch-labs`] repo con
 [[contribute]]
 == Contribute
 
-For contribution guidelines, see xref:CONTRIBUTING.md[CONTRIBUTING]. 
+For contribution guidelines, see xref:CONTRIBUTING.md[CONTRIBUTING].
 
 [[questions]]
 == Questions? Problems? Suggestions?

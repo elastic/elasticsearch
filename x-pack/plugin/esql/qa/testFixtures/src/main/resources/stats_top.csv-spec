@@ -263,8 +263,9 @@ FROM employees
 topText
 required_capability: agg_top
 required_capability: agg_top_string_support
+required_capability: functions_never_emit_text
 # we don't need MATCH, but the loader for books.csv is busted in CsvTests
-required_capability: match_operator
+required_capability: match_operator_colon
 
 FROM books
 | EVAL calc = TRIM(SUBSTRING(title, 2, 5))
@@ -273,15 +274,16 @@ FROM books
     calc = TOP(calc, 3, "asc"),
     evil = TOP(CASE(year < 1980, title, author), 3, "desc");
 
-title:text | calc:keyword | evil:text
+title:keyword | calc:keyword | evil:keyword
 [Worlds of Exile and Illusion: Three Complete Novels of the Hainish Series in One Volume--Rocannon's World, Planet of Exile, City of Illusions, Woman-The Full Story: A Dynamic Celebration of Freedoms, Winter notes on summer impressions] | ["'Bria", "Gent", "HE UN"] | [William Faulkner, William Faulkner, William Faulkner]
 ;
 
 topTextGrouping
 required_capability: agg_top
 required_capability: agg_top_string_support
+required_capability: functions_never_emit_text
 # we don't need MATCH, but the loader for books.csv is busted in CsvTests
-required_capability: match_operator
+required_capability: match_operator_colon
 
 FROM books
 | EVAL calc = TRIM(SUBSTRING(title, 2, 5))
@@ -293,7 +295,7 @@ FROM books
 | SORT author
 | LIMIT 3;
 
-                                                                                                             title:text | calc:keyword | evil:text | author:text
+                                                                                                             title:keyword | calc:keyword | evil:keyword | author:text
                                    A Tolkien Compass: Including J. R. R. Tolkien's Guide to the Names in The Lord of the Rings |  Tolk | A Tolkien Compass: Including J. R. R. Tolkien's Guide to the Names in The Lord of the Rings | Agnes Perkins
                                                     The Lord of the Rings Poster Collection: Six Paintings by Alan Lee (No. 1) | he Lo |                                                                [J. R. R. Tolkien, Alan Lee] | Alan Lee
 A Gentle Creature and Other Stories: White Nights, A Gentle Creature, and The Dream of a Ridiculous Man (The World's Classics) |  Gent |                                        [W. J. Leatherbarrow, Fyodor Dostoevsky, Alan Myers] | Alan Myers

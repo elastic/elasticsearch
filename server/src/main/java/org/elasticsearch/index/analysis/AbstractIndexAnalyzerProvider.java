@@ -10,7 +10,6 @@
 package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.elasticsearch.common.settings.Settings;
 
 public abstract class AbstractIndexAnalyzerProvider<T extends Analyzer> implements AnalyzerProvider<T> {
 
@@ -21,9 +20,8 @@ public abstract class AbstractIndexAnalyzerProvider<T extends Analyzer> implemen
      *
      * @param name          The analyzer name
      */
-    public AbstractIndexAnalyzerProvider(String name, Settings settings) {
+    public AbstractIndexAnalyzerProvider(String name) {
         this.name = name;
-        Analysis.checkForDeprecatedVersion(name, settings);
     }
 
     /**

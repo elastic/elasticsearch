@@ -1,6 +1,9 @@
 [[misc-cluster-settings]]
 === Miscellaneous cluster settings
 
+[[cluster-name]]
+include::{es-ref-dir}/setup/important-settings/cluster-name.asciidoc[]
+
 [discrete]
 [[cluster-read-only]]
 ==== Metadata

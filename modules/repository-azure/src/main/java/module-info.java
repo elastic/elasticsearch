@@ -18,10 +18,7 @@ module org.elasticsearch.repository.azure {
     requires org.apache.logging.log4j;
     requires org.apache.logging.log4j.core;
 
-    requires com.azure.core;
     requires com.azure.http.netty;
-    requires com.azure.storage.blob;
-    requires com.azure.storage.common;
     requires com.azure.identity;
 
     requires io.netty.buffer;
@@ -29,7 +26,7 @@ module org.elasticsearch.repository.azure {
     requires io.netty.resolver;
     requires io.netty.common;
 
-    requires reactor.core;
     requires reactor.netty.core;
     requires reactor.netty.http;
+    requires com.azure.storage.blob.batch;
 }

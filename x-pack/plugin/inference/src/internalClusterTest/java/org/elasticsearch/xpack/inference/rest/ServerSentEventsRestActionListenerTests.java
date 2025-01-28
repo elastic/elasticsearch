@@ -17,6 +17,7 @@ import org.apache.http.nio.protocol.AbstractAsyncResponseConsumer;
 import org.apache.http.nio.util.SimpleInputBuffer;
 import org.apache.http.protocol.HttpContext;
 import org.apache.http.util.EntityUtils;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -25,6 +26,7 @@ import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -33,6 +35,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -43,6 +46,7 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEvent;
@@ -52,6 +56,7 @@ import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentE
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Deque;
 import java.util.Iterator;
 import java.util.List;
@@ -64,7 +69,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
-import java.util.regex.Pattern;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -81,8 +85,7 @@ public class ServerSentEventsRestActionListenerTests extends ESIntegTestCase {
     private static final Exception expectedException = new IllegalStateException("hello there");
     private static final String expectedExceptionAsServerSentEvent = """
         {\
-        "error":{"root_cause":[{"type":"illegal_state_exception","reason":"hello there",\
-        "caused_by":{"type":"illegal_state_exception","reason":"hello there"}}],\
+        "error":{"root_cause":[{"type":"illegal_state_exception","reason":"hello there"}],\
         "type":"illegal_state_exception","reason":"hello there"},"status":500\
         }""";
 
@@ -97,6 +100,14 @@ public class ServerSentEventsRestActionListenerTests extends ESIntegTestCase {
     }
 
     public static class StreamingPlugin extends Plugin implements ActionPlugin {
+        private final SetOnce<ThreadPool> threadPool = new SetOnce<>();
+
+        @Override
+        public Collection<?> createComponents(PluginServices services) {
+            threadPool.set(services.threadPool());
+            return Collections.emptyList();
+        }
+
         @Override
         public Collection<RestHandler> getRestHandlers(
             Settings settings,
@@ -123,7 +134,7 @@ public class ServerSentEventsRestActionListenerTests extends ESIntegTestCase {
                     var publisher = new RandomPublisher(requestCount, withError);
                     var inferenceServiceResults = new StreamingInferenceServiceResults(publisher);
                     var inferenceResponse = new InferenceAction.Response(inferenceServiceResults, inferenceServiceResults.publisher());
-                    new ServerSentEventsRestActionListener(channel).onResponse(inferenceResponse);
+                    new ServerSentEventsRestActionListener(channel, threadPool).onResponse(inferenceResponse);
                 }
             }, new RestHandler() {
                 @Override
@@ -133,7 +144,7 @@ public class ServerSentEventsRestActionListenerTests extends ESIntegTestCase {
 
                 @Override
                 public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) {
-                    new ServerSentEventsRestActionListener(channel).onFailure(expectedException);
+                    new ServerSentEventsRestActionListener(channel, threadPool).onFailure(expectedException);
                 }
             }, new RestHandler() {
                 @Override
@@ -144,7 +155,7 @@ public class ServerSentEventsRestActionListenerTests extends ESIntegTestCase {
                 @Override
                 public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) {
                     var inferenceResponse = new InferenceAction.Response(new SingleInferenceServiceResults());
-                    new ServerSentEventsRestActionListener(channel).onResponse(inferenceResponse);
+                    new ServerSentEventsRestActionListener(channel, threadPool).onResponse(inferenceResponse);
                 }
             });
         }
@@ -232,7 +243,11 @@ public class ServerSentEventsRestActionListenerTests extends ESIntegTestCase {
         @Override
         public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
             var randomString = randomUnicodeOfLengthBetween(2, 20);
-            return ChunkedToXContent.builder(params).object(b -> b.field("delta", randomString));
+            return Iterators.concat(
+                ChunkedToXContentHelper.startObject(),
+                ChunkedToXContentHelper.field("delta", randomString),
+                ChunkedToXContentHelper.endObject()
+            );
         }
     }
 
@@ -265,7 +280,7 @@ public class ServerSentEventsRestActionListenerTests extends ESIntegTestCase {
 
         @Override
         public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-            return ChunkedToXContent.builder(params).field("result", randomUnicodeOfLengthBetween(2, 20));
+            return ChunkedToXContentHelper.field("result", randomUnicodeOfLengthBetween(2, 20));
         }
     }
 
@@ -414,17 +429,19 @@ public class ServerSentEventsRestActionListenerTests extends ESIntegTestCase {
         assertThat(collector.stringsVerified.getLast(), equalTo(expectedExceptionAsServerSentEvent));
     }
 
-    public void testNoStream() throws IOException {
-        var pattern = Pattern.compile("^\uFEFFevent: message\ndata: \\{\"result\":\".*\"}\n\n\uFEFFevent: message\ndata: \\[DONE]\n\n$");
+    public void testNoStream() {
+        var collector = new RandomStringCollector();
+        var expectedTestCount = randomIntBetween(2, 30);
         var request = new Request(RestRequest.Method.POST.name(), NO_STREAM_ROUTE);
-        var response = getRestClient().performRequest(request);
-        assertThat(response.getStatusLine().getStatusCode(), is(HttpStatus.SC_OK));
-        var responseString = EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8);
-
-        assertThat(
-            "Expected " + responseString + " to match pattern " + pattern.pattern(),
-            pattern.matcher(responseString).matches(),
-            is(true)
+        request.setOptions(
+            RequestOptions.DEFAULT.toBuilder()
+                .setHttpAsyncResponseConsumerFactory(() -> new AsyncResponseConsumer(collector))
+                .addParameter(REQUEST_COUNT, String.valueOf(expectedTestCount))
+                .build()
         );
+        var response = callAsync(request);
+        assertThat(response.getStatusLine().getStatusCode(), is(HttpStatus.SC_OK));
+        assertThat(collector.stringsVerified.size(), equalTo(2)); // single payload count + done byte
+        assertThat(collector.stringsVerified.peekLast(), equalTo("[DONE]"));
     }
 }

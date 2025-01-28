@@ -115,8 +115,6 @@ public class FsDirectoryFactoryTests extends ESTestCase {
                 var func = fsDirectoryFactory.preLoadFuncMap.get(mmapDirectory);
                 assertNotEquals(fsDirectoryFactory.preLoadFuncMap.get(mmapDirectory), MMapDirectory.ALL_FILES);
                 assertNotEquals(fsDirectoryFactory.preLoadFuncMap.get(mmapDirectory), MMapDirectory.NO_FILES);
-                assertTrue(func.test("foo.dvd", newIOContext(random())));
-                assertTrue(func.test("foo.tmp", newIOContext(random())));
                 for (String ext : preload) {
                     assertTrue("ext: " + ext, func.test("foo." + ext, newIOContext(random())));
                 }

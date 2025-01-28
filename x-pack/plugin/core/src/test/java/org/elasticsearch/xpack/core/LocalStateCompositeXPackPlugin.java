@@ -623,7 +623,7 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
     }
 
     @SuppressWarnings("unchecked")
-    private <T> List<T> filterPlugins(Class<T> type) {
+    protected <T> List<T> filterPlugins(Class<T> type) {
         return plugins.stream().filter(x -> type.isAssignableFrom(x.getClass())).map(p -> ((T) p)).collect(Collectors.toList());
     }
 
@@ -637,10 +637,15 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
 
     @Override
     public Map<String, MetadataFieldMapper.TypeParser> getMetadataMappers() {
-        return filterPlugins(MapperPlugin.class).stream()
+        Map<String, MetadataFieldMapper.TypeParser> pluginsMetadataMappers = filterPlugins(MapperPlugin.class).stream()
             .map(MapperPlugin::getMetadataMappers)
             .flatMap(map -> map.entrySet().stream())
             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+
+        // the xpack plugin itself exposes a metadata mapper so let's include it as well
+        Map<String, MetadataFieldMapper.TypeParser> metadataMappersIncludingXPackPlugin = new HashMap<>(pluginsMetadataMappers);
+        metadataMappersIncludingXPackPlugin.putAll(super.getMetadataMappers());
+        return metadataMappersIncludingXPackPlugin;
     }
 
     @Override

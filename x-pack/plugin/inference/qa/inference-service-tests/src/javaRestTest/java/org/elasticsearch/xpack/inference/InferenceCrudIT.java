@@ -10,25 +10,40 @@
 package org.elasticsearch.xpack.inference;
 
 import org.apache.http.util.EntityUtils;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.equalToIgnoringCase;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 
 public class InferenceCrudIT extends InferenceBaseRestTest {
+
+    private static final Consumer<Response> VALIDATE_ELASTIC_PRODUCT_HEADER_CONSUMER = (r) -> assertThat(
+        r.getHeader("X-elastic-product"),
+        is("Elasticsearch")
+    );
 
     @SuppressWarnings("unchecked")
     public void testCRUD() throws IOException {
@@ -40,18 +55,18 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
         }
 
         var getAllModels = getAllModels();
-        int numModels = DefaultElserFeatureFlag.isEnabled() ? 11 : 9;
+        int numModels = 12;
         assertThat(getAllModels, hasSize(numModels));
 
         var getSparseModels = getModels("_all", TaskType.SPARSE_EMBEDDING);
-        int numSparseModels = DefaultElserFeatureFlag.isEnabled() ? 6 : 5;
+        int numSparseModels = 6;
         assertThat(getSparseModels, hasSize(numSparseModels));
         for (var sparseModel : getSparseModels) {
             assertEquals("sparse_embedding", sparseModel.get("task_type"));
         }
 
         var getDenseModels = getModels("_all", TaskType.TEXT_EMBEDDING);
-        int numDenseModels = DefaultElserFeatureFlag.isEnabled() ? 5 : 4;
+        int numDenseModels = 5;
         assertThat(getDenseModels, hasSize(numDenseModels));
         for (var denseModel : getDenseModels) {
             assertEquals("text_embedding", denseModel.get("task_type"));
@@ -281,7 +296,7 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
         assertEquals(TaskType.SPARSE_EMBEDDING.toString(), singleModel.get("task_type"));
 
         try {
-            var events = streamInferOnMockService(modelId, TaskType.SPARSE_EMBEDDING, List.of(randomAlphaOfLength(10)));
+            var events = streamInferOnMockService(modelId, TaskType.SPARSE_EMBEDDING, List.of(randomUUID()), null);
             assertThat(events.size(), equalTo(2));
             events.forEach(event -> {
                 switch (event.name()) {
@@ -306,13 +321,12 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
         assertEquals(modelId, singleModel.get("inference_id"));
         assertEquals(TaskType.COMPLETION.toString(), singleModel.get("task_type"));
 
-        var input = IntStream.range(1, randomInt(10)).mapToObj(i -> randomAlphaOfLength(10)).toList();
-
+        var input = IntStream.range(1, 2 + randomInt(8)).mapToObj(i -> randomAlphanumericOfLength(5)).toList();
         try {
-            var events = streamInferOnMockService(modelId, TaskType.COMPLETION, input);
+            var events = streamInferOnMockService(modelId, TaskType.COMPLETION, input, VALIDATE_ELASTIC_PRODUCT_HEADER_CONSUMER);
 
             var expectedResponses = Stream.concat(
-                input.stream().map(String::toUpperCase).map(str -> "{\"completion\":[{\"delta\":\"" + str + "\"}]}"),
+                input.stream().map(s -> s.toUpperCase(Locale.ROOT)).map(str -> "{\"completion\":[{\"delta\":\"" + str + "\"}]}"),
                 Stream.of("[DONE]")
             ).iterator();
             assertThat(events.size(), equalTo((input.size() + 1) * 2));
@@ -325,5 +339,67 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
         } finally {
             deleteModel(modelId);
         }
+    }
+
+    public void testUnifiedCompletionInference() throws Exception {
+        String modelId = "streaming";
+        putModel(modelId, mockCompletionServiceModelConfig(TaskType.CHAT_COMPLETION));
+        var singleModel = getModel(modelId);
+        assertEquals(modelId, singleModel.get("inference_id"));
+        assertEquals(TaskType.CHAT_COMPLETION.toString(), singleModel.get("task_type"));
+
+        var input = IntStream.range(1, 2 + randomInt(8)).mapToObj(i -> randomAlphanumericOfLength(5)).toList();
+        try {
+            var events = unifiedCompletionInferOnMockService(
+                modelId,
+                TaskType.CHAT_COMPLETION,
+                input,
+                VALIDATE_ELASTIC_PRODUCT_HEADER_CONSUMER
+            );
+            var expectedResponses = expectedResultsIterator(input);
+            assertThat(events.size(), equalTo((input.size() + 1) * 2));
+            events.forEach(event -> {
+                switch (event.name()) {
+                    case EVENT -> assertThat(event.value(), equalToIgnoringCase("message"));
+                    case DATA -> assertThat(event.value(), equalTo(expectedResponses.next()));
+                }
+            });
+        } finally {
+            deleteModel(modelId);
+        }
+    }
+
+    private static Iterator<String> expectedResultsIterator(List<String> input) {
+        // The Locale needs to be ROOT to match what the test service is going to respond with
+        return Stream.concat(input.stream().map(s -> s.toUpperCase(Locale.ROOT)).map(InferenceCrudIT::expectedResult), Stream.of("[DONE]"))
+            .iterator();
+    }
+
+    private static String expectedResult(String input) {
+        try {
+            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+            builder.startObject();
+            builder.field("id", "id");
+            builder.startArray("choices");
+            builder.startObject();
+            builder.startObject("delta");
+            builder.field("content", input);
+            builder.endObject();
+            builder.field("index", 0);
+            builder.endObject();
+            builder.endArray();
+            builder.field("model", "gpt-4o-2024-08-06");
+            builder.field("object", "chat.completion.chunk");
+            builder.endObject();
+
+            return Strings.toString(builder);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public void testGetZeroModels() throws IOException {
+        var models = getModels("_all", TaskType.COMPLETION);
+        assertThat(models, empty());
     }
 }

@@ -35,7 +35,7 @@ public class SmartChineseStopTokenFilterFactory extends AbstractTokenFilterFacto
     private final boolean removeTrailing;
 
     public SmartChineseStopTokenFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
-        super(name, settings);
+        super(name);
         this.ignoreCase = settings.getAsBoolean("ignore_case", false);
         this.removeTrailing = settings.getAsBoolean("remove_trailing", true);
         this.stopWords = Analysis.parseWords(

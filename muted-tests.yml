@@ -292,6 +292,9 @@ tests:
 - class: org.elasticsearch.xpack.security.profile.ProfileIntegTests
   method: testGetProfiles
   issue: https://github.com/elastic/elasticsearch/issues/121101
+- class: org.elasticsearch.xpack.security.authc.service.ServiceAccountSingleNodeTests
+  method: testAuthenticateWithServiceFileToken
+  issue: https://github.com/elastic/elasticsearch/issues/120988
 
 # Examples:
 #

@@ -98,7 +98,9 @@ public class EntitlementInitialization {
                     )
                 ),
                 new Scope("org.apache.httpcomponents.httpclient", List.of(new OutboundNetworkEntitlement())),
-                new Scope("io.netty.transport", List.of(new InboundNetworkEntitlement(), new OutboundNetworkEntitlement()))
+                new Scope("io.netty.transport", List.of(new InboundNetworkEntitlement(), new OutboundNetworkEntitlement())),
+                new Scope("org.apache.lucene.core", List.of(new LoadNativeLibrariesEntitlement())),
+                new Scope("org.elasticsearch.nativeaccess", List.of(new LoadNativeLibrariesEntitlement()))
             )
         );
         // agents run without a module, so this is a special hack for the apm agent

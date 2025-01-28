@@ -18,8 +18,10 @@ import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.mapper.ExpressionMapper;
-import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cast;
+import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.ShardContext;
 import org.elasticsearch.xpack.esql.planner.Layout;
+
+import java.util.List;
 
 import static org.elasticsearch.xpack.esql.evaluator.EvalMapper.toEvaluator;
 
@@ -29,12 +31,17 @@ public class InsensitiveEqualsMapper extends ExpressionMapper<InsensitiveEquals>
         InsensitiveEqualsEvaluator.Factory::new;
 
     @Override
-    public final ExpressionEvaluator.Factory map(FoldContext foldCtx, InsensitiveEquals bc, Layout layout) {
+    public final ExpressionEvaluator.Factory map(
+        FoldContext foldCtx,
+        InsensitiveEquals bc,
+        Layout layout,
+        List<ShardContext> shardContexts
+    ) {
         DataType leftType = bc.left().dataType();
         DataType rightType = bc.right().dataType();
 
-        var leftEval = toEvaluator(foldCtx, bc.left(), layout);
-        var rightEval = toEvaluator(foldCtx, bc.right(), layout);
+        var leftEval = toEvaluator(foldCtx, bc.left(), layout, shardContexts);
+        var rightEval = toEvaluator(foldCtx, bc.right(), layout, shardContexts);
         if (DataType.isString(leftType)) {
             if (bc.right().foldable() && DataType.isString(rightType)) {
                 BytesRef rightVal = BytesRefs.toBytesRef(bc.right().fold(FoldContext.small() /* TODO remove me */));
@@ -49,17 +56,5 @@ public class InsensitiveEqualsMapper extends ExpressionMapper<InsensitiveEquals>
             return keywords.apply(bc.source(), leftEval, rightEval);
         }
         throw new EsqlIllegalArgumentException("resolved type for [" + bc + "] but didn't implement mapping");
-    }
-
-    public static ExpressionEvaluator.Factory castToEvaluator(
-        FoldContext foldCtx,
-        InsensitiveEquals op,
-        Layout layout,
-        DataType required,
-        TriFunction<Source, ExpressionEvaluator.Factory, ExpressionEvaluator.Factory, ExpressionEvaluator.Factory> factory
-    ) {
-        var lhs = Cast.cast(op.source(), op.left().dataType(), required, toEvaluator(foldCtx, op.left(), layout));
-        var rhs = Cast.cast(op.source(), op.right().dataType(), required, toEvaluator(foldCtx, op.right(), layout));
-        return factory.apply(op.source(), lhs, rhs);
     }
 }

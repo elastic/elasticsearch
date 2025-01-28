@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.transform.utils;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.rest.RestStatus;

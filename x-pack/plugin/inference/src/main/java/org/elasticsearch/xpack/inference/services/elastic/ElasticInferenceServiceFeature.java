@@ -15,6 +15,7 @@ import org.elasticsearch.common.util.FeatureFlag;
  */
 public class ElasticInferenceServiceFeature {
 
+    // TODO when we remove this also look in InferenceGetServicesIT and remove references to the deprecated URL setting
     @Deprecated
     public static final FeatureFlag DEPRECATED_ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG = new FeatureFlag("eis");
 

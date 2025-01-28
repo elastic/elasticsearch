@@ -10,6 +10,9 @@
 grant {
    // reindex opens socket connections using the rest client
    permission java.net.SocketPermission "*", "connect";
+
+  // needed for Painless to generate runtime classes
+  permission java.lang.RuntimePermission "createClassLoader";
 };
 
 grant codeBase "${codebase.elasticsearch-rest-client}" {

@@ -71,7 +71,6 @@ public class TransportDeleteTransformAction extends AcknowledgedTransportMasterN
             threadPool,
             actionFilters,
             Request::new,
-            indexNameExpressionResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.transformConfigManager = transformServices.configManager();

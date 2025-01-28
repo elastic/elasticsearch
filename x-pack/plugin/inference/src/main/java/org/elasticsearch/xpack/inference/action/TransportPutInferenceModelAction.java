@@ -85,7 +85,6 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
             threadPool,
             actionFilters,
             PutInferenceModelAction.Request::new,
-            indexNameExpressionResolver,
             PutInferenceModelAction.Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
@@ -106,6 +105,17 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
     ) throws Exception {
         if (INFERENCE_API_FEATURE.check(licenseState) == false) {
             listener.onFailure(LicenseUtils.newComplianceException(XPackField.INFERENCE));
+            return;
+        }
+
+        if (modelRegistry.containsDefaultConfigId(request.getInferenceEntityId())) {
+            listener.onFailure(
+                new ElasticsearchStatusException(
+                    "[{}] is a reserved inference ID. Cannot create a new inference endpoint with a reserved ID.",
+                    RestStatus.BAD_REQUEST,
+                    request.getInferenceEntityId()
+                )
+            );
             return;
         }
 

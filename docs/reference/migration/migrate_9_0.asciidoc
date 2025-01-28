@@ -474,7 +474,7 @@ GET _tasks/<task_id>
 PUT /.reindexed-v9-ml-anomalies-custom-example/_settings
 {
   "index": {
-    "number_of_replicas": <original_number_of_replicas>
+    "number_of_replicas": "<original_number_of_replicas>"
   }
 }
 ------------------------------------------------------------

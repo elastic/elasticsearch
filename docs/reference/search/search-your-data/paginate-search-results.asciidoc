@@ -45,7 +45,7 @@ hits. This limit is a safeguard set by the
 to page through more than 10,000 hits, use the <<search-after,`search_after`>>
 parameter instead.
 
-Pagination is stateless, meaning there is no guarantee that the order of search results will remain consistent when users navigate back and forth between pages. If maintaining consistent result order is desired, the preferred approach is to use the <<point-in-time-api, point in time (PIT) API>> to implement a stateful pagination technique.
+Pagination is stateless, so search result order may change when navigating between pages. To maintain consistent order, use the <<point-in-time-api, point in time API>> for stateful pagination.
 
 WARNING: {es} uses Lucene's internal doc IDs as tie-breakers. These internal doc
 IDs can be completely different across replicas of the same data. When paging

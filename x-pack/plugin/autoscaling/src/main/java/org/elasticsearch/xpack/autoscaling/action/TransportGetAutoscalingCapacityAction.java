@@ -67,7 +67,6 @@ public class TransportGetAutoscalingCapacityAction extends TransportMasterNodeAc
             threadPool,
             actionFilters,
             GetAutoscalingCapacityAction.Request::new,
-            indexNameExpressionResolver,
             GetAutoscalingCapacityAction.Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );

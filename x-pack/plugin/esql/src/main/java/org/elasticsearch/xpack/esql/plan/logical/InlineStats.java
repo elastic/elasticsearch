@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
@@ -36,7 +37,7 @@ import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutp
  *     underlying aggregate.
  * </p>
  */
-public class InlineStats extends UnaryPlan implements NamedWriteable, SurrogateLogicalPlan {
+public class InlineStats extends UnaryPlan implements NamedWriteable, SurrogateLogicalPlan, TelemetryAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         LogicalPlan.class,
         "InlineStats",
@@ -78,11 +79,6 @@ public class InlineStats extends UnaryPlan implements NamedWriteable, SurrogateL
 
     public Aggregate aggregate() {
         return aggregate;
-    }
-
-    @Override
-    public String commandName() {
-        return "INLINESTATS";
     }
 
     @Override

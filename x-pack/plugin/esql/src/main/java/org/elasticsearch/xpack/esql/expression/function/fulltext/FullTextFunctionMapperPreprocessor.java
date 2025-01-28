@@ -58,7 +58,7 @@ public final class FullTextFunctionMapperPreprocessor implements MappingPreProce
 
     public Set<String> indexNames(LogicalPlan plan) {
         Set<String> indexNames = new HashSet<>();
-        plan.forEachDown(EsRelation.class, esRelation -> indexNames.addAll(esRelation.index().concreteIndices()));
+        plan.forEachDown(EsRelation.class, esRelation -> indexNames.addAll(esRelation.concreteIndices()));
         return indexNames;
     }
 

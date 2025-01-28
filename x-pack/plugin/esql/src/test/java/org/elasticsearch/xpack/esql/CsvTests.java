@@ -90,7 +90,7 @@ import org.elasticsearch.xpack.esql.session.EsqlSession;
 import org.elasticsearch.xpack.esql.session.EsqlSession.PlanRunner;
 import org.elasticsearch.xpack.esql.session.Result;
 import org.elasticsearch.xpack.esql.stats.DisabledSearchStats;
-import org.elasticsearch.xpack.esql.stats.PlanningMetrics;
+import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.Mockito;
@@ -268,7 +268,7 @@ public class CsvTests extends ESTestCase {
             );
             assumeFalse(
                 "lookup join disabled for csv tests",
-                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.JOIN_LOOKUP_V11.capabilityName())
+                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.JOIN_LOOKUP_V12.capabilityName())
             );
             assumeFalse(
                 "can't use TERM function in csv tests",
@@ -462,7 +462,7 @@ public class CsvTests extends ESTestCase {
             throw new IllegalArgumentException("unexpected index resolution to multiple entries [" + preAnalysis.indices.size() + "]");
         }
 
-        String indexName = indices.get(0).id().index();
+        String indexName = indices.get(0).id().indexPattern();
         List<CsvTestsDataLoader.TestDataset> datasets = new ArrayList<>();
         if (indexName.endsWith("*")) {
             String indexPrefix = indexName.substring(0, indexName.length() - 1);
@@ -514,7 +514,7 @@ public class CsvTests extends ESTestCase {
             new LogicalPlanOptimizer(new LogicalOptimizerContext(configuration, foldCtx)),
             mapper,
             TEST_VERIFIER,
-            new PlanningMetrics(),
+            new PlanTelemetry(functionRegistry),
             null,
             EsqlTestUtils.MOCK_TRANSPORT_ACTION_SERVICES
         );
@@ -626,8 +626,8 @@ public class CsvTests extends ESTestCase {
             blockFactory,
             randomNodeSettings(),
             configuration,
-            exchangeSource,
-            exchangeSink,
+            exchangeSource::createExchangeSource,
+            () -> exchangeSink.createExchangeSink(() -> {}),
             Mockito.mock(EnrichLookupService.class),
             Mockito.mock(LookupFromIndexService.class),
             physicalOperationProviders
@@ -653,6 +653,7 @@ public class CsvTests extends ESTestCase {
             exchangeSource.addRemoteSink(
                 exchangeSink::fetchPageAsync,
                 Randomness.get().nextBoolean(),
+                () -> {},
                 randomIntBetween(1, 3),
                 ActionListener.<Void>noop().delegateResponse((l, e) -> {
                     throw new AssertionError("expected no failure", e);

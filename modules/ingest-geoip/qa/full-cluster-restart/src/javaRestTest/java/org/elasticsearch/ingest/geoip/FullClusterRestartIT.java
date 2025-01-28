@@ -128,8 +128,10 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
             assertBusy(() -> testCatIndices(List.of(".geoip_databases-reindexed-for-10", "my-index-00001"), maybeSecurityIndexReindexed));
             assertBusy(() -> testIndexGeoDoc());
 
-            // after the migration, Kibana should work BUT IT DOESN'T
-            // assertBusy(() -> testGetStarAsKibana());
+            // after the migration, Kibana should work
+            if (useSecurity == false) { // BUT IT DOESN'T if security is enabled
+                assertBusy(() -> testGetStarAsKibana(List.of("my-index-00001"), maybeSecurityIndexReindexed));
+            }
 
             Request disableDownloader = new Request("PUT", "/_cluster/settings");
             disableDownloader.setJsonEntity("""

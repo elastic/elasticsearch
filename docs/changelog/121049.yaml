@@ -1,0 +1,12 @@
+pr: 121049
+summary: Conditionally enable logsdb by default
+area: Logs
+type: breaking
+issues: []
+breaking:
+  title: Conditionally enable logsdb by default
+  area: Logs
+  details: Please describe the details of this change for the release notes. You can
+    use asciidoc.
+  impact: Please describe the impact of this change to users
+  notable: false

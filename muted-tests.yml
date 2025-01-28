@@ -277,6 +277,9 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/120925
 - class: org.elasticsearch.xpack.inference.InferenceGetServicesIT
   issue: https://github.com/elastic/elasticsearch/issues/120986
+- class: org.elasticsearch.action.search.SearchProgressActionListenerIT
+  method: testSearchProgressWithQuery
+  issue: https://github.com/elastic/elasticsearch/issues/120994
 
 # Examples:
 #

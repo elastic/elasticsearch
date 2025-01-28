@@ -49,7 +49,7 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
     private static GeoIpHttpFixture fixture = new GeoIpHttpFixture(useFixture);
 
     // e.g. use ./gradlew -Dtests.jvm.argline="-Dgeoip_test_with_security=false" ":modules:ingest-geoip:qa:full-cluster-restart:check"
-    // to set this false, if you so desire
+    // to set this to false, if you so desire
     private static boolean useSecurity = Boolean.parseBoolean(System.getProperty("geoip_test_with_security", "true"));
 
     private static ElasticsearchCluster cluster = ElasticsearchCluster.local()

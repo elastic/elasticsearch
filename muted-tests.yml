@@ -441,3 +441,29 @@ tests:
 - class: org.elasticsearch.action.search.SearchProgressActionListenerIT
   method: testSearchProgressWithHitsAndAggs
   issue: https://github.com/elastic/elasticsearch/issues/120583
+- class: org.elasticsearch.xpack.esql.action.CrossClusterAsyncEnrichStopIT
+  method: testEnrichAfterStop
+  issue: https://github.com/elastic/elasticsearch/issues/120757
+- class: org.elasticsearch.xpack.shutdown.NodeShutdownIT
+  method: testStalledShardMigrationProperlyDetected
+  issue: https://github.com/elastic/elasticsearch/issues/115697
+- class: org.elasticsearch.xpack.security.FileSettingsRoleMappingsRestartIT
+  method: testFileSettingsReprocessedOnRestartWithoutVersionChange
+  issue: https://github.com/elastic/elasticsearch/issues/120964
+- class: org.elasticsearch.datastreams.DataStreamsClientYamlTestSuiteIT
+  method: test {p0=data_stream/80_resolve_index_data_streams/Resolve index with hidden and closed indices}
+  issue: https://github.com/elastic/elasticsearch/issues/120965
+- class: org.elasticsearch.xpack.test.rest.XPackRestIT
+  method: test {p0=snapshot/20_operator_privileges_disabled/Operator only settings can be set and restored by non-operator user when operator privileges is disabled}
+  issue: https://github.com/elastic/elasticsearch/issues/120973
+- class: org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilterIT
+  method: testBulkOperations {p0=false}
+  issue: https://github.com/elastic/elasticsearch/issues/120975
+- class: org.elasticsearch.packaging.test.DockerTests
+  issue: https://github.com/elastic/elasticsearch/issues/120978
+- class: org.elasticsearch.xpack.esql.qa.multi_node.RestEsqlIT
+  method: testInternalRange {ASYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/120979
+- class: org.elasticsearch.xpack.esql.qa.multi_node.RestEsqlIT
+  method: testWarningHeadersOnFailedConversions {ASYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/120980

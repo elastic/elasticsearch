@@ -831,7 +831,8 @@ public class SearchQueryThenFetchAsyncAction<Result extends SearchPhaseResult> e
 
     }
 
-    private static void maybeRelease(SearchService searchService, NodeQueryRequest request, SearchPhaseResult phaseResult) {
+    private static void maybeRelease(SearchService searchService, NodeQueryRequest request, SearchPhaseResult result) {
+        var phaseResult = result.queryResult() != null ? result.queryResult() : result.rankFeatureResult();
         if (phaseResult != null
             && phaseResult.hasSearchContext()
             && request.searchRequest.scroll() == null
@@ -987,20 +988,8 @@ public class SearchQueryThenFetchAsyncAction<Result extends SearchPhaseResult> e
                     try (queryPhaseResultConsumer) {
                         var failure = queryPhaseResultConsumer.failure.get();
                         if (failure != null) {
-                            try {
-                                queryPhaseResultConsumer.getSuccessfulResults()
-                                    .forEach(
-                                        searchPhaseResult -> maybeRelease(
-                                            dependencies.searchService,
-                                            searchRequest,
-                                            searchPhaseResult.queryResult() != null
-                                                ? searchPhaseResult.queryResult()
-                                                : searchPhaseResult.rankFeatureResult()
-                                        )
-                                    );
-                            } catch (Throwable e) {
-                                throw new RuntimeException(e);
-                            }
+                            queryPhaseResultConsumer.getSuccessfulResults()
+                                .forEach(searchPhaseResult -> maybeRelease(dependencies.searchService, searchRequest, searchPhaseResult));
                             channelListener.onFailure(failure);
                             return;
                         }

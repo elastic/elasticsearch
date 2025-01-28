@@ -473,3 +473,6 @@ tests:
 - class: org.elasticsearch.xpack.security.profile.ProfileIntegTests
   method: testProfileIndexAutoCreation
   issue: https://github.com/elastic/elasticsearch/issues/120987
+- class: org.elasticsearch.xpack.esql.qa.multi_node.RestEsqlIT
+  method: testOutOfRangeComparisons {ASYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/121007

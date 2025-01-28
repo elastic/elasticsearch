@@ -27,6 +27,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class InstrumentationServiceImpl implements InstrumentationService {
 
@@ -67,43 +69,76 @@ public class InstrumentationServiceImpl implements InstrumentationService {
     }
 
     @Override
-    public InstrumentationInfo lookupImplementationMethod(Class<?> implementationClass, Method targetMethod, Method checkMethod) {
+    public InstrumentationInfo lookupImplementationMethod(
+        Class<?> targetSuperclass,
+        String methodName,
+        Class<?> implementationClass,
+        Class<?> checkerClass,
+        String checkMethodName,
+        Class<?>... parameterTypes
+    ) throws NoSuchMethodException, ClassNotFoundException {
+
+        var targetMethod = targetSuperclass.getMethod(methodName, parameterTypes);
         validateTargetMethod(implementationClass, targetMethod);
 
-        var targetMethodArguments = Type.getArgumentTypes(targetMethod);
-        var checkMethodArguments = Type.getArgumentTypes(checkMethod);
+        var checkerAdditionalArguments = Modifier.isStatic(targetMethod.getModifiers())
+            ? Stream.of(Class.class)
+            : Stream.of(Class.class, targetSuperclass);
 
-        validateMethodArguments(checkMethodArguments, targetMethodArguments, Modifier.isStatic(targetMethod.getModifiers()));
+        var checkMethodArgumentTypes = Stream.concat(checkerAdditionalArguments, Arrays.stream(parameterTypes))
+            .map(Type::getType)
+            .toArray(Type[]::new);
+
+        CheckMethod[] checkMethod = new CheckMethod[1];
+
+        try {
+            InstrumenterImpl.ClassFileInfo classFileInfo = InstrumenterImpl.getClassFileInfo(checkerClass);
+            ClassReader reader = new ClassReader(classFileInfo.bytecodes());
+            ClassVisitor visitor = new ClassVisitor(Opcodes.ASM9) {
+                @Override
+                public MethodVisitor visitMethod(
+                    int access,
+                    String methodName,
+                    String methodDescriptor,
+                    String signature,
+                    String[] exceptions
+                ) {
+                    var mv = super.visitMethod(access, methodName, methodDescriptor, signature, exceptions);
+                    if (methodName.equals(checkMethodName)) {
+                        var methodArgumentTypes = Type.getArgumentTypes(methodDescriptor);
+                        if (Arrays.equals(methodArgumentTypes, checkMethodArgumentTypes)) {
+                            var checkerParameterDescriptors = Arrays.stream(methodArgumentTypes).map(Type::getDescriptor).toList();
+                            checkMethod[0] = new CheckMethod(Type.getInternalName(checkerClass), methodName, checkerParameterDescriptors);
+                        }
+                    }
+                    return mv;
+                }
+            };
+            reader.accept(visitor, 0);
+        } catch (IOException e) {
+            throw new ClassNotFoundException("Cannot find a definition for class [" + checkerClass.getName() + "]", e);
+        }
+
+        if (checkMethod[0] == null) {
+            throw new NoSuchMethodException(
+                String.format(
+                    Locale.ROOT,
+                    "Cannot find a method with name [%s] and arguments [%s] in class [%s]",
+                    checkMethodName,
+                    Arrays.stream(checkMethodArgumentTypes).map(Type::toString).collect(Collectors.joining()),
+                    checkerClass.getName()
+                )
+            );
+        }
 
         return new InstrumentationInfo(
             new MethodKey(
                 Type.getInternalName(implementationClass),
                 targetMethod.getName(),
-                Arrays.stream(targetMethodArguments).map(Type::getInternalName).toList()
+                Arrays.stream(parameterTypes).map(Type::getInternalName).toList()
             ),
-            new CheckMethod(
-                Type.getInternalName(checkMethod.getDeclaringClass()),
-                checkMethod.getName(),
-                Arrays.stream(checkMethodArguments).map(Type::getDescriptor).toList()
-            )
+            checkMethod[0]
         );
-    }
-
-    private static void validateMethodArguments(Type[] checkMethodArguments, Type[] targetMethodArguments, boolean isStatic) {
-        var additionalCheckArgs = (isStatic ? 1 : 2);
-        if (checkMethodArguments.length != targetMethodArguments.length + additionalCheckArgs) {
-            throw new IllegalArgumentException("The check method argument count is incorrect");
-        }
-
-        if (checkMethodArguments[0] != Type.getType(Class.class)) {
-            throw new IllegalArgumentException("The first argument of a check method must be the caller Class");
-        }
-
-        for (int i = additionalCheckArgs; i < checkMethodArguments.length; ++i) {
-            if (checkMethodArguments[i] != targetMethodArguments[i - additionalCheckArgs]) {
-                throw new IllegalArgumentException("Additional arguments of a check method must be the same as the instrumented method");
-            }
-        }
     }
 
     private static void validateTargetMethod(Class<?> implementationClass, Method targetMethod) {

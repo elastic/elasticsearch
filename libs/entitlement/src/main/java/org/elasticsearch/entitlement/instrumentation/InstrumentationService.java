@@ -10,7 +10,6 @@
 package org.elasticsearch.entitlement.instrumentation;
 
 import java.io.IOException;
-import java.lang.reflect.Method;
 import java.util.Map;
 
 /**
@@ -26,5 +25,12 @@ public interface InstrumentationService {
 
     Map<MethodKey, CheckMethod> lookupMethods(Class<?> clazz) throws IOException;
 
-    InstrumentationInfo lookupImplementationMethod(Class<?> implementationClass, Method targetMethod, Method checkMethod);
+    InstrumentationInfo lookupImplementationMethod(
+        Class<?> targetSuperclass,
+        String methodName,
+        Class<?> implementationClass,
+        Class<?> checkerClass,
+        String checkMethodName,
+        Class<?>... parameterTypes
+    ) throws NoSuchMethodException, ClassNotFoundException;
 }

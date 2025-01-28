@@ -31,13 +31,11 @@ import org.elasticsearch.entitlement.runtime.policy.Scope;
 import java.lang.instrument.Instrumentation;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Modifier;
 import java.nio.file.FileSystems;
 import java.nio.file.OpenOption;
 import java.nio.file.Path;
 import java.nio.file.spi.FileSystemProvider;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -71,7 +69,7 @@ public class EntitlementInitialization {
 
         var fileSystemProviderClass = FileSystems.getDefault().provider().getClass();
         Stream.of(
-            instrumentationMethod(
+            INSTRUMENTATION_SERVICE.lookupImplementationMethod(
                 FileSystemProvider.class,
                 "newInputStream",
                 fileSystemProviderClass,
@@ -127,28 +125,6 @@ public class EntitlementInitialization {
         List<Entitlement> agentEntitlements = List.of(new CreateClassLoaderEntitlement());
         var resolver = EntitlementBootstrap.bootstrapArgs().pluginResolver();
         return new PolicyManager(serverPolicy, agentEntitlements, pluginPolicies, resolver, ENTITLEMENTS_MODULE);
-    }
-
-    static InstrumentationService.InstrumentationInfo instrumentationMethod(
-        Class<?> targetSuperclass,
-        String methodName,
-        Class<?> implementationClass,
-        Class<?> checkerClass,
-        String checkMethodName,
-        Class<?>... parameterTypes
-    ) throws NoSuchMethodException {
-        var targetMethod = targetSuperclass.getMethod(methodName, parameterTypes);
-
-        var checkerAdditionalArguments = Modifier.isStatic(targetMethod.getModifiers())
-            ? Stream.of(Class.class)
-            : Stream.of(Class.class, targetSuperclass);
-
-        var checkerArgumentTypes = Stream.concat(checkerAdditionalArguments, Arrays.stream(parameterTypes)).toArray(n -> new Class<?>[n]);
-        return INSTRUMENTATION_SERVICE.lookupImplementationMethod(
-            implementationClass,
-            targetMethod,
-            checkerClass.getMethod(checkMethodName, checkerArgumentTypes)
-        );
     }
 
     private static ElasticsearchEntitlementChecker initChecker() {

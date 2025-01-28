@@ -12,10 +12,13 @@ import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypeConverter;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
@@ -36,6 +39,7 @@ import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.loadMappin
 import static org.elasticsearch.xpack.esql.core.type.DataType.COUNTER_DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.COUNTER_INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.COUNTER_LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -1966,24 +1970,78 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
-    public void testInvalidMapOption() {
-        assumeTrue("MapExpression require snapshot build", EsqlCapabilities.Cap.OPTIONAL_NAMED_ARGUMENT_MAP_FOR_FUNCTION.isEnabled());
-        // invalid key
-        assertEquals(
-            "1:22: Invalid option key in [log_with_base_in_map(languages, {\"base\":2.0, \"invalidOption\":true})], "
-                + "expected base but got [\"invalidOption\"]",
-            error("FROM test | EVAL l = log_with_base_in_map(languages, {\"base\":2.0, \"invalidOption\":true})")
-        );
-        // key is case-sensitive
-        assertEquals(
-            "1:22: Invalid option key in [log_with_base_in_map(languages, {\"Base\":2.0})], " + "expected base but got [\"Base\"]",
-            error("FROM test | EVAL l = log_with_base_in_map(languages, {\"Base\":2.0})")
-        );
-        // invalid value
-        assertEquals(
-            "1:22: Invalid option value in [log_with_base_in_map(languages, {\"base\":\"invalid\"})], "
-                + "expected a numeric number but got [invalid]",
-            error("FROM test | EVAL l = log_with_base_in_map(languages, {\"base\":\"invalid\"})")
+    public void testMatchOptions() {
+        // Check positive cases
+        query("FROM test | WHERE match(first_name, \"Jean\", {\"analyzer\": \"standard\"})");
+        query("FROM test | WHERE match(first_name, \"Jean\", {\"boost\": 2.1})");
+        query("FROM test | WHERE match(first_name, \"Jean\", {\"fuzziness\": 2})");
+        query("FROM test | WHERE match(first_name, \"Jean\", {\"fuzziness\": \"AUTO\"})");
+        query("FROM test | WHERE match(first_name, \"Jean\", {\"fuzzy_transpositions\": false})");
+        query("FROM test | WHERE match(first_name, \"Jean\", {\"lenient\": false})");
+        query("FROM test | WHERE match(first_name, \"Jean\", {\"max_expansions\": 10})");
+        query("FROM test | WHERE match(first_name, \"Jean\", {\"minimum_should_match\": \"2\"})");
+        query("FROM test | WHERE match(first_name, \"Jean\", {\"operator\": \"AND\"})");
+        query("FROM test | WHERE match(first_name, \"Jean\", {\"prefix_length\": 2})");
+        query("FROM test | WHERE match(first_name, \"Jean\", {\"auto_generate_synonyms_phrase_query\": true})");
+
+        // Check all data types for available options
+        DataType[] optionTypes = new DataType[] {
+            DataType.INTEGER,
+            DataType.LONG,
+            DataType.FLOAT,
+            DataType.DOUBLE,
+            DataType.KEYWORD,
+            DataType.BOOLEAN };
+        for (Map.Entry<String, DataType> allowedOptions : Match.ALLOWED_OPTIONS.entrySet()) {
+            String optionName = allowedOptions.getKey();
+            DataType optionType = allowedOptions.getValue();
+            // Check every possible type for the option - we'll try to convert it to the expected type
+            for (DataType currentType : optionTypes) {
+                String optionValue = switch (currentType) {
+                    case BOOLEAN -> String.valueOf(randomBoolean());
+                    case INTEGER -> String.valueOf(randomIntBetween(0, 100000));
+                    case LONG -> String.valueOf(randomLong());
+                    case FLOAT -> String.valueOf(randomFloat());
+                    case DOUBLE -> String.valueOf(randomDouble());
+                    case KEYWORD -> randomAlphaOfLength(10);
+                    default -> throw new IllegalArgumentException("Unsupported option type: " + currentType);
+                };
+                String queryOptionValue = optionValue;
+                if (currentType == KEYWORD) {
+                    queryOptionValue = "\"" + optionValue + "\"";
+                }
+
+                String query = "FROM test | WHERE match(first_name, \"Jean\", {\"" + optionName + "\": " + queryOptionValue + "})";
+                try {
+                    // Check conversion is possible
+                    DataTypeConverter.convert(optionValue, optionType);
+                    // If no exception was thrown, conversion is possible and should be done
+                    query(query);
+                } catch (InvalidArgumentException e) {
+                    // Conversion is not possible, query should fail
+                    assertEquals(
+                        "1:19: Invalid option ["
+                            + optionName
+                            + "] in [match(first_name, \"Jean\", {\""
+                            + optionName
+                            + "\": "
+                            + queryOptionValue
+                            + "})], cannot cast ["
+                            + optionValue
+                            + "] to ["
+                            + optionType.typeName()
+                            + "]",
+                        error(query)
+                    );
+                }
+            }
+        }
+
+        assertThat(
+            error("FROM test | WHERE match(first_name, \"Jean\", {\"unknown_option\": true})"),
+            containsString(
+                "1:19: Invalid option [unknown_option] in [match(first_name, \"Jean\", {\"unknown_option\": true})]," + " expected one of "
+            )
         );
     }
 
@@ -2020,7 +2078,11 @@ public class VerifierTests extends ESTestCase {
                 throw new IllegalArgumentException("VerifierTests don't support params of type " + param.getClass());
             }
         }
-        Throwable e = expectThrows(exception, () -> analyzer.analyze(parser.createStatement(query, new QueryParams(parameters))));
+        Throwable e = expectThrows(
+            exception,
+            "Expected error for query [" + query + "] but no error was raised",
+            () -> analyzer.analyze(parser.createStatement(query, new QueryParams(parameters)))
+        );
         assertThat(e, instanceOf(exception));
 
         String message = e.getMessage();

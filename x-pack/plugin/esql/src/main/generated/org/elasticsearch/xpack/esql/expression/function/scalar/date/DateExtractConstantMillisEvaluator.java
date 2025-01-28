@@ -2,15 +2,16 @@
 // or more contributor license agreements. Licensed under the Elastic License
 // 2.0; you may not use this file except in compliance with the Elastic License
 // 2.0.
-package org.elasticsearch.xpack.esql.expression.function.scalar.map;
+package org.elasticsearch.xpack.esql.expression.function.scalar.date;
 
-import java.lang.ArithmeticException;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
+import java.time.ZoneId;
+import java.time.temporal.ChronoField;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.DoubleBlock;
-import org.elasticsearch.compute.data.DoubleVector;
+import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
@@ -19,41 +20,44 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link LogWithBaseInMap}.
+ * {@link EvalOperator.ExpressionEvaluator} implementation for {@link DateExtract}.
  * This class is generated. Do not edit it.
  */
-public final class LogWithBaseInMapEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class DateExtractConstantMillisEvaluator implements EvalOperator.ExpressionEvaluator {
   private final Source source;
 
   private final EvalOperator.ExpressionEvaluator value;
 
-  private final double base;
+  private final ChronoField chronoField;
+
+  private final ZoneId zone;
 
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
-  public LogWithBaseInMapEvaluator(Source source, EvalOperator.ExpressionEvaluator value,
-      double base, DriverContext driverContext) {
+  public DateExtractConstantMillisEvaluator(Source source, EvalOperator.ExpressionEvaluator value,
+      ChronoField chronoField, ZoneId zone, DriverContext driverContext) {
     this.source = source;
     this.value = value;
-    this.base = base;
+    this.chronoField = chronoField;
+    this.zone = zone;
     this.driverContext = driverContext;
   }
 
   @Override
   public Block eval(Page page) {
-    try (DoubleBlock valueBlock = (DoubleBlock) value.eval(page)) {
-      DoubleVector valueVector = valueBlock.asVector();
+    try (LongBlock valueBlock = (LongBlock) value.eval(page)) {
+      LongVector valueVector = valueBlock.asVector();
       if (valueVector == null) {
         return eval(page.getPositionCount(), valueBlock);
       }
-      return eval(page.getPositionCount(), valueVector);
+      return eval(page.getPositionCount(), valueVector).asBlock();
     }
   }
 
-  public DoubleBlock eval(int positionCount, DoubleBlock valueBlock) {
-    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
+  public LongBlock eval(int positionCount, LongBlock valueBlock) {
+    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         if (valueBlock.isNull(p)) {
           result.appendNull();
@@ -66,26 +70,16 @@ public final class LogWithBaseInMapEvaluator implements EvalOperator.ExpressionE
           result.appendNull();
           continue position;
         }
-        try {
-          result.appendDouble(LogWithBaseInMap.process(valueBlock.getDouble(valueBlock.getFirstValueIndex(p)), this.base));
-        } catch (ArithmeticException e) {
-          warnings().registerException(e);
-          result.appendNull();
-        }
+        result.appendLong(DateExtract.processMillis(valueBlock.getLong(valueBlock.getFirstValueIndex(p)), this.chronoField, this.zone));
       }
       return result.build();
     }
   }
 
-  public DoubleBlock eval(int positionCount, DoubleVector valueVector) {
-    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
+  public LongVector eval(int positionCount, LongVector valueVector) {
+    try(LongVector.FixedBuilder result = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        try {
-          result.appendDouble(LogWithBaseInMap.process(valueVector.getDouble(p), this.base));
-        } catch (ArithmeticException e) {
-          warnings().registerException(e);
-          result.appendNull();
-        }
+        result.appendLong(p, DateExtract.processMillis(valueVector.getLong(p), this.chronoField, this.zone));
       }
       return result.build();
     }
@@ -93,7 +87,7 @@ public final class LogWithBaseInMapEvaluator implements EvalOperator.ExpressionE
 
   @Override
   public String toString() {
-    return "LogWithBaseInMapEvaluator[" + "value=" + value + ", base=" + base + "]";
+    return "DateExtractConstantMillisEvaluator[" + "value=" + value + ", chronoField=" + chronoField + ", zone=" + zone + "]";
   }
 
   @Override
@@ -118,22 +112,26 @@ public final class LogWithBaseInMapEvaluator implements EvalOperator.ExpressionE
 
     private final EvalOperator.ExpressionEvaluator.Factory value;
 
-    private final double base;
+    private final ChronoField chronoField;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory value, double base) {
+    private final ZoneId zone;
+
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory value,
+        ChronoField chronoField, ZoneId zone) {
       this.source = source;
       this.value = value;
-      this.base = base;
+      this.chronoField = chronoField;
+      this.zone = zone;
     }
 
     @Override
-    public LogWithBaseInMapEvaluator get(DriverContext context) {
-      return new LogWithBaseInMapEvaluator(source, value.get(context), base, context);
+    public DateExtractConstantMillisEvaluator get(DriverContext context) {
+      return new DateExtractConstantMillisEvaluator(source, value.get(context), chronoField, zone, context);
     }
 
     @Override
     public String toString() {
-      return "LogWithBaseInMapEvaluator[" + "value=" + value + ", base=" + base + "]";
+      return "DateExtractConstantMillisEvaluator[" + "value=" + value + ", chronoField=" + chronoField + ", zone=" + zone + "]";
     }
   }
 }

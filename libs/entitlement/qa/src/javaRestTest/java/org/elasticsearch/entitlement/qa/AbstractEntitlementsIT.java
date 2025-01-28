@@ -34,6 +34,11 @@ public abstract class AbstractEntitlementsIT extends ESRestTestCase {
                 Map.of("properties", List.of("es.entitlements.checkSetSystemProperty", "es.entitlements.checkClearSystemProperty"))
             )
         );
+
+        builder.value(Map.of("file", Map.of("path", tempDir.resolve("read_dir"), "mode", "read")));
+        builder.value(Map.of("file", Map.of("path", tempDir.resolve("read_write_dir"), "mode", "read_write")));
+        builder.value(Map.of("file", Map.of("path", tempDir.resolve("read_file"), "mode", "read")));
+        builder.value(Map.of("file", Map.of("path", tempDir.resolve("read_write_file"), "mode", "read_write")));
     };
 
     private final String actionName;

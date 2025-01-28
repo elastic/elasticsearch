@@ -133,9 +133,6 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import static java.util.Collections.singletonList;
-import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService.ELASTIC_INFERENCE_SERVICE_IDENTIFIER;
-import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceFeature.DEPRECATED_ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG;
-import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceFeature.ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG;
 
 public class InferencePlugin extends Plugin
     implements
@@ -252,46 +249,44 @@ public class InferencePlugin extends Plugin
         var inferenceServices = new ArrayList<>(inferenceServiceExtensions);
         inferenceServices.add(this::getInferenceServiceFactories);
 
-        if (isElasticInferenceServiceEnabled()) {
-            // Create a separate instance of HTTPClientManager with its own SSL configuration (`xpack.inference.elastic.http.ssl.*`).
-            var elasticInferenceServiceHttpClientManager = HttpClientManager.create(
-                settings,
-                services.threadPool(),
-                services.clusterService(),
-                throttlerManager,
-                getSslService()
-            );
+        // Create a separate instance of HTTPClientManager with its own SSL configuration (`xpack.inference.elastic.http.ssl.*`).
+        var elasticInferenceServiceHttpClientManager = HttpClientManager.create(
+            settings,
+            services.threadPool(),
+            services.clusterService(),
+            throttlerManager,
+            getSslService()
+        );
 
-            var elasticInferenceServiceRequestSenderFactory = new HttpRequestSender.Factory(
-                serviceComponents.get(),
-                elasticInferenceServiceHttpClientManager,
-                services.clusterService()
-            );
-            elasicInferenceServiceFactory.set(elasticInferenceServiceRequestSenderFactory);
+        var elasticInferenceServiceRequestSenderFactory = new HttpRequestSender.Factory(
+            serviceComponents.get(),
+            elasticInferenceServiceHttpClientManager,
+            services.clusterService()
+        );
+        elasicInferenceServiceFactory.set(elasticInferenceServiceRequestSenderFactory);
 
-            ElasticInferenceServiceSettings inferenceServiceSettings = new ElasticInferenceServiceSettings(settings);
-            String elasticInferenceUrl = this.getElasticInferenceServiceUrl(inferenceServiceSettings);
+        ElasticInferenceServiceSettings inferenceServiceSettings = new ElasticInferenceServiceSettings(settings);
+        String elasticInferenceUrl = inferenceServiceSettings.getElasticInferenceServiceUrl();
 
-            var elasticInferenceServiceComponentsInstance = new ElasticInferenceServiceComponents(elasticInferenceUrl);
-            elasticInferenceServiceComponents.set(elasticInferenceServiceComponentsInstance);
+        var elasticInferenceServiceComponentsInstance = new ElasticInferenceServiceComponents(elasticInferenceUrl);
+        elasticInferenceServiceComponents.set(elasticInferenceServiceComponentsInstance);
 
-            var authorizationHandler = new ElasticInferenceServiceAuthorizationHandler(
-                elasticInferenceServiceComponentsInstance.elasticInferenceServiceUrl(),
-                services.threadPool()
-            );
+        var authorizationHandler = new ElasticInferenceServiceAuthorizationHandler(
+            elasticInferenceServiceComponentsInstance.elasticInferenceServiceUrl(),
+            services.threadPool()
+        );
 
-            inferenceServices.add(
-                () -> List.of(
-                    context -> new ElasticInferenceService(
-                        elasicInferenceServiceFactory.get(),
-                        serviceComponents.get(),
-                        elasticInferenceServiceComponentsInstance,
-                        modelRegistry,
-                        authorizationHandler
-                    )
+        inferenceServices.add(
+            () -> List.of(
+                context -> new ElasticInferenceService(
+                    elasicInferenceServiceFactory.get(),
+                    serviceComponents.get(),
+                    elasticInferenceServiceComponentsInstance,
+                    modelRegistry,
+                    authorizationHandler
                 )
-            );
-        }
+            )
+        );
 
         var factoryContext = new InferenceServiceExtension.InferenceServiceFactoryContext(
             services.client(),
@@ -417,11 +412,7 @@ public class InferencePlugin extends Plugin
         settings.addAll(Truncator.getSettingsDefinitions());
         settings.addAll(RequestExecutorServiceSettings.getSettingsDefinitions());
         settings.add(SKIP_VALIDATE_AND_START);
-
-        // Register Elastic Inference Service settings definitions if the corresponding feature flag is enabled.
-        if (isElasticInferenceServiceEnabled()) {
-            settings.addAll(ElasticInferenceServiceSettings.getSettingsDefinitions());
-        }
+        settings.addAll(ElasticInferenceServiceSettings.getSettingsDefinitions());
 
         return settings;
     }
@@ -491,30 +482,6 @@ public class InferencePlugin extends Plugin
     @Override
     public Map<String, Highlighter> getHighlighters() {
         return Map.of(SemanticTextHighlighter.NAME, new SemanticTextHighlighter());
-    }
-
-    // Get Elastic Inference service URL based on feature flags to support transitioning
-    // to the new Elastic Inference Service URL.
-    private String getElasticInferenceServiceUrl(ElasticInferenceServiceSettings settings) {
-        String elasticInferenceUrl = null;
-
-        if (ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG.isEnabled()) {
-            elasticInferenceUrl = settings.getElasticInferenceServiceUrl();
-        } else if (DEPRECATED_ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG.isEnabled()) {
-            log.warn(
-                "Deprecated flag {} detected for enabling {}. Please use {}.",
-                ELASTIC_INFERENCE_SERVICE_IDENTIFIER,
-                DEPRECATED_ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG,
-                ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG
-            );
-            elasticInferenceUrl = settings.getEisGatewayUrl();
-        }
-
-        return elasticInferenceUrl;
-    }
-
-    protected Boolean isElasticInferenceServiceEnabled() {
-        return (ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG.isEnabled() || DEPRECATED_ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG.isEnabled());
     }
 
     protected SSLService getSslService() {

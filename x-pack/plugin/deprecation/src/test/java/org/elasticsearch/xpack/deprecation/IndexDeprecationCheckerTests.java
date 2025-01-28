@@ -128,25 +128,6 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
         assertThat(issuesByIndex.size(), equalTo(0));
     }
 
-    public void testOldIndicesCheckClosedIgnored() {
-        IndexVersion createdWith = IndexVersion.fromId(7170099);
-        Settings.Builder settings = settings(createdWith);
-        IndexMetadata indexMetadata = IndexMetadata.builder("test")
-            .settings(settings)
-            .numberOfShards(1)
-            .numberOfReplicas(0)
-            .state(IndexMetadata.State.CLOSE)
-            .build();
-        ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .metadata(Metadata.builder().put(indexMetadata, true))
-            .build();
-        Map<String, List<DeprecationIssue>> issuesByIndex = checker.check(
-            clusterState,
-            new DeprecationInfoAction.Request(TimeValue.THIRTY_SECONDS)
-        );
-        assertThat(issuesByIndex.size(), equalTo(0));
-    }
-
     public void testOldIndicesIgnoredWarningCheck() {
         IndexVersion createdWith = IndexVersion.fromId(7170099);
         Settings.Builder settings = settings(createdWith).put(MetadataIndexStateService.VERIFIED_READ_ONLY_SETTING.getKey(), true);

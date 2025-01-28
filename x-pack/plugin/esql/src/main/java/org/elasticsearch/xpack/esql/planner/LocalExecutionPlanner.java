@@ -92,6 +92,7 @@ import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
+import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.ShardContext;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
@@ -131,6 +132,7 @@ public class LocalExecutionPlanner {
     private final EnrichLookupService enrichLookupService;
     private final LookupFromIndexService lookupFromIndexService;
     private final PhysicalOperationProviders physicalOperationProviders;
+    private final List<ShardContext> shardContexts;
 
     public LocalExecutionPlanner(
         String sessionId,
@@ -144,8 +146,10 @@ public class LocalExecutionPlanner {
         ExchangeSinkHandler exchangeSinkHandler,
         EnrichLookupService enrichLookupService,
         LookupFromIndexService lookupFromIndexService,
-        PhysicalOperationProviders physicalOperationProviders
+        PhysicalOperationProviders physicalOperationProviders,
+        List<ShardContext> shardContexts
     ) {
+
         this.sessionId = sessionId;
         this.clusterAlias = clusterAlias;
         this.parentTask = parentTask;
@@ -158,6 +162,7 @@ public class LocalExecutionPlanner {
         this.lookupFromIndexService = lookupFromIndexService;
         this.physicalOperationProviders = physicalOperationProviders;
         this.configuration = configuration;
+        this.shardContexts = shardContexts;
     }
 
     /**
@@ -671,7 +676,7 @@ public class LocalExecutionPlanner {
         PhysicalOperation source = plan(filter.child(), context);
         // TODO: should this be extracted into a separate eval block?
         return source.with(
-            new FilterOperatorFactory(EvalMapper.toEvaluator(context.foldCtx(), filter.condition(), source.layout)),
+            new FilterOperatorFactory(EvalMapper.toEvaluator(context.foldCtx(), filter.condition(), source.layout, shardContexts)),
             source.layout
         );
     }

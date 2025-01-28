@@ -582,7 +582,7 @@ public class EsqlCapabilities {
         /**
          * LOOKUP JOIN with TEXT fields on the right (right side of the join) (#119473)
          */
-        LOOKUP_JOIN_TEXT(Build.current().isSnapshot()),
+        LOOKUP_JOIN_TEXT(JOIN_LOOKUP_V12.isEnabled()),
 
         /**
          * LOOKUP JOIN without MV matching (https://github.com/elastic/elasticsearch/issues/118780)
@@ -643,6 +643,11 @@ public class EsqlCapabilities {
          * Disabled support for index aliases in lookup joins
          */
         LOOKUP_JOIN_NO_ALIASES(JOIN_LOOKUP_V12.isEnabled()),
+
+        /**
+         * Full text functions can be used in disjunctions as they are implemented in compute engine
+         */
+        FULL_TEXT_FUNCTIONS_DISJUNCTIONS_COMPUTE_ENGINE,
 
         /**
          * Support match options in match function

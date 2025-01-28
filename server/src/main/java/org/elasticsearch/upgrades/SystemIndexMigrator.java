@@ -451,8 +451,12 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
                             } else {
                                 // Successful completion of reindexing. Now we need to set the alias and remove the old index.
                                 setAliasAndRemoveOldIndex(migrationInfo, ActionListener.wrap(aliasesResponse -> {
-                                    if (aliasesResponse.isAcknowledged() == false || aliasesResponse.hasErrors()) {
-                                        throw new ElasticsearchException("Aliases request was not acknowledged or had errors");
+                                    if (aliasesResponse.hasErrors()) {
+                                        var e = new ElasticsearchException("Aliases request had errors");
+                                        for (var error : aliasesResponse.getErrors()) {
+                                            e.addSuppressed(error);
+                                        }
+                                        throw e;
                                     }
                                     logger.info(
                                         "Successfully migrated old index [{}] to new index [{}] from feature [{}]",
@@ -471,7 +475,6 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
                                         e
                                     );
                                     removeReadOnlyBlockOnReindexFailure(oldIndex, delegate2, e);
-                                    delegate2.onFailure(e);
                                 }));
                             }
                         }, e -> {
@@ -485,7 +488,6 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
                                 e
                             );
                             removeReadOnlyBlockOnReindexFailure(oldIndex, delegate2, e);
-                            delegate2.onFailure(e); // TODO ensure this is correct.
                         }))
                     )
                 );

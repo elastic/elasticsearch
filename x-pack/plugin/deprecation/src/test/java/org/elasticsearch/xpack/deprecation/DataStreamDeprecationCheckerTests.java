@@ -18,6 +18,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
@@ -29,14 +30,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static java.util.Collections.singletonList;
 import static java.util.Map.entry;
 import static java.util.Map.ofEntries;
 import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
-import static org.elasticsearch.xpack.deprecation.DeprecationChecks.DATA_STREAM_CHECKS;
 import static org.hamcrest.Matchers.equalTo;
 
-public class DataStreamDeprecationChecksTests extends ESTestCase {
+public class DataStreamDeprecationCheckerTests extends ESTestCase {
+
+    private final DataStreamDeprecationChecker checker = new DataStreamDeprecationChecker(TestIndexNameExpressionResolver.newInstance());
 
     public void testOldIndicesCheck() {
         int oldIndexCount = randomIntBetween(1, 100);
@@ -47,7 +48,10 @@ public class DataStreamDeprecationChecksTests extends ESTestCase {
 
         DataStream dataStream = createTestDataStream(oldIndexCount, 0, newIndexCount, 0, nameToIndexMetadata, expectedIndices);
 
-        Metadata metadata = Metadata.builder().indices(nameToIndexMetadata).build();
+        Metadata metadata = Metadata.builder()
+            .indices(nameToIndexMetadata)
+            .dataStreams(Map.of(dataStream.getName(), dataStream), Map.of())
+            .build();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).build();
 
         DeprecationIssue expected = new DeprecationIssue(
@@ -64,9 +68,11 @@ public class DataStreamDeprecationChecksTests extends ESTestCase {
             )
         );
 
-        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(DATA_STREAM_CHECKS, c -> c.apply(dataStream, clusterState));
-
-        assertThat(issues, equalTo(singletonList(expected)));
+        // We know that the data stream checks ignore the request.
+        Map<String, List<DeprecationIssue>> issuesByDataStream = checker.check(clusterState, null);
+        assertThat(issuesByDataStream.size(), equalTo(1));
+        assertThat(issuesByDataStream.containsKey(dataStream.getName()), equalTo(true));
+        assertThat(issuesByDataStream.get(dataStream.getName()), equalTo(List.of(expected)));
     }
 
     public void testOldIndicesCheckWithOnlyClosedOrNewIndices() {
@@ -87,12 +93,14 @@ public class DataStreamDeprecationChecksTests extends ESTestCase {
             expectedIndices
         );
 
-        Metadata metadata = Metadata.builder().indices(nameToIndexMetadata).build();
+        Metadata metadata = Metadata.builder()
+            .indices(nameToIndexMetadata)
+            .dataStreams(Map.of(dataStream.getName(), dataStream), Map.of())
+            .build();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).build();
 
-        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(DATA_STREAM_CHECKS, c -> c.apply(dataStream, clusterState));
-
-        assertThat(issues.size(), equalTo(0));
+        Map<String, List<DeprecationIssue>> issuesByDataStream = checker.check(clusterState, null);
+        assertThat(issuesByDataStream.size(), equalTo(0));
     }
 
     public void testOldIndicesCheckWithClosedAndOpenIndices() {
@@ -117,7 +125,10 @@ public class DataStreamDeprecationChecksTests extends ESTestCase {
             expectedIndices
         );
 
-        Metadata metadata = Metadata.builder().indices(nameToIndexMetadata).build();
+        Metadata metadata = Metadata.builder()
+            .indices(nameToIndexMetadata)
+            .dataStreams(Map.of(dataStream.getName(), dataStream), Map.of())
+            .build();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).build();
 
         DeprecationIssue expected = new DeprecationIssue(
@@ -134,9 +145,9 @@ public class DataStreamDeprecationChecksTests extends ESTestCase {
             )
         );
 
-        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(DATA_STREAM_CHECKS, c -> c.apply(dataStream, clusterState));
-
-        assertThat(issues, equalTo(singletonList(expected)));
+        Map<String, List<DeprecationIssue>> issuesByDataStream = checker.check(clusterState, null);
+        assertThat(issuesByDataStream.containsKey(dataStream.getName()), equalTo(true));
+        assertThat(issuesByDataStream.get(dataStream.getName()), equalTo(List.of(expected)));
     }
 
     /*
@@ -273,7 +284,10 @@ public class DataStreamDeprecationChecksTests extends ESTestCase {
             null
         );
 
-        Metadata metadata = Metadata.builder().indices(nameToIndexMetadata).build();
+        Metadata metadata = Metadata.builder()
+            .indices(nameToIndexMetadata)
+            .dataStreams(Map.of(dataStream.getName(), dataStream), Map.of())
+            .build();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).build();
 
         DeprecationIssue expected = new DeprecationIssue(
@@ -291,9 +305,9 @@ public class DataStreamDeprecationChecksTests extends ESTestCase {
             )
         );
 
-        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(DATA_STREAM_CHECKS, c -> c.apply(dataStream, clusterState));
-
-        assertThat(issues, equalTo(singletonList(expected)));
+        Map<String, List<DeprecationIssue>> issuesByDataStream = checker.check(clusterState, null);
+        assertThat(issuesByDataStream.containsKey(dataStream.getName()), equalTo(true));
+        assertThat(issuesByDataStream.get(dataStream.getName()), equalTo(List.of(expected)));
     }
 
 }

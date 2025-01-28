@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.compute.data.AggregateDoubleMetricBlockBuilder;
 import org.elasticsearch.compute.data.AggregateMetricDoubleLiteral;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -39,31 +40,33 @@ public class FromAggregateDoubleMetricTests extends AbstractScalarFunctionTestCa
     public static Iterable<Object[]> parameters() {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
         DataType dataType = DataType.AGGREGATE_METRIC_DOUBLE;
-        suppliers.add(new TestCaseSupplier(List.of(dataType, DataType.INTEGER), () -> {
-            var agg_metric = new AggregateMetricDoubleLiteral(
-                randomDoubleBetween(Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, true),
-                randomDoubleBetween(Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, true),
-                randomDoubleBetween(Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, true),
-                randomIntBetween(Integer.MIN_VALUE, Integer.MAX_VALUE)
-            );
-            int index = randomIntBetween(0, 3);
-            Double expectedValue = index == 0 ? agg_metric.getMin()
-                : index == 1 ? agg_metric.getMax()
-                : index == 2 ? agg_metric.getSum()
-                : (Double) agg_metric.getCount().doubleValue();
+        for (int i = 0; i < 4; i++) {
+            int index = i;
+            suppliers.add(new TestCaseSupplier(List.of(dataType, DataType.INTEGER), () -> {
+                var agg_metric = new AggregateMetricDoubleLiteral(
+                    randomDoubleBetween(Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, true),
+                    randomDoubleBetween(Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, true),
+                    randomDoubleBetween(Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, true),
+                    randomIntBetween(Integer.MIN_VALUE, Integer.MAX_VALUE)
+                );
+                Double expectedValue = index == AggregateDoubleMetricBlockBuilder.Metric.MIN.getIndex() ? agg_metric.getMin()
+                    : index == AggregateDoubleMetricBlockBuilder.Metric.MAX.getIndex() ? agg_metric.getMax()
+                    : index == AggregateDoubleMetricBlockBuilder.Metric.SUM.getIndex() ? agg_metric.getSum()
+                    : (Double) agg_metric.getCount().doubleValue();
 
-            return new TestCaseSupplier.TestCase(
-                List.of(
-                    new TestCaseSupplier.TypedData(agg_metric, dataType, "agg_metric"),
-                    new TestCaseSupplier.TypedData(index, DataType.INTEGER, "subfield_index").forceLiteral()
-                ),
-                "FromAggregateDoubleMetricEvaluator[field=Attribute[channel=0],subfieldIndex=" + index + "]",
-                index == 3 ? DataType.INTEGER : DataType.DOUBLE,
-                index == 3 ? Matchers.equalTo(agg_metric.getCount())
-                    : expectedValue == null ? Matchers.nullValue()
-                    : Matchers.closeTo(expectedValue, Math.abs(expectedValue * 0.00001))
-            );
-        }));
+                return new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(agg_metric, dataType, "agg_metric"),
+                        new TestCaseSupplier.TypedData(index, DataType.INTEGER, "subfield_index").forceLiteral()
+                    ),
+                    "FromAggregateDoubleMetricEvaluator[field=Attribute[channel=0],subfieldIndex=" + index + "]",
+                    index == AggregateDoubleMetricBlockBuilder.Metric.COUNT.getIndex() ? DataType.INTEGER : DataType.DOUBLE,
+                    index == AggregateDoubleMetricBlockBuilder.Metric.COUNT.getIndex() ? Matchers.equalTo(agg_metric.getCount())
+                        : expectedValue == null ? Matchers.nullValue()
+                        : Matchers.closeTo(expectedValue, Math.abs(expectedValue * 0.00001))
+                );
+            }));
+        }
 
         return parameterSuppliersFromTypedData(
             anyNullIsNull(

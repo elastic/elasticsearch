@@ -114,8 +114,8 @@ public class DateExtract extends EsqlConfigurationFunction {
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         boolean isNanos = switch (field().dataType()) {
-            case DataType.DATETIME -> false;
-            case DataType.DATE_NANOS -> true;
+            case DATETIME -> false;
+            case DATE_NANOS -> true;
             default -> throw new UnsupportedOperationException(
                 "Unsupported field type ["
                     + field().dataType().name()

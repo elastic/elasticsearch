@@ -29,6 +29,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 
+import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE;
 import static org.elasticsearch.transport.RemoteClusterService.REMOTE_CLUSTER_HANDSHAKE_ACTION_NAME;
 
 public class RemoteConnectionManager implements ConnectionManager {
@@ -114,7 +115,8 @@ public class RemoteConnectionManager implements ConnectionManager {
     }
 
     private InternalRemoteConnection maybeLogDeprecationWarning(InternalRemoteConnection connection) {
-        if (connection.getClusterCredentials() == null) {
+        if (connection.getClusterCredentials() == null
+            && (false == REMOTE_CLUSTER_PROFILE.equals(this.getConnectionProfile().getTransportProfile()))) {
             deprecationLogger.warn(
                 DeprecationCategory.SECURITY,
                 "remote_cluster_certificate_access-" + connection.getClusterAlias(),

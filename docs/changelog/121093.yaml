@@ -1,5 +1,0 @@
-pr: 121093
-summary: "[8.x][ML] Remove Elastic Inference Service feature flag"
-area: Inference
-type: enhancement
-issues: []

@@ -28,7 +28,11 @@ import java.util.Map;
 import static org.elasticsearch.upgrades.LogsIndexModeRollingUpgradeIT.enableLogsdbByDefault;
 import static org.elasticsearch.upgrades.LogsIndexModeRollingUpgradeIT.getWriteBackingIndex;
 import static org.elasticsearch.upgrades.TsdbIT.formatInstant;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class LogsdbIndexingRollingUpgradeIT extends AbstractRollingUpgradeTestCase {
 

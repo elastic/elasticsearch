@@ -54,11 +54,16 @@ public class QueryFeatureExtractor implements FeatureExtractor {
             }
             scorers.add(scorer);
         }
-        rankerIterator = new DisjunctionDISIApproximation(wrappers, Long.MAX_VALUE);
+
+        rankerIterator = disiPriorityQueue.size() > 0 ? new DisjunctionDISIApproximation(wrappers, Long.MAX_VALUE) : null;
     }
 
     @Override
     public void addFeatures(Map<String, Object> featureMap, int docId) throws IOException {
+        if (rankerIterator == null) {
+            return;
+        }
+
         rankerIterator.advance(docId);
         for (int i = 0; i < featureNames.size(); i++) {
             Scorer scorer = scorers.get(i);

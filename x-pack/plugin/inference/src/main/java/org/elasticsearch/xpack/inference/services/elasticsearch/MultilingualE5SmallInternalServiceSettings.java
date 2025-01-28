@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.services.elasticsearch;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
 
@@ -23,6 +24,10 @@ public class MultilingualE5SmallInternalServiceSettings extends ElasticsearchInt
 
     static final int DIMENSIONS = 384;
     static final SimilarityMeasure SIMILARITY = SimilarityMeasure.COSINE;
+
+    public static MinimalServiceSettings minimalServiceSettings() {
+        return MinimalServiceSettings.textEmbedding(DIMENSIONS, SIMILARITY, DenseVectorFieldMapper.ElementType.FLOAT);
+    }
 
     public MultilingualE5SmallInternalServiceSettings(ElasticsearchInternalServiceSettings other) {
         super(other);

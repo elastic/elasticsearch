@@ -27,10 +27,10 @@ import java.util.concurrent.atomic.AtomicInteger;
 /**
  * An {@link ExchangeSourceHandler} asynchronously fetches pages and status from multiple {@link RemoteSink}s
  * and feeds them to its {@link ExchangeSource}, which are created using the {@link #createExchangeSource()}) method.
- * {@link RemoteSink}s are added using the {@link #addRemoteSink(RemoteSink, boolean, int, ActionListener)}) method.
+ * {@link RemoteSink}s are added using the {@link #addRemoteSink(RemoteSink, boolean, Runnable, int, ActionListener)}) method.
  *
  * @see #createExchangeSource()
- * @see #addRemoteSink(RemoteSink, boolean, int, ActionListener)
+ * @see #addRemoteSink(RemoteSink, boolean, Runnable, int, ActionListener)
  */
 public final class ExchangeSourceHandler {
     private final ExchangeBuffer buffer;
@@ -185,11 +185,13 @@ public final class ExchangeSourceHandler {
         private volatile boolean finished = false;
         private final RemoteSink remoteSink;
         private final boolean failFast;
+        private final Runnable onPageFetched;
         private final ActionListener<Void> completionListener;
 
-        RemoteSinkFetcher(RemoteSink remoteSink, boolean failFast, ActionListener<Void> completionListener) {
+        RemoteSinkFetcher(RemoteSink remoteSink, boolean failFast, Runnable onPageFetched, ActionListener<Void> completionListener) {
             outstandingSinks.trackNewInstance();
             this.remoteSink = remoteSink;
+            this.onPageFetched = onPageFetched;
             this.failFast = failFast;
             this.completionListener = completionListener;
         }
@@ -203,6 +205,7 @@ public final class ExchangeSourceHandler {
                 remoteSink.fetchPageAsync(toFinishSinks, ActionListener.wrap(resp -> {
                     Page page = resp.takePage();
                     if (page != null) {
+                        onPageFetched.run();
                         buffer.addPage(page);
                     }
                     if (resp.finished()) {
@@ -252,19 +255,26 @@ public final class ExchangeSourceHandler {
     /**
      * Add a remote sink as a new data source of this handler. The handler will start fetching data from this remote sink intermediately.
      *
-     * @param remoteSink the remote sink
-     * @param failFast   determines how failures in this remote sink are handled:
-     *                   - If {@code false}, failures from this remote sink will not cause the exchange source to abort.
-     *                   Callers must handle these failures notified via {@code listener}.
-     *                   - If {@code true}, failures from this remote sink will cause the exchange source to abort.
-     *                   Callers can safely ignore failures notified via this listener, as they are collected and
-     *                   reported by the exchange source.
-     * @param instances  the number of concurrent ``clients`` that this handler should use to fetch pages.
-     *                   More clients reduce latency, but add overhead.
-     * @param listener   a listener that will be notified when the sink fails or completes
+     * @param remoteSink    the remote sink
+     * @param failFast      determines how failures in this remote sink are handled:
+     *                      - If {@code false}, failures from this remote sink will not cause the exchange source to abort.
+     *                      Callers must handle these failures notified via {@code listener}.
+     *                      - If {@code true}, failures from this remote sink will cause the exchange source to abort.
+     *                      Callers can safely ignore failures notified via this listener, as they are collected and
+     *                      reported by the exchange source.
+     * @param onPageFetched a callback that will be called when a page is fetched from the remote sink
+     * @param instances     the number of concurrent ``clients`` that this handler should use to fetch pages.
+     *                      More clients reduce latency, but add overhead.
+     * @param listener      a listener that will be notified when the sink fails or completes
      * @see ExchangeSinkHandler#fetchPageAsync(boolean, ActionListener)
      */
-    public void addRemoteSink(RemoteSink remoteSink, boolean failFast, int instances, ActionListener<Void> listener) {
+    public void addRemoteSink(
+        RemoteSink remoteSink,
+        boolean failFast,
+        Runnable onPageFetched,
+        int instances,
+        ActionListener<Void> listener
+    ) {
         final int sinkId = nextSinkId.incrementAndGet();
         remoteSinks.put(sinkId, remoteSink);
         final ActionListener<Void> sinkListener = ActionListener.assertAtLeastOnce(
@@ -284,7 +294,7 @@ public final class ExchangeSourceHandler {
             protected void doRun() {
                 try (EsqlRefCountingListener refs = new EsqlRefCountingListener(sinkListener)) {
                     for (int i = 0; i < instances; i++) {
-                        var fetcher = new RemoteSinkFetcher(remoteSink, failFast, refs.acquire());
+                        var fetcher = new RemoteSinkFetcher(remoteSink, failFast, onPageFetched, refs.acquire());
                         fetcher.fetchPage();
                     }
                 }

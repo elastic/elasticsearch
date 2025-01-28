@@ -605,6 +605,9 @@ public class StatementParserTests extends AbstractStatementParserTests {
             expectInvalidIndexNameErrorWithLineNumber(command, "<<logstash<{now/d}>>>", lineNumber, "<logstash<");
             expectInvalidIndexNameErrorWithLineNumber(command, "\"<<logstash<{now/d}>>>\"", lineNumber, "<logstash<");
             expectInvalidIndexNameErrorWithLineNumber(command, "\"-<logstash- {now/d{yyyy.MM.dd|+12:00}}>\"", lineNumber, "logstash- ");
+            if (EsqlCapabilities.Cap.INDEX_COMPONENT_SELECTORS.isEnabled()) {
+                expectInvalidIndexNameErrorWithLineNumber(command, "index::dat", lineNumber);
+            }
         }
 
         // comma separated indices, with exclusions

@@ -162,7 +162,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
             backloggedMergeTasks.add(mergeTask);
             return false;
         } else {
-            boolean added = currentlyRunningMergeTasks.put(mergeTask.onGoingMerge.getMerge(), mergeTask) != null;
+            boolean added = currentlyRunningMergeTasks.put(mergeTask.onGoingMerge.getMerge(), mergeTask) == null;
             assert added : "starting merge task [" + mergeTask + "] registered as already running";
             return true;
         }

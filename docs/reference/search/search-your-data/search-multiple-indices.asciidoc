@@ -3,7 +3,7 @@
 
 There are two main methods for searching across multiple data streams and indices in {es}:
 
-* At the query level: Specify the indices directly in the search request path or use index patterns to target a group of indices.
+* *Query Level*: Directly specify indices in the search request path or use index patterns to target multiple indices.
 
 *	At the index level: Use <<aliases, index aliases>>, which act as pointers to one or more backing indices, allowing you to group and manage indices logically. 
 

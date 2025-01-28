@@ -89,7 +89,7 @@ public class ResolveClusterTimeoutIT extends AbstractMultiClustersTestCase {
 
         var clusterInfo = resolveClusterActionResponse.get().getResolveClusterInfo();
 
-        // Ensure that the request timed out and that the remotes are marked as not connected.
+        // Ensure that the request timed out and that the remote is marked as not connected.
         assertThat(clusterInfo.get(REMOTE_CLUSTER_1).isConnected(), equalTo(false));
         assertThat(clusterInfo.get(REMOTE_CLUSTER_1).getError(), equalTo("Timed out: did not receive a response from the cluster"));
 

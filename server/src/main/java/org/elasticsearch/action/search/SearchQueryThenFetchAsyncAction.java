@@ -849,17 +849,18 @@ public class SearchQueryThenFetchAsyncAction<Result extends SearchPhaseResult> e
                 var searchRequest = request.searchRequest;
                 var pitBuilder = searchRequest.pointInTimeBuilder();
                 var shardToQuery = request.shards.get(dataNodeLocalIdx);
+                final var shardId = shardToQuery.shardId;
                 state.dependencies.searchService.executeQueryPhase(
                     rewriteShardSearchRequest(
                         state.bottomSortCollector,
                         state.trackTotalHitsUpTo,
                         buildShardSearchRequest(
-                            shardToQuery.shardId,
+                            shardId,
                             searchRequest.getLocalClusterAlias(),
                             shardToQuery.shardIndex,
                             shardToQuery.contextId,
                             shardToQuery.originalIndices,
-                            request.aliasFilters.getOrDefault(shardToQuery.shardId.getIndex().getUUID(), AliasFilter.EMPTY),
+                            request.aliasFilters.getOrDefault(shardId.getIndex().getUUID(), AliasFilter.EMPTY),
                             pitBuilder == null ? null : pitBuilder.getKeepAlive(),
                             shardToQuery.boost,
                             searchRequest,

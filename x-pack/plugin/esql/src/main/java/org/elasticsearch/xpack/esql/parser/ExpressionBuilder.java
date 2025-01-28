@@ -62,7 +62,6 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InsensitiveEquals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
-import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.math.BigInteger;
@@ -116,12 +115,10 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
      */
     public static final int MAX_EXPRESSION_DEPTH = 400;
 
-    protected final ParsingContext context;
+    protected final QueryParams params;
 
-    public record ParsingContext(QueryParams params, PlanTelemetry telemetry) {}
-
-    ExpressionBuilder(ParsingContext context) {
-        this.context = context;
+    ExpressionBuilder(QueryParams params) {
+        this.params = params;
     }
 
     protected Expression expression(ParseTree ctx) {
@@ -624,9 +621,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
 
     @Override
     public String visitFunctionName(EsqlBaseParser.FunctionNameContext ctx) {
-        var name = visitIdentifierOrParameter(ctx.identifierOrParameter());
-        context.telemetry().function(name);
-        return name;
+        return visitIdentifierOrParameter(ctx.identifierOrParameter());
     }
 
     @Override
@@ -688,9 +683,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
             throw new ParsingException(source, "Unsupported conversion to type [{}]", dataType);
         }
         Expression expr = expression(parseTree);
-        var convertFunction = converterToFactory.apply(source, expr);
-        context.telemetry().function(convertFunction.getClass());
-        return convertFunction;
+        return converterToFactory.apply(source, expr);
     }
 
     @Override
@@ -922,10 +915,10 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
             return null;
         }
         Token token = node.getSymbol();
-        if (context.params().contains(token) == false) {
+        if (params.contains(token) == false) {
             throw new ParsingException(source(node), "Unexpected parameter");
         }
-        return context.params().get(token);
+        return params.get(token);
     }
 
     QueryParam paramByNameOrPosition(TerminalNode node) {
@@ -936,28 +929,26 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         String nameOrPosition = token.getText().substring(1);
         if (isInteger(nameOrPosition)) {
             int index = Integer.parseInt(nameOrPosition);
-            if (context.params().get(index) == null) {
+            if (params.get(index) == null) {
                 String message = "";
-                int np = context.params().size();
+                int np = params.size();
                 if (np > 0) {
                     message = ", did you mean " + (np == 1 ? "position 1?" : "any position between 1 and " + np + "?");
                 }
-                context.params()
-                    .addParsingError(new ParsingException(source(node), "No parameter is defined for position " + index + message));
+                params.addParsingError(new ParsingException(source(node), "No parameter is defined for position " + index + message));
             }
-            return context.params().get(index);
+            return params.get(index);
         } else {
-            if (context.params().contains(nameOrPosition) == false) {
+            if (params.contains(nameOrPosition) == false) {
                 String message = "";
-                List<String> potentialMatches = StringUtils.findSimilar(nameOrPosition, context.params().namedParams().keySet());
+                List<String> potentialMatches = StringUtils.findSimilar(nameOrPosition, params.namedParams().keySet());
                 if (potentialMatches.size() > 0) {
                     message = ", did you mean "
                         + (potentialMatches.size() == 1 ? "[" + potentialMatches.get(0) + "]?" : "any of " + potentialMatches + "?");
                 }
-                context.params()
-                    .addParsingError(new ParsingException(source(node), "Unknown query parameter [" + nameOrPosition + "]" + message));
+                params.addParsingError(new ParsingException(source(node), "Unknown query parameter [" + nameOrPosition + "]" + message));
             }
-            return context.params().get(nameOrPosition);
+            return params.get(nameOrPosition);
         }
     }
 

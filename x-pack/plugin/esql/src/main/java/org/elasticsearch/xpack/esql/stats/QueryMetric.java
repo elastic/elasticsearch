@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.telemetry;
+package org.elasticsearch.xpack.esql.stats;
 
 import java.util.Locale;
 

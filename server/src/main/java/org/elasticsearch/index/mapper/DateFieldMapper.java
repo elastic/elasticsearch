@@ -414,7 +414,8 @@ public final class DateFieldMapper extends FieldMapper {
                 context.isSourceSynthetic(),
                 indexMode,
                 indexSortConfig,
-                indexCreatedVersion.onOrAfter(IndexVersions.TIMESTAMP_DOC_VALUES_SPARSE_INDEX)
+                FieldMapper.DOC_VALUES_SPARSE_INDEX.isEnabled()
+                    && indexCreatedVersion.onOrAfter(IndexVersions.TIMESTAMP_DOC_VALUES_SPARSE_INDEX)
                     && hasDocValuesSparseIndex(context.buildFullName(leafName())),
                 this
             );

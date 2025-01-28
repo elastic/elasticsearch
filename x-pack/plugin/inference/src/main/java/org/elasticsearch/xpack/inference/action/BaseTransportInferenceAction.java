@@ -48,6 +48,7 @@ import org.elasticsearch.xpack.inference.telemetry.InferenceTimer;
 import java.io.IOException;
 import java.util.Random;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -80,7 +81,7 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
     private final NodeClient nodeClient;
     private final ThreadPool threadPool;
     private final TransportService transportService;
-    private final Random random;
+    private final ThreadLocalRandom random;
 
     public BaseTransportInferenceAction(
         String inferenceActionName,
@@ -106,7 +107,7 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
         this.nodeClient = nodeClient;
         this.threadPool = threadPool;
         this.transportService = transportService;
-        this.random = new Random(threadPool.relativeTimeInMillis());
+        this.random = ThreadLocalRandom.current();
     }
 
     protected abstract boolean isInvalidTaskTypeForInferenceEndpoint(Request request, UnparsedModel unparsedModel);

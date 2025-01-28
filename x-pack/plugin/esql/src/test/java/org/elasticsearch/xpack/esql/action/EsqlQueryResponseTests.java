@@ -553,7 +553,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
             }
          }
          */
-        return numClusters * 4 + 6;
+        return numClusters * 4 + 1;
     }
 
     public void testChunkResponseSizeColumnar() {

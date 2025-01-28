@@ -464,11 +464,34 @@ public class EsqlDataTypeConverter {
 
     public static long chronoToLong(long dateTime, BytesRef chronoField, ZoneId zone) {
         ChronoField chrono = ChronoField.valueOf(chronoField.utf8ToString().toUpperCase(Locale.ROOT));
-        return Instant.ofEpochMilli(dateTime).atZone(zone).getLong(chrono);
+        return chronoToLong(dateTime, chrono, zone);
     }
 
     public static long chronoToLong(long dateTime, ChronoField chronoField, ZoneId zone) {
         return Instant.ofEpochMilli(dateTime).atZone(zone).getLong(chronoField);
+    }
+
+    /**
+     * Extract the given {@link ChronoField} value from a date specified as a long number of nanoseconds since epoch
+     * @param dateNanos - long nanoseconds since epoch
+     * @param chronoField - The field to extract
+     * @param zone - Timezone for the given date
+     * @return - long representing the given ChronoField value
+     */
+    public static long chronoToLongNanos(long dateNanos, BytesRef chronoField, ZoneId zone) {
+        ChronoField chrono = ChronoField.valueOf(chronoField.utf8ToString().toUpperCase(Locale.ROOT));
+        return chronoToLongNanos(dateNanos, chrono, zone);
+    }
+
+    /**
+     * Extract the given {@link ChronoField} value from a date specified as a long number of nanoseconds since epoch
+     * @param dateNanos - long nanoseconds since epoch
+     * @param chronoField - The field to extract
+     * @param zone - Timezone for the given date
+     * @return - long representing the given ChronoField value
+     */
+    public static long chronoToLongNanos(long dateNanos, ChronoField chronoField, ZoneId zone) {
+        return DateUtils.toInstant(dateNanos).atZone(zone).getLong(chronoField);
     }
 
     /**

@@ -34,6 +34,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -365,8 +366,20 @@ public class MlIndexAndAliasTests extends ESTestCase {
     }
 
     public void testLatestIndex() {
-        var names = new String[] { "index-000001", "index-000002", "index-000003" };
-        assertThat(MlIndexAndAlias.latestIndex(names), equalTo("index-000003"));
+        {
+            var names = new String[] { "index-000001", "index-000002", "index-000003" };
+            assertThat(MlIndexAndAlias.latestIndex(names), equalTo("index-000003"));
+        }
+        {
+            var names = new String[] { "index", "index-000001", "index-000002" };
+            assertThat(MlIndexAndAlias.latestIndex(names), equalTo("index-000002"));
+        }
+    }
+
+    public void testIndexIsReadWriteCompatibleInV9() {
+        assertTrue(MlIndexAndAlias.indexIsReadWriteCompatibleInV9(IndexVersion.current()));
+        assertTrue(MlIndexAndAlias.indexIsReadWriteCompatibleInV9(IndexVersions.V_8_0_0));
+        assertFalse(MlIndexAndAlias.indexIsReadWriteCompatibleInV9(IndexVersions.V_7_17_0));
     }
 
     private void createIndexAndAliasIfNecessary(ClusterState clusterState) {

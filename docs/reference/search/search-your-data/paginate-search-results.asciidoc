@@ -1,7 +1,7 @@
 [[paginate-search-results]]
 === Paginate search results
 
-Pagination provides a structured way for users to interact with search results by breaking them down into smaller, manageable pieces or "pages." Whether allowing users to select a specific range of pages or implementing an “infinite scroll” experience, pagination helps create a tailored and intuitive user experience.
+Pagination organizes search results into manageable pages, enhancing user interaction. Whether selecting specific page ranges or using infinite scroll, pagination offers a tailored user experience.
 
 The three commonly used pagination techniques are:
 

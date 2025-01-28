@@ -637,6 +637,11 @@ public class EsqlCapabilities {
         LOOKUP_JOIN_NO_ALIASES(JOIN_LOOKUP_V12.isEnabled()),
 
         /**
+         * Full text functions can be used in disjunctions as they are implemented in compute engine
+         */
+        FULL_TEXT_FUNCTIONS_DISJUNCTIONS_COMPUTE_ENGINE,
+
+        /**
          * Support match options in match function
          */
         MATCH_FUNCTION_OPTIONS;

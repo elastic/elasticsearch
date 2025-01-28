@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.telemetry;
+package org.elasticsearch.xpack.esql.stats;
 
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
@@ -17,7 +17,7 @@ import java.util.Map;
  *
  * @see <a href="https://github.com/elastic/elasticsearch/blob/main/modules/apm/METERING.md">METERING</a>
  */
-public class PlanTelemetryManager {
+public class PlanningMetricsManager {
 
     // APM counters
     private final LongCounter featuresCounter;
@@ -59,7 +59,7 @@ public class PlanTelemetryManager {
      */
     public static final String SUCCESS = "success";
 
-    public PlanTelemetryManager(MeterRegistry meterRegistry) {
+    public PlanningMetricsManager(MeterRegistry meterRegistry) {
         featuresCounter = meterRegistry.registerLongCounter(
             FEATURE_METRICS,
             "ESQL features, total number of queries that use them",
@@ -77,9 +77,9 @@ public class PlanTelemetryManager {
     /**
      * Publishes the collected metrics to the meter registry
      */
-    public void publish(PlanTelemetry metrics, boolean success) {
-        metrics.commands().forEach((key, value) -> incCommand(key, value, success));
-        metrics.functions().forEach((key, value) -> incFunction(key, value, success));
+    public void publish(PlanningMetrics metrics, boolean success) {
+        metrics.commands().entrySet().forEach(x -> incCommand(x.getKey(), x.getValue(), success));
+        metrics.functions().entrySet().forEach(x -> incFunction(x.getKey(), x.getValue(), success));
     }
 
     private void incCommand(String name, int count, boolean success) {

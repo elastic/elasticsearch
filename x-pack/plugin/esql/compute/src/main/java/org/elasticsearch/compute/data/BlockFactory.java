@@ -432,8 +432,8 @@ public class BlockFactory {
         return b;
     }
 
-    public AggregateDoubleMetricBlockBuilder newAggregatedDoubleMetricBlockBuilder(int estimatedSize) {
-        return new AggregateDoubleMetricBlockBuilder(estimatedSize, this);
+    public AggregateMetricDoubleBlockBuilder newAggregateMetricDoubleBlockBuilder(int estimatedSize) {
+        return new AggregateMetricDoubleBlockBuilder(estimatedSize, this);
     }
 
     /**

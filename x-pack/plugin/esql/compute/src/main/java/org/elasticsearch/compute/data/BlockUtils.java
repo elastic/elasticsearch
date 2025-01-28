@@ -234,7 +234,7 @@ public final class BlockUtils {
             case DOUBLE -> blockFactory.newConstantDoubleBlockWith((double) val, size);
             case BOOLEAN -> blockFactory.newConstantBooleanBlockWith((boolean) val, size);
             case COMPOSITE -> {
-                var builder = blockFactory.newAggregatedDoubleMetricBlockBuilder(size);
+                var builder = blockFactory.newAggregateMetricDoubleBlockBuilder(size);
                 var aggregate_metric_double = (AggregateMetricDoubleLiteral) val;
                 builder.append(
                     aggregate_metric_double.getMin(),

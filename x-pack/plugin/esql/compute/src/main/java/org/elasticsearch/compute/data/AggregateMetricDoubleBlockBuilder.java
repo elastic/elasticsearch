@@ -10,14 +10,14 @@ package org.elasticsearch.compute.data;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.BlockLoader;
 
-public class AggregateDoubleMetricBlockBuilder extends AbstractBlockBuilder implements BlockLoader.AggregateDoubleMetricBuilder {
+public class AggregateMetricDoubleBlockBuilder extends AbstractBlockBuilder implements BlockLoader.AggregateMetricDoubleBuilder {
 
     private DoubleBlockBuilder minBuilder;
     private DoubleBlockBuilder maxBuilder;
     private DoubleBlockBuilder sumBuilder;
     private IntBlockBuilder countBuilder;
 
-    public AggregateDoubleMetricBlockBuilder(int estimatedSize, BlockFactory blockFactory) {
+    public AggregateMetricDoubleBlockBuilder(int estimatedSize, BlockFactory blockFactory) {
         super(blockFactory);
         minBuilder = null;
         maxBuilder = null;
@@ -119,7 +119,7 @@ public class AggregateDoubleMetricBlockBuilder extends AbstractBlockBuilder impl
     }
 
     @Override
-    public BlockLoader.AggregateDoubleMetricBuilder append(Double min, Double max, Double sum, Integer valueCount) {
+    public BlockLoader.AggregateMetricDoubleBuilder append(Double min, Double max, Double sum, Integer valueCount) {
         if (min == null) {
             minBuilder.appendNull();
         } else {

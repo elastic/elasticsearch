@@ -216,7 +216,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 case CARTESIAN_SHAPE -> ((BytesRefBlock.Builder) builder).appendBytesRef(
                     CARTESIAN.asWkb(ShapeTestUtils.randomGeometry(randomBoolean()))
                 );
-                case AGGREGATE_METRIC_DOUBLE -> ((BlockLoader.AggregateDoubleMetricBuilder) builder).append(
+                case AGGREGATE_METRIC_DOUBLE -> ((BlockLoader.AggregateMetricDoubleBuilder) builder).append(
                     randomDouble(),
                     randomDouble(),
                     randomDouble(),
@@ -947,7 +947,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                         BytesRef wkb = stringToSpatial(value.toString());
                         ((BytesRefBlock.Builder) builder).appendBytesRef(wkb);
                     }
-                    case AGGREGATE_METRIC_DOUBLE -> ((BlockLoader.AggregateDoubleMetricBuilder) builder).append(
+                    case AGGREGATE_METRIC_DOUBLE -> ((BlockLoader.AggregateMetricDoubleBuilder) builder).append(
                         ((Number) value).doubleValue(),
                         ((Number) value).doubleValue(),
                         ((Number) value).doubleValue(),

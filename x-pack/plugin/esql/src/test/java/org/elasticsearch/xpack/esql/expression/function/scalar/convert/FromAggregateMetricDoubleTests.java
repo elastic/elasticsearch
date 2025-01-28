@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.elasticsearch.compute.data.AggregateDoubleMetricBlockBuilder;
+import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.AggregateMetricDoubleLiteral;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -24,16 +24,16 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
-@FunctionName("from_aggregate_double_metric")
-public class FromAggregateDoubleMetricTests extends AbstractScalarFunctionTestCase {
-    public FromAggregateDoubleMetricTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
+@FunctionName("from_aggregate_metric_double")
+public class FromAggregateMetricDoubleTests extends AbstractScalarFunctionTestCase {
+    public FromAggregateMetricDoubleTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
         assumeTrue("Test sometimes wraps literals as fields", args.get(1).foldable());
-        return new FromAggregateDoubleMetric(source, args.get(0), args.get(1));
+        return new FromAggregateMetricDouble(source, args.get(0), args.get(1));
     }
 
     @ParametersFactory
@@ -49,10 +49,10 @@ public class FromAggregateDoubleMetricTests extends AbstractScalarFunctionTestCa
                     randomDoubleBetween(Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, true),
                     randomIntBetween(Integer.MIN_VALUE, Integer.MAX_VALUE)
                 );
-                Double expectedValue = index == AggregateDoubleMetricBlockBuilder.Metric.MIN.getIndex() ? agg_metric.getMin()
-                    : index == AggregateDoubleMetricBlockBuilder.Metric.MAX.getIndex() ? agg_metric.getMax()
-                    : index == AggregateDoubleMetricBlockBuilder.Metric.SUM.getIndex() ? agg_metric.getSum()
-                    : (Double) agg_metric.getCount().doubleValue();
+                Double expectedValue = index == AggregateMetricDoubleBlockBuilder.Metric.MIN.getIndex() ? agg_metric.getMin()
+                                                                                                        : index == AggregateMetricDoubleBlockBuilder.Metric.MAX.getIndex() ? agg_metric.getMax()
+                                                                                                                                                                           : index == AggregateMetricDoubleBlockBuilder.Metric.SUM.getIndex() ? agg_metric.getSum()
+                                                                                                                                                                                                                                              : (Double) agg_metric.getCount().doubleValue();
 
                 return new TestCaseSupplier.TestCase(
                     List.of(
@@ -60,9 +60,9 @@ public class FromAggregateDoubleMetricTests extends AbstractScalarFunctionTestCa
                         new TestCaseSupplier.TypedData(index, DataType.INTEGER, "subfield_index").forceLiteral()
                     ),
                     "FromAggregateDoubleMetricEvaluator[field=Attribute[channel=0],subfieldIndex=" + index + "]",
-                    index == AggregateDoubleMetricBlockBuilder.Metric.COUNT.getIndex() ? DataType.INTEGER : DataType.DOUBLE,
-                    index == AggregateDoubleMetricBlockBuilder.Metric.COUNT.getIndex() ? Matchers.equalTo(agg_metric.getCount())
-                        : expectedValue == null ? Matchers.nullValue()
+                    index == AggregateMetricDoubleBlockBuilder.Metric.COUNT.getIndex() ? DataType.INTEGER : DataType.DOUBLE,
+                    index == AggregateMetricDoubleBlockBuilder.Metric.COUNT.getIndex() ? Matchers.equalTo(agg_metric.getCount())
+                                                                                       : expectedValue == null ? Matchers.nullValue()
                         : Matchers.closeTo(expectedValue, Math.abs(expectedValue * 0.00001))
                 );
             }));

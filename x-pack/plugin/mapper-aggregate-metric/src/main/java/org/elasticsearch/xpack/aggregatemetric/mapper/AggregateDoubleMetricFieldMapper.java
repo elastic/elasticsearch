@@ -511,13 +511,13 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
             return SourceValueFetcher.identity(name(), context, format);
         }
 
-        public class AggregateDoubleMetricBlockLoader extends BlockDocValuesReader.DocValuesBlockLoader {
+        public class AggregateMetricDoubleBlockLoader extends BlockDocValuesReader.DocValuesBlockLoader {
             NumberFieldMapper.NumberFieldType minFieldType = metricFields.get(Metric.min);
             NumberFieldMapper.NumberFieldType maxFieldType = metricFields.get(Metric.max);
             NumberFieldMapper.NumberFieldType sumFieldType = metricFields.get(Metric.sum);
             NumberFieldMapper.NumberFieldType countFieldType = metricFields.get(Metric.value_count);
 
-            private AggregateDoubleMetricBlockLoader() {}
+            private AggregateMetricDoubleBlockLoader() {}
 
             static NumericDocValues getNumericDocValues(NumberFieldMapper.NumberFieldType field, LeafReader leafReader) throws IOException {
                 if (field == null) {
@@ -559,7 +559,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
 
                     @Override
                     public Block read(BlockFactory factory, Docs docs) throws IOException {
-                        try (var builder = factory.aggregateDoubleMetricBuilder(docs.count())) {
+                        try (var builder = factory.aggregateMetricDoubleBuilder(docs.count())) {
                             int lastDoc = -1;
                             for (int i = 0; i < docs.count(); i++) {
                                 int doc = docs.get(i);
@@ -576,12 +576,12 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
 
                     @Override
                     public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
-                        var blockBuilder = (BlockLoader.AggregateDoubleMetricBuilder) builder;
+                        var blockBuilder = (AggregateMetricDoubleBuilder) builder;
                         this.docID = docId;
                         read(docId, blockBuilder);
                     }
 
-                    private void read(int docId, BlockLoader.AggregateDoubleMetricBuilder builder) throws IOException {
+                    private void read(int docId, AggregateMetricDoubleBuilder builder) throws IOException {
                         if (minValues.advanceExact(docId)) {
                             boolean found = maxValues.advanceExact(docId);
                             assert found;
@@ -603,13 +603,13 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
 
             @Override
             public Builder builder(BlockFactory factory, int expectedCount) {
-                return factory.aggregateDoubleMetricBuilder(expectedCount);
+                return factory.aggregateMetricDoubleBuilder(expectedCount);
             }
         }
 
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
-            return new AggregateDoubleMetricBlockLoader();
+            return new AggregateMetricDoubleBlockLoader();
         }
 
         /**

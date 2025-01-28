@@ -149,7 +149,7 @@ public class TestBlock implements BlockLoader.Block {
             }
 
             @Override
-            public BlockLoader.AggregateDoubleMetricBuilder aggregateDoubleMetricBuilder(int count) {
+            public BlockLoader.AggregateMetricDoubleBuilder aggregateMetricDoubleBuilder(int count) {
                 return null;
             }
         };

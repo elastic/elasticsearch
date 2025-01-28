@@ -700,8 +700,8 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
         }
 
         @Override
-        public BlockLoader.AggregateDoubleMetricBuilder aggregateDoubleMetricBuilder(int count) {
-            return factory.newAggregatedDoubleMetricBlockBuilder(count);
+        public BlockLoader.AggregateMetricDoubleBuilder aggregateMetricDoubleBuilder(int count) {
+            return factory.newAggregateMetricDoubleBlockBuilder(count);
         }
     }
 

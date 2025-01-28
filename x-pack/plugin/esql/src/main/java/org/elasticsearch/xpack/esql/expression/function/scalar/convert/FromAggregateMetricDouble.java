@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.compute.data.AggregateDoubleMetricBlockBuilder;
+import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.CompositeBlock;
 import org.elasticsearch.compute.data.Page;
@@ -39,18 +39,18 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 
-public class FromAggregateDoubleMetric extends EsqlScalarFunction {
+public class FromAggregateMetricDouble extends EsqlScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "FromAggregateDoubleMetric",
-        FromAggregateDoubleMetric::new
+        FromAggregateMetricDouble::new
     );
 
     private final Expression field;
     private final Expression subfieldIndex;
 
     @FunctionInfo(returnType = { "long", "double" }, description = "Convert aggregate double metric to a block of a single subfield.")
-    public FromAggregateDoubleMetric(
+    public FromAggregateMetricDouble(
         Source source,
         @Param(
             name = "aggregate_metric_double",
@@ -64,11 +64,11 @@ public class FromAggregateDoubleMetric extends EsqlScalarFunction {
         this.subfieldIndex = subfieldIndex;
     }
 
-    public static FromAggregateDoubleMetric withMetric(Source source, Expression field, AggregateDoubleMetricBlockBuilder.Metric metric) {
-        return new FromAggregateDoubleMetric(source, field, new Literal(source, metric.getIndex(), INTEGER));
+    public static FromAggregateMetricDouble withMetric(Source source, Expression field, AggregateMetricDoubleBlockBuilder.Metric metric) {
+        return new FromAggregateMetricDouble(source, field, new Literal(source, metric.getIndex(), INTEGER));
     }
 
-    private FromAggregateDoubleMetric(StreamInput in) throws IOException {
+    private FromAggregateMetricDouble(StreamInput in) throws IOException {
         this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(Expression.class), in.readNamedWriteable(Expression.class));
     }
 
@@ -94,7 +94,7 @@ public class FromAggregateDoubleMetric extends EsqlScalarFunction {
             return NULL;
         }
         var subfield = ((Number) folded).intValue();
-        if (subfield == AggregateDoubleMetricBlockBuilder.Metric.COUNT.getIndex()) {
+        if (subfield == AggregateMetricDoubleBlockBuilder.Metric.COUNT.getIndex()) {
             return INTEGER;
         }
         return DOUBLE;
@@ -102,12 +102,12 @@ public class FromAggregateDoubleMetric extends EsqlScalarFunction {
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new FromAggregateDoubleMetric(source(), newChildren.get(0), newChildren.get(1));
+        return new FromAggregateMetricDouble(source(), newChildren.get(0), newChildren.get(1));
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, FromAggregateDoubleMetric::new, field, subfieldIndex);
+        return NodeInfo.create(this, FromAggregateMetricDouble::new, field, subfieldIndex);
     }
 
     @Override

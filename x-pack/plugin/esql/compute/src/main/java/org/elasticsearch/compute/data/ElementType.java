@@ -33,7 +33,7 @@ public enum ElementType {
     /**
      * Composite blocks which contain array of sub-blocks.
      */
-    COMPOSITE("Composite", BlockFactory::newAggregatedDoubleMetricBlockBuilder),
+    COMPOSITE("Composite", BlockFactory::newAggregateMetricDoubleBlockBuilder),
 
     /**
      * Intermediate blocks which don't support retrieving elements.

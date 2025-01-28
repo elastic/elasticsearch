@@ -55,7 +55,7 @@ public class QueryFeatureExtractor implements FeatureExtractor {
             scorers.add(scorer);
         }
 
-        rankerIterator = disiPriorityQueue.size() > 0 ? new DisjunctionDISIApproximation(wrappers, Long.MAX_VALUE) : null;
+        rankerIterator = wrappers.size() > 0 ? new DisjunctionDISIApproximation(wrappers, Long.MAX_VALUE) : null;
     }
 
     @Override

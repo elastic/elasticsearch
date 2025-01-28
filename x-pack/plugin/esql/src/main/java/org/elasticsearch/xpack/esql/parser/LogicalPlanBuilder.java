@@ -128,7 +128,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     public LogicalPlan visitSingleStatement(EsqlBaseParser.SingleStatementContext ctx) {
         var plan = plan(ctx.query());
-        telemetryCount(plan);
+        telemetryAccounting(plan);
         return plan;
     }
 
@@ -144,7 +144,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         }
         try {
             LogicalPlan input = plan(ctx.query());
-            telemetryCount(input);
+            telemetryAccounting(input);
             PlanFactory makePlan = typedParsing(this, ctx.processingCommand(), PlanFactory.class);
             return makePlan.apply(input);
         } finally {
@@ -152,7 +152,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         }
     }
 
-    private LogicalPlan telemetryCount(LogicalPlan node) {
+    private LogicalPlan telemetryAccounting(LogicalPlan node) {
         if (node instanceof TelemetryAware ma) {
             this.context.telemetry().command(ma);
         }

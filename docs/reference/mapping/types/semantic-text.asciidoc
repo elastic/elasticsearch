@@ -182,16 +182,11 @@ Even if the script targets non-`semantic_text` fields, the update will fail when
 
 [discrete]
 [[copy-to-support]]
-==== `copy_to` support
+==== `copy_to` and multi-fields support
 
-The `semantic_text` field type can be the target of
-<<copy-to,`copy_to` fields>>. This means you can use a single `semantic_text`
-field to collect the values of other fields for semantic search. Each value has
-its embeddings calculated separately; each field value is a separate set of chunk(s) in
-the resulting embeddings.
-
-This imposes a restriction on bulk requests and ingestion pipelines that update documents with `semantic_text` fields.
-In these cases, all fields that are copied to a `semantic_text` field, including the `semantic_text` field value, must have a value to ensure every embedding is calculated correctly.
+The semantic_text field type can serve as the target of <<copy-to,copy_to fields>>,
+be part of a <<multi-fields,multi-field>> structure, or contain <<multi-fields,multi-fields>> internally.
+This means you can use a single field to collect the values of other fields for semantic search.
 
 For example, the following mapping:
 
@@ -201,13 +196,13 @@ PUT test-index
 {
     "mappings": {
         "properties": {
-            "infer_field": {
-                "type": "semantic_text",
-                "inference_id": ".elser-2-elasticsearch"
-            },
             "source_field": {
                 "type": "text",
                 "copy_to": "infer_field"
+            },
+            "infer_field": {
+                "type": "semantic_text",
+                "inference_id": ".elser-2-elasticsearch"
             }
         }
     }
@@ -215,18 +210,28 @@ PUT test-index
 ------------------------------------------------------------
 // TEST[skip:TBD]
 
-Will need the following bulk update request to ensure that `infer_field` is updated correctly:
+can also be declared as multi-fields:
 
 [source,console]
 ------------------------------------------------------------
-PUT test-index/_bulk
-{"update": {"_id": "1"}}
-{"doc": {"infer_field": "updated inference field", "source_field": "updated source field"}}
+PUT test-index
+{
+    "mappings": {
+        "properties": {
+            "source_field": {
+                "type": "text",
+                "fields": {
+                    "infer_field": {
+                        "type": "semantic_text",
+                        "inference_id": ".elser-2-elasticsearch"
+                    }
+                }
+            }
+        }
+    }
+}
 ------------------------------------------------------------
 // TEST[skip:TBD]
-
-Notice that both the `semantic_text` field and the source field are updated in the bulk request.
-
 
 [discrete]
 [[limitations]]
@@ -236,4 +241,3 @@ Notice that both the `semantic_text` field and the source field are updated in t
 
 * `semantic_text` fields are not currently supported as elements of <<nested,nested fields>>.
 * `semantic_text` fields can't currently be set as part of <<dynamic-templates>>.
-* `semantic_text` fields can't be defined as <<multi-fields,multi-fields>> of another field, nor can they contain other fields as multi-fields.

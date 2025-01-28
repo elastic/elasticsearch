@@ -22,7 +22,10 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.InferenceService;
+import org.elasticsearch.inference.MinimalServiceSettings;
+import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.search.SearchHit;
@@ -187,7 +190,6 @@ public class ModelRegistryTests extends ESTestCase {
         var listener = new PlainActionFuture<UnparsedModel>();
         registry.getModel("1", listener);
 
-        registry.getModel("1", listener);
         var modelConfig = listener.actionGet(TIMEOUT);
         assertEquals("1", modelConfig.inferenceEntityId());
         assertEquals("foo", modelConfig.service());
@@ -295,8 +297,12 @@ public class ModelRegistryTests extends ESTestCase {
 
     public void testIdMatchedDefault() {
         var defaultConfigIds = new ArrayList<InferenceService.DefaultConfigId>();
-        defaultConfigIds.add(new InferenceService.DefaultConfigId("foo", TaskType.SPARSE_EMBEDDING, mock(InferenceService.class)));
-        defaultConfigIds.add(new InferenceService.DefaultConfigId("bar", TaskType.SPARSE_EMBEDDING, mock(InferenceService.class)));
+        defaultConfigIds.add(
+            new InferenceService.DefaultConfigId("foo", MinimalServiceSettings.sparseEmbedding(), mock(InferenceService.class))
+        );
+        defaultConfigIds.add(
+            new InferenceService.DefaultConfigId("bar", MinimalServiceSettings.sparseEmbedding(), mock(InferenceService.class))
+        );
 
         var matched = ModelRegistry.idMatchedDefault("bar", defaultConfigIds);
         assertEquals(defaultConfigIds.get(1), matched.get());
@@ -306,10 +312,20 @@ public class ModelRegistryTests extends ESTestCase {
 
     public void testTaskTypeMatchedDefaults() {
         var defaultConfigIds = new ArrayList<InferenceService.DefaultConfigId>();
-        defaultConfigIds.add(new InferenceService.DefaultConfigId("s1", TaskType.SPARSE_EMBEDDING, mock(InferenceService.class)));
-        defaultConfigIds.add(new InferenceService.DefaultConfigId("s2", TaskType.SPARSE_EMBEDDING, mock(InferenceService.class)));
-        defaultConfigIds.add(new InferenceService.DefaultConfigId("d1", TaskType.TEXT_EMBEDDING, mock(InferenceService.class)));
-        defaultConfigIds.add(new InferenceService.DefaultConfigId("c1", TaskType.COMPLETION, mock(InferenceService.class)));
+        defaultConfigIds.add(
+            new InferenceService.DefaultConfigId("s1", MinimalServiceSettings.sparseEmbedding(), mock(InferenceService.class))
+        );
+        defaultConfigIds.add(
+            new InferenceService.DefaultConfigId("s2", MinimalServiceSettings.sparseEmbedding(), mock(InferenceService.class))
+        );
+        defaultConfigIds.add(
+            new InferenceService.DefaultConfigId(
+                "d1",
+                MinimalServiceSettings.textEmbedding(384, SimilarityMeasure.COSINE, DenseVectorFieldMapper.ElementType.FLOAT),
+                mock(InferenceService.class)
+            )
+        );
+        defaultConfigIds.add(new InferenceService.DefaultConfigId("c1", MinimalServiceSettings.completion(), mock(InferenceService.class)));
 
         var matched = ModelRegistry.taskTypeMatchedDefaults(TaskType.SPARSE_EMBEDDING, defaultConfigIds);
         assertThat(matched, contains(defaultConfigIds.get(0), defaultConfigIds.get(1)));
@@ -329,10 +345,10 @@ public class ModelRegistryTests extends ESTestCase {
         var mockServiceB = mock(InferenceService.class);
         when(mockServiceB.name()).thenReturn("service-b");
 
-        registry.addDefaultIds(new InferenceService.DefaultConfigId(id, randomFrom(TaskType.values()), mockServiceA));
+        registry.addDefaultIds(new InferenceService.DefaultConfigId(id, randomMinimalServiceSettings(), mockServiceA));
         var ise = expectThrows(
             IllegalStateException.class,
-            () -> registry.addDefaultIds(new InferenceService.DefaultConfigId(id, randomFrom(TaskType.values()), mockServiceB))
+            () -> registry.addDefaultIds(new InferenceService.DefaultConfigId(id, randomMinimalServiceSettings(), mockServiceB))
         );
         assertThat(
             ise.getMessage(),
@@ -385,5 +401,17 @@ public class ModelRegistryTests extends ESTestCase {
         }
 
         return searchResponse;
+    }
+
+    public static MinimalServiceSettings randomMinimalServiceSettings() {
+        TaskType type = randomFrom(TaskType.values());
+        if (type == TaskType.TEXT_EMBEDDING) {
+            return MinimalServiceSettings.textEmbedding(
+                randomIntBetween(2, 384),
+                randomFrom(SimilarityMeasure.values()),
+                randomFrom(DenseVectorFieldMapper.ElementType.values())
+            );
+        }
+        return new MinimalServiceSettings(type, null, null, null);
     }
 }

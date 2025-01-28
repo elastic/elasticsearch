@@ -59,13 +59,13 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.ToPartial;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
-import org.elasticsearch.xpack.esql.expression.function.scalar.map.LogWithBaseInMap;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvAvg;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCount;
@@ -4931,7 +4931,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testPlanSanityCheckWithBinaryPlans() throws Exception {
-        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V11.isEnabled());
+        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
 
         var plan = optimizedPlan("""
               FROM test
@@ -6006,7 +6006,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
      *     \_EsRelation[languages_lookup][LOOKUP][language_code{f}#18, language_name{f}#19]
      */
     public void testLookupJoinPushDownFilterOnJoinKeyWithRename() {
-        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V11.isEnabled());
+        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
 
         String query = """
               FROM test
@@ -6048,7 +6048,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
      *     \_EsRelation[languages_lookup][LOOKUP][language_code{f}#18, language_name{f}#19]
      */
     public void testLookupJoinPushDownFilterOnLeftSideField() {
-        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V11.isEnabled());
+        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
 
         String query = """
               FROM test
@@ -6091,7 +6091,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
      *       \_EsRelation[languages_lookup][LOOKUP][language_code{f}#18, language_name{f}#19]
      */
     public void testLookupJoinPushDownDisabledForLookupField() {
-        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V11.isEnabled());
+        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
 
         String query = """
               FROM test
@@ -6135,7 +6135,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
      *       \_EsRelation[languages_lookup][LOOKUP][language_code{f}#19, language_name{f}#20]
      */
     public void testLookupJoinPushDownSeparatedForConjunctionBetweenLeftAndRightField() {
-        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V11.isEnabled());
+        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
 
         String query = """
               FROM test
@@ -6186,7 +6186,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
      *       \_EsRelation[languages_lookup][LOOKUP][language_code{f}#19, language_name{f}#20]
      */
     public void testLookupJoinPushDownDisabledForDisjunctionBetweenLeftAndRightField() {
-        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V11.isEnabled());
+        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
 
         String query = """
               FROM test
@@ -6236,7 +6236,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
      *   \_EsRelation[languages_lookup][LOOKUP][language_code{f}#18]
      */
     public void testLookupJoinKeepNoLookupFields() {
-        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V11.isEnabled());
+        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
 
         String commandDiscardingFields = randomBoolean() ? "| KEEP languages" : """
             | DROP _meta_field, emp_no, first_name, gender, language_code,
@@ -6275,7 +6275,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
      * \_EsRelation[languages_lookup][LOOKUP][language_code{f}#20, language_name{f}#21]
      */
     public void testMultipleLookupShadowing() {
-        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V11.isEnabled());
+        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
 
         String query = """
             FROM test
@@ -6902,33 +6902,21 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(local.supplier(), equalTo(LocalSupplier.EMPTY));
     }
 
-    public void testMapExpressionAsFunctionArgument() {
-        assumeTrue("MapExpression require snapshot build", EsqlCapabilities.Cap.OPTIONAL_NAMED_ARGUMENT_MAP_FOR_FUNCTION.isEnabled());
+    public void testFunctionNamedParamsAsFunctionArgument() {
         var query = """
             from test
-            | EVAL l = log_with_base_in_map(languages, {"base":2.0})
-            | KEEP l
+            | WHERE MATCH(first_name, "Anna Smith", {"minimum_should_match": 2.0})
             """;
         var plan = optimizedPlan(query);
-        Project proj = as(plan, EsqlProject.class);
-        List<?> fields = proj.projections();
-        assertEquals(1, fields.size());
-        ReferenceAttribute ra = as(fields.get(0), ReferenceAttribute.class);
-        assertEquals("l", ra.name());
-        assertEquals(DataType.DOUBLE, ra.dataType());
-        Eval eval = as(proj.child(), Eval.class);
-        assertEquals(1, eval.fields().size());
-        Alias a = as(eval.fields().get(0), Alias.class);
-        LogWithBaseInMap l = as(a.child(), LogWithBaseInMap.class);
-        MapExpression me = as(l.base(), MapExpression.class);
+        Limit limit = as(plan, Limit.class);
+        Filter filter = as(limit.child(), Filter.class);
+        Match match = as(filter.condition(), Match.class);
+        MapExpression me = as(match.options(), MapExpression.class);
         assertEquals(1, me.entryExpressions().size());
         EntryExpression ee = as(me.entryExpressions().get(0), EntryExpression.class);
         BytesRef key = as(ee.key().fold(FoldContext.small()), BytesRef.class);
-        assertEquals("base", key.utf8ToString());
+        assertEquals("minimum_should_match", key.utf8ToString());
         assertEquals(new Literal(EMPTY, 2.0, DataType.DOUBLE), ee.value());
         assertEquals(DataType.DOUBLE, ee.dataType());
-        Limit limit = as(eval.child(), Limit.class);
-        EsRelation esRelation = as(limit.child(), EsRelation.class);
-        assertEquals(esRelation.index().name(), "test");
     }
 }

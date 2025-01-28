@@ -1,5 +1,5 @@
 [[infer-service-openai]]
-=== OpenAI {infer} service
+=== OpenAI {infer} integration
 
 .New API reference
 [sidebar]

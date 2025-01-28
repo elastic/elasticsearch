@@ -57,7 +57,8 @@ public class IdentifierGenerator {
             } else {
                 index.insert(randomIntBetween(0, index.length() - 1), '*');
             }
-        } else if (canAdd(Features.DATE_MATH, features)) {
+        }
+        if (canAdd(Features.DATE_MATH, features)) {
             // https://www.elastic.co/guide/en/elasticsearch/reference/8.17/api-conventions.html#api-date-math-index-names
             index.insert(0, randomFrom("<", "-<"));
             index.append("-{now/");

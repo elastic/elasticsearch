@@ -142,6 +142,7 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
         TextSimilarityRankDoc[] textSimilarityRankDocs = new TextSimilarityRankDoc[scoreDocs.length];
         for (int i = 0; i < scoreDocs.length; i++) {
             ScoreDoc scoreDoc = scoreDocs[i];
+            assert scoreDoc.score >= 0;
             if (explain) {
                 textSimilarityRankDocs[i] = new TextSimilarityRankDoc(
                     scoreDoc.doc,

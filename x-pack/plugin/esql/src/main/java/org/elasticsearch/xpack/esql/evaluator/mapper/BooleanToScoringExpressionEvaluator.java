@@ -29,23 +29,28 @@ public class BooleanToScoringExpressionEvaluator implements EvalOperator.Express
 
     @Override
     public Block eval(Page page) {
-        try (Block innerBlock = inner.eval(page)) {
-            if ((innerBlock == null) || innerBlock.areAllValuesNull()) {
-                return innerBlock;
-            }
-
-            if (innerBlock instanceof BooleanBlock == false) {
-                throw new IllegalArgumentException("Unexpected block type: " + innerBlock.getClass());
-            }
-
-            return eval((BooleanBlock) innerBlock);
+        Block innerBlock = inner.eval(page);
+        if ((innerBlock == null) || innerBlock.areAllValuesNull()) {
+            return innerBlock;
         }
+
+        if (innerBlock instanceof DoubleBlock) {
+            // It's already a scoring block - no need to convert
+            return innerBlock;
+        }
+
+        if (innerBlock instanceof BooleanBlock == false) {
+            throw new IllegalArgumentException("Unexpected block type: " + innerBlock.getClass());
+        }
+
+        return eval((BooleanBlock) innerBlock);
     }
 
     private DoubleBlock eval(BooleanBlock booleanBlock) {
-        int positionCount = booleanBlock.getPositionCount();
-
-        try (DoubleBlock.Builder builder = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
+        DoubleBlock.Builder builder = null;
+        try {
+            int positionCount = booleanBlock.getPositionCount();
+            builder = driverContext.blockFactory().newDoubleBlockBuilder(positionCount);
             for (int i = 0; i < positionCount; i++) {
                 boolean value = booleanBlock.getBoolean(i);
                 if (value) {
@@ -56,6 +61,8 @@ public class BooleanToScoringExpressionEvaluator implements EvalOperator.Express
             }
 
             return builder.build();
+        } finally {
+            Releasables.closeExpectNoException(builder, booleanBlock);
         }
     }
 

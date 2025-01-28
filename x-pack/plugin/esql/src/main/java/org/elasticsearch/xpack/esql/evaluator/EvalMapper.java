@@ -116,12 +116,12 @@ public final class EvalMapper {
             var rightEval = toEvaluator(foldCtx, bc.right(), layout, shardContexts, usesScoring);
             final ExpressionEvaluator.Factory leftEvalFactory;
             final ExpressionEvaluator.Factory rightEvalFactory;
-            if (usesScoring && bc.left() instanceof FullTextFunction == false) {
+            if (usesScoring) {
                 leftEvalFactory = new BooleanToScoringExpressionEvaluator.Factory(leftEval);
             } else {
                 leftEvalFactory = leftEval;
             }
-            if (usesScoring && bc.right() instanceof FullTextFunction == false) {
+            if (usesScoring) {
                 rightEvalFactory = new BooleanToScoringExpressionEvaluator.Factory(rightEval);
             } else {
                 rightEvalFactory = rightEval;

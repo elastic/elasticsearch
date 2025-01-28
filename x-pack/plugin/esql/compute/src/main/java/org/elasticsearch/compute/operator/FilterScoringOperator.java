@@ -58,7 +58,7 @@ public class FilterScoringOperator extends AbstractPageMappingOperator {
                 return null;
             }
             for (int p = 0; p < page.getPositionCount(); p++) {
-                if (scoreBlock.isNull(p) || scoreBlock.getValueCount(p) != SCORE_BLOCK_INDEX) {
+                if (scoreBlock.isNull(p) || scoreBlock.getValueCount(p) != 1) {
                     // Null is like false
                     // And, for now, multivalued results are like false too
                     continue;

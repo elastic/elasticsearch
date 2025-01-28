@@ -58,7 +58,7 @@ public class LogsUsageRollingUpgradeIT extends AbstractRollingUpgradeTestCase {
     }
 
     static String rolloverDataStream(String dataStreamName) throws IOException {
-        var request =  new Request("POST", "/" + dataStreamName + "/_rollover");
+        var request = new Request("POST", "/" + dataStreamName + "/_rollover");
         var response = client().performRequest(request);
         assertOK(response);
         var responseBody = entityAsMap(response);

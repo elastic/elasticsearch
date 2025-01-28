@@ -137,8 +137,6 @@ public class InferenceServiceNodeLocalRateLimitCalculator implements ClusterStat
         var sortedServices = new ArrayList<>(serviceRegistry.getServices().values());
         sortedServices.sort(Comparator.comparing(InferenceService::name));
 
-        ConcurrentHashMap<String, Map<TaskType, RateLimitAssignment>> newAssignments = new ConcurrentHashMap<>();
-
         for (String serviceName : SERVICE_NODE_LOCAL_RATE_LIMIT_CONFIGS.keySet()) {
             Optional<InferenceService> service = serviceRegistry.getService(serviceName);
 

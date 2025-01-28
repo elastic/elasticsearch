@@ -489,7 +489,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             clusterAndIndexAsIndexPattern(command, "cluster:index");
             clusterAndIndexAsIndexPattern(command, "cluster:.index");
             clusterAndIndexAsIndexPattern(command, "cluster*:index*");
-            clusterAndIndexAsIndexPattern(command, "cluster*:<logstash-{now/D}>*");
+            clusterAndIndexAsIndexPattern(command, "cluster*:<logstash-{now/D}*>");
             clusterAndIndexAsIndexPattern(command, "cluster*:*");
             clusterAndIndexAsIndexPattern(command, "*:index*");
             clusterAndIndexAsIndexPattern(command, "*:*");

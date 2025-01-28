@@ -99,7 +99,8 @@ public class RefreshListenersTests extends ESTestCase {
         maxListeners = randomIntBetween(2, 1000);
         // Now setup the InternalEngine which is much more complicated because we aren't mocking anything
         threadPool = new TestThreadPool(getTestName());
-        threadPoolMergeQueue = new ThreadPoolMergeQueue(threadPool);
+        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("index", Settings.EMPTY);
+        threadPoolMergeQueue = ThreadPoolMergeQueue.getNewThreadPoolMergeQueue(threadPool, indexSettings.getNodeSettings());
         listeners = new RefreshListeners(
             () -> maxListeners,
             () -> engine.refresh("too-many-listeners"),
@@ -108,7 +109,6 @@ public class RefreshListenersTests extends ESTestCase {
             new MeanMetric()
         );
 
-        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("index", Settings.EMPTY);
         ShardId shardId = new ShardId(new Index("index", "_na_"), 1);
         Directory directory = newDirectory();
         store = new Store(shardId, indexSettings, directory, new DummyShardLock(shardId));

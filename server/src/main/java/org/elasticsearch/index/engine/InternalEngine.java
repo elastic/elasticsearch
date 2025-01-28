@@ -2830,9 +2830,10 @@ public class InternalEngine extends Engine {
     protected ElasticsearchMergeScheduler createMergeScheduler(
         ShardId shardId,
         IndexSettings indexSettings,
-        ThreadPoolMergeQueue threadPoolMergeQueue
+        @Nullable ThreadPoolMergeQueue threadPoolMergeQueue
     ) {
         if (ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.get(indexSettings.getNodeSettings())) {
+            assert threadPoolMergeQueue != null;
             return new ThreadPoolMergeScheduler(shardId, indexSettings, threadPoolMergeQueue) {
 
                 @Override

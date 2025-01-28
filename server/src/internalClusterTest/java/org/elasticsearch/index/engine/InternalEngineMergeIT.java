@@ -30,15 +30,14 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-@ClusterScope(supportsDedicatedMasters = false, numDataNodes = 1, numClientNodes = 0, scope = Scope.SUITE)
+@ClusterScope(supportsDedicatedMasters = false, numDataNodes = 1, numClientNodes = 0, scope = Scope.TEST)
 public class InternalEngineMergeIT extends ESIntegTestCase {
 
     private static boolean useThreadPoolMerging;
 
     @BeforeClass
     public static void selectRealmConfig() {
-        //useThreadPoolMerging = randomBoolean();
-        useThreadPoolMerging = false;
+        useThreadPoolMerging = randomBoolean();
     }
 
     @Override
@@ -152,10 +151,7 @@ public class InternalEngineMergeIT extends ESIntegTestCase {
                     equalTo(mergeCount)
             );
         } else {
-            assertThat(
-                    nodeStats.getThreadPool().stats().stream().filter(s -> ThreadPool.Names.MERGE.equals(s.name())).findAny().get().completed(),
-                    equalTo(0L)
-            );
+            assertTrue(nodeStats.getThreadPool().stats().stream().filter(s -> ThreadPool.Names.MERGE.equals(s.name())).findAny().isEmpty());
         }
     }
 }

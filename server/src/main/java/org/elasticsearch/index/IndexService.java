@@ -155,6 +155,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
 
     private final AsyncTrimTranslogTask trimTranslogTask;
     private final ThreadPool threadPool;
+    @Nullable
     private final ThreadPoolMergeQueue threadPoolMergeQueue;
     private final BigArrays bigArrays;
     private final ScriptService scriptService;
@@ -262,7 +263,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.indexFoldersDeletionListener = indexFoldersDeletionListener;
         this.bigArrays = bigArrays;
         this.threadPool = threadPool;
-        this.threadPoolMergeQueue = new ThreadPoolMergeQueue(threadPool);
+        this.threadPoolMergeQueue = ThreadPoolMergeQueue.getNewThreadPoolMergeQueue(threadPool, indexSettings.getNodeSettings());
         this.scriptService = scriptService;
         this.clusterService = clusterService;
         this.client = client;
@@ -823,7 +824,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         return threadPool;
     }
 
-    public ThreadPoolMergeQueue getThreadPoolMergeQueue() {
+    public @Nullable ThreadPoolMergeQueue getThreadPoolMergeQueue() {
         return threadPoolMergeQueue;
     }
 

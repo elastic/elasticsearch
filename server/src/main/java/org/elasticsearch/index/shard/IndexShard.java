@@ -195,6 +195,7 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 public class IndexShard extends AbstractIndexShardComponent implements IndicesClusterStateService.Shard {
 
     private final ThreadPool threadPool;
+    @Nullable
     private final ThreadPoolMergeQueue threadPoolMergeQueue;
     private final MapperService mapperService;
     private final IndexCache indexCache;

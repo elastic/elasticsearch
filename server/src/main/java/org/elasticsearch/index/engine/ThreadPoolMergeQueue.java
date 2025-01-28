@@ -9,8 +9,11 @@
 
 package org.elasticsearch.index.engine;
 
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.engine.ThreadPoolMergeScheduler.MergeTask;
+import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Set;
@@ -44,7 +47,15 @@ public class ThreadPoolMergeQueue {
     private final ExecutorService executorService;
     private final int maxConcurrentMerges;
 
-    public ThreadPoolMergeQueue(ThreadPool threadPool) {
+    public static @Nullable ThreadPoolMergeQueue getNewThreadPoolMergeQueue(ThreadPool threadPool, Settings settings) {
+        if (ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.get(settings)) {
+            return new ThreadPoolMergeQueue(threadPool);
+        } else {
+            return null;
+        }
+    }
+
+    private ThreadPoolMergeQueue(ThreadPool threadPool) {
         this.executorService = threadPool.executor(ThreadPool.Names.MERGE);
         this.maxConcurrentMerges = threadPool.info(ThreadPool.Names.MERGE).getMax();
     }

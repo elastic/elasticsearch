@@ -58,6 +58,7 @@ public final class EngineConfig {
     private final MapperService mapperService;
     private final IndexStorePlugin.SnapshotCommitSupplier snapshotCommitSupplier;
     private final ThreadPool threadPool;
+    @Nullable
     private final ThreadPoolMergeQueue threadPoolMergeQueue;
     private final Engine.Warmer warmer;
     private final Store store;
@@ -290,7 +291,7 @@ public final class EngineConfig {
         return threadPool;
     }
 
-    public ThreadPoolMergeQueue getThreadPoolMergeQueue() {
+    public @Nullable ThreadPoolMergeQueue getThreadPoolMergeQueue() {
         return threadPoolMergeQueue;
     }
 

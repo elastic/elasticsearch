@@ -13,6 +13,8 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
+import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.Vector;
@@ -25,10 +27,17 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.evaluator.mapper.BooleanToScoringExpressionEvaluator;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.evaluator.mapper.ExpressionMapper;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.BinaryLogic;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.BinaryScoringLogic;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.ScoringAnd;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.ScoringOr;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InsensitiveEqualsMapper;
@@ -52,7 +61,7 @@ public final class EvalMapper {
     private EvalMapper() {}
 
     public static ExpressionEvaluator.Factory toEvaluator(FoldContext foldCtx, Expression exp, Layout layout) {
-        return toEvaluator(foldCtx, exp, layout, List.of());
+        return toEvaluator(foldCtx, exp, layout, List.of(), false);
     }
 
     @SuppressWarnings({ "rawtypes", "unchecked" })
@@ -60,13 +69,14 @@ public final class EvalMapper {
         FoldContext foldCtx,
         Expression exp,
         Layout layout,
-        List<ShardContext> shardContexts
+        List<ShardContext> shardContexts,
+        boolean usesScoring
     ) {
         if (exp instanceof EvaluatorMapper m) {
             return m.toEvaluator(new EvaluatorMapper.ToEvaluator() {
                 @Override
                 public ExpressionEvaluator.Factory apply(Expression expression) {
-                    return toEvaluator(foldCtx, expression, layout, shardContexts);
+                    return toEvaluator(foldCtx, expression, layout, shardContexts, usesScoring);
                 }
 
                 @Override
@@ -78,11 +88,16 @@ public final class EvalMapper {
                 public List<ShardContext> shardContexts() {
                     return shardContexts;
                 }
+
+                @Override
+                public boolean usesScoring() {
+                    return usesScoring;
+                }
             });
         }
         for (ExpressionMapper em : MAPPERS) {
             if (em.typeToken.isInstance(exp)) {
-                return em.map(foldCtx, exp, layout, shardContexts);
+                return em.map(foldCtx, exp, layout, shardContexts, usesScoring);
             }
         }
         throw new QlIllegalArgumentException("Unsupported expression [{}]", exp);
@@ -90,9 +105,28 @@ public final class EvalMapper {
 
     static class BooleanLogic extends ExpressionMapper<BinaryLogic> {
         @Override
-        public ExpressionEvaluator.Factory map(FoldContext foldCtx, BinaryLogic bc, Layout layout, List<ShardContext> shardContexts) {
-            var leftEval = toEvaluator(foldCtx, bc.left(), layout, shardContexts);
-            var rightEval = toEvaluator(foldCtx, bc.right(), layout, shardContexts);
+        public ExpressionEvaluator.Factory map(
+            FoldContext foldCtx,
+            BinaryLogic bc,
+            Layout layout,
+            List<ShardContext> shardContexts,
+            boolean usesScoring
+        ) {
+            var leftEval = toEvaluator(foldCtx, bc.left(), layout, shardContexts, usesScoring);
+            var rightEval = toEvaluator(foldCtx, bc.right(), layout, shardContexts, usesScoring);
+            final ExpressionEvaluator.Factory leftEvalFactory;
+            final ExpressionEvaluator.Factory rightEvalFactory;
+            if (usesScoring && bc.left() instanceof FullTextFunction == false) {
+                leftEvalFactory = new BooleanToScoringExpressionEvaluator.Factory(leftEval);
+            } else {
+                leftEvalFactory = leftEval;
+            }
+            if (usesScoring && bc.right() instanceof FullTextFunction == false) {
+                rightEvalFactory = new BooleanToScoringExpressionEvaluator.Factory(rightEval);
+            } else {
+                rightEvalFactory = rightEval;
+            }
+
             /**
              * Evaluator for the <href a="https://en.wikipedia.org/wiki/Three-valued_logic">three-valued boolean expressions</href>.
              * We can't generate these with the {@link Evaluator} annotation because that
@@ -162,13 +196,103 @@ public final class EvalMapper {
                     Releasables.closeExpectNoException(leftEval, rightEval);
                 }
             }
-            return driverContext -> new BooleanLogicExpressionEvaluator(bc, leftEval.get(driverContext), rightEval.get(driverContext));
+
+            record BooleanScoringLogicExpressionEvaluator(
+                BinaryScoringLogic bsl,
+                ExpressionEvaluator leftEval,
+                ExpressionEvaluator rightEval
+            ) implements ExpressionEvaluator {
+                @Override
+                public Block eval(Page page) {
+                    try (Block lhs = leftEval.eval(page); Block rhs = rightEval.eval(page)) {
+                        Vector lhsVector = lhs.asVector();
+                        Vector rhsVector = rhs.asVector();
+                        if (lhsVector != null && rhsVector != null) {
+                            return eval((DoubleVector) lhsVector, (DoubleVector) rhsVector);
+                        }
+                        return eval(lhs, rhs);
+                    }
+                }
+
+                /**
+                 * Eval blocks, handling {@code null}. This takes {@link Block} instead of
+                 * {@link BooleanBlock} because blocks that <strong>only</strong> contain
+                 * {@code null} can't be cast to {@link BooleanBlock}. So we check for
+                 * {@code null} first and don't cast at all if the value is {@code null}.
+                 */
+                private Block eval(Block lhs, Block rhs) {
+                    int positionCount = lhs.getPositionCount();
+                    try (DoubleBlock.Builder result = lhs.blockFactory().newDoubleBlockBuilder(positionCount)) {
+                        for (int p = 0; p < positionCount; p++) {
+                            if (lhs.getValueCount(p) > 1) {
+                                result.appendNull();
+                                continue;
+                            }
+                            if (rhs.getValueCount(p) > 1) {
+                                result.appendNull();
+                                continue;
+                            }
+                            Double v = bsl.function()
+                                .apply(
+                                    lhs.isNull(p) ? null : ((DoubleBlock) lhs).getDouble(lhs.getFirstValueIndex(p)),
+                                    rhs.isNull(p) ? null : ((DoubleBlock) rhs).getDouble(rhs.getFirstValueIndex(p))
+                                );
+                            if (v == null) {
+                                result.appendNull();
+                                continue;
+                            }
+                            result.appendDouble(v);
+                        }
+                        return result.build();
+                    }
+                }
+
+                private Block eval(DoubleVector lhs, DoubleVector rhs) {
+                    int positionCount = lhs.getPositionCount();
+                    try (var result = lhs.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
+                        for (int p = 0; p < positionCount; p++) {
+                            result.appendDouble(p, bsl.function().apply(lhs.getDouble(p), rhs.getDouble(p)));
+                        }
+                        return result.build().asBlock();
+                    }
+                }
+
+                @Override
+                public void close() {
+                    Releasables.closeExpectNoException(leftEval, rightEval);
+                }
+            }
+
+            if (usesScoring) {
+                BinaryScoringLogic bsl = switch (bc) {
+                    case And and -> new ScoringAnd(bc.source(), bc.left(), bc.right());
+                    case Or or -> new ScoringOr(bc.source(), bc.left(), bc.right());
+                    default -> throw new IllegalArgumentException("Unsupported binary logic: " + bc);
+                };
+
+                return driverContext -> new BooleanScoringLogicExpressionEvaluator(
+                    bsl,
+                    leftEvalFactory.get(driverContext),
+                    rightEvalFactory.get(driverContext)
+                );
+            }
+            return driverContext -> new BooleanLogicExpressionEvaluator(
+                bc,
+                leftEvalFactory.get(driverContext),
+                rightEvalFactory.get(driverContext)
+            );
         }
     }
 
     static class Nots extends ExpressionMapper<Not> {
         @Override
-        public ExpressionEvaluator.Factory map(FoldContext foldCtx, Not not, Layout layout, List<ShardContext> shardContexts) {
+        public ExpressionEvaluator.Factory map(
+            FoldContext foldCtx,
+            Not not,
+            Layout layout,
+            List<ShardContext> shardContexts,
+            boolean usesScoring
+        ) {
             var expEval = toEvaluator(foldCtx, not.field(), layout);
             return dvrCtx -> new org.elasticsearch.xpack.esql.evaluator.predicate.operator.logical.NotEvaluator(
                 not.source(),
@@ -180,7 +304,13 @@ public final class EvalMapper {
 
     static class Attributes extends ExpressionMapper<Attribute> {
         @Override
-        public ExpressionEvaluator.Factory map(FoldContext foldCtx, Attribute attr, Layout layout, List<ShardContext> shardContexts) {
+        public ExpressionEvaluator.Factory map(
+            FoldContext foldCtx,
+            Attribute attr,
+            Layout layout,
+            List<ShardContext> shardContexts,
+            boolean usesScoring
+        ) {
             record Attribute(int channel) implements ExpressionEvaluator {
                 @Override
                 public Block eval(Page page) {
@@ -215,7 +345,13 @@ public final class EvalMapper {
     static class Literals extends ExpressionMapper<Literal> {
 
         @Override
-        public ExpressionEvaluator.Factory map(FoldContext foldCtx, Literal lit, Layout layout, List<ShardContext> shardContexts) {
+        public ExpressionEvaluator.Factory map(
+            FoldContext foldCtx,
+            Literal lit,
+            Layout layout,
+            List<ShardContext> shardContexts,
+            boolean usesScoring
+        ) {
             record LiteralsEvaluator(DriverContext context, Literal lit) implements ExpressionEvaluator {
                 @Override
                 public Block eval(Page page) {
@@ -272,7 +408,13 @@ public final class EvalMapper {
     static class IsNulls extends ExpressionMapper<IsNull> {
 
         @Override
-        public ExpressionEvaluator.Factory map(FoldContext foldCtx, IsNull isNull, Layout layout, List<ShardContext> shardContexts) {
+        public ExpressionEvaluator.Factory map(
+            FoldContext foldCtx,
+            IsNull isNull,
+            Layout layout,
+            List<ShardContext> shardContexts,
+            boolean usesScoring
+        ) {
             var field = toEvaluator(foldCtx, isNull.field(), layout);
             return new IsNullEvaluatorFactory(field);
         }
@@ -320,7 +462,13 @@ public final class EvalMapper {
     static class IsNotNulls extends ExpressionMapper<IsNotNull> {
 
         @Override
-        public ExpressionEvaluator.Factory map(FoldContext foldCtx, IsNotNull isNotNull, Layout layout, List<ShardContext> shardContexts) {
+        public ExpressionEvaluator.Factory map(
+            FoldContext foldCtx,
+            IsNotNull isNotNull,
+            Layout layout,
+            List<ShardContext> shardContexts,
+            boolean usesScoring
+        ) {
             return new IsNotNullEvaluatorFactory(toEvaluator(foldCtx, isNotNull.field(), layout));
         }
 

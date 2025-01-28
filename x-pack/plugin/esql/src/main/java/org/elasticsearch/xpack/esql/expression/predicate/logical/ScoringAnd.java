@@ -1,0 +1,64 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+package org.elasticsearch.xpack.esql.expression.predicate.logical;
+
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.predicate.Negatable;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
+
+import java.io.IOException;
+
+public class ScoringAnd extends BinaryScoringLogic implements Negatable<BinaryLogic> {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+        Expression.class,
+        "ScoringAnd",
+        ScoringAnd::new
+    );
+
+    public ScoringAnd(Source source, Expression left, Expression right) {
+        super(source, left, right, BinaryScoringLogicOperation.AND);
+    }
+
+    private ScoringAnd(StreamInput in) throws IOException {
+        super(in, BinaryScoringLogicOperation.AND);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
+    }
+
+    @Override
+    protected NodeInfo<ScoringAnd> info() {
+        return NodeInfo.create(this, ScoringAnd::new, left(), right());
+    }
+
+    @Override
+    protected ScoringAnd replaceChildren(Expression newLeft, Expression newRight) {
+        return new ScoringAnd(source(), newLeft, newRight);
+    }
+
+    @Override
+    public ScoringAnd swapLeftAndRight() {
+        return new ScoringAnd(source(), right(), left());
+    }
+
+    @Override
+    public Or negate() {
+        return new Or(source(), Not.negate(left()), Not.negate(right()));
+    }
+
+    @Override
+    protected Expression canonicalize() {
+        // NB: this add a circular dependency between Predicates / Logical package
+        return Predicates.combineAnd(Predicates.splitAnd(super.canonicalize()));
+    }
+}

@@ -21,8 +21,11 @@ import org.elasticsearch.compute.operator.ColumnExtractOperator;
 import org.elasticsearch.compute.operator.ColumnLoadOperator;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.EvalOperatorFactory;
 import org.elasticsearch.compute.operator.FilterOperator.FilterOperatorFactory;
+import org.elasticsearch.compute.operator.FilterScoringOperator;
+import org.elasticsearch.compute.operator.FilterScoringOperator.FilterScoringOperatorFactory;
 import org.elasticsearch.compute.operator.LocalSourceOperator;
 import org.elasticsearch.compute.operator.LocalSourceOperator.LocalSourceFactory;
 import org.elasticsearch.compute.operator.MvExpandOperator;
@@ -658,9 +661,28 @@ public class LocalExecutionPlanner {
 
     private PhysicalOperation planFilter(FilterExec filter, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(filter.child(), context);
+
         // TODO: should this be extracted into a separate eval block?
+        boolean usesScore = PlannerUtils.usesScoring(filter);
+        EvalOperator.ExpressionEvaluator.Factory evaluatorFactory = EvalMapper.toEvaluator(
+            context.foldCtx(),
+            filter.condition(),
+            source.layout,
+            shardContexts,
+            usesScore
+        );
+
+
+        OperatorFactory operatorFactory;
+        if (PlannerUtils.usesScoring(filter)) {
+            operatorFactory = new FilterScoringOperatorFactory(
+                evaluatorFactory);
+        } else {
+            operatorFactory = new FilterOperatorFactory(
+                evaluatorFactory);
+        }
         return source.with(
-            new FilterOperatorFactory(EvalMapper.toEvaluator(context.foldCtx(), filter.condition(), source.layout, shardContexts)),
+            operatorFactory,
             source.layout
         );
     }

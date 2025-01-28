@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.fulltext;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.lucene.LuceneQueryExpressionEvaluator;
 import org.elasticsearch.compute.lucene.LuceneQueryExpressionEvaluator.ShardConfig;
+import org.elasticsearch.compute.lucene.LuceneQueryExpressionScoringEvaluator;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
@@ -17,7 +18,6 @@ import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
-import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
+import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 import org.elasticsearch.xpack.esql.querydsl.query.TranslationAwareExpressionQuery;
 
@@ -227,12 +228,9 @@ public abstract class FullTextFunction extends Function implements TranslationAw
             );
             checkFullTextFunctionsParents(condition, failures);
 
-            boolean usesScore = plan.output()
-                .stream()
-                .anyMatch(attr -> attr instanceof MetadataAttribute ma && ma.name().equals(MetadataAttribute.SCORE));
-            if (usesScore) {
-                checkFullTextSearchDisjunctions(condition, failures);
-            }
+//            if (PlannerUtils.usesScoring(plan)) {
+//                checkFullTextSearchDisjunctions(condition, failures);
+//            }
         } else {
             plan.forEachExpression(FullTextFunction.class, ftf -> {
                 failures.add(fail(ftf, "[{}] {} is only supported in WHERE commands", ftf.functionName(), ftf.functionType()));
@@ -270,15 +268,15 @@ public abstract class FullTextFunction extends Function implements TranslationAw
     }
 
     /**
-     * Checks if a disjunction is pushable from the point of view of FullTextFunctions. Either it has no FullTextFunctions or
+     * Checks if a disjunction is pushable from the point of view of FullTextFunctions. Either it has no FullTextFunctions disjunction
      * all it contains are FullTextFunctions.
      *
-     * @param or disjunction to check
+     * @param disjunction disjunction to check
      * @return true if the disjunction is pushable, false otherwise
      */
-    public static boolean checkDisjunctionPushable(Or or) {
-        boolean hasFullText = or.anyMatch(FullTextFunction.class::isInstance);
-        return hasFullText == false || onlyFullTextFunctionsInExpression(or);
+    public static boolean checkDisjunctionPushable(Expression disjunction) {
+        boolean hasFullText = disjunction.anyMatch(FullTextFunction.class::isInstance);
+        return hasFullText == false || onlyFullTextFunctionsInExpression(disjunction);
     }
 
     /**
@@ -379,6 +377,19 @@ public abstract class FullTextFunction extends Function implements TranslationAw
 
     @Override
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+        if (toEvaluator.usesScoring()) {
+            List<EsPhysicalOperationProviders.ShardContext> shardContexts = toEvaluator.shardContexts();
+            LuceneQueryExpressionScoringEvaluator.ShardConfig[] shardConfigs =
+                new LuceneQueryExpressionScoringEvaluator.ShardConfig[shardContexts.size()];
+            int i = 0;
+            for (EsPhysicalOperationProviders.ShardContext shardContext : shardContexts) {
+                shardConfigs[i++] = new LuceneQueryExpressionScoringEvaluator.ShardConfig(
+                    shardContext.toQuery(queryBuilder()),
+                    shardContext.searcher()
+                );
+            }
+            return new LuceneQueryExpressionScoringEvaluator.Factory(shardConfigs);
+        }
         List<EsPhysicalOperationProviders.ShardContext> shardContexts = toEvaluator.shardContexts();
         ShardConfig[] shardConfigs = new ShardConfig[shardContexts.size()];
         int i = 0;

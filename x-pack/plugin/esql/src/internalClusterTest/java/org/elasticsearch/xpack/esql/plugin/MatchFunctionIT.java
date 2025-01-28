@@ -29,6 +29,19 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
         createAndPopulateIndex();
     }
 
+    public void testDELETEME() {
+        var query = """
+            FROM test METADATA _score
+            | WHERE match(content, "fox") OR length(content) < 20
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id"));
+            assertColumnTypes(resp.columns(), List.of("integer"));
+            assertValues(resp.values(), List.of(List.of(1), List.of(6)));
+        }
+    }
+
     public void testSimpleWhereMatch() {
         var query = """
             FROM test

@@ -1040,9 +1040,6 @@ public class SearchQueryThenFetchAsyncAction<Result extends SearchPhaseResult> e
                             channelListener,
                             new NodeQueryResponse(mergeResult, results, queryPhaseResultConsumer.topDocsStats)
                         );
-                        queryPhaseResultConsumer.buffer = null;
-                    } catch (Throwable e) {
-                        throw new AssertionError(e);
                     }
                 }
             };

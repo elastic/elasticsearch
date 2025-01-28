@@ -18,6 +18,7 @@ import org.elasticsearch.common.cli.EnvironmentAwareCommand;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.server.cli.JvmOptionDefaults;
 import org.elasticsearch.server.cli.JvmOptionsParser;
 import org.elasticsearch.server.cli.MachineDependentHeap;
 import org.elasticsearch.server.cli.ServerProcess;
@@ -46,7 +47,9 @@ class WindowsServiceDaemon extends EnvironmentAwareCommand {
         try (var loadedSecrets = KeyStoreWrapper.bootstrap(env.configFile(), () -> new SecureString(new char[0]))) {
             var args = new ServerArgs(false, true, null, loadedSecrets, env.settings(), env.configFile(), env.logsFile());
             var tempDir = ServerProcessUtils.setupTempDir(processInfo);
-            var jvmOptions = JvmOptionsParser.determineJvmOptions(args, processInfo, tempDir, new MachineDependentHeap());
+            var jvmOptsDefaults = new JvmOptionDefaults() {
+            };
+            var jvmOptions = JvmOptionsParser.determineJvmOptions(args, processInfo, tempDir, new MachineDependentHeap(), jvmOptsDefaults);
             var serverProcessBuilder = new ServerProcessBuilder().withTerminal(terminal)
                 .withProcessInfo(processInfo)
                 .withServerArgs(args)

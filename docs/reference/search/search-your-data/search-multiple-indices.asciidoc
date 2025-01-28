@@ -71,6 +71,7 @@ GET /my-index-*/_search
   }
 }
 ----
+// TEST[setup:my_index]
 
 To search all data streams and indices in a cluster, omit the target from the
 request path. Alternatively, you can use `_all` or `*`.

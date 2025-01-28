@@ -280,6 +280,9 @@ tests:
 - class: org.elasticsearch.action.search.SearchProgressActionListenerIT
   method: testSearchProgressWithQuery
   issue: https://github.com/elastic/elasticsearch/issues/120994
+- class: org.elasticsearch.datastreams.DataStreamsClientYamlTestSuiteIT
+  method: test {p0=data_stream/80_resolve_index_data_streams/Resolve index with hidden and closed indices}
+  issue: https://github.com/elastic/elasticsearch/issues/120965
 
 # Examples:
 #

@@ -147,8 +147,8 @@ public class InternalEngineMergeIT extends ESIntegTestCase {
         NodeStats nodeStats = nodesStatsResponse.getNodes().get(0);
         if (useThreadPoolMerging) {
             assertThat(
-                    nodeStats.getThreadPool().stats().stream().filter(s -> ThreadPool.Names.MERGE.equals(s.name())).findAny().get().completed(),
-                    equalTo(mergeCount)
+                nodeStats.getThreadPool().stats().stream().filter(s -> ThreadPool.Names.MERGE.equals(s.name())).findAny().get().completed(),
+                equalTo(mergeCount)
             );
         } else {
             assertTrue(nodeStats.getThreadPool().stats().stream().filter(s -> ThreadPool.Names.MERGE.equals(s.name())).findAny().isEmpty());

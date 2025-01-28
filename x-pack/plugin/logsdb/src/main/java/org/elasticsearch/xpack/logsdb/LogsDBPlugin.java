@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.logsdb.LogsPatternUsageService.LOGSDB_PRIOR_LOGS_USAGE;
 import static org.elasticsearch.xpack.logsdb.LogsPatternUsageService.USAGE_CHECK_MAX_PERIOD;

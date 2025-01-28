@@ -11,7 +11,7 @@ package org.elasticsearch.common;
 
 import java.security.SecureRandom;
 
-public class SecureRandomHolder {
+class SecureRandomHolder {
     // class loading is atomic - this is a lazy & safe singleton to be used by this package
-    static final SecureRandom INSTANCE = new SecureRandom();
+    public static final SecureRandom INSTANCE = new SecureRandom();
 }

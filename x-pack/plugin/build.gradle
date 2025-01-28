@@ -105,3 +105,6 @@ tasks.named("yamlRestCompatTestTransform").configure({ task ->
   task.addAllowedWarningRegex(".*rollup functionality will be removed in Elasticsearch.*")
 })
 
+tasks.named('yamlRestCompatTest').configure {
+  systemProperty 'es.queryable_built_in_roles_enabled', 'false'
+}

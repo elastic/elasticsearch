@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.gradle;
 
@@ -17,6 +18,9 @@ import org.gradle.api.logging.Logging;
 import org.gradle.api.provider.ListProperty;
 import org.gradle.api.provider.MapProperty;
 import org.gradle.api.provider.Property;
+import org.gradle.api.provider.Provider;
+import org.gradle.api.provider.ProviderFactory;
+import org.gradle.api.tasks.CacheableTask;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.Optional;
@@ -50,6 +54,7 @@ import javax.inject.Inject;
  * Exec task implementation.
  */
 @SuppressWarnings("unchecked")
+@CacheableTask
 public abstract class LoggedExec extends DefaultTask implements FileSystemOperationsAware {
 
     private static final Logger LOGGER = Logging.getLogger(LoggedExec.class);
@@ -84,6 +89,14 @@ public abstract class LoggedExec extends DefaultTask implements FileSystemOperat
     abstract public Property<Boolean> getCaptureOutput();
 
     @Input
+    public Provider<String> getWorkingDirPath() {
+        return getWorkingDir().map(file -> {
+            String relativeWorkingDir = projectLayout.getProjectDirectory().getAsFile().toPath().relativize(file.toPath()).toString();
+            return relativeWorkingDir;
+        });
+    }
+
+    @Internal
     abstract public Property<File> getWorkingDir();
 
     @Internal
@@ -92,15 +105,44 @@ public abstract class LoggedExec extends DefaultTask implements FileSystemOperat
     private String output;
 
     @Inject
-    public LoggedExec(ProjectLayout projectLayout, ExecOperations execOperations, FileSystemOperations fileSystemOperations) {
+    public LoggedExec(
+        ProjectLayout projectLayout,
+        ExecOperations execOperations,
+        FileSystemOperations fileSystemOperations,
+        ProviderFactory providerFactory
+    ) {
         this.projectLayout = projectLayout;
         this.execOperations = execOperations;
         this.fileSystemOperations = fileSystemOperations;
         getWorkingDir().convention(projectLayout.getProjectDirectory().getAsFile());
         // For now mimic default behaviour of Gradle Exec task here
-        getEnvironment().putAll(System.getenv());
+        setupDefaultEnvironment(providerFactory);
         getCaptureOutput().convention(false);
         getSpoolOutput().convention(false);
+    }
+
+    /**
+     * We explicitly configure the environment variables that are passed to the executed process.
+     * This is required to make sure that the build cache and Gradle configuration cache is correctly configured
+     * can be reused across different build invocations.
+     * */
+    private void setupDefaultEnvironment(ProviderFactory providerFactory) {
+        getEnvironment().putAll(providerFactory.environmentVariablesPrefixedBy("GRADLE_BUILD_CACHE"));
+
+        getNonTrackedEnvironment().putAll(providerFactory.environmentVariablesPrefixedBy("BUILDKITE"));
+        getNonTrackedEnvironment().putAll(providerFactory.environmentVariablesPrefixedBy("VAULT"));
+        Provider<String> javaToolchainHome = providerFactory.environmentVariable("JAVA_TOOLCHAIN_HOME");
+        if (javaToolchainHome.isPresent()) {
+            getEnvironment().put("JAVA_TOOLCHAIN_HOME", javaToolchainHome);
+        }
+        Provider<String> javaRuntimeHome = providerFactory.environmentVariable("RUNTIME_JAVA_HOME");
+        if (javaRuntimeHome.isPresent()) {
+            getEnvironment().put("RUNTIME_JAVA_HOME", javaRuntimeHome);
+        }
+        Provider<String> path = providerFactory.environmentVariable("PATH");
+        if (path.isPresent()) {
+            getEnvironment().put("PATH", path);
+        }
     }
 
     @TaskAction

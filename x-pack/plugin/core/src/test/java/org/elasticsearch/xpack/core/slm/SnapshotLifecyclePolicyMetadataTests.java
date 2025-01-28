@@ -13,6 +13,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.time.Clock;
+import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -79,7 +81,7 @@ public class SnapshotLifecyclePolicyMetadataTests extends AbstractXContentSerial
         SnapshotLifecyclePolicyMetadata.Builder builder = SnapshotLifecyclePolicyMetadata.builder()
             .setPolicy(randomSnapshotLifecyclePolicy(policyId))
             .setVersion(randomNonNegativeLong())
-            .setModifiedDate(randomNonNegativeLong());
+            .setModifiedDate(randomModifiedTime());
         if (randomBoolean()) {
             builder.setHeaders(randomHeaders());
         }
@@ -102,6 +104,7 @@ public class SnapshotLifecyclePolicyMetadataTests extends AbstractXContentSerial
         for (int i = 0; i < randomIntBetween(2, 5); i++) {
             config.put(randomAlphaOfLength(4), randomAlphaOfLength(4));
         }
+
         return new SnapshotLifecyclePolicy(
             policyId,
             randomAlphaOfLength(4),
@@ -122,7 +125,41 @@ public class SnapshotLifecyclePolicyMetadataTests extends AbstractXContentSerial
             );
     }
 
-    public static String randomSchedule() {
+    public static String randomCronSchedule() {
         return randomIntBetween(0, 59) + " " + randomIntBetween(0, 59) + " " + randomIntBetween(0, 12) + " * * ?";
+    }
+
+    public static String randomTimeValueString() {
+        // restrict to intervals greater than slm.minimum_interval value of 15 minutes
+        Duration minInterval = Duration.ofMinutes(15);
+        Map<String, Long> unitMinVal = Map.of(
+            "nanos",
+            minInterval.toNanos(),
+            "micros",
+            minInterval.toNanos() * 1000,
+            "ms",
+            minInterval.toMillis(),
+            "s",
+            minInterval.toSeconds(),
+            "m",
+            minInterval.toMinutes(),
+            "h",
+            minInterval.toHours(),
+            "d",
+            minInterval.toDays()
+        );
+        var unit = randomFrom(unitMinVal.keySet());
+        long minVal = Math.max(1, unitMinVal.get(unit));
+        long value = randomLongBetween(minVal, 1000 * minVal);
+        return value + unit;
+    }
+
+    public static String randomSchedule() {
+        return randomBoolean() ? randomCronSchedule() : randomTimeValueString();
+    }
+
+    public static long randomModifiedTime() {
+        // if modified time is after the current time, validation will fail
+        return randomLongBetween(0, Clock.systemUTC().millis());
     }
 }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.test.transport;
@@ -29,6 +30,8 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.IOUtils;
@@ -36,7 +39,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
@@ -47,7 +49,6 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.tasks.MockTaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.BytesTransportRequest;
 import org.elasticsearch.transport.ClusterConnectionManager;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.ConnectionProfile;
@@ -77,10 +78,13 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.spy;
 
 /**
@@ -100,6 +104,7 @@ public class MockTransportService extends TransportService {
     private final Map<DiscoveryNode, List<Transport.Connection>> openConnections = new HashMap<>();
 
     private final List<Runnable> onStopListeners = new CopyOnWriteArrayList<>();
+    private final AtomicReference<Consumer<Transport.Connection>> onConnectionClosedCallback = new AtomicReference<>();
 
     public static class TestPlugin extends Plugin {
         @Override
@@ -206,6 +211,7 @@ public class MockTransportService extends TransportService {
     }
 
     private final Transport original;
+    private final EsThreadPoolExecutor testExecutor;
 
     /**
      * Build the service.
@@ -302,6 +308,16 @@ public class MockTransportService extends TransportService {
             Tracer.NOOP
         );
         this.original = transport.getDelegate();
+        this.testExecutor = EsExecutors.newScaling(
+            "mock-transport",
+            0,
+            4,
+            30,
+            TimeUnit.SECONDS,
+            true,
+            EsExecutors.daemonThreadFactory("mock-transport"),
+            threadPool.getThreadContext()
+        );
     }
 
     private static TransportAddress[] extractTransportAddresses(TransportService transportService) {
@@ -568,13 +584,8 @@ public class MockTransportService extends TransportService {
                 // poor mans request cloning...
                 BytesStreamOutput bStream = new BytesStreamOutput();
                 request.writeTo(bStream);
-                final TransportRequest clonedRequest;
-                if (request instanceof BytesTransportRequest) {
-                    clonedRequest = copyRawBytesForBwC(bStream);
-                } else {
-                    RequestHandlerRegistry<?> reg = MockTransportService.this.getRequestHandler(action);
-                    clonedRequest = reg.newRequest(bStream.bytes().streamInput());
-                }
+                RequestHandlerRegistry<?> reg = MockTransportService.this.getRequestHandler(action);
+                final TransportRequest clonedRequest = reg.newRequest(bStream.bytes().streamInput());
                 assert clonedRequest.getClass().equals(MasterNodeRequestHelper.unwrapTermOverride(request).getClass())
                     : clonedRequest + " vs " + request;
 
@@ -617,18 +628,9 @@ public class MockTransportService extends TransportService {
                                 delay
                             )
                         );
-                        threadPool.schedule(runnable, delay, threadPool.generic());
+                        threadPool.schedule(runnable, delay, testExecutor);
                     }
                 }
-            }
-
-            // Some request handlers read back a BytesTransportRequest
-            // into a different class that cannot be re-serialized (i.e. JOIN_VALIDATE_ACTION_NAME),
-            // in those cases we just copy the raw bytes back to a BytesTransportRequest.
-            // This is only needed for the BwC for JOIN_VALIDATE_ACTION_NAME and can be removed in the next major
-            @UpdateForV9
-            private static TransportRequest copyRawBytesForBwC(BytesStreamOutput bStream) throws IOException {
-                return new BytesTransportRequest(bStream.bytes().streamInput());
             }
 
             @Override
@@ -773,6 +775,19 @@ public class MockTransportService extends TransportService {
         }));
     }
 
+    public void setOnConnectionClosedCallback(Consumer<Transport.Connection> callback) {
+        onConnectionClosedCallback.set(callback);
+    }
+
+    @Override
+    public void onConnectionClosed(Transport.Connection connection) {
+        final Consumer<Transport.Connection> callback = onConnectionClosedCallback.get();
+        if (callback != null) {
+            callback.accept(connection);
+        }
+        super.onConnectionClosed(connection);
+    }
+
     public void addOnStopListener(Runnable listener) {
         onStopListeners.add(listener);
     }
@@ -795,11 +810,8 @@ public class MockTransportService extends TransportService {
             }
         } catch (InterruptedException e) {
             throw new IllegalStateException(e);
+        } finally {
+            assertTrue(ThreadPool.terminate(testExecutor, 10, TimeUnit.SECONDS));
         }
     }
-
-    public DiscoveryNode getLocalDiscoNode() {
-        return this.getLocalNode();
-    }
-
 }

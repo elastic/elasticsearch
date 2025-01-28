@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.vectors;
 
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
@@ -17,6 +19,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
 
 import java.io.IOException;
@@ -35,7 +38,13 @@ import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 public class KnnScoreDocQuery extends Query {
     private final int[] docs;
     private final float[] scores;
+
+    // the indexes in docs and scores corresponding to the first matching document in each segment.
+    // If a segment has no matching documents, it should be assigned the index of the next segment that does.
+    // There should be a final entry that is always docs.length-1.
     private final int[] segmentStarts;
+
+    // an object identifying the reader context that was used to build this query
     private final Object contextIdentity;
 
     /**
@@ -43,18 +52,31 @@ public class KnnScoreDocQuery extends Query {
      *
      * @param docs the global doc IDs of documents that match, in ascending order
      * @param scores the scores of the matching documents
-     * @param segmentStarts the indexes in docs and scores corresponding to the first matching
-     *     document in each segment. If a segment has no matching documents, it should be assigned
-     *     the index of the next segment that does. There should be a final entry that is always
-     *     docs.length-1.
-     * @param contextIdentity an object identifying the reader context that was used to build this
-     *     query
+     * @param reader IndexReader
      */
-    KnnScoreDocQuery(int[] docs, float[] scores, int[] segmentStarts, Object contextIdentity) {
+    KnnScoreDocQuery(int[] docs, float[] scores, IndexReader reader) {
         this.docs = docs;
         this.scores = scores;
-        this.segmentStarts = segmentStarts;
-        this.contextIdentity = contextIdentity;
+        this.segmentStarts = findSegmentStarts(reader, docs);
+        this.contextIdentity = reader.getContext().id();
+    }
+
+    private static int[] findSegmentStarts(IndexReader reader, int[] docs) {
+        int[] starts = new int[reader.leaves().size() + 1];
+        starts[starts.length - 1] = docs.length;
+        if (starts.length == 2) {
+            return starts;
+        }
+        int resultIndex = 0;
+        for (int i = 1; i < starts.length - 1; i++) {
+            int upper = reader.leaves().get(i).docBase;
+            resultIndex = Arrays.binarySearch(docs, resultIndex, docs.length, upper);
+            if (resultIndex < 0) {
+                resultIndex = -1 - resultIndex;
+            }
+            starts[i] = resultIndex;
+        }
+        return starts;
     }
 
     @Override
@@ -87,13 +109,13 @@ public class KnnScoreDocQuery extends Query {
             }
 
             @Override
-            public Scorer scorer(LeafReaderContext context) {
+            public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
                 // Segment starts indicate how many docs are in the segment,
                 // upper equalling lower indicates no documents for this segment
                 if (segmentStarts[context.ord] == segmentStarts[context.ord + 1]) {
                     return null;
                 }
-                return new Scorer(this) {
+                Scorer scorer = new Scorer() {
                     final int lower = segmentStarts[context.ord];
                     final int upper = segmentStarts[context.ord + 1];
                     int upTo = -1;
@@ -176,6 +198,7 @@ public class KnnScoreDocQuery extends Query {
                     }
 
                 };
+                return new DefaultScorerSupplier(scorer);
             }
 
             @Override

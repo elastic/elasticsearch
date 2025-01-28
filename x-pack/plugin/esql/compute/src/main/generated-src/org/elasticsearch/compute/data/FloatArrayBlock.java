@@ -101,7 +101,7 @@ final class FloatArrayBlock extends AbstractArrayBlock implements FloatBlock {
                 int valueCount = getValueCount(pos);
                 int first = getFirstValueIndex(pos);
                 if (valueCount == 1) {
-                    builder.appendFloat(getFloat(getFirstValueIndex(pos)));
+                    builder.appendFloat(getFloat(first));
                 } else {
                     builder.beginPositionEntry();
                     for (int c = 0; c < valueCount; c++) {
@@ -111,6 +111,47 @@ final class FloatArrayBlock extends AbstractArrayBlock implements FloatBlock {
                 }
             }
             return builder.mvOrdering(mvOrdering()).build();
+        }
+    }
+
+    @Override
+    public FloatBlock keepMask(BooleanVector mask) {
+        if (getPositionCount() == 0) {
+            incRef();
+            return this;
+        }
+        if (mask.isConstant()) {
+            if (mask.getBoolean(0)) {
+                incRef();
+                return this;
+            }
+            return (FloatBlock) blockFactory().newConstantNullBlock(getPositionCount());
+        }
+        try (FloatBlock.Builder builder = blockFactory().newFloatBlockBuilder(getPositionCount())) {
+            // TODO if X-ArrayBlock used BooleanVector for it's null mask then we could shuffle references here.
+            for (int p = 0; p < getPositionCount(); p++) {
+                if (false == mask.getBoolean(p)) {
+                    builder.appendNull();
+                    continue;
+                }
+                int valueCount = getValueCount(p);
+                if (valueCount == 0) {
+                    builder.appendNull();
+                    continue;
+                }
+                int start = getFirstValueIndex(p);
+                if (valueCount == 1) {
+                    builder.appendFloat(getFloat(start));
+                    continue;
+                }
+                int end = start + valueCount;
+                builder.beginPositionEntry();
+                for (int i = start; i < end; i++) {
+                    builder.appendFloat(getFloat(i));
+                }
+                builder.endPositionEntry();
+            }
+            return builder.build();
         }
     }
 

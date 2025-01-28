@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.transport;
 
@@ -84,15 +85,15 @@ public class TransportActionProxyTests extends ESTestCase {
         threadPool = new TestThreadPool(getClass().getName());
         serviceA = buildService(version0, transportVersion0); // this one supports dynamic tracer updates
         serviceA.taskManager.setTaskCancellationService(new TaskCancellationService(serviceA));
-        nodeA = serviceA.getLocalDiscoNode();
+        nodeA = serviceA.getLocalNode();
         serviceB = buildService(version1, transportVersion1); // this one doesn't support dynamic tracer updates
         serviceB.taskManager.setTaskCancellationService(new TaskCancellationService(serviceB));
-        nodeB = serviceB.getLocalDiscoNode();
+        nodeB = serviceB.getLocalNode();
         serviceC = buildService(version1, transportVersion1); // this one doesn't support dynamic tracer updates
         serviceC.taskManager.setTaskCancellationService(new TaskCancellationService(serviceC));
-        nodeC = serviceC.getLocalDiscoNode();
+        nodeC = serviceC.getLocalNode();
         serviceD = buildService(version1, transportVersion1);
-        nodeD = serviceD.getLocalDiscoNode();
+        nodeD = serviceD.getLocalNode();
     }
 
     @Override

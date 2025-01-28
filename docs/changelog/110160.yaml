@@ -1,5 +1,0 @@
-pr: 110160
-summary: Opt in number fields into fallback synthetic source when doc values a…
-area: Mapping
-type: enhancement
-issues: []

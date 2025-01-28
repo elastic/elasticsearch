@@ -8,12 +8,15 @@ package org.elasticsearch.xpack.esql.expression.predicate.operator.comparison;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.predicate.Negatable;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation;
 
 import java.time.ZoneId;
@@ -32,18 +35,49 @@ public class LessThan extends EsqlBinaryComparison implements Negatable<EsqlBina
         Map.entry(DataType.LONG, LessThanLongsEvaluator.Factory::new),
         Map.entry(DataType.UNSIGNED_LONG, LessThanLongsEvaluator.Factory::new),
         Map.entry(DataType.DATETIME, LessThanLongsEvaluator.Factory::new),
+        Map.entry(DataType.DATE_NANOS, LessThanLongsEvaluator.Factory::new),
         Map.entry(DataType.KEYWORD, LessThanKeywordsEvaluator.Factory::new),
         Map.entry(DataType.TEXT, LessThanKeywordsEvaluator.Factory::new),
+        Map.entry(DataType.SEMANTIC_TEXT, LessThanKeywordsEvaluator.Factory::new),
         Map.entry(DataType.VERSION, LessThanKeywordsEvaluator.Factory::new),
         Map.entry(DataType.IP, LessThanKeywordsEvaluator.Factory::new)
     );
 
-    public LessThan(Source source, Expression left, Expression right) {
+    @FunctionInfo(
+        operator = "<",
+        returnType = { "boolean" },
+        description = "Check if one field is less than another. "
+            + "If either field is <<esql-multivalued-fields,multivalued>> then the result is `null`.",
+        note = "This is pushed to the underlying search index if one side of the comparison is constant "
+            + "and the other side is a field in the index that has both an <<mapping-index>> and <<doc-values>>."
+    )
+    public LessThan(
+        Source source,
+        @Param(
+            name = "lhs",
+            type = { "boolean", "date_nanos", "date", "double", "integer", "ip", "keyword", "long", "text", "unsigned_long", "version" },
+            description = "An expression."
+        ) Expression left,
+        @Param(
+            name = "rhs",
+            type = { "boolean", "date_nanos", "date", "double", "integer", "ip", "keyword", "long", "text", "unsigned_long", "version" },
+            description = "An expression."
+        ) Expression right
+    ) {
         this(source, left, right, null);
     }
 
     public LessThan(Source source, Expression left, Expression right, ZoneId zoneId) {
-        super(source, left, right, BinaryComparisonOperation.LT, zoneId, evaluatorMap);
+        super(
+            source,
+            left,
+            right,
+            BinaryComparisonOperation.LT,
+            zoneId,
+            evaluatorMap,
+            LessThanNanosMillisEvaluator.Factory::new,
+            LessThanMillisNanosEvaluator.Factory::new
+        );
     }
 
     @Override
@@ -84,6 +118,17 @@ public class LessThan extends EsqlBinaryComparison implements Negatable<EsqlBina
     @Evaluator(extraName = "Longs")
     static boolean processLongs(long lhs, long rhs) {
         return lhs < rhs;
+    }
+
+    @Evaluator(extraName = "MillisNanos")
+    static boolean processMillisNanos(long lhs, long rhs) {
+        // Note, parameters are reversed, so we need to invert the check.
+        return DateUtils.compareNanosToMillis(rhs, lhs) > 0;
+    }
+
+    @Evaluator(extraName = "NanosMillis")
+    static boolean processNanosMillis(long lhs, long rhs) {
+        return DateUtils.compareNanosToMillis(lhs, rhs) < 0;
     }
 
     @Evaluator(extraName = "Doubles")

@@ -1,15 +1,22 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper.vectors;
 
 import org.apache.lucene.document.FeatureField;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.PostingsEnum;
+import org.apache.lucene.index.TermVectors;
+import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
@@ -24,14 +31,22 @@ import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
+import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.search.fetch.StoredFieldsSpec;
+import org.elasticsearch.search.lookup.Source;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser.Token;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.index.query.AbstractQueryBuilder.DEFAULT_BOOST;
 
@@ -51,26 +66,34 @@ public class SparseVectorFieldMapper extends FieldMapper {
     static final IndexVersion NEW_SPARSE_VECTOR_INDEX_VERSION = IndexVersions.NEW_SPARSE_VECTOR;
     static final IndexVersion SPARSE_VECTOR_IN_FIELD_NAMES_INDEX_VERSION = IndexVersions.SPARSE_VECTOR_IN_FIELD_NAMES_SUPPORT;
 
-    public static class Builder extends FieldMapper.Builder {
+    private static SparseVectorFieldMapper toType(FieldMapper in) {
+        return (SparseVectorFieldMapper) in;
+    }
 
+    public static class Builder extends FieldMapper.Builder {
+        private final Parameter<Boolean> stored = Parameter.storeParam(m -> toType(m).fieldType().isStored(), false);
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         public Builder(String name) {
             super(name);
         }
 
+        public Builder setStored(boolean value) {
+            stored.setValue(value);
+            return this;
+        }
+
         @Override
         protected Parameter<?>[] getParameters() {
-            return new Parameter<?>[] { meta };
+            return new Parameter<?>[] { stored, meta };
         }
 
         @Override
         public SparseVectorFieldMapper build(MapperBuilderContext context) {
             return new SparseVectorFieldMapper(
                 leafName(),
-                new SparseVectorFieldType(context.buildFullName(leafName()), meta.getValue()),
-                multiFieldsBuilder.build(this, context),
-                copyTo
+                new SparseVectorFieldType(context.buildFullName(leafName()), stored.getValue(), meta.getValue()),
+                builderParams(this, context)
             );
         }
     }
@@ -87,8 +110,8 @@ public class SparseVectorFieldMapper extends FieldMapper {
 
     public static final class SparseVectorFieldType extends MappedFieldType {
 
-        public SparseVectorFieldType(String name, Map<String, String> meta) {
-            super(name, true, false, false, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+        public SparseVectorFieldType(String name, boolean isStored, Map<String, String> meta) {
+            super(name, true, isStored, false, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
         }
 
         @Override
@@ -103,6 +126,9 @@ public class SparseVectorFieldMapper extends FieldMapper {
 
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+            if (isStored()) {
+                return new SparseVectorValueFetcher(name());
+            }
             return SourceValueFetcher.identity(name(), context, format);
         }
 
@@ -131,8 +157,16 @@ public class SparseVectorFieldMapper extends FieldMapper {
         }
     }
 
-    private SparseVectorFieldMapper(String simpleName, MappedFieldType mappedFieldType, MultiFields multiFields, CopyTo copyTo) {
-        super(simpleName, mappedFieldType, multiFields, copyTo, false, null);
+    private SparseVectorFieldMapper(String simpleName, MappedFieldType mappedFieldType, BuilderParams builderParams) {
+        super(simpleName, mappedFieldType, builderParams);
+    }
+
+    @Override
+    protected SyntheticSourceSupport syntheticSourceSupport() {
+        if (fieldType().isStored()) {
+            return new SyntheticSourceSupport.Native(() -> new SparseVectorSyntheticFieldLoader(fullPath(), leafName()));
+        }
+        return super.syntheticSourceSupport();
     }
 
     @Override
@@ -171,6 +205,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
             );
         }
 
+        final boolean isWithinLeaf = context.path().isWithinLeafObject();
         String feature = null;
         try {
             // make sure that we don't expand dots in field names while parsing
@@ -178,24 +213,20 @@ public class SparseVectorFieldMapper extends FieldMapper {
             for (Token token = context.parser().nextToken(); token != Token.END_OBJECT; token = context.parser().nextToken()) {
                 if (token == Token.FIELD_NAME) {
                     feature = context.parser().currentName();
-                    if (feature.contains(".")) {
-                        throw new IllegalArgumentException(
-                            "[sparse_vector] fields do not support dots in feature names but found [" + feature + "]"
-                        );
-                    }
                 } else if (token == Token.VALUE_NULL) {
                     // ignore feature, this is consistent with numeric fields
                 } else if (token == Token.VALUE_NUMBER || token == Token.VALUE_STRING) {
-                    final String key = fullPath() + "." + feature;
+                    // Use a delimiter that won't collide with subfields & escape the dots in the feature name
+                    final String key = fullPath() + "\\." + feature.replace(".", "\\.");
                     float value = context.parser().floatValue(true);
 
                     // if we have an existing feature of the same name we'll select for the one with the max value
                     // based on recommendations from this paper: https://arxiv.org/pdf/2305.18494.pdf
                     IndexableField currentField = context.doc().getByKey(key);
                     if (currentField == null) {
-                        context.doc().addWithKey(key, new FeatureField(fullPath(), feature, value));
-                    } else if (currentField instanceof FeatureField && ((FeatureField) currentField).getFeatureValue() < value) {
-                        ((FeatureField) currentField).setFeatureValue(value);
+                        context.doc().addWithKey(key, new XFeatureField(fullPath(), feature, value, fieldType().isStored()));
+                    } else if (currentField instanceof XFeatureField && ((XFeatureField) currentField).getFeatureValue() < value) {
+                        ((XFeatureField) currentField).setFeatureValue(value);
                     }
                 } else {
                     throw new IllegalArgumentException(
@@ -209,7 +240,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
                 context.addToFieldNames(fieldType().name());
             }
         } finally {
-            context.path().setWithinLeafObject(false);
+            context.path().setWithinLeafObject(isWithinLeaf);
         }
     }
 
@@ -221,6 +252,116 @@ public class SparseVectorFieldMapper extends FieldMapper {
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
+    }
+
+    private static class SparseVectorValueFetcher implements ValueFetcher {
+        private final String fieldName;
+        private TermVectors termVectors;
+
+        private SparseVectorValueFetcher(String fieldName) {
+            this.fieldName = fieldName;
+        }
+
+        @Override
+        public void setNextReader(LeafReaderContext context) {
+            try {
+                termVectors = context.reader().termVectors();
+            } catch (IOException exc) {
+                throw new UncheckedIOException(exc);
+            }
+        }
+
+        @Override
+        public List<Object> fetchValues(Source source, int doc, List<Object> ignoredValues) throws IOException {
+            if (termVectors == null) {
+                return List.of();
+            }
+            var terms = termVectors.get(doc, fieldName);
+            if (terms == null) {
+                return List.of();
+            }
+
+            var termsEnum = terms.iterator();
+            PostingsEnum postingsScratch = null;
+            Map<String, Float> result = new LinkedHashMap<>();
+            while (termsEnum.next() != null) {
+                postingsScratch = termsEnum.postings(postingsScratch);
+                postingsScratch.nextDoc();
+                result.put(termsEnum.term().utf8ToString(), XFeatureField.decodeFeatureValue(postingsScratch.freq()));
+                assert postingsScratch.nextDoc() == DocIdSetIterator.NO_MORE_DOCS;
+            }
+            return List.of(result);
+        }
+
+        @Override
+        public StoredFieldsSpec storedFieldsSpec() {
+            return StoredFieldsSpec.NO_REQUIREMENTS;
+        }
+    }
+
+    private static class SparseVectorSyntheticFieldLoader implements SourceLoader.SyntheticFieldLoader {
+        private final String fullPath;
+        private final String leafName;
+
+        private TermsEnum termsDocEnum;
+
+        private SparseVectorSyntheticFieldLoader(String fullPath, String leafName) {
+            this.fullPath = fullPath;
+            this.leafName = leafName;
+        }
+
+        @Override
+        public Stream<Map.Entry<String, StoredFieldLoader>> storedFieldLoaders() {
+            return Stream.of();
+        }
+
+        @Override
+        public DocValuesLoader docValuesLoader(LeafReader leafReader, int[] docIdsInLeaf) throws IOException {
+            var fieldInfos = leafReader.getFieldInfos().fieldInfo(fullPath);
+            if (fieldInfos == null || fieldInfos.hasTermVectors() == false) {
+                return null;
+            }
+            return docId -> {
+                var terms = leafReader.termVectors().get(docId, fullPath);
+                if (terms == null) {
+                    return false;
+                }
+                termsDocEnum = terms.iterator();
+                if (termsDocEnum.next() == null) {
+                    termsDocEnum = null;
+                    return false;
+                }
+                return true;
+            };
+        }
+
+        @Override
+        public boolean hasValue() {
+            return termsDocEnum != null;
+        }
+
+        @Override
+        public void write(XContentBuilder b) throws IOException {
+            assert termsDocEnum != null;
+            PostingsEnum reuse = null;
+            b.startObject(leafName);
+            do {
+                reuse = termsDocEnum.postings(reuse);
+                reuse.nextDoc();
+                b.field(termsDocEnum.term().utf8ToString(), XFeatureField.decodeFeatureValue(reuse.freq()));
+            } while (termsDocEnum.next() != null);
+            b.endObject();
+        }
+
+        @Override
+        public String fieldName() {
+            return leafName;
+        }
+
+        @Override
+        public void reset() {
+            termsDocEnum = null;
+        }
     }
 
 }

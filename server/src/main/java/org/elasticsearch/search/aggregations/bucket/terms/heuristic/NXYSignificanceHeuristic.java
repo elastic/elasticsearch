@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket.terms.heuristic;
@@ -65,9 +66,7 @@ public abstract class NXYSignificanceHeuristic extends SignificanceHeuristic {
         if (obj == null) return false;
         if (getClass() != obj.getClass()) return false;
         NXYSignificanceHeuristic other = (NXYSignificanceHeuristic) obj;
-        if (backgroundIsSuperset != other.backgroundIsSuperset) return false;
-        if (includeNegatives != other.includeNegatives) return false;
-        return true;
+        return backgroundIsSuperset == other.backgroundIsSuperset && includeNegatives == other.includeNegatives;
     }
 
     @Override
@@ -159,24 +158,10 @@ public abstract class NXYSignificanceHeuristic extends SignificanceHeuristic {
      */
     protected static <T> Function<Object[], T> buildFromParsedArgs(BiFunction<Boolean, Boolean, T> ctor) {
         return args -> {
-            boolean includeNegatives = args[0] == null ? false : (boolean) args[0];
-            boolean backgroundIsSuperset = args[1] == null ? true : (boolean) args[1];
+            boolean includeNegatives = args[0] != null && (boolean) args[0];
+            boolean backgroundIsSuperset = args[1] == null || (boolean) args[1];
             return ctor.apply(includeNegatives, backgroundIsSuperset);
         };
     }
 
-    protected abstract static class NXYBuilder implements SignificanceHeuristicBuilder {
-        protected boolean includeNegatives = true;
-        protected boolean backgroundIsSuperset = true;
-
-        public NXYBuilder(boolean includeNegatives, boolean backgroundIsSuperset) {
-            this.includeNegatives = includeNegatives;
-            this.backgroundIsSuperset = backgroundIsSuperset;
-        }
-
-        protected void build(XContentBuilder builder) throws IOException {
-            builder.field(INCLUDE_NEGATIVES_FIELD.getPreferredName(), includeNegatives)
-                .field(BACKGROUND_IS_SUPERSET.getPreferredName(), backgroundIsSuperset);
-        }
-    }
 }

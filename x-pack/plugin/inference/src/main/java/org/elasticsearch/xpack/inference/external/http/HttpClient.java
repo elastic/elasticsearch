@@ -13,6 +13,7 @@ import org.apache.http.concurrent.FutureCallback;
 import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
 import org.apache.http.impl.nio.client.HttpAsyncClientBuilder;
 import org.apache.http.impl.nio.conn.PoolingNHttpClientConnectionManager;
+import org.apache.http.protocol.HttpContext;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
@@ -25,6 +26,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.Objects;
 import java.util.concurrent.CancellationException;
+import java.util.concurrent.Flow;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.core.Strings.format;
@@ -143,8 +145,39 @@ public class HttpClient implements Closeable {
         });
     }
 
-    private void failUsingUtilityThread(Exception exception, ActionListener<HttpResult> listener) {
+    private void failUsingUtilityThread(Exception exception, ActionListener<?> listener) {
         threadPool.executor(UTILITY_THREAD_POOL_NAME).execute(() -> listener.onFailure(exception));
+    }
+
+    public void stream(HttpRequest request, HttpContext context, ActionListener<Flow.Publisher<HttpResult>> listener) throws IOException {
+        // The caller must call start() first before attempting to send a request
+        assert status.get() == Status.STARTED : "call start() before attempting to send a request";
+
+        var streamingProcessor = new StreamingHttpResultPublisher(threadPool, settings, listener);
+
+        SocketAccess.doPrivileged(() -> client.execute(request.requestProducer(), streamingProcessor, context, new FutureCallback<>() {
+            @Override
+            public void completed(HttpResponse response) {
+                streamingProcessor.close();
+            }
+
+            @Override
+            public void failed(Exception ex) {
+                threadPool.executor(UTILITY_THREAD_POOL_NAME).execute(() -> streamingProcessor.failed(ex));
+            }
+
+            @Override
+            public void cancelled() {
+                threadPool.executor(UTILITY_THREAD_POOL_NAME)
+                    .execute(
+                        () -> streamingProcessor.failed(
+                            new CancellationException(
+                                format("Request from inference entity id [%s] was cancelled", request.inferenceEntityId())
+                            )
+                        )
+                    );
+            }
+        }));
     }
 
     @Override

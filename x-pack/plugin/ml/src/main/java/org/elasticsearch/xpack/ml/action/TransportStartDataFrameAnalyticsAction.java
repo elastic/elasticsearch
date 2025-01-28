@@ -25,13 +25,13 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
@@ -136,7 +136,6 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
             threadPool,
             actionFilters,
             StartDataFrameAnalyticsAction.Request::new,
-            indexNameExpressionResolver,
             NodeAcknowledgedResponse::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
@@ -211,7 +210,7 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
                 MlTasks.dataFrameAnalyticsTaskId(request.getId()),
                 MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME,
                 taskParams,
-                null,
+                request.masterNodeTimeout(),
                 waitForAnalyticsToStart
             );
         }, listener::onFailure);
@@ -223,7 +222,7 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
         );
 
         // Get start context
-        getStartContext(request.getId(), task, startContextListener);
+        getStartContext(request.getId(), task, startContextListener, request.masterNodeTimeout());
     }
 
     private void estimateMemoryUsageAndUpdateMemoryTracker(StartContext startContext, ActionListener<StartContext> listener) {
@@ -264,7 +263,7 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
 
     }
 
-    private void getStartContext(String id, Task task, ActionListener<StartContext> finalListener) {
+    private void getStartContext(String id, Task task, ActionListener<StartContext> finalListener, TimeValue masterTimeout) {
 
         ParentTaskAssigningClient parentTaskClient = new ParentTaskAssigningClient(client, task.getParentTaskId());
 
@@ -320,6 +319,7 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
             .<StartContext>andThen(
                 (l, startContext) -> MappingsMerger.mergeMappings(
                     parentTaskClient,
+                    masterTimeout,
                     startContext.config.getHeaders(),
                     startContext.config.getSource(),
                     l.map(ignored -> startContext)
@@ -433,7 +433,7 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
             TransportSearchAction.TYPE,
             destEmptySearch,
             ActionListener.wrap(searchResponse -> {
-                if (searchResponse.getHits().getTotalHits().value > 0) {
+                if (searchResponse.getHits().getTotalHits().value() > 0) {
                     listener.onFailure(ExceptionsHelper.badRequestException("dest index [{}] must be empty", destIndex));
                 } else {
                     listener.onResponse(startContext);
@@ -603,8 +603,8 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
     ) {
         persistentTasksService.sendRemoveRequest(
             persistentTask.getId(),
-            null,
-            new ActionListener<PersistentTasksCustomMetadata.PersistentTask<?>>() {
+            MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT,
+            new ActionListener<>() {
                 @Override
                 public void onResponse(PersistentTasksCustomMetadata.PersistentTask<?> task) {
                     // We succeeded in cancelling the persistent task, but the

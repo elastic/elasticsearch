@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -35,8 +36,8 @@ public class SourceFieldMetricsTests extends MapperServiceTestCase {
     public void testFieldHasValueWithEmptyFieldInfos() {}
 
     public void testSyntheticSourceLoadLatency() throws IOException {
-        var mapping = syntheticSourceMapping(b -> b.startObject("kwd").field("type", "keyword").endObject());
-        var mapper = createDocumentMapper(mapping);
+        var mapping = mapping(b -> b.startObject("kwd").field("type", "keyword").endObject());
+        var mapper = createSytheticSourceMapperService(mapping).documentMapper();
 
         try (Directory directory = newDirectory()) {
             RandomIndexWriter iw = new RandomIndexWriter(random(), directory);
@@ -46,6 +47,7 @@ public class SourceFieldMetricsTests extends MapperServiceTestCase {
             try (DirectoryReader reader = DirectoryReader.open(directory)) {
                 SourceProvider provider = SourceProvider.fromSyntheticSource(
                     mapper.mapping(),
+                    null,
                     createTestMapperMetrics().sourceFieldMetrics()
                 );
                 Source synthetic = provider.getSource(getOnlyLeafReader(reader).getContext(), 0);
@@ -60,10 +62,8 @@ public class SourceFieldMetricsTests extends MapperServiceTestCase {
     }
 
     public void testSyntheticSourceIncompatibleMapping() throws IOException {
-        var mapping = syntheticSourceMapping(b -> b.startObject("kwd").field("type", "text").field("store", "false").endObject());
         var mapperMetrics = createTestMapperMetrics();
-        var mapperService = new TestMapperServiceBuilder().mapperMetrics(mapperMetrics).build();
-        assertThrows(IllegalArgumentException.class, () -> withMapping(mapperService, mapping));
+        mapperMetrics.sourceFieldMetrics().recordSyntheticSourceIncompatibleMapping();
 
         var measurements = telemetryPlugin.getLongCounterMeasurement(SourceFieldMetrics.SYNTHETIC_SOURCE_INCOMPATIBLE_MAPPING);
         assertEquals(1, measurements.size());

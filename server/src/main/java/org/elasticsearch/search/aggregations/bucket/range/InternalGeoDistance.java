@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations.bucket.range;
 
@@ -22,8 +23,8 @@ public class InternalGeoDistance extends InternalRange<InternalGeoDistance.Bucke
 
     static class Bucket extends InternalRange.Bucket {
 
-        Bucket(String key, double from, double to, long docCount, InternalAggregations aggregations, boolean keyed) {
-            super(key, from, to, docCount, aggregations, keyed, DocValueFormat.RAW);
+        Bucket(String key, double from, double to, long docCount, InternalAggregations aggregations) {
+            super(key, from, to, docCount, aggregations, DocValueFormat.RAW);
         }
 
     }
@@ -57,10 +58,9 @@ public class InternalGeoDistance extends InternalRange<InternalGeoDistance.Bucke
             double to,
             long docCount,
             InternalAggregations aggregations,
-            boolean keyed,
             DocValueFormat format
         ) {
-            return new Bucket(key, from, to, docCount, aggregations, keyed);
+            return new Bucket(key, from, to, docCount, aggregations);
         }
 
         @Override
@@ -70,8 +70,7 @@ public class InternalGeoDistance extends InternalRange<InternalGeoDistance.Bucke
                 ((Number) prototype.getFrom()).doubleValue(),
                 ((Number) prototype.getTo()).doubleValue(),
                 prototype.getDocCount(),
-                aggregations,
-                prototype.getKeyed()
+                aggregations
             );
         }
     }

@@ -1,6 +1,0 @@
-pr: 107779
-summary: Allow rescorer with field collapsing
-area: Search
-type: enhancement
-issues:
-  - 27243

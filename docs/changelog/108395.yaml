@@ -1,5 +1,0 @@
-pr: 108395
-summary: "ESQL: change from quoting from backtick to quote"
-area: ES|QL
-type: bug
-issues: []

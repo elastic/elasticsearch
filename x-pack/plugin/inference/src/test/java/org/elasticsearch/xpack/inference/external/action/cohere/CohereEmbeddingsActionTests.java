@@ -22,8 +22,11 @@ import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
+import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
+import org.elasticsearch.xpack.inference.external.http.sender.CohereEmbeddingsRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
@@ -45,6 +48,7 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
+import static org.elasticsearch.xpack.inference.external.action.ActionUtils.constructFailedToSendRequestMessage;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.results.TextEmbeddingResultsTests.buildExpectationByte;
@@ -340,7 +344,7 @@ public class CohereEmbeddingsActionTests extends ESTestCase {
         MatcherAssert.assertThat(thrownException.getMessage(), is("Failed to send Cohere embeddings request"));
     }
 
-    private CohereEmbeddingsAction createAction(
+    private ExecutableAction createAction(
         String url,
         String apiKey,
         CohereEmbeddingsTaskSettings taskSettings,
@@ -349,8 +353,12 @@ public class CohereEmbeddingsActionTests extends ESTestCase {
         Sender sender
     ) {
         var model = CohereEmbeddingsModelTests.createModel(url, apiKey, taskSettings, 1024, 1024, modelName, embeddingType);
-
-        return new CohereEmbeddingsAction(sender, model, threadPool);
+        var failedToSendRequestErrorMessage = constructFailedToSendRequestMessage(
+            model.getServiceSettings().getCommonSettings().uri(),
+            "Cohere embeddings"
+        );
+        var requestCreator = CohereEmbeddingsRequestManager.of(model, threadPool);
+        return new SenderExecutableAction(sender, requestCreator, failedToSendRequestErrorMessage);
     }
 
 }

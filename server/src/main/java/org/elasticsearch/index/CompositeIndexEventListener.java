@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index;
@@ -27,6 +28,7 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -344,6 +346,18 @@ final class CompositeIndexEventListener implements IndexEventListener {
                 listener.afterFilesRestoredFromRepository(indexShard);
             } catch (Exception e) {
                 logger.warn(() -> "[" + indexShard.shardId() + "] failed to invoke after files restored from repository", e);
+                throw e;
+            }
+        }
+    }
+
+    @Override
+    public void onAcquirePrimaryOperationPermit(IndexShard indexShard, Supplier<ActionListener<Void>> onPermitAcquiredListenerSupplier) {
+        for (IndexEventListener listener : listeners) {
+            try {
+                listener.onAcquirePrimaryOperationPermit(indexShard, onPermitAcquiredListenerSupplier);
+            } catch (Exception e) {
+                logger.warn(() -> "[" + indexShard.shardId() + "] failed to invoke the listener on acquiring a primary permit", e);
                 throw e;
             }
         }

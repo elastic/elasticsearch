@@ -1,0 +1,222 @@
+setup:
+  - requires:
+      reason: "Data stream options was added in 8.18+"
+      test_runner_features: [ capabilities, allowed_warnings, contains ]
+      capabilities:
+        - method: POST
+          path: /{index}/_doc
+          capabilities: [ 'failure_store_status' ]
+        - method: POST
+          path: /_index_template/{template}
+          capabilities: [ 'failure_store_in_template' ]
+        - method: PUT
+          path: /_cluster/settings
+          capabilities: [ 'data_stream_failure_store_cluster_setting' ]
+
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            data_streams.failure_store.enabled: '*-matching'
+
+  - do:
+      ingest.put_pipeline:
+        id: "failing_pipeline"
+        body:  >
+          {
+            "processors": [
+              {
+                "fail": {
+                  "message" : "pipeline go boom"
+                }
+              }
+            ]
+          }
+
+  - do:
+      indices.put_index_template:
+        name: index_template_default_fs
+        body:
+          index_patterns: default-fs-*
+          data_stream: {}
+          template:
+            settings:
+              number_of_shards:   1
+              number_of_replicas: 1
+
+  - do:
+      cluster.put_component_template:
+        name: component_template_disabled_fs
+        body:
+          template:
+            data_stream_options:
+              failure_store:
+                enabled: false
+
+  - do:
+      indices.put_index_template:
+        name: index_template_disabled_fs
+        body:
+          index_patterns: disabled-fs-*
+          data_stream: {}
+          composed_of:
+            - component_template_disabled_fs
+          template:
+            settings:
+              number_of_shards:   1
+              number_of_replicas: 1
+
+---
+teardown:
+  - do:
+      indices.delete_data_stream:
+        name: default-fs-matching
+        ignore: 404
+
+  - do:
+      indices.delete_data_stream:
+        name: disabled-fs-matching
+        ignore: 404
+
+  - do:
+      indices.delete_index_template:
+        name: index_template_disabled_fs
+        ignore: 404
+
+  - do:
+      cluster.delete_component_template:
+        name: component_template_disabled_fs
+        ignore: 404
+
+  - do:
+      indices.delete_index_template:
+        name: index_template_default_fs
+        ignore: 404
+
+  - do:
+      ingest.delete_pipeline:
+        id: "failing_pipeline"
+        ignore: 404
+
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            data_streams.failure_store.enabled: null
+
+---
+"Redirect ingest failure when auto-creating data stream to failure store when enabled by setting":
+  - do:
+      index:
+        index:  default-fs-matching
+        refresh: true
+        pipeline: 'failing_pipeline'
+        body:
+          '@timestamp': '2020-12-12'
+          foo: bar
+  - match: { failure_store: used }
+  - match: { _index: '/\.fs-default-fs-matching-(\d{4}\.\d{2}\.\d{2}-)?\d{6}/' }
+
+---
+"Redirect ingest failure into pre-existing data stream to failure store when enabled by setting":
+  - do:
+      indices.create_data_stream:
+        name: default-fs-matching
+
+  - do:
+      index:
+        index:  default-fs-matching
+        refresh: true
+        pipeline: 'failing_pipeline'
+        body:
+          '@timestamp': '2020-12-12'
+          foo: bar
+  - match: { failure_store: used }
+  - match: { _index: '/\.fs-default-fs-matching-(\d{4}\.\d{2}\.\d{2}-)?\d{6}/' }
+
+---
+"Do not redirect ingest failure when auto-creating data stream to failure store when enabled by setting but disabled in template":
+  - do:
+      index:
+        index:  disabled-fs-matching
+        refresh: true
+        pipeline: 'failing_pipeline'
+        body:
+          '@timestamp': '2020-12-12'
+          foo: bar
+      catch: '/pipeline go boom/'
+
+---
+"Do not redirect ingest failure into pre-existing data stream to failure store when enabled by setting but disabled in template":
+  - do:
+      indices.create_data_stream:
+        name: disabled-fs-matching
+
+  - do:
+      index:
+        index:  disabled-fs-matching
+        refresh: true
+        pipeline: 'failing_pipeline'
+        body:
+          '@timestamp': '2020-12-12'
+          foo: bar
+      catch: '/pipeline go boom/'
+
+---
+"Redirect mapping failure when auto-creating data stream to failure store when enabled by setting":
+  - do:
+      index:
+        index:  default-fs-matching
+        refresh: true
+        body:
+          '@timestamp': 'not a timestamp'
+          foo: bar
+  - match: { failure_store: used }
+  - match: { _index: '/\.fs-default-fs-matching-(\d{4}\.\d{2}\.\d{2}-)?\d{6}/' }
+
+---
+"Redirect mapping failure into pre-existing data stream to failure store when enabled by setting":
+  - do:
+      indices.create_data_stream:
+        name: default-fs-matching
+
+  - do:
+      index:
+        index:  default-fs-matching
+        refresh: true
+        body:
+          '@timestamp': 'not a timestamp'
+          foo: bar
+  - match: { failure_store: used }
+  - match: { _index: '/\.fs-default-fs-matching-(\d{4}\.\d{2}\.\d{2}-)?\d{6}/' }
+
+---
+"Do not redirect mapping failure when auto-creating data stream to failure store when enabled by setting but disabled in template":
+  - do:
+      index:
+        index:  disabled-fs-matching
+        refresh: true
+        body:
+          '@timestamp': 'not a timestamp'
+          foo: bar
+      catch: '/failed to parse field/'
+
+---
+"Do not redirect mapping failure into pre-existing data stream to failure store when enabled by setting but disabled in template":
+  - do:
+      indices.create_data_stream:
+        name: disabled-fs-matching
+
+  - do:
+      index:
+        index:  disabled-fs-matching
+        refresh: true
+        body:
+          '@timestamp': 'not a timestamp'
+          foo: bar
+      catch: '/failed to parse field/'
+
+# See also DataStreamOptionsIT for tests of the interaction between the failure store cluster setting and using
+# the /_data_stream/{name}/_options API to explicitly enable and disable the failure store. (At time of writing, these
+# can only be done in a Java REST test case, not a YAML one, because the failure store is behind a feature gate and so
+# the REST API spec has not been added.)

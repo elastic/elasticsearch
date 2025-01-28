@@ -1,6 +1,0 @@
-pr: 108849
-summary: "[Osquery] Extend `kibana_system` role with an access to new `osquery_manager`\
-  \ index"
-area: Authorization
-type: enhancement
-issues: []

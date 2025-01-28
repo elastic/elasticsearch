@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSum;
@@ -27,6 +28,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul
 import java.io.IOException;
 import java.util.List;
 
+import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
@@ -37,9 +39,26 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 public class Sum extends NumericAggregate implements SurrogateExpression {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Sum", Sum::new);
 
-    @FunctionInfo(returnType = "long", description = "The sum of a numeric field.", isAggregation = true)
+    @FunctionInfo(
+        returnType = { "long", "double" },
+        description = "The sum of a numeric expression.",
+        isAggregation = true,
+        examples = {
+            @Example(file = "stats", tag = "sum"),
+            @Example(
+                description = "The expression can use inline functions. For example, to calculate "
+                    + "the sum of each employee's maximum salary changes, apply the "
+                    + "`MV_MAX` function to each row and then sum the results",
+                file = "stats",
+                tag = "docsStatsSumNestedExpression"
+            ) }
+    )
     public Sum(Source source, @Param(name = "number", type = { "double", "integer", "long" }) Expression field) {
-        super(source, field);
+        this(source, field, Literal.TRUE);
+    }
+
+    public Sum(Source source, Expression field, Expression filter) {
+        super(source, field, filter, emptyList());
     }
 
     private Sum(StreamInput in) throws IOException {
@@ -53,12 +72,17 @@ public class Sum extends NumericAggregate implements SurrogateExpression {
 
     @Override
     protected NodeInfo<Sum> info() {
-        return NodeInfo.create(this, Sum::new, field());
+        return NodeInfo.create(this, Sum::new, field(), filter());
     }
 
     @Override
     public Sum replaceChildren(List<Expression> newChildren) {
-        return new Sum(source(), newChildren.get(0));
+        return new Sum(source(), newChildren.get(0), newChildren.get(1));
+    }
+
+    @Override
+    public Sum withFilter(Expression filter) {
+        return new Sum(source(), field(), filter);
     }
 
     @Override

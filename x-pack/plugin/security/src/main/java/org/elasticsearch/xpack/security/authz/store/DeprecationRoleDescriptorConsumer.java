@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.security.authz.store;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.automaton.Automaton;
-import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.logging.DeprecationCategory;
@@ -21,6 +20,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
+import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.support.StringMatcher;
 
 import java.time.ZoneOffset;
@@ -195,7 +195,7 @@ public final class DeprecationRoleDescriptorConsumer implements Consumer<Collect
                         index.getName(),
                         i -> IndexPrivilege.get(indexPrivileges).getAutomaton()
                     );
-                    if (false == Operations.subsetOf(indexPrivilegeAutomaton, aliasPrivilegeAutomaton)) {
+                    if (false == Automatons.subsetOf(indexPrivilegeAutomaton, aliasPrivilegeAutomaton)) {
                         inferiorIndexNames.add(index.getName());
                     }
                 } else {

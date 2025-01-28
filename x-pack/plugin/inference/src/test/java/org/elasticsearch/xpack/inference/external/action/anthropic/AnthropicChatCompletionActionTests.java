@@ -23,8 +23,11 @@ import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
+import org.elasticsearch.xpack.inference.external.action.SingleInputSenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
-import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
+import org.elasticsearch.xpack.inference.external.http.sender.AnthropicCompletionRequestManager;
+import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
@@ -42,6 +45,7 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
+import static org.elasticsearch.xpack.inference.external.action.ActionUtils.constructFailedToSendRequestMessage;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests.createSender;
@@ -109,7 +113,7 @@ public class AnthropicChatCompletionActionTests extends ESTestCase {
             var action = createAction(getUrl(webServer), "secret", "model", 1, sender);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new DocumentsOnlyInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+            action.execute(new ChatCompletionInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -145,7 +149,7 @@ public class AnthropicChatCompletionActionTests extends ESTestCase {
         var action = createAction(getUrl(webServer), "secret", "model", 1, sender);
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(new DocumentsOnlyInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+        action.execute(new ChatCompletionInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
@@ -166,7 +170,7 @@ public class AnthropicChatCompletionActionTests extends ESTestCase {
         var action = createAction(getUrl(webServer), "secret", "model", 1, sender);
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(new DocumentsOnlyInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+        action.execute(new ChatCompletionInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
@@ -183,7 +187,7 @@ public class AnthropicChatCompletionActionTests extends ESTestCase {
         var action = createAction(getUrl(webServer), "secret", "model", 1, sender);
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(new DocumentsOnlyInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+        action.execute(new ChatCompletionInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
@@ -225,18 +229,19 @@ public class AnthropicChatCompletionActionTests extends ESTestCase {
             var action = createAction(getUrl(webServer), "secret", "model", 1, sender);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new DocumentsOnlyInput(List.of("abc", "def")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+            action.execute(new ChatCompletionInput(List.of("abc", "def")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
 
             var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
 
-            assertThat(thrownException.getMessage(), is("Anthropic completions only accepts 1 input"));
+            assertThat(thrownException.getMessage(), is("Anthropic chat completions only accepts 1 input"));
             assertThat(thrownException.status(), is(RestStatus.BAD_REQUEST));
         }
     }
 
-    private AnthropicChatCompletionAction createAction(String url, String apiKey, String modelName, int maxTokens, Sender sender) {
+    private ExecutableAction createAction(String url, String apiKey, String modelName, int maxTokens, Sender sender) {
         var model = AnthropicChatCompletionModelTests.createChatCompletionModel(url, apiKey, modelName, maxTokens);
-
-        return new AnthropicChatCompletionAction(sender, model, createWithEmptySettings(threadPool));
+        var requestCreator = AnthropicCompletionRequestManager.of(model, threadPool);
+        var errorMessage = constructFailedToSendRequestMessage(model.getUri(), "Anthropic chat completions");
+        return new SingleInputSenderExecutableAction(sender, requestCreator, errorMessage, "Anthropic chat completions");
     }
 }

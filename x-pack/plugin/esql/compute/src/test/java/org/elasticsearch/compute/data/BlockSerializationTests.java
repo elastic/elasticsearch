@@ -17,6 +17,8 @@ import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.aggregation.SumLongAggregatorFunction;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.test.RandomBlock;
+import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
@@ -236,10 +238,10 @@ public class BlockSerializationTests extends SerializationTestCase {
     public void testSimulateAggs() {
         DriverContext driverCtx = driverContext();
         Page page = new Page(blockFactory.newLongArrayVector(new long[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 }, 10).asBlock());
-        var bigArrays = BigArrays.NON_RECYCLING_INSTANCE;
-        var params = new Object[] {};
         var function = SumLongAggregatorFunction.create(driverCtx, List.of(0));
-        function.addRawInput(page);
+        try (BooleanVector noMasking = driverContext().blockFactory().newConstantBooleanVector(true, page.getPositionCount())) {
+            function.addRawInput(page, noMasking);
+        }
         Block[] blocks = new Block[function.intermediateBlockCount()];
         try {
             function.evaluateIntermediate(blocks, 0, driverCtx);
@@ -374,8 +376,7 @@ public class BlockSerializationTests extends SerializationTestCase {
         final Block[] blocks = new Block[numBlocks];
         for (int b = 0; b < numBlocks; b++) {
             ElementType elementType = randomFrom(ElementType.LONG, ElementType.DOUBLE, ElementType.BOOLEAN, ElementType.NULL);
-            blocks[b] = BasicBlockTests.randomBlock(blockFactory, elementType, positionCount, true, 0, between(1, 2), 0, between(1, 2))
-                .block();
+            blocks[b] = RandomBlock.randomBlock(blockFactory, elementType, positionCount, true, 0, between(1, 2), 0, between(1, 2)).block();
         }
         try (CompositeBlock origBlock = new CompositeBlock(blocks)) {
             assertThat(origBlock.getBlockCount(), equalTo(numBlocks));

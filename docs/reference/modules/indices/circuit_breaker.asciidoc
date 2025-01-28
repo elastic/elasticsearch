@@ -2,7 +2,16 @@
 === Circuit breaker settings
 [[circuit-breaker-description]]
 // tag::circuit-breaker-description-tag[]
-{es} contains multiple circuit breakers used to prevent operations from causing an OutOfMemoryError. Each breaker specifies a limit for how much memory it can use. Additionally, there is a parent-level breaker that specifies the total amount of memory that can be used across all breakers.
+{es} contains multiple circuit breakers used to prevent operations from using an excessive amount of memory. Each breaker tracks the memory
+used by certain operations and specifies a limit for how much memory it may track. Additionally, there
+is a parent-level breaker that specifies the total amount of memory that may be tracked across all breakers.
+
+When a circuit breaker reaches its limit, {es} will reject further operations. See <<circuit-breaker-errors>> for information about errors
+raised by circuit breakers.
+
+Circuit breakers do not track all memory usage in {es} and therefore provide only incomplete protection against excessive memory usage. If
+{es} uses too much memory then it may suffer from performance issues and nodes may even fail with an `OutOfMemoryError`. See
+<<high-jvm-memory-pressure>> for help with troubleshooting high heap usage.
 
 Except where noted otherwise, these settings can be dynamically updated on a
 live cluster with the <<cluster-update-settings,cluster-update-settings>> API.
@@ -175,7 +184,8 @@ an `OutOfMemory` exception which would bring down the node.
 To prevent this from happening, a special <<circuit-breaker, circuit breaker>> is used,
 which limits the memory allocation during the execution of a <<eql-sequences, sequence>>
 query. When the breaker is triggered, an `org.elasticsearch.common.breaker.CircuitBreakingException`
-is thrown and a descriptive error message is returned to the user.
+is thrown and a descriptive error message including `circuit_breaking_exception`
+is returned to the user.
 
 This <<circuit-breaker, circuit breaker>> can be configured using the following settings:
 

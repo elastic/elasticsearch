@@ -49,18 +49,28 @@ public class RailRoadDiagram {
         List<Expression> expressions = new ArrayList<>();
         expressions.add(new SpecialSequence(definition.name().toUpperCase(Locale.ROOT)));
         expressions.add(new Syntax("("));
-        boolean first = true;
-        List<String> args = EsqlFunctionRegistry.description(definition).argNames();
-        for (String arg : args) {
-            if (arg.endsWith("...")) {
-                expressions.add(new Repetition(new Sequence(new Syntax(","), new Literal(arg.substring(0, arg.length() - 3))), 0, null));
-            } else {
-                if (first) {
-                    first = false;
+
+        if (definition.name().equals("case")) {
+            // CASE is so weird let's just hack this together manually
+            Sequence seq = new Sequence(new Literal("condition"), new Syntax(","), new Literal("trueValue"));
+            expressions.add(new Repetition(seq, 1, null));
+            expressions.add(new Repetition(new Literal("elseValue"), 0, 1));
+        } else {
+            boolean first = true;
+            List<String> args = EsqlFunctionRegistry.description(definition).argNames();
+            for (String arg : args) {
+                if (arg.endsWith("...")) {
+                    expressions.add(
+                        new Repetition(new Sequence(new Syntax(","), new Literal(arg.substring(0, arg.length() - 3))), 0, null)
+                    );
                 } else {
-                    expressions.add(new Syntax(","));
+                    if (first) {
+                        first = false;
+                    } else {
+                        expressions.add(new Syntax(","));
+                    }
+                    expressions.add(new Literal(arg));
                 }
-                expressions.add(new Literal(arg));
             }
         }
         expressions.add(new Syntax(")"));
@@ -76,6 +86,18 @@ public class RailRoadDiagram {
         expressions.add(new Literal("lhs"));
         expressions.add(new Syntax(operator));
         expressions.add(new Literal("rhs"));
+        return toSvg(new Sequence(expressions.toArray(Expression[]::new)));
+    }
+
+    /**
+     * Generate a railroad diagram for a search operator. The output would look like
+     * {@code field : value}.
+     */
+    static String searchOperator(String operator) throws IOException {
+        List<Expression> expressions = new ArrayList<>();
+        expressions.add(new Literal("field"));
+        expressions.add(new Syntax(operator));
+        expressions.add(new Literal("query"));
         return toSvg(new Sequence(expressions.toArray(Expression[]::new)));
     }
 

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ccr.repository;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -244,9 +245,10 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
 
         private long readFileBytes(String fileName, ByteArray reference) throws IOException {
             try (Releasable ignored = keyedLock.acquire(fileName)) {
+                var context = fileName.startsWith(IndexFileNames.SEGMENTS) ? IOContext.READONCE : IOContext.DEFAULT;
                 final IndexInput indexInput = cachedInputs.computeIfAbsent(fileName, f -> {
                     try {
-                        return commitRef.getIndexCommit().getDirectory().openInput(fileName, IOContext.READONCE);
+                        return commitRef.getIndexCommit().getDirectory().openInput(fileName, context);
                     } catch (IOException e) {
                         throw new UncheckedIOException(e);
                     }
@@ -256,7 +258,7 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
 
                 long offsetAfterRead = indexInput.getFilePointer();
 
-                if (offsetAfterRead == indexInput.length()) {
+                if (offsetAfterRead == indexInput.length() || context == IOContext.READONCE) {
                     cachedInputs.remove(fileName);
                     IOUtils.close(indexInput);
                 }

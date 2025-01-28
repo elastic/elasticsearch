@@ -12,8 +12,8 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -39,14 +39,7 @@ public class ProfilingUsageTransportAction extends XPackUsageFeatureTransportAct
         ProfilingLicenseChecker licenseChecker,
         Settings settings
     ) {
-        super(
-            XPackUsageFeatureAction.UNIVERSAL_PROFILING.name(),
-            transportService,
-            clusterService,
-            threadPool,
-            actionFilters,
-            indexNameExpressionResolver
-        );
+        super(XPackUsageFeatureAction.UNIVERSAL_PROFILING.name(), transportService, clusterService, threadPool, actionFilters);
         this.licenseChecker = licenseChecker;
         this.enabled = XPackSettings.PROFILING_ENABLED.get(settings);
     }

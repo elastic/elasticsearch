@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.cluster.health;
 
@@ -14,7 +15,6 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
@@ -32,6 +32,7 @@ public class ClusterShardHealthTests extends AbstractXContentSerializingTestCase
             int relocatingShards = (int) parsedObjects[i++];
             int initializingShards = (int) parsedObjects[i++];
             int unassignedShards = (int) parsedObjects[i++];
+            int unassignedPrimaryShards = (int) parsedObjects[i++];
             String statusStr = (String) parsedObjects[i];
             ClusterHealthStatus status = ClusterHealthStatus.fromString(statusStr);
             return new ClusterShardHealth(
@@ -41,6 +42,7 @@ public class ClusterShardHealthTests extends AbstractXContentSerializingTestCase
                 relocatingShards,
                 initializingShards,
                 unassignedShards,
+                unassignedPrimaryShards,
                 primaryActive
             );
         }
@@ -52,6 +54,7 @@ public class ClusterShardHealthTests extends AbstractXContentSerializingTestCase
         PARSER.declareInt(constructorArg(), new ParseField(ClusterShardHealth.RELOCATING_SHARDS));
         PARSER.declareInt(constructorArg(), new ParseField(ClusterShardHealth.INITIALIZING_SHARDS));
         PARSER.declareInt(constructorArg(), new ParseField(ClusterShardHealth.UNASSIGNED_SHARDS));
+        PARSER.declareInt(constructorArg(), new ParseField(ClusterShardHealth.UNASSIGNED_PRIMARY_SHARDS));
         PARSER.declareString(constructorArg(), new ParseField(ClusterShardHealth.STATUS));
     }
 
@@ -79,6 +82,7 @@ public class ClusterShardHealthTests extends AbstractXContentSerializingTestCase
             randomInt(1000),
             randomInt(1000),
             randomInt(1000),
+            randomInt(1000),
             randomBoolean()
         );
     }
@@ -100,92 +104,37 @@ public class ClusterShardHealthTests extends AbstractXContentSerializingTestCase
     }
 
     @Override
-    protected ClusterShardHealth mutateInstance(final ClusterShardHealth instance) {
-        String mutate = randomFrom(
-            "shardId",
-            "status",
-            "activeShards",
-            "relocatingShards",
-            "initializingShards",
-            "unassignedShards",
-            "primaryActive"
-        );
-        switch (mutate) {
-            case "shardId":
-                return new ClusterShardHealth(
-                    instance.getShardId() + between(1, 10),
-                    instance.getStatus(),
-                    instance.getActiveShards(),
-                    instance.getRelocatingShards(),
-                    instance.getInitializingShards(),
-                    instance.getUnassignedShards(),
-                    instance.isPrimaryActive()
-                );
-            case "status":
-                ClusterHealthStatus status = randomFrom(
-                    Arrays.stream(ClusterHealthStatus.values()).filter(value -> value.equals(instance.getStatus()) == false).toList()
-                );
-                return new ClusterShardHealth(
-                    instance.getShardId(),
-                    status,
-                    instance.getActiveShards(),
-                    instance.getRelocatingShards(),
-                    instance.getInitializingShards(),
-                    instance.getUnassignedShards(),
-                    instance.isPrimaryActive()
-                );
-            case "activeShards":
-                return new ClusterShardHealth(
-                    instance.getShardId(),
-                    instance.getStatus(),
-                    instance.getActiveShards() + between(1, 10),
-                    instance.getRelocatingShards(),
-                    instance.getInitializingShards(),
-                    instance.getUnassignedShards(),
-                    instance.isPrimaryActive()
-                );
-            case "relocatingShards":
-                return new ClusterShardHealth(
-                    instance.getShardId(),
-                    instance.getStatus(),
-                    instance.getActiveShards(),
-                    instance.getRelocatingShards() + between(1, 10),
-                    instance.getInitializingShards(),
-                    instance.getUnassignedShards(),
-                    instance.isPrimaryActive()
-                );
-            case "initializingShards":
-                return new ClusterShardHealth(
-                    instance.getShardId(),
-                    instance.getStatus(),
-                    instance.getActiveShards(),
-                    instance.getRelocatingShards(),
-                    instance.getInitializingShards() + between(1, 10),
-                    instance.getUnassignedShards(),
-                    instance.isPrimaryActive()
-                );
-            case "unassignedShards":
-                return new ClusterShardHealth(
-                    instance.getShardId(),
-                    instance.getStatus(),
-                    instance.getActiveShards(),
-                    instance.getRelocatingShards(),
-                    instance.getInitializingShards(),
-                    instance.getUnassignedShards() + between(1, 10),
-                    instance.isPrimaryActive()
-                );
-            case "primaryActive":
-                return new ClusterShardHealth(
-                    instance.getShardId(),
-                    instance.getStatus(),
-                    instance.getActiveShards(),
-                    instance.getRelocatingShards(),
-                    instance.getInitializingShards(),
-                    instance.getUnassignedShards(),
-                    instance.isPrimaryActive() == false
-                );
-            default:
-                throw new UnsupportedOperationException();
+    protected ClusterShardHealth mutateInstance(ClusterShardHealth instance) {
+        int shardId = instance.getShardId();
+        ClusterHealthStatus status = instance.getStatus();
+        int activeShards = instance.getActiveShards();
+        int relocatingShards = instance.getRelocatingShards();
+        int initializingShards = instance.getInitializingShards();
+        int unassignedShards = instance.getUnassignedShards();
+        int unassignedPrimaryShards = instance.getUnassignedPrimaryShards();
+        boolean primaryActive = instance.isPrimaryActive();
+
+        switch (randomIntBetween(0, 7)) {
+            case 0 -> shardId += between(1, 10);
+            case 1 -> status = randomValueOtherThan(status, () -> randomFrom(ClusterHealthStatus.values()));
+            case 2 -> activeShards += between(1, 10);
+            case 3 -> relocatingShards += between(1, 10);
+            case 4 -> initializingShards += between(1, 10);
+            case 5 -> unassignedShards += between(1, 10);
+            case 6 -> unassignedPrimaryShards += between(1, 10);
+            case 7 -> primaryActive = primaryActive ? false : true;
+            default -> throw new UnsupportedOperationException();
         }
+
+        return new ClusterShardHealth(
+            shardId,
+            status,
+            activeShards,
+            relocatingShards,
+            initializingShards,
+            unassignedShards,
+            unassignedPrimaryShards,
+            primaryActive
+        );
     }
 }

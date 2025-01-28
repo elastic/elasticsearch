@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.rest.action.cat;
@@ -26,7 +27,6 @@ import org.elasticsearch.common.Table;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.rest.RestRequest;
@@ -127,13 +127,12 @@ public class RestIndicesAction extends AbstractCatAction {
 
                 client.admin()
                     .cluster()
-                    .prepareState()
+                    .prepareState(masterNodeTimeout)
                     .clear()
                     .setMetadata(true)
                     .setRoutingTable(true)
                     .setIndices(indices)
                     .setIndicesOptions(subRequestIndicesOptions)
-                    .setMasterNodeTimeout(masterNodeTimeout)
                     .execute(listeners.acquire(clusterStateRef::set));
 
                 client.admin()
@@ -171,11 +170,7 @@ public class RestIndicesAction extends AbstractCatAction {
         table.addCell("store.size", "sibling:pri;alias:ss,storeSize;text-align:right;desc:store size of primaries & replicas");
         table.addCell("pri.store.size", "text-align:right;desc:store size of primaries");
 
-        if (request.getRestApiVersion() == RestApiVersion.V_7) {
-            table.addCell("dataset.size", "default:false;text-align:right;desc:total size of dataset");
-        } else {
-            table.addCell("dataset.size", "text-align:right;desc:total size of dataset");
-        }
+        table.addCell("dataset.size", "text-align:right;desc:total size of dataset");
 
         table.addCell("completion.size", "sibling:pri;alias:cs,completionSize;default:false;text-align:right;desc:size of completion");
         table.addCell("pri.completion.size", "default:false;text-align:right;desc:size of completion");
@@ -308,6 +303,15 @@ public class RestIndicesAction extends AbstractCatAction {
             "sibling:pri;alias:iif,indexingIndexFailed;default:false;text-align:right;desc:number of failed indexing ops"
         );
         table.addCell("pri.indexing.index_failed", "default:false;text-align:right;desc:number of failed indexing ops");
+        table.addCell(
+            "indexing.index_failed_due_to_version_conflict",
+            "sibling:pri;alias:iifvc,indexingIndexFailedDueToVersionConflict;default:false;text-align:right;"
+                + "desc:number of failed indexing ops due to version conflict"
+        );
+        table.addCell(
+            "pri.indexing.index_failed_due_to_version_conflict",
+            "default:false;text-align:right;desc:number of failed indexing ops due to version conflict"
+        );
 
         table.addCell("merges.current", "sibling:pri;alias:mc,mergesCurrent;default:false;text-align:right;desc:number of current merges");
         table.addCell("pri.merges.current", "default:false;text-align:right;desc:number of current merges");
@@ -674,6 +678,13 @@ public class RestIndicesAction extends AbstractCatAction {
 
             table.addCell(totalStats.getIndexing() == null ? null : totalStats.getIndexing().getTotal().getIndexFailedCount());
             table.addCell(primaryStats.getIndexing() == null ? null : primaryStats.getIndexing().getTotal().getIndexFailedCount());
+
+            table.addCell(
+                totalStats.getIndexing() == null ? null : totalStats.getIndexing().getTotal().getIndexFailedDueToVersionConflictCount()
+            );
+            table.addCell(
+                primaryStats.getIndexing() == null ? null : primaryStats.getIndexing().getTotal().getIndexFailedDueToVersionConflictCount()
+            );
 
             table.addCell(totalStats.getMerge() == null ? null : totalStats.getMerge().getCurrent());
             table.addCell(primaryStats.getMerge() == null ? null : primaryStats.getMerge().getCurrent());

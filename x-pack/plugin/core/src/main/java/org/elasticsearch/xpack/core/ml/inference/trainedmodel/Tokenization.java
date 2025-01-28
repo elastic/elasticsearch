@@ -36,7 +36,8 @@ public abstract class Tokenization implements NamedXContentObject, NamedWriteabl
             public boolean isInCompatibleWithSpan() {
                 return false;
             }
-        };
+        },
+        BALANCED;
 
         public boolean isInCompatibleWithSpan() {
             return true;

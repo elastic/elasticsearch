@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal.conventions.precommit;
@@ -66,15 +67,21 @@ public abstract class LicenseHeadersTask extends DefaultTask {
     private final RegularFileProperty reportFile;
 
     private static List<License> conventionalLicenses = Arrays.asList(
-            // Dual SSPLv1 and Elastic
-            new License("DUAL", "SSPL+Elastic License", "the Elastic License 2.0 or the Server")
+        // Triple AGPL, SSPLv1 and Elastic
+        new License(
+            "TRIPLE",
+            "AGLP+SSPL+Elastic License",
+            "2.0\", the \"GNU Affero General Public License v3.0 only\", and the \"Server Side"
+        )
     );
 
     /**
      * Allowed license families for this project.
      */
     @Input
-    private List<String> approvedLicenses = new ArrayList<String>(Arrays.asList("SSPL+Elastic License", "Generated", "Vendored", "Apache LZ4-Java"));
+    private List<String> approvedLicenses = new ArrayList<String>(
+        Arrays.asList("AGLP+SSPL+Elastic License", "Generated", "Vendored", "Apache LZ4-Java")
+    );
     /**
      * Files that should be excluded from the license header check. Use with extreme care, only in situations where the license on the
      * source file is compatible with the codebase but we do not want to add the license to the list of approved headers (to avoid the
@@ -88,9 +95,7 @@ public abstract class LicenseHeadersTask extends DefaultTask {
     @Inject
     public LicenseHeadersTask(ObjectFactory objectFactory, ProjectLayout projectLayout) {
         additionalLicenses = objectFactory.listProperty(License.class).convention(conventionalLicenses);
-        reportFile = objectFactory.fileProperty().convention(
-            projectLayout.getBuildDirectory().file("reports/licenseHeaders/rat.xml")
-        );
+        reportFile = objectFactory.fileProperty().convention(projectLayout.getBuildDirectory().file("reports/licenseHeaders/rat.xml"));
         setDescription("Checks sources for missing, incorrect, or unacceptable license headers");
     }
 
@@ -138,6 +143,7 @@ public abstract class LicenseHeadersTask extends DefaultTask {
     public ListProperty<License> getAdditionalLicenses() {
         return additionalLicenses;
     }
+
     /**
      * Add a new license type.
      * <p>
@@ -174,9 +180,8 @@ public abstract class LicenseHeadersTask extends DefaultTask {
         // Vendored Code
         matchers.add(subStringMatcher("VEN  ", "Vendored", "@notice"));
 
-        additionalLicenses.get().forEach(l ->
-            matchers.add(subStringMatcher(l.licenseFamilyCategory, l.licenseFamilyName, l.substringPattern))
-        );
+        additionalLicenses.get()
+            .forEach(l -> matchers.add(subStringMatcher(l.licenseFamilyCategory, l.licenseFamilyName, l.substringPattern)));
 
         reportConfiguration.setHeaderMatcher(new HeaderMatcherMultiplexer(matchers.toArray(IHeaderMatcher[]::new)));
         reportConfiguration.setApprovedLicenseNames(approvedLicenses.stream().map(license -> {
@@ -234,8 +239,7 @@ public abstract class LicenseHeadersTask extends DefaultTask {
 
     private static List<String> unapprovedFiles(File xmlReportFile) {
         try {
-            NodeList resourcesNodes = createXmlDocumentBuilderFactory()
-                .newDocumentBuilder()
+            NodeList resourcesNodes = createXmlDocumentBuilderFactory().newDocumentBuilder()
                 .parse(xmlReportFile)
                 .getElementsByTagName("resource");
             return elementList(resourcesNodes).stream()

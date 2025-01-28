@@ -38,6 +38,14 @@ public interface Vector extends Accountable, RefCounted, Releasable {
     Vector filter(int... positions);
 
     /**
+     * Build a {@link Block} the same values as this {@link Vector}, but replacing
+     * all values for which {@code mask.getBooleanValue(position)} returns
+     * {@code false} with {@code null}. The {@code mask} vector must be at least
+     * as long as this {@linkplain Vector}.
+     */
+    Block keepMask(BooleanVector mask);
+
+    /**
      * Builds an Iterator of new {@link Block}s with the same {@link #elementType}
      * as this {@link Vector} whose values are copied from positions in this Vector.
      * It has the same number of {@link #getPositionCount() positions} as the

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index;
@@ -49,6 +50,8 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
     static MockAppender appender;
     static Logger queryLog = LogManager.getLogger(SearchSlowLog.INDEX_SEARCH_SLOWLOG_PREFIX + ".query");
     static Logger fetchLog = LogManager.getLogger(SearchSlowLog.INDEX_SEARCH_SLOWLOG_PREFIX + ".fetch");
+    static Level origQueryLogLevel = queryLog.getLevel();
+    static Level origFetchLogLevel = fetchLog.getLevel();
 
     @BeforeClass
     public static void init() throws IllegalAccessException {
@@ -56,13 +59,19 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
         appender.start();
         Loggers.addAppender(queryLog, appender);
         Loggers.addAppender(fetchLog, appender);
+
+        Loggers.setLevel(queryLog, Level.TRACE);
+        Loggers.setLevel(fetchLog, Level.TRACE);
     }
 
     @AfterClass
     public static void cleanup() {
-        appender.stop();
         Loggers.removeAppender(queryLog, appender);
         Loggers.removeAppender(fetchLog, appender);
+        appender.stop();
+
+        Loggers.setLevel(queryLog, origQueryLogLevel);
+        Loggers.setLevel(fetchLog, origFetchLogLevel);
     }
 
     @Override
@@ -94,7 +103,7 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
         try (SearchContext ctx = searchContextWithSourceAndTask(createIndex("index"))) {
             String uuid = UUIDs.randomBase64UUID();
             IndexSettings settings = new IndexSettings(createIndexMetadata("index", settings(uuid)), Settings.EMPTY);
-            SearchSlowLog log = new SearchSlowLog(settings, mock(SlowLogFieldProvider.class));
+            SearchSlowLog log = new SearchSlowLog(settings, mock(SlowLogFields.class));
 
             // For this test, when level is not breached, the level below should be used.
             {
@@ -178,7 +187,7 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
                 ),
                 Settings.EMPTY
             );
-            SearchSlowLog log1 = new SearchSlowLog(settings1, mock(SlowLogFieldProvider.class));
+            SearchSlowLog log1 = new SearchSlowLog(settings1, mock(SlowLogFields.class));
 
             IndexSettings settings2 = new IndexSettings(
                 createIndexMetadata(
@@ -191,7 +200,7 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
                 ),
                 Settings.EMPTY
             );
-            SearchSlowLog log2 = new SearchSlowLog(settings2, mock(SlowLogFieldProvider.class));
+            SearchSlowLog log2 = new SearchSlowLog(settings2, mock(SlowLogFields.class));
 
             {
                 // threshold set on WARN only, should not log
@@ -214,7 +223,7 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
 
         try (SearchContext ctx1 = searchContextWithSourceAndTask(createIndex("index-1"))) {
             IndexSettings settings1 = new IndexSettings(createIndexMetadata("index-1", settings(UUIDs.randomBase64UUID())), Settings.EMPTY);
-            SearchSlowLog log1 = new SearchSlowLog(settings1, mock(SlowLogFieldProvider.class));
+            SearchSlowLog log1 = new SearchSlowLog(settings1, mock(SlowLogFields.class));
             int numberOfLoggersBefore = context.getLoggers().size();
 
             try (SearchContext ctx2 = searchContextWithSourceAndTask(createIndex("index-2"))) {
@@ -222,7 +231,7 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
                     createIndexMetadata("index-2", settings(UUIDs.randomBase64UUID())),
                     Settings.EMPTY
                 );
-                SearchSlowLog log2 = new SearchSlowLog(settings2, mock(SlowLogFieldProvider.class));
+                SearchSlowLog log2 = new SearchSlowLog(settings2, mock(SlowLogFields.class));
 
                 int numberOfLoggersAfter = context.getLoggers().size();
                 assertThat(numberOfLoggersAfter, equalTo(numberOfLoggersBefore));
@@ -314,7 +323,7 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
                 .build()
         );
         IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
-        SearchSlowLog log = new SearchSlowLog(settings, mock(SlowLogFieldProvider.class));
+        SearchSlowLog log = new SearchSlowLog(settings, mock(SlowLogFields.class));
         assertEquals(TimeValue.timeValueMillis(100).nanos(), log.getQueryTraceThreshold());
         assertEquals(TimeValue.timeValueMillis(200).nanos(), log.getQueryDebugThreshold());
         assertEquals(TimeValue.timeValueMillis(300).nanos(), log.getQueryInfoThreshold());
@@ -345,7 +354,7 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
         assertEquals(TimeValue.timeValueMillis(-1).nanos(), log.getQueryWarnThreshold());
 
         settings = new IndexSettings(metadata, Settings.EMPTY);
-        log = new SearchSlowLog(settings, mock(SlowLogFieldProvider.class));
+        log = new SearchSlowLog(settings, mock(SlowLogFields.class));
 
         assertEquals(TimeValue.timeValueMillis(-1).nanos(), log.getQueryTraceThreshold());
         assertEquals(TimeValue.timeValueMillis(-1).nanos(), log.getQueryDebugThreshold());
@@ -420,7 +429,7 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
                 .build()
         );
         IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
-        SearchSlowLog log = new SearchSlowLog(settings, mock(SlowLogFieldProvider.class));
+        SearchSlowLog log = new SearchSlowLog(settings, mock(SlowLogFields.class));
         assertEquals(TimeValue.timeValueMillis(100).nanos(), log.getFetchTraceThreshold());
         assertEquals(TimeValue.timeValueMillis(200).nanos(), log.getFetchDebugThreshold());
         assertEquals(TimeValue.timeValueMillis(300).nanos(), log.getFetchInfoThreshold());
@@ -451,7 +460,7 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
         assertEquals(TimeValue.timeValueMillis(-1).nanos(), log.getFetchWarnThreshold());
 
         settings = new IndexSettings(metadata, Settings.EMPTY);
-        log = new SearchSlowLog(settings, mock(SlowLogFieldProvider.class));
+        log = new SearchSlowLog(settings, mock(SlowLogFields.class));
 
         assertEquals(TimeValue.timeValueMillis(-1).nanos(), log.getFetchTraceThreshold());
         assertEquals(TimeValue.timeValueMillis(-1).nanos(), log.getFetchDebugThreshold());

@@ -6,10 +6,16 @@
  */
 package org.elasticsearch.xpack.spatial.index.mapper;
 
+import org.apache.lucene.document.Field;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.XYDocValuesField;
 import org.apache.lucene.document.XYPointField;
+import org.apache.lucene.geo.XYEncodingUtils;
+import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.geo.GeometryFormatterFactory;
 import org.elasticsearch.common.geo.ShapeRelation;
@@ -25,11 +31,11 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.lucene.spatial.XYQueriesUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.spatial.common.CartesianPoint;
 import org.elasticsearch.xpack.spatial.index.fielddata.plain.CartesianPointIndexFieldData;
-import org.elasticsearch.xpack.spatial.index.query.ShapeQueryPointProcessor;
 import org.elasticsearch.xpack.spatial.script.field.CartesianPointDocValuesField;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.CartesianPointValuesSourceType;
 
@@ -116,31 +122,29 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<Cartesian
                 nullValue.get(),
                 meta.get()
             );
-            return new PointFieldMapper(leafName(), ft, multiFieldsBuilder.build(this, context), copyTo, parser, this);
+            return new PointFieldMapper(leafName(), ft, builderParams(this, context), parser, this);
         }
 
     }
 
-    public static TypeParser PARSER = new TypeParser((n, c) -> new Builder(n, IGNORE_MALFORMED_SETTING.get(c.getSettings())));
+    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n, IGNORE_MALFORMED_SETTING.get(c.getSettings())));
 
     private final Builder builder;
 
     public PointFieldMapper(
         String simpleName,
         MappedFieldType mappedFieldType,
-        MultiFields multiFields,
-        CopyTo copyTo,
+        BuilderParams builderParams,
         CartesianPointParser parser,
         Builder builder
     ) {
         super(
             simpleName,
             mappedFieldType,
-            multiFields,
+            builderParams,
             builder.ignoreMalformed.get(),
             builder.ignoreZValue.get(),
             builder.nullValue.get(),
-            copyTo,
             parser
         );
         this.builder = builder;
@@ -148,15 +152,17 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<Cartesian
 
     @Override
     protected void index(DocumentParserContext context, CartesianPoint point) {
-        if (fieldType().isIndexed()) {
+        final boolean indexed = fieldType().isIndexed();
+        final boolean hasDocValues = fieldType().hasDocValues();
+        final boolean store = fieldType().isStored();
+        if (indexed && hasDocValues) {
+            context.doc().add(new XYFieldWithDocValues(fieldType().name(), (float) point.getX(), (float) point.getY()));
+        } else if (hasDocValues) {
+            context.doc().add(new XYDocValuesField(fieldType().name(), (float) point.getX(), (float) point.getY()));
+        } else if (indexed) {
             context.doc().add(new XYPointField(fieldType().name(), (float) point.getX(), (float) point.getY()));
         }
-        if (fieldType().hasDocValues()) {
-            context.doc().add(new XYDocValuesField(fieldType().name(), (float) point.getX(), (float) point.getY()));
-        } else if (fieldType().isStored() || fieldType().isIndexed()) {
-            context.addToFieldNames(fieldType().name());
-        }
-        if (fieldType().isStored()) {
+        if (store) {
             context.doc().add(new StoredField(fieldType().name(), point.toString()));
         }
     }
@@ -178,8 +184,6 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<Cartesian
 
     public static class PointFieldType extends AbstractPointFieldType<CartesianPoint> implements ShapeQueryable {
 
-        private final ShapeQueryPointProcessor queryProcessor;
-
         private PointFieldType(
             String name,
             boolean indexed,
@@ -190,7 +194,6 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<Cartesian
             Map<String, String> meta
         ) {
             super(name, indexed, stored, hasDocValues, parser, nullValue, meta);
-            this.queryProcessor = new ShapeQueryPointProcessor();
         }
 
         // only used in test
@@ -215,7 +218,8 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<Cartesian
 
         @Override
         public Query shapeQuery(Geometry shape, String fieldName, ShapeRelation relation, SearchExecutionContext context) {
-            return queryProcessor.shapeQuery(shape, fieldName, relation, context);
+            failIfNotIndexedNorDocValuesFallback(context);
+            return XYQueriesUtils.toXYPointQuery(shape, fieldName, relation, isIndexed(), hasDocValues());
         }
 
         @Override
@@ -258,6 +262,63 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<Cartesian
         @Override
         public CartesianPoint normalizeFromSource(CartesianPoint point) {
             return point;
+        }
+    }
+
+    /**
+     * Utility class that allows adding index and doc values in one field
+     */
+    static class XYFieldWithDocValues extends Field {
+
+        private static final FieldType TYPE = new FieldType();
+
+        static {
+            TYPE.setDimensions(2, Integer.BYTES);
+            TYPE.setDocValuesType(DocValuesType.SORTED_NUMERIC);
+            TYPE.freeze();
+        }
+
+        // holds the doc value value.
+        private final long docValue;
+
+        XYFieldWithDocValues(String name, float x, float y) {
+            super(name, TYPE);
+            final byte[] bytes;
+            if (fieldsData == null) {
+                bytes = new byte[8];
+                fieldsData = new BytesRef(bytes);
+            } else {
+                bytes = ((BytesRef) fieldsData).bytes;
+            }
+
+            int xEncoded = XYEncodingUtils.encode(x);
+            int yEncoded = XYEncodingUtils.encode(y);
+            NumericUtils.intToSortableBytes(xEncoded, bytes, 0);
+            NumericUtils.intToSortableBytes(yEncoded, bytes, 4);
+
+            docValue = (((long) xEncoded) << 32) | (yEncoded & 0xFFFFFFFFL);
+        }
+
+        @Override
+        public Number numericValue() {
+            return docValue;
+        }
+
+        @Override
+        public String toString() {
+            StringBuilder result = new StringBuilder();
+            result.append(getClass().getSimpleName());
+            result.append(" <");
+            result.append(name);
+            result.append(':');
+
+            byte[] bytes = ((BytesRef) fieldsData).bytes;
+            result.append(XYEncodingUtils.decode(bytes, 0));
+            result.append(',');
+            result.append(XYEncodingUtils.decode(bytes, Integer.BYTES));
+
+            result.append('>');
+            return result.toString();
         }
     }
 }

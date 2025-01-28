@@ -21,8 +21,12 @@ import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.inference.common.TruncatorTests;
+import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
+import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
+import org.elasticsearch.xpack.inference.external.http.sender.GoogleAiStudioEmbeddingsRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
@@ -37,6 +41,7 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
+import static org.elasticsearch.xpack.inference.external.action.ActionUtils.constructFailedToSendRequestMessage;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.results.TextEmbeddingResultsTests.buildExpectationFloat;
@@ -182,10 +187,11 @@ public class GoogleAiStudioEmbeddingsActionTests extends ESTestCase {
         );
     }
 
-    private GoogleAiStudioEmbeddingsAction createAction(String url, String apiKey, String modelName, Sender sender) {
+    private ExecutableAction createAction(String url, String apiKey, String modelName, Sender sender) {
         var model = createModel(modelName, apiKey, url);
-
-        return new GoogleAiStudioEmbeddingsAction(sender, model, createWithEmptySettings(threadPool));
+        var requestManager = new GoogleAiStudioEmbeddingsRequestManager(model, TruncatorTests.createTruncator(), threadPool);
+        var failedToSendRequestErrorMessage = constructFailedToSendRequestMessage(model.uri(), "Google AI Studio embeddings");
+        return new SenderExecutableAction(sender, requestManager, failedToSendRequestErrorMessage);
     }
 
 }

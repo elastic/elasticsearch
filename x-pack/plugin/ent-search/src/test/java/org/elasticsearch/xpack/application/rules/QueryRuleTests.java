@@ -18,6 +18,7 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.application.EnterpriseSearchModuleTestUtils;
+import org.elasticsearch.xpack.searchbusinessrules.SpecifiedDocument;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -99,7 +100,22 @@ public class QueryRuleTests extends ESTestCase {
                 "ids": ["id1", "id2"]
               }
             }""");
-        testToXContentPinnedRules(content);
+        testToXContentRules(content);
+    }
+
+    public void testToXContentValidExcludedRulesWithIds() throws IOException {
+        String content = XContentHelper.stripWhitespace("""
+            {
+              "rule_id": "my_query_rule",
+              "type": "exclude",
+              "criteria": [
+                { "type": "exact", "metadata": "query_string", "values": ["foo", "bar"] }
+              ],
+              "actions": {
+                "ids": ["id1", "id2"]
+              }
+            }""");
+        testToXContentRules(content);
     }
 
     public void testToXContentValidPinnedRulesWithDocs() throws IOException {
@@ -123,10 +139,102 @@ public class QueryRuleTests extends ESTestCase {
                 ]
               }
             }""");
-        testToXContentPinnedRules(content);
+        testToXContentRules(content);
     }
 
-    private void testToXContentPinnedRules(String content) throws IOException {
+    public void testToXContentValidExcludedRulesWithDocs() throws IOException {
+        String content = XContentHelper.stripWhitespace("""
+            {
+              "rule_id": "my_query_rule",
+              "type": "exclude",
+              "criteria": [
+                { "type": "exact", "metadata": "query_string", "values": ["foo", "bar"] }
+              ],
+              "actions": {
+                "docs": [
+                  {
+                    "_index": "foo",
+                    "_id": "id1"
+                  },
+                  {
+                    "_index": "bar",
+                    "_id": "id2"
+                  }
+                ]
+              }
+            }""");
+        testToXContentRules(content);
+    }
+
+    public void testToXContentValidPinnedAndExcludedRulesWithIds() throws IOException {
+        String content = XContentHelper.stripWhitespace("""
+            {
+              "rule_id": "my_pinned_query_rule",
+              "type": "pinned",
+              "criteria": [
+                { "type": "exact", "metadata": "query_string", "values": ["foo", "bar"] }
+              ],
+              "actions": {
+                "ids": ["id1", "id2"]
+              }
+            },
+            {
+              "rule_id": "my_exclude_query_rule",
+              "type": "exlude",
+              "criteria": [
+                { "type": "exact", "metadata": "query_string", "values": ["baz"] }
+              ],
+              "actions": {
+                "ids": ["id3", "id4"]
+              }
+            }""");
+        testToXContentRules(content);
+    }
+
+    public void testToXContentValidPinnedAndExcludedRulesWithDocs() throws IOException {
+        String content = XContentHelper.stripWhitespace("""
+            {
+              "rule_id": "my_pinned_query_rule",
+              "type": "pinned",
+              "criteria": [
+                { "type": "exact", "metadata": "query_string", "values": ["foo", "bar"] }
+              ],
+              "actions": {
+                "docs": [
+                  {
+                    "_index": "foo",
+                    "_id": "id1"
+                  },
+                  {
+                    "_index": "bar",
+                    "_id": "id2"
+                  }
+                ]
+              }
+            },
+            {
+              "rule_id": "my_exclude_query_rule",
+              "type": "exclude",
+              "criteria": [
+                { "type": "exact", "metadata": "query_string", "values": ["foo", "bar"] }
+              ],
+              "actions": {
+                "docs": [
+                  {
+                    "_index": "foo",
+                    "_id": "id3"
+                  },
+                  {
+                    "_index": "bar",
+                    "_id": "id4"
+                  }
+                ]
+              }
+            }""");
+        testToXContentRules(content);
+    }
+
+    private void testToXContentRules(String content) throws IOException {
         QueryRule queryRule = QueryRule.fromXContentBytes(new BytesArray(content), XContentType.JSON);
         boolean humanReadable = true;
         BytesReference originalBytes = toShuffledXContent(queryRule, XContentType.JSON, ToXContent.EMPTY_PARAMS, humanReadable);
@@ -152,7 +260,22 @@ public class QueryRuleTests extends ESTestCase {
         expectThrows(IllegalArgumentException.class, () -> QueryRule.fromXContentBytes(new BytesArray(content), XContentType.JSON));
     }
 
-    public void testApplyRuleWithOneCriteria() {
+    public void testToXContentExcludeRuleWithInvalidActions() throws IOException {
+        String content = XContentHelper.stripWhitespace("""
+            {
+              "rule_id": "my_query_rule",
+              "type": "exclude",
+              "criteria": [
+                { "type": "exact", "metadata": "query_string", "values": ["foo", "bar"] }
+              ],
+              "actions": {
+                  "foo": "bar"
+                }
+            }""");
+        expectThrows(IllegalArgumentException.class, () -> QueryRule.fromXContentBytes(new BytesArray(content), XContentType.JSON));
+    }
+
+    public void testApplyPinnedRuleWithOneCriteria() {
         QueryRule rule = new QueryRule(
             randomAlphaOfLength(10),
             QueryRule.QueryRuleType.PINNED,
@@ -162,14 +285,35 @@ public class QueryRuleTests extends ESTestCase {
         );
         AppliedQueryRules appliedQueryRules = new AppliedQueryRules();
         rule.applyRule(appliedQueryRules, Map.of("query", "elastic"));
-        assertEquals(List.of("id1", "id2"), appliedQueryRules.pinnedIds());
+        assertEquals(List.of(new SpecifiedDocument(null, "id1"), new SpecifiedDocument(null, "id2")), appliedQueryRules.pinnedDocs());
+        assertEquals(Collections.emptyList(), appliedQueryRules.excludedDocs());
 
         appliedQueryRules = new AppliedQueryRules();
         rule.applyRule(appliedQueryRules, Map.of("query", "elastic1"));
-        assertEquals(Collections.emptyList(), appliedQueryRules.pinnedIds());
+        assertEquals(Collections.emptyList(), appliedQueryRules.pinnedDocs());
+        assertEquals(Collections.emptyList(), appliedQueryRules.excludedDocs());
     }
 
-    public void testApplyRuleWithMultipleCriteria() {
+    public void testApplyExcludeRuleWithOneCriteria() {
+        QueryRule rule = new QueryRule(
+            randomAlphaOfLength(10),
+            QueryRule.QueryRuleType.EXCLUDE,
+            List.of(new QueryRuleCriteria(EXACT, "query", List.of("elastic"))),
+            Map.of("ids", List.of("id1", "id2")),
+            EnterpriseSearchModuleTestUtils.randomQueryRulePriority()
+        );
+        AppliedQueryRules appliedQueryRules = new AppliedQueryRules();
+        rule.applyRule(appliedQueryRules, Map.of("query", "elastic"));
+        assertEquals(List.of(new SpecifiedDocument(null, "id1"), new SpecifiedDocument(null, "id2")), appliedQueryRules.excludedDocs());
+        assertEquals(Collections.emptyList(), appliedQueryRules.pinnedDocs());
+
+        appliedQueryRules = new AppliedQueryRules();
+        rule.applyRule(appliedQueryRules, Map.of("query", "elastic1"));
+        assertEquals(Collections.emptyList(), appliedQueryRules.excludedDocs());
+        assertEquals(Collections.emptyList(), appliedQueryRules.pinnedDocs());
+    }
+
+    public void testApplyRuleWithMultipleCriteria() throws IOException {
         QueryRule rule = new QueryRule(
             randomAlphaOfLength(10),
             QueryRule.QueryRuleType.PINNED,
@@ -179,11 +323,14 @@ public class QueryRuleTests extends ESTestCase {
         );
         AppliedQueryRules appliedQueryRules = new AppliedQueryRules();
         rule.applyRule(appliedQueryRules, Map.of("query", "elastic - you know, for search"));
-        assertEquals(List.of("id1", "id2"), appliedQueryRules.pinnedIds());
+        assertEquals(List.of(new SpecifiedDocument(null, "id1"), new SpecifiedDocument(null, "id2")), appliedQueryRules.pinnedDocs());
+        assertEquals(Collections.emptyList(), appliedQueryRules.excludedDocs());
+        assertEquals(Collections.emptyList(), appliedQueryRules.excludedDocs());
 
         appliedQueryRules = new AppliedQueryRules();
         rule.applyRule(appliedQueryRules, Map.of("query", "elastic"));
-        assertEquals(Collections.emptyList(), appliedQueryRules.pinnedIds());
+        assertEquals(Collections.emptyList(), appliedQueryRules.pinnedDocs());
+        assertEquals(Collections.emptyList(), appliedQueryRules.excludedDocs());
     }
 
     private void assertXContent(QueryRule queryRule, boolean humanReadable) throws IOException {

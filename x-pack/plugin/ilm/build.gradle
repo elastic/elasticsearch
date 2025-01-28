@@ -2,12 +2,12 @@ apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
-  name 'x-pack-ilm'
-  description 'Elasticsearch Expanded Pack Plugin - Index Lifecycle Management'
-  classname 'org.elasticsearch.xpack.ilm.IndexLifecycle'
+  name = 'x-pack-ilm'
+  description = 'Elasticsearch Expanded Pack Plugin - Index Lifecycle Management'
+  classname ='org.elasticsearch.xpack.ilm.IndexLifecycle'
   extendedPlugins = ['x-pack-core']
-  hasNativeController false
-  requiresKeystore true
+  hasNativeController =false
+  requiresKeystore =true
 }
 base {
   archivesName = 'x-pack-ilm'

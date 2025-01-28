@@ -1,6 +1,0 @@
-pr: 110391
-summary: Fix ST_DISTANCE Lucene push-down for complex predicates
-area: ES|QL
-type: bug
-issues:
- - 110349

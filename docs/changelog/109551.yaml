@@ -1,5 +1,0 @@
-pr: 109551
-summary: Avoid `InferenceRunner` deadlock
-area: Machine Learning
-type: bug
-issues: []

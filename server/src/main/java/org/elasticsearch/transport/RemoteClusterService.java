@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.transport;
@@ -31,6 +32,7 @@ import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.node.ReportingService;
 import org.elasticsearch.transport.RemoteClusterCredentialsManager.UpdateRemoteClusterCredentialsResult;
 
@@ -60,7 +62,11 @@ import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUST
 /**
  * Basic service for accessing remote clusters via gateway nodes
  */
-public final class RemoteClusterService extends RemoteClusterAware implements Closeable, ReportingService<RemoteClusterServerInfo> {
+public final class RemoteClusterService extends RemoteClusterAware
+    implements
+        Closeable,
+        ReportingService<RemoteClusterServerInfo>,
+        IndicesExpressionGrouper {
 
     private static final Logger logger = LogManager.getLogger(RemoteClusterService.class);
 
@@ -177,12 +183,24 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         return remoteClusters.get(remoteCluster).isNodeConnected(node);
     }
 
-    public Map<String, OriginalIndices> groupIndices(IndicesOptions indicesOptions, String[] indices) {
+    /**
+     * Group indices by cluster alias mapped to OriginalIndices for that cluster.
+     * @param indicesOptions IndicesOptions to clarify how the index expressions should be parsed/applied
+     * @param indices Multiple index expressions as string[].
+     * @param returnLocalAll whether to support the _all functionality needed by _search
+     *        (See https://github.com/elastic/elasticsearch/pull/33899). If true, and no indices are specified,
+     *        then a Map with one entry for the local cluster with an empty index array is returned.
+     *        If false, an empty map is returned when no indices are specified.
+     * @return Map keyed by cluster alias having OriginalIndices as the map value parsed from the String[] indices argument
+     */
+    public Map<String, OriginalIndices> groupIndices(IndicesOptions indicesOptions, String[] indices, boolean returnLocalAll) {
         final Map<String, OriginalIndices> originalIndicesMap = new HashMap<>();
         final Map<String, List<String>> groupedIndices = groupClusterIndices(getRemoteClusterNames(), indices);
         if (groupedIndices.isEmpty()) {
-            // search on _all in the local cluster if neither local indices nor remote indices were specified
-            originalIndicesMap.put(LOCAL_CLUSTER_GROUP_KEY, new OriginalIndices(Strings.EMPTY_ARRAY, indicesOptions));
+            if (returnLocalAll) {
+                // search on _all in the local cluster if neither local indices nor remote indices were specified
+                originalIndicesMap.put(LOCAL_CLUSTER_GROUP_KEY, new OriginalIndices(Strings.EMPTY_ARRAY, indicesOptions));
+            }
         } else {
             for (Map.Entry<String, List<String>> entry : groupedIndices.entrySet()) {
                 String clusterAlias = entry.getKey();
@@ -191,6 +209,17 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
             }
         }
         return originalIndicesMap;
+    }
+
+    /**
+     * If no indices are specified, then a Map with one entry for the local cluster with an empty index array is returned.
+     * For details see {@code groupIndices(IndicesOptions indicesOptions, String[] indices, boolean returnLocalAll)}
+     * @param indicesOptions IndicesOptions to clarify how the index expressions should be parsed/applied
+     * @param indices Multiple index expressions as string[].
+     * @return Map keyed by cluster alias having OriginalIndices as the map value parsed from the String[] indices argument
+     */
+    public Map<String, OriginalIndices> groupIndices(IndicesOptions indicesOptions, String[] indices) {
+        return groupIndices(indicesOptions, indices, true);
     }
 
     /**
@@ -276,7 +305,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         }
     }
 
-    RemoteClusterConnection getRemoteClusterConnection(String cluster) {
+    public RemoteClusterConnection getRemoteClusterConnection(String cluster) {
         if (enabled == false) {
             throw new IllegalArgumentException(
                 "this node does not have the " + DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE.roleName() + " role"

@@ -129,7 +129,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
-import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
@@ -267,18 +266,15 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         RUN_AS_GRANTED.toString(),
         SECURITY_CONFIG_CHANGE.toString()
     );
-    public static final Setting<List<String>> INCLUDE_EVENT_SETTINGS = Setting.listSetting(
+    public static final Setting<List<String>> INCLUDE_EVENT_SETTINGS = Setting.stringListSetting(
         setting("audit.logfile.events.include"),
         DEFAULT_EVENT_INCLUDES,
-        Function.identity(),
         value -> AuditLevel.parse(value, List.of()),
         Property.NodeScope,
         Property.Dynamic
     );
-    public static final Setting<List<String>> EXCLUDE_EVENT_SETTINGS = Setting.listSetting(
+    public static final Setting<List<String>> EXCLUDE_EVENT_SETTINGS = Setting.stringListSetting(
         setting("audit.logfile.events.exclude"),
-        Collections.emptyList(),
-        Function.identity(),
         value -> AuditLevel.parse(List.of(), value),
         Property.NodeScope,
         Property.Dynamic
@@ -323,62 +319,27 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     protected static final Setting.AffixSetting<List<String>> FILTER_POLICY_IGNORE_PRINCIPALS = Setting.affixKeySetting(
         FILTER_POLICY_PREFIX,
         "users",
-        (key) -> Setting.listSetting(
-            key,
-            Collections.singletonList("*"),
-            Function.identity(),
-            value -> EventFilterPolicy.parsePredicate(value),
-            Property.NodeScope,
-            Property.Dynamic
-        )
+        key -> Setting.stringListSetting(key, List.of("*"), EventFilterPolicy::parsePredicate, Property.NodeScope, Property.Dynamic)
     );
     protected static final Setting.AffixSetting<List<String>> FILTER_POLICY_IGNORE_REALMS = Setting.affixKeySetting(
         FILTER_POLICY_PREFIX,
         "realms",
-        (key) -> Setting.listSetting(
-            key,
-            Collections.singletonList("*"),
-            Function.identity(),
-            value -> EventFilterPolicy.parsePredicate(value),
-            Property.NodeScope,
-            Property.Dynamic
-        )
+        key -> Setting.stringListSetting(key, List.of("*"), EventFilterPolicy::parsePredicate, Property.NodeScope, Property.Dynamic)
     );
     protected static final Setting.AffixSetting<List<String>> FILTER_POLICY_IGNORE_ROLES = Setting.affixKeySetting(
         FILTER_POLICY_PREFIX,
         "roles",
-        (key) -> Setting.listSetting(
-            key,
-            Collections.singletonList("*"),
-            Function.identity(),
-            value -> EventFilterPolicy.parsePredicate(value),
-            Property.NodeScope,
-            Property.Dynamic
-        )
+        key -> Setting.stringListSetting(key, List.of("*"), EventFilterPolicy::parsePredicate, Property.NodeScope, Property.Dynamic)
     );
     protected static final Setting.AffixSetting<List<String>> FILTER_POLICY_IGNORE_INDICES = Setting.affixKeySetting(
         FILTER_POLICY_PREFIX,
         "indices",
-        (key) -> Setting.listSetting(
-            key,
-            Collections.singletonList("*"),
-            Function.identity(),
-            value -> EventFilterPolicy.parsePredicate(value),
-            Property.NodeScope,
-            Property.Dynamic
-        )
+        key -> Setting.stringListSetting(key, List.of("*"), EventFilterPolicy::parsePredicate, Property.NodeScope, Property.Dynamic)
     );
     protected static final Setting.AffixSetting<List<String>> FILTER_POLICY_IGNORE_ACTIONS = Setting.affixKeySetting(
         FILTER_POLICY_PREFIX,
         "actions",
-        (key) -> Setting.listSetting(
-            key,
-            Collections.singletonList("*"),
-            Function.identity(),
-            value -> EventFilterPolicy.parsePredicate(value),
-            Property.NodeScope,
-            Property.Dynamic
-        )
+        key -> Setting.stringListSetting(key, List.of("*"), EventFilterPolicy::parsePredicate, Property.NodeScope, Property.Dynamic)
     );
 
     private static final Marker AUDIT_MARKER = MarkerManager.getMarker("org.elasticsearch.xpack.security.audit");

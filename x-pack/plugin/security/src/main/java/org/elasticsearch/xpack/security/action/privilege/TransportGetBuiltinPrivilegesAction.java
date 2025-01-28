@@ -9,7 +9,8 @@ package org.elasticsearch.xpack.security.action.privilege;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.privilege.GetBuiltinPrivilegesAction;
@@ -28,7 +29,7 @@ public class TransportGetBuiltinPrivilegesAction extends TransportAction<GetBuil
 
     @Inject
     public TransportGetBuiltinPrivilegesAction(ActionFilters actionFilters, TransportService transportService) {
-        super(GetBuiltinPrivilegesAction.NAME, actionFilters, transportService.getTaskManager());
+        super(GetBuiltinPrivilegesAction.NAME, actionFilters, transportService.getTaskManager(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
     }
 
     @Override

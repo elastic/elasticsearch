@@ -14,8 +14,11 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -37,6 +40,9 @@ import java.io.IOException;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -55,6 +61,7 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
     private ClusterService clusterService;
     private Client client;
     private InferenceAuditor inferenceAuditor;
+    private MeterRegistry meterRegistry;
 
     @Override
     @Before
@@ -64,8 +71,11 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
             new ScalingExecutorBuilder(MachineLearning.UTILITY_THREAD_POOL_NAME, 0, 1, TimeValue.timeValueMinutes(10), false)
         );
         clusterService = mock(ClusterService.class);
+        when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
+        when(clusterService.getClusterSettings()).thenReturn(new ClusterSettings(Settings.EMPTY, Set.of()));
         client = mock(Client.class);
         inferenceAuditor = mock(InferenceAuditor.class);
+        meterRegistry = mock(MeterRegistry.class);
     }
 
     @Override
@@ -156,6 +166,7 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
             clusterService,
             client,
             inferenceAuditor,
+            meterRegistry,
             true,
             1
         );
@@ -236,4 +247,99 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
 
         service.stop();
     }
+
+    public void testMaybeStartAllocation() {
+        AdaptiveAllocationsScalerService service = new AdaptiveAllocationsScalerService(
+            threadPool,
+            clusterService,
+            client,
+            inferenceAuditor,
+            meterRegistry,
+            true,
+            1
+        );
+
+        when(client.threadPool()).thenReturn(threadPool);
+
+        // will not start when adaptive allocations are not enabled
+        assertFalse(service.maybeStartAllocation(TrainedModelAssignment.Builder.empty(taskParams(1), null).build()));
+        assertFalse(
+            service.maybeStartAllocation(
+                TrainedModelAssignment.Builder.empty(taskParams(1), new AdaptiveAllocationsSettings(Boolean.FALSE, 1, 2)).build()
+            )
+        );
+        // min allocations > 0
+        assertFalse(
+            service.maybeStartAllocation(
+                TrainedModelAssignment.Builder.empty(taskParams(0), new AdaptiveAllocationsSettings(Boolean.TRUE, 1, 2)).build()
+            )
+        );
+        assertTrue(
+            service.maybeStartAllocation(
+                TrainedModelAssignment.Builder.empty(taskParams(0), new AdaptiveAllocationsSettings(Boolean.TRUE, 0, 2)).build()
+            )
+        );
+    }
+
+    public void testMaybeStartAllocation_BlocksMultipleRequests() throws Exception {
+        AdaptiveAllocationsScalerService service = new AdaptiveAllocationsScalerService(
+            threadPool,
+            clusterService,
+            client,
+            inferenceAuditor,
+            meterRegistry,
+            true,
+            1
+        );
+
+        var latch = new CountDownLatch(1);
+        var scalingUpRequestSent = new AtomicBoolean();
+
+        when(client.threadPool()).thenReturn(threadPool);
+        doAnswer(invocationOnMock -> {
+            @SuppressWarnings("unchecked")
+            var listener = (ActionListener<CreateTrainedModelAssignmentAction.Response>) invocationOnMock.getArguments()[2];
+            scalingUpRequestSent.set(true);
+            latch.await();
+            listener.onResponse(mock(CreateTrainedModelAssignmentAction.Response.class));
+            return Void.TYPE;
+        }).when(client).execute(eq(UpdateTrainedModelDeploymentAction.INSTANCE), any(), any());
+
+        threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() -> {
+            var starting = service.maybeStartAllocation(
+                TrainedModelAssignment.Builder.empty(taskParams(0), new AdaptiveAllocationsSettings(Boolean.TRUE, 0, 2)).build()
+            );
+            assertTrue(starting);
+        });
+
+        // wait for the request to be sent
+        assertBusy(() -> assertTrue(scalingUpRequestSent.get()));
+
+        // Due to the inflight request this will not trigger an update request
+        assertTrue(
+            service.maybeStartAllocation(
+                TrainedModelAssignment.Builder.empty(taskParams(0), new AdaptiveAllocationsSettings(Boolean.TRUE, 0, 2)).build()
+            )
+        );
+        // release the inflight request
+        latch.countDown();
+
+        verify(client, times(1)).execute(eq(UpdateTrainedModelDeploymentAction.INSTANCE), any(), any());
+    }
+
+    private StartTrainedModelDeploymentAction.TaskParams taskParams(int numAllocations) {
+        return new StartTrainedModelDeploymentAction.TaskParams(
+            "foo",
+            "foo",
+            1000L,
+            numAllocations,
+            1,
+            100,
+            null,
+            Priority.NORMAL,
+            100L,
+            100L
+        );
+    }
+
 }

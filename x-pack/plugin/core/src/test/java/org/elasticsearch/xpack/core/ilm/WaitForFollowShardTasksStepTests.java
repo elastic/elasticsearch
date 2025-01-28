@@ -16,9 +16,9 @@ import org.elasticsearch.xpack.core.ccr.action.FollowStatsAction;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import org.mockito.Mockito;
 
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.core.ilm.UnfollowAction.CCR_METADATA_KEY;
 import static org.hamcrest.Matchers.equalTo;
@@ -57,11 +57,11 @@ public class WaitForFollowShardTasksStepTests extends AbstractStepTestCase<WaitF
     public void testConditionMet() {
         IndexMetadata indexMetadata = IndexMetadata.builder("follower-index")
             .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true"))
-            .putCustom(CCR_METADATA_KEY, Collections.emptyMap())
+            .putCustom(CCR_METADATA_KEY, Map.of())
             .numberOfShards(2)
             .numberOfReplicas(0)
             .build();
-        List<FollowStatsAction.StatsResponse> statsResponses = Arrays.asList(
+        List<FollowStatsAction.StatsResponse> statsResponses = List.of(
             new FollowStatsAction.StatsResponse(createShardFollowTaskStatus(0, 9, 9)),
             new FollowStatsAction.StatsResponse(createShardFollowTaskStatus(1, 3, 3))
         );
@@ -96,11 +96,11 @@ public class WaitForFollowShardTasksStepTests extends AbstractStepTestCase<WaitF
     public void testConditionNotMetShardsNotInSync() {
         IndexMetadata indexMetadata = IndexMetadata.builder("follower-index")
             .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true"))
-            .putCustom(CCR_METADATA_KEY, Collections.emptyMap())
+            .putCustom(CCR_METADATA_KEY, Map.of())
             .numberOfShards(2)
             .numberOfReplicas(0)
             .build();
-        List<FollowStatsAction.StatsResponse> statsResponses = Arrays.asList(
+        List<FollowStatsAction.StatsResponse> statsResponses = List.of(
             new FollowStatsAction.StatsResponse(createShardFollowTaskStatus(0, 9, 9)),
             new FollowStatsAction.StatsResponse(createShardFollowTaskStatus(1, 8, 3))
         );
@@ -131,10 +131,10 @@ public class WaitForFollowShardTasksStepTests extends AbstractStepTestCase<WaitF
         assertThat(informationContextHolder[0], notNullValue());
         assertThat(exceptionHolder[0], nullValue());
         WaitForFollowShardTasksStep.Info info = (WaitForFollowShardTasksStep.Info) informationContextHolder[0];
-        assertThat(info.getShardFollowTaskInfos().size(), equalTo(1));
-        assertThat(info.getShardFollowTaskInfos().get(0).getShardId(), equalTo(1));
-        assertThat(info.getShardFollowTaskInfos().get(0).getLeaderGlobalCheckpoint(), equalTo(8L));
-        assertThat(info.getShardFollowTaskInfos().get(0).getFollowerGlobalCheckpoint(), equalTo(3L));
+        assertThat(info.shardFollowTaskInfos().size(), equalTo(1));
+        assertThat(info.shardFollowTaskInfos().get(0).shardId(), equalTo(1));
+        assertThat(info.shardFollowTaskInfos().get(0).leaderGlobalCheckpoint(), equalTo(8L));
+        assertThat(info.shardFollowTaskInfos().get(0).followerGlobalCheckpoint(), equalTo(3L));
     }
 
     public void testConditionNotMetNotAFollowerIndex() {
@@ -214,7 +214,7 @@ public class WaitForFollowShardTasksStepTests extends AbstractStepTestCase<WaitF
             @SuppressWarnings("unchecked")
             ActionListener<FollowStatsAction.StatsResponses> listener = (ActionListener<FollowStatsAction.StatsResponses>) invocationOnMock
                 .getArguments()[2];
-            listener.onResponse(new FollowStatsAction.StatsResponses(Collections.emptyList(), Collections.emptyList(), statsResponses));
+            listener.onResponse(new FollowStatsAction.StatsResponses(List.of(), List.of(), statsResponses));
             return null;
         }).when(client).execute(Mockito.eq(FollowStatsAction.INSTANCE), Mockito.any(), Mockito.any());
     }

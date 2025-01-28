@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.mapper;
 
@@ -15,7 +16,7 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.suggest.document.Completion99PostingsFormat;
+import org.apache.lucene.search.suggest.document.Completion912PostingsFormat;
 import org.apache.lucene.search.suggest.document.CompletionAnalyzer;
 import org.apache.lucene.search.suggest.document.ContextSuggestField;
 import org.apache.lucene.search.suggest.document.FuzzyCompletionQuery;
@@ -33,6 +34,7 @@ import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -59,6 +61,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 
+import static org.elasticsearch.index.mapper.CompletionFieldMapper.COMPLETION_CONTEXTS_LIMIT;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -150,12 +153,15 @@ public class CompletionFieldMapperTests extends MapperTestCase {
         Codec codec = codecService.codec("default");
         if (CodecService.ZSTD_STORED_FIELDS_FEATURE_FLAG.isEnabled()) {
             assertThat(codec, instanceOf(PerFieldMapperCodec.class));
-            assertThat(((PerFieldMapperCodec) codec).getPostingsFormatForField("field"), instanceOf(Completion99PostingsFormat.class));
+            assertThat(((PerFieldMapperCodec) codec).getPostingsFormatForField("field"), instanceOf(Completion912PostingsFormat.class));
         } else {
+            if (codec instanceof CodecService.DeduplicateFieldInfosCodec deduplicateFieldInfosCodec) {
+                codec = deduplicateFieldInfosCodec.delegate();
+            }
             assertThat(codec, instanceOf(LegacyPerFieldMapperCodec.class));
             assertThat(
                 ((LegacyPerFieldMapperCodec) codec).getPostingsFormatForField("field"),
-                instanceOf(Completion99PostingsFormat.class)
+                instanceOf(Completion912PostingsFormat.class)
             );
         }
     }
@@ -395,7 +401,7 @@ public class CompletionFieldMapperTests extends MapperTestCase {
         ParsedDocument parsedDocument = defaultMapper.parse(source(b -> b.field("field", "drm3btev3e86")));
 
         LuceneDocument indexableFields = parsedDocument.rootDoc();
-        assertThat(indexableFields.getFields("field"), hasSize(2));
+        assertThat(indexableFields.getFields("field"), hasSize(1));
         assertThat(indexableFields.getFields("field.analyzed"), containsInAnyOrder(suggestField("drm3btev3e86")));
         // unable to assert about geofield content, covered in a REST test
     }
@@ -753,7 +759,7 @@ public class CompletionFieldMapperTests extends MapperTestCase {
             .startObject("suggest")
             .field("type", "completion")
             .startArray("contexts");
-        for (int i = 0; i < CompletionFieldMapper.COMPLETION_CONTEXTS_LIMIT + 1; i++) {
+        for (int i = 0; i < COMPLETION_CONTEXTS_LIMIT + 1; i++) {
             mappingBuilder.startObject();
             mappingBuilder.field("name", Integer.toString(i));
             mappingBuilder.field("type", "category");
@@ -765,7 +771,7 @@ public class CompletionFieldMapperTests extends MapperTestCase {
         MapperParsingException e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
             b.field("type", "completion");
             b.startArray("contexts");
-            for (int i = 0; i < CompletionFieldMapper.COMPLETION_CONTEXTS_LIMIT + 1; i++) {
+            for (int i = 0; i < COMPLETION_CONTEXTS_LIMIT + 1; i++) {
                 b.startObject();
                 b.field("name", Integer.toString(i));
                 b.field("type", "category");
@@ -775,8 +781,29 @@ public class CompletionFieldMapperTests extends MapperTestCase {
         })));
         assertTrue(
             e.getMessage(),
-            e.getMessage()
-                .contains("Limit of completion field contexts [" + CompletionFieldMapper.COMPLETION_CONTEXTS_LIMIT + "] has been exceeded")
+            e.getMessage().contains("Limit of completion field contexts [" + COMPLETION_CONTEXTS_LIMIT + "] has been exceeded")
+        );
+
+        // test pre-8 deprecation warnings
+        createDocumentMapper(IndexVersions.V_7_0_0, fieldMapping(b -> {
+            b.field("type", "completion");
+            b.startArray("contexts");
+            for (int i = 0; i < COMPLETION_CONTEXTS_LIMIT + 1; i++) {
+                b.startObject();
+                b.field("name", Integer.toString(i));
+                b.field("type", "category");
+                b.endObject();
+            }
+            b.endArray();
+        }));
+        assertCriticalWarnings(
+            "You have defined more than ["
+                + COMPLETION_CONTEXTS_LIMIT
+                + "] completion contexts"
+                + " in the mapping for field [field]. The maximum allowed number of completion contexts in a mapping will be limited to "
+                + "["
+                + COMPLETION_CONTEXTS_LIMIT
+                + "] starting in version [8.0]."
         );
     }
 

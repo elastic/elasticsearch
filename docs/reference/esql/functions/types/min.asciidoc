@@ -6,8 +6,13 @@
 |===
 field | result
 boolean | boolean
-datetime | datetime
+date | date
+date_nanos | date_nanos
 double | double
 integer | integer
+ip | ip
+keyword | keyword
 long | long
+text | keyword
+version | version
 |===

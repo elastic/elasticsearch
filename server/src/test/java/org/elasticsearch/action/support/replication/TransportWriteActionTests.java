@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.support.replication;
@@ -13,6 +14,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.support.WriteResponse;
 import org.elasticsearch.action.support.replication.ReplicationOperation.ReplicaResponse;
@@ -253,20 +255,15 @@ public class TransportWriteActionTests extends ESTestCase {
     }
 
     public void testDocumentFailureInShardOperationOnPrimary() {
-        assertEquals(
-            "simulated",
-            expectThrows(
-                RuntimeException.class,
-                () -> PlainActionFuture.get(
-                    (PlainActionFuture<TransportReplicationAction.PrimaryResult<TestRequest, TestResponse>> future) -> new TestAction(
-                        true,
-                        randomBoolean()
-                    ).dispatchedShardOperationOnPrimary(new TestRequest(), indexShard, future),
-                    0,
-                    TimeUnit.SECONDS
-                )
-            ).getMessage()
+        final var listener = SubscribableListener.<Exception>newForked(
+            l -> new TestAction(true, randomBoolean()).dispatchedShardOperationOnPrimary(
+                new TestRequest(),
+                indexShard,
+                ActionTestUtils.assertNoSuccessListener(l::onResponse)
+            )
         );
+        assertTrue(listener.isDone());
+        assertEquals("simulated", asInstanceOf(RuntimeException.class, safeAwait(listener)).getMessage());
     }
 
     public void testDocumentFailureInShardOperationOnReplica() throws Exception {
@@ -430,9 +427,10 @@ public class TransportWriteActionTests extends ESTestCase {
                 TestRequest::new,
                 TestRequest::new,
                 (service, ignore) -> EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                false,
+                PrimaryActionExecution.RejectOnOverload,
                 new IndexingPressure(Settings.EMPTY),
-                EmptySystemIndices.INSTANCE
+                EmptySystemIndices.INSTANCE,
+                ReplicaActionExecution.SubjectToCircuitBreaker
             );
             this.withDocumentFailureOnPrimary = withDocumentFailureOnPrimary;
             this.withDocumentFailureOnReplica = withDocumentFailureOnReplica;
@@ -458,9 +456,10 @@ public class TransportWriteActionTests extends ESTestCase {
                 TestRequest::new,
                 TestRequest::new,
                 (service, ignore) -> EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                false,
+                PrimaryActionExecution.RejectOnOverload,
                 new IndexingPressure(settings),
-                EmptySystemIndices.INSTANCE
+                EmptySystemIndices.INSTANCE,
+                ReplicaActionExecution.SubjectToCircuitBreaker
             );
             this.withDocumentFailureOnPrimary = false;
             this.withDocumentFailureOnReplica = false;

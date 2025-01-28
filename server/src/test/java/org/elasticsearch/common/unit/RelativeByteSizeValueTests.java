@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.unit;
@@ -20,7 +21,7 @@ import static org.hamcrest.Matchers.is;
 public class RelativeByteSizeValueTests extends ESTestCase {
 
     public void testDeserialization() throws IOException {
-        final var origin1 = new RelativeByteSizeValue(new ByteSizeValue(between(0, 2048), randomFrom(ByteSizeUnit.values())));
+        final var origin1 = new RelativeByteSizeValue(ByteSizeValue.of(between(0, 2048), randomFrom(ByteSizeUnit.values())));
         final var origin2 = new RelativeByteSizeValue(new RatioValue(randomDoubleBetween(0.0, 100.0, true)));
         final RelativeByteSizeValue target1, target2;
 
@@ -38,7 +39,7 @@ public class RelativeByteSizeValueTests extends ESTestCase {
         assertNull(origin1.getRatio());
         assertNull(target1.getRatio());
         assertEquals(origin1.getAbsolute(), target1.getAbsolute());
-        assertEquals(origin1.getAbsolute().getUnit(), target1.getAbsolute().getUnit());
+        assertEquals(origin1.getAbsolute().getDesiredUnit(), target1.getAbsolute().getDesiredUnit());
 
         assertFalse(origin2.isAbsolute());
         assertFalse(target2.isAbsolute());
@@ -62,7 +63,7 @@ public class RelativeByteSizeValueTests extends ESTestCase {
     }
 
     public void testAbsolute() {
-        ByteSizeValue value = new ByteSizeValue(between(0, 100), randomFrom(ByteSizeUnit.values()));
+        ByteSizeValue value = ByteSizeValue.of(between(0, 100), randomFrom(ByteSizeUnit.values()));
         RelativeByteSizeValue parsed = RelativeByteSizeValue.parseRelativeByteSizeValue(value.getStringRep(), "test");
         assertThat(parsed.getAbsolute(), equalTo(value));
         assertThat(parsed.isAbsolute(), is(true));

@@ -124,7 +124,7 @@ public class CohereServiceSettings extends FilteredXContentObject implements Ser
         maxInputTokens = in.readOptionalVInt();
         modelId = in.readOptionalString();
 
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_RATE_LIMIT_SETTINGS_ADDED)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
             rateLimitSettings = new RateLimitSettings(in);
         } else {
             rateLimitSettings = DEFAULT_RATE_LIMIT_SETTINGS;
@@ -159,6 +159,7 @@ public class CohereServiceSettings extends FilteredXContentObject implements Ser
         return maxInputTokens;
     }
 
+    @Override
     public String modelId() {
         return modelId;
     }
@@ -218,7 +219,7 @@ public class CohereServiceSettings extends FilteredXContentObject implements Ser
         out.writeOptionalVInt(maxInputTokens);
         out.writeOptionalString(modelId);
 
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_RATE_LIMIT_SETTINGS_ADDED)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
             rateLimitSettings.writeTo(out);
         }
     }

@@ -15,6 +15,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.compute.test.RandomBlock;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 
@@ -118,7 +119,7 @@ public class BlockBuilderTests extends ESTestCase {
 
     private void testBuild(int size, boolean nullable, int maxValueCount) {
         try (Block.Builder builder = elementType.newBlockBuilder(randomBoolean() ? size : 1, blockFactory)) {
-            BasicBlockTests.RandomBlock random = BasicBlockTests.randomBlock(elementType, size, nullable, 1, maxValueCount, 0, 0);
+            RandomBlock random = RandomBlock.randomBlock(elementType, size, nullable, 1, maxValueCount, 0, 0);
             builder.copyFrom(random.block(), 0, random.block().getPositionCount());
             assertThat(
                 builder.estimatedBytes(),
@@ -135,7 +136,7 @@ public class BlockBuilderTests extends ESTestCase {
 
     public void testDoubleBuild() {
         try (Block.Builder builder = elementType.newBlockBuilder(10, blockFactory)) {
-            BasicBlockTests.RandomBlock random = BasicBlockTests.randomBlock(elementType, 10, false, 1, 1, 0, 0);
+            RandomBlock random = RandomBlock.randomBlock(elementType, 10, false, 1, 1, 0, 0);
             builder.copyFrom(random.block(), 0, random.block().getPositionCount());
             try (Block built = builder.build()) {
                 assertThat(built, equalTo(random.block()));
@@ -154,7 +155,7 @@ public class BlockBuilderTests extends ESTestCase {
         for (int i = 0; i < 100; i++) {
             try {
                 try (Block.Builder builder = elementType.newBlockBuilder(10, blockFactory)) {
-                    BasicBlockTests.RandomBlock random = BasicBlockTests.randomBlock(elementType, 10, false, 1, 1, 0, 0);
+                    RandomBlock random = RandomBlock.randomBlock(elementType, 10, false, 1, 1, 0, 0);
                     builder.copyFrom(random.block(), 0, random.block().getPositionCount());
                     try (Block built = builder.build()) {
                         assertThat(built, equalTo(random.block()));
@@ -175,7 +176,7 @@ public class BlockBuilderTests extends ESTestCase {
         for (int i = 0; i < 100; i++) {
             try {
                 try (Block.Builder builder = elementType.newBlockBuilder(randomInt(10), blockFactory)) {
-                    BasicBlockTests.RandomBlock random = BasicBlockTests.randomBlock(elementType, 1, false, 1, 1, 0, 0);
+                    RandomBlock random = RandomBlock.randomBlock(elementType, 1, false, 1, 1, 0, 0);
                     builder.copyFrom(random.block(), 0, random.block().getPositionCount());
                     try (Block built = builder.build()) {
                         assertThat(built.asVector().isConstant(), is(true));

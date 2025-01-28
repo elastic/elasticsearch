@@ -4,6 +4,12 @@
 <titleabbrev>Verify snapshot repository</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-snapshot[Snapshot and restore APIs].
+--
+
 Checks for common misconfigurations in a snapshot repository. See
 <<snapshots-repository-verification>>.
 

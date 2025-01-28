@@ -1,6 +1,0 @@
-pr: 110233
-summary: Support k parameter for knn query
-area: Vector Search
-type: enhancement
-issues:
- - 108473

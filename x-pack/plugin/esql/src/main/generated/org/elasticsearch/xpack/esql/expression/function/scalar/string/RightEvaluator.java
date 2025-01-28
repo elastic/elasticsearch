@@ -18,16 +18,16 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.expression.function.Warnings;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Right}.
  * This class is generated. Do not edit it.
  */
 public final class RightEvaluator implements EvalOperator.ExpressionEvaluator {
-  private final Warnings warnings;
+  private final Source source;
 
   private final BytesRef out;
 
@@ -39,15 +39,17 @@ public final class RightEvaluator implements EvalOperator.ExpressionEvaluator {
 
   private final DriverContext driverContext;
 
+  private Warnings warnings;
+
   public RightEvaluator(Source source, BytesRef out, UnicodeUtil.UTF8CodePoint cp,
       EvalOperator.ExpressionEvaluator str, EvalOperator.ExpressionEvaluator length,
       DriverContext driverContext) {
+    this.source = source;
     this.out = out;
     this.cp = cp;
     this.str = str;
     this.length = length;
     this.driverContext = driverContext;
-    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override
@@ -77,7 +79,7 @@ public final class RightEvaluator implements EvalOperator.ExpressionEvaluator {
         }
         if (strBlock.getValueCount(p) != 1) {
           if (strBlock.getValueCount(p) > 1) {
-            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
           }
           result.appendNull();
           continue position;
@@ -88,12 +90,12 @@ public final class RightEvaluator implements EvalOperator.ExpressionEvaluator {
         }
         if (lengthBlock.getValueCount(p) != 1) {
           if (lengthBlock.getValueCount(p) > 1) {
-            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
           }
           result.appendNull();
           continue position;
         }
-        result.appendBytesRef(Right.process(out, cp, strBlock.getBytesRef(strBlock.getFirstValueIndex(p), strScratch), lengthBlock.getInt(lengthBlock.getFirstValueIndex(p))));
+        result.appendBytesRef(Right.process(this.out, this.cp, strBlock.getBytesRef(strBlock.getFirstValueIndex(p), strScratch), lengthBlock.getInt(lengthBlock.getFirstValueIndex(p))));
       }
       return result.build();
     }
@@ -103,7 +105,7 @@ public final class RightEvaluator implements EvalOperator.ExpressionEvaluator {
     try(BytesRefVector.Builder result = driverContext.blockFactory().newBytesRefVectorBuilder(positionCount)) {
       BytesRef strScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendBytesRef(Right.process(out, cp, strVector.getBytesRef(p, strScratch), lengthVector.getInt(p)));
+        result.appendBytesRef(Right.process(this.out, this.cp, strVector.getBytesRef(p, strScratch), lengthVector.getInt(p)));
       }
       return result.build();
     }
@@ -117,6 +119,18 @@ public final class RightEvaluator implements EvalOperator.ExpressionEvaluator {
   @Override
   public void close() {
     Releasables.closeExpectNoException(str, length);
+  }
+
+  private Warnings warnings() {
+    if (warnings == null) {
+      this.warnings = Warnings.createWarnings(
+              driverContext.warningsMode(),
+              source.source().getLineNumber(),
+              source.source().getColumnNumber(),
+              source.text()
+          );
+    }
+    return warnings;
   }
 
   static class Factory implements EvalOperator.ExpressionEvaluator.Factory {

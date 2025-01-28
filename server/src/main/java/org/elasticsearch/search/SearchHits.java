@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search;
@@ -284,19 +285,18 @@ public final class SearchHits implements Writeable, ChunkedToXContent, RefCounte
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
         assert hasReferences();
-        return Iterators.concat(Iterators.single((b, p) -> b.startObject(Fields.HITS)), Iterators.single((b, p) -> {
+        return Iterators.concat(Iterators.single((b, p) -> {
+            b.startObject(Fields.HITS);
             boolean totalHitAsInt = params.paramAsBoolean(RestSearchAction.TOTAL_HITS_AS_INT_PARAM, false);
             if (totalHitAsInt) {
-                long total = totalHits == null ? -1 : totalHits.value;
+                long total = totalHits == null ? -1 : totalHits.value();
                 b.field(Fields.TOTAL, total);
             } else if (totalHits != null) {
                 b.startObject(Fields.TOTAL);
-                b.field("value", totalHits.value);
-                b.field("relation", totalHits.relation == Relation.EQUAL_TO ? "eq" : "gte");
+                b.field("value", totalHits.value());
+                b.field("relation", totalHits.relation() == Relation.EQUAL_TO ? "eq" : "gte");
                 b.endObject();
             }
-            return b;
-        }), Iterators.single((b, p) -> {
             if (Float.isNaN(maxScore)) {
                 b.nullField(Fields.MAX_SCORE);
             } else {

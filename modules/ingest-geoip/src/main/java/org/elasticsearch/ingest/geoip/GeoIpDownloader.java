@@ -1,16 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest.geoip;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
@@ -24,6 +24,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
@@ -137,11 +138,18 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
         if (geoipIndex != null) {
             logger.trace("The {} index is not null", GeoIpDownloader.DATABASES_INDEX);
             if (clusterState.getRoutingTable().index(geoipIndex.getWriteIndex()).allPrimaryShardsActive() == false) {
-                throw new ElasticsearchException("not all primary shards of [" + DATABASES_INDEX + "] index are active");
+                logger.debug(
+                    "Not updating geoip database because not all primary shards of the [" + DATABASES_INDEX + "] index are active."
+                );
+                return;
             }
             var blockException = clusterState.blocks().indexBlockedException(ClusterBlockLevel.WRITE, geoipIndex.getWriteIndex().getName());
             if (blockException != null) {
-                throw blockException;
+                logger.debug(
+                    "Not updating geoip database because there is a write block on the " + geoipIndex.getWriteIndex().getName() + " index",
+                    blockException
+                );
+                return;
             }
         }
         if (eagerDownloadSupplier.get() || atLeastOneGeoipProcessorSupplier.get()) {
@@ -318,14 +326,15 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
     }
 
     private void cleanDatabases() {
-        List<Map.Entry<String, Metadata>> expiredDatabases = state.getDatabases()
+        List<Tuple<String, Metadata>> expiredDatabases = state.getDatabases()
             .entrySet()
             .stream()
-            .filter(e -> e.getValue().isValid(clusterService.state().metadata().settings()) == false)
+            .filter(e -> e.getValue().isNewEnough(clusterService.state().metadata().settings()) == false)
+            .map(entry -> Tuple.tuple(entry.getKey(), entry.getValue()))
             .toList();
         expiredDatabases.forEach(e -> {
-            String name = e.getKey();
-            Metadata meta = e.getValue();
+            String name = e.v1();
+            Metadata meta = e.v2();
             deleteOldChunks(name, meta.lastChunk() + 1);
             state = state.put(name, new Metadata(meta.lastUpdate(), meta.firstChunk(), meta.lastChunk(), meta.md5(), meta.lastCheck() - 1));
             updateTaskState();

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest;
@@ -12,6 +13,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
@@ -54,6 +56,9 @@ public final class IngestDocument {
     // This is the maximum number of nested pipelines that can be within a pipeline. If there are more, we bail out with an error
     public static final int MAX_PIPELINES = Integer.parseInt(System.getProperty("es.ingest.max_pipelines", "100"));
 
+    // a 'not found' sentinel value for use in getOrDefault calls in order to avoid containsKey-and-then-get
+    private static final Object NOT_FOUND = new Object();
+
     private final IngestCtxMap ctxMap;
     private final Map<String, Object> ingestMetadata;
 
@@ -81,6 +86,7 @@ public final class IngestDocument {
 
     private boolean doNoSelfReferencesCheck = false;
     private boolean reroute = false;
+    private boolean terminate = false;
 
     public IngestDocument(String index, String id, long version, String routing, VersionType versionType, Map<String, Object> source) {
         this.ctxMap = new IngestCtxMap(index, id, version, routing, versionType, ZonedDateTime.now(ZoneOffset.UTC), source);
@@ -373,11 +379,15 @@ public final class IngestDocument {
         if (context == null) {
             return ResolveResult.error("cannot resolve [" + pathElement + "] from null as part of path [" + fullPath + "]");
         }
-        if (context instanceof Map<?, ?> map) {
-            if (map.containsKey(pathElement)) {
-                return ResolveResult.success(map.get(pathElement));
+        if (context instanceof Map<?, ?>) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> map = (Map<String, Object>) context;
+            Object object = map.getOrDefault(pathElement, NOT_FOUND); // getOrDefault is faster than containsKey + get
+            if (object == NOT_FOUND) {
+                return ResolveResult.error("field [" + pathElement + "] not present as part of path [" + fullPath + "]");
+            } else {
+                return ResolveResult.success(object);
             }
-            return ResolveResult.error("field [" + pathElement + "] not present as part of path [" + fullPath + "]");
         }
         if (context instanceof List<?> list) {
             int index;
@@ -544,12 +554,13 @@ public final class IngestDocument {
             if (context instanceof Map) {
                 @SuppressWarnings("unchecked")
                 Map<String, Object> map = (Map<String, Object>) context;
-                if (map.containsKey(pathElement)) {
-                    context = map.get(pathElement);
-                } else {
-                    HashMap<Object, Object> newMap = new HashMap<>();
+                Object object = map.getOrDefault(pathElement, NOT_FOUND); // getOrDefault is faster than containsKey + get
+                if (object == NOT_FOUND) {
+                    Map<Object, Object> newMap = new HashMap<>();
                     map.put(pathElement, newMap);
                     context = newMap;
+                } else {
+                    context = object;
                 }
             } else if (context instanceof List<?> list) {
                 int index;
@@ -588,16 +599,16 @@ public final class IngestDocument {
             @SuppressWarnings("unchecked")
             Map<String, Object> map = (Map<String, Object>) context;
             if (append) {
-                if (map.containsKey(leafKey)) {
-                    Object object = map.get(leafKey);
+                Object object = map.getOrDefault(leafKey, NOT_FOUND); // getOrDefault is faster than containsKey + get
+                if (object == NOT_FOUND) {
+                    List<Object> list = new ArrayList<>();
+                    appendValues(list, value);
+                    map.put(leafKey, list);
+                } else {
                     Object list = appendValues(object, value, allowDuplicates);
                     if (list != object) {
                         map.put(leafKey, list);
                     }
-                } else {
-                    List<Object> list = new ArrayList<>();
-                    appendValues(list, value);
-                    map.put(leafKey, list);
                 }
                 return;
             }
@@ -934,6 +945,29 @@ public final class IngestDocument {
         reroute = false;
     }
 
+    /**
+     * Sets the terminate flag to true, to indicate that no further processors in the current pipeline should be run for this document.
+     */
+    public void terminate() {
+        terminate = true;
+    }
+
+    /**
+     * Returns whether the {@link #terminate()} flag was set.
+     */
+    boolean isTerminate() {
+        return terminate;
+    }
+
+    /**
+     * Resets the {@link #terminate()} flag.
+     */
+    void resetTerminate() {
+        terminate = false;
+    }
+
+    // Unconditionally deprecate the _type field once V7 BWC support is removed
+    @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
     public enum Metadata {
         INDEX(IndexFieldMapper.NAME),
         TYPE("_type"),

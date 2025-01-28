@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.blocks;
@@ -15,14 +16,21 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskListener;
+import org.elasticsearch.cluster.SimpleBatchedExecutor;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata.APIBlock;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.test.BackgroundIndexer;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -265,6 +273,74 @@ public class SimpleBlocksIT extends ESIntegTestCase {
         assertHitCount(prepareSearch(indexName).setSize(0), nbDocs);
     }
 
+    public void testReAddUnverifiedIndexBlock() {
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(indexName);
+        ensureGreen(indexName);
+
+        final int nbDocs = randomIntBetween(0, 50);
+        indexRandom(
+            randomBoolean(),
+            false,
+            randomBoolean(),
+            IntStream.range(0, nbDocs).mapToObj(i -> prepareIndex(indexName).setId(String.valueOf(i)).setSource("num", i)).collect(toList())
+        );
+
+        final APIBlock block = APIBlock.WRITE;
+        try {
+            AddIndexBlockResponse response = indicesAdmin().prepareAddBlock(block, indexName).get();
+            assertTrue("Add block [" + block + "] to index [" + indexName + "] not acknowledged: " + response, response.isAcknowledged());
+            assertIndexHasBlock(block, indexName);
+
+            removeVerified(indexName);
+
+            AddIndexBlockResponse response2 = indicesAdmin().prepareAddBlock(block, indexName).get();
+            assertTrue("Add block [" + block + "] to index [" + indexName + "] not acknowledged: " + response, response2.isAcknowledged());
+            assertIndexHasBlock(block, indexName);
+        } finally {
+            disableIndexBlock(indexName, block);
+        }
+
+    }
+
+    private static void removeVerified(String indexName) {
+        PlainActionFuture<Void> listener = new PlainActionFuture<>();
+        internalCluster().clusterService(internalCluster().getMasterName())
+            .createTaskQueue("test", Priority.NORMAL, new SimpleBatchedExecutor<>() {
+                @Override
+                public Tuple<ClusterState, Object> executeTask(
+                    ClusterStateTaskListener clusterStateTaskListener,
+                    ClusterState clusterState
+                ) {
+
+                    IndexMetadata indexMetadata = clusterState.metadata().index(indexName);
+                    Settings.Builder settingsBuilder = Settings.builder().put(indexMetadata.getSettings());
+                    settingsBuilder.remove(MetadataIndexStateService.VERIFIED_READ_ONLY_SETTING.getKey());
+                    return Tuple.tuple(
+                        ClusterState.builder(clusterState)
+                            .metadata(
+                                Metadata.builder(clusterState.metadata())
+                                    .put(
+                                        IndexMetadata.builder(indexMetadata)
+                                            .settings(settingsBuilder)
+                                            .settingsVersion(indexMetadata.getSettingsVersion() + 1)
+                                    )
+                            )
+                            .build(),
+                        null
+                    );
+                }
+
+                @Override
+                public void taskSucceeded(ClusterStateTaskListener clusterStateTaskListener, Object ignored) {
+                    listener.onResponse(null);
+                }
+            })
+            .submitTask("test", e -> fail(e), null);
+
+        listener.actionGet();
+    }
+
     public void testSameBlockTwice() throws Exception {
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(indexName);
@@ -298,7 +374,7 @@ public class SimpleBlocksIT extends ESIntegTestCase {
                 .setSettings(Settings.builder().put("index.routing.allocation.include._name", "nothing").build())
         );
 
-        final ClusterState clusterState = clusterAdmin().prepareState().get().getState();
+        final ClusterState clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         assertThat(clusterState.metadata().indices().get(indexName).getState(), is(IndexMetadata.State.OPEN));
         assertThat(clusterState.routingTable().allShards().allMatch(ShardRouting::unassigned), is(true));
 
@@ -393,7 +469,7 @@ public class SimpleBlocksIT extends ESIntegTestCase {
             }
             indices[i] = indexName;
         }
-        assertThat(clusterAdmin().prepareState().get().getState().metadata().indices().size(), equalTo(indices.length));
+        assertThat(clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().metadata().indices().size(), equalTo(indices.length));
 
         final List<Thread> threads = new ArrayList<>();
         final CountDownLatch latch = new CountDownLatch(1);
@@ -434,7 +510,7 @@ public class SimpleBlocksIT extends ESIntegTestCase {
     }
 
     static void assertIndexHasBlock(APIBlock block, final String... indices) {
-        final ClusterState clusterState = clusterAdmin().prepareState().get().getState();
+        final ClusterState clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         for (String index : indices) {
             final IndexMetadata indexMetadata = clusterState.metadata().indices().get(index);
             final Settings indexSettings = indexMetadata.getSettings();
@@ -451,6 +527,9 @@ public class SimpleBlocksIT extends ESIntegTestCase {
                     .count(),
                 equalTo(1L)
             );
+            if (block.getBlock().contains(ClusterBlockLevel.WRITE)) {
+                assertThat(MetadataIndexStateService.VERIFIED_READ_ONLY_SETTING.get(indexSettings), is(true));
+            }
         }
     }
 

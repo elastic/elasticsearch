@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.metrics;
@@ -142,9 +143,8 @@ public abstract class AbstractGeoTestCase extends ESIntegTestCase {
         }
         singleCentroid = computeCentroid(allSingleVal);
         multiCentroid = computeCentroid(allMultiVal);
-        assertAcked(prepareCreate(EMPTY_IDX_NAME).setMapping(SINGLE_VALUED_FIELD_NAME, "type=" + fieldTypeName()));
-
         assertAcked(
+            prepareCreate(EMPTY_IDX_NAME).setMapping(SINGLE_VALUED_FIELD_NAME, "type=" + fieldTypeName()),
             prepareCreate(DATELINE_IDX_NAME).setMapping(
                 SINGLE_VALUED_FIELD_NAME,
                 "type=" + fieldTypeName(),
@@ -231,7 +231,7 @@ public abstract class AbstractGeoTestCase extends ESIntegTestCase {
                 .setSize(5000),
             response -> {
                 assertNoFailures(response);
-                long totalHits = response.getHits().getTotalHits().value;
+                long totalHits = response.getHits().getTotalHits().value();
                 XContentBuilder builder = XContentFactory.jsonBuilder();
                 ChunkedToXContent.wrapAsToXContent(response).toXContent(builder, ToXContent.EMPTY_PARAMS);
                 logger.info("Full high_card_idx Response Content:\n{ {} }", Strings.toString(builder));

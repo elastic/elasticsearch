@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.datastreams.action;
 
@@ -12,6 +13,7 @@ import org.elasticsearch.action.datastreams.GetDataStreamAction.Response.Managed
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
+import org.elasticsearch.cluster.metadata.DataStreamOptions;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -20,6 +22,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -81,7 +84,7 @@ public class GetDataStreamsResponseTests extends AbstractWireSerializingTestCase
                 .setAllowCustomRouting(true)
                 .setIndexMode(IndexMode.STANDARD)
                 .setLifecycle(new DataStreamLifecycle())
-                .setFailureStoreEnabled(true)
+                .setDataStreamOptions(DataStreamOptions.FAILURE_STORE_ENABLED)
                 .setFailureIndices(DataStream.DataStreamIndices.failureIndicesBuilder(failureStores).build())
                 .build();
 
@@ -99,12 +102,14 @@ public class GetDataStreamsResponseTests extends AbstractWireSerializingTestCase
 
             Response.DataStreamInfo dataStreamInfo = new Response.DataStreamInfo(
                 logs,
+                true,
                 ClusterHealthStatus.GREEN,
                 "index-template",
                 null,
                 null,
                 indexSettingsValues,
-                false
+                false,
+                null
             );
             Response response = new Response(List.of(dataStreamInfo));
             XContentBuilder contentBuilder = XContentFactory.jsonBuilder();
@@ -183,7 +188,7 @@ public class GetDataStreamsResponseTests extends AbstractWireSerializingTestCase
                 .setAllowCustomRouting(true)
                 .setIndexMode(IndexMode.STANDARD)
                 .setLifecycle(new DataStreamLifecycle(null, null, false))
-                .setFailureStoreEnabled(true)
+                .setDataStreamOptions(DataStreamOptions.FAILURE_STORE_ENABLED)
                 .setFailureIndices(DataStream.DataStreamIndices.failureIndicesBuilder(failureStores).build())
                 .build();
 
@@ -201,12 +206,14 @@ public class GetDataStreamsResponseTests extends AbstractWireSerializingTestCase
 
             Response.DataStreamInfo dataStreamInfo = new Response.DataStreamInfo(
                 logs,
+                true,
                 ClusterHealthStatus.GREEN,
                 "index-template",
                 null,
                 null,
                 indexSettingsValues,
-                false
+                false,
+                null
             );
             Response response = new Response(List.of(dataStreamInfo));
             XContentBuilder contentBuilder = XContentFactory.jsonBuilder();
@@ -277,13 +284,15 @@ public class GetDataStreamsResponseTests extends AbstractWireSerializingTestCase
 
     private Response.DataStreamInfo mutateInstance(Response.DataStreamInfo instance) {
         var dataStream = instance.getDataStream();
+        var failureStoreEffectivelyEnabled = instance.isFailureStoreEffectivelyEnabled();
         var status = instance.getDataStreamStatus();
         var indexTemplate = instance.getIndexTemplate();
         var ilmPolicyName = instance.getIlmPolicy();
         var timeSeries = instance.getTimeSeries();
         var indexSettings = instance.getIndexSettingsValues();
         var templatePreferIlm = instance.templatePreferIlmValue();
-        switch (randomIntBetween(0, 6)) {
+        var maximumTimestamp = instance.getMaximumTimestamp();
+        switch (randomIntBetween(0, 8)) {
             case 0 -> dataStream = randomValueOtherThan(dataStream, DataStreamTestHelper::randomInstance);
             case 1 -> status = randomValueOtherThan(status, () -> randomFrom(ClusterHealthStatus.values()));
             case 2 -> indexTemplate = randomBoolean() && indexTemplate != null ? null : randomAlphaOfLengthBetween(2, 10);
@@ -305,8 +314,22 @@ public class GetDataStreamsResponseTests extends AbstractWireSerializingTestCase
                     )
             );
             case 6 -> templatePreferIlm = templatePreferIlm ? false : true;
+            case 7 -> maximumTimestamp = (maximumTimestamp == null)
+                ? randomNonNegativeLong()
+                : (usually() ? randomValueOtherThan(maximumTimestamp, ESTestCase::randomNonNegativeLong) : null);
+            case 8 -> failureStoreEffectivelyEnabled = failureStoreEffectivelyEnabled ? false : true;
         }
-        return new Response.DataStreamInfo(dataStream, status, indexTemplate, ilmPolicyName, timeSeries, indexSettings, templatePreferIlm);
+        return new Response.DataStreamInfo(
+            dataStream,
+            failureStoreEffectivelyEnabled,
+            status,
+            indexTemplate,
+            ilmPolicyName,
+            timeSeries,
+            indexSettings,
+            templatePreferIlm,
+            maximumTimestamp
+        );
     }
 
     private List<Tuple<Instant, Instant>> generateRandomTimeSeries() {
@@ -337,12 +360,14 @@ public class GetDataStreamsResponseTests extends AbstractWireSerializingTestCase
         List<Tuple<Instant, Instant>> timeSeries = randomBoolean() ? generateRandomTimeSeries() : null;
         return new Response.DataStreamInfo(
             DataStreamTestHelper.randomInstance(),
+            randomBoolean(),
             ClusterHealthStatus.GREEN,
             randomAlphaOfLengthBetween(2, 10),
             randomAlphaOfLengthBetween(2, 10),
             timeSeries != null ? new Response.TimeSeries(timeSeries) : null,
             generateRandomIndexSettingsValues(),
-            randomBoolean()
+            randomBoolean(),
+            usually() ? randomNonNegativeLong() : null
         );
     }
 }

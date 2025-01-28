@@ -1,18 +1,21 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.LeafReader;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.search.lookup.Source;
+import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
@@ -70,7 +73,15 @@ public interface SourceLoader {
     /**
      * Load {@code _source} from a stored field.
      */
-    SourceLoader FROM_STORED_SOURCE = new SourceLoader() {
+    SourceLoader FROM_STORED_SOURCE = new Stored(null);
+
+    class Stored implements SourceLoader {
+        final SourceFilter filter;
+
+        public Stored(@Nullable SourceFilter filter) {
+            this.filter = filter;
+        }
+
         @Override
         public boolean reordersFieldValues() {
             return false;
@@ -81,7 +92,8 @@ public interface SourceLoader {
             return new Leaf() {
                 @Override
                 public Source source(LeafStoredFieldLoader storedFields, int docId) throws IOException {
-                    return Source.fromBytes(storedFields.source());
+                    var res = Source.fromBytes(storedFields.source());
+                    return filter == null ? res : res.filter(filter);
                 }
 
                 @Override
@@ -96,29 +108,31 @@ public interface SourceLoader {
         public Set<String> requiredStoredFields() {
             return Set.of();
         }
-    };
+    }
 
     /**
      * Reconstructs {@code _source} from doc values anf stored fields.
      */
     class Synthetic implements SourceLoader {
+        private final SourceFilter filter;
         private final Supplier<SyntheticFieldLoader> syntheticFieldLoaderLeafSupplier;
         private final Set<String> requiredStoredFields;
         private final SourceFieldMetrics metrics;
 
         /**
          * Creates a {@link SourceLoader} to reconstruct {@code _source} from doc values anf stored fields.
+         * @param filter An optional filter to include/exclude fields.
          * @param fieldLoaderSupplier A supplier to create {@link SyntheticFieldLoader}, one for each leaf.
          * @param metrics Metrics for profiling.
          */
-        public Synthetic(Supplier<SyntheticFieldLoader> fieldLoaderSupplier, SourceFieldMetrics metrics) {
+        public Synthetic(@Nullable SourceFilter filter, Supplier<SyntheticFieldLoader> fieldLoaderSupplier, SourceFieldMetrics metrics) {
             this.syntheticFieldLoaderLeafSupplier = fieldLoaderSupplier;
             this.requiredStoredFields = syntheticFieldLoaderLeafSupplier.get()
                 .storedFieldLoaders()
                 .map(Map.Entry::getKey)
                 .collect(Collectors.toSet());
-            this.requiredStoredFields.add(IgnoredSourceFieldMapper.NAME);
             this.metrics = metrics;
+            this.filter = filter;
         }
 
         @Override
@@ -134,7 +148,7 @@ public interface SourceLoader {
         @Override
         public Leaf leaf(LeafReader reader, int[] docIdsInLeaf) throws IOException {
             SyntheticFieldLoader loader = syntheticFieldLoaderLeafSupplier.get();
-            return new LeafWithMetrics(new SyntheticLeaf(loader, loader.docValuesLoader(reader, docIdsInLeaf)), metrics);
+            return new LeafWithMetrics(new SyntheticLeaf(filter, loader, loader.docValuesLoader(reader, docIdsInLeaf)), metrics);
         }
 
         private record LeafWithMetrics(Leaf leaf, SourceFieldMetrics metrics) implements Leaf {
@@ -163,11 +177,13 @@ public interface SourceLoader {
         }
 
         private static class SyntheticLeaf implements Leaf {
+            private final SourceFilter filter;
             private final SyntheticFieldLoader loader;
             private final SyntheticFieldLoader.DocValuesLoader docValuesLoader;
             private final Map<String, SyntheticFieldLoader.StoredFieldLoader> storedFieldLoaders;
 
-            private SyntheticLeaf(SyntheticFieldLoader loader, SyntheticFieldLoader.DocValuesLoader docValuesLoader) {
+            private SyntheticLeaf(SourceFilter filter, SyntheticFieldLoader loader, SyntheticFieldLoader.DocValuesLoader docValuesLoader) {
+                this.filter = filter;
                 this.loader = loader;
                 this.docValuesLoader = docValuesLoader;
                 this.storedFieldLoaders = Map.copyOf(
@@ -199,6 +215,11 @@ public interface SourceLoader {
                                 objectsWithIgnoredFields = new HashMap<>();
                             }
                             IgnoredSourceFieldMapper.NameValue nameValue = IgnoredSourceFieldMapper.decode(value);
+                            if (filter != null
+                                && filter.isPathFiltered(nameValue.name(), XContentDataHelper.isEncodedObject(nameValue.value()))) {
+                                // This path is filtered by the include/exclude rules
+                                continue;
+                            }
                             objectsWithIgnoredFields.computeIfAbsent(nameValue.getParentFieldName(), k -> new ArrayList<>()).add(nameValue);
                         }
                     }
@@ -209,6 +230,9 @@ public interface SourceLoader {
                 if (docValuesLoader != null) {
                     docValuesLoader.advanceToDoc(docId);
                 }
+
+                loader.prepare();
+
                 // TODO accept a requested xcontent type
                 if (loader.hasValue()) {
                     loader.write(b);
@@ -274,6 +298,11 @@ public interface SourceLoader {
             public void write(XContentBuilder b) {}
 
             @Override
+            public void reset() {
+
+            }
+
+            @Override
             public String fieldName() {
                 return "";
             }
@@ -293,6 +322,16 @@ public interface SourceLoader {
          * @param docIdsInLeaf can be null.
          */
         DocValuesLoader docValuesLoader(LeafReader leafReader, int[] docIdsInLeaf) throws IOException;
+
+        /**
+         Perform any preprocessing needed before producing synthetic source
+         and deduce whether this mapper (and its children, if any) have values to write.
+         The expectation is for this method to be called before {@link SyntheticFieldLoader#hasValue()}
+         and {@link SyntheticFieldLoader#write(XContentBuilder)} are used.
+         */
+        default void prepare() {
+            // Noop
+        }
 
         /**
          * Has this field loaded any values for this document?
@@ -319,9 +358,20 @@ public interface SourceLoader {
         String fieldName();
 
         /**
+         * Resets the loader to remove any stored data and prepare it for processing new document.
+         * This is an alternative code path to {@link  SyntheticFieldLoader#write} that is executed
+         * when values are loaded but not written.
+         * Loaders are expected to also reset their state after writing currently present data.
+         */
+        void reset();
+
+        /**
          * Sync for stored field values.
          */
         interface StoredFieldLoader {
+            /**
+             * Loads values read from a corresponding stored field into this loader.
+             */
             void load(List<Object> values);
         }
 
@@ -338,4 +388,19 @@ public interface SourceLoader {
         }
     }
 
+    /**
+     * Synthetic field loader that uses only doc values to load synthetic source values.
+     */
+    abstract class DocValuesBasedSyntheticFieldLoader implements SyntheticFieldLoader {
+        @Override
+        public Stream<Map.Entry<String, StoredFieldLoader>> storedFieldLoaders() {
+            return Stream.empty();
+        }
+
+        @Override
+        public void reset() {
+            // Not applicable to loaders using only doc values
+            // since DocValuesLoader#advanceToDoc will reset the state anyway.
+        }
+    }
 }

@@ -7,7 +7,10 @@
 
 package org.elasticsearch.xpack.ml.inference.adaptiveallocations;
 
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.Before;
 
 import java.util.Random;
 
@@ -15,11 +18,21 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class AdaptiveAllocationsScalerTests extends ESTestCase {
 
+    private ClusterService clusterService;
+
+    @Before
+    public void createMocks() throws Exception {
+        clusterService = mock(ClusterService.class);
+        when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
+    }
+
     public void testAutoscaling_scaleUpAndDown() {
-        AdaptiveAllocationsScaler adaptiveAllocationsScaler = new AdaptiveAllocationsScaler("test-deployment", 1);
+        AdaptiveAllocationsScaler adaptiveAllocationsScaler = new AdaptiveAllocationsScaler("test-deployment", 1, 60);
 
         // With 1 allocation the system can handle 500 requests * 0.020 sec/request.
         // To handle remaining requests the system should scale to 2 allocations.
@@ -47,7 +60,7 @@ public class AdaptiveAllocationsScalerTests extends ESTestCase {
     }
 
     public void testAutoscaling_noOscillating() {
-        AdaptiveAllocationsScaler adaptiveAllocationsScaler = new AdaptiveAllocationsScaler("test-deployment", 1);
+        AdaptiveAllocationsScaler adaptiveAllocationsScaler = new AdaptiveAllocationsScaler("test-deployment", 1, 60);
 
         // With 1 allocation the system can handle 880 requests * 0.010 sec/request.
         adaptiveAllocationsScaler.process(new AdaptiveAllocationsScalerService.Stats(880, 0, 0, 0.010), 10, 1);
@@ -75,7 +88,7 @@ public class AdaptiveAllocationsScalerTests extends ESTestCase {
     }
 
     public void testAutoscaling_respectMinMaxAllocations() {
-        AdaptiveAllocationsScaler adaptiveAllocationsScaler = new AdaptiveAllocationsScaler("test-deployment", 1);
+        AdaptiveAllocationsScaler adaptiveAllocationsScaler = new AdaptiveAllocationsScaler("test-deployment", 1, 60);
         adaptiveAllocationsScaler.setMinMaxNumberOfAllocations(2, 5);
 
         // Even though there are no requests, scale to the minimum of 2 allocations.
@@ -98,7 +111,7 @@ public class AdaptiveAllocationsScalerTests extends ESTestCase {
     }
 
     public void testEstimation_highVariance() {
-        AdaptiveAllocationsScaler adaptiveAllocationsScaler = new AdaptiveAllocationsScaler("test-deployment", 1);
+        AdaptiveAllocationsScaler adaptiveAllocationsScaler = new AdaptiveAllocationsScaler("test-deployment", 1, 60);
 
         Random random = new Random(42);
 
@@ -140,10 +153,85 @@ public class AdaptiveAllocationsScalerTests extends ESTestCase {
     }
 
     public void testAutoscaling_maxAllocationsSafeguard() {
-        AdaptiveAllocationsScaler adaptiveAllocationsScaler = new AdaptiveAllocationsScaler("test-deployment", 1);
+        AdaptiveAllocationsScaler adaptiveAllocationsScaler = new AdaptiveAllocationsScaler("test-deployment", 1, 60);
         adaptiveAllocationsScaler.process(new AdaptiveAllocationsScalerService.Stats(1_000_000, 10_000_000, 1, 0.05), 10, 1);
         assertThat(adaptiveAllocationsScaler.scale(), equalTo(32));
         adaptiveAllocationsScaler.setMinMaxNumberOfAllocations(2, 77);
         assertThat(adaptiveAllocationsScaler.scale(), equalTo(77));
+    }
+
+    public void testAutoscaling_scaleDownToZeroAllocations() {
+        int scaleDownAfterInactivitySeconds = 60 * 15; // scale down to 0 after 15 minutes
+        AdaptiveAllocationsScaler adaptiveAllocationsScaler = new AdaptiveAllocationsScaler(
+            "test-deployment",
+            1,
+            scaleDownAfterInactivitySeconds
+        );
+        // 1 hour with 1 request per 1 seconds, so don't scale.
+        for (int i = 0; i < 3600; i++) {
+            adaptiveAllocationsScaler.process(new AdaptiveAllocationsScalerService.Stats(1, 0, 0, 0.05), 1, 1);
+            assertThat(adaptiveAllocationsScaler.scale(), nullValue());
+        }
+        // 15 minutes with no requests, so don't scale.
+        for (int i = 0; i < 900; i++) {
+            adaptiveAllocationsScaler.process(new AdaptiveAllocationsScalerService.Stats(0, 0, 0, 0.05), 1, 1);
+            assertThat(adaptiveAllocationsScaler.scale(), nullValue());
+        }
+        // 1 second with a request, so don't scale.
+        adaptiveAllocationsScaler.process(new AdaptiveAllocationsScalerService.Stats(1, 0, 0, 0.05), 1, 1);
+        assertThat(adaptiveAllocationsScaler.scale(), nullValue());
+        // 15 minutes with no requests, so don't scale.
+        for (int i = 0; i < 900; i++) {
+            adaptiveAllocationsScaler.process(new AdaptiveAllocationsScalerService.Stats(0, 0, 0, 0.05), 1, 1);
+            assertThat(adaptiveAllocationsScaler.scale(), nullValue());
+        }
+        // another second with no requests, so scale to zero allocations.
+        adaptiveAllocationsScaler.process(new AdaptiveAllocationsScalerService.Stats(0, 0, 0, 0.05), 1, 1);
+        assertThat(adaptiveAllocationsScaler.scale(), equalTo(0));
+        // 15 minutes with no requests, so don't scale.
+        for (int i = 0; i < 900; i++) {
+            adaptiveAllocationsScaler.process(new AdaptiveAllocationsScalerService.Stats(0, 0, 0, 0.05), 1, 0);
+            assertThat(adaptiveAllocationsScaler.scale(), nullValue());
+        }
+    }
+
+    public void testAutoscaling_resetTimeWithoutRequests() {
+        int scaleDownAfterInactivitySeconds = 60 * 15; // scale down to 0 after 15 minutes
+        AdaptiveAllocationsScaler adaptiveAllocationsScaler = new AdaptiveAllocationsScaler(
+            "test-deployment",
+            0,
+            scaleDownAfterInactivitySeconds
+        );
+
+        // 1 hour without requests, but call "reset" every 10 minutes, so don't scale.
+        for (int i = 0; i < 360; i++) {
+            adaptiveAllocationsScaler.process(new AdaptiveAllocationsScalerService.Stats(0, 0, 0, 0.05), 10, 0);
+            assertThat(adaptiveAllocationsScaler.scale(), nullValue());
+            if (i % 60 == 0) {
+                adaptiveAllocationsScaler.resetTimeWithoutRequests();
+            }
+        }
+
+        adaptiveAllocationsScaler.resetTimeWithoutRequests();
+        // 15 minutes with no requests, so don't scale.
+        for (int i = 0; i < 90; i++) {
+            adaptiveAllocationsScaler.process(new AdaptiveAllocationsScalerService.Stats(0, 0, 0, 0.05), 10, 1);
+            assertThat(adaptiveAllocationsScaler.scale(), nullValue());
+        }
+
+        // another second with no requests, so scale to zero allocations.
+        adaptiveAllocationsScaler.process(new AdaptiveAllocationsScalerService.Stats(0, 0, 0, 0.05), 1, 1);
+        assertThat(adaptiveAllocationsScaler.scale(), equalTo(0));
+    }
+
+    public void testAutoscaling_dontScaleDownToZeroAllocationsWhenMinAllocationsIsSet() {
+        AdaptiveAllocationsScaler adaptiveAllocationsScaler = new AdaptiveAllocationsScaler("test-deployment", 1, 60);
+        adaptiveAllocationsScaler.setMinMaxNumberOfAllocations(1, null);
+
+        // 1 hour with no requests,
+        for (int i = 0; i < 3600; i++) {
+            adaptiveAllocationsScaler.process(new AdaptiveAllocationsScalerService.Stats(1, 0, 0, 0.05), 1, 1);
+            assertThat(adaptiveAllocationsScaler.scale(), nullValue());
+        }
     }
 }

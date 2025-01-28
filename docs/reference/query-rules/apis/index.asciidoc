@@ -1,13 +1,17 @@
 [[query-rules-apis]]
 == Query rules APIs
 
-preview::[]
-
 ++++
 <titleabbrev>Query rules APIs</titleabbrev>
 ++++
 
 ---
+
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-query_rules[Query rules APIs].
+--
 
 <<search-using-query-rules,Query rules>> allow you to configure per-query rules that are applied at query time to queries that match the specific rule.
 Query rules are organized into _rulesets_, collections of query rules that are matched against incoming queries.
@@ -25,6 +29,7 @@ Use the following APIs to manage query rulesets:
 * <<put-query-rule>>
 * <<get-query-rule>>
 * <<delete-query-rule>>
+* preview:[] <<test-query-ruleset>>
 
 include::put-query-ruleset.asciidoc[]
 include::get-query-ruleset.asciidoc[]
@@ -33,4 +38,5 @@ include::delete-query-ruleset.asciidoc[]
 include::put-query-rule.asciidoc[]
 include::get-query-rule.asciidoc[]
 include::delete-query-rule.asciidoc[]
+include::test-query-ruleset.asciidoc[]
 

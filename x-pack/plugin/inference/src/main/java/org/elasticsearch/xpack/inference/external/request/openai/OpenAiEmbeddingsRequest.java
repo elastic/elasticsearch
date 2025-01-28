@@ -27,7 +27,7 @@ import java.util.Objects;
 import static org.elasticsearch.xpack.inference.external.request.RequestUtils.createAuthBearerHeader;
 import static org.elasticsearch.xpack.inference.external.request.openai.OpenAiUtils.createOrgHeader;
 
-public class OpenAiEmbeddingsRequest implements OpenAiRequest {
+public class OpenAiEmbeddingsRequest implements Request {
 
     private final Truncator truncator;
     private final OpenAiAccount account;

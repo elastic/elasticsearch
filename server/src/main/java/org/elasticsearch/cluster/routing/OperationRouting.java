@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing;
@@ -26,12 +27,9 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
-
-import static org.elasticsearch.index.IndexSettings.INDEX_FAST_REFRESH_SETTING;
 
 public class OperationRouting {
 
@@ -126,30 +124,10 @@ public class OperationRouting {
                 nodeCounts
             );
             if (iterator != null) {
-                final List<ShardRouting> shardsThatCanHandleSearches;
-                if (isStateless) {
-                    shardsThatCanHandleSearches = statelessShardsThatHandleSearches(clusterState, iterator);
-                } else {
-                    shardsThatCanHandleSearches = statefulShardsThatHandleSearches(iterator);
-                }
-                set.add(new PlainShardIterator(iterator.shardId(), shardsThatCanHandleSearches));
+                set.add(PlainShardIterator.allSearchableShards(iterator));
             }
         }
         return GroupShardsIterator.sortAndCreate(new ArrayList<>(set));
-    }
-
-    private static List<ShardRouting> statefulShardsThatHandleSearches(ShardIterator iterator) {
-        final List<ShardRouting> shardsThatCanHandleSearches = new ArrayList<>(iterator.size());
-        for (ShardRouting shardRouting : iterator) {
-            if (shardRouting.isSearchable()) {
-                shardsThatCanHandleSearches.add(shardRouting);
-            }
-        }
-        return shardsThatCanHandleSearches;
-    }
-
-    private static List<ShardRouting> statelessShardsThatHandleSearches(ClusterState clusterState, ShardIterator iterator) {
-        return iterator.getShardRoutings().stream().filter(shardRouting -> canSearchShard(shardRouting, clusterState)).toList();
     }
 
     public static ShardIterator getShards(ClusterState clusterState, ShardId shardId) {
@@ -298,16 +276,8 @@ public class OperationRouting {
         return indexMetadata;
     }
 
-    public ShardId shardId(ClusterState clusterState, String index, String id, @Nullable String routing) {
+    public static ShardId shardId(ClusterState clusterState, String index, String id, @Nullable String routing) {
         IndexMetadata indexMetadata = indexMetadata(clusterState, index);
         return new ShardId(indexMetadata.getIndex(), IndexRouting.fromIndexMetadata(indexMetadata).getShard(id, routing));
-    }
-
-    public static boolean canSearchShard(ShardRouting shardRouting, ClusterState clusterState) {
-        if (INDEX_FAST_REFRESH_SETTING.get(clusterState.metadata().index(shardRouting.index()).getSettings())) {
-            return shardRouting.isPromotableToPrimary();
-        } else {
-            return shardRouting.isSearchable();
-        }
     }
 }

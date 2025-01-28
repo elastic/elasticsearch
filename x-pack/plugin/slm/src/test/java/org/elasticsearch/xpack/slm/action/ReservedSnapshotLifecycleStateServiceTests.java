@@ -30,6 +30,7 @@ import org.elasticsearch.reservedstate.action.ReservedClusterSettingsAction;
 import org.elasticsearch.reservedstate.service.ReservedClusterStateService;
 import org.elasticsearch.reservedstate.service.ReservedStateUpdateTask;
 import org.elasticsearch.reservedstate.service.ReservedStateUpdateTaskExecutor;
+import org.elasticsearch.reservedstate.service.ReservedStateVersionCheck;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockUtils;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -38,16 +39,21 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
+import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy;
+import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadata;
+import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadataTests;
 import org.elasticsearch.xpack.core.slm.action.DeleteSnapshotLifecycleAction;
 import org.elasticsearch.xpack.core.slm.action.PutSnapshotLifecycleAction;
 import org.junit.Assert;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
+import static org.elasticsearch.xpack.core.slm.SnapshotInvocationRecordTests.randomSnapshotInvocationRecord;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -78,7 +84,7 @@ public class ReservedSnapshotLifecycleStateServiceTests extends ESTestCase {
         assertThat(action.optionalDependencies(), contains(ReservedRepositoryAction.NAME));
     }
 
-    public void testValidationFails() {
+    public void testValidationFailsNeitherScheduleOrInterval() {
         Client client = mock(Client.class);
         when(client.settings()).thenReturn(Settings.EMPTY);
         final ClusterName clusterName = new ClusterName("elasticsearch");
@@ -343,7 +349,7 @@ public class ReservedSnapshotLifecycleStateServiceTests extends ESTestCase {
         AtomicReference<Exception> x = new AtomicReference<>();
 
         try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, testJSON)) {
-            controller.process("operator", parser, x::set);
+            controller.process("operator", parser, randomFrom(ReservedStateVersionCheck.values()), x::set);
 
             assertThat(x.get(), instanceOf(IllegalStateException.class));
             assertThat(x.get().getMessage(), containsString("Error processing state change request for operator"));
@@ -363,7 +369,7 @@ public class ReservedSnapshotLifecycleStateServiceTests extends ESTestCase {
         );
 
         try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, testJSON)) {
-            controller.process("operator", parser, Assert::assertNull);
+            controller.process("operator", parser, randomFrom(ReservedStateVersionCheck.values()), Assert::assertNull);
         }
     }
 
@@ -424,4 +430,29 @@ public class ReservedSnapshotLifecycleStateServiceTests extends ESTestCase {
         }
     }
 
+    public void testIsNoop() {
+        SnapshotLifecyclePolicy existingPolicy = SnapshotLifecyclePolicyMetadataTests.randomSnapshotLifecyclePolicy("id1");
+        SnapshotLifecyclePolicy newPolicy = randomValueOtherThan(
+            existingPolicy,
+            () -> SnapshotLifecyclePolicyMetadataTests.randomSnapshotLifecyclePolicy("id2")
+        );
+
+        Map<String, String> existingHeaders = Map.of("foo", "bar");
+        Map<String, String> newHeaders = Map.of("foo", "eggplant");
+
+        SnapshotLifecyclePolicyMetadata existingPolicyMeta = new SnapshotLifecyclePolicyMetadata(
+            existingPolicy,
+            existingHeaders,
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomSnapshotInvocationRecord(),
+            randomSnapshotInvocationRecord(),
+            randomNonNegativeLong()
+        );
+
+        assertTrue(TransportPutSnapshotLifecycleAction.isNoopUpdate(existingPolicyMeta, existingPolicy, existingHeaders));
+        assertFalse(TransportPutSnapshotLifecycleAction.isNoopUpdate(existingPolicyMeta, newPolicy, existingHeaders));
+        assertFalse(TransportPutSnapshotLifecycleAction.isNoopUpdate(existingPolicyMeta, existingPolicy, newHeaders));
+        assertFalse(TransportPutSnapshotLifecycleAction.isNoopUpdate(null, existingPolicy, existingHeaders));
+    }
 }

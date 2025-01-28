@@ -1,5 +1,0 @@
-pr: 109882
-summary: Support synthetic source together with `ignore_malformed` in histogram fields
-area: Mapping
-type: enhancement
-issues: []

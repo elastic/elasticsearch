@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 
@@ -13,8 +14,7 @@ import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.internal.ConcatFilesTask
 import org.elasticsearch.gradle.internal.DependenciesInfoPlugin
 import org.elasticsearch.gradle.internal.NoticeTask
-import org.elasticsearch.gradle.internal.info.BuildParams
-import org.elasticsearch.gradle.internal.test.HistoricalFeaturesMetadataPlugin
+import org.elasticsearch.gradle.internal.test.ClusterFeaturesMetadataPlugin
 
 import java.nio.file.Files
 import java.nio.file.Path
@@ -33,7 +33,7 @@ configurations {
   }
   featuresMetadata {
     attributes {
-      attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, HistoricalFeaturesMetadataPlugin.FEATURES_METADATA_TYPE)
+      attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ClusterFeaturesMetadataPlugin.FEATURES_METADATA_TYPE)
     }
   }
 }
@@ -70,10 +70,10 @@ tasks.register("generateDependenciesReport", ConcatFilesTask) {
   // Explicitly add the dependency on the RHEL UBI Docker base image
   String[] rhelUbiFields = [
     'Red Hat Universal Base Image minimal',
-    '8',
-    'https://catalog.redhat.com/software/containers/ubi8/ubi-minimal/5c359a62bed8bd75a2c3fba8',
+    '9',
+    'https://catalog.redhat.com/software/containers/ubi9-minimal/61832888c0d15aff4912fe0d',
     'Custom;https://www.redhat.com/licenses/EULA_Red_Hat_Universal_Base_Image_English_20190422.pdf',
-    'https://oss-dependencies.elastic.co/red-hat-universal-base-image-minimal/8/ubi-minimal-8-source.tar.gz'
+    'https://oss-dependencies.elastic.co/red-hat-universal-base-image-minimal/9/ubi-minimal-9-source.tar.gz'
   ]
   additionalLines << rhelUbiFields.join(',')
 }
@@ -207,7 +207,7 @@ project.rootProject.subprojects.findAll { it.parent.path == ':modules' }.each { 
 
   distro.copyModule(processDefaultOutputsTaskProvider, module)
   dependencies.add('featuresMetadata', module)
-  if (module.name.startsWith('transport-') || (BuildParams.snapshotBuild == false && module.name == 'apm')) {
+  if (module.name.startsWith('transport-') || (buildParams.snapshotBuild == false && module.name == 'apm')) {
     distro.copyModule(processIntegTestOutputsTaskProvider, module)
   }
 
@@ -261,7 +261,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
    *             Properties to expand when copying packaging files             *
    *****************************************************************************/
   configurations {
-    ['libs', 'libsVersionChecker', 'libsCliLauncher', 'libsServerCli', 'libsWindowsServiceCli', 'libsPluginCli', 'libsKeystoreCli', 'libsSecurityCli', 'libsGeoIpCli', 'libsAnsiConsole', 'libsNative'].each {
+    ['libs', 'libsVersionChecker', 'libsCliLauncher', 'libsServerCli', 'libsWindowsServiceCli', 'libsPluginCli', 'libsKeystoreCli', 'libsSecurityCli', 'libsGeoIpCli', 'libsAnsiConsole', 'libsNative', 'libsEntitlementAgent', 'libsEntitlementBridge'].each {
       create(it) {
         canBeConsumed = false
         canBeResolved = true
@@ -274,7 +274,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
     }
     all {
       resolutionStrategy.dependencySubstitution {
-        substitute module("org.apache.logging.log4j:log4j-core") using project(":libs:elasticsearch-log4j") because "patched to remove JndiLookup clas"}
+        substitute module("org.apache.logging.log4j:log4j-core") using project(":libs:log4j") because "patched to remove JndiLookup clas"}
     }
   }
 
@@ -290,7 +290,9 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
     libsKeystoreCli project(path: ':distribution:tools:keystore-cli')
     libsSecurityCli project(':x-pack:plugin:security:cli')
     libsGeoIpCli project(':distribution:tools:geoip-cli')
-    libsNative project(':libs:elasticsearch-native:elasticsearch-native-libraries')
+    libsNative project(':libs:native:native-libraries')
+    libsEntitlementAgent project(':libs:entitlement:agent')
+    libsEntitlementBridge project(':libs:entitlement:bridge')
   }
 
   project.ext {
@@ -335,6 +337,12 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
             include (os + '-' + architecture + '/*')
           }
         }
+        into('entitlement-agent') {
+          from(configurations.libsEntitlementAgent)
+        }
+        into('entitlement-bridge') {
+          from(configurations.libsEntitlementBridge)
+        }
       }
     }
 
@@ -369,7 +377,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
             exclude "**/platform/${excludePlatform}/**"
           }
         }
-        if (BuildParams.isSnapshotBuild()) {
+        if (buildParams.isSnapshotBuild()) {
           from(buildExternalTestModulesTaskProvider)
         }
         if (project.path.startsWith(':distribution:packages')) {
@@ -510,7 +518,7 @@ subprojects {
 
     String licenseText
     if (isTestDistro) {
-      licenseText = rootProject.file('licenses/SSPL-1.0+ELASTIC-LICENSE-2.0.txt').getText('UTF-8')
+      licenseText = rootProject.file('licenses/AGPL-3.0+SSPL-1.0+ELASTIC-LICENSE-2.0.txt').getText('UTF-8')
     } else {
       licenseText = rootProject.file('licenses/ELASTIC-LICENSE-2.0.txt').getText('UTF-8')
     }
@@ -639,8 +647,8 @@ subprojects {
 // in the final log4j2.properties configuration, as it appears in the
 // archive distribution.
 artifacts.add('log4jConfig', file("${defaultOutputs}/log4j2.properties")) {
-  type 'file'
-  name 'log4j2.properties'
+  type = 'file'
+  name = 'log4j2.properties'
   builtBy 'buildDefaultLog4jConfig'
 }
 

@@ -140,7 +140,7 @@ public class ConnectorCustomSchedule implements Writeable, ToXContentObject {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeWriteable(configurationOverrides);
         out.writeBoolean(enabled);
-        out.writeString(interval.toString());
+        out.writeString(interval.expression());
         out.writeOptionalInstant(lastSynced);
         out.writeString(name);
     }

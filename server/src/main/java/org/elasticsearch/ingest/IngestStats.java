@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest;
@@ -64,9 +65,7 @@ public record IngestStats(Stats totalStats, List<PipelineStat> pipelineStats, Ma
         for (var i = 0; i < size; i++) {
             var pipelineId = in.readString();
             var pipelineStat = new Stats(in);
-            var byteStat = in.getTransportVersion().onOrAfter(TransportVersions.NODE_STATS_INGEST_BYTES)
-                ? new ByteStats(in)
-                : new ByteStats(0, 0);
+            var byteStat = in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0) ? new ByteStats(in) : new ByteStats(0, 0);
             pipelineStats.add(new PipelineStat(pipelineId, pipelineStat, byteStat));
             int processorsSize = in.readVInt();
             var processorStatsPerPipeline = new ArrayList<ProcessorStat>(processorsSize);
@@ -89,7 +88,7 @@ public record IngestStats(Stats totalStats, List<PipelineStat> pipelineStats, Ma
         for (PipelineStat pipelineStat : pipelineStats) {
             out.writeString(pipelineStat.pipelineId());
             pipelineStat.stats().writeTo(out);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.NODE_STATS_INGEST_BYTES)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
                 pipelineStat.byteStats().writeTo(out);
             }
             List<ProcessorStat> processorStatsForPipeline = processorStats.get(pipelineStat.pipelineId());
@@ -144,12 +143,10 @@ public record IngestStats(Stats totalStats, List<PipelineStat> pipelineStats, Ma
                             return builder;
                         }
                     ),
-
-                    Iterators.<ToXContent>single((builder, params) -> builder.endArray().endObject())
+                    Iterators.single((builder, params) -> builder.endArray().endObject())
                 )
             ),
-
-            Iterators.<ToXContent>single((builder, params) -> builder.endObject().endObject())
+            Iterators.single((builder, params) -> builder.endObject().endObject())
         );
     }
 

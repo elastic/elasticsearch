@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.metadata;
@@ -34,6 +35,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -110,19 +112,27 @@ public class MetadataTests extends ESTestCase {
                     .putAlias(AliasMetadata.builder("alias1").build())
                     .putAlias(AliasMetadata.builder("alias2").build())
             )
+            .put(
+                IndexMetadata.builder("index2")
+                    .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
+                    .numberOfShards(1)
+                    .numberOfReplicas(0)
+                    .putAlias(AliasMetadata.builder("alias2").build())
+                    .putAlias(AliasMetadata.builder("alias3").build())
+            )
             .build();
 
         {
-            GetAliasesRequest request = new GetAliasesRequest();
+            GetAliasesRequest request = new GetAliasesRequest(TEST_REQUEST_TIMEOUT);
             Map<String, List<AliasMetadata>> aliases = metadata.findAliases(request.aliases(), Strings.EMPTY_ARRAY);
             assertThat(aliases, anEmptyMap());
         }
         {
             final GetAliasesRequest request;
             if (randomBoolean()) {
-                request = new GetAliasesRequest();
+                request = new GetAliasesRequest(TEST_REQUEST_TIMEOUT);
             } else {
-                request = new GetAliasesRequest(randomFrom("alias1", "alias2"));
+                request = new GetAliasesRequest(TEST_REQUEST_TIMEOUT, randomFrom("alias1", "alias2"));
                 // replacing with empty aliases behaves as if aliases were unspecified at request building
                 request.replaceAliases(Strings.EMPTY_ARRAY);
             }
@@ -132,14 +142,16 @@ public class MetadataTests extends ESTestCase {
             assertThat(aliasMetadataList, transformedItemsMatch(AliasMetadata::alias, contains("alias1", "alias2")));
         }
         {
-            GetAliasesRequest request = new GetAliasesRequest("alias*");
-            Map<String, List<AliasMetadata>> aliases = metadata.findAliases(request.aliases(), new String[] { "index" });
-            assertThat(aliases, aMapWithSize(1));
-            List<AliasMetadata> aliasMetadataList = aliases.get("index");
-            assertThat(aliasMetadataList, transformedItemsMatch(AliasMetadata::alias, contains("alias1", "alias2")));
+            GetAliasesRequest request = new GetAliasesRequest(TEST_REQUEST_TIMEOUT, "alias*");
+            Map<String, List<AliasMetadata>> aliases = metadata.findAliases(request.aliases(), new String[] { "index", "index2" });
+            assertThat(aliases, aMapWithSize(2));
+            List<AliasMetadata> indexAliasMetadataList = aliases.get("index");
+            assertThat(indexAliasMetadataList, transformedItemsMatch(AliasMetadata::alias, contains("alias1", "alias2")));
+            List<AliasMetadata> index2AliasMetadataList = aliases.get("index2");
+            assertThat(index2AliasMetadataList, transformedItemsMatch(AliasMetadata::alias, contains("alias2", "alias3")));
         }
         {
-            GetAliasesRequest request = new GetAliasesRequest("alias1");
+            GetAliasesRequest request = new GetAliasesRequest(TEST_REQUEST_TIMEOUT, "alias1");
             Map<String, List<AliasMetadata>> aliases = metadata.findAliases(request.aliases(), new String[] { "index" });
             assertThat(aliases, aMapWithSize(1));
             List<AliasMetadata> aliasMetadataList = aliases.get("index");
@@ -172,19 +184,19 @@ public class MetadataTests extends ESTestCase {
         Metadata metadata = builder.build();
 
         {
-            GetAliasesRequest request = new GetAliasesRequest();
+            GetAliasesRequest request = new GetAliasesRequest(TEST_REQUEST_TIMEOUT);
             Map<String, List<DataStreamAlias>> aliases = metadata.findDataStreamAliases(request.aliases(), Strings.EMPTY_ARRAY);
             assertThat(aliases, anEmptyMap());
         }
 
         {
-            GetAliasesRequest request = new GetAliasesRequest().aliases("alias1");
+            GetAliasesRequest request = new GetAliasesRequest(TEST_REQUEST_TIMEOUT).aliases("alias1");
             Map<String, List<DataStreamAlias>> aliases = metadata.findDataStreamAliases(request.aliases(), new String[] { "index" });
             assertThat(aliases, anEmptyMap());
         }
 
         {
-            GetAliasesRequest request = new GetAliasesRequest().aliases("alias1");
+            GetAliasesRequest request = new GetAliasesRequest(TEST_REQUEST_TIMEOUT).aliases("alias1");
             Map<String, List<DataStreamAlias>> aliases = metadata.findDataStreamAliases(
                 request.aliases(),
                 new String[] { "index", "d1", "d2" }
@@ -195,7 +207,7 @@ public class MetadataTests extends ESTestCase {
         }
 
         {
-            GetAliasesRequest request = new GetAliasesRequest().aliases("ali*");
+            GetAliasesRequest request = new GetAliasesRequest(TEST_REQUEST_TIMEOUT).aliases("ali*");
             Map<String, List<DataStreamAlias>> aliases = metadata.findDataStreamAliases(request.aliases(), new String[] { "index", "d2" });
             assertEquals(1, aliases.size());
             List<DataStreamAlias> found = aliases.get("d2");
@@ -204,7 +216,7 @@ public class MetadataTests extends ESTestCase {
 
         // test exclusion
         {
-            GetAliasesRequest request = new GetAliasesRequest().aliases("*");
+            GetAliasesRequest request = new GetAliasesRequest(TEST_REQUEST_TIMEOUT).aliases("*");
             Map<String, List<DataStreamAlias>> aliases = metadata.findDataStreamAliases(
                 request.aliases(),
                 new String[] { "index", "d1", "d2", "d3", "d4" }
@@ -256,10 +268,19 @@ public class MetadataTests extends ESTestCase {
                     .putAlias(AliasMetadata.builder("alias1").build())
                     .putAlias(AliasMetadata.builder("alias2").build())
             )
+            .put(
+                IndexMetadata.builder("index2")
+                    .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
+                    .numberOfShards(1)
+                    .numberOfReplicas(0)
+                    .putAlias(AliasMetadata.builder("alias1").build())
+                    .putAlias(AliasMetadata.builder("alias3").build())
+            )
             .build();
-        GetAliasesRequest request = new GetAliasesRequest().aliases("*", "-alias1");
-        List<AliasMetadata> aliases = metadata.findAliases(request.aliases(), new String[] { "index" }).get("index");
-        assertThat(aliases, transformedItemsMatch(AliasMetadata::alias, contains("alias2")));
+        GetAliasesRequest request = new GetAliasesRequest(TEST_REQUEST_TIMEOUT).aliases("*", "-alias1");
+        Map<String, List<AliasMetadata>> aliases = metadata.findAliases(request.aliases(), new String[] { "index", "index2" });
+        assertThat(aliases.get("index"), transformedItemsMatch(AliasMetadata::alias, contains("alias2")));
+        assertThat(aliases.get("index2"), transformedItemsMatch(AliasMetadata::alias, contains("alias3")));
     }
 
     public void testFindDataStreams() {
@@ -291,7 +312,7 @@ public class MetadataTests extends ESTestCase {
                     .putAlias(AliasMetadata.builder("bb").build())
             )
             .build();
-        GetAliasesRequest request = new GetAliasesRequest().aliases("a*", "-*b", "b*");
+        GetAliasesRequest request = new GetAliasesRequest(TEST_REQUEST_TIMEOUT).aliases("a*", "-*b", "b*");
         List<AliasMetadata> aliases = metadata.findAliases(request.aliases(), new String[] { "index" }).get("index");
         assertThat(aliases, transformedItemsMatch(AliasMetadata::alias, contains("aa", "bb")));
     }
@@ -866,20 +887,23 @@ public class MetadataTests extends ESTestCase {
 
     public void testOldestIndexComputation() {
         Metadata metadata = buildIndicesWithVersions(
-            IndexVersions.V_7_0_0,
+            IndexVersions.MINIMUM_COMPATIBLE,
             IndexVersion.current(),
             IndexVersion.fromId(IndexVersion.current().id() + 1)
         ).build();
 
-        assertEquals(IndexVersions.V_7_0_0, metadata.oldestIndexVersion());
+        assertEquals(IndexVersions.MINIMUM_COMPATIBLE, metadata.oldestIndexVersion());
 
         Metadata.Builder b = Metadata.builder();
         assertEquals(IndexVersion.current(), b.build().oldestIndexVersion());
 
         Throwable ex = expectThrows(
             IllegalArgumentException.class,
-            () -> buildIndicesWithVersions(IndexVersions.V_7_0_0, IndexVersions.ZERO, IndexVersion.fromId(IndexVersion.current().id() + 1))
-                .build()
+            () -> buildIndicesWithVersions(
+                IndexVersions.MINIMUM_COMPATIBLE,
+                IndexVersions.ZERO,
+                IndexVersion.fromId(IndexVersion.current().id() + 1)
+            ).build()
         );
 
         assertEquals("[index.version.created] is not present in the index settings for index with UUID [null]", ex.getMessage());
@@ -2365,30 +2389,87 @@ public class MetadataTests extends ESTestCase {
         assertThat(unclassifiedFields, empty());
     }
 
-    public void testIsTimeSeriesTemplate() throws IOException {
-        var template = new Template(Settings.builder().put("index.mode", "time_series").build(), new CompressedXContent("{}"), null);
+    public void testRetrieveIndexModeFromTemplateTsdb() throws IOException {
+        // tsdb:
+        var tsdbTemplate = new Template(Settings.builder().put("index.mode", "time_series").build(), new CompressedXContent("{}"), null);
         // Settings in component template:
         {
-            var componentTemplate = new ComponentTemplate(template, null, null);
+            var componentTemplate = new ComponentTemplate(tsdbTemplate, null, null);
             var indexTemplate = ComposableIndexTemplate.builder()
                 .indexPatterns(List.of("test-*"))
                 .componentTemplates(List.of("component_template_1"))
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
                 .build();
             Metadata m = Metadata.builder().put("component_template_1", componentTemplate).put("index_template_1", indexTemplate).build();
-            assertThat(m.isTimeSeriesTemplate(indexTemplate), is(true));
+            assertThat(m.retrieveIndexModeFromTemplate(indexTemplate), is(IndexMode.TIME_SERIES));
         }
         // Settings in composable index template:
         {
             var componentTemplate = new ComponentTemplate(new Template(null, null, null), null, null);
             var indexTemplate = ComposableIndexTemplate.builder()
                 .indexPatterns(List.of("test-*"))
-                .template(template)
+                .template(tsdbTemplate)
                 .componentTemplates(List.of("component_template_1"))
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
                 .build();
             Metadata m = Metadata.builder().put("component_template_1", componentTemplate).put("index_template_1", indexTemplate).build();
-            assertThat(m.isTimeSeriesTemplate(indexTemplate), is(true));
+            assertThat(m.retrieveIndexModeFromTemplate(indexTemplate), is(IndexMode.TIME_SERIES));
+        }
+    }
+
+    public void testRetrieveIndexModeFromTemplateLogsdb() throws IOException {
+        // logsdb:
+        var logsdbTemplate = new Template(Settings.builder().put("index.mode", "logsdb").build(), new CompressedXContent("{}"), null);
+        // Settings in component template:
+        {
+            var componentTemplate = new ComponentTemplate(logsdbTemplate, null, null);
+            var indexTemplate = ComposableIndexTemplate.builder()
+                .indexPatterns(List.of("test-*"))
+                .componentTemplates(List.of("component_template_1"))
+                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                .build();
+            Metadata m = Metadata.builder().put("component_template_1", componentTemplate).put("index_template_1", indexTemplate).build();
+            assertThat(m.retrieveIndexModeFromTemplate(indexTemplate), is(IndexMode.LOGSDB));
+        }
+        // Settings in composable index template:
+        {
+            var componentTemplate = new ComponentTemplate(new Template(null, null, null), null, null);
+            var indexTemplate = ComposableIndexTemplate.builder()
+                .indexPatterns(List.of("test-*"))
+                .template(logsdbTemplate)
+                .componentTemplates(List.of("component_template_1"))
+                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                .build();
+            Metadata m = Metadata.builder().put("component_template_1", componentTemplate).put("index_template_1", indexTemplate).build();
+            assertThat(m.retrieveIndexModeFromTemplate(indexTemplate), is(IndexMode.LOGSDB));
+        }
+    }
+
+    public void testRetrieveIndexModeFromTemplateEmpty() throws IOException {
+        // no index mode:
+        var emptyTemplate = new Template(Settings.EMPTY, new CompressedXContent("{}"), null);
+        // Settings in component template:
+        {
+            var componentTemplate = new ComponentTemplate(emptyTemplate, null, null);
+            var indexTemplate = ComposableIndexTemplate.builder()
+                .indexPatterns(List.of("test-*"))
+                .componentTemplates(List.of("component_template_1"))
+                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                .build();
+            Metadata m = Metadata.builder().put("component_template_1", componentTemplate).put("index_template_1", indexTemplate).build();
+            assertThat(m.retrieveIndexModeFromTemplate(indexTemplate), nullValue());
+        }
+        // Settings in composable index template:
+        {
+            var componentTemplate = new ComponentTemplate(new Template(null, null, null), null, null);
+            var indexTemplate = ComposableIndexTemplate.builder()
+                .indexPatterns(List.of("test-*"))
+                .template(emptyTemplate)
+                .componentTemplates(List.of("component_template_1"))
+                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                .build();
+            Metadata m = Metadata.builder().put("component_template_1", componentTemplate).put("index_template_1", indexTemplate).build();
+            assertThat(m.retrieveIndexModeFromTemplate(indexTemplate), nullValue());
         }
     }
 

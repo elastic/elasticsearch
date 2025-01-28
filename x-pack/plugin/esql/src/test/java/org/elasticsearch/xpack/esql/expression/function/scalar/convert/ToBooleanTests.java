@@ -80,7 +80,7 @@ public class ToBooleanTests extends AbstractScalarFunctionTestCase {
             emptyList()
         );
 
-        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
+        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
     }
 
     @Override

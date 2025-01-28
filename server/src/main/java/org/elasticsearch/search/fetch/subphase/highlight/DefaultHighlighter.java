@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.fetch.subphase.highlight;
 
@@ -21,7 +22,6 @@ import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.text.Text;
-import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -30,6 +30,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.lucene.search.uhighlight.BoundedBreakIteratorScanner;
 import org.elasticsearch.lucene.search.uhighlight.CustomPassageFormatter;
 import org.elasticsearch.lucene.search.uhighlight.CustomUnifiedHighlighter;
+import org.elasticsearch.lucene.search.uhighlight.QueryMaxAnalyzedOffset;
 import org.elasticsearch.lucene.search.uhighlight.Snippet;
 import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
@@ -48,8 +49,6 @@ import java.util.function.Predicate;
 import static org.elasticsearch.lucene.search.uhighlight.CustomUnifiedHighlighter.MULTIVAL_SEP_CHAR;
 
 public class DefaultHighlighter implements Highlighter {
-
-    public static final NodeFeature UNIFIED_HIGHLIGHTER_MATCHED_FIELDS = new NodeFeature("unified_highlighter_matched_fields");
 
     @Override
     public boolean canHighlight(MappedFieldType fieldType) {
@@ -120,7 +119,10 @@ public class DefaultHighlighter implements Highlighter {
         int maxAnalyzedOffset = indexSettings.getHighlightMaxAnalyzedOffset();
         boolean weightMatchesEnabled = indexSettings.isWeightMatchesEnabled();
         int numberOfFragments = fieldContext.field.fieldOptions().numberOfFragments();
-        Integer queryMaxAnalyzedOffset = fieldContext.field.fieldOptions().maxAnalyzedOffset();
+        QueryMaxAnalyzedOffset queryMaxAnalyzedOffset = QueryMaxAnalyzedOffset.create(
+            fieldContext.field.fieldOptions().maxAnalyzedOffset(),
+            maxAnalyzedOffset
+        );
         Analyzer analyzer = wrapAnalyzer(
             fieldContext.context.getSearchExecutionContext().getIndexAnalyzer(f -> Lucene.KEYWORD_ANALYZER),
             queryMaxAnalyzedOffset
@@ -170,7 +172,7 @@ public class DefaultHighlighter implements Highlighter {
             fieldContext.field.fieldOptions().noMatchSize(),
             highlighterNumberOfFragments,
             maxAnalyzedOffset,
-            fieldContext.field.fieldOptions().maxAnalyzedOffset(),
+            queryMaxAnalyzedOffset,
             fieldContext.field.fieldOptions().requireFieldMatch(),
             weightMatchesEnabled
         );
@@ -185,9 +187,9 @@ public class DefaultHighlighter implements Highlighter {
         );
     }
 
-    protected Analyzer wrapAnalyzer(Analyzer analyzer, Integer maxAnalyzedOffset) {
+    protected Analyzer wrapAnalyzer(Analyzer analyzer, QueryMaxAnalyzedOffset maxAnalyzedOffset) {
         if (maxAnalyzedOffset != null) {
-            analyzer = new LimitTokenOffsetAnalyzer(analyzer, maxAnalyzedOffset);
+            analyzer = new LimitTokenOffsetAnalyzer(analyzer, maxAnalyzedOffset.getNotNull());
         }
         return analyzer;
     }
@@ -226,7 +228,7 @@ public class DefaultHighlighter implements Highlighter {
         }
     }
 
-    protected static String convertFieldValue(MappedFieldType type, Object value) {
+    public static String convertFieldValue(MappedFieldType type, Object value) {
         if (value instanceof BytesRef) {
             return type.valueForDisplay(value).toString();
         } else {
@@ -234,7 +236,7 @@ public class DefaultHighlighter implements Highlighter {
         }
     }
 
-    protected static String mergeFieldValues(List<Object> fieldValues, char valuesSeparator) {
+    public static String mergeFieldValues(List<Object> fieldValues, char valuesSeparator) {
         // postings highlighter accepts all values in a single string, as offsets etc. need to match with content
         // loaded from stored fields, we merge all values using a proper separator
         String rawValue = Strings.collectionToDelimitedString(fieldValues, String.valueOf(valuesSeparator));

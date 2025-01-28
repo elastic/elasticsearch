@@ -41,6 +41,9 @@ public sealed interface DoubleBlock extends Block permits DoubleArrayBlock, Doub
     DoubleBlock filter(int... positions);
 
     @Override
+    DoubleBlock keepMask(BooleanVector mask);
+
+    @Override
     ReleasableIterator<? extends DoubleBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize);
 
     @Override
@@ -97,10 +100,10 @@ public sealed interface DoubleBlock extends Block permits DoubleArrayBlock, Doub
         if (vector != null) {
             out.writeByte(SERIALIZE_BLOCK_VECTOR);
             vector.writeTo(out);
-        } else if (version.onOrAfter(TransportVersions.ESQL_SERIALIZE_ARRAY_BLOCK) && this instanceof DoubleArrayBlock b) {
+        } else if (version.onOrAfter(TransportVersions.V_8_14_0) && this instanceof DoubleArrayBlock b) {
             out.writeByte(SERIALIZE_BLOCK_ARRAY);
             b.writeArrayBlock(out);
-        } else if (version.onOrAfter(TransportVersions.ESQL_SERIALIZE_BIG_ARRAY) && this instanceof DoubleBigArrayBlock b) {
+        } else if (version.onOrAfter(TransportVersions.V_8_14_0) && this instanceof DoubleBigArrayBlock b) {
             out.writeByte(SERIALIZE_BLOCK_BIG_ARRAY);
             b.writeArrayBlock(out);
         } else {
@@ -213,6 +216,14 @@ public sealed interface DoubleBlock extends Block permits DoubleArrayBlock, Doub
          * {@code endExclusive} into this builder.
          */
         Builder copyFrom(DoubleBlock block, int beginInclusive, int endExclusive);
+
+        /**
+         * Copy the values in {@code block} at {@code position}. If this position
+         * has a single value, this'll copy a single value. If this positions has
+         * many values, it'll copy all of them. If this is {@code null}, then it'll
+         * copy the {@code null}.
+         */
+        Builder copyFrom(DoubleBlock block, int position);
 
         @Override
         Builder appendNull();

@@ -1,6 +1,0 @@
-pr: 110096
-summary: Fix `ClassCastException` with MV_EXPAND on missing field
-area: ES|QL
-type: bug
-issues:
- - 109974

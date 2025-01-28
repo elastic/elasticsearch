@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.esql.core.type;
 
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -15,16 +14,14 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.TreeMap;
 
+import static org.elasticsearch.xpack.esql.core.util.PlanStreamInput.readCachedStringWithVersionCheck;
+import static org.elasticsearch.xpack.esql.core.util.PlanStreamOutput.writeCachedStringWithVersionCheck;
+
 /**
  * Information about a field in an ES index that cannot be supported by ESQL.
  * All the subfields (properties) of an unsupported type are also be unsupported.
  */
 public class UnsupportedEsField extends EsField {
-    static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
-        EsField.class,
-        "UnsupportedEsField",
-        UnsupportedEsField::new
-    );
 
     private final String originalType;
     private final String inherited; // for fields belonging to parents (or grandparents) that have an unsupported type
@@ -40,20 +37,24 @@ public class UnsupportedEsField extends EsField {
     }
 
     public UnsupportedEsField(StreamInput in) throws IOException {
-        this(in.readString(), in.readString(), in.readOptionalString(), in.readMap(i -> i.readNamedWriteable(EsField.class)));
+        this(
+            readCachedStringWithVersionCheck(in),
+            readCachedStringWithVersionCheck(in),
+            in.readOptionalString(),
+            in.readImmutableMap(EsField::readFrom)
+        );
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(getName());
-        out.writeString(getOriginalType());
+    public void writeContent(StreamOutput out) throws IOException {
+        writeCachedStringWithVersionCheck(out, getName());
+        writeCachedStringWithVersionCheck(out, getOriginalType());
         out.writeOptionalString(getInherited());
-        out.writeMap(getProperties(), StreamOutput::writeNamedWriteable);
+        out.writeMap(getProperties(), (o, x) -> x.writeTo(out));
     }
 
-    @Override
     public String getWriteableName() {
-        return ENTRY.name;
+        return "UnsupportedEsField";
     }
 
     public String getOriginalType() {

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.profile.query;
@@ -38,10 +39,18 @@ public final class QueryProfiler extends AbstractProfiler<QueryProfileBreakdown,
         super(new InternalQueryProfileTree());
     }
 
-    public void setVectorOpsCount(long vectorOpsCount) {
-        this.vectorOpsCount = vectorOpsCount;
+    /**
+     * Adds a number of vector operations to the current count
+     * @param vectorOpsCount number of vector ops to add to the profiler
+     */
+    public void addVectorOpsCount(long vectorOpsCount) {
+        this.vectorOpsCount += vectorOpsCount;
     }
 
+    /**
+     * Retrieves the number of vector operations performed by the queries
+     * @return number of vector operations performed by the queries
+     */
     public long getVectorOpsCount() {
         return this.vectorOpsCount;
     }

@@ -1,16 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.document.LatLonPoint;
 import org.apache.lucene.geo.GeoEncodingUtils;
-import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -193,8 +193,8 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
             new Object[] { new Double[] { pointA.getX(), pointA.getY() }, new Double[] { pointB.getX(), pointB.getY() } },
             new Object[] { pointA.getY() + "," + pointA.getX(), pointB.getY() + "," + pointB.getX() },
             new Object[] { GeoJson.toMap(pointA), GeoJson.toMap(pointB) } };
-        IndexableField expectedPointA = new LatLonPoint("field", pointA.getY(), pointA.getX());
-        IndexableField expectedPointB = new LatLonPoint("field", pointB.getY(), pointB.getX());
+        IndexableField expectedPointA = new GeoPointFieldMapper.LatLonPointWithDocValues("field", pointA.getY(), pointA.getX());
+        IndexableField expectedPointB = new GeoPointFieldMapper.LatLonPointWithDocValues("field", pointB.getY(), pointB.getX());
 
         // Verify that metric and non-metric mappers behave the same on single valued fields
         for (Object[] values : data) {
@@ -202,7 +202,7 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
                 ParsedDocument doc = mapper.parse(source(b -> b.field("field", values[0])));
                 assertThat(doc.rootDoc().getField("field"), notNullValue());
                 IndexableField field = doc.rootDoc().getField("field");
-                assertThat(field, instanceOf(LatLonPoint.class));
+                assertThat(field, instanceOf(GeoPointFieldMapper.LatLonPointWithDocValues.class));
                 assertThat(field.toString(), equalTo(expectedPointA.toString()));
             }
         }
@@ -213,15 +213,11 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
             {
                 ParsedDocument doc = nonMetricMapper.parse(source(b -> b.field("field", values)));
                 assertThat(doc.rootDoc().getField("field"), notNullValue());
-                Object[] fields = doc.rootDoc()
-                    .getFields()
-                    .stream()
-                    .filter(f -> f.name().equals("field") && f.fieldType().docValuesType() == DocValuesType.NONE)
-                    .toArray();
+                Object[] fields = doc.rootDoc().getFields().stream().filter(f -> f.name().equals("field")).toArray();
                 assertThat(fields.length, equalTo(2));
-                assertThat(fields[0], instanceOf(LatLonPoint.class));
+                assertThat(fields[0], instanceOf(GeoPointFieldMapper.LatLonPointWithDocValues.class));
                 assertThat(fields[0].toString(), equalTo(expectedPointA.toString()));
-                assertThat(fields[1], instanceOf(LatLonPoint.class));
+                assertThat(fields[1], instanceOf(GeoPointFieldMapper.LatLonPointWithDocValues.class));
                 assertThat(fields[1].toString(), equalTo(expectedPointB.toString()));
             }
             // Metric mapper rejects multi-valued data
@@ -327,7 +323,7 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
     public void testLonLatArrayStored() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "geo_point").field("store", true)));
         ParsedDocument doc = mapper.parse(source(b -> b.startArray("field").value(1.3).value(1.2).endArray()));
-        assertThat(doc.rootDoc().getFields("field"), hasSize(3));
+        assertThat(doc.rootDoc().getFields("field"), hasSize(2));
     }
 
     public void testLonLatArrayArrayStored() throws Exception {
@@ -726,18 +722,14 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
 
             @Override
             public List<SyntheticSourceInvalidExample> invalidExample() throws IOException {
-                return List.of(
-                    new SyntheticSourceInvalidExample(
-                        equalTo("field [field] of type [geo_point] doesn't support synthetic source because it doesn't have doc values"),
-                        b -> b.field("type", "geo_point").field("doc_values", false)
-                    ),
-                    new SyntheticSourceInvalidExample(
-                        equalTo("field [field] of type [geo_point] doesn't support synthetic source because it declares copy_to"),
-                        b -> b.field("type", "geo_point").field("copy_to", "foo")
-                    )
-                );
+                return List.of();
             }
         };
+    }
+
+    @Override
+    public void testSyntheticSourceKeepArrays() {
+        // The mapper expects to parse an array of values by default, it's not compatible with array of arrays.
     }
 
     @Override

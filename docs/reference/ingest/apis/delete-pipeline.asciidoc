@@ -4,6 +4,12 @@
 <titleabbrev>Delete pipeline</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-ingest[Ingest APIs].
+--
+
 Deletes one or more existing ingest pipeline.
 
 ////
@@ -62,7 +68,7 @@ use a value of `*`.
 include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 
-[[delete-pipeline-api-api-example]]
+[[delete-pipeline-api-example]]
 ==== {api-examples-title}
 
 

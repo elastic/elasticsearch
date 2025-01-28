@@ -79,7 +79,7 @@ public class UnresolvedStar extends UnresolvedNamedExpression {
     }
 
     private String message() {
-        return (qualifier() != null ? qualifier().qualifiedName() + "." : "") + "*";
+        return (qualifier() != null ? qualifier().name() + "." : "") + "*";
     }
 
     @Override

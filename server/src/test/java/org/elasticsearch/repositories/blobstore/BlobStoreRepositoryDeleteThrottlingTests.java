@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.repositories.blobstore;
@@ -34,7 +35,6 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -100,11 +100,6 @@ public class BlobStoreRepositoryDeleteThrottlingTests extends ESSingleNodeTestCa
         }
 
         @Override
-        public void deleteBlobsIgnoringIfNotExists(OperationPurpose purpose, Iterator<String> blobNames) throws IOException {
-            delegate.deleteBlobsIgnoringIfNotExists(purpose, blobNames);
-        }
-
-        @Override
         public void close() throws IOException {
             delegate.close();
         }
@@ -128,7 +123,7 @@ public class BlobStoreRepositoryDeleteThrottlingTests extends ESSingleNodeTestCa
         @Override
         public InputStream readBlob(OperationPurpose purpose, String blobName) throws IOException {
             final var pathParts = path().parts();
-            if (pathParts.size() == 2 && pathParts.get(0).equals("indices") && blobName.startsWith("meta-")) {
+            if (pathParts.size() == 2 && pathParts.get(0).equals("indices") && blobName.startsWith(BlobStoreRepository.METADATA_PREFIX)) {
                 // reading index metadata, so mark index as active
                 assertTrue(activeIndices.add(pathParts.get(1)));
                 assertThat(activeIndices.size(), lessThanOrEqualTo(MAX_SNAPSHOT_THREADS));
@@ -150,7 +145,7 @@ public class BlobStoreRepositoryDeleteThrottlingTests extends ESSingleNodeTestCa
             if (pathParts.size() == 3
                 && pathParts.get(0).equals("indices")
                 && pathParts.get(2).equals("0")
-                && blobName.startsWith("index-")) {
+                && blobName.startsWith(BlobStoreRepository.SNAPSHOT_INDEX_PREFIX)) {
                 // writing shard-level BlobStoreIndexShardSnapshots, mark index as inactive again
                 assertTrue(activeIndices.remove(pathParts.get(1)));
             }

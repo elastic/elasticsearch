@@ -1,14 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper.flattened;
 
-import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -55,7 +55,7 @@ import java.util.Objects;
  * }`
  *
  */
-class FlattenedFieldSyntheticWriterHelper {
+public class FlattenedFieldSyntheticWriterHelper {
 
     private record Prefix(List<String> prefix) {
 
@@ -225,19 +225,23 @@ class FlattenedFieldSyntheticWriterHelper {
         }
     }
 
-    private final SortedSetDocValues dv;
-
-    FlattenedFieldSyntheticWriterHelper(final SortedSetDocValues dv) {
-        this.dv = dv;
+    public interface SortedKeyedValues {
+        BytesRef next() throws IOException;
     }
 
-    void write(final XContentBuilder b) throws IOException {
-        KeyValue curr = new KeyValue(dv.lookupOrd(dv.nextOrd()));
+    private final SortedKeyedValues sortedKeyedValues;
+
+    public FlattenedFieldSyntheticWriterHelper(final SortedKeyedValues sortedKeyedValues) {
+        this.sortedKeyedValues = sortedKeyedValues;
+    }
+
+    public void write(final XContentBuilder b) throws IOException {
+        KeyValue curr = new KeyValue(sortedKeyedValues.next());
         KeyValue prev = KeyValue.EMPTY;
         final List<String> values = new ArrayList<>();
         values.add(curr.value());
-        for (int i = 1; i < dv.docValueCount(); i++) {
-            KeyValue next = new KeyValue(dv.lookupOrd(dv.nextOrd()));
+        for (BytesRef nextValue = sortedKeyedValues.next(); nextValue != null; nextValue = sortedKeyedValues.next()) {
+            KeyValue next = new KeyValue(nextValue);
             writeObject(b, curr, next, curr.start(prev), curr.end(next), values);
             values.add(next.value());
             prev = curr;

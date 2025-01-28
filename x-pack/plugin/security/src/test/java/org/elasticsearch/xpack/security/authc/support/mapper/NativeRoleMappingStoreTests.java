@@ -87,7 +87,7 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
     public void setup() {
         scriptService = new ScriptService(
             Settings.EMPTY,
-            Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine()),
+            Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine(Settings.EMPTY)),
             ScriptModule.CORE_CONTEXTS,
             () -> 1L
         );
@@ -412,6 +412,7 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
             true,
             true,
             true,
+            null,
             null,
             null,
             null,

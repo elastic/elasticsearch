@@ -1,5 +1,0 @@
-pr: 109848
-summary: Denser in-memory representation of `ShardBlobsToDelete`
-area: Snapshot/Restore
-type: enhancement
-issues: []

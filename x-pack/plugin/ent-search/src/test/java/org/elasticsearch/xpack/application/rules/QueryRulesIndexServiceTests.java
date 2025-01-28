@@ -27,6 +27,7 @@ import org.junit.Before;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -50,7 +51,7 @@ public class QueryRulesIndexServiceTests extends ESSingleNodeTestCase {
 
     @Before
     public void setup() {
-        Set<Setting<?>> settingsSet = ClusterSettings.BUILT_IN_CLUSTER_SETTINGS;
+        Set<Setting<?>> settingsSet = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         settingsSet.addAll(QueryRulesConfig.getSettings());
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, settingsSet);
         this.queryRulesIndexService = new QueryRulesIndexService(client(), clusterSettings);

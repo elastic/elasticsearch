@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.health.node;
@@ -23,8 +24,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.RelativeByteSizeValue;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.features.FeatureService;
-import org.elasticsearch.health.HealthFeatures;
 import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.health.metadata.HealthMetadata;
 import org.elasticsearch.health.node.selection.HealthNode;
@@ -118,18 +117,9 @@ public class LocalHealthMonitorTests extends ESTestCase {
 
         client = mock(Client.class);
 
-        FeatureService featureService = new FeatureService(List.of(new HealthFeatures()));
-
         mockHealthTracker = new MockHealthTracker();
 
-        localHealthMonitor = LocalHealthMonitor.create(
-            Settings.EMPTY,
-            clusterService,
-            threadPool,
-            client,
-            featureService,
-            List.of(mockHealthTracker)
-        );
+        localHealthMonitor = LocalHealthMonitor.create(Settings.EMPTY, clusterService, threadPool, client, List.of(mockHealthTracker));
     }
 
     @After

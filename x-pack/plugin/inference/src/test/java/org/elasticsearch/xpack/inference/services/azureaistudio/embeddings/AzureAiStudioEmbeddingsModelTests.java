@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.services.azureaistudio.embeddings;
 
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
@@ -109,6 +110,18 @@ public class AzureAiStudioEmbeddingsModelTests extends ESTestCase {
         String target,
         AzureAiStudioProvider provider,
         AzureAiStudioEndpointType endpointType,
+        ChunkingSettings chunkingSettings,
+        String apiKey
+    ) {
+        return createModel(inferenceId, target, provider, endpointType, chunkingSettings, apiKey, null, false, null, null, null, null);
+    }
+
+    public static AzureAiStudioEmbeddingsModel createModel(
+        String inferenceId,
+        String target,
+        AzureAiStudioProvider provider,
+        AzureAiStudioEndpointType endpointType,
+        ChunkingSettings chunkingSettings,
         String apiKey,
         @Nullable Integer dimensions,
         boolean dimensionsSetByUser,
@@ -132,6 +145,40 @@ public class AzureAiStudioEmbeddingsModelTests extends ESTestCase {
                 rateLimitSettings
             ),
             new AzureAiStudioEmbeddingsTaskSettings(user),
+            chunkingSettings,
+            new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
+        );
+    }
+
+    public static AzureAiStudioEmbeddingsModel createModel(
+        String inferenceId,
+        String target,
+        AzureAiStudioProvider provider,
+        AzureAiStudioEndpointType endpointType,
+        String apiKey,
+        @Nullable Integer dimensions,
+        boolean dimensionsSetByUser,
+        @Nullable Integer maxTokens,
+        @Nullable SimilarityMeasure similarity,
+        @Nullable String user,
+        RateLimitSettings rateLimitSettings
+    ) {
+        return new AzureAiStudioEmbeddingsModel(
+            inferenceId,
+            TaskType.TEXT_EMBEDDING,
+            "azureaistudio",
+            new AzureAiStudioEmbeddingsServiceSettings(
+                target,
+                provider,
+                endpointType,
+                dimensions,
+                dimensionsSetByUser,
+                maxTokens,
+                similarity,
+                rateLimitSettings
+            ),
+            new AzureAiStudioEmbeddingsTaskSettings(user),
+            null,
             new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
         );
     }

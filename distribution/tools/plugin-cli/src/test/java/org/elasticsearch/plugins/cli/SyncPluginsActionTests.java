@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.plugins.cli;
 
@@ -154,6 +155,22 @@ public class SyncPluginsActionTests extends ESTestCase {
         assertThat(pluginChanges.remove, empty());
         assertThat(pluginChanges.upgrade, hasSize(1));
         assertThat(pluginChanges.upgrade.get(0).getId(), equalTo("analysis-icu"));
+    }
+
+    /**
+     * Check that when there is an official plugin in the config file and in the cached config, then we
+     * calculate that the plugin does not need to be upgraded.
+     */
+    public void test_getPluginChanges_withOfficialPluginCachedConfigAndNoChanges_returnsNoChanges() throws Exception {
+        createPlugin("analysis-icu");
+        config.setPlugins(List.of(new InstallablePlugin("analysis-icu")));
+
+        final PluginsConfig cachedConfig = new PluginsConfig();
+        cachedConfig.setPlugins(List.of(new InstallablePlugin("analysis-icu")));
+
+        final PluginChanges pluginChanges = action.getPluginChanges(config, Optional.of(cachedConfig));
+
+        assertThat(pluginChanges.isEmpty(), is(true));
     }
 
     /**

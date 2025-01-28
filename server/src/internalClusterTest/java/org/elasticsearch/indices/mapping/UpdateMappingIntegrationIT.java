@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices.mapping;
@@ -62,7 +63,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
         indicesAdmin().prepareCreate("test")
             .setSettings(indexSettings(1, 0).put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), Long.MAX_VALUE))
             .get();
-        clusterAdmin().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
+        clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
         updateClusterSettings(
             Settings.builder().put(MappingUpdatedAction.INDICES_MAPPING_DYNAMIC_TIMEOUT_SETTING.getKey(), TimeValue.timeValueMinutes(5))
         );
@@ -100,7 +101,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
         indicesAdmin().prepareCreate("test").setSettings(indexSettings(1, 0)).setMapping("""
             {"properties":{"body":{"type":"text"}}}
             """).get();
-        clusterAdmin().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
+        clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
 
         AcknowledgedResponse putMappingResponse = indicesAdmin().preparePutMapping("test").setSource("""
             {"properties":{"date":{"type":"integer"}}}
@@ -108,21 +109,21 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
 
         assertThat(putMappingResponse.isAcknowledged(), equalTo(true));
 
-        GetMappingsResponse getMappingsResponse = indicesAdmin().prepareGetMappings("test").get();
+        GetMappingsResponse getMappingsResponse = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, "test").get();
         assertThat(getMappingsResponse.mappings().get("test").source().toString(), equalTo("""
             {"_doc":{"properties":{"body":{"type":"text"},"date":{"type":"integer"}}}}"""));
     }
 
     public void testUpdateMappingWithoutTypeMultiObjects() {
         createIndex("test", 1, 0);
-        clusterAdmin().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
+        clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
 
         AcknowledgedResponse putMappingResponse = indicesAdmin().preparePutMapping("test").setSource("""
             {"properties":{"date":{"type":"integer"}}}""", XContentType.JSON).get();
 
         assertThat(putMappingResponse.isAcknowledged(), equalTo(true));
 
-        GetMappingsResponse getMappingsResponse = indicesAdmin().prepareGetMappings("test").get();
+        GetMappingsResponse getMappingsResponse = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, "test").get();
         assertThat(getMappingsResponse.mappings().get("test").source().toString(), equalTo("""
             {"_doc":{"properties":{"date":{"type":"integer"}}}}"""));
     }
@@ -131,7 +132,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
         indicesAdmin().prepareCreate("test").setSettings(indexSettings(2, 0)).setMapping("""
             {"properties":{"body":{"type":"text"}}}
             """).get();
-        clusterAdmin().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
+        clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
 
         try {
             indicesAdmin().preparePutMapping("test").setSource("""
@@ -163,7 +164,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
     public void testUpdateMappingNoChanges() {
         indicesAdmin().prepareCreate("test").setSettings(indexSettings(2, 0)).setMapping("""
             {"properties":{"body":{"type":"text"}}}""").get();
-        clusterAdmin().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
+        clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
 
         AcknowledgedResponse putMappingResponse = indicesAdmin().preparePutMapping("test").setSource("""
             {"_doc":{"properties":{"body":{"type":"text"}}}}
@@ -214,7 +215,10 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
                         .get();
 
                     assertThat(response.isAcknowledged(), equalTo(true));
-                    GetMappingsResponse getMappingResponse = client2.admin().indices().prepareGetMappings(indexName).get();
+                    GetMappingsResponse getMappingResponse = client2.admin()
+                        .indices()
+                        .prepareGetMappings(TEST_REQUEST_TIMEOUT, indexName)
+                        .get();
                     MappingMetadata mappings = getMappingResponse.getMappings().get(indexName);
                     @SuppressWarnings("unchecked")
                     Map<String, Object> properties = (Map<String, Object>) mappings.getSourceAsMap().get("properties");
@@ -283,7 +287,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
      * Waits for the given mapping type to exists on the master node.
      */
     private void assertMappingOnMaster(final String index, final String... fieldNames) {
-        GetMappingsResponse response = indicesAdmin().prepareGetMappings(index).get();
+        GetMappingsResponse response = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, index).get();
         MappingMetadata mappings = response.getMappings().get(index);
         assertThat(mappings, notNullValue());
 

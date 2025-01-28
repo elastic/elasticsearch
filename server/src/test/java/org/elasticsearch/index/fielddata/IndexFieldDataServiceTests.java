@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.fielddata;
@@ -33,6 +34,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
@@ -162,12 +164,12 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
         final MappedFieldType mapper1 = new TextFieldMapper.Builder(
             "field_1",
             createDefaultIndexAnalyzers(),
-            indexService.getIndexSettings().getMode().isSyntheticSourceEnabled()
+            SourceFieldMapper.isSynthetic(indexService.getIndexSettings())
         ).fielddata(true).build(context).fieldType();
         final MappedFieldType mapper2 = new TextFieldMapper.Builder(
             "field_2",
             createDefaultIndexAnalyzers(),
-            indexService.getIndexSettings().getMode().isSyntheticSourceEnabled()
+            SourceFieldMapper.isSynthetic(indexService.getIndexSettings())
         ).fielddata(true).build(context).fieldType();
         final IndexWriter writer = new IndexWriter(new ByteBuffersDirectory(), new IndexWriterConfig(new KeywordAnalyzer()));
         Document doc = new Document();
@@ -233,7 +235,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
         final MappedFieldType mapper1 = new TextFieldMapper.Builder(
             "s",
             createDefaultIndexAnalyzers(),
-            indexService.getIndexSettings().getMode().isSyntheticSourceEnabled()
+            SourceFieldMapper.isSynthetic(indexService.getIndexSettings())
         ).fielddata(true).build(context).fieldType();
         final IndexWriter writer = new IndexWriter(new ByteBuffersDirectory(), new IndexWriterConfig(new KeywordAnalyzer()));
         Document doc = new Document();
@@ -358,7 +360,9 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
 
     public void testRequireDocValuesOnBools() {
         doTestRequireDocValues(new BooleanFieldMapper.BooleanFieldType("field"));
-        doTestRequireDocValues(new BooleanFieldMapper.BooleanFieldType("field", true, false, false, null, null, Collections.emptyMap()));
+        doTestRequireDocValues(
+            new BooleanFieldMapper.BooleanFieldType("field", true, false, false, null, null, Collections.emptyMap(), false)
+        );
     }
 
     public void testFieldDataCacheExpire() {

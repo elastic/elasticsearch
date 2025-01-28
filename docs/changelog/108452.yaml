@@ -1,5 +1,0 @@
-pr: 108452
-summary: Add the rerank task to the Elasticsearch internal inference service
-area: Machine Learning
-type: enhancement
-issues: []

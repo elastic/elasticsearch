@@ -1,14 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.action.support.master;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.cluster.ack.AckedRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
@@ -22,9 +22,7 @@ import static org.elasticsearch.core.TimeValue.timeValueSeconds;
  * Abstract base class for action requests that track acknowledgements of cluster state updates: such a request is acknowledged only once
  * the cluster state update is committed and all relevant nodes have applied it and acknowledged its application to the elected master..
  */
-public abstract class AcknowledgedRequest<Request extends MasterNodeRequest<Request>> extends MasterNodeRequest<Request>
-    implements
-        AckedRequest {
+public abstract class AcknowledgedRequest<Request extends MasterNodeRequest<Request>> extends MasterNodeRequest<Request> {
 
     public static final TimeValue DEFAULT_ACK_TIMEOUT = timeValueSeconds(30);
 
@@ -73,7 +71,6 @@ public abstract class AcknowledgedRequest<Request extends MasterNodeRequest<Requ
     /**
      * @return the current ack timeout as a {@link TimeValue}
      */
-    @Override
     public final TimeValue ackTimeout() {
         return ackTimeout;
     }

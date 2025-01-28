@@ -18,6 +18,7 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.ClusterAdminClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
@@ -34,9 +35,9 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -1038,29 +1039,6 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
-    public void testMetaFunctions() {
-        try (EsqlQueryResponse results = run("meta functions")) {
-            assertThat(
-                results.columns(),
-                equalTo(
-                    List.of(
-                        new ColumnInfoImpl("name", "keyword"),
-                        new ColumnInfoImpl("synopsis", "keyword"),
-                        new ColumnInfoImpl("argNames", "keyword"),
-                        new ColumnInfoImpl("argTypes", "keyword"),
-                        new ColumnInfoImpl("argDescriptions", "keyword"),
-                        new ColumnInfoImpl("returnType", "keyword"),
-                        new ColumnInfoImpl("description", "keyword"),
-                        new ColumnInfoImpl("optionalArgs", "boolean"),
-                        new ColumnInfoImpl("variadic", "boolean"),
-                        new ColumnInfoImpl("isAggregation", "boolean")
-                    )
-                )
-            );
-            assertThat(getValuesList(results).size(), equalTo(new EsqlFunctionRegistry().listFunctions().size()));
-        }
-    }
-
     public void testInWithNullValue() {
         try (EsqlQueryResponse results = run("from test | where null in (data, 2) | keep data")) {
             assertThat(results.columns(), equalTo(List.of(new ColumnInfoImpl("data", "long"))));
@@ -1643,7 +1621,8 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
 
         Settings settings = Settings.builder().put(EsqlPlugin.QUERY_RESULT_TRUNCATION_DEFAULT_SIZE.getKey(), 1).build();
 
-        ClusterUpdateSettingsRequest settingsRequest = new ClusterUpdateSettingsRequest().persistentSettings(settings);
+        ClusterUpdateSettingsRequest settingsRequest = new ClusterUpdateSettingsRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+            .persistentSettings(settings);
 
         client.updateSettings(settingsRequest).actionGet();
         try (EsqlQueryResponse results = run("from test")) {
@@ -1659,7 +1638,8 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
 
         Settings settings = Settings.builder().put(EsqlPlugin.QUERY_RESULT_TRUNCATION_MAX_SIZE.getKey(), 10).build();
 
-        ClusterUpdateSettingsRequest settingsRequest = new ClusterUpdateSettingsRequest().persistentSettings(settings);
+        ClusterUpdateSettingsRequest settingsRequest = new ClusterUpdateSettingsRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+            .persistentSettings(settings);
 
         client.updateSettings(settingsRequest).actionGet();
         try (EsqlQueryResponse results = run("from test | limit 40")) {
@@ -1670,6 +1650,59 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testScriptField() throws Exception {
+        XContentBuilder mapping = JsonXContent.contentBuilder();
+        mapping.startObject();
+        {
+            mapping.startObject("runtime");
+            {
+                mapping.startObject("k1");
+                mapping.field("type", "long");
+                mapping.endObject();
+                mapping.startObject("k2");
+                mapping.field("type", "long");
+                mapping.endObject();
+            }
+            mapping.endObject();
+            {
+                mapping.startObject("properties");
+                mapping.startObject("meter").field("type", "double").endObject();
+                mapping.endObject();
+            }
+        }
+        mapping.endObject();
+        String sourceMode = randomBoolean() ? "stored" : "synthetic";
+        Settings.Builder settings = indexSettings(1, 0).put(indexSettings()).put("index.mapping.source.mode", sourceMode);
+        client().admin().indices().prepareCreate("test-script").setMapping(mapping).setSettings(settings).get();
+        int numDocs = 256;
+        for (int i = 0; i < numDocs; i++) {
+            index("test-script", Integer.toString(i), Map.of("k1", i, "k2", "b-" + i, "meter", 10000 * i));
+        }
+        refresh("test-script");
+
+        var pragmas = randomPragmas();
+        if (canUseQueryPragmas()) {
+            Settings.Builder pragmaSettings = Settings.builder().put(pragmas.getSettings());
+            pragmaSettings.put("task_concurrency", 10);
+            pragmaSettings.put("data_partitioning", "doc");
+            pragmas = new QueryPragmas(pragmaSettings.build());
+        }
+        try (EsqlQueryResponse resp = run("FROM test-script | SORT k1 | LIMIT " + numDocs, pragmas)) {
+            List<Object> k1Column = Iterators.toList(resp.column(0));
+            assertThat(k1Column, equalTo(LongStream.range(0L, numDocs).boxed().toList()));
+            List<Object> k2Column = Iterators.toList(resp.column(1));
+            assertThat(k2Column, equalTo(Collections.nCopies(numDocs, null)));
+            List<Object> meterColumn = Iterators.toList(resp.column(2));
+            var expectedMeterColumn = new ArrayList<>(numDocs);
+            double val = 0.0;
+            for (int i = 0; i < numDocs; i++) {
+                expectedMeterColumn.add(val);
+                val += 10000.0;
+            }
+            assertThat(meterColumn, equalTo(expectedMeterColumn));
+        }
+    }
+
     private void clearPersistentSettings(Setting<?>... settings) {
         Settings.Builder clearedSettings = Settings.builder();
 
@@ -1677,7 +1710,9 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             clearedSettings.putNull(s.getKey());
         }
 
-        var clearSettingsRequest = new ClusterUpdateSettingsRequest().persistentSettings(clearedSettings.build());
+        var clearSettingsRequest = new ClusterUpdateSettingsRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).persistentSettings(
+            clearedSettings.build()
+        );
         admin().cluster().updateSettings(clearSettingsRequest).actionGet();
     }
 

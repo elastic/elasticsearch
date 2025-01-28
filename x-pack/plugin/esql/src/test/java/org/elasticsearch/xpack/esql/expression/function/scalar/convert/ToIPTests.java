@@ -61,9 +61,7 @@ public class ToIPTests extends AbstractScalarFunctionTestCase {
             bytesRef -> parseIP(((BytesRef) bytesRef).utf8ToString()),
             emptyList()
         );
-
-        // add null as parameter
-        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
+        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
     }
 
     @Override

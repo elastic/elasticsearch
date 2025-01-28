@@ -1,49 +1,60 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper.vectors;
 
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.TermFrequencyAttribute;
-import org.apache.lucene.document.FeatureField;
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xcontent.XContentType;
 import org.hamcrest.Matchers;
 import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper.NEW_SPARSE_VECTOR_INDEX_VERSION;
 import static org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper.PREVIOUS_SPARSE_VECTOR_INDEX_VERSION;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class SparseVectorFieldMapperTests extends MapperTestCase {
 
     @Override
     protected Object getSampleValueForDocument() {
-        return Map.of("ten", 10, "twenty", 20);
+        Map<String, Float> map = new LinkedHashMap<>();
+        map.put("ten", 10f);
+        map.put("twenty", 20f);
+        return map;
     }
 
     @Override
@@ -91,14 +102,18 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
 
         List<IndexableField> fields = doc1.rootDoc().getFields("field");
         assertEquals(2, fields.size());
-        assertThat(fields.get(0), Matchers.instanceOf(FeatureField.class));
-        FeatureField featureField1 = null;
-        FeatureField featureField2 = null;
+        if (IndexVersion.current().luceneVersion().major == 10) {
+            // TODO: Update to use Lucene's FeatureField after upgrading to Lucene 10.1.
+            assertThat(IndexVersion.current().luceneVersion().minor, equalTo(0));
+        }
+        assertThat(fields.get(0), Matchers.instanceOf(XFeatureField.class));
+        XFeatureField featureField1 = null;
+        XFeatureField featureField2 = null;
         for (IndexableField field : fields) {
             if (field.stringValue().equals("ten")) {
-                featureField1 = (FeatureField) field;
+                featureField1 = (XFeatureField) field;
             } else if (field.stringValue().equals("twenty")) {
-                featureField2 = (FeatureField) field;
+                featureField2 = (XFeatureField) field;
             } else {
                 throw new UnsupportedOperationException();
             }
@@ -111,12 +126,26 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
 
     public void testDotInFieldName() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
-        DocumentParsingException ex = expectThrows(
-            DocumentParsingException.class,
-            () -> mapper.parse(source(b -> b.field("field", Map.of("politi.cs", 10, "sports", 20))))
-        );
-        assertThat(ex.getCause().getMessage(), containsString("do not support dots in feature names"));
-        assertThat(ex.getCause().getMessage(), containsString("politi.cs"));
+        ParsedDocument parsedDocument = mapper.parse(source(b -> b.field("field", Map.of("foo.bar", 10, "foobar", 20))));
+
+        List<IndexableField> fields = parsedDocument.rootDoc().getFields("field");
+        assertEquals(2, fields.size());
+        assertThat(fields.get(0), Matchers.instanceOf(XFeatureField.class));
+        XFeatureField featureField1 = null;
+        XFeatureField featureField2 = null;
+        for (IndexableField field : fields) {
+            if (field.stringValue().equals("foo.bar")) {
+                featureField1 = (XFeatureField) field;
+            } else if (field.stringValue().equals("foobar")) {
+                featureField2 = (XFeatureField) field;
+            } else {
+                throw new UnsupportedOperationException();
+            }
+        }
+
+        int freq1 = getFrequency(featureField1.tokenStream(null, null));
+        int freq2 = getFrequency(featureField2.tokenStream(null, null));
+        assertTrue(freq1 < freq2);
     }
 
     public void testHandlesMultiValuedFields() throws MapperParsingException, IOException {
@@ -156,13 +185,13 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
         }));
 
         // then validate that the generate document stored both values appropriately and we have only the max value stored
-        FeatureField barField = ((FeatureField) doc1.rootDoc().getByKey("foo.field.bar"));
+        XFeatureField barField = ((XFeatureField) doc1.rootDoc().getByKey("foo.field\\.bar"));
         assertEquals(20, barField.getFeatureValue(), 1);
 
-        FeatureField storedBarField = ((FeatureField) doc1.rootDoc().getFields("foo.field").get(1));
+        XFeatureField storedBarField = ((XFeatureField) doc1.rootDoc().getFields("foo.field").get(1));
         assertEquals(20, storedBarField.getFeatureValue(), 1);
 
-        assertEquals(3, doc1.rootDoc().getFields().stream().filter((f) -> f instanceof FeatureField).count());
+        assertEquals(3, doc1.rootDoc().getFields().stream().filter((f) -> f instanceof XFeatureField).count());
     }
 
     public void testCannotBeUsedInMultiFields() {
@@ -175,6 +204,53 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
             b.endObject();
         })));
         assertThat(e.getMessage(), containsString("Field [feature] of type [sparse_vector] can't be used in multifields"));
+    }
+
+    public void testStoreIsNotUpdateable() throws IOException {
+        var mapperService = createMapperService(fieldMapping(this::minimalMapping));
+        XContentBuilder mapping = jsonBuilder().startObject()
+            .startObject("_doc")
+            .startObject("properties")
+            .startObject("field")
+            .field("type", "sparse_vector")
+            .field("store", true)
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
+        var exc = expectThrows(
+            Exception.class,
+            () -> mapperService.merge("_doc", new CompressedXContent(Strings.toString(mapping)), MapperService.MergeReason.MAPPING_UPDATE)
+        );
+        assertThat(exc.getMessage(), containsString("Cannot update parameter [store]"));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testValueFetcher() throws Exception {
+        for (boolean store : new boolean[] { true, false }) {
+            var mapperService = createMapperService(fieldMapping(store ? this::minimalStoreMapping : this::minimalMapping));
+            var mapper = mapperService.documentMapper();
+            try (Directory directory = newDirectory()) {
+                RandomIndexWriter iw = new RandomIndexWriter(random(), directory);
+                var sourceToParse = source(this::writeField);
+                ParsedDocument doc1 = mapper.parse(sourceToParse);
+                iw.addDocument(doc1.rootDoc());
+                iw.close();
+                try (DirectoryReader reader = wrapInMockESDirectoryReader(DirectoryReader.open(directory))) {
+                    LeafReader leafReader = getOnlyLeafReader(reader);
+                    var searchContext = createSearchExecutionContext(mapperService, new IndexSearcher(leafReader));
+                    var fieldType = mapper.mappers().getFieldType("field");
+                    var valueFetcher = fieldType.valueFetcher(searchContext, null);
+                    valueFetcher.setNextReader(leafReader.getContext());
+
+                    var source = Source.fromBytes(sourceToParse.source());
+                    var result = valueFetcher.fetchValues(source, 0, List.of());
+                    assertThat(result.size(), equalTo(1));
+                    assertThat(result.get(0), instanceOf(Map.class));
+                    assertThat(toFloats((Map<String, ?>) result.get(0)), equalTo(toFloats((Map<String, ?>) source.source().get("field"))));
+                }
+            }
+        }
     }
 
     @Override
@@ -190,7 +266,29 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport(boolean syntheticSource) {
-        throw new AssumptionViolatedException("not supported");
+        boolean withStore = randomBoolean();
+        return new SyntheticSourceSupport() {
+            @Override
+            public boolean preservesExactSource() {
+                return withStore == false;
+            }
+
+            @Override
+            public SyntheticSourceExample example(int maxValues) {
+                return new SyntheticSourceExample(getSampleValueForDocument(), getSampleValueForDocument(), b -> {
+                    if (withStore) {
+                        minimalStoreMapping(b);
+                    } else {
+                        minimalMapping(b);
+                    }
+                });
+            }
+
+            @Override
+            public List<SyntheticSourceInvalidExample> invalidExample() {
+                return List.of();
+            }
+        };
     }
 
     @Override
@@ -212,44 +310,6 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
         return NEW_SPARSE_VECTOR_INDEX_VERSION;
     }
 
-    public void testSparseVectorWith7xIndex() throws Exception {
-        IndexVersion version = IndexVersionUtils.randomPreviousCompatibleVersion(random(), PREVIOUS_SPARSE_VECTOR_INDEX_VERSION);
-
-        XContentBuilder builder = XContentFactory.jsonBuilder()
-            .startObject()
-            .startObject("_doc")
-            .startObject("properties")
-            .startObject("my-vector")
-            .field("type", "sparse_vector")
-            .endObject()
-            .endObject()
-            .endObject()
-            .endObject();
-
-        DocumentMapper mapper = createDocumentMapper(version, builder);
-        assertWarnings(SparseVectorFieldMapper.ERROR_MESSAGE_7X);
-
-        // Check that new vectors cannot be indexed.
-        int[] indexedDims = { 65535, 50, 2 };
-        float[] indexedValues = { 0.5f, 1800f, -34567.11f };
-        BytesReference source = BytesReference.bytes(
-            XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("my-vector")
-                .field(Integer.toString(indexedDims[0]), indexedValues[0])
-                .field(Integer.toString(indexedDims[1]), indexedValues[1])
-                .field(Integer.toString(indexedDims[2]), indexedValues[2])
-                .endObject()
-                .endObject()
-        );
-
-        DocumentParsingException indexException = expectThrows(
-            DocumentParsingException.class,
-            () -> mapper.parse(new SourceToParse("id", source, XContentType.JSON))
-        );
-        assertThat(indexException.getCause().getMessage(), containsString(SparseVectorFieldMapper.ERROR_MESSAGE_7X));
-    }
-
     public void testSparseVectorUnsupportedIndex() throws Exception {
         IndexVersion version = IndexVersionUtils.randomVersionBetween(
             random(),
@@ -260,5 +320,21 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
             b.field("type", "sparse_vector");
         })));
         assertThat(e.getMessage(), containsString(SparseVectorFieldMapper.ERROR_MESSAGE_8X));
+    }
+
+    /**
+     * Handles float/double conversion when reading/writing with xcontent by converting all numbers to floats.
+     */
+    private Map<String, Float> toFloats(Map<String, ?> value) {
+        // preserve order
+        Map<String, Float> result = new LinkedHashMap<>();
+        for (var entry : value.entrySet()) {
+            if (entry.getValue() instanceof Number num) {
+                result.put(entry.getKey(), num.floatValue());
+            } else {
+                throw new IllegalArgumentException("Expected Number, got: " + value.getClass().getSimpleName());
+            }
+        }
+        return result;
     }
 }

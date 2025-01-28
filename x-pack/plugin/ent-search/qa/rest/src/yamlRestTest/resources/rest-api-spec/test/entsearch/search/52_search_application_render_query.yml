@@ -221,6 +221,36 @@ teardown:
   }
 
 ---
+"Render query for search application with floats":
+
+  - do:
+      search_application.render_query:
+        name: test-search-application-with-list
+        body:
+          params:
+            query_string: value3
+            text_fields:
+              - name: field1
+                boost: 1.2
+              - name: field2
+                boost: 2.3
+              - name: field3
+                boost: 3
+
+  - match: {
+    query: {
+      multi_match: {
+        query: "value3",
+        fields: [
+          "field1^1.2",
+          "field2^2.3",
+          "field3^3.0"
+        ]
+      }
+    }
+  }
+
+---
 "Render query for search application - not found":
 
   - do:

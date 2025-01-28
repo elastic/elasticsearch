@@ -1,13 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.readiness;
 
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -112,13 +112,16 @@ public class ReadinessClusterIT extends ESIntegTestCase {
     }
 
     private void assertMasterNode(Client client, String node) {
-        assertThat(client.admin().cluster().prepareState().get().getState().nodes().getMasterNode().getName(), equalTo(node));
+        assertThat(
+            client.admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState().nodes().getMasterNode().getName(),
+            equalTo(node)
+        );
     }
 
     private void expectMasterNotFound() {
         expectThrows(
             MasterNotDiscoveredException.class,
-            clusterAdmin().prepareState().setMasterNodeTimeout(TimeValue.timeValueMillis(100))
+            clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).setMasterNodeTimeout(TimeValue.timeValueMillis(100))
         );
     }
 
@@ -397,24 +400,24 @@ public class ReadinessClusterIT extends ESIntegTestCase {
     }
 
     private void causeClusterStateUpdate() {
-        PlainActionFuture.get(
-            fut -> internalCluster().getCurrentMasterNodeInstance(ClusterService.class)
-                .submitUnbatchedStateUpdateTask("poke", new ClusterStateUpdateTask() {
-                    @Override
-                    public ClusterState execute(ClusterState currentState) {
-                        return ClusterState.builder(currentState).build();
-                    }
+        final var latch = new CountDownLatch(1);
+        internalCluster().getCurrentMasterNodeInstance(ClusterService.class)
+            .submitUnbatchedStateUpdateTask("poke", new ClusterStateUpdateTask() {
+                @Override
+                public ClusterState execute(ClusterState currentState) {
+                    return ClusterState.builder(currentState).build();
+                }
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        assert false : e;
-                    }
+                @Override
+                public void onFailure(Exception e) {
+                    assert false : e;
+                }
 
-                    @Override
-                    public void clusterStateProcessed(ClusterState initialState, ClusterState newState) {
-                        fut.onResponse(null);
-                    }
-                })
-        );
+                @Override
+                public void clusterStateProcessed(ClusterState initialState, ClusterState newState) {
+                    latch.countDown();
+                }
+            });
+        safeAwait(latch);
     }
 }

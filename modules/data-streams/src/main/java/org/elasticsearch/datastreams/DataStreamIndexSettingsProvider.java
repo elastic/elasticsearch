@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.datastreams;
 
@@ -58,7 +59,7 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
     public Settings getAdditionalIndexSettings(
         String indexName,
         @Nullable String dataStreamName,
-        boolean isTimeSeries,
+        @Nullable IndexMode templateIndexMode,
         Metadata metadata,
         Instant resolvedAt,
         Settings indexTemplateAndCreateRequestSettings,
@@ -69,15 +70,16 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
             // First backing index is created and then data stream is rolled over (in a single cluster state update).
             // So at this point we can't check index_mode==time_series,
             // so checking that index_mode==null|standard and templateIndexMode == TIME_SERIES
+            boolean isMigratingToTimeSeries = templateIndexMode == IndexMode.TIME_SERIES;
             boolean migrating = dataStream != null
                 && (dataStream.getIndexMode() == null || dataStream.getIndexMode() == IndexMode.STANDARD)
-                && isTimeSeries;
+                && isMigratingToTimeSeries;
             IndexMode indexMode;
             if (migrating) {
                 indexMode = IndexMode.TIME_SERIES;
             } else if (dataStream != null) {
-                indexMode = isTimeSeries ? dataStream.getIndexMode() : null;
-            } else if (isTimeSeries) {
+                indexMode = isMigratingToTimeSeries ? dataStream.getIndexMode() : null;
+            } else if (isMigratingToTimeSeries) {
                 indexMode = IndexMode.TIME_SERIES;
             } else {
                 indexMode = null;

@@ -22,10 +22,9 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataUpdateSettingsService;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.index.Index;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.Task;
@@ -53,6 +52,7 @@ public class TransportUpdateWatcherSettingsAction extends TransportMasterNodeAct
 
     private static final Logger logger = LogManager.getLogger(TransportUpdateWatcherSettingsAction.class);
     private final MetadataUpdateSettingsService updateSettingsService;
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
 
     @Inject
     public TransportUpdateWatcherSettingsAction(
@@ -69,12 +69,12 @@ public class TransportUpdateWatcherSettingsAction extends TransportMasterNodeAct
             clusterService,
             threadPool,
             actionFilters,
-            UpdateWatcherSettingsAction.Request::readFrom,
-            indexNameExpressionResolver,
+            UpdateWatcherSettingsAction.Request::new,
             AcknowledgedResponse::readFrom,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.updateSettingsService = updateSettingsService;
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
     }
 
     @Override
@@ -91,9 +91,14 @@ public class TransportUpdateWatcherSettingsAction extends TransportMasterNodeAct
             return;
         }
         final Settings newSettings = Settings.builder().loadFromMap(request.settings()).build();
-        final UpdateSettingsClusterStateUpdateRequest clusterStateUpdateRequest = new UpdateSettingsClusterStateUpdateRequest().indices(
-            new Index[] { watcherIndexMd.getIndex() }
-        ).settings(newSettings).ackTimeout(request.ackTimeout()).masterNodeTimeout(request.masterNodeTimeout());
+        final UpdateSettingsClusterStateUpdateRequest clusterStateUpdateRequest = new UpdateSettingsClusterStateUpdateRequest(
+            request.masterNodeTimeout(),
+            request.ackTimeout(),
+            newSettings,
+            UpdateSettingsClusterStateUpdateRequest.OnExisting.OVERWRITE,
+            UpdateSettingsClusterStateUpdateRequest.OnStaticSetting.REJECT,
+            watcherIndexMd.getIndex()
+        );
 
         updateSettingsService.updateSettings(clusterStateUpdateRequest, new ActionListener<>() {
             @Override

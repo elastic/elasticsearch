@@ -53,16 +53,18 @@ first election. In <<dev-vs-prod-mode,development mode>>, with no discovery
 settings configured, this step is performed automatically by the nodes
 themselves.
 
-Because auto-bootstrapping is <<modules-discovery-quorums,inherently
-unsafe>>, when starting a new cluster in production
-mode, you must explicitly list the master-eligible nodes whose votes should be
-counted in the very first election. You set this list using the
-`cluster.initial_master_nodes` setting.
+Because auto-bootstrapping is <<modules-discovery-quorums,inherently unsafe>>,
+when starting a new cluster in production mode, you must explicitly list the
+master-eligible nodes whose votes should be counted in the very first election.
+You set this list using the `cluster.initial_master_nodes` setting on every
+master-eligible node. Do not configure this setting on master-ineligible nodes.
 
 IMPORTANT: After the cluster forms successfully for the first time, remove the
-`cluster.initial_master_nodes` setting from each node's configuration. Do not
-use this setting when restarting a cluster or adding a new node to an existing
-cluster.
+`cluster.initial_master_nodes` setting from each node's configuration and never
+set it again for this cluster. Do not configure this setting on nodes joining
+an existing cluster. Do not configure this setting on nodes which are
+restarting. Do not configure this setting when performing a full-cluster
+restart. See <<modules-discovery-bootstrap-cluster>>.
 
 [source,yaml]
 --------------------------------------------------

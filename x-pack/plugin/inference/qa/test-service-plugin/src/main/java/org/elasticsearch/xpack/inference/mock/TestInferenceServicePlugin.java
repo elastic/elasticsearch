@@ -44,6 +44,11 @@ public class TestInferenceServicePlugin extends Plugin {
                 ServiceSettings.class,
                 TestRerankingServiceExtension.TestServiceSettings.NAME,
                 TestRerankingServiceExtension.TestServiceSettings::new
+            ),
+            new NamedWriteableRegistry.Entry(
+                ServiceSettings.class,
+                TestStreamingCompletionServiceExtension.TestServiceSettings.NAME,
+                TestStreamingCompletionServiceExtension.TestServiceSettings::new
             )
         );
     }

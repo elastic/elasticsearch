@@ -47,7 +47,6 @@ import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.upgrades.FeatureMigrationResults;
 import org.elasticsearch.upgrades.SingleFeatureMigrationResult;
-import org.junit.Ignore;
 
 import java.util.ArrayList;
 import java.util.Arrays;

@@ -1,4 +1,4 @@
-detect nothing
+detect nothing (long)
 // TODO: required_capability: change_point
 
 FROM k8s
@@ -33,7 +33,7 @@ count:long | @timestamp:datetime      | type:text | pvalue:double
 ;
 
 
-detect spike
+detect spike (long)
 // TODO: required_capability: change_point
 
 FROM k8s
@@ -69,7 +69,7 @@ FROM k8s
 ;
 
 
-detect step change
+detect step change (long)
 // TODO: required_capability: change_point
 
 FROM k8s
@@ -102,4 +102,71 @@ FROM k8s
 2024-05-10T00:20:00.000Z | 110        | null        | null
 2024-05-10T00:21:00.000Z | 104        | null        | null
 2024-05-10T00:22:00.000Z | 109        | null        | null
+;
+
+
+detect dip (double)
+// TODO: required_capability: change_point
+
+FROM employees
+  | STATS salary=AVG(salary) BY height
+  | EVAL salary=CASE(height==2.1, 0.0, salary)
+  | CHANGE_POINT salary ON height AS type, pvalue
+;
+
+height:double | salary:double      | type:text | pvalue:double       
+1.41          | 40031.0            | null      | null                
+1.42          | 34142.5            | null      | null                
+1.44          | 40266.0            | null      | null                
+1.45          | 49095.0            | null      | null                
+1.46          | 39878.0            | null      | null                
+1.47          | 60408.0            | null      | null                
+1.48          | 44307.0            | null      | null                
+1.5           | 31120.0            | null      | null                
+1.51          | 28035.0            | null      | null                
+1.52          | 41243.5            | null      | null                
+1.53          | 60079.333333333336 | null      | null                
+1.54          | 61358.0            | null      | null                
+1.55          | 36876.5            | null      | null                
+1.56          | 60335.0            | null      | null                
+1.57          | 38486.0            | null      | null                
+1.58          | 41701.5            | null      | null                
+1.59          | 36575.666666666664 | null      | null                
+1.61          | 55299.5            | null      | null                
+1.63          | 70011.0            | null      | null                
+1.64          | 38992.0            | null      | null                
+1.66          | 28946.0            | null      | null                
+1.68          | 42155.5            | null      | null                
+1.69          | 45656.0            | null      | null                
+1.7           | 65092.25           | null      | null                
+1.74          | 53178.0            | null      | null                
+1.75          | 43429.0            | null      | null                
+1.77          | 54184.25           | null      | null                
+1.78          | 44147.5            | null      | null                
+1.79          | 55360.0            | null      | null                
+1.8           | 52833.0            | null      | null                
+1.81          | 56475.666666666664 | null      | null                
+1.82          | 56039.333333333336 | null      | null                
+1.83          | 54195.333333333336 | null      | null                
+1.85          | 66174.0            | null      | null                
+1.87          | 47411.0            | null      | null                
+1.89          | 58121.0            | null      | null                
+1.9           | 37112.0            | null      | null                
+1.91          | 39638.0            | null      | null                
+1.92          | 67492.0            | null      | null                
+1.93          | 33956.0            | null      | null                
+1.94          | 48193.333333333336 | null      | null                
+1.96          | 43026.0            | null      | null                
+1.97          | 52851.0            | null      | null                
+1.99          | 56068.0            | null      | null                
+2.0           | 36314.666666666664 | null      | null                
+2.01          | 35742.0            | null      | null                
+2.03          | 51130.5            | null      | null                
+2.04          | 49281.0            | null      | null                
+2.05          | 63528.0            | null      | null                
+2.06          | 56722.5            | null      | null                
+2.07          | 39984.0            | null      | null                
+2.08          | 60523.0            | null      | null                
+2.09          | 38645.0            | null      | null                
+2.1           | 0.0                | dip       | 9.590143836835097E-6  
 ;

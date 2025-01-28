@@ -10,9 +10,9 @@ package org.elasticsearch.compute.operator;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
-import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.xpack.ml.aggs.MlAggsHelper;
 import org.elasticsearch.xpack.ml.aggs.changepoint.ChangePointDetector;
@@ -93,15 +93,17 @@ public class ChangePointOperator implements Operator {
         double[] values = new double[valuesCount];
         int valuesIndex = 0;
         for (Page inputPage : inputPages) {
-            // TODO: other data types
-            LongVector vector = (LongVector) inputPage.getBlock(inputChannel).asVector();
-            for (int i = 0; i < vector.getPositionCount(); i++) {
-                values[valuesIndex++] = (double) vector.getLong(i);
+            Block inputBlock = inputPage.getBlock(inputChannel);
+            for (int i = 0; i < inputBlock.getPositionCount(); i++) {
+                // TODO: nulls
+                values[valuesIndex++] = ((Number) BlockUtils.toJavaObject(inputBlock, i)).doubleValue();
             }
         }
 
         ChangeType changeType = ChangePointDetector.getChangeType(new MlAggsHelper.DoubleBucketValues(null, values));
         int changePointIndex = changeType.changePoint();
+
+        // TODO: throw error when indeterminable, due to not enough data
 
         int pageStartIndex = 0;
         for (Page inputPage : inputPages) {

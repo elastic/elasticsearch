@@ -11,6 +11,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
@@ -20,6 +21,9 @@ import java.util.List;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.CoreMatchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.lessThan;
 
 //@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE", reason = "debug")
 public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
@@ -27,19 +31,6 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
     @Before
     public void setupIndex() {
         createAndPopulateIndex();
-    }
-
-    public void testDELETEME() {
-        var query = """
-            FROM test METADATA _score
-            | WHERE match(content, "fox") OR length(content) < 20
-            """;
-
-        try (var resp = run(query)) {
-            assertColumnNames(resp.columns(), List.of("id"));
-            assertColumnTypes(resp.columns(), List.of("integer"));
-            assertValues(resp.values(), List.of(List.of(1), List.of(6)));
-        }
     }
 
     public void testSimpleWhereMatch() {
@@ -271,6 +262,60 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
 
         var error = expectThrows(VerificationException.class, () -> run(query));
         assertThat(error.getMessage(), containsString("[MATCH] function is only supported in WHERE commands"));
+    }
+
+    public void testDisjunctionScoring() {
+        var query = """
+            FROM test METADATA _score
+            | WHERE match(content, "fox") OR length(content) < 20
+            | KEEP id, _score
+            | SORT _score DESC
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "_score"));
+            assertColumnTypes(resp.columns(), List.of("integer", "double"));
+            List<List<Object>> values = EsqlTestUtils.getValuesList(resp);
+            assertThat(values.size(), equalTo(3));
+
+            assertThat(values.get(0).get(0), equalTo(1));
+            assertThat(values.get(1).get(0), equalTo(2));
+            assertThat(values.get(2).get(0), equalTo(6));
+
+            // Matches full text query and non pushable query
+            assertThat((Double)values.get(0).get(1), greaterThan(2.0));
+            // Matches just non pushable query
+            assertThat((Double)values.get(1).get(1), equalTo(1));
+            // Matches just full text query
+            assertThat((Double)values.get(2).get(1), lessThan(1.0));
+            assertThat((Double)values.get(2).get(1), greaterThan(0.0));
+        }
+    }
+
+    public void testDisjunctionScoringMultipleNonPushableFunctions() {
+        var query = """
+            FROM test METADATA _score
+            | WHERE match(content, "fox") OR length(content) < 20 AND id > 2
+            | KEEP id, _score
+            | SORT _score DESC
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "_score"));
+            assertColumnTypes(resp.columns(), List.of("integer", "double"));
+            List<List<Object>> values = EsqlTestUtils.getValuesList(resp);
+            assertThat(values.size(), equalTo(2));
+
+            assertThat(values.get(0).get(0), equalTo(1));
+            assertThat(values.get(1).get(0), equalTo(6));
+
+            // Matches the full text query and a non pushable query
+            assertThat((Double)values.get(0).get(1), greaterThan(1.0));
+            assertThat((Double)values.get(0).get(1), lessThan(2.0));
+            // Matches just the match function
+            assertThat((Double)values.get(1).get(1), lessThan(1.0));
+            assertThat((Double)values.get(1).get(1), greaterThan(0.0));
+        }
     }
 
     private void createAndPopulateIndex() {

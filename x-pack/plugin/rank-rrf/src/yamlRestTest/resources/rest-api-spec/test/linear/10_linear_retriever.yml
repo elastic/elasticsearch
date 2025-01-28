@@ -309,6 +309,48 @@ setup:
               ]
 
 ---
+"should throw on negative weights":
+  - do:
+      catch: /\[weight\] must be non-negative/
+      search:
+        index: test
+        body:
+          retriever:
+            linear:
+              retrievers: [
+                {
+                  retriever: {
+                    standard: {
+                      query: {
+                        constant_score: {
+                          filter: {
+                            term: {
+                              keyword: {
+                                value: "one"
+                              }
+                            }
+                          },
+                          boost: 10.0
+                        }
+                      }
+                    }
+                  },
+                  weight: 1.0
+                },
+                {
+                  retriever: {
+                    knn: {
+                      field: "vector",
+                      query_vector: [ 4 ],
+                      k: 1,
+                      num_candidates: 1
+                    }
+                  },
+                  weight: -10
+                }
+              ]
+
+---
 "pagination within a consistent rank_window_size":
   - do:
       search:

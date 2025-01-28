@@ -48,6 +48,8 @@ A <<rule-retriever, retriever>> that applies contextual <<query-rules>> to pin o
 
 A standard retriever returns top documents from a traditional <<query-dsl, query>>.
 
+[discrete]
+[[standard-retriever-parameters]]
 ===== Parameters:
 
 `query`::
@@ -198,6 +200,8 @@ Documents matching these conditions will have increased relevancy scores.
 
 A kNN retriever returns top documents from a <<knn-search, k-nearest neighbor search (kNN)>>.
 
+[discrete]
+[[knn-retriever-parameters]]
 ===== Parameters
 
 `field`::
@@ -270,10 +274,10 @@ This value must be fewer than or equal to `num_candidates`.
 
 [[linear-retriever]]
 ==== Linear Retriever
-A retriever that normalizes and linearly combines the scores of other retrievers. If the final scores produced after the
-weighted combination of all sub-retrievers are negative, a corrective factor is applied equal to the minimum score,
-so all scores are positive.
+A retriever that normalizes and linearly combines the scores of other retrievers.
 
+[discrete]
+[[linear-retriever-parameters]]
 ===== Parameters
 
 include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=linear-retriever-components]
@@ -288,6 +292,8 @@ include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=compound-retriever-filt
 An <<rrf, RRF>> retriever returns top documents based on the RRF formula, equally weighting two or more child retrievers.
 Reciprocal rank fusion (RRF) is a method for combining multiple result sets with different relevance indicators into a single result set.
 
+[discrete]
+[[rrf-retriever-parameters]]
 ===== Parameters
 
 include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=rrf-retrievers]
@@ -540,6 +546,8 @@ You have the following options:
 ** Then set up an <<inference-example-eland,{es} service inference endpoint>> with the `rerank` task type.
 ** Refer to the <<text-similarity-reranker-retriever-example-eland,example>> on this page for a step-by-step guide.
 
+[discrete]
+[[text-similarity-reranker-retriever-parameters]]
 ===== Parameters
 
 `retriever`::

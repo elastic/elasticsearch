@@ -13,6 +13,13 @@ import java.io.File;
 import java.io.InputStream;
 import java.io.PrintStream;
 import java.io.PrintWriter;
+import java.lang.foreign.AddressLayout;
+import java.lang.foreign.Arena;
+import java.lang.foreign.FunctionDescriptor;
+import java.lang.foreign.Linker;
+import java.lang.foreign.MemoryLayout;
+import java.lang.foreign.MemorySegment;
+import java.lang.invoke.MethodHandle;
 import java.net.ContentHandlerFactory;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
@@ -49,6 +56,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Properties;
 import java.util.TimeZone;
+import java.util.function.Consumer;
 
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.HttpsURLConnection;
@@ -415,6 +423,7 @@ public interface EntitlementChecker {
     //
     // Load native libraries
     //
+    // Using the list of restricted methods from https://download.java.net/java/early_access/jdk24/docs/api/restricted-list.html
     void check$java_lang_Runtime$load(Class<?> callerClass, Runtime that, String filename);
 
     void check$java_lang_Runtime$loadLibrary(Class<?> callerClass, Runtime that, String libname);
@@ -422,6 +431,62 @@ public interface EntitlementChecker {
     void check$java_lang_System$$load(Class<?> callerClass, String filename);
 
     void check$java_lang_System$$loadLibrary(Class<?> callerClass, String libname);
+
+    // Sealed implementation of java.lang.foreign.AddressLayout
+    void check$jdk_internal_foreign_layout_ValueLayouts$OfAddressImpl$withTargetLayout(
+        Class<?> callerClass,
+        AddressLayout that,
+        MemoryLayout memoryLayout
+    );
+
+    // Sealed implementation of java.lang.foreign.Linker
+    void check$jdk_internal_foreign_abi_AbstractLinker$downcallHandle(
+        Class<?> callerClass,
+        Linker that,
+        FunctionDescriptor function,
+        Linker.Option... options
+    );
+
+    void check$jdk_internal_foreign_abi_AbstractLinker$downcallHandle(
+        Class<?> callerClass,
+        Linker that,
+        MemorySegment address,
+        FunctionDescriptor function,
+        Linker.Option... options
+    );
+
+    void check$jdk_internal_foreign_abi_AbstractLinker$upcallStub(
+        Class<?> callerClass,
+        Linker that,
+        MethodHandle target,
+        FunctionDescriptor function,
+        Arena arena,
+        Linker.Option... options
+    );
+
+    // Sealed implementation for java.lang.foreign.MemorySegment.reinterpret(long)
+    void check$jdk_internal_foreign_AbstractMemorySegmentImpl$reinterpret(Class<?> callerClass, MemorySegment that, long newSize);
+
+    void check$jdk_internal_foreign_AbstractMemorySegmentImpl$reinterpret(
+        Class<?> callerClass,
+        MemorySegment that,
+        long newSize,
+        Arena arena,
+        Consumer<MemorySegment> cleanup
+    );
+
+    void check$jdk_internal_foreign_AbstractMemorySegmentImpl$reinterpret(
+        Class<?> callerClass,
+        MemorySegment that,
+        Arena arena,
+        Consumer<MemorySegment> cleanup
+    );
+
+    void check$java_lang_foreign_SymbolLookup$$libraryLookup(Class<?> callerClass, String name, Arena arena);
+
+    void check$java_lang_foreign_SymbolLookup$$libraryLookup(Class<?> callerClass, Path path, Arena arena);
+
+    void check$java_lang_ModuleLayer$Controller$enableNativeAccess(Class<?> callerClass, ModuleLayer.Controller that, Module target);
 
     /// /////////////////
     //

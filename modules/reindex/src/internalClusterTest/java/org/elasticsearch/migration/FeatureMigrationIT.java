@@ -280,7 +280,7 @@ public class FeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
         });
     }
 
-    @Ignore // This test uncovers an existing issue that needs to be fixed
+    @AwaitsFix(bugUrl = "ES-10666") // This test uncovered an existing issue
     public void testIndexBlockIsRemovedWhenAliasRequestFails() throws Exception {
         createSystemIndexForDescriptor(INTERNAL_UNMANAGED);
         ensureGreen();

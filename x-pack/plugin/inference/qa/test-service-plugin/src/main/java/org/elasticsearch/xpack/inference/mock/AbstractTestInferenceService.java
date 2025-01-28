@@ -30,7 +30,7 @@ import java.util.Random;
 
 public abstract class AbstractTestInferenceService implements InferenceService {
 
-    protected final Random random = new Random(
+    protected static final Random random = new Random(
         System.getProperty("tests.seed") == null
             ? System.currentTimeMillis()
             : Long.parseUnsignedLong(System.getProperty("tests.seed").split(":")[0], 16)

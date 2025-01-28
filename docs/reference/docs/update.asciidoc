@@ -307,7 +307,7 @@ POST test/_update/1
 [discrete]
 ===== Upsert
 
-Upserts are a powerful operation that allows you to perform both update and insert actions in a single request. This is particularly useful when you want to update a document if it exists, or insert a new document if it does not.
+An upsert operation lets you update an existing document or insert a new one if it doesn't exist, in a single request.
 
 In this example, if the product with ID `1` exists, its price will be updated to `100`. If the product does not exist, a new document with ID `1` and a price of `50` will be inserted.
 

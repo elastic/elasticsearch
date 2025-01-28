@@ -2,7 +2,7 @@
 === Tutorial: Customize agent data stream {ilm-init} policies
 
 ++++
-<titleabbrev>Tutorial: Customize agent data stream ilm policies</titleabbrev>
+<titleabbrev>Tutorial: Customize agent data stream {ilm-init} policies</titleabbrev>
 ++++
 
 {es} includes the following built-in {ilm-init} policies:

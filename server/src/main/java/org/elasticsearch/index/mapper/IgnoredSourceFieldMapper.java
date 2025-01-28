@@ -233,7 +233,7 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
         // not being available.
         // We would like to have an option to lose some values in synthetic source
         // but have search not fail.
-        return new SyntheticSourceSupport.Native(new SourceLoader.SyntheticFieldLoader() {
+        return new SyntheticSourceSupport.Native(() -> new SourceLoader.SyntheticFieldLoader() {
             @Override
             public Stream<Map.Entry<String, StoredFieldLoader>> storedFieldLoaders() {
                 if (indexSettings.getSkipIgnoredSourceRead()) {

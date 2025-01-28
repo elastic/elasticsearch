@@ -130,6 +130,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                             exchangeSource.addRemoteSink(
                                 remoteSink,
                                 true,
+                                () -> {},
                                 queryPragmas.concurrentExchangeClients(),
                                 computeListener.acquireAvoid()
                             );
@@ -330,7 +331,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             this.exchangeSink = exchangeSink;
             this.computeListener = computeListener;
             this.maxConcurrentShards = maxConcurrentShards;
-            this.blockingSink = exchangeSink.createExchangeSink();
+            this.blockingSink = exchangeSink.createExchangeSink(() -> {});
         }
 
         void start() {
@@ -376,7 +377,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     configuration,
                     configuration.newFoldContext(),
                     null,
-                    exchangeSink
+                    () -> exchangeSink.createExchangeSink(() -> {})
                 );
                 computeService.runCompute(parentTask, computeContext, request.plan(), batchListener);
             }, batchListener::onFailure));
@@ -428,7 +429,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     () -> exchangeService.finishSinkHandler(externalId, new TaskCancelledException(task.getReasonCancelled()))
                 );
                 var exchangeSource = new ExchangeSourceHandler(1, esqlExecutor, computeListener.acquireAvoid());
-                exchangeSource.addRemoteSink(internalSink::fetchPageAsync, true, 1, ActionListener.noop());
+                exchangeSource.addRemoteSink(internalSink::fetchPageAsync, true, () -> {}, 1, ActionListener.noop());
                 var reductionListener = computeListener.acquireCompute();
                 computeService.runCompute(
                     task,
@@ -438,8 +439,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         List.of(),
                         request.configuration(),
                         new FoldContext(request.pragmas().foldLimit().getBytes()),
-                        exchangeSource,
-                        externalSink
+                        exchangeSource::createExchangeSource,
+                        () -> externalSink.createExchangeSink(() -> {})
                     ),
                     reducePlan,
                     ActionListener.wrap(resp -> {

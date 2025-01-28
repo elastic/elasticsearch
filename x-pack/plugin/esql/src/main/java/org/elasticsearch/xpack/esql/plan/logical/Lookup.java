@@ -11,7 +11,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -32,7 +31,7 @@ import java.util.Objects;
  * Looks up values from the associated {@code tables}.
  * The class is supposed to be substituted by a {@link Join}.
  */
-public class Lookup extends UnaryPlan implements SurrogateLogicalPlan, TelemetryAware {
+public class Lookup extends UnaryPlan implements SurrogateLogicalPlan {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Lookup", Lookup::new);
 
     private final Expression tableName;
@@ -116,6 +115,11 @@ public class Lookup extends UnaryPlan implements SurrogateLogicalPlan, Telemetry
             }
         }
         return new JoinConfig(JoinTypes.LEFT, matchFields, leftFields, rightFields);
+    }
+
+    @Override
+    public String commandName() {
+        return "LOOKUP";
     }
 
     @Override

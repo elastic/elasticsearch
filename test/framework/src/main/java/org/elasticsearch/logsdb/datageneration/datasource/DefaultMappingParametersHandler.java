@@ -11,7 +11,6 @@ package org.elasticsearch.logsdb.datageneration.datasource;
 
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
-import org.elasticsearch.logsdb.datageneration.fields.DynamicMapping;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashMap;

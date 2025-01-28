@@ -224,13 +224,13 @@ public class TransportVersions {
      * Reference to the earliest compatible transport version to this version of the codebase.
      * This should be the transport version used by the highest minor version of the previous major.
      */
-    public static final TransportVersion MINIMUM_COMPATIBLE = RANK_DOC_OPTIONAL_METADATA_FOR_EXPLAIN;
+    public static final TransportVersion MINIMUM_COMPATIBLE = ESQL_RESPONSE_PARTIAL;
 
     /**
      * Reference to the minimum transport version that can be used with CCS.
      * This should be the transport version used by the previous minor release.
      */
-    public static final TransportVersion MINIMUM_CCS_VERSION = RANK_DOC_OPTIONAL_METADATA_FOR_EXPLAIN;
+    public static final TransportVersion MINIMUM_CCS_VERSION = ESQL_RESPONSE_PARTIAL;
 
     /**
      * Sorted list of all versions defined in this class

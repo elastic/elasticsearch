@@ -64,7 +64,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
-import org.elasticsearch.xpack.esql.plan.TableIdentifier;
+import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -92,7 +92,7 @@ import org.elasticsearch.xpack.esql.rule.ParameterizedRuleExecutor;
 import org.elasticsearch.xpack.esql.rule.Rule;
 import org.elasticsearch.xpack.esql.rule.RuleExecutor;
 import org.elasticsearch.xpack.esql.session.Configuration;
-import org.elasticsearch.xpack.esql.stats.FeatureMetric;
+import org.elasticsearch.xpack.esql.telemetry.FeatureMetric;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.time.Duration;
@@ -133,7 +133,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TIME_DURATION;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isTemporalAmount;
-import static org.elasticsearch.xpack.esql.stats.FeatureMetric.LIMIT;
+import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.LIMIT;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.maybeParseTemporalAmount;
 
 /**
@@ -202,7 +202,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         protected LogicalPlan rule(UnresolvedRelation plan, AnalyzerContext context) {
             return resolveIndex(
                 plan,
-                plan.indexMode().equals(IndexMode.LOOKUP) ? context.lookupResolution().get(plan.table().index()) : context.indexResolution()
+                plan.indexMode().equals(IndexMode.LOOKUP)
+                    ? context.lookupResolution().get(plan.indexPattern().indexPattern())
+                    : context.indexResolution()
             );
         }
 
@@ -213,25 +215,25 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     ? plan
                     : new UnresolvedRelation(
                         plan.source(),
-                        plan.table(),
+                        plan.indexPattern(),
                         plan.frozen(),
                         plan.metadataFields(),
                         plan.indexMode(),
                         indexResolutionMessage,
-                        plan.commandName()
+                        plan.telemetryLabel()
                     );
             }
-            TableIdentifier table = plan.table();
-            if (indexResolution.matches(table.index()) == false) {
+            IndexPattern table = plan.indexPattern();
+            if (indexResolution.matches(table.indexPattern()) == false) {
                 // TODO: fix this (and tests), or drop check (seems SQL-inherited, where's also defective)
                 new UnresolvedRelation(
                     plan.source(),
-                    plan.table(),
+                    plan.indexPattern(),
                     plan.frozen(),
                     plan.metadataFields(),
                     plan.indexMode(),
                     "invalid [" + table + "] resolution to [" + indexResolution + "]",
-                    plan.commandName()
+                    plan.telemetryLabel()
                 );
             }
 

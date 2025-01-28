@@ -2030,7 +2030,7 @@ public class NumberFieldMapper extends FieldMapper {
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport() {
         if (hasDocValues) {
-            return new SyntheticSourceSupport.Native(type.syntheticFieldLoader(fullPath(), leafName(), ignoreMalformed.value()));
+            return new SyntheticSourceSupport.Native(() -> type.syntheticFieldLoader(fullPath(), leafName(), ignoreMalformed.value()));
         }
 
         return super.syntheticSourceSupport();

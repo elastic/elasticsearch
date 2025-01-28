@@ -67,19 +67,19 @@ public class InstrumentationServiceImpl implements InstrumentationService {
     }
 
     @Override
-    public InstrumentationInfo lookupImplementationMethod(Class<?> implementationClass, Method instrumentMethod, Method checkMethod) {
-        checkMethodIsValid(implementationClass, instrumentMethod);
+    public InstrumentationInfo lookupImplementationMethod(Class<?> implementationClass, Method targetMethod, Method checkMethod) {
+        validateTargetMethod(implementationClass, targetMethod);
 
-        var instrumentMethodArguments = Type.getArgumentTypes(instrumentMethod);
+        var targetMethodArguments = Type.getArgumentTypes(targetMethod);
         var checkMethodArguments = Type.getArgumentTypes(checkMethod);
 
-        checkArguments(checkMethodArguments, instrumentMethodArguments, Modifier.isStatic(instrumentMethod.getModifiers()));
+        validateMethodArguments(checkMethodArguments, targetMethodArguments, Modifier.isStatic(targetMethod.getModifiers()));
 
         return new InstrumentationInfo(
             new MethodKey(
                 Type.getInternalName(implementationClass),
-                instrumentMethod.getName(),
-                Arrays.stream(instrumentMethodArguments).map(Type::getInternalName).toList()
+                targetMethod.getName(),
+                Arrays.stream(targetMethodArguments).map(Type::getInternalName).toList()
             ),
             new CheckMethod(
                 Type.getInternalName(checkMethod.getDeclaringClass()),
@@ -89,9 +89,9 @@ public class InstrumentationServiceImpl implements InstrumentationService {
         );
     }
 
-    private static void checkArguments(Type[] checkMethodArguments, Type[] instrumentMethodArguments, boolean isStatic) {
+    private static void validateMethodArguments(Type[] checkMethodArguments, Type[] targetMethodArguments, boolean isStatic) {
         var additionalCheckArgs = (isStatic ? 1 : 2);
-        if (checkMethodArguments.length != instrumentMethodArguments.length + additionalCheckArgs) {
+        if (checkMethodArguments.length != targetMethodArguments.length + additionalCheckArgs) {
             throw new IllegalArgumentException("The check method argument count is incorrect");
         }
 
@@ -100,13 +100,13 @@ public class InstrumentationServiceImpl implements InstrumentationService {
         }
 
         for (int i = additionalCheckArgs; i < checkMethodArguments.length; ++i) {
-            if (checkMethodArguments[i] != instrumentMethodArguments[i - additionalCheckArgs]) {
+            if (checkMethodArguments[i] != targetMethodArguments[i - additionalCheckArgs]) {
                 throw new IllegalArgumentException("Additional arguments of a check method must be the same as the instrumented method");
             }
         }
     }
 
-    private static void checkMethodIsValid(Class<?> implementationClass, Method targetMethod) {
+    private static void validateTargetMethod(Class<?> implementationClass, Method targetMethod) {
         if (targetMethod.getDeclaringClass().isAssignableFrom(implementationClass) == false) {
             throw new IllegalArgumentException(
                 String.format(

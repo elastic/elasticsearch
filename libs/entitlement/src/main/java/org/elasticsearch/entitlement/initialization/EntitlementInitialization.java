@@ -70,16 +70,17 @@ public class EntitlementInitialization {
         Map<MethodKey, CheckMethod> checkMethods = new HashMap<>(INSTRUMENTATION_SERVICE.lookupMethods(EntitlementChecker.class));
 
         var fileSystemProviderClass = FileSystems.getDefault().provider().getClass();
-        addInstrumentationMethod(
-            checkMethods,
-            FileSystemProvider.class,
-            "newInputStream",
-            fileSystemProviderClass,
-            EntitlementChecker.class,
-            "checkNewInputStream",
-            Path.class,
-            OpenOption[].class
-        );
+        Stream.of(
+            instrumentationMethod(
+                FileSystemProvider.class,
+                "newInputStream",
+                fileSystemProviderClass,
+                EntitlementChecker.class,
+                "checkNewInputStream",
+                Path.class,
+                OpenOption[].class
+            )
+        ).forEach(instrumentation -> checkMethods.put(instrumentation.targetMethod(), instrumentation.checkMethod()));
 
         var classesToTransform = checkMethods.keySet().stream().map(MethodKey::className).collect(Collectors.toSet());
 
@@ -128,28 +129,26 @@ public class EntitlementInitialization {
         return new PolicyManager(serverPolicy, agentEntitlements, pluginPolicies, resolver, ENTITLEMENTS_MODULE);
     }
 
-    static void addInstrumentationMethod(
-        Map<MethodKey, CheckMethod> checkMethods,
-        Class<?> clazz,
+    static InstrumentationService.InstrumentationInfo instrumentationMethod(
+        Class<?> targetSuperclass,
         String methodName,
         Class<?> implementationClass,
         Class<?> checkerClass,
         String checkMethodName,
         Class<?>... parameterTypes
     ) throws NoSuchMethodException {
-        var instrumentationMethod = clazz.getMethod(methodName, parameterTypes);
+        var targetMethod = targetSuperclass.getMethod(methodName, parameterTypes);
 
-        var checkerAdditionalArguments = Modifier.isStatic(instrumentationMethod.getModifiers())
+        var checkerAdditionalArguments = Modifier.isStatic(targetMethod.getModifiers())
             ? Stream.of(Class.class)
-            : Stream.of(Class.class, clazz);
+            : Stream.of(Class.class, targetSuperclass);
 
         var checkerArgumentTypes = Stream.concat(checkerAdditionalArguments, Arrays.stream(parameterTypes)).toArray(n -> new Class<?>[n]);
-        var additionalMethod = INSTRUMENTATION_SERVICE.lookupImplementationMethod(
+        return INSTRUMENTATION_SERVICE.lookupImplementationMethod(
             implementationClass,
-            instrumentationMethod,
+            targetMethod,
             checkerClass.getMethod(checkMethodName, checkerArgumentTypes)
         );
-        checkMethods.put(additionalMethod.methodToInstrument(), additionalMethod.checkMethod());
     }
 
     private static ElasticsearchEntitlementChecker initChecker() {

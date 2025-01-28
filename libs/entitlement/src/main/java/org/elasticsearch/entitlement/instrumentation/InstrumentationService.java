@@ -20,11 +20,11 @@ public interface InstrumentationService {
 
     String CHECK_METHOD_PREFIX = "check$";
 
-    record InstrumentationInfo(MethodKey methodToInstrument, CheckMethod checkMethod) {}
+    record InstrumentationInfo(MethodKey targetMethod, CheckMethod checkMethod) {}
 
     Instrumenter newInstrumenter(Class<?> clazz, Map<MethodKey, CheckMethod> methods);
 
     Map<MethodKey, CheckMethod> lookupMethods(Class<?> clazz) throws IOException;
 
-    InstrumentationInfo lookupImplementationMethod(Class<?> implementationClass, Method instrumentMethod, Method checkMethod);
+    InstrumentationInfo lookupImplementationMethod(Class<?> implementationClass, Method targetMethod, Method checkMethod);
 }

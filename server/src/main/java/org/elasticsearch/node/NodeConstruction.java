@@ -47,6 +47,7 @@ import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionSettings;
 import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.MetadataAutoshardIndexService;
 import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataDataStreamsService;
@@ -879,6 +880,14 @@ class NodeConstruction {
             systemIndices,
             forbidPrivateIndexSettings,
             indexSettingProviders
+        );
+
+        final MetadataAutoshardIndexService metadataAutoshardIndexService = new MetadataAutoshardIndexService(
+            settings,
+            clusterService,
+            indicesService,
+            clusterModule.getAllocationService(),
+            threadPool
         );
 
         final MetadataUpdateSettingsService metadataUpdateSettingsService = new MetadataUpdateSettingsService(

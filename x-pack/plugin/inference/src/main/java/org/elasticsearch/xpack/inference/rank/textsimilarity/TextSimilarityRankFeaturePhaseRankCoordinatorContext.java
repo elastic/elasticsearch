@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.inference.services.googlevertexai.rerank.GoogleVe
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 

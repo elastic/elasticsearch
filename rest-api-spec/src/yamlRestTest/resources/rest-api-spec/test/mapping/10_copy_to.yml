@@ -1,0 +1,37 @@
+---
+copy_to from object with dynamic strict to dynamic field:
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              one:
+                dynamic: strict
+                properties:
+                  k:
+                    type: keyword
+                    copy_to: two.k
+
+  - do:
+      index:
+        index: test
+        id: 1
+        refresh: true
+        body:
+          one:
+            k: "hey"
+
+  - do:
+      search:
+        index: test
+        body:
+          docvalue_fields: [ "two.k.keyword" ]
+
+  - match:
+      hits.hits.0._source:
+        one:
+          k: "hey"
+  - match:
+      hits.hits.0.fields:
+        two.k.keyword: [ "hey" ]

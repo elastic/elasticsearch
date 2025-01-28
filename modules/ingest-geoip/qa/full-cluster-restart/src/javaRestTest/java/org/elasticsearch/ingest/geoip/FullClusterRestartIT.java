@@ -14,6 +14,8 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
@@ -25,6 +27,8 @@ import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -43,9 +47,17 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
         .version(getOldClusterTestVersion())
         .nodes(2)
         .setting("ingest.geoip.downloader.endpoint", () -> fixture.getAddress(), s -> useFixture)
-        .setting("xpack.security.enabled", "false")
+        .setting("xpack.security.enabled", "true")
         .feature(FeatureFlag.TIME_SERIES_MODE)
         .build();
+
+    @Override
+    protected Settings restClientSettings() {
+        Settings settings = super.restClientSettings();
+        String token = "Basic " + Base64.getEncoder().encodeToString("test_user:x-pack-test-password".getBytes(StandardCharsets.UTF_8));
+        settings = Settings.builder().put(settings).put(ThreadContext.PREFIX + ".Authorization", token).build();
+        return settings;
+    }
 
     @ClassRule
     public static TestRule ruleChain = RuleChain.outerRule(fixture).around(cluster);
@@ -86,13 +98,13 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
             assertBusy(() -> testDatabasesLoaded(), 30, TimeUnit.SECONDS);
 
             // the geoip index should be created
-            assertBusy(() -> testCatIndices(".geoip_databases"));
+            assertBusy(() -> testCatIndices(".geoip_databases", ".security-7"));
             assertBusy(() -> testIndexGeoDoc());
         } else {
             Request migrateSystemFeatures = new Request("POST", "/_migration/system_features");
             assertOK(client().performRequest(migrateSystemFeatures));
 
-            assertBusy(() -> testCatIndices(".geoip_databases-reindexed-for-10", "my-index-00001"));
+            assertBusy(() -> testCatIndices(".geoip_databases-reindexed-for-10", ".security-7-reindexed-for-10", "my-index-00001"));
             assertBusy(() -> testIndexGeoDoc());
 
             Request disableDownloader = new Request("PUT", "/_cluster/settings");
@@ -102,7 +114,7 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
             assertOK(client().performRequest(disableDownloader));
 
             // the geoip index should be deleted
-            assertBusy(() -> testCatIndices("my-index-00001"));
+            assertBusy(() -> testCatIndices(".security-7-reindexed-for-10", "my-index-00001"));
 
             Request enableDownloader = new Request("PUT", "/_cluster/settings");
             enableDownloader.setJsonEntity("""
@@ -114,7 +126,7 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
             assertBusy(() -> testDatabasesLoaded(), 30, TimeUnit.SECONDS);
 
             // the geoip index should be recreated
-            assertBusy(() -> testCatIndices(".geoip_databases", "my-index-00001"));
+            assertBusy(() -> testCatIndices(".geoip_databases", ".security-7-reindexed-for-10", "my-index-00001"));
             assertBusy(() -> testIndexGeoDoc());
         }
     }

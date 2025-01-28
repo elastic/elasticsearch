@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.monitoring.rest.action;
 
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
@@ -16,6 +18,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkAction;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringMigrateAlertsAction;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringMigrateAlertsRequest;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringMigrateAlertsResponse;
@@ -26,6 +29,10 @@ import java.util.List;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestMonitoringMigrateAlertsAction extends BaseRestHandler {
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(MonitoringBulkAction.class);
+    private static final String DEPRECATION_ID = "xpack_monitoring_migrate_alerts_api_removal";
+    private static final String DEPRECATION_MESSAGE =
+        "The xpack monitoring migrate alerts action is deprecated and will be removed in the next major release.";
 
     @Override
     public List<Route> routes() {
@@ -39,6 +46,7 @@ public class RestMonitoringMigrateAlertsAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
+        deprecationLogger.critical(DeprecationCategory.API, DEPRECATION_ID, DEPRECATION_MESSAGE);
         MonitoringMigrateAlertsRequest migrateRequest = new MonitoringMigrateAlertsRequest();
         return channel -> client.execute(MonitoringMigrateAlertsAction.INSTANCE, migrateRequest, getRestBuilderListener(channel));
     }

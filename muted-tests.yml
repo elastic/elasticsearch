@@ -459,3 +459,20 @@ tests:
 - class: org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilterIT
   method: testBulkOperations {p0=false}
   issue: https://github.com/elastic/elasticsearch/issues/120975
+- class: org.elasticsearch.packaging.test.DockerTests
+  issue: https://github.com/elastic/elasticsearch/issues/120978
+- class: org.elasticsearch.xpack.esql.qa.multi_node.RestEsqlIT
+  method: testInternalRange {ASYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/120979
+- class: org.elasticsearch.xpack.esql.qa.multi_node.RestEsqlIT
+  method: testWarningHeadersOnFailedConversions {ASYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/120980
+- class: org.elasticsearch.xpack.security.authc.jwt.JwtRealmSingleNodeTests
+  method: testActivateProfileForJWT
+  issue: https://github.com/elastic/elasticsearch/issues/120983
+- class: org.elasticsearch.xpack.security.profile.ProfileIntegTests
+  method: testProfileIndexAutoCreation
+  issue: https://github.com/elastic/elasticsearch/issues/120987
+- class: org.elasticsearch.xpack.esql.qa.multi_node.RestEsqlIT
+  method: testOutOfRangeComparisons {ASYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/121007

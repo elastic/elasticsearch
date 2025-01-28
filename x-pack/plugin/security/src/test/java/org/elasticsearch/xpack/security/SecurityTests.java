@@ -595,6 +595,23 @@ public class SecurityTests extends ESTestCase {
         assertThat(iae.getMessage(), containsString("Only PBKDF2 is allowed for stored credential hashing in a FIPS 140 JVM."));
     }
 
+    public void testValidateForFipsInvalidStoredSecureTokenHashAlgorithm() {
+        final Settings settings = Settings.builder()
+            .put(XPackSettings.FIPS_MODE_ENABLED.getKey(), true)
+            .put(
+                ApiKeyService.STORED_HASH_ALGO_SETTING.getKey(),
+                randomFrom(
+                    Hasher.getAvailableAlgoStoredSecureTokenHash()
+                        .stream()
+                        .filter(alg -> alg.startsWith("pbkdf2") == false)
+                        .collect(Collectors.toList())
+                )
+            )
+            .build();
+        final IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> Security.validateForFips(settings));
+        assertThat(iae.getMessage(), containsString("Only PBKDF2 is allowed for stored credential hashing in a FIPS 140 JVM."));
+    }
+
     public void testValidateForFipsRequiredProvider() {
         final Settings settings = Settings.builder()
             .put(XPackSettings.FIPS_MODE_ENABLED.getKey(), true)

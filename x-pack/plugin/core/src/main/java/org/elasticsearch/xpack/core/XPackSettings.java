@@ -286,6 +286,10 @@ public class XPackSettings {
         }, Property.NodeScope);
     }
 
+    /**
+     * Similar to {@link #defaultStoredPasswordHashAlgorithmSetting(String, Function)} but for secure, high-entropy tokens so salted secure
+     * hashing algorithms are allowed, in addition to algorithms that are suitable for password hashing.
+     */
     public static Setting<String> defaultStoredSecureTokenHashAlgorithmSetting(
         String key,
         Function<Settings, String> defaultHashingAlgorithm

@@ -69,11 +69,6 @@ public class Rerank extends InferencePlan {
     }
 
     @Override
-    public String commandName() {
-        return "RERANK";
-    }
-
-    @Override
     public UnaryPlan replaceChild(LogicalPlan newChild) {
         return new Rerank(source(), newChild, inferenceId(), queryText, input);
     }

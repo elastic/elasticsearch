@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 
@@ -52,11 +53,14 @@ public final class PushDownAndCombineLimits extends OptimizerRules.Parameterized
                     mvx = new MvExpand(mvx.source(), mvx.child(), mvx.target(), mvx.expanded(), limitVal);
                 }
                 return mvx.replaceChild(limit.replaceChild(mvx.child()));
-            }
-            // check if there's a 'visible' descendant limit lower than the current one
-            // and if so, align the current limit since it adds no value
-            // this applies for cases such as | limit 1 | sort field | limit 10
-            else {
+            } else if (unary instanceof Rerank) {
+                Limit descendantLimit = descendantLimit(unary);
+                if (descendantLimit == null) {
+                    var rerankerDefaultLimit = ctx.configuration().resultTruncationDefaultSize();
+                    var rerankerLimit = new Limit(limit.source(), Literal.of(limit.limit(), rerankerDefaultLimit), unary.child());
+                    return limit.replaceChild(unary.replaceChild(rerankerLimit));
+                }
+            } else {
                 Limit descendantLimit = descendantLimit(unary);
                 if (descendantLimit != null) {
                     var l1 = (int) limit.limit().fold(ctx.foldCtx());

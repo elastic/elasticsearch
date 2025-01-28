@@ -2416,8 +2416,9 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
      *   |   \_Limit[7300[INTEGER],true]
      *   |     \_Join[LEFT,[language_code{r}#5],[language_code{r}#5],[language_code{f}#16]]
      *   |       |_Limit[7300[INTEGER],false]
-     *   |       | \_LocalRelation[[a{r}#3, language_code{r}#5, c{r}#7],[ConstantNullBlock[positions=1], IntVectorBlock[vector=ConstantIntVector[p
-     * ositions=1, value=123]], IntVectorBlock[vector=ConstantIntVector[positions=1, value=234]]]]
+     *   |       | \_LocalRelation[[a{r}#3, language_code{r}#5, c{r}#7],[ConstantNullBlock[positions=1],
+     *               IntVectorBlock[vector=ConstantIntVector[positions=1, value=123]],
+     *               IntVectorBlock[vector=ConstantIntVector[positions=1, value=234]]]]
      *   |       \_EsRelation[languages_lookup][LOOKUP][language_code{f}#16]
      *   \_EsRelation[languages_lookup][LOOKUP][language_code{f}#18, language_name{f}#19]
      */

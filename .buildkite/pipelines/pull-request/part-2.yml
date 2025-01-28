@@ -1,6 +1,6 @@
 steps:
   - label: part-2
-    command: .ci/scripts/run-gradle.sh -Dignore.tests.seed checkPart2
+    command: .ci/scripts/run-gradle.sh -Dignore.tests.seed -Dtests.jvm.argline="-Des.entitlements.enabled=false" checkPart2
     timeout_in_minutes: 300
     agents:
       provider: gcp

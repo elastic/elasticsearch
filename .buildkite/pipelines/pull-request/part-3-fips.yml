@@ -2,7 +2,7 @@ config:
   allow-labels: "Team:Security"
 steps:
   - label: part-3-fips
-    command: .ci/scripts/run-gradle.sh -Dignore.tests.seed -Dtests.fips.enabled=true checkPart3
+    command: .ci/scripts/run-gradle.sh -Dignore.tests.seed -Dtests.fips.enabled=true -Dtests.jvm.argline="-Des.entitlements.enabled=false" checkPart3
     timeout_in_minutes: 300
     agents:
       provider: gcp

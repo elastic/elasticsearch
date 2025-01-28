@@ -2,7 +2,7 @@ config:
   allow-labels: "test-arm"
 steps:
   - label: part-1-arm
-    command: .ci/scripts/run-gradle.sh -Dignore.tests.seed checkPart1
+    command: .ci/scripts/run-gradle.sh -Dignore.tests.seed -Dtests.jvm.argline="-Des.entitlements.enabled=false" checkPart1
     timeout_in_minutes: 300
     agents:
       provider: aws

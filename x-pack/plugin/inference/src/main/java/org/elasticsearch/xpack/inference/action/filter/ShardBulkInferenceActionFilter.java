@@ -145,7 +145,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
      * @param input The input to run inference on.
      * @param inputOrder The original order of the input.
      * @param offsetAdjustment The adjustment to apply to the chunk text offsets.
-     *                         TODO Add chunking settings here instead of provider so we can chunk based on individual field settings 
+     *                         TODO Add chunking settings here instead of provider so we can chunk based on individual field settings
      */
     private record FieldInferenceRequest(int index, String field, String sourceField, String input, int inputOrder, int offsetAdjustment) {}
 

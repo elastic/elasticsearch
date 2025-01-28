@@ -99,7 +99,6 @@ public class InferenceServiceNodeLocalRateLimitCalculator implements ClusterStat
     public void clusterChanged(ClusterChangedEvent event) {
         boolean clusterTopologyChanged = event.nodesChanged();
 
-        // TODO: is it possible to disable a plugin on a per-node basis? rate-limit logic needs to exclude those nodes
         // TODO: feature flag per node? We should not reroute to nodes not having eis and/or the inference plugin enabled
         // Every node should land on the same grouping by calculation, so no need to put anything into the cluster state
         if (clusterTopologyChanged) {

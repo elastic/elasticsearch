@@ -402,6 +402,23 @@ You have the following options:
 ** Then set up an <<inference-example-eland,{es} service inference endpoint>> with the `rerank` task type.
 ** Refer to the <<text-similarity-reranker-retriever-example-eland,example>> on this page for a step-by-step guide.
 
+[IMPORTANT]
+====
+Scores from the re-ranking process are normalized using the following formula before returned to the user,
+to avoid having negative scores.
+[source,text]
+----
+score = max(score, 0) + min(exp(score), 1)
+----
+Using the above, any initially negative scores are projected to (0, 1) and positive scores to [1, infinity).
+To revert back if needed, one can use:
+[source, text]
+----
+score = score - 1, if score >= 0
+score = ln(score), if score < 0
+----
+====
+
 ===== Parameters
 
 `retriever`::

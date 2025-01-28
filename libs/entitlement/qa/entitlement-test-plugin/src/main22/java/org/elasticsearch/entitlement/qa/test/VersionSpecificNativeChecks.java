@@ -9,6 +9,8 @@
 
 package org.elasticsearch.entitlement.qa.test;
 
+import org.elasticsearch.entitlement.qa.entitled.EntitledPlugin;
+
 import java.lang.foreign.AddressLayout;
 import java.lang.foreign.Arena;
 import java.lang.foreign.FunctionDescriptor;
@@ -25,8 +27,6 @@ import java.lang.module.ModuleFinder;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Set;
-
-import org.elasticsearch.entitlement.qa.entitled.EntitledPlugin;
 
 import static java.lang.foreign.ValueLayout.ADDRESS;
 import static java.lang.foreign.ValueLayout.JAVA_LONG;

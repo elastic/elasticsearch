@@ -42,9 +42,9 @@ import java.util.concurrent.atomic.AtomicLong;
 
 public class ThreadPoolMergeScheduler extends MergeScheduler implements ElasticsearchMergeScheduler {
     public static final Setting<Boolean> USE_THREAD_POOL_MERGE_SCHEDULER_SETTING = Setting.boolSetting(
-            "indices.merge.scheduler.use_thread_pool",
-            true,
-            Setting.Property.NodeScope
+        "indices.merge.scheduler.use_thread_pool",
+        true,
+        Setting.Property.NodeScope
     );
     private final ShardId shardId;
     private final MergeSchedulerConfig config;

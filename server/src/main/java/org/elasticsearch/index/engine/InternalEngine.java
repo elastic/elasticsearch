@@ -2836,23 +2836,31 @@ public class InternalEngine extends Engine {
             return new ThreadPoolMergeScheduler(shardId, indexSettings, threadPoolMergeQueue) {
 
                 @Override
-                protected synchronized void enableMergeTaskThrottling(int numRunningMerges, int numQueuedMerges, int configuredMaxMergeCount) {
+                protected synchronized void enableMergeTaskThrottling(
+                    int numRunningMerges,
+                    int numQueuedMerges,
+                    int configuredMaxMergeCount
+                ) {
                     logger.info(
-                            "now throttling indexing: numRunningMerges={}, numQueuedMerges={}, maxNumMergesConfigured={}",
-                            numRunningMerges,
-                            numQueuedMerges,
-                            configuredMaxMergeCount
+                        "now throttling indexing: numRunningMerges={}, numQueuedMerges={}, maxNumMergesConfigured={}",
+                        numRunningMerges,
+                        numQueuedMerges,
+                        configuredMaxMergeCount
                     );
                     InternalEngine.this.activateThrottling();
                 }
 
                 @Override
-                protected synchronized void disableMergeTaskThrottling(int numRunningMerges, int numQueuedMerges, int configuredMaxMergeCount) {
+                protected synchronized void disableMergeTaskThrottling(
+                    int numRunningMerges,
+                    int numQueuedMerges,
+                    int configuredMaxMergeCount
+                ) {
                     logger.info(
-                            "stop throttling indexing: numRunningMerges={}, numQueuedMerges={}, maxNumMergesConfigured={}",
-                            numRunningMerges,
-                            numQueuedMerges,
-                            configuredMaxMergeCount
+                        "stop throttling indexing: numRunningMerges={}, numQueuedMerges={}, maxNumMergesConfigured={}",
+                        numRunningMerges,
+                        numQueuedMerges,
+                        configuredMaxMergeCount
                     );
                     InternalEngine.this.deactivateThrottling();
                 }
@@ -2860,8 +2868,9 @@ public class InternalEngine extends Engine {
                 @Override
                 public synchronized void afterMerge(OnGoingMerge merge) {
                     if (indexWriter.hasPendingMerges() == false
-                            && System.nanoTime() - lastWriteNanos >= engineConfig.getFlushMergesAfter().nanos()) {
-                        // NEVER do this on a merge thread since we acquire some locks blocking here and if we concurrently rollback the writer
+                        && System.nanoTime() - lastWriteNanos >= engineConfig.getFlushMergesAfter().nanos()) {
+                        // NEVER do this on a merge thread since we acquire some locks blocking here and if we concurrently rollback the
+                        // writer
                         // we deadlock on engine#close for instance.
                         engineConfig.getThreadPool().executor(ThreadPool.Names.FLUSH).execute(new AbstractRunnable() {
                             @Override

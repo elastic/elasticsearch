@@ -1,4 +1,2 @@
 ALL-UNNAMED:
   - outbound_network
-org.elasticsearch.painless:
-  - create_class_loader

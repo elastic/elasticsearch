@@ -119,17 +119,20 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
             providers[i] = (String) serviceConfig.get("service");
         }
 
-        assertArrayEquals(List.of(
-            "alibabacloud-ai-search",
-            "amazonbedrock",
-            "anthropic",
-            "azureaistudio",
-            "azureopenai",
-            "cohere",
-            "googleaistudio",
-            "openai",
-            "streaming_completion_test_service"
-        ).toArray(), providers);
+        assertArrayEquals(
+            List.of(
+                "alibabacloud-ai-search",
+                "amazonbedrock",
+                "anthropic",
+                "azureaistudio",
+                "azureopenai",
+                "cohere",
+                "googleaistudio",
+                "openai",
+                "streaming_completion_test_service"
+            ).toArray(),
+            providers
+        );
     }
 
     @SuppressWarnings("unchecked")

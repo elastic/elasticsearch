@@ -260,7 +260,6 @@ The API returns the following response:
 {
   "took": 150,
   "timed_out": false,
-  "num_reduce_phases": 4,
   "_shards": {
     "total": 28,
     "successful": 28,
@@ -439,7 +438,6 @@ The API returns the following response:
   "response": {
     "took": 1020,
     "timed_out": false,
-    "num_reduce_phases": 0,
     "_shards": {
       "total": 10,     <2>
       "successful": 0,
@@ -622,7 +620,6 @@ Response:
   "response": {
     "took": 27619,
     "timed_out": false,
-    "num_reduce_phases": 4,
     "_shards": {
       "total": 28,
       "successful": 28,  <2>
@@ -759,7 +756,6 @@ Response:
   "response": {
     "took": 2069,
     "timed_out": false,
-    "num_reduce_phases": 4,
     "_shards": {
       "total": 28,
       "successful": 27,

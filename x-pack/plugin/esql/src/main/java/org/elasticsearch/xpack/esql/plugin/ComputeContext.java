@@ -7,14 +7,15 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
-import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
-import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
+import org.elasticsearch.compute.operator.exchange.ExchangeSink;
+import org.elasticsearch.compute.operator.exchange.ExchangeSource;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.util.List;
+import java.util.function.Supplier;
 
 record ComputeContext(
     String sessionId,
@@ -22,8 +23,8 @@ record ComputeContext(
     List<SearchContext> searchContexts,
     Configuration configuration,
     FoldContext foldCtx,
-    ExchangeSourceHandler exchangeSource,
-    ExchangeSinkHandler exchangeSink
+    Supplier<ExchangeSource> exchangeSourceSupplier,
+    Supplier<ExchangeSink> exchangeSinkSupplier
 ) {
     List<SearchExecutionContext> searchExecutionContexts() {
         return searchContexts.stream().map(SearchContext::getSearchExecutionContext).toList();

@@ -368,19 +368,6 @@ public abstract class DocumentParserContext {
     }
 
     /**
-     * Creates a sub-context from the current {@link DocumentParserContext} to indicate that the source for the sub-context has been
-     * recorded and avoid duplicate recording for parts of the sub-context. Applies to synthetic source only.
-     */
-    public final DocumentParserContext cloneWithRecordedSource() throws IOException {
-        if (canAddIgnoredField()) {
-            DocumentParserContext subcontext = createChildContext(parent());
-            subcontext.setRecordedSource();  // Avoids double-storing parts of the source for the same parser subtree.
-            return subcontext;
-        }
-        return this;
-    }
-
-    /**
      * Add the given {@code field} to the _field_names field
      *
      * Use this if an exists query run against the field cannot use docvalues
@@ -464,10 +451,6 @@ public abstract class DocumentParserContext {
 
     public boolean isCopyToDestinationField(String name) {
         return copyToFields.contains(name);
-    }
-
-    public Set<String> getCopyToFields() {
-        return copyToFields;
     }
 
     /**

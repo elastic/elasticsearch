@@ -2704,6 +2704,59 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var row = as(limit2.child(), LocalRelation.class);
     }
 
+    /**
+     * Expects
+     * TopN[[Order[language_code{r}#7,ASC,LAST]],1[INTEGER]]
+     * \_Limit[1[INTEGER],true]
+     *   \_MvExpand[language_code{r}#3,language_code{r}#7]
+     *     \_Limit[1[INTEGER],false]
+     *       \_LocalRelation[[language_code{r}#3],[IntVectorBlock[vector=ConstantIntVector[positions=1, value=1]]]]
+     *
+     * Notice that the `TopN` at the very top has limit 1, not 3!
+     */
+    public void testDescendantLimitMvExpand() {
+        LogicalPlan plan = optimizedPlan("""
+            ROW language_code = 1
+            | MV_EXPAND language_code
+            | LIMIT 1
+            | SORT language_code
+            | LIMIT 3
+            """);
+
+        var topn = as(plan, TopN.class);
+        var limitAfter = asLimit(topn.child(), 1, true);
+        var mvExpand = as(limitAfter.child(), MvExpand.class);
+        var limitBefore = asLimit(mvExpand.child(), 1, false);
+        var localRelation = as(limitBefore.child(), LocalRelation.class);
+    }
+
+    /**
+     * Expects
+     * TopN[[Order[language_code{r}#3,ASC,LAST]],1[INTEGER]]
+     * \_Limit[1[INTEGER],true]
+     *   \_Join[LEFT,[language_code{r}#3],[language_code{r}#3],[language_code{f}#6]]
+     *     |_Limit[1[INTEGER],false]
+     *     | \_LocalRelation[[language_code{r}#3],[IntVectorBlock[vector=ConstantIntVector[positions=1, value=1]]]]
+     *     \_EsRelation[languages_lookup][LOOKUP][language_code{f}#6, language_name{f}#7]
+     *
+     * Notice that the `TopN` at the very top has limit 1, not 3!
+     */
+    public void testDescendantLimitLookupJoin() {
+        LogicalPlan plan = optimizedPlan("""
+            ROW language_code = 1
+            | LOOKUP JOIN languages_lookup ON language_code
+            | LIMIT 1
+            | SORT language_code
+            | LIMIT 3
+            """);
+
+        var topn = as(plan, TopN.class);
+        var limitAfter = asLimit(topn.child(), 1, true);
+        var join = as(limitAfter.child(), Join.class);
+        var limitBefore = asLimit(join.left(), 1, false);
+        var localRelation = as(limitBefore.child(), LocalRelation.class);
+    }
+
     private static List<String> orderNames(TopN topN) {
         return topN.order().stream().map(o -> as(o.child(), NamedExpression.class).name()).toList();
     }

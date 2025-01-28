@@ -38,7 +38,9 @@ import static org.hamcrest.Matchers.notNullValue;
 @TestCaseOrdering(FullClusterRestartTestOrdering.class)
 public abstract class ParameterizedFullClusterRestartTestCase extends ESRestTestCase {
 
-    protected static final Version MINIMUM_WIRE_COMPATIBLE_VERSION = Version.fromString(System.getProperty("tests.minimum.wire.compatible"));
+    protected static final Version MINIMUM_WIRE_COMPATIBLE_VERSION = Version.fromString(
+        System.getProperty("tests.minimum.wire.compatible")
+    );
     protected static final String OLD_CLUSTER_VERSION = System.getProperty("tests.old_cluster_version");
     private static IndexVersion oldIndexVersion;
     private static boolean upgradeFailed = false;

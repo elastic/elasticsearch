@@ -122,8 +122,10 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
             // after the upgrade, but before the migration, Kibana should work
             assertBusy(() -> testGetStarAsKibana(List.of("my-index-00001"), maybeSecurityIndex));
 
+            // migrate the system features and give the cluster a moment to settle
             Request migrateSystemFeatures = new Request("POST", "/_migration/system_features");
             assertOK(client().performRequest(migrateSystemFeatures));
+            ensureHealth(request -> request.addParameter("wait_for_status", "yellow"));
 
             assertBusy(() -> testCatIndices(List.of(".geoip_databases-reindexed-for-10", "my-index-00001"), maybeSecurityIndexReindexed));
             assertBusy(() -> testIndexGeoDoc());

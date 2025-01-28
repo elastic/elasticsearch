@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamMetadata;
 import org.elasticsearch.cluster.metadata.DataStreamOptions;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -38,12 +39,14 @@ import static org.hamcrest.Matchers.hasItem;
 
 public class IndexDeprecationCheckerTests extends ESTestCase {
 
-    private final IndexDeprecationChecker checker = new IndexDeprecationChecker(TestIndexNameExpressionResolver.newInstance());
+    private static final IndexVersion OLD_VERSION = IndexVersion.fromId(7170099);
+
+    private final IndexNameExpressionResolver indexNameExpressionResolver = TestIndexNameExpressionResolver.newInstance();
+    private final IndexDeprecationChecker checker = new IndexDeprecationChecker(indexNameExpressionResolver, Map.of());
 
     public void testOldIndicesCheck() {
-        IndexVersion createdWith = IndexVersion.fromId(7170099);
         IndexMetadata indexMetadata = IndexMetadata.builder("test")
-            .settings(settings(createdWith))
+            .settings(settings(OLD_VERSION))
             .numberOfShards(1)
             .numberOfReplicas(0)
             .state(randomBoolean() ? IndexMetadata.State.OPEN : IndexMetadata.State.CLOSE) // does not matter if its open or closed
@@ -55,7 +58,7 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
             DeprecationIssue.Level.CRITICAL,
             "Old index with a compatibility version < 9.0",
             "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-9.0.html",
-            "This index has version: " + createdWith.toReleaseVersion(),
+            "This index has version: " + OLD_VERSION.toReleaseVersion(),
             false,
             singletonMap("reindex_required", true)
         );
@@ -67,10 +70,86 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
         assertEquals(singletonList(expected), issues);
     }
 
+    public void testOldTransformIndicesCheck() {
+        var checker = new IndexDeprecationChecker(indexNameExpressionResolver, Map.of("test", List.of("test-transform")));
+        var indexMetadata = indexMetadata("test", OLD_VERSION);
+        var clusterState = ClusterState.builder(ClusterState.EMPTY_STATE).metadata(Metadata.builder().put(indexMetadata, true)).build();
+        var expected = new DeprecationIssue(
+            DeprecationIssue.Level.CRITICAL,
+            "Old index with a compatibility version < 9.0",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-9.0.html",
+            "This index has version: " + OLD_VERSION.toReleaseVersion(),
+            false,
+            Map.of("reindex_required", true, "transform_ids", List.of("test-transform"))
+        );
+        var issuesByIndex = checker.check(clusterState, new DeprecationInfoAction.Request(TimeValue.THIRTY_SECONDS));
+        assertEquals(singletonList(expected), issuesByIndex.get("test"));
+    }
+
+    public void testOldIndicesCheckWithMultipleTransforms() {
+        var checker = new IndexDeprecationChecker(
+            indexNameExpressionResolver,
+            Map.of("test", List.of("test-transform1", "test-transform2"))
+        );
+        var indexMetadata = indexMetadata("test", OLD_VERSION);
+        var clusterState = ClusterState.builder(ClusterState.EMPTY_STATE).metadata(Metadata.builder().put(indexMetadata, true)).build();
+        var expected = new DeprecationIssue(
+            DeprecationIssue.Level.CRITICAL,
+            "Old index with a compatibility version < 9.0",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-9.0.html",
+            "This index has version: " + OLD_VERSION.toReleaseVersion(),
+            false,
+            Map.of("reindex_required", true, "transform_ids", List.of("test-transform1", "test-transform2"))
+        );
+        var issuesByIndex = checker.check(clusterState, new DeprecationInfoAction.Request(TimeValue.THIRTY_SECONDS));
+        assertEquals(singletonList(expected), issuesByIndex.get("test"));
+    }
+
+    public void testMultipleOldIndicesCheckWithTransforms() {
+        var checker = new IndexDeprecationChecker(
+            indexNameExpressionResolver,
+            Map.of("test1", List.of("test-transform1"), "test2", List.of("test-transform2"))
+        );
+        var indexMetadata1 = indexMetadata("test1", OLD_VERSION);
+        var indexMetadata2 = indexMetadata("test2", OLD_VERSION);
+        var clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .metadata(Metadata.builder().put(indexMetadata1, true).put(indexMetadata2, true))
+            .build();
+        var expected = Map.of(
+            "test1",
+            List.of(
+                new DeprecationIssue(
+                    DeprecationIssue.Level.CRITICAL,
+                    "Old index with a compatibility version < 9.0",
+                    "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-9.0.html",
+                    "This index has version: " + OLD_VERSION.toReleaseVersion(),
+                    false,
+                    Map.of("reindex_required", true, "transform_ids", List.of("test-transform1"))
+                )
+            ),
+            "test2",
+            List.of(
+                new DeprecationIssue(
+                    DeprecationIssue.Level.CRITICAL,
+                    "Old index with a compatibility version < 9.0",
+                    "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-9.0.html",
+                    "This index has version: " + OLD_VERSION.toReleaseVersion(),
+                    false,
+                    Map.of("reindex_required", true, "transform_ids", List.of("test-transform2"))
+                )
+            )
+        );
+        var issuesByIndex = checker.check(clusterState, new DeprecationInfoAction.Request(TimeValue.THIRTY_SECONDS));
+        assertEquals(expected, issuesByIndex);
+    }
+
+    private IndexMetadata indexMetadata(String indexName, IndexVersion indexVersion) {
+        return IndexMetadata.builder(indexName).settings(settings(indexVersion)).numberOfShards(1).numberOfReplicas(0).build();
+    }
+
     public void testOldIndicesCheckDataStreamIndex() {
-        IndexVersion createdWith = IndexVersion.fromId(7170099);
         IndexMetadata indexMetadata = IndexMetadata.builder(".ds-test")
-            .settings(settings(createdWith).put("index.hidden", true))
+            .settings(settings(OLD_VERSION).put("index.hidden", true))
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
@@ -113,8 +192,7 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
     }
 
     public void testOldIndicesCheckSnapshotIgnored() {
-        IndexVersion createdWith = IndexVersion.fromId(7170099);
-        Settings.Builder settings = settings(createdWith);
+        Settings.Builder settings = settings(OLD_VERSION);
         settings.put(INDEX_STORE_TYPE_SETTING.getKey(), SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_STORE_TYPE);
         IndexMetadata indexMetadata = IndexMetadata.builder("test").settings(settings).numberOfShards(1).numberOfReplicas(0).build();
         ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
@@ -129,8 +207,7 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
     }
 
     public void testOldIndicesIgnoredWarningCheck() {
-        IndexVersion createdWith = IndexVersion.fromId(7170099);
-        Settings.Builder settings = settings(createdWith).put(MetadataIndexStateService.VERIFIED_READ_ONLY_SETTING.getKey(), true);
+        Settings.Builder settings = settings(OLD_VERSION).put(MetadataIndexStateService.VERIFIED_READ_ONLY_SETTING.getKey(), true);
         IndexMetadata indexMetadata = IndexMetadata.builder("test").settings(settings).numberOfShards(1).numberOfReplicas(0).build();
         ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
             .metadata(Metadata.builder().put(indexMetadata, true))
@@ -139,7 +216,7 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
             DeprecationIssue.Level.WARNING,
             "Old index with a compatibility version < 9.0 Has Been Ignored",
             "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-9.0.html",
-            "This read-only index has version: " + createdWith.toReleaseVersion() + " and will be supported as read-only in 9.0",
+            "This read-only index has version: " + OLD_VERSION.toReleaseVersion() + " and will be supported as read-only in 9.0",
             false,
             singletonMap("reindex_required", true)
         );

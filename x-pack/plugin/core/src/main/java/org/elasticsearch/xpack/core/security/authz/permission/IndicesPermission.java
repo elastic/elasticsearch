@@ -223,8 +223,9 @@ public final class IndicesPermission {
          */
         public final boolean testDataStreamForFailureAccess(IndexAbstraction indexAbstraction) {
             assert indexAbstraction != null && indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM;
-            return resourceNameMatcher.test(IndexNameExpressionResolver.combineSelector(indexAbstraction.getName(),
-                IndexComponentSelector.FAILURES));
+            return resourceNameMatcher.test(
+                IndexNameExpressionResolver.combineSelector(indexAbstraction.getName(), IndexComponentSelector.FAILURES)
+            );
         }
 
         /**

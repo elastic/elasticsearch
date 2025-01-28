@@ -289,6 +289,12 @@ tests:
 - class: org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityEsqlIT
   method: testCrossClusterAsyncQueryStop
   issue: https://github.com/elastic/elasticsearch/issues/121021
+- class: org.elasticsearch.xpack.security.profile.ProfileIntegTests
+  method: testSuggestProfilesWithName
+  issue: https://github.com/elastic/elasticsearch/issues/121022
+- class: org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilterIT
+  method: testBulkOperations {p0=true}
+  issue: https://github.com/elastic/elasticsearch/issues/120969
 
 # Examples:
 #

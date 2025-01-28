@@ -718,7 +718,8 @@ public final class IndexSettings {
         "index.mapping.source.mode",
         value -> {},
         Setting.Property.Final,
-        Setting.Property.IndexScope
+        Setting.Property.IndexScope,
+        Setting.Property.ServerlessPublic
     );
 
     public static final Setting<Boolean> RECOVERY_USE_SYNTHETIC_SOURCE_SETTING = Setting.boolSetting(

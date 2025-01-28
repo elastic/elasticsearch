@@ -26,13 +26,27 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
+import org.elasticsearch.cluster.AckedBatchedClusterStateUpdateTask;
+import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateAckListener;
+import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.SimpleBatchedAckListenerTaskExecutor;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.inference.InferenceService;
@@ -50,6 +64,10 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.inference.action.DeleteInferenceEndpointAction;
+import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
+import org.elasticsearch.xpack.core.inference.action.PutInferenceModelAction;
+import org.elasticsearch.xpack.core.inference.action.UpdateInferenceModelAction;
 import org.elasticsearch.xpack.inference.InferenceIndex;
 import org.elasticsearch.xpack.inference.InferenceSecretsIndex;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
@@ -66,23 +84,36 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
 
 /**
- * Class for persisting and reading inference endpoint configurations.
- * Some inference services provide default configurations, the registry is
- * made aware of these at start up via {@link #addDefaultIds(InferenceService.DefaultConfigId)}.
- * Only the ids and service details are registered at this point
- * as the full config definition may not be known at start up.
- * The full config is lazily populated on read and persisted to the
- * index. This has the effect of creating the backing index on reading
- * the configs. {@link #getAllModels(boolean, ActionListener)} has an option
- * to not write the default configs to index on read to avoid index creation.
+ * A class responsible for persisting and reading inference endpoint configurations.
+ * All endpoint modifications (see {@link PutInferenceModelAction}, {@link UpdateInferenceModelAction} and
+ * {@link DeleteInferenceEndpointAction}) are executed on the master mode to prevent race conditions when modifying models.
+ *
+ * <p><strong>Default endpoints:</strong></p>
+ * Some inference services provide default configurations, which are registered at startup using
+ * {@link #addDefaultIds(InferenceService.DefaultConfigId)}. At this point, only the IDs and service details
+ * are registered, as the full configuration definitions may not yet be available.
+ * The full configurations are populated lazily upon reading and are then persisted to the index.
+ * This process also triggers the creation of the backing index when reading the configurations.
+ * To avoid index creation, {@link #getAllModels(boolean, ActionListener)} includes an option to skip writing
+ * default configurations to the index during reads.
+ *
+ * <p><strong>Minimal Service Settings in Cluster State:</strong></p>
+ * The cluster state is updated with the {@link MinimalServiceSettings} for all registered models,
+ * ensuring these settings are readily accessible to consumers without requiring an asynchronous call
+ * to retrieve the full model configurations.
+ *
+ * <p><strong>Metadata Upgrades:</strong></p>
+ * Since cluster state metadata was introduced later, the master node performs an upgrade at startup,
+ * if necessary, to load all model settings from the {@link InferenceIndex}.
  */
-public class ModelRegistry {
+public class ModelRegistry implements ClusterStateListener {
     public record ModelConfigMap(Map<String, Object> config, Map<String, Object> secrets) {}
 
     public static UnparsedModel unparsedModelFromMap(ModelConfigMap modelConfigMap) {
@@ -104,14 +135,27 @@ public class ModelRegistry {
     private static final String MODEL_ID_FIELD = "model_id";
     private static final Logger logger = LogManager.getLogger(ModelRegistry.class);
 
+    private final ClusterService clusterService;
     private final OriginSettingClient client;
     private final Map<String, InferenceService.DefaultConfigId> defaultConfigIds;
 
+    private final MasterServiceTaskQueue<MetadataTask> metadataTaskQueue;
+    private final AtomicBoolean upgradeMetadataInProgress = new AtomicBoolean(false);
     private final Set<String> preventDeletionLock = Collections.newSetFromMap(new ConcurrentHashMap<>());
 
-    public ModelRegistry(Client client) {
+    public ModelRegistry(ClusterService clusterService, Client client) {
         this.client = new OriginSettingClient(client, ClientHelper.INFERENCE_ORIGIN);
-        defaultConfigIds = new HashMap<>();
+        this.defaultConfigIds = new HashMap<>();
+        this.clusterService = clusterService;
+        var executor = new SimpleBatchedAckListenerTaskExecutor<MetadataTask>() {
+            @Override
+            public Tuple<ClusterState, ClusterStateAckListener> executeTask(MetadataTask task, ClusterState clusterState) throws Exception {
+                var updated = task.executeTask(ModelRegistryMetadata.fromState(clusterState));
+                var metadata = Metadata.builder(clusterState.getMetadata()).putCustom(ModelRegistryMetadata.TYPE, updated).build();
+                return new Tuple<>(ClusterState.builder(clusterState).metadata(metadata).build(), task);
+            }
+        };
+        this.metadataTaskQueue = clusterService.createTaskQueue("model_registry", Priority.NORMAL, executor);
     }
 
     /**
@@ -142,6 +186,39 @@ public class ModelRegistry {
             );
         }
         defaultConfigIds.put(defaultConfigId.inferenceId(), defaultConfigId);
+    }
+
+    /**
+     * Visible for testing only.
+     */
+    public void clearDefaultIds() {
+        defaultConfigIds.clear();
+    }
+
+    /**
+     * Retrieves the {@link MinimalServiceSettings} associated with the specified {@code inferenceEntityId}.
+     *
+     * If the {@code inferenceEntityId} is not found, the method behaves as follows:
+     * <ul>
+     *   <li>Returns {@code null} if the id might exist but its configuration is not available locally.</li>
+     *   <li>Throws a {@link ResourceNotFoundException} if it is certain that the id does not exist in the cluster.</li>
+     * </ul>
+     *
+     * @param inferenceEntityId the unique identifier for the inference entity.
+     * @return the {@link MinimalServiceSettings} associated with the provided ID, or {@code null} if unavailable locally.
+     * @throws ResourceNotFoundException if the specified id is guaranteed to not exist in the cluster.
+     */
+    public MinimalServiceSettings getMinimalServiceSettings(String inferenceEntityId) throws ResourceNotFoundException {
+        var config = defaultConfigIds.get(inferenceEntityId);
+        if (config != null) {
+            return config.settings();
+        }
+        var state = ModelRegistryMetadata.fromState(clusterService.state());
+        var existing = state.getMinimalServiceSettings(inferenceEntityId);
+        if (state.isUpgraded() && existing == null) {
+            throw new ResourceNotFoundException(inferenceEntityId + " does not exist in this cluster.");
+        }
+        return existing;
     }
 
     /**
@@ -206,27 +283,6 @@ public class ModelRegistry {
             .request();
 
         client.search(modelSearch, searchListener);
-    }
-
-    /**
-     * Retrieves the {@link MinimalServiceSettings} associated with the specified {@code inferenceEntityId}.
-     *
-     * If the {@code inferenceEntityId} is not found, the method behaves as follows:
-     * <ul>
-     *   <li>Returns {@code null} if the id might exist but its configuration is not available locally.</li>
-     *   <li>Throws a {@link ResourceNotFoundException} if it is certain that the id does not exist in the cluster.</li>
-     * </ul>
-     *
-     * @param inferenceEntityId the unique identifier for the inference entity.
-     * @return the {@link MinimalServiceSettings} associated with the provided ID, or {@code null} if unavailable locally.
-     * @throws ResourceNotFoundException if the specified id is guaranteed to not exist in the cluster.
-     */
-    public MinimalServiceSettings getMinimalServiceSettings(String inferenceEntityId) throws ResourceNotFoundException {
-        var config = defaultConfigIds.get(inferenceEntityId);
-        if (config != null) {
-            return config.settings();
-        }
-        return null;
     }
 
     private ResourceNotFoundException inferenceNotFoundException(String inferenceEntityId) {
@@ -546,8 +602,7 @@ public class ModelRegistry {
      * Note: storeModel does not overwrite existing models and thus does not need to check the lock
      */
     public void storeModel(Model model, ActionListener<Boolean> listener) {
-
-        ActionListener<BulkResponse> bulkResponseActionListener = getStoreModelListener(model, listener);
+        ActionListener<BulkResponse> bulkResponseActionListener = getStoreIndexListener(model, listener);
 
         IndexRequest configRequest = createIndexRequest(
             Model.documentId(model.getConfigurations().getInferenceEntityId()),
@@ -570,7 +625,7 @@ public class ModelRegistry {
             .execute(bulkResponseActionListener);
     }
 
-    private static ActionListener<BulkResponse> getStoreModelListener(Model model, ActionListener<Boolean> listener) {
+    private ActionListener<BulkResponse> getStoreIndexListener(Model model, ActionListener<Boolean> listener) {
         return ActionListener.wrap(bulkItemResponses -> {
             var inferenceEntityId = model.getConfigurations().getInferenceEntityId();
 
@@ -594,7 +649,15 @@ public class ModelRegistry {
             BulkItemResponse.Failure failure = getFirstBulkFailure(bulkItemResponses);
 
             if (failure == null) {
-                listener.onResponse(true);
+                metadataTaskQueue.submitTask(
+                    "add model [" + inferenceEntityId + "]",
+                    new AddModelMetadataTask(
+                        inferenceEntityId,
+                        new MinimalServiceSettings(model),
+                        getStoreMetadataListener(inferenceEntityId, listener)
+                    ),
+                    null
+                );
                 return;
             }
 
@@ -617,6 +680,31 @@ public class ModelRegistry {
             logger.warn(errorMessage, e);
             listener.onFailure(new ElasticsearchStatusException(errorMessage, RestStatus.INTERNAL_SERVER_ERROR, e));
         });
+    }
+
+    private ActionListener<AcknowledgedResponse> getStoreMetadataListener(String inferenceEntityId, ActionListener<Boolean> listener) {
+        return new ActionListener<>() {
+            @Override
+            public void onResponse(AcknowledgedResponse resp) {
+                listener.onResponse(true);
+            }
+
+            @Override
+            public void onFailure(Exception exc) {
+                deleteModel(inferenceEntityId, ActionListener.running(() -> {
+                    listener.onFailure(
+                        new ElasticsearchStatusException(
+                            format(
+                                "Failed to add the inference endpoint [%s]. The service may be in an "
+                                    + "inconsistent state. Please try deleting and re-adding the endpoint.",
+                                inferenceEntityId
+                            ),
+                            RestStatus.INTERNAL_SERVER_ERROR
+                        )
+                    );
+                }));
+            }
+        };
     }
 
     private static void logBulkFailures(String inferenceEntityId, BulkResponse bulkResponse) {
@@ -655,12 +743,57 @@ public class ModelRegistry {
             return;
         }
 
+        var request = createDeleteRequest(inferenceEntityId);
+        client.execute(DeleteByQueryAction.INSTANCE, request, getDeleteModelClusterStateListener(inferenceEntityId, listener));
+    }
+
+    private ActionListener<BulkByScrollResponse> getDeleteModelClusterStateListener(
+        String inferenceEntityId,
+        ActionListener<Boolean> listener
+    ) {
+        return new ActionListener<>() {
+            @Override
+            public void onResponse(BulkByScrollResponse bulkByScrollResponse) {
+                var clusterStateListener = new ActionListener<AcknowledgedResponse>() {
+                    @Override
+                    public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+                        listener.onResponse(acknowledgedResponse.isAcknowledged());
+                    }
+
+                    @Override
+                    public void onFailure(Exception exc) {
+                        listener.onFailure(
+                            new ElasticsearchStatusException(
+                                format(
+                                    "Failed to delete the inference endpoint [%s]. The service may be in an "
+                                        + "inconsistent state. Please try deleting the endpoint again.",
+                                    inferenceEntityId
+                                ),
+                                RestStatus.INTERNAL_SERVER_ERROR
+                            )
+                        );
+                    }
+                };
+                metadataTaskQueue.submitTask(
+                    "delete model [" + inferenceEntityId + "]",
+                    new DeleteModelMetadataTask(inferenceEntityId, clusterStateListener),
+                    null
+                );
+            }
+
+            @Override
+            public void onFailure(Exception exc) {
+                listener.onFailure(exc);
+            }
+        };
+    }
+
+    private static DeleteByQueryRequest createDeleteRequest(String inferenceEntityId) {
         DeleteByQueryRequest request = new DeleteByQueryRequest().setAbortOnVersionConflict(false);
         request.indices(InferenceIndex.INDEX_PATTERN, InferenceSecretsIndex.INDEX_PATTERN);
         request.setQuery(documentIdQuery(inferenceEntityId));
         request.setRefresh(true);
-
-        client.execute(DeleteByQueryAction.INSTANCE, request, listener.delegateFailureAndWrap((l, r) -> l.onResponse(Boolean.TRUE)));
+        return request;
     }
 
     private static IndexRequest createIndexRequest(String docId, String indexName, ToXContentObject body, boolean allowOverwriting) {
@@ -691,7 +824,7 @@ public class ModelRegistry {
         }
     }
 
-    private QueryBuilder documentIdQuery(String inferenceEntityId) {
+    private static QueryBuilder documentIdQuery(String inferenceEntityId) {
         return QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds(Model.documentId(inferenceEntityId)));
     }
 
@@ -709,5 +842,101 @@ public class ModelRegistry {
         return defaultConfigIds.stream()
             .filter(defaultConfigId -> defaultConfigId.settings().taskType().equals(taskType))
             .collect(Collectors.toList());
+    }
+
+    @Override
+    public void clusterChanged(ClusterChangedEvent event) {
+        if (event.localNodeMaster() == false) {
+            return;
+        }
+
+        var state = ModelRegistryMetadata.fromState(event.state());
+        if (state.isUpgraded()) {
+            return;
+        }
+
+        if (upgradeMetadataInProgress.compareAndSet(false, true) == false) {
+            return;
+        }
+
+        client.execute(GetInferenceModelAction.INSTANCE, new GetInferenceModelAction.Request("*", TaskType.ANY), new ActionListener<>() {
+            @Override
+            public void onResponse(GetInferenceModelAction.Response response) {
+                Map<String, MinimalServiceSettings> map = new HashMap<>();
+                for (var model : response.getEndpoints()) {
+                    map.put(
+                        model.getInferenceEntityId(),
+                        new MinimalServiceSettings(
+                            model.getTaskType(),
+                            model.getServiceSettings().dimensions(),
+                            model.getServiceSettings().similarity(),
+                            model.getServiceSettings().elementType()
+                        )
+                    );
+                }
+                metadataTaskQueue.submitTask(
+                    "auto upgrade",
+                    new UpgradeModelsMetadataTask(map, ActionListener.running(() -> upgradeMetadataInProgress.set(false))),
+                    null
+                );
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                upgradeMetadataInProgress.set(false);
+            }
+        });
+    }
+
+    private abstract static class MetadataTask extends AckedBatchedClusterStateUpdateTask {
+        MetadataTask(ActionListener<AcknowledgedResponse> listener) {
+            super(TimeValue.THIRTY_SECONDS, listener);
+        }
+
+        abstract ModelRegistryMetadata executeTask(ModelRegistryMetadata current);
+    }
+
+    private static class UpgradeModelsMetadataTask extends MetadataTask {
+        private final Map<String, MinimalServiceSettings> fromIndex;
+
+        UpgradeModelsMetadataTask(Map<String, MinimalServiceSettings> fromIndex, ActionListener<AcknowledgedResponse> listener) {
+            super(listener);
+            this.fromIndex = fromIndex;
+        }
+
+        @Override
+        ModelRegistryMetadata executeTask(ModelRegistryMetadata current) {
+            return current.withUpgradedModels(fromIndex);
+        }
+    }
+
+    private static class AddModelMetadataTask extends MetadataTask {
+        private final String inferenceEntityId;
+        private final MinimalServiceSettings settings;
+
+        AddModelMetadataTask(String inferenceEntityId, MinimalServiceSettings settings, ActionListener<AcknowledgedResponse> listener) {
+            super(listener);
+            this.inferenceEntityId = inferenceEntityId;
+            this.settings = settings;
+        }
+
+        @Override
+        ModelRegistryMetadata executeTask(ModelRegistryMetadata current) {
+            return current.withAddedModel(inferenceEntityId, settings);
+        }
+    }
+
+    private static class DeleteModelMetadataTask extends MetadataTask {
+        private final String inferenceEntityId;
+
+        DeleteModelMetadataTask(String inferenceEntityId, ActionListener<AcknowledgedResponse> listener) {
+            super(listener);
+            this.inferenceEntityId = inferenceEntityId;
+        }
+
+        @Override
+        ModelRegistryMetadata executeTask(ModelRegistryMetadata current) {
+            return current.withRemovedModel(inferenceEntityId);
+        }
     }
 }

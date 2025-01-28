@@ -9,6 +9,10 @@
 
 package org.elasticsearch.inference;
 
+import org.elasticsearch.cluster.Diff;
+import org.elasticsearch.cluster.SimpleDiffable;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -50,7 +54,7 @@ public record MinimalServiceSettings(
     @Nullable Integer dimensions,
     @Nullable SimilarityMeasure similarity,
     @Nullable ElementType elementType
-) implements ToXContentObject {
+) implements ToXContentObject, SimpleDiffable<MinimalServiceSettings> {
 
     public static final String TASK_TYPE_FIELD = "task_type";
     static final String DIMENSIONS_FIELD = "dimensions";
@@ -85,7 +89,6 @@ public record MinimalServiceSettings(
     public static MinimalServiceSettings textEmbedding(int dimensions, SimilarityMeasure similarity, ElementType elementType) {
         return new MinimalServiceSettings(TEXT_EMBEDDING, dimensions, similarity, elementType);
     }
-
     public static MinimalServiceSettings sparseEmbedding() {
         return new MinimalServiceSettings(SPARSE_EMBEDDING, null, null, null);
     }
@@ -102,6 +105,11 @@ public record MinimalServiceSettings(
         return new MinimalServiceSettings(CHAT_COMPLETION, null, null, null);
     }
 
+    public MinimalServiceSettings {
+        Objects.requireNonNull(taskType, "task type must not be null");
+        validate(taskType, dimensions, similarity, elementType);
+    }
+
     public MinimalServiceSettings(Model model) {
         this(
             model.getTaskType(),
@@ -111,17 +119,25 @@ public record MinimalServiceSettings(
         );
     }
 
-    public MinimalServiceSettings(
-        TaskType taskType,
-        @Nullable Integer dimensions,
-        @Nullable SimilarityMeasure similarity,
-        @Nullable ElementType elementType
-    ) {
-        this.taskType = Objects.requireNonNull(taskType, "task type must not be null");
-        this.dimensions = dimensions;
-        this.similarity = similarity;
-        this.elementType = elementType;
-        validate();
+    public MinimalServiceSettings(StreamInput in) throws IOException {
+        this(
+            TaskType.fromStream(in),
+            in.readOptionalInt(),
+            in.readOptionalEnum(SimilarityMeasure.class),
+            in.readOptionalEnum(ElementType.class)
+        );
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        taskType.writeTo(out);
+        out.writeOptionalInt(dimensions);
+        out.writeOptionalEnum(similarity);
+        out.writeOptionalEnum(elementType);
+    }
+
+    public static Diff<MinimalServiceSettings> readDiffFrom(StreamInput in) throws IOException {
+        return SimpleDiffable.readDiffFrom(MinimalServiceSettings::new, in);
     }
 
     @Override
@@ -156,29 +172,29 @@ public record MinimalServiceSettings(
         return sb.toString();
     }
 
-    private void validate() {
+    private static void validate(TaskType taskType, Integer dimensions, SimilarityMeasure similarity, ElementType elementType) {
         switch (taskType) {
             case TEXT_EMBEDDING:
-                validateFieldPresent(DIMENSIONS_FIELD, dimensions);
-                validateFieldPresent(SIMILARITY_FIELD, similarity);
-                validateFieldPresent(ELEMENT_TYPE_FIELD, elementType);
+                validateFieldPresent(DIMENSIONS_FIELD, dimensions, taskType);
+                validateFieldPresent(SIMILARITY_FIELD, similarity, taskType);
+                validateFieldPresent(ELEMENT_TYPE_FIELD, elementType, taskType);
                 break;
 
             default:
-                validateFieldNotPresent(DIMENSIONS_FIELD, dimensions);
-                validateFieldNotPresent(SIMILARITY_FIELD, similarity);
-                validateFieldNotPresent(ELEMENT_TYPE_FIELD, elementType);
+                validateFieldNotPresent(DIMENSIONS_FIELD, dimensions, taskType);
+                validateFieldNotPresent(SIMILARITY_FIELD, similarity, taskType);
+                validateFieldNotPresent(ELEMENT_TYPE_FIELD, elementType, taskType);
                 break;
         }
     }
 
-    private void validateFieldPresent(String field, Object fieldValue) {
+    private static void validateFieldPresent(String field, Object fieldValue, TaskType taskType) {
         if (fieldValue == null) {
             throw new IllegalArgumentException("required [" + field + "] field is missing for task_type [" + taskType.name() + "]");
         }
     }
 
-    private void validateFieldNotPresent(String field, Object fieldValue) {
+    private static void validateFieldNotPresent(String field, Object fieldValue, TaskType taskType) {
         if (fieldValue != null) {
             throw new IllegalArgumentException("[" + field + "] is not allowed for task_type [" + taskType.name() + "]");
         }

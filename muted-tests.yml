@@ -249,12 +249,6 @@ tests:
 - class: org.elasticsearch.xpack.security.authc.service.ServiceAccountIT
   method: testAuthenticateShouldNotFallThroughInCaseOfFailure
   issue: https://github.com/elastic/elasticsearch/issues/120902
-- class: org.elasticsearch.xpack.esql.parser.StatementParserTests
-  method: testInvalidJoinPatterns
-  issue: https://github.com/elastic/elasticsearch/issues/120849
-- class: org.elasticsearch.xpack.esql.parser.StatementParserTests
-  method: testValidJoinPattern
-  issue: https://github.com/elastic/elasticsearch/issues/120848
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test050BasicApiTests
   issue: https://github.com/elastic/elasticsearch/issues/120911

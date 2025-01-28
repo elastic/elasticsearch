@@ -146,6 +146,10 @@ public class ClusterBlocks implements SimpleDiffable<ClusterBlocks> {
         return indicesBlocks.containsKey(index) && indicesBlocks.get(index).contains(block);
     }
 
+    public boolean hasIndexBlockLevel(String index, ClusterBlockLevel level) {
+        return blocksForIndex(level, index).isEmpty() == false;
+    }
+
     public boolean hasIndexBlockWithId(String index, int blockId) {
         final Set<ClusterBlock> clusterBlocks = indicesBlocks.get(index);
         if (clusterBlocks != null) {

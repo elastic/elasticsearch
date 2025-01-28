@@ -81,12 +81,14 @@ public final class BulkRequestParser {
      * Create a new parser.
      *
      * @param deprecateOrErrorOnType whether to allow _type information in the index line; used by BulkMonitoring
+     * @param includeSourceOnError if to include the source in parser error messages
      * @param restApiVersion
      */
-    public BulkRequestParser(boolean deprecateOrErrorOnType, RestApiVersion restApiVersion) {
+    public BulkRequestParser(boolean deprecateOrErrorOnType, boolean includeSourceOnError, RestApiVersion restApiVersion) {
         this.deprecateOrErrorOnType = deprecateOrErrorOnType;
         this.config = XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE)
-            .withRestApiVersion(restApiVersion);
+            .withRestApiVersion(restApiVersion)
+            .withIncludeSourceOnError(includeSourceOnError);
     }
 
     private static int findNextMarker(byte marker, int from, BytesReference data, boolean lastData) {
@@ -480,7 +482,8 @@ public final class BulkRequestParser {
                             .setDynamicTemplates(dynamicTemplates)
                             .setRequireAlias(requireAlias)
                             .setRequireDataStream(requireDataStream)
-                            .setListExecutedPipelines(currentListExecutedPipelines);
+                            .setListExecutedPipelines(currentListExecutedPipelines)
+                            .setIncludeSourceOnError(config.includeSourceOnError());
                         if ("create".equals(action)) {
                             indexRequest = indexRequest.create(true);
                         } else if (opType != null) {

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.eql.action;
 
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsAction;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
@@ -26,6 +27,7 @@ import java.util.concurrent.ExecutionException;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 public class CCSPartialResultsIT extends AbstractMultiClustersTestCase {
@@ -222,9 +224,10 @@ public class CCSPartialResultsIT extends AbstractMultiClustersTestCase {
         cluster(REMOTE_CLUSTER).stopNode(remoteNode);
 
         // event query
-        var request = new EqlSearchRequest().indices(REMOTE_CLUSTER + ":test-*")
-            .query("process where true")
-            .allowPartialSearchResults(true);
+        var request = new EqlSearchRequest().indices(REMOTE_CLUSTER + ":test-*").query("process where true");
+        if (randomBoolean()) {
+            request = request.allowPartialSearchResults(true);
+        }
         var response = localClient().execute(EqlSearchAction.INSTANCE, request).get();
         assertThat(response.hits().events().size(), equalTo(5));
         for (int i = 0; i < 5; i++) {
@@ -244,8 +247,10 @@ public class CCSPartialResultsIT extends AbstractMultiClustersTestCase {
         // sequence query on both shards
         var request = new EqlSearchRequest().indices(REMOTE_CLUSTER + ":test-*")
             .query("sequence [process where value == 1] [process where value == 2]")
-            .allowPartialSearchResults(true)
             .allowPartialSequenceResults(true);
+        if (randomBoolean()) {
+            request = request.allowPartialSearchResults(true);
+        }
         var response = localClient().execute(EqlSearchAction.INSTANCE, request).get();
         assertThat(response.hits().sequences().size(), equalTo(0));
         assertThat(response.shardFailures().length, is(1));
@@ -255,8 +260,10 @@ public class CCSPartialResultsIT extends AbstractMultiClustersTestCase {
         // sequence query on the available shard only
         request = new EqlSearchRequest().indices(REMOTE_CLUSTER + ":test-*")
             .query("sequence [process where value == 1] [process where value == 3]")
-            .allowPartialSearchResults(true)
             .allowPartialSequenceResults(true);
+        if (randomBoolean()) {
+            request = request.allowPartialSearchResults(true);
+        }
         response = localClient().execute(EqlSearchAction.INSTANCE, request).get();
         assertThat(response.hits().sequences().size(), equalTo(1));
         var sequence = response.hits().sequences().get(0);
@@ -269,8 +276,10 @@ public class CCSPartialResultsIT extends AbstractMultiClustersTestCase {
         // sequence query on the unavailable shard only
         request = new EqlSearchRequest().indices(REMOTE_CLUSTER + ":test-*")
             .query("sequence [process where value == 0] [process where value == 2]")
-            .allowPartialSearchResults(true)
             .allowPartialSequenceResults(true);
+        if (randomBoolean()) {
+            request = request.allowPartialSearchResults(true);
+        }
         response = localClient().execute(EqlSearchAction.INSTANCE, request).get();
         assertThat(response.hits().sequences().size(), equalTo(0));
         assertThat(response.shardFailures().length, is(1));
@@ -280,8 +289,10 @@ public class CCSPartialResultsIT extends AbstractMultiClustersTestCase {
         // sequence query with missing event on unavailable shard. THIS IS A FALSE POSITIVE
         request = new EqlSearchRequest().indices(REMOTE_CLUSTER + ":test-*")
             .query("sequence with maxspan=10s  [process where value == 1] ![process where value == 2] [process where value == 3]")
-            .allowPartialSearchResults(true)
             .allowPartialSequenceResults(true);
+        if (randomBoolean()) {
+            request = request.allowPartialSearchResults(true);
+        }
         response = localClient().execute(EqlSearchAction.INSTANCE, request).get();
         assertThat(response.hits().sequences().size(), equalTo(1));
         sequence = response.hits().sequences().get(0);
@@ -303,9 +314,10 @@ public class CCSPartialResultsIT extends AbstractMultiClustersTestCase {
 
         // sample query on both shards
         var request = new EqlSearchRequest().indices(REMOTE_CLUSTER + ":test-*")
-            .query("sample by key [process where value == 2] [process where value == 1]")
-            .allowPartialSearchResults(true)
-            .allowPartialSequenceResults(true);
+            .query("sample by key [process where value == 2] [process where value == 1]");
+        if (randomBoolean()) {
+            request = request.allowPartialSearchResults(true);
+        }
         var response = localClient().execute(EqlSearchAction.INSTANCE, request).get();
         assertThat(response.hits().sequences().size(), equalTo(0));
         assertThat(response.shardFailures().length, is(1));
@@ -314,9 +326,10 @@ public class CCSPartialResultsIT extends AbstractMultiClustersTestCase {
 
         // sample query on the available shard only
         request = new EqlSearchRequest().indices(REMOTE_CLUSTER + ":test-*")
-            .query("sample by key [process where value == 3] [process where value == 1]")
-            .allowPartialSearchResults(true)
-            .allowPartialSequenceResults(true);
+            .query("sample by key [process where value == 3] [process where value == 1]");
+        if (randomBoolean()) {
+            request = request.allowPartialSearchResults(true);
+        }
         response = localClient().execute(EqlSearchAction.INSTANCE, request).get();
         assertThat(response.hits().sequences().size(), equalTo(1));
         var sample = response.hits().sequences().get(0);
@@ -328,9 +341,10 @@ public class CCSPartialResultsIT extends AbstractMultiClustersTestCase {
 
         // sample query on the unavailable shard only
         request = new EqlSearchRequest().indices(REMOTE_CLUSTER + ":test-*")
-            .query("sample by key [process where value == 2] [process where value == 0]")
-            .allowPartialSearchResults(true)
-            .allowPartialSequenceResults(true);
+            .query("sample by key [process where value == 2] [process where value == 0]");
+        if (randomBoolean()) {
+            request = request.allowPartialSearchResults(true);
+        }
         response = localClient().execute(EqlSearchAction.INSTANCE, request).get();
         assertThat(response.hits().sequences().size(), equalTo(0));
         assertThat(response.shardFailures().length, is(1));
@@ -353,9 +367,10 @@ public class CCSPartialResultsIT extends AbstractMultiClustersTestCase {
         cluster(REMOTE_CLUSTER).stopNode(remoteNode);
 
         // event query
-        var request = new EqlSearchRequest().indices(REMOTE_CLUSTER + ":test-*")
-            .query("process where true")
-            .allowPartialSearchResults(true);
+        var request = new EqlSearchRequest().indices(REMOTE_CLUSTER + ":test-*").query("process where true");
+        if (randomBoolean()) {
+            request = request.allowPartialSearchResults(true);
+        }
         var response = localClient().execute(EqlSearchAction.INSTANCE, request).get();
         assertThat(response.hits().events().size(), equalTo(5));
         for (int i = 0; i < 5; i++) {
@@ -375,8 +390,10 @@ public class CCSPartialResultsIT extends AbstractMultiClustersTestCase {
 
         // sequence query on both shards
         var request = new EqlSearchRequest().indices(REMOTE_CLUSTER + ":test-*")
-            .query("sequence [process where value == 1] [process where value == 2]")
-            .allowPartialSearchResults(true);
+            .query("sequence [process where value == 1] [process where value == 2]");
+        if (randomBoolean()) {
+            request = request.allowPartialSearchResults(true);
+        }
         var response = localClient().execute(EqlSearchAction.INSTANCE, request).get();
         assertThat(response.hits().sequences().size(), equalTo(0));
         assertThat(response.shardFailures().length, is(1));
@@ -385,8 +402,10 @@ public class CCSPartialResultsIT extends AbstractMultiClustersTestCase {
 
         // sequence query on the available shard only
         request = new EqlSearchRequest().indices(REMOTE_CLUSTER + ":test-*")
-            .query("sequence [process where value == 1] [process where value == 3]")
-            .allowPartialSearchResults(true);
+            .query("sequence [process where value == 1] [process where value == 3]");
+        if (randomBoolean()) {
+            request = request.allowPartialSearchResults(true);
+        }
         response = localClient().execute(EqlSearchAction.INSTANCE, request).get();
         assertThat(response.hits().sequences().size(), equalTo(0));
         assertThat(response.shardFailures().length, is(1));
@@ -395,8 +414,10 @@ public class CCSPartialResultsIT extends AbstractMultiClustersTestCase {
 
         // sequence query on the unavailable shard only
         request = new EqlSearchRequest().indices(REMOTE_CLUSTER + ":test-*")
-            .query("sequence [process where value == 0] [process where value == 2]")
-            .allowPartialSearchResults(true);
+            .query("sequence [process where value == 0] [process where value == 2]");
+        if (randomBoolean()) {
+            request = request.allowPartialSearchResults(true);
+        }
         response = localClient().execute(EqlSearchAction.INSTANCE, request).get();
         assertThat(response.hits().sequences().size(), equalTo(0));
         assertThat(response.shardFailures().length, is(1));
@@ -405,8 +426,10 @@ public class CCSPartialResultsIT extends AbstractMultiClustersTestCase {
 
         // sequence query with missing event on unavailable shard. THIS IS A FALSE POSITIVE
         request = new EqlSearchRequest().indices(REMOTE_CLUSTER + ":test-*")
-            .query("sequence with maxspan=10s  [process where value == 1] ![process where value == 2] [process where value == 3]")
-            .allowPartialSearchResults(true);
+            .query("sequence with maxspan=10s  [process where value == 1] ![process where value == 2] [process where value == 3]");
+        if (randomBoolean()) {
+            request = request.allowPartialSearchResults(true);
+        }
         response = localClient().execute(EqlSearchAction.INSTANCE, request).get();
         assertThat(response.hits().sequences().size(), equalTo(0));
         assertThat(response.shardFailures().length, is(1));
@@ -425,8 +448,10 @@ public class CCSPartialResultsIT extends AbstractMultiClustersTestCase {
 
         // sample query on both shards
         var request = new EqlSearchRequest().indices(REMOTE_CLUSTER + ":test-*")
-            .query("sample by key [process where value == 2] [process where value == 1]")
-            .allowPartialSearchResults(true);
+            .query("sample by key [process where value == 2] [process where value == 1]");
+        if (randomBoolean()) {
+            request = request.allowPartialSearchResults(true);
+        }
         var response = localClient().execute(EqlSearchAction.INSTANCE, request).get();
         assertThat(response.hits().sequences().size(), equalTo(0));
         assertThat(response.shardFailures().length, is(1));
@@ -435,8 +460,10 @@ public class CCSPartialResultsIT extends AbstractMultiClustersTestCase {
 
         // sample query on the available shard only
         request = new EqlSearchRequest().indices(REMOTE_CLUSTER + ":test-*")
-            .query("sample by key [process where value == 3] [process where value == 1]")
-            .allowPartialSearchResults(true);
+            .query("sample by key [process where value == 3] [process where value == 1]");
+        if (randomBoolean()) {
+            request = request.allowPartialSearchResults(true);
+        }
         response = localClient().execute(EqlSearchAction.INSTANCE, request).get();
         assertThat(response.hits().sequences().size(), equalTo(1));
         var sample = response.hits().sequences().get(0);
@@ -448,8 +475,10 @@ public class CCSPartialResultsIT extends AbstractMultiClustersTestCase {
 
         // sample query on the unavailable shard only
         request = new EqlSearchRequest().indices(REMOTE_CLUSTER + ":test-*")
-            .query("sample by key [process where value == 2] [process where value == 0]")
-            .allowPartialSearchResults(true);
+            .query("sample by key [process where value == 2] [process where value == 0]");
+        if (randomBoolean()) {
+            request = request.allowPartialSearchResults(true);
+        }
         response = localClient().execute(EqlSearchAction.INSTANCE, request).get();
         assertThat(response.hits().sequences().size(), equalTo(0));
         assertThat(response.shardFailures().length, is(1));
@@ -459,7 +488,7 @@ public class CCSPartialResultsIT extends AbstractMultiClustersTestCase {
     }
 
     // ------------------------------------------------------------------------
-    // same queries, with missing shards and with default xpack.eql.default_allow_partial_results=true
+    // same queries, with missing shards and with default xpack.eql.default_allow_partial_results=false
     // ------------------------------------------------------------------------
 
     public void testClusterSetting_event() throws ExecutionException, InterruptedException, IOException {
@@ -474,19 +503,13 @@ public class CCSPartialResultsIT extends AbstractMultiClustersTestCase {
             .execute(
                 ClusterUpdateSettingsAction.INSTANCE,
                 new ClusterUpdateSettingsRequest(TimeValue.THIRTY_SECONDS, TimeValue.THIRTY_SECONDS).persistentSettings(
-                    Settings.builder().put(EqlPlugin.DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS.getKey(), true)
+                    Settings.builder().put(EqlPlugin.DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS.getKey(), false)
                 )
             )
             .get();
 
         // event query
-        var request = new EqlSearchRequest().indices(REMOTE_CLUSTER + ":test-*").query("process where true");
-        var response = localClient().execute(EqlSearchAction.INSTANCE, request).get();
-        assertThat(response.hits().events().size(), equalTo(5));
-        for (int i = 0; i < 5; i++) {
-            assertThat(response.hits().events().get(i).toString(), containsString("\"value\" : " + (i * 2 + 1)));
-        }
-        assertThat(response.shardFailures().length, is(1));
+        shouldFailWithDefaults("process where true");
 
         localClient().execute(
             ClusterUpdateSettingsAction.INSTANCE,
@@ -508,45 +531,23 @@ public class CCSPartialResultsIT extends AbstractMultiClustersTestCase {
             .execute(
                 ClusterUpdateSettingsAction.INSTANCE,
                 new ClusterUpdateSettingsRequest(TimeValue.THIRTY_SECONDS, TimeValue.THIRTY_SECONDS).persistentSettings(
-                    Settings.builder().put(EqlPlugin.DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS.getKey(), true)
+                    Settings.builder().put(EqlPlugin.DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS.getKey(), false)
                 )
             )
             .get();
         // sequence query on both shards
-        var request = new EqlSearchRequest().indices(REMOTE_CLUSTER + ":test-*")
-            .query("sequence [process where value == 1] [process where value == 2]");
-        var response = localClient().execute(EqlSearchAction.INSTANCE, request).get();
-        assertThat(response.hits().sequences().size(), equalTo(0));
-        assertThat(response.shardFailures().length, is(1));
-        assertThat(response.shardFailures()[0].index(), is("test-1-remote"));
-        assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
+        shouldFailWithDefaults("sequence [process where value == 1] [process where value == 2]");
 
         // sequence query on the available shard only
-        request = new EqlSearchRequest().indices(REMOTE_CLUSTER + ":test-*")
-            .query("sequence [process where value == 1] [process where value == 3]");
-        response = localClient().execute(EqlSearchAction.INSTANCE, request).get();
-        assertThat(response.hits().sequences().size(), equalTo(0));
-        assertThat(response.shardFailures().length, is(1));
-        assertThat(response.shardFailures()[0].index(), is("test-1-remote"));
-        assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
+        shouldFailWithDefaults("sequence [process where value == 1] [process where value == 3]");
 
         // sequence query on the unavailable shard only
-        request = new EqlSearchRequest().indices(REMOTE_CLUSTER + ":test-*")
-            .query("sequence [process where value == 0] [process where value == 2]");
-        response = localClient().execute(EqlSearchAction.INSTANCE, request).get();
-        assertThat(response.hits().sequences().size(), equalTo(0));
-        assertThat(response.shardFailures().length, is(1));
-        assertThat(response.shardFailures()[0].index(), is("test-1-remote"));
-        assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
+        shouldFailWithDefaults("sequence [process where value == 0] [process where value == 2]");
 
         // sequence query with missing event on unavailable shard. THIS IS A FALSE POSITIVE
-        request = new EqlSearchRequest().indices(REMOTE_CLUSTER + ":test-*")
-            .query("sequence with maxspan=10s  [process where value == 1] ![process where value == 2] [process where value == 3]");
-        response = localClient().execute(EqlSearchAction.INSTANCE, request).get();
-        assertThat(response.hits().sequences().size(), equalTo(0));
-        assertThat(response.shardFailures().length, is(1));
-        assertThat(response.shardFailures()[0].index(), is("test-1-remote"));
-        assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
+        shouldFailWithDefaults(
+            "sequence with maxspan=10s  [process where value == 1] ![process where value == 2] [process where value == 3]"
+        );
 
         localClient().execute(
             ClusterUpdateSettingsAction.INSTANCE,
@@ -568,40 +569,19 @@ public class CCSPartialResultsIT extends AbstractMultiClustersTestCase {
             .execute(
                 ClusterUpdateSettingsAction.INSTANCE,
                 new ClusterUpdateSettingsRequest(TimeValue.THIRTY_SECONDS, TimeValue.THIRTY_SECONDS).persistentSettings(
-                    Settings.builder().put(EqlPlugin.DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS.getKey(), true)
+                    Settings.builder().put(EqlPlugin.DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS.getKey(), false)
                 )
             )
             .get();
 
         // sample query on both shards
-        var request = new EqlSearchRequest().indices(REMOTE_CLUSTER + ":test-*")
-            .query("sample by key [process where value == 2] [process where value == 1]");
-        var response = localClient().execute(EqlSearchAction.INSTANCE, request).get();
-        assertThat(response.hits().sequences().size(), equalTo(0));
-        assertThat(response.shardFailures().length, is(1));
-        assertThat(response.shardFailures()[0].index(), is("test-1-remote"));
-        assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
+        shouldFailWithDefaults("sample by key [process where value == 2] [process where value == 1]");
 
         // sample query on the available shard only
-        request = new EqlSearchRequest().indices(REMOTE_CLUSTER + ":test-*")
-            .query("sample by key [process where value == 3] [process where value == 1]");
-        response = localClient().execute(EqlSearchAction.INSTANCE, request).get();
-        assertThat(response.hits().sequences().size(), equalTo(1));
-        var sample = response.hits().sequences().get(0);
-        assertThat(sample.events().get(0).toString(), containsString("\"value\" : 3"));
-        assertThat(sample.events().get(1).toString(), containsString("\"value\" : 1"));
-        assertThat(response.shardFailures().length, is(1));
-        assertThat(response.shardFailures()[0].index(), is("test-1-remote"));
-        assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
+        shouldFailWithDefaults("sample by key [process where value == 3] [process where value == 1]");
 
         // sample query on the unavailable shard only
-        request = new EqlSearchRequest().indices(REMOTE_CLUSTER + ":test-*")
-            .query("sample by key [process where value == 2] [process where value == 0]");
-        response = localClient().execute(EqlSearchAction.INSTANCE, request).get();
-        assertThat(response.hits().sequences().size(), equalTo(0));
-        assertThat(response.shardFailures().length, is(1));
-        assertThat(response.shardFailures()[0].index(), is("test-1-remote"));
-        assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
+        shouldFailWithDefaults("sample by key [process where value == 2] [process where value == 0]");
 
         localClient().execute(
             ClusterUpdateSettingsAction.INSTANCE,
@@ -609,5 +589,18 @@ public class CCSPartialResultsIT extends AbstractMultiClustersTestCase {
                 Settings.builder().putNull(EqlPlugin.DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS.getKey())
             )
         ).get();
+    }
+
+    private void shouldFailWithDefaults(String query) throws InterruptedException {
+        EqlSearchRequest request = new EqlSearchRequest().indices(REMOTE_CLUSTER + ":test-*").query(query);
+        if (randomBoolean()) {
+            request = request.allowPartialSequenceResults(randomBoolean());
+        }
+        try {
+            localClient().execute(EqlSearchAction.INSTANCE, request).get();
+            fail();
+        } catch (ExecutionException e) {
+            assertThat(e.getCause().getCause(), instanceOf(SearchPhaseExecutionException.class));
+        }
     }
 }

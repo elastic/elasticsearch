@@ -15,6 +15,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -81,7 +82,7 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
     private final NodeClient nodeClient;
     private final ThreadPool threadPool;
     private final TransportService transportService;
-    private final ThreadLocalRandom random;
+    private final Random random;
 
     public BaseTransportInferenceAction(
         String inferenceActionName,
@@ -107,7 +108,7 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
         this.nodeClient = nodeClient;
         this.threadPool = threadPool;
         this.transportService = transportService;
-        this.random = ThreadLocalRandom.current();
+        this.random = Randomness.get();
     }
 
     protected abstract boolean isInvalidTaskTypeForInferenceEndpoint(Request request, UnparsedModel unparsedModel);

@@ -476,3 +476,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.RestEsqlIT
   method: testOutOfRangeComparisons {ASYNC}
   issue: https://github.com/elastic/elasticsearch/issues/121007
+- class: org.elasticsearch.xpack.security.authc.service.ServiceAccountIT
+  method: testAuthenticateShouldNotFallThroughInCaseOfFailure
+  issue: https://github.com/elastic/elasticsearch/issues/120902

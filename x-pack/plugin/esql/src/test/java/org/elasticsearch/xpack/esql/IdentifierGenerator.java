@@ -59,7 +59,7 @@ public class IdentifierGenerator {
             }
         } else if (canAdd(Features.DATE_MATH, features)) {
             // https://www.elastic.co/guide/en/elasticsearch/reference/8.17/api-conventions.html#api-date-math-index-names
-            index.insert(0, "<");
+            index.insert(0, randomFrom("<", "-<"));
             index.append("-{now/");
             index.append(randomFrom("d", "M", "M-1M"));
             if (randomBoolean()) {

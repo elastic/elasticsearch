@@ -105,8 +105,6 @@ import static org.mockito.Mockito.when;
  */
 public abstract class MapperTestCase extends MapperServiceTestCase {
 
-    public static final IndexVersion DEPRECATED_BOOST_INDEX_VERSION = IndexVersions.V_7_10_0;
-
     protected abstract void minimalMapping(XContentBuilder b) throws IOException;
 
     /**
@@ -1077,12 +1075,12 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             this(b -> b.value(inputValue), b -> b.value(result), b -> b.value(blockLoaderResults), mapping);
         }
 
-        private void buildInput(XContentBuilder b) throws IOException {
+        public void buildInput(XContentBuilder b) throws IOException {
             b.field("field");
             inputValue.accept(b);
         }
 
-        private void buildInputArray(XContentBuilder b, int elementCount) throws IOException {
+        public void buildInputArray(XContentBuilder b, int elementCount) throws IOException {
             b.startArray("field");
             for (int i = 0; i < elementCount; i++) {
                 inputValue.accept(b);
@@ -1369,7 +1367,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         assertThat(syntheticSource(mapper, b -> b.startArray("field").endArray()), equalTo(expected));
     }
 
-    private boolean shouldUseIgnoreMalformed() {
+    protected boolean shouldUseIgnoreMalformed() {
         // 5% of test runs use ignore_malformed
         return supportsIgnoreMalformed() && randomDouble() <= 0.05;
     }

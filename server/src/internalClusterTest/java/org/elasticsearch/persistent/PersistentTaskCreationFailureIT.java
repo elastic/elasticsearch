@@ -113,7 +113,7 @@ public class PersistentTaskCreationFailureIT extends ESIntegTestCase {
                     UUIDs.base64UUID(),
                     FailingCreationPersistentTaskExecutor.TASK_NAME,
                     new FailingCreationTaskParams(),
-                    null,
+                    TEST_REQUEST_TIMEOUT,
                     l.map(ignored -> null)
                 )
         );

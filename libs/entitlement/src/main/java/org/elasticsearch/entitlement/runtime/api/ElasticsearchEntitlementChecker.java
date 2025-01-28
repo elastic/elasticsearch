@@ -15,6 +15,13 @@ import org.elasticsearch.entitlement.runtime.policy.PolicyManager;
 import java.io.InputStream;
 import java.io.PrintStream;
 import java.io.PrintWriter;
+import java.lang.foreign.AddressLayout;
+import java.lang.foreign.Arena;
+import java.lang.foreign.FunctionDescriptor;
+import java.lang.foreign.Linker;
+import java.lang.foreign.MemoryLayout;
+import java.lang.foreign.MemorySegment;
+import java.lang.invoke.MethodHandle;
 import java.net.ContentHandlerFactory;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
@@ -44,9 +51,13 @@ import java.nio.channels.CompletionHandler;
 import java.nio.channels.DatagramChannel;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
+import java.nio.file.Path;
 import java.security.cert.CertStoreParameters;
 import java.util.List;
+import java.util.Locale;
 import java.util.Properties;
+import java.util.TimeZone;
+import java.util.function.Consumer;
 
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.HttpsURLConnection;
@@ -289,6 +300,21 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
 
     @Override
     public void check$java_util_logging_LogManager$(Class<?> callerClass) {
+        policyManager.checkChangeJVMGlobalState(callerClass);
+    }
+
+    @Override
+    public void check$java_util_Locale$$setDefault(Class<?> callerClass, Locale.Category category, Locale locale) {
+        policyManager.checkChangeJVMGlobalState(callerClass);
+    }
+
+    @Override
+    public void check$java_util_Locale$$setDefault(Class<?> callerClass, Locale locale) {
+        policyManager.checkChangeJVMGlobalState(callerClass);
+    }
+
+    @Override
+    public void check$java_util_TimeZone$$setDefault(Class<?> callerClass, TimeZone zone) {
         policyManager.checkChangeJVMGlobalState(callerClass);
     }
 
@@ -731,5 +757,115 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     @Override
     public void check$sun_nio_ch_DatagramChannelImpl$receive(Class<?> callerClass, DatagramChannel that, ByteBuffer dst) {
         policyManager.checkInboundNetworkAccess(callerClass);
+    }
+
+    @Override
+    public void check$java_lang_Runtime$load(Class<?> callerClass, Runtime that, String filename) {
+        // TODO: check filesystem entitlement READ
+        policyManager.checkLoadingNativeLibraries(callerClass);
+    }
+
+    @Override
+    public void check$java_lang_Runtime$loadLibrary(Class<?> callerClass, Runtime that, String libname) {
+        policyManager.checkLoadingNativeLibraries(callerClass);
+    }
+
+    @Override
+    public void check$java_lang_System$$load(Class<?> callerClass, String filename) {
+        // TODO: check filesystem entitlement READ
+        policyManager.checkLoadingNativeLibraries(callerClass);
+    }
+
+    @Override
+    public void check$java_lang_System$$loadLibrary(Class<?> callerClass, String libname) {
+        policyManager.checkLoadingNativeLibraries(callerClass);
+    }
+
+    @Override
+    public void check$jdk_internal_foreign_layout_ValueLayouts$OfAddressImpl$withTargetLayout(
+        Class<?> callerClass,
+        AddressLayout that,
+        MemoryLayout memoryLayout
+    ) {
+        policyManager.checkLoadingNativeLibraries(callerClass);
+    }
+
+    @Override
+    public void check$jdk_internal_foreign_abi_AbstractLinker$downcallHandle(
+        Class<?> callerClass,
+        Linker that,
+        FunctionDescriptor function,
+        Linker.Option... options
+    ) {
+        policyManager.checkLoadingNativeLibraries(callerClass);
+    }
+
+    @Override
+    public void check$jdk_internal_foreign_abi_AbstractLinker$downcallHandle(
+        Class<?> callerClass,
+        Linker that,
+        MemorySegment address,
+        FunctionDescriptor function,
+        Linker.Option... options
+    ) {
+        policyManager.checkLoadingNativeLibraries(callerClass);
+    }
+
+    @Override
+    public void check$jdk_internal_foreign_abi_AbstractLinker$upcallStub(
+        Class<?> callerClass,
+        Linker that,
+        MethodHandle target,
+        FunctionDescriptor function,
+        Arena arena,
+        Linker.Option... options
+    ) {
+        policyManager.checkLoadingNativeLibraries(callerClass);
+    }
+
+    @Override
+    public void check$jdk_internal_foreign_AbstractMemorySegmentImpl$reinterpret(Class<?> callerClass, MemorySegment that, long newSize) {
+        policyManager.checkLoadingNativeLibraries(callerClass);
+    }
+
+    @Override
+    public void check$jdk_internal_foreign_AbstractMemorySegmentImpl$reinterpret(
+        Class<?> callerClass,
+        MemorySegment that,
+        long newSize,
+        Arena arena,
+        Consumer<MemorySegment> cleanup
+    ) {
+        policyManager.checkLoadingNativeLibraries(callerClass);
+    }
+
+    @Override
+    public void check$jdk_internal_foreign_AbstractMemorySegmentImpl$reinterpret(
+        Class<?> callerClass,
+        MemorySegment that,
+        Arena arena,
+        Consumer<MemorySegment> cleanup
+    ) {
+        policyManager.checkLoadingNativeLibraries(callerClass);
+    }
+
+    @Override
+    public void check$java_lang_foreign_SymbolLookup$$libraryLookup(Class<?> callerClass, String name, Arena arena) {
+        policyManager.checkLoadingNativeLibraries(callerClass);
+    }
+
+    @Override
+    public void check$java_lang_foreign_SymbolLookup$$libraryLookup(Class<?> callerClass, Path path, Arena arena) {
+        // TODO: check filesystem entitlement READ
+        policyManager.checkLoadingNativeLibraries(callerClass);
+    }
+
+    @Override
+    public void check$java_lang_ModuleLayer$Controller$enableNativeAccess(
+        Class<?> callerClass,
+        ModuleLayer.Controller that,
+        Module target
+    ) {
+        policyManager.checkLoadingNativeLibraries(callerClass);
     }
 }

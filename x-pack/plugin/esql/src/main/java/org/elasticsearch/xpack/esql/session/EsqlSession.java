@@ -468,7 +468,8 @@ public class EsqlSession {
         IndexResolution indexResolution = result.indices;
         EsqlSessionCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolution);
         EsqlSessionCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.unavailableClusters());
-        if (executionInfo.isCrossClusterSearch() && executionInfo.getClusterStateCount(EsqlExecutionInfo.Cluster.Status.RUNNING) == 0) {
+        if (executionInfo.isCrossClusterSearch()
+            && executionInfo.getClusterStates(EsqlExecutionInfo.Cluster.Status.RUNNING).findAny().isEmpty()) {
             // for a CCS, if all clusters have been marked as SKIPPED, nothing to search so send a sentinel Exception
             // to let the LogicalPlanActionListener decide how to proceed
             logicalPlanListener.onFailure(new NoClustersToSearchException());
@@ -483,7 +484,7 @@ public class EsqlSession {
         // TODO: add a test for this
         if (targetClusters.containsAll(newClusters) == false
             // do not bother with a re-resolution if only remotes were requested and all were offline
-            && executionInfo.getClusterStateCount(EsqlExecutionInfo.Cluster.Status.RUNNING) > 0) {
+            && executionInfo.getClusterStates(EsqlExecutionInfo.Cluster.Status.RUNNING).findAny().isPresent()) {
             enrichPolicyResolver.resolvePolicies(
                 newClusters,
                 unresolvedPolicies,

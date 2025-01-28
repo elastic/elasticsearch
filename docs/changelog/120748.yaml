@@ -1,0 +1,15 @@
+pr: 120748
+summary: Removing support for types field in watcher search
+area: Watcher
+type: breaking
+issues: []
+breaking:
+  title: Removing support for types field in watcher search
+  area: REST API
+  details: >-
+    Previously, setting the `input.search.request.types` field in the payload when creating a watcher to an empty array
+    was  allowed, although it resulted in a deprecation warning and had no effect (and any value other than an empty
+    array would result in an error). Now, support for this field is entirely removed, and the empty array will also
+    result in an error.
+  impact: Users should stop setting this field (which did not have any effect anyway).
+  notable: false

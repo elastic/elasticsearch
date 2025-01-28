@@ -16,7 +16,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Now}.
- * This class is generated. Edit {@code org.elasticsearch.compute.gen.EvaluatorImplementer} instead.
+ * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
 public final class NowEvaluator implements EvalOperator.ExpressionEvaluator {
   private final Source source;

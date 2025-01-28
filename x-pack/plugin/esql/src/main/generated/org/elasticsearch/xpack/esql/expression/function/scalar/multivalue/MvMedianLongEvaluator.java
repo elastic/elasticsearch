@@ -14,7 +14,7 @@ import org.elasticsearch.compute.operator.EvalOperator;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link MvMedian}.
- * This class is generated. Edit {@code org.elasticsearch.compute.gen.MvEvaluatorImplementer} instead.
+ * This class is generated. Edit {@code MvEvaluatorImplementer} instead.
  */
 public final class MvMedianLongEvaluator extends AbstractMultivalueFunction.AbstractEvaluator {
   public MvMedianLongEvaluator(EvalOperator.ExpressionEvaluator field,

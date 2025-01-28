@@ -19,7 +19,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractC
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link StEnvelope}.
- * This class is generated. Edit {@code org.elasticsearch.compute.gen.ConvertEvaluatorImplementer} instead.
+ * This class is generated. Edit {@code ConvertEvaluatorImplementer} instead.
  */
 public final class StEnvelopeFromWKBGeoEvaluator extends AbstractConvertFunction.AbstractEvaluator {
   public StEnvelopeFromWKBGeoEvaluator(EvalOperator.ExpressionEvaluator field, Source source,

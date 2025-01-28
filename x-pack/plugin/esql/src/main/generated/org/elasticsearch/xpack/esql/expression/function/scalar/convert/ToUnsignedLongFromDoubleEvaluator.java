@@ -18,7 +18,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link ToUnsignedLong}.
- * This class is generated. Edit {@code org.elasticsearch.compute.gen.ConvertEvaluatorImplementer} instead.
+ * This class is generated. Edit {@code ConvertEvaluatorImplementer} instead.
  */
 public final class ToUnsignedLongFromDoubleEvaluator extends AbstractConvertFunction.AbstractEvaluator {
   public ToUnsignedLongFromDoubleEvaluator(EvalOperator.ExpressionEvaluator field, Source source,

@@ -22,7 +22,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * {@link GroupingAggregatorFunction} implementation for {@link RateLongAggregator}.
- * This class is generated. Edit {@code org.elasticsearch.compute.gen.GroupingAggregatorImplementer} instead.
+ * This class is generated. Edit {@code GroupingAggregatorImplementer} instead.
  */
 public final class RateLongGroupingAggregatorFunction implements GroupingAggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(

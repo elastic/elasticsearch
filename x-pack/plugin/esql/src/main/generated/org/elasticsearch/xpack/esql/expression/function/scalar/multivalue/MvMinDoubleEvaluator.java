@@ -14,7 +14,7 @@ import org.elasticsearch.compute.operator.EvalOperator;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link MvMin}.
- * This class is generated. Edit {@code org.elasticsearch.compute.gen.MvEvaluatorImplementer} instead.
+ * This class is generated. Edit {@code MvEvaluatorImplementer} instead.
  */
 public final class MvMinDoubleEvaluator extends AbstractMultivalueFunction.AbstractEvaluator {
   public MvMinDoubleEvaluator(EvalOperator.ExpressionEvaluator field, DriverContext driverContext) {

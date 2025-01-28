@@ -19,7 +19,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * {@link AggregatorFunction} implementation for {@link ValuesFloatAggregator}.
- * This class is generated. Edit {@code org.elasticsearch.compute.gen.AggregatorImplementer} instead.
+ * This class is generated. Edit {@code AggregatorImplementer} instead.
  */
 public final class ValuesFloatAggregatorFunction implements AggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(

@@ -18,6 +18,7 @@ import java.util.Objects;
 
 public record ElasticInferenceServiceSparseEmbeddingsRequestEntity(
     List<String> inputs,
+    String modelId,
     @Nullable ElasticInferenceServiceUsageContext usageContext
 ) implements ToXContentObject {
 

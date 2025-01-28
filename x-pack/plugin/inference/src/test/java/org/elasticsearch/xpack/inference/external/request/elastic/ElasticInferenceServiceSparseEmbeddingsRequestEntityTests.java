@@ -24,7 +24,7 @@ public class ElasticInferenceServiceSparseEmbeddingsRequestEntityTests extends E
     public void testToXContent_SingleInput_UnspecifiedUsageContext() throws IOException {
         var entity = new ElasticInferenceServiceSparseEmbeddingsRequestEntity(
             List.of("abc"),
-			"my-model-id",
+            "my-model-id",
             ElasticInferenceServiceUsageContext.UNSPECIFIED
         );
         String xContentString = xContentEntityToString(entity);
@@ -38,7 +38,7 @@ public class ElasticInferenceServiceSparseEmbeddingsRequestEntityTests extends E
     public void testToXContent_MultipleInputs_UnspecifiedUsageContext() throws IOException {
         var entity = new ElasticInferenceServiceSparseEmbeddingsRequestEntity(
             List.of("abc", "def"),
-			"my-model-id",
+            "my-model-id",
             ElasticInferenceServiceUsageContext.UNSPECIFIED
         );
         String xContentString = xContentEntityToString(entity);
@@ -54,22 +54,32 @@ public class ElasticInferenceServiceSparseEmbeddingsRequestEntityTests extends E
     }
 
     public void testToXContent_MultipleInputs_SearchUsageContext() throws IOException {
-        var entity = new ElasticInferenceServiceSparseEmbeddingsRequestEntity(List.of("abc"), ElasticInferenceServiceUsageContext.SEARCH);
+        var entity = new ElasticInferenceServiceSparseEmbeddingsRequestEntity(
+            List.of("abc"),
+            "my-model-id",
+            ElasticInferenceServiceUsageContext.SEARCH
+        );
         String xContentString = xContentEntityToString(entity);
         assertThat(xContentString, equalToIgnoringWhitespaceInJsonString("""
             {
                 "input": ["abc"],
+                "model_id": "my-model-id",
                 "usage_context": "search"
             }
             """));
     }
 
     public void testToXContent_MultipleInputs_IngestUsageContext() throws IOException {
-        var entity = new ElasticInferenceServiceSparseEmbeddingsRequestEntity(List.of("abc"), ElasticInferenceServiceUsageContext.INGEST);
+        var entity = new ElasticInferenceServiceSparseEmbeddingsRequestEntity(
+            List.of("abc"),
+            "my-model-id",
+            ElasticInferenceServiceUsageContext.INGEST
+        );
         String xContentString = xContentEntityToString(entity);
         assertThat(xContentString, equalToIgnoringWhitespaceInJsonString("""
             {
                 "input": ["abc"],
+                "model_id": "my-model-id",
                 "usage_context": "ingest"
             }
             """));

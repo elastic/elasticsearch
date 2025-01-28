@@ -20,7 +20,9 @@ import org.junit.Before;
 import java.util.List;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.hamcrest.CoreMatchers.containsString;
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
@@ -275,7 +277,7 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
         try (var resp = run(query)) {
             assertColumnNames(resp.columns(), List.of("id", "_score"));
             assertColumnTypes(resp.columns(), List.of("integer", "double"));
-            List<List<Object>> values = EsqlTestUtils.getValuesList(resp);
+            List<List<Object>> values = getValuesList(resp);
             assertThat(values.size(), equalTo(3));
 
             assertThat(values.get(0).get(0), equalTo(1));
@@ -303,7 +305,7 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
         try (var resp = run(query)) {
             assertColumnNames(resp.columns(), List.of("id", "_score"));
             assertColumnTypes(resp.columns(), List.of("integer", "double"));
-            List<List<Object>> values = EsqlTestUtils.getValuesList(resp);
+            List<List<Object>> values = getValuesList(resp);
             assertThat(values.size(), equalTo(2));
 
             assertThat(values.get(0).get(0), equalTo(1));
@@ -318,20 +320,54 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testScoresAreSimilarToQstr() {
+        var queryMatch = """
+            FROM test METADATA _score
+            | WHERE match(content, "fox") OR (length(content) < 25 AND id > 3)
+            | KEEP id, _score
+            | SORT _score DESC
+            """;
+
+        var queryQstr = """
+            FROM test METADATA _score
+            | WHERE qstr("content:fox OR (length < 25 AND id > 3)")
+            | KEEP id, _score
+            | SORT _score DESC
+            """;
+
+        try (var respMatch = run(queryMatch); var respQstr = run(queryQstr)) {
+            assertEquals(respMatch.columns(), respQstr.columns());
+            var matchValues = getValuesList(respMatch);
+            var qstrValues = getValuesList(respQstr);
+            assertEquals(matchValues.size(), qstrValues.size());
+            for(int i = 0 ; i < matchValues.size(); i++) {
+                // Compare ids
+                assertEquals(matchValues.get(i).get(0), qstrValues.get(i).get(0));
+                // Compare scores
+                assertThat((Double)matchValues.get(i).get(1), closeTo((Double) qstrValues.get(i).get(1), 0.01));
+            }
+        }
+    }
+
     private void createAndPopulateIndex() {
         var indexName = "test";
         var client = client().admin().indices();
         var CreateRequest = client.prepareCreate(indexName)
             .setSettings(Settings.builder().put("index.number_of_shards", 1))
-            .setMapping("id", "type=integer", "content", "type=text");
+            .setMapping("id", "type=integer", "content", "type=text", "length", "type=integer");
         assertAcked(CreateRequest);
         client().prepareBulk()
-            .add(new IndexRequest(indexName).id("1").source("id", 1, "content", "This is a brown fox"))
-            .add(new IndexRequest(indexName).id("2").source("id", 2, "content", "This is a brown dog"))
-            .add(new IndexRequest(indexName).id("3").source("id", 3, "content", "This dog is really brown"))
-            .add(new IndexRequest(indexName).id("4").source("id", 4, "content", "The dog is brown but this document is very very long"))
-            .add(new IndexRequest(indexName).id("5").source("id", 5, "content", "There is also a white cat"))
-            .add(new IndexRequest(indexName).id("6").source("id", 6, "content", "The quick brown fox jumps over the lazy dog"))
+            .add(new IndexRequest(indexName).id("1").source("id", 1, "content", "This is a brown fox", "length", 19))
+            .add(new IndexRequest(indexName).id("2").source("id", 2, "content", "This is a brown dog", "length", 19))
+            .add(new IndexRequest(indexName).id("3").source("id", 3, "content", "This dog is really brown", "length", 25))
+            .add(
+                new IndexRequest(indexName).id("4")
+                    .source("id", 4, "content", "The dog is brown but this document is very very long", "length", 52)
+            )
+            .add(new IndexRequest(indexName).id("5").source("id", 5, "content", "There is also a white cat", "length", 25))
+            .add(
+                new IndexRequest(indexName).id("6").source("id", 6, "content", "The quick brown fox jumps over the lazy dog", "length", 43)
+            )
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
         ensureYellow(indexName);

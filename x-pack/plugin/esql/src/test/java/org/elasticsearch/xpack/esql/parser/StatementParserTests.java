@@ -2468,6 +2468,10 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertEquals(ur, relation("test"));
 
         // map entry values provided in named parameter, arrays are not supported by named parameters yet
+        assumeTrue(
+            "named parameters for identifiers and patterns require snapshot build",
+            EsqlCapabilities.Cap.NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES_SIMPLIFIED_SYNTAX.isEnabled()
+        );
         assertEquals(
             new Filter(
                 EMPTY,
@@ -2860,6 +2864,10 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testNamedFunctionArgumentWithUnsupportedNamedParameterTypes() {
+        assumeTrue(
+            "named parameters for identifiers and patterns require snapshot build",
+            EsqlCapabilities.Cap.NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES_SIMPLIFIED_SYNTAX.isEnabled()
+        );
         Map<String, String> commands = Map.ofEntries(
             Map.entry("eval x = {}", "29"),
             Map.entry("where {}", "26"),

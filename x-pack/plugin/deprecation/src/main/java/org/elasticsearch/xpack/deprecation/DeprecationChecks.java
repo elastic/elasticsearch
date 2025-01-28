@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.deprecation;
 
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
@@ -16,7 +15,6 @@ import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
 import java.util.List;
 import java.util.Objects;
-import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -38,73 +36,57 @@ public class DeprecationChecks {
 
     static final List<
         NodeDeprecationCheck<Settings, PluginsAndModules, ClusterState, XPackLicenseState, DeprecationIssue>> NODE_SETTINGS_CHECKS = List
-            .of(
-                NodeDeprecationChecks::checkMultipleDataPaths,
-                NodeDeprecationChecks::checkDataPathsList,
-                NodeDeprecationChecks::checkSharedDataPathSetting,
-                NodeDeprecationChecks::checkReservedPrefixedRealmNames,
-                NodeDeprecationChecks::checkExporterUseIngestPipelineSettings,
-                NodeDeprecationChecks::checkExporterPipelineMasterTimeoutSetting,
-                NodeDeprecationChecks::checkExporterCreateLegacyTemplateSetting,
-                NodeDeprecationChecks::checkMonitoringSettingHistoryDuration,
-                NodeDeprecationChecks::checkMonitoringSettingHistoryDuration,
-                NodeDeprecationChecks::checkMonitoringSettingCollectIndexRecovery,
-                NodeDeprecationChecks::checkMonitoringSettingCollectIndices,
-                NodeDeprecationChecks::checkMonitoringSettingCollectCcrTimeout,
-                NodeDeprecationChecks::checkMonitoringSettingCollectEnrichStatsTimeout,
-                NodeDeprecationChecks::checkMonitoringSettingCollectIndexRecoveryStatsTimeout,
-                NodeDeprecationChecks::checkMonitoringSettingCollectIndexStatsTimeout,
-                NodeDeprecationChecks::checkMonitoringSettingCollectMlJobStatsTimeout,
-                NodeDeprecationChecks::checkMonitoringSettingCollectNodeStatsTimeout,
-                NodeDeprecationChecks::checkMonitoringSettingCollectClusterStatsTimeout,
-                NodeDeprecationChecks::checkMonitoringSettingExportersHost,
-                NodeDeprecationChecks::checkMonitoringSettingExportersBulkTimeout,
-                NodeDeprecationChecks::checkMonitoringSettingExportersConnectionTimeout,
-                NodeDeprecationChecks::checkMonitoringSettingExportersConnectionReadTimeout,
-                NodeDeprecationChecks::checkMonitoringSettingExportersAuthUsername,
-                NodeDeprecationChecks::checkMonitoringSettingExportersAuthPass,
-                NodeDeprecationChecks::checkMonitoringSettingExportersSSL,
-                NodeDeprecationChecks::checkMonitoringSettingExportersProxyBase,
-                NodeDeprecationChecks::checkMonitoringSettingExportersSniffEnabled,
-                NodeDeprecationChecks::checkMonitoringSettingExportersHeaders,
-                NodeDeprecationChecks::checkMonitoringSettingExportersTemplateTimeout,
-                NodeDeprecationChecks::checkMonitoringSettingExportersMasterTimeout,
-                NodeDeprecationChecks::checkMonitoringSettingExportersEnabled,
-                NodeDeprecationChecks::checkMonitoringSettingExportersType,
-                NodeDeprecationChecks::checkMonitoringSettingExportersAlertsEnabled,
-                NodeDeprecationChecks::checkMonitoringSettingExportersAlertsBlacklist,
-                NodeDeprecationChecks::checkMonitoringSettingExportersIndexNameTimeFormat,
-                NodeDeprecationChecks::checkMonitoringSettingDecommissionAlerts,
-                NodeDeprecationChecks::checkMonitoringSettingEsCollectionEnabled,
-                NodeDeprecationChecks::checkMonitoringSettingCollectionEnabled,
-                NodeDeprecationChecks::checkMonitoringSettingCollectionInterval,
-                NodeDeprecationChecks::checkScriptContextCache,
-                NodeDeprecationChecks::checkScriptContextCompilationsRateLimitSetting,
-                NodeDeprecationChecks::checkScriptContextCacheSizeSetting,
-                NodeDeprecationChecks::checkScriptContextCacheExpirationSetting,
-                NodeDeprecationChecks::checkEnforceDefaultTierPreferenceSetting,
-                NodeDeprecationChecks::checkLifecyleStepMasterTimeoutSetting,
-                NodeDeprecationChecks::checkEqlEnabledSetting,
-                NodeDeprecationChecks::checkNodeAttrData,
-                NodeDeprecationChecks::checkWatcherBulkConcurrentRequestsSetting,
-                NodeDeprecationChecks::checkTracingApmSettings,
-                NodeDeprecationChecks::checkSourceModeInComponentTemplates
-            );
-
-    static List<IndexDeprecationChecks.IndexDeprecationCheck> INDEX_SETTINGS_CHECKS = List.of(
-        IndexDeprecationChecks::oldIndicesCheck,
-        IndexDeprecationChecks::ignoredOldIndicesCheck,
-        IndexDeprecationChecks::translogRetentionSettingCheck,
-        IndexDeprecationChecks::checkIndexDataPath,
-        IndexDeprecationChecks::storeTypeSettingCheck,
-        IndexDeprecationChecks::frozenIndexSettingCheck,
-        IndexDeprecationChecks::deprecatedCamelCasePattern
-    );
-
-    static List<BiFunction<DataStream, ClusterState, DeprecationIssue>> DATA_STREAM_CHECKS = List.of(
-        DataStreamDeprecationChecks::oldIndicesCheck,
-        DataStreamDeprecationChecks::ignoredOldIndicesCheck
-    );
+        .of(
+            NodeDeprecationChecks::checkMultipleDataPaths,
+            NodeDeprecationChecks::checkDataPathsList,
+            NodeDeprecationChecks::checkSharedDataPathSetting,
+            NodeDeprecationChecks::checkReservedPrefixedRealmNames,
+            NodeDeprecationChecks::checkExporterUseIngestPipelineSettings,
+            NodeDeprecationChecks::checkExporterPipelineMasterTimeoutSetting,
+            NodeDeprecationChecks::checkExporterCreateLegacyTemplateSetting,
+            NodeDeprecationChecks::checkMonitoringSettingHistoryDuration,
+            NodeDeprecationChecks::checkMonitoringSettingHistoryDuration,
+            NodeDeprecationChecks::checkMonitoringSettingCollectIndexRecovery,
+            NodeDeprecationChecks::checkMonitoringSettingCollectIndices,
+            NodeDeprecationChecks::checkMonitoringSettingCollectCcrTimeout,
+            NodeDeprecationChecks::checkMonitoringSettingCollectEnrichStatsTimeout,
+            NodeDeprecationChecks::checkMonitoringSettingCollectIndexRecoveryStatsTimeout,
+            NodeDeprecationChecks::checkMonitoringSettingCollectIndexStatsTimeout,
+            NodeDeprecationChecks::checkMonitoringSettingCollectMlJobStatsTimeout,
+            NodeDeprecationChecks::checkMonitoringSettingCollectNodeStatsTimeout,
+            NodeDeprecationChecks::checkMonitoringSettingCollectClusterStatsTimeout,
+            NodeDeprecationChecks::checkMonitoringSettingExportersHost,
+            NodeDeprecationChecks::checkMonitoringSettingExportersBulkTimeout,
+            NodeDeprecationChecks::checkMonitoringSettingExportersConnectionTimeout,
+            NodeDeprecationChecks::checkMonitoringSettingExportersConnectionReadTimeout,
+            NodeDeprecationChecks::checkMonitoringSettingExportersAuthUsername,
+            NodeDeprecationChecks::checkMonitoringSettingExportersAuthPass,
+            NodeDeprecationChecks::checkMonitoringSettingExportersSSL,
+            NodeDeprecationChecks::checkMonitoringSettingExportersProxyBase,
+            NodeDeprecationChecks::checkMonitoringSettingExportersSniffEnabled,
+            NodeDeprecationChecks::checkMonitoringSettingExportersHeaders,
+            NodeDeprecationChecks::checkMonitoringSettingExportersTemplateTimeout,
+            NodeDeprecationChecks::checkMonitoringSettingExportersMasterTimeout,
+            NodeDeprecationChecks::checkMonitoringSettingExportersEnabled,
+            NodeDeprecationChecks::checkMonitoringSettingExportersType,
+            NodeDeprecationChecks::checkMonitoringSettingExportersAlertsEnabled,
+            NodeDeprecationChecks::checkMonitoringSettingExportersAlertsBlacklist,
+            NodeDeprecationChecks::checkMonitoringSettingExportersIndexNameTimeFormat,
+            NodeDeprecationChecks::checkMonitoringSettingDecommissionAlerts,
+            NodeDeprecationChecks::checkMonitoringSettingEsCollectionEnabled,
+            NodeDeprecationChecks::checkMonitoringSettingCollectionEnabled,
+            NodeDeprecationChecks::checkMonitoringSettingCollectionInterval,
+            NodeDeprecationChecks::checkScriptContextCache,
+            NodeDeprecationChecks::checkScriptContextCompilationsRateLimitSetting,
+            NodeDeprecationChecks::checkScriptContextCacheSizeSetting,
+            NodeDeprecationChecks::checkScriptContextCacheExpirationSetting,
+            NodeDeprecationChecks::checkEnforceDefaultTierPreferenceSetting,
+            NodeDeprecationChecks::checkLifecyleStepMasterTimeoutSetting,
+            NodeDeprecationChecks::checkEqlEnabledSetting,
+            NodeDeprecationChecks::checkNodeAttrData,
+            NodeDeprecationChecks::checkWatcherBulkConcurrentRequestsSetting,
+            NodeDeprecationChecks::checkTracingApmSettings
+        );
 
     /**
      * helper utility function to reduce repeat of running a specific {@link List} of checks.

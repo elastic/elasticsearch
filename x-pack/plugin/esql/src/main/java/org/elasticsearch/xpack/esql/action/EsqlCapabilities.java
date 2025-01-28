@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.Build;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.rest.action.admin.cluster.RestNodesCapabilitiesAction;
@@ -756,7 +757,12 @@ public class EsqlCapabilities {
         /**
          * Disabled support for index aliases in lookup joins
          */
-        LOOKUP_JOIN_NO_ALIASES(JOIN_LOOKUP_V12.isEnabled());
+        LOOKUP_JOIN_NO_ALIASES(JOIN_LOOKUP_V12.isEnabled()),
+
+        /**
+         * Index component selector syntax (my-data-stream-name::failures)
+         */
+        INDEX_COMPONENT_SELECTORS(DataStream.isFailureStoreFeatureFlagEnabled());
 
         private final boolean enabled;
 

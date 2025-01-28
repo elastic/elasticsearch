@@ -492,15 +492,34 @@ public class StatementParserTests extends AbstractStatementParserTests {
             clusterAndIndexAsIndexPattern(command, "cluster*:*");
             clusterAndIndexAsIndexPattern(command, "*:index*");
             clusterAndIndexAsIndexPattern(command, "*:*");
-            if (Build.current().isSnapshot()) {
+            if (EsqlCapabilities.Cap.INDEX_COMPONENT_SELECTORS.isEnabled()) {
+                assertStringAsIndexPattern("foo::data", command + " foo::data");
                 assertStringAsIndexPattern("foo::failures", command + " foo::failures");
+                assertStringAsIndexPattern("foo::*", command + " foo::*");
+                assertStringAsIndexPattern("cluster:foo::data", command + " cluster:foo::data");
                 assertStringAsIndexPattern("cluster:foo::failures", command + " cluster:foo::failures");
+                assertStringAsIndexPattern("cluster:foo::*", command + " cluster:foo::*");
+                assertStringAsIndexPattern("foo::*", command + " foo::*");
+                assertStringAsIndexPattern("cluster:foo::*", command + " cluster:\"foo\"::*");
+                assertStringAsIndexPattern("cluster:foo::*", command + " \"cluster:foo\"::*");
+                assertStringAsIndexPattern("cluster:foo::*", command + " \"cluster:foo::*\"");
+                assertStringAsIndexPattern("cluster:foo::data", command + " cluster:\"foo\"::data");
+                assertStringAsIndexPattern("cluster:foo::data", command + " \"cluster:foo\"::data");
+                assertStringAsIndexPattern("cluster:foo::data", command + " \"cluster:foo::data\"");
+                assertStringAsIndexPattern("cluster:foo::failures", command + " cluster:\"foo\"::failures");
+                assertStringAsIndexPattern("cluster:foo::failures", command + " \"cluster:foo\"::failures");
+                assertStringAsIndexPattern("cluster:foo::failures", command + " \"cluster:foo::failures\"");
+                assertStringAsIndexPattern("*,-foo::*", command + " *, \"-foo\"::*");
+                assertStringAsIndexPattern("*,-foo::*", command + " *, \"-foo::*\"");
                 assertStringAsIndexPattern("*::*", command + " *::*");
                 assertStringAsIndexPattern(
                     "<logstash-{now/M{yyyy.MM}}>::*,<logstash-{now/d{yyyy.MM.dd|+12:00}}>::failures",
                     command + " <logstash-{now/M{yyyy.MM}}>::*, \"<logstash-{now/d{yyyy.MM.dd|+12:00}}>\"::failures"
                 );
                 clusterAndIndexAsIndexPattern(command, "cluster:index::data");
+                clusterAndIndexAsIndexPattern(command, "cluster:*::data");
+                clusterAndIndexAsIndexPattern(command, "*:index::data");
+                clusterAndIndexAsIndexPattern(command, "*:index::*");
                 clusterAndIndexAsIndexPattern(command, "*:index*::*");
                 clusterAndIndexAsIndexPattern(command, "*:*::*");
             }

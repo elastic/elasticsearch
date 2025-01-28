@@ -7,12 +7,14 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.RefCountingRunnable;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.compute.operator.exchange.ExchangeSink;
@@ -21,7 +23,6 @@ import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchService;
@@ -32,6 +33,7 @@ import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
@@ -52,8 +54,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME;
 
@@ -97,10 +97,23 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         Runnable runOnTaskFailure,
         ActionListener<ComputeResponse> outListener
     ) {
-        DataNodeRequestSender sender = new DataNodeRequestSender(
-            transportService,
-            esqlExecutor,
-            (connection, shardIds, aliasFilters, listener) -> {
+        DataNodeRequestSender sender = new DataNodeRequestSender(transportService, esqlExecutor, parentTask) {
+            @Override
+            protected void sendRequest(
+                DiscoveryNode node,
+                List<ShardId> shardIds,
+                Map<Index, AliasFilter> aliasFilters,
+                NodeListener nodeListener
+            ) {
+                final AtomicLong pagesFetched = new AtomicLong();
+                var listener = ActionListener.wrap(nodeListener::onResponse, e -> nodeListener.onFailure(e, pagesFetched.get() > 0));
+                final Transport.Connection connection;
+                try {
+                    connection = transportService.getConnection(node);
+                } catch (Exception e) {
+                    listener.onFailure(e);
+                    return;
+                }
                 var queryPragmas = configuration.pragmas();
                 var childSessionId = computeService.newChildSession(sessionId);
                 // For each target node, first open a remote exchange on the remote node, then link the exchange source to
@@ -112,18 +125,10 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     queryPragmas.exchangeBufferSize(),
                     esqlExecutor,
                     listener.delegateFailureAndWrap((l, unused) -> {
-                        final AtomicLong pagesFetched = new AtomicLong();
                         final AtomicReference<DataNodeComputeResponse> nodeResponseRef = new AtomicReference<>();
-                        try (var computeListener = new ComputeListener(threadPool, runOnTaskFailure, ActionListener.wrap(r -> {
-                            l.onResponse(nodeResponseRef.get());
-                        }, e -> {
-                            if (pagesFetched.get() == 0 && false) {
-                                var shardFailures = shardIds.stream().collect(Collectors.toMap(Function.identity(), ignored -> e));
-                                l.onResponse(new DataNodeComputeResponse(List.of(), shardFailures));
-                            } else {
-                                l.onFailure(e);
-                            }
-                        }))) {
+                        try (
+                            var computeListener = new ComputeListener(threadPool, runOnTaskFailure, l.map(ignored -> nodeResponseRef.get()))
+                        ) {
                             final var remoteSink = exchangeService.newRemoteSink(parentTask, childSessionId, transportService, connection);
                             exchangeSource.addRemoteSink(
                                 remoteSink,
@@ -159,14 +164,12 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     })
                 );
             }
-        );
-        QueryBuilder requestFilter = PlannerUtils.requestTimestampFilter(dataNodePlan);
+        };
         sender.startComputeOnDataNodes(
             clusterAlias,
-            parentTask,
             concreteIndices,
             originalIndices,
-            requestFilter,
+            PlannerUtils.requestTimestampFilter(dataNodePlan),
             runOnTaskFailure,
             ActionListener.runAfter(outListener, exchangeSource.addEmptySink()::close)
         );
@@ -445,7 +448,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             request.runNodeLevelReduction()
         );
         // the sender doesn't support retry on shard failures, so we need to fail fast here.
-        final boolean failFastOnShardFailures = true; // channel.getVersion().before(TransportVersions.ESQL_RETRY_ON_SHARD_LEVEL_FAILURE);
+        final boolean failFastOnShardFailures = channel.getVersion().before(TransportVersions.ESQL_RETRY_ON_SHARD_LEVEL_FAILURE);
         runComputeOnDataNode((CancellableTask) task, sessionId, reductionPlan, request, failFastOnShardFailures, listener);
     }
 }

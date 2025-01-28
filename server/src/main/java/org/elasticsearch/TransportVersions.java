@@ -228,13 +228,13 @@ public class TransportVersions {
      * Reference to the earliest compatible transport version to this version of the codebase.
      * This should be the transport version used by the highest minor version of the previous major.
      */
-    public static final TransportVersion MINIMUM_COMPATIBLE = INGEST_REQUEST_INCLUDE_SOURCE_ON_ERROR;
+    public static final TransportVersion MINIMUM_COMPATIBLE = BYTE_SIZE_VALUE_ALWAYS_USES_BYTES_1;
 
     /**
      * Reference to the minimum transport version that can be used with CCS.
      * This should be the transport version used by the previous minor release.
      */
-    public static final TransportVersion MINIMUM_CCS_VERSION = INGEST_REQUEST_INCLUDE_SOURCE_ON_ERROR;
+    public static final TransportVersion MINIMUM_CCS_VERSION = BYTE_SIZE_VALUE_ALWAYS_USES_BYTES_1;
 
     /**
      * Sorted list of all versions defined in this class

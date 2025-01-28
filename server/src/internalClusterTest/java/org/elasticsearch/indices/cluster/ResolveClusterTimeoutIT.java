@@ -38,7 +38,7 @@ public class ResolveClusterTimeoutIT extends AbstractMultiClustersTestCase {
     public void testTimeoutParameter() {
         long maxTimeoutInMillis = 500;
 
-        // First part: we query _resolve/cluster without any indices to prove we can hit remote1 fine.
+        // First part: we query _resolve/cluster without stalling a remote.
         ResolveClusterActionRequest resolveClusterActionRequest;
         if (randomBoolean()) {
             resolveClusterActionRequest = new ResolveClusterActionRequest(new String[0], IndicesOptions.DEFAULT, true, true);
@@ -46,7 +46,7 @@ public class ResolveClusterTimeoutIT extends AbstractMultiClustersTestCase {
             resolveClusterActionRequest = new ResolveClusterActionRequest(new String[] { "*:*" });
         }
 
-        // We set a timeout but won't stall any cluster; expectation is that we always get back response just fine before the timeout.
+        // We set a timeout but since we don't stall any cluster, we should always get back response just fine before the timeout.
         resolveClusterActionRequest.setTimeout(TimeValue.timeValueSeconds(10));
         ResolveClusterActionResponse clusterActionResponse = safeGet(
             client().execute(TransportResolveClusterAction.TYPE, resolveClusterActionRequest)

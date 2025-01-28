@@ -7,17 +7,13 @@
     "stability": "stable",
     "visibility": "public",
     "headers": {
-      "accept": [
-        "application/json"
-      ]
+      "accept": ["application/json"]
     },
     "url": {
       "paths": [
         {
           "path": "/_inference/{inference_id}",
-          "methods": [
-            "DELETE"
-          ],
+          "methods": ["DELETE"],
           "parts": {
             "inference_id": {
               "type": "string",
@@ -27,9 +23,7 @@
         },
         {
           "path": "/_inference/{task_type}/{inference_id}",
-          "methods": [
-            "DELETE"
-          ],
+          "methods": ["DELETE"],
           "parts": {
             "task_type": {
               "type": "string",

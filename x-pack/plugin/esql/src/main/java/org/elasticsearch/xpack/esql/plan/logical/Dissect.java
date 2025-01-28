@@ -12,7 +12,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.dissect.DissectParser;
-import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -26,7 +25,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
-public class Dissect extends RegexExtract implements TelemetryAware {
+public class Dissect extends RegexExtract {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Dissect", Dissect::new);
 
     private final Parser parser;
@@ -122,6 +121,11 @@ public class Dissect extends RegexExtract implements TelemetryAware {
         if (super.equals(o) == false) return false;
         Dissect dissect = (Dissect) o;
         return Objects.equals(parser, dissect.parser);
+    }
+
+    @Override
+    public String commandName() {
+        return "DISSECT";
     }
 
     @Override

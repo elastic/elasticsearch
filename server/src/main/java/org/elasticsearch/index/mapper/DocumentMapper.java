@@ -164,12 +164,11 @@ public class DocumentMapper {
                 throw new IllegalArgumentException("cannot have nested fields when index sort is activated");
             }
             for (String field : settings.getValue(IndexSortConfig.INDEX_SORT_FIELD_SETTING)) {
-                for (NestedObjectMapper nestedObjectMapper : mappers().nestedLookup().getNestedMappers().values()) {
-                    if (field.startsWith(nestedObjectMapper.fullPath())) {
-                        throw new IllegalArgumentException(
-                            "cannot apply index sort to field [" + field + "] under nested object [" + nestedObjectMapper.fullPath() + "]"
-                        );
-                    }
+                String nestedParent = mappers().nestedLookup().getNestedParent(field);
+                if (nestedParent != null) {
+                    throw new IllegalArgumentException(
+                        "cannot apply index sort to field [" + field + "] under nested object [" + nestedParent + "]"
+                    );
                 }
             }
         }

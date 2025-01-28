@@ -280,18 +280,18 @@ tests:
 - class: org.elasticsearch.xpack.esql.parser.StatementParserTests
   method: testNamedFunctionArgumentInMap
   issue: https://github.com/elastic/elasticsearch/issues/121020
-- class: org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityEsqlIT
-  method: testCrossClusterAsyncQuery
-  issue: https://github.com/elastic/elasticsearch/issues/121021
-- class: org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityEsqlIT
-  method: testCrossClusterAsyncQueryStop
-  issue: https://github.com/elastic/elasticsearch/issues/121021
 - class: org.elasticsearch.xpack.security.profile.ProfileIntegTests
   method: testSuggestProfilesWithName
   issue: https://github.com/elastic/elasticsearch/issues/121022
 - class: org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilterIT
   method: testBulkOperations {p0=true}
   issue: https://github.com/elastic/elasticsearch/issues/120969
+- class: org.elasticsearch.xpack.security.profile.ProfileIntegTests
+  method: testProfileAPIsWhenIndexNotCreated
+  issue: https://github.com/elastic/elasticsearch/issues/121096
+- class: org.elasticsearch.xpack.security.profile.ProfileIntegTests
+  method: testGetProfiles
+  issue: https://github.com/elastic/elasticsearch/issues/121101
 
 # Examples:
 #

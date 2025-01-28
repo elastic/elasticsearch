@@ -1055,10 +1055,12 @@ public class SearchQueryThenFetchAsyncAction<Result extends SearchPhaseResult> e
                 && queryResult.topDocs() != null
                 && queryResult.topDocs().topDocs.getClass() == TopFieldDocs.class) {
                 TopFieldDocs topDocs = (TopFieldDocs) queryResult.topDocs().topDocs;
+                var bottomSortCollector = this.bottomSortCollector;
                 if (bottomSortCollector == null) {
                     synchronized (this) {
+                        bottomSortCollector = this.bottomSortCollector;
                         if (bottomSortCollector == null) {
-                            bottomSortCollector = new BottomSortValuesCollector(topDocsSize, topDocs.fields);
+                            bottomSortCollector = this.bottomSortCollector = new BottomSortValuesCollector(topDocsSize, topDocs.fields);
                         }
                     }
                 }

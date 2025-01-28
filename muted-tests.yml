@@ -213,9 +213,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/120482
 - class: org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeToCharProcessorTests
   issue: https://github.com/elastic/elasticsearch/issues/120575
-- class: org.elasticsearch.action.search.SearchProgressActionListenerIT
-  method: testSearchProgressWithHitsAndAggs
-  issue: https://github.com/elastic/elasticsearch/issues/120583
 - class: org.elasticsearch.index.reindex.BulkByScrollUsesAllScrollDocumentsAfterConflictsIntegTests
   method: testReindex
   issue: https://github.com/elastic/elasticsearch/issues/120605
@@ -232,9 +229,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/120767
 - class: org.elasticsearch.search.fieldcaps.FieldCapabilitiesIT
   issue: https://github.com/elastic/elasticsearch/issues/120772
-- class: org.elasticsearch.action.search.SearchProgressActionListenerIT
-  method: testSearchProgressWithHits
-  issue: https://github.com/elastic/elasticsearch/issues/120671
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=ml/3rd_party_deployment/Test start deployment fails while model download in progress}
   issue: https://github.com/elastic/elasticsearch/issues/120810

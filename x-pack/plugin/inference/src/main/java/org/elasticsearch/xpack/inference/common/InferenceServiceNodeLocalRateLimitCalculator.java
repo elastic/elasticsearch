@@ -27,10 +27,10 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -79,9 +79,8 @@ public class InferenceServiceNodeLocalRateLimitCalculator implements ClusterStat
 
     private final InferenceServiceRegistry serviceRegistry;
 
-    private final AtomicReference<Map<String, Map<TaskType, RateLimitAssignment>>> serviceAssignments = new AtomicReference<>(
-        new HashMap<>()
-    );
+    private final AtomicReference<ConcurrentHashMap<String, ConcurrentHashMap<TaskType, RateLimitAssignment>>> serviceAssignments =
+        new AtomicReference<>(new ConcurrentHashMap<>());
 
     /**
      * Record for storing rate limit assignment information.
@@ -93,7 +92,7 @@ public class InferenceServiceNodeLocalRateLimitCalculator implements ClusterStat
     public InferenceServiceNodeLocalRateLimitCalculator(ClusterService clusterService, InferenceServiceRegistry serviceRegistry) {
         clusterService.addListener(this);
         this.serviceRegistry = serviceRegistry;
-        this.serviceAssignments.set(new HashMap<>());
+        this.serviceAssignments.set(new ConcurrentHashMap<>());
     }
 
     @Override
@@ -133,7 +132,7 @@ public class InferenceServiceNodeLocalRateLimitCalculator implements ClusterStat
         var sortedServices = new ArrayList<>(serviceRegistry.getServices().values());
         sortedServices.sort(Comparator.comparing(InferenceService::name));
 
-        Map<String, Map<TaskType, RateLimitAssignment>> newAssignments = new HashMap<>();
+        ConcurrentHashMap<String, ConcurrentHashMap<TaskType, RateLimitAssignment>> newAssignments = new ConcurrentHashMap<>();
 
         for (String serviceName : SERVICE_NODE_LOCAL_RATE_LIMIT_CONFIGS.keySet()) {
             Optional<InferenceService> service = serviceRegistry.getService(serviceName);
@@ -142,7 +141,7 @@ public class InferenceServiceNodeLocalRateLimitCalculator implements ClusterStat
                 var inferenceService = service.get();
 
                 for (NodeLocalRateLimitConfig rateLimitConfig : SERVICE_NODE_LOCAL_RATE_LIMIT_CONFIGS.get(serviceName)) {
-                    Map<TaskType, RateLimitAssignment> perTaskTypeAssignments = new HashMap<>();
+                    ConcurrentHashMap<TaskType, RateLimitAssignment> perTaskTypeAssignments = new ConcurrentHashMap<>();
                     TaskType taskType = rateLimitConfig.taskType();
 
                     // Calculate node assignments needed for re-routing

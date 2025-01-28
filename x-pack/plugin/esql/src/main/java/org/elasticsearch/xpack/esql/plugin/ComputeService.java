@@ -224,7 +224,15 @@ public class ComputeService {
                 ) {
                     runCompute(
                         rootTask,
-                        new ComputeContext(sessionId, LOCAL_CLUSTER, List.of(), configuration, foldContext, exchangeSource, null),
+                        new ComputeContext(
+                            sessionId,
+                            LOCAL_CLUSTER,
+                            List.of(),
+                            configuration,
+                            foldContext,
+                            exchangeSource::createExchangeSource,
+                            null
+                        ),
                         coordinatorPlan,
                         localListener.acquireCompute()
                     );
@@ -372,11 +380,12 @@ public class ComputeService {
                 blockFactory,
                 clusterService.getSettings(),
                 context.configuration(),
-                context.exchangeSource(),
-                context.exchangeSink(),
+                context.exchangeSourceSupplier(),
+                context.exchangeSinkSupplier(),
                 enrichLookupService,
                 lookupFromIndexService,
-                new EsPhysicalOperationProviders(context.foldCtx(), contexts, searchService.getIndicesService().getAnalysis())
+                new EsPhysicalOperationProviders(context.foldCtx(), contexts, searchService.getIndicesService().getAnalysis()),
+                contexts
             );
 
             LOGGER.debug("Received physical plan:\n{}", plan);

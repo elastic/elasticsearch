@@ -29,4 +29,5 @@ testClusters.configureEach {
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.security.autoconfiguration.enabled', 'false'
   user username: 'x_pack_rest_user', password: 'x-pack-test-password'
+  systemProperty 'es.queryable_built_in_roles_enabled', 'false'
 }

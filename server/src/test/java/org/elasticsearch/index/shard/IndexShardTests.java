@@ -4497,7 +4497,7 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(shard);
     }
 
-    public void testResetEngine() throws Exception {
+    public void testResetEngineToGlobalCheckpoint() throws Exception {
         IndexShard shard = newStartedShard(false);
         indexOnReplicaWithGaps(shard, between(0, 1000), Math.toIntExact(shard.getLocalCheckpoint()));
         long maxSeqNoBeforeRollback = shard.seqNoStats().getMaxSeqNo();
@@ -4557,6 +4557,33 @@ public class IndexShardTests extends IndexShardTestCase {
         done.set(true);
         thread.join();
         closeShard(shard, false);
+    }
+
+    public void testResetEngine() throws Exception {
+        var newEngineCreated = new CountDownLatch(2);
+        var indexShard = newStartedShard(true, Settings.EMPTY, config -> {
+            try {
+                return new ReadOnlyEngine(config, null, null, true, Function.identity(), true, true) {
+                    @Override
+                    public void prepareForEngineReset() throws IOException {
+                        ;
+                    }
+                };
+            } finally {
+                newEngineCreated.countDown();
+            }
+        });
+        var newEngineNotification = new CountDownLatch(1);
+        indexShard.waitForEngineOrClosedShard(ActionListener.running(newEngineNotification::countDown));
+
+        var onAcquired = new PlainActionFuture<Releasable>();
+        indexShard.acquireAllPrimaryOperationsPermits(onAcquired, TimeValue.timeValueMinutes(1L));
+        try (var permits = safeGet(onAcquired)) {
+            indexShard.resetEngine();
+        }
+        safeAwait(newEngineCreated);
+        safeAwait(newEngineNotification);
+        closeShard(indexShard, false);
     }
 
     /**

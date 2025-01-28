@@ -32,7 +32,7 @@ import org.elasticsearch.xpack.esql.analysis.TableInfo;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
-import org.elasticsearch.xpack.esql.plan.TableIdentifier;
+import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.type.EsFieldTests;
 
 import java.util.ArrayList;
@@ -702,7 +702,7 @@ public class EsqlSessionCCSUtilsTests extends ESTestCase {
         // local only search does not require an enterprise license
         {
             List<TableInfo> indices = new ArrayList<>();
-            indices.add(new TableInfo(new TableIdentifier(EMPTY, null, randomFrom("idx", "idx1,idx2*"))));
+            indices.add(new TableInfo(new IndexPattern(EMPTY, randomFrom("idx", "idx1,idx2*"))));
 
             checkForCcsLicense(executionInfo, indices, indicesGrouper, enterpriseLicenseValid);
             checkForCcsLicense(executionInfo, indices, indicesGrouper, platinumLicenseValid);
@@ -727,10 +727,10 @@ public class EsqlSessionCCSUtilsTests extends ESTestCase {
             List<TableInfo> indices = new ArrayList<>();
             final String indexExprWithRemotes = randomFrom("remote:idx", "idx1,remote:idx2*,remote:logs,c*:idx4");
             if (randomBoolean()) {
-                indices.add(new TableInfo(new TableIdentifier(EMPTY, null, indexExprWithRemotes)));
+                indices.add(new TableInfo(new IndexPattern(EMPTY, indexExprWithRemotes)));
             } else {
-                indices.add(new TableInfo(new TableIdentifier(EMPTY, null, randomFrom("idx", "idx1,idx2*"))));
-                indices.add(new TableInfo(new TableIdentifier(EMPTY, null, indexExprWithRemotes)));
+                indices.add(new TableInfo(new IndexPattern(EMPTY, randomFrom("idx", "idx1,idx2*"))));
+                indices.add(new TableInfo(new IndexPattern(EMPTY, indexExprWithRemotes)));
             }
 
             // licenses that work

@@ -76,8 +76,7 @@ import static org.elasticsearch.common.lucene.Lucene.KEYWORD_ANALYZER;
  * 2 for each key (one per document), a <code>counted_terms</code> aggregation on a <code>counted_keyword</code> field will consider
  * the actual count and report a count of 3 for each key.</p>
  *
- * <p>Synthetic source is supported, but uses the fallback "ignore source" infrastructure unless the <code>source_keep_mode</code> is
- *  explicitly set to <code>none</code> in the field mapping parameters.</p>
+ * <p>Synthetic source is fully supported.</p>
  */
 public class CountedKeywordFieldMapper extends FieldMapper {
     public static final String CONTENT_TYPE = "counted_keyword";
@@ -274,9 +273,11 @@ public class CountedKeywordFieldMapper extends FieldMapper {
     public static class Builder extends FieldMapper.Builder {
         private final Parameter<Boolean> indexed = Parameter.indexParam(m -> toType(m).mappedFieldType.isIndexed(), true);
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
+        private final SourceKeepMode indexSourceKeepMode;
 
-        protected Builder(String name) {
+        protected Builder(String name, SourceKeepMode indexSourceKeepMode) {
             super(name);
+            this.indexSourceKeepMode = indexSourceKeepMode;
         }
 
         @Override
@@ -306,7 +307,8 @@ public class CountedKeywordFieldMapper extends FieldMapper {
                     countFieldMapper.fieldType()
                 ),
                 builderParams(this, context),
-                countFieldMapper
+                countFieldMapper,
+                indexSourceKeepMode
             );
         }
     }
@@ -386,21 +388,26 @@ public class CountedKeywordFieldMapper extends FieldMapper {
         }
     }
 
-    public static TypeParser PARSER = new TypeParser((n, c) -> new CountedKeywordFieldMapper.Builder(n));
+    public static TypeParser PARSER = new TypeParser(
+        (n, c) -> new CountedKeywordFieldMapper.Builder(n, c.getIndexSettings().sourceKeepMode())
+    );
 
     private final FieldType fieldType;
     private final BinaryFieldMapper countFieldMapper;
+    private final SourceKeepMode indexSourceKeepMode;
 
     protected CountedKeywordFieldMapper(
         String simpleName,
         FieldType fieldType,
         MappedFieldType mappedFieldType,
         BuilderParams builderParams,
-        BinaryFieldMapper countFieldMapper
+        BinaryFieldMapper countFieldMapper,
+        SourceKeepMode indexSourceKeepMode
     ) {
         super(simpleName, mappedFieldType, builderParams);
         this.fieldType = fieldType;
         this.countFieldMapper = countFieldMapper;
+        this.indexSourceKeepMode = indexSourceKeepMode;
     }
 
     @Override
@@ -482,7 +489,7 @@ public class CountedKeywordFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName()).init(this);
+        return new Builder(leafName(), indexSourceKeepMode).init(this);
     }
 
     @Override
@@ -492,13 +499,14 @@ public class CountedKeywordFieldMapper extends FieldMapper {
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport() {
-        var keepMode = sourceKeepMode();
-        if (keepMode.isPresent() == false || keepMode.get() != SourceKeepMode.NONE) {
+        var keepMode = sourceKeepMode().orElse(indexSourceKeepMode);
+        if (keepMode != SourceKeepMode.NONE) {
             return super.syntheticSourceSupport();
         }
 
-        var loader = new CountedKeywordFieldSyntheticSourceLoader(fullPath(), countFieldMapper.fullPath(), leafName());
-        return new SyntheticSourceSupport.Native(loader);
+        return new SyntheticSourceSupport.Native(
+            () -> new CountedKeywordFieldSyntheticSourceLoader(fullPath(), countFieldMapper.fullPath(), leafName())
+        );
     }
 
 }

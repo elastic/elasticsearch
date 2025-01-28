@@ -284,14 +284,7 @@ GET /_resolve/cluster/not-present,clust*:my-index*,oldcluster:*?ignore_unavailab
   },
   "cluster_two": {
     "connected": false,           <3>
-    "skip_unavailable": false,
-    "matching_indices": true,
-    "version": {
-      "number": "8.13.0",
-      "build_flavor": "default",
-      "minimum_wire_compatibility_version": "7.17.0",
-      "minimum_index_compatibility_version": "7.0.0"
-    }
+    "skip_unavailable": false
   },
   "oldcluster": {         <4>
     "connected": true,

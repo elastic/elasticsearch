@@ -37,7 +37,6 @@ import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.SecureRandomHolder;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -139,6 +138,7 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.common.SecureRandomUtils.getBase64SecureRandomString;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
 import static org.elasticsearch.transport.RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY;
@@ -217,6 +217,7 @@ public class ApiKeyService implements Closeable {
     private final ThreadPool threadPool;
     private final ApiKeyDocCache apiKeyDocCache;
 
+    private static final int API_KEY_SECRET_NUM_BYTES = 16;
     // The API key secret is a Base64 encoded string of 128 random bits.
     // See getBase64SecureRandomString()
     private static final int API_KEY_SECRET_LENGTH = 22;
@@ -540,7 +541,7 @@ public class ApiKeyService implements Closeable {
     ) {
         final Instant created = clock.instant();
         final Instant expiration = getApiKeyExpiration(created, request.getExpiration());
-        final SecureString apiKey = getBase64SecureRandomString();
+        final SecureString apiKey = getBase64SecureRandomString(API_KEY_SECRET_NUM_BYTES);
         assert ApiKey.Type.CROSS_CLUSTER != request.getType() || API_KEY_SECRET_LENGTH == apiKey.length()
             : "Invalid API key (name=[" + request.getName() + "], type=[" + request.getType() + "], length=[" + apiKey.length() + "])";
 
@@ -2657,24 +2658,6 @@ public class ApiKeyService implements Closeable {
      */
     public static RefreshPolicy defaultCreateDocRefreshPolicy(Settings settings) {
         return DiscoveryNode.isStateless(settings) ? RefreshPolicy.IMMEDIATE : RefreshPolicy.WAIT_UNTIL;
-    }
-
-    private static SecureString getBase64SecureRandomString() {
-        byte[] randomBytes = null;
-        byte[] encodedBytes = null;
-        try {
-            randomBytes = new byte[16];
-            SecureRandomHolder.INSTANCE.nextBytes(randomBytes);
-            encodedBytes = Base64.getUrlEncoder().withoutPadding().encode(randomBytes);
-            return new SecureString(CharArrays.utf8BytesToChars(encodedBytes));
-        } finally {
-            if (randomBytes != null) {
-                Arrays.fill(randomBytes, (byte) 0);
-            }
-            if (encodedBytes != null) {
-                Arrays.fill(encodedBytes, (byte) 0);
-            }
-        }
     }
 
     private static final class ApiKeyDocCache {

@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServic
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
@@ -126,7 +127,7 @@ public class InferenceServiceNodeLocalRateLimitCalculator implements ClusterStat
         var nodes = newClusterState.nodes().getAllNodes();
 
         // Sort nodes by id (every node lands on the same result)
-        var sortedNodes = nodes.stream().sorted(Comparator.comparing(DiscoveryNode::getId)).toList()
+        var sortedNodes = nodes.stream().sorted(Comparator.comparing(DiscoveryNode::getId)).toList();
 
         // Sort inference services by name (every node lands on the same result)
         var sortedServices = new ArrayList<>(serviceRegistry.getServices().values());

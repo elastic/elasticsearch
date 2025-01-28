@@ -211,7 +211,17 @@ public class TransportResolveClusterAction extends HandledTransportAction<Resolv
                             return;
                         }
                         if (ExceptionsHelper.isRemoteUnavailableException((failure))) {
-                            clusterInfoMap.put(clusterAlias, new ResolveClusterInfo(false, skipUnavailable));
+                            String errorMessage = failure.getMessage();
+                            /*
+                             * If the request timed out, set the error field in the response we send back. This is so that we could
+                             * differentiate between connection error to a remote vs. request time out since the "connected" property
+                             * cannot provide the additional context in the latter case.
+                             */
+                            if (errorMessage.contains("Timed out")) {
+                                clusterInfoMap.put(clusterAlias, new ResolveClusterInfo(false, skipUnavailable, errorMessage));
+                            } else {
+                                clusterInfoMap.put(clusterAlias, new ResolveClusterInfo(false, skipUnavailable));
+                            }
                         } else if (ExceptionsHelper.unwrap(
                             failure,
                             ElasticsearchSecurityException.class
@@ -342,7 +352,9 @@ public class TransportResolveClusterAction extends HandledTransportAction<Resolv
                         timeout,
                         searchCoordinationExecutor,
                         releaserListener,
-                        ignored -> releaserListener.onFailure(new ConnectTransportException(null, "Could not connect to the remote node"))
+                        ignored -> releaserListener.onFailure(
+                            new ConnectTransportException(null, "Timed out: did not receive a response from the cluster")
+                        )
                     );
                 } else {
                     resultsListener = ActionListener.releaseAfter(remoteListener, refs.acquire());

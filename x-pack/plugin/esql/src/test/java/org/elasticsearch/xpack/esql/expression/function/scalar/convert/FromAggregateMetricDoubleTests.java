@@ -50,9 +50,9 @@ public class FromAggregateMetricDoubleTests extends AbstractScalarFunctionTestCa
                     randomIntBetween(Integer.MIN_VALUE, Integer.MAX_VALUE)
                 );
                 Double expectedValue = index == AggregateMetricDoubleBlockBuilder.Metric.MIN.getIndex() ? agg_metric.getMin()
-                                                                                                        : index == AggregateMetricDoubleBlockBuilder.Metric.MAX.getIndex() ? agg_metric.getMax()
-                                                                                                                                                                           : index == AggregateMetricDoubleBlockBuilder.Metric.SUM.getIndex() ? agg_metric.getSum()
-                                                                                                                                                                                                                                              : (Double) agg_metric.getCount().doubleValue();
+                    : index == AggregateMetricDoubleBlockBuilder.Metric.MAX.getIndex() ? agg_metric.getMax()
+                    : index == AggregateMetricDoubleBlockBuilder.Metric.SUM.getIndex() ? agg_metric.getSum()
+                    : (Double) agg_metric.getCount().doubleValue();
 
                 return new TestCaseSupplier.TestCase(
                     List.of(
@@ -62,7 +62,7 @@ public class FromAggregateMetricDoubleTests extends AbstractScalarFunctionTestCa
                     "FromAggregateDoubleMetricEvaluator[field=Attribute[channel=0],subfieldIndex=" + index + "]",
                     index == AggregateMetricDoubleBlockBuilder.Metric.COUNT.getIndex() ? DataType.INTEGER : DataType.DOUBLE,
                     index == AggregateMetricDoubleBlockBuilder.Metric.COUNT.getIndex() ? Matchers.equalTo(agg_metric.getCount())
-                                                                                       : expectedValue == null ? Matchers.nullValue()
+                        : expectedValue == null ? Matchers.nullValue()
                         : Matchers.closeTo(expectedValue, Math.abs(expectedValue * 0.00001))
                 );
             }));

@@ -467,3 +467,15 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.RestEsqlIT
   method: testWarningHeadersOnFailedConversions {ASYNC}
   issue: https://github.com/elastic/elasticsearch/issues/120980
+- class: org.elasticsearch.xpack.security.authc.jwt.JwtRealmSingleNodeTests
+  method: testActivateProfileForJWT
+  issue: https://github.com/elastic/elasticsearch/issues/120983
+- class: org.elasticsearch.xpack.security.profile.ProfileIntegTests
+  method: testProfileIndexAutoCreation
+  issue: https://github.com/elastic/elasticsearch/issues/120987
+- class: org.elasticsearch.xpack.esql.qa.multi_node.RestEsqlIT
+  method: testOutOfRangeComparisons {ASYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/121007
+- class: org.elasticsearch.xpack.security.authc.service.ServiceAccountIT
+  method: testAuthenticateShouldNotFallThroughInCaseOfFailure
+  issue: https://github.com/elastic/elasticsearch/issues/120902

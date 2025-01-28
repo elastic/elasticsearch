@@ -183,8 +183,8 @@ public class LuceneQueryExpressionEvaluatorTests extends ComputeTestCase {
             );
             LuceneQueryExpressionEvaluator luceneQueryEvaluator = new LuceneQueryExpressionEvaluator(
                 blockFactory,
-                new LuceneQueryExpressionEvaluator.ShardConfig[] { shard },
-                0
+                new LuceneQueryExpressionEvaluator.ShardConfig[] { shard }
+
             );
 
             List<Operator> operators = new ArrayList<>();

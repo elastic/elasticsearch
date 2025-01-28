@@ -301,6 +301,7 @@ emp_no:integer | language_code:integer | language_name:keyword
 
 mvJoinKeyOnTheLookupIndex
 required_capability: join_lookup_v12
+required_capability: join_lookup_skip_mv_on_lookup_key
 
 FROM employees
 | WHERE 10003 < emp_no AND emp_no < 10008
@@ -313,9 +314,8 @@ FROM employees
 emp_no:integer | language_code:integer | language_name:keyword
 10004          | 4                     | Quenya
 10005          | 5                     | null
-10006          | 6                     | Mv-Lang
-10007          | 7                     | Mv-Lang
-10007          | 7                     | Mv-Lang2
+10006          | 6                     | null
+10007          | 7                     | null
 ;
 
 mvJoinKeyOnFrom
@@ -354,6 +354,7 @@ language_code:integer | language_name:keyword | country:text
 
 mvJoinKeyFromRowExpanded
 required_capability: join_lookup_v12
+required_capability: join_lookup_skip_mv_on_lookup_key
 
 ROW language_code = [4, 5, 6, 7, 8]
 | MV_EXPAND language_code
@@ -365,10 +366,9 @@ ROW language_code = [4, 5, 6, 7, 8]
 language_code:integer | language_name:keyword | country:text
 4                     | Quenya                | null
 5                     | null                  | Atlantis
-6                     | Mv-Lang               | Mv-Land
-7                     | Mv-Lang               | Mv-Land
-7                     | Mv-Lang2              | Mv-Land2
-8                     | Mv-Lang2              | Mv-Land2
+6                     | null                  | null
+7                     | null                  | null
+8                     | null                  | null
 ;
 
 ###############################################

@@ -165,6 +165,10 @@ public class TransportVersions {
     public static final TransportVersion ADD_INCLUDE_FAILURE_INDICES_OPTION = def(8_831_00_0);
     public static final TransportVersion ESQL_RESPONSE_PARTIAL = def(8_832_00_0);
     public static final TransportVersion RANK_DOC_OPTIONAL_METADATA_FOR_EXPLAIN = def(8_833_00_0);
+    public static final TransportVersion ILM_ADD_SEARCHABLE_SNAPSHOT_ADD_REPLICATE_FOR = def(8_834_00_0);
+    public static final TransportVersion INGEST_REQUEST_INCLUDE_SOURCE_ON_ERROR = def(8_835_00_0);
+    public static final TransportVersion RESOURCE_DEPRECATION_CHECKS = def(8_836_00_0);
+
     public static final TransportVersion ELASTICSEARCH_9_0 = def(9_000_00_0);
 
     /*
@@ -224,13 +228,13 @@ public class TransportVersions {
      * Reference to the earliest compatible transport version to this version of the codebase.
      * This should be the transport version used by the highest minor version of the previous major.
      */
-    public static final TransportVersion MINIMUM_COMPATIBLE = ESQL_RESPONSE_PARTIAL;
+    public static final TransportVersion MINIMUM_COMPATIBLE = INGEST_REQUEST_INCLUDE_SOURCE_ON_ERROR;
 
     /**
      * Reference to the minimum transport version that can be used with CCS.
      * This should be the transport version used by the previous minor release.
      */
-    public static final TransportVersion MINIMUM_CCS_VERSION = ESQL_RESPONSE_PARTIAL;
+    public static final TransportVersion MINIMUM_CCS_VERSION = INGEST_REQUEST_INCLUDE_SOURCE_ON_ERROR;
 
     /**
      * Sorted list of all versions defined in this class

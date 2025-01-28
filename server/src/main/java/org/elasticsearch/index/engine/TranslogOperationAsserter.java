@@ -38,7 +38,8 @@ public abstract class TranslogOperationAsserter {
                 if (super.assertSameIndexOperation(o1, o2)) {
                     return true;
                 }
-                if (engineConfig.getIndexSettings().isRecoverySourceSyntheticEnabled()) {
+                if (engineConfig.getIndexSettings().isRecoverySourceSyntheticEnabled()
+                    || engineConfig.getMapperService().mappingLookup().inferenceFields().isEmpty() == false) {
                     return super.assertSameIndexOperation(synthesizeSource(engineConfig, o1), o2)
                         || super.assertSameIndexOperation(o1, synthesizeSource(engineConfig, o2));
                 }
@@ -60,23 +61,39 @@ public abstract class TranslogOperationAsserter {
                 TrivialQueryCachingPolicy.NEVER,
                 () -> {}
             );
-            try (
-                LuceneSyntheticSourceChangesSnapshot snapshot = new LuceneSyntheticSourceChangesSnapshot(
-                    engineConfig.getMapperService(),
-                    searcher,
-                    LuceneSyntheticSourceChangesSnapshot.DEFAULT_BATCH_SIZE,
-                    Integer.MAX_VALUE,
-                    op.seqNo(),
-                    op.seqNo(),
-                    true,
-                    false,
-                    engineConfig.getIndexSettings().getIndexVersionCreated()
-                )
-            ) {
+            try (var snapshot = newSnapshot(engineConfig, op, searcher);) {
                 final Translog.Operation normalized = snapshot.next();
                 assert normalized != null : "expected one operation; got zero";
                 return (Translog.Index) normalized;
             }
+        }
+    }
+
+    static Translog.Snapshot newSnapshot(EngineConfig engineConfig, Translog.Index op, Engine.Searcher searcher) throws IOException {
+        if (engineConfig.getIndexSettings().isRecoverySourceSyntheticEnabled()) {
+            return new LuceneSyntheticSourceChangesSnapshot(
+                engineConfig.getMapperService(),
+                searcher,
+                LuceneSyntheticSourceChangesSnapshot.DEFAULT_BATCH_SIZE,
+                Integer.MAX_VALUE,
+                op.seqNo(),
+                op.seqNo(),
+                true,
+                false,
+                engineConfig.getIndexSettings().getIndexVersionCreated()
+            );
+        } else {
+            return new LuceneChangesSnapshot(
+                engineConfig.getMapperService(),
+                searcher,
+                LuceneSyntheticSourceChangesSnapshot.DEFAULT_BATCH_SIZE,
+                op.seqNo(),
+                op.seqNo(),
+                true,
+                false,
+                false,
+                engineConfig.getIndexSettings().getIndexVersionCreated()
+            );
         }
     }
 

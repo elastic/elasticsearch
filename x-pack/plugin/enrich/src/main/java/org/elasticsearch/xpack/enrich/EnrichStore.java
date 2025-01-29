@@ -158,11 +158,8 @@ public final class EnrichStore {
      * @return a read-only Map of <code>policyName, EnrichPolicy</code> of the policies
      */
     public static Map<String, EnrichPolicy> getPolicies(ClusterState state) {
-        final EnrichMetadata enrichMetadata = state.metadata().custom(EnrichMetadata.TYPE);
-        if (enrichMetadata == null) {
-            return Map.of();
-        }
-        return enrichMetadata.getPolicies();
+        final EnrichMetadata metadata = state.metadata().custom(EnrichMetadata.TYPE, EnrichMetadata.EMPTY);
+        return metadata.getPolicies();
     }
 
     private static void updateClusterState(

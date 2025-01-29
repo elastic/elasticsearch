@@ -96,6 +96,7 @@ import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 import co.elastic.elasticsearch.stateless.objectstore.gc.ObjectStoreGCTask;
 import co.elastic.elasticsearch.stateless.objectstore.gc.ObjectStoreGCTaskExecutor;
 import co.elastic.elasticsearch.stateless.recovery.RecoveryCommitRegistrationHandler;
+import co.elastic.elasticsearch.stateless.recovery.RemoveRefreshClusterBlockService;
 import co.elastic.elasticsearch.stateless.recovery.TransportRegisterCommitForRecoveryAction;
 import co.elastic.elasticsearch.stateless.recovery.TransportSendRecoveryCommitRegistrationAction;
 import co.elastic.elasticsearch.stateless.recovery.TransportStatelessPrimaryRelocationAction;
@@ -327,6 +328,7 @@ public class Stateless extends Plugin
 
     private final boolean hasSearchRole;
     private final boolean hasIndexRole;
+    private final boolean hasMasterRole;
     private final ProjectType projectType;
     private final StatelessIndexSettingProvider statelessIndexSettingProvider;
 
@@ -350,6 +352,7 @@ public class Stateless extends Plugin
         sharedCacheMmapExplicitlySet = SharedBlobCacheService.SHARED_CACHE_MMAP.exists(settings);
         hasSearchRole = DiscoveryNode.hasRole(settings, DiscoveryNodeRole.SEARCH_ROLE);
         hasIndexRole = DiscoveryNode.hasRole(settings, DiscoveryNodeRole.INDEX_ROLE);
+        hasMasterRole = DiscoveryNode.isMasterNode(settings);
         projectType = PROJECT_TYPE.get(settings);
         this.statelessIndexSettingProvider = new StatelessIndexSettingProvider(projectType);
     }
@@ -647,6 +650,9 @@ public class Stateless extends Plugin
         components.add(setAndGet(recoveryMetricsCollector, new RecoveryMetricsCollector(services.telemetryProvider())));
         documentParsingProvider.set(services.documentParsingProvider());
         skipMerges.set(new ShouldSkipMerges(indicesService));
+        if (hasMasterRole && USE_INDEX_REFRESH_BLOCK_SETTING.get(settings)) {
+            components.add(new RemoveRefreshClusterBlockService(settings, clusterService, threadPool));
+        }
         return components;
     }
 
@@ -983,7 +989,8 @@ public class Stateless extends Plugin
             HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED,
             HollowShardsService.SETTING_HOLLOW_INGESTION_DS_NON_WRITE_TTL,
             HollowShardsService.SETTING_HOLLOW_INGESTION_TTL,
-            USE_INDEX_REFRESH_BLOCK_SETTING
+            USE_INDEX_REFRESH_BLOCK_SETTING,
+            RemoveRefreshClusterBlockService.EXPIRE_AFTER_SETTING
         );
     }
 

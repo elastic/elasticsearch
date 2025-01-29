@@ -394,9 +394,12 @@ public final class KeywordFieldMapper extends FieldMapper {
         public KeywordFieldMapper build(MapperBuilderContext context) {
             FieldType fieldtype = resolveFieldType(indexCreatedVersion, indexSortConfig, indexMode, context.buildFullName(leafName()));
             fieldtype.setOmitNorms(this.hasNorms.getValue() == false);
-            fieldtype.setIndexOptions(TextParams.toIndexOptions(this.indexed.getValue(), this.indexOptions.getValue()));
             fieldtype.setStored(this.stored.getValue());
             fieldtype.setDocValuesType(this.hasDocValues.getValue() ? DocValuesType.SORTED_SET : DocValuesType.NONE);
+            if (fieldtype.equals(Defaults.FIELD_TYPE_WITH_SKIP_DOC_VALUES) == false) {
+                // NOTE: override index options only if we are not using a sparse doc values index (and we use an inverted index)
+                fieldtype.setIndexOptions(TextParams.toIndexOptions(this.indexed.getValue(), this.indexOptions.getValue()));
+            }
             if (fieldtype.equals(Defaults.FIELD_TYPE)) {
                 // deduplicate in the common default case to save some memory
                 fieldtype = Defaults.FIELD_TYPE;
@@ -430,18 +433,48 @@ public final class KeywordFieldMapper extends FieldMapper {
             return new FieldType(Defaults.FIELD_TYPE);
         }
 
+        /**
+         * Determines whether to use a sparse index representation for doc values.
+         *
+         * <p>If the field is explicitly indexed by setting {@code index: true}, we do not use
+         * a sparse doc values index but instead rely on the inverted index, as is typically
+         * the case for keyword fields.</p>
+         *
+         * <p>This method checks several conditions to decide if the sparse index format
+         * should be applied:</p>
+         *
+         * <ul>
+         *     <li>Returns {@code false} immediately if the field is explicitly indexed.</li>
+         *     <li>Ensures the field is not explicitly configured as indexed (i.e., {@code index} has its default value).</li>
+         *     <li>Requires doc values to be enabled.</li>
+         *     <li>Index mode must be {@link IndexMode#LOGSDB}.</li>
+         *     <li>Field name must be {@code host.name}.</li>
+         *     <li>The {@code host.name} field must be a primary sort field.</li>
+         * </ul>
+         *
+         * <p>Returns {@code true} if all conditions are met, indicating that sparse doc values
+         * should be used. Otherwise, returns {@code false}.</p>
+         *
+         * @param indexSortConfig The index sort configuration, used to check primary sorting.
+         * @param indexMode The mode of the index, which must be {@link IndexMode#LOGSDB}.
+         * @param fullFieldName The name of the field being checked, which must be {@code host.name}.
+         * @return {@code true} if sparse doc values should be used, otherwise {@code false}.
+         */
+
         private boolean shouldUseDocValuesSparseIndex(
             final IndexSortConfig indexSortConfig,
             final IndexMode indexMode,
             final String fullFieldName
         ) {
+            if (indexed.isSet() && indexed.getValue()) {
+                return false;
+            }
             return indexed.isConfigured() == false
                 && hasDocValues.getValue()
                 && IndexMode.LOGSDB.equals(indexMode)
                 && HOST_NAME.equals(fullFieldName)
                 && (indexSortConfig != null && indexSortConfig.hasPrimarySortOnField(HOST_NAME));
         }
-
     }
 
     public static final TypeParser PARSER = createTypeParserWithLegacySupport(Builder::new);

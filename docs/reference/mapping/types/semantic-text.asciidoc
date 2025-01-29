@@ -130,7 +130,7 @@ You can extract the most relevant fragments from a semantic text field by using 
 
 [source,console]
 ------------------------------------------------------------
-PUT test-index
+POST test-index/_search
 {
     "query": {
         "semantic": {

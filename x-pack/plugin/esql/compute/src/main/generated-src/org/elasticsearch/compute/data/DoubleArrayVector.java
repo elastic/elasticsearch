@@ -19,7 +19,7 @@ import java.util.stream.IntStream;
 
 /**
  * Vector implementation that stores an array of double values.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-ArrayVector.java.st} instead.
  */
 final class DoubleArrayVector extends AbstractVector implements DoubleVector {
 

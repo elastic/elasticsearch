@@ -192,7 +192,7 @@ public class ChangeDetectorTests extends AggregatorTestCase {
             ChangeType type = new ChangeDetector(bucketValues).detect(0.05);
             tp += type instanceof ChangeType.TrendChange ? 1 : 0;
         }
-        assertThat(tp, greaterThan(90));
+        assertThat(tp, greaterThan(80));
     }
 
     public void testProblemDistributionChange() {

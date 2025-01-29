@@ -25,7 +25,7 @@ $endif$
 
 /**
  * Block build of $Type$Blocks.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-BlockBuilder.java.st} instead.
  */
 final class $Type$BlockBuilder extends AbstractBlockBuilder implements $Type$Block.Builder {
 

@@ -79,8 +79,8 @@ public class IdentifierGenerator {
             pattern = maybeQuote(cluster + ":" + pattern);
         }
 
-        while (pattern.contains("|") && pattern.contains("\"") == false) {
-            pattern = maybeQuote(pattern);
+        if (pattern.contains("|") && pattern.contains("\"") == false) {
+            pattern = quote(pattern);
         }
 
         return pattern;
@@ -118,14 +118,12 @@ public class IdentifierGenerator {
     }
 
     public static String maybeQuote(String term) {
-        if (term.contains("\"")) {
-            return term;
-        }
-        return switch (randomIntBetween(0, 5)) {
-            case 0 -> "\"" + term + "\"";
-            case 1 -> "\"\"\"" + term + "\"\"\"";
-            default -> term;// no quotes are more likely
-        };
+        return randomBoolean() && term.contains("\"") == false ? quote(term) : term;
+    }
+
+    public static String quote(String term) {
+        var quote = randomFrom("\"", "\"\"\"");
+        return quote + term + quote;
     }
 
     public static String unquoteIndexPattern(String term) {

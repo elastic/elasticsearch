@@ -18,7 +18,10 @@ public class IndicesPermissionTests extends ESTestCase {
         assertThat(IndicesPermission.Group.convertToExcludeFailures("foo*"), Matchers.equalTo("/(foo.*)&~(foo.*::failures)/"));
 
         // regular expression
-        assertThat(IndicesPermission.Group.convertToExcludeFailures("/foo.*/"), Matchers.equalTo("/(foo.*)&~(foo.*::failures)/"));
+        assertThat(IndicesPermission.Group.convertToExcludeFailures("/foo.*/"), Matchers.equalTo("/(foo.*)&~((foo.*)::failures)/"));
+        assertThat(IndicesPermission.Group.convertToExcludeFailures("/a|b/"), Matchers.equalTo("/(a|b)&~((a|b)::failures)/"));
+        // TODO: [Jake] ensure the double parenthesis is functionally correct.
+        assertThat(IndicesPermission.Group.convertToExcludeFailures("/(a|b)/"), Matchers.equalTo("/((a|b))&~(((a|b))::failures)/"));
 
     }
 

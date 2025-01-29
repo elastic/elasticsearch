@@ -924,8 +924,7 @@ public final class IndicesPermission {
                 return "/(" + indexPattern.replaceAll("\\*", ".*") + ")&~(" + indexPattern.replaceAll("\\*", ".*") + "::failures)/";
             } else if (Automatons.isLuceneRegex(indexPattern)) {
                 String innerPattern = indexPattern.substring(1, indexPattern.length() - 1);
-                // TODO: [Jake] is it safe to have double parenthesis in the regular expression if the regex already had them ?
-                return "/(" + innerPattern + ")&~(" + innerPattern + "::failures)/";
+                return "/(" + innerPattern + ")&~((" + innerPattern + ")::failures)/";
             } else {
                 throw new IllegalArgumentException("Unexpected index pattern: " + indexPattern); // should never happen
             }

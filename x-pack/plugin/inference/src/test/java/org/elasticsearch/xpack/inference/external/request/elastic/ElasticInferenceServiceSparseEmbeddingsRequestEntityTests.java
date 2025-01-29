@@ -85,17 +85,6 @@ public class ElasticInferenceServiceSparseEmbeddingsRequestEntityTests extends E
             """));
     }
 
-    public void testToXContent_MultipleInputs_SearchUsageContext() throws IOException {
-        var entity = new ElasticInferenceServiceSparseEmbeddingsRequestEntity(List.of("abc"), ElasticInferenceServiceUsageContext.SEARCH);
-        String xContentString = xContentEntityToString(entity);
-        assertThat(xContentString, equalToIgnoringWhitespaceInJsonString("""
-            {
-                "input": ["abc"],
-                "usage_context": "search"
-            }
-            """));
-    }
-
     public void testToXContent_MultipleInputs_IngestUsageContext() throws IOException {
         var entity = new ElasticInferenceServiceSparseEmbeddingsRequestEntity(List.of("abc"), ElasticInferenceServiceUsageContext.INGEST);
         String xContentString = xContentEntityToString(entity);

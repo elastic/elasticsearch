@@ -328,6 +328,9 @@ tests:
 - class: org.elasticsearch.xpack.ml.integration.ClassificationIT
   method: testWithDatastreams
   issue: https://github.com/elastic/elasticsearch/issues/121236
+- class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
+  method: test {yaml=nodes.stats/11_indices_metrics/Metric - blank for indices mappings}
+  issue: https://github.com/elastic/elasticsearch/issues/121238
 
 # Examples:
 #

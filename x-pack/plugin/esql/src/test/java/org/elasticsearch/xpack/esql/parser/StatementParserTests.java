@@ -2955,15 +2955,18 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testInvalidInsistNotOnTopOfFrom() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
         expectError("FROM text | EVAL x = 4 | INSIST_🐔 foo", "INSIST command can only be applied on top of a FROM command");
     }
 
     public void testInvalidInsistAsterisk() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
         expectError("FROM text | EVAL x = 4 | INSIST_🐔 foo*", "extraneous input '*'");
     }
 
     // Note: This is a temporary restriction, as the INSIST command should eventually be able to accept multiple parameters.
     public void testInvalidInsistMultiParameters() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
         expectError("FROM text | EVAL x = 4 | INSIST_🐔 foo, bar", "mismatched input ','");
     }
 }

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.entitlement.bridge;
 
+import java.io.File;
 import java.io.InputStream;
 import java.io.PrintStream;
 import java.io.PrintWriter;
@@ -47,7 +48,9 @@ import java.nio.channels.CompletionHandler;
 import java.nio.channels.DatagramChannel;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
+import java.nio.charset.Charset;
 import java.nio.file.Path;
+import java.nio.file.attribute.UserPrincipal;
 import java.security.cert.CertStoreParameters;
 import java.util.List;
 import java.util.Locale;
@@ -63,7 +66,7 @@ import javax.net.ssl.SSLSocketFactory;
 @SuppressWarnings("unused") // Called from instrumentation code inserted by the Entitlements agent
 public interface EntitlementChecker {
 
-    ////////////////////
+    /// /////////////////
     //
     // Exit the JVM process
     //
@@ -74,7 +77,7 @@ public interface EntitlementChecker {
 
     void check$java_lang_System$$exit(Class<?> callerClass, int status);
 
-    ////////////////////
+    /// /////////////////
     //
     // ClassLoader ctor
     //
@@ -85,7 +88,7 @@ public interface EntitlementChecker {
 
     void check$java_lang_ClassLoader$(Class<?> callerClass, String name, ClassLoader parent);
 
-    ////////////////////
+    /// /////////////////
     //
     // SecureClassLoader ctor
     //
@@ -96,7 +99,7 @@ public interface EntitlementChecker {
 
     void check$java_security_SecureClassLoader$(Class<?> callerClass, String name, ClassLoader parent);
 
-    ////////////////////
+    /// /////////////////
     //
     // URLClassLoader constructors
     //
@@ -111,7 +114,7 @@ public interface EntitlementChecker {
 
     void check$java_net_URLClassLoader$(Class<?> callerClass, String name, URL[] urls, ClassLoader parent, URLStreamHandlerFactory factory);
 
-    ////////////////////
+    /// /////////////////
     //
     // "setFactory" methods
     //
@@ -124,7 +127,7 @@ public interface EntitlementChecker {
 
     void check$javax_net_ssl_SSLContext$$setDefault(Class<?> callerClass, SSLContext context);
 
-    ////////////////////
+    /// /////////////////
     //
     // Process creation
     //
@@ -133,7 +136,7 @@ public interface EntitlementChecker {
 
     void check$java_lang_ProcessBuilder$$startPipeline(Class<?> callerClass, List<ProcessBuilder> builders);
 
-    ////////////////////
+    /// /////////////////
     //
     // System Properties and similar
     //
@@ -142,7 +145,7 @@ public interface EntitlementChecker {
 
     void check$java_lang_System$$clearProperty(Class<?> callerClass, String key);
 
-    ////////////////////
+    /// /////////////////
     //
     // JVM-wide state changes
     //
@@ -219,7 +222,7 @@ public interface EntitlementChecker {
 
     void check$java_net_URLConnection$$setContentHandlerFactory(Class<?> callerClass, ContentHandlerFactory fac);
 
-    ////////////////////
+    /// /////////////////
     //
     // Network access
     //
@@ -416,7 +419,7 @@ public interface EntitlementChecker {
 
     void check$sun_nio_ch_DatagramChannelImpl$receive(Class<?> callerClass, DatagramChannel that, ByteBuffer dst);
 
-    ////////////////////
+    /// /////////////////
     //
     // Load native libraries
     //
@@ -484,4 +487,27 @@ public interface EntitlementChecker {
     void check$java_lang_foreign_SymbolLookup$$libraryLookup(Class<?> callerClass, Path path, Arena arena);
 
     void check$java_lang_ModuleLayer$Controller$enableNativeAccess(Class<?> callerClass, ModuleLayer.Controller that, Module target);
+
+    /// /////////////////
+    //
+    // File access
+    //
+
+    void check$java_util_Scanner$(Class<?> callerClass, File source);
+
+    void check$java_util_Scanner$(Class<?> callerClass, File source, String charsetName);
+
+    void check$java_util_Scanner$(Class<?> callerClass, File source, Charset charset);
+
+    void check$java_io_FileOutputStream$(Class<?> callerClass, String name);
+
+    void check$java_io_FileOutputStream$(Class<?> callerClass, String name, boolean append);
+
+    void check$java_io_FileOutputStream$(Class<?> callerClass, File file);
+
+    void check$java_io_FileOutputStream$(Class<?> callerClass, File file, boolean append);
+
+    void check$java_nio_file_Files$$probeContentType(Class<?> callerClass, Path path);
+
+    void check$java_nio_file_Files$$setOwner(Class<?> callerClass, Path path, UserPrincipal principal);
 }

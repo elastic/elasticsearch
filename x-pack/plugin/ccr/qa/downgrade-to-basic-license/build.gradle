@@ -71,24 +71,7 @@ tasks.register("follow-cluster", RestIntegTestTask) {
   useCluster leaderCluster
   systemProperty 'tests.target_cluster', 'follow'
   nonInputProperties.systemProperty 'java.security.policy', "file://${policyFile}"
-  Provider<TestClustersRegistry> serviceProvider = GradleUtils.getBuildService(
-    project.gradle.sharedServices,
-    TestClustersPlugin.REGISTRY_SERVICE_NAME
-  )
-  def leaderInfo = project.getProviders().of(TestClusterValueSource.class) {
-    it.parameters.path.set(clusterPath)
-    it.parameters.clusterName.set("leader-cluster")
-    it.parameters.service = serviceProvider
-  }
-  def followInfo = project.getProviders().of(TestClusterValueSource.class) {
-    it.parameters.path.set(clusterPath)
-    it.parameters.clusterName.set("follow-cluster")
-    it.parameters.service = serviceProvider
-  }
-  def leaderUri = leaderInfo.map { it.getAllHttpSocketURI().get(0) }
-  def followerUri = followInfo.map { it.getAllHttpSocketURI().get(0) }
-
-  nonInputProperties.systemProperty 'tests.leader_host', leaderUri
+  nonInputProperties.systemProperty 'tests.leader_host', getClusterInfo('leader-cluster').map { it.getAllHttpSocketURI().get(0) }
   nonInputProperties.systemProperty 'log', followCluster.map(c -> c.getFirstNode().getServerLog())
 }
 

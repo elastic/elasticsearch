@@ -859,7 +859,7 @@ public class ModelRegistry implements ClusterStateListener {
             return;
         }
 
-        client.execute(GetInferenceModelAction.INSTANCE, new GetInferenceModelAction.Request("*", TaskType.ANY), new ActionListener<>() {
+        client.execute(GetInferenceModelAction.INSTANCE, new GetInferenceModelAction.Request("*", TaskType.ANY, false), new ActionListener<>() {
             @Override
             public void onResponse(GetInferenceModelAction.Response response) {
                 Map<String, MinimalServiceSettings> map = new HashMap<>();

@@ -756,18 +756,20 @@ public abstract class AggregatorTestCase extends ESTestCase {
         /* Verify that cancellation during final reduce correctly throws.
          * We check reduce time cancellation only when consuming buckets.
          */
-        try {
-            // I can't remember if we mutate the InternalAggregations list, so make a defensive copy
-            List<InternalAggregations> internalAggsCopy = new ArrayList<>(internalAggs);
-            A internalAgg = doFinalReduce(maxBucket, bigArraysForReduction, builder, internalAggsCopy, true);
-            if (internalAgg instanceof MultiBucketsAggregation mb) {
-                // Empty mutli-bucket aggs are expected to return before even getting to the cancellation check
-                assertEquals("Got non-empty result for a cancelled reduction", 0, mb.getBuckets().size());
-            } // other cases?
-        } catch (TaskCancelledException e) {
-            /* We may not always honor cancellation in reduce, for example if we are returning no results, so we can't
-             * just expectThrows here.
-             */
+        if (aggTestConfig.testReductionCancellation()) {
+            try {
+                // I can't remember if we mutate the InternalAggregations list, so make a defensive copy
+                List<InternalAggregations> internalAggsCopy = new ArrayList<>(internalAggs);
+                A internalAgg = doFinalReduce(maxBucket, bigArraysForReduction, builder, internalAggsCopy, true);
+                if (internalAgg instanceof MultiBucketsAggregation mb) {
+                    // Empty mutli-bucket aggs are expected to return before even getting to the cancellation check
+                    assertEquals("Got non-empty result for a cancelled reduction", 0, mb.getBuckets().size());
+                } // other cases?
+            } catch (TaskCancelledException e) {
+                /* We may not always honor cancellation in reduce, for example if we are returning no results, so we can't
+                 * just expectThrows here.
+                 */
+            }
         }
 
         // now do the final reduce
@@ -1693,11 +1695,12 @@ public abstract class AggregatorTestCase extends ESTestCase {
         boolean incrementalReduce,
 
         boolean useLogDocMergePolicy,
+        boolean testReductionCancellation,
         MappedFieldType... fieldTypes
     ) {
 
         public AggTestConfig(AggregationBuilder builder, MappedFieldType... fieldTypes) {
-            this(new MatchAllDocsQuery(), builder, DEFAULT_MAX_BUCKETS, randomBoolean(), true, randomBoolean(), false, fieldTypes);
+            this(new MatchAllDocsQuery(), builder, DEFAULT_MAX_BUCKETS, randomBoolean(), true, randomBoolean(), false, true, fieldTypes);
         }
 
         public AggTestConfig withQuery(Query query) {
@@ -1709,6 +1712,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 shouldBeCached,
                 incrementalReduce,
                 useLogDocMergePolicy,
+                testReductionCancellation,
                 fieldTypes
             );
         }
@@ -1722,6 +1726,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 shouldBeCached,
                 incrementalReduce,
                 useLogDocMergePolicy,
+                testReductionCancellation,
                 fieldTypes
             );
         }
@@ -1735,6 +1740,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 shouldBeCached,
                 incrementalReduce,
                 useLogDocMergePolicy,
+                testReductionCancellation,
                 fieldTypes
             );
         }
@@ -1748,6 +1754,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 shouldBeCached,
                 incrementalReduce,
                 useLogDocMergePolicy,
+                testReductionCancellation,
                 fieldTypes
             );
         }
@@ -1761,6 +1768,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 shouldBeCached,
                 incrementalReduce,
                 useLogDocMergePolicy,
+                testReductionCancellation,
                 fieldTypes
             );
         }
@@ -1774,6 +1782,21 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 shouldBeCached,
                 incrementalReduce,
                 true,
+                testReductionCancellation,
+                fieldTypes
+            );
+        }
+
+        public AggTestConfig noReductionCancellation() {
+            return new AggTestConfig(
+                query,
+                builder,
+                maxBuckets,
+                splitLeavesIntoSeparateAggregators,
+                shouldBeCached,
+                incrementalReduce,
+                useLogDocMergePolicy,
+                false,
                 fieldTypes
             );
         }

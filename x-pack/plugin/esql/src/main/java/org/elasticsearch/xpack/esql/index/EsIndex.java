@@ -65,7 +65,7 @@ public record EsIndex(
             assert indices != null;
             indexNameWithModes = indices.stream().collect(toMap(e -> e, e -> IndexMode.STANDARD));
         }
-        // partially unmapped fields shouldn't pass the node anyway, since they are only used by the Analyzer.
+        // partially unmapped fields shouldn't pass the coordinator node anyway, since they are only used by the Analyzer.
         return new EsIndex(name, mapping, indexNameWithModes, Set.of());
     }
 
@@ -78,7 +78,7 @@ public record EsIndex(
         } else {
             out.writeGenericValue(indexNameWithModes.keySet());
         }
-        // partially unmapped fields shouldn't pass the node anyway, since they are only used by the Analyzer.
+        // partially unmapped fields shouldn't pass the coordinator node anyway, since they are only used by the Analyzer.
     }
 
     public Set<String> concreteIndices() {

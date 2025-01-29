@@ -9,7 +9,9 @@ package org.elasticsearch.xpack.logsdb;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettingProvider;
@@ -25,7 +27,10 @@ import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.logsdb.LogsPatternUsageService.LOGSDB_PRIOR_LOGS_USAGE;
+import static org.elasticsearch.xpack.logsdb.LogsPatternUsageService.USAGE_CHECK_MAX_PERIOD;
 import static org.elasticsearch.xpack.logsdb.SyntheticSourceLicenseService.FALLBACK_SETTING;
 
 public class LogsDBPlugin extends Plugin implements ActionPlugin {
@@ -57,6 +62,19 @@ public class LogsDBPlugin extends Plugin implements ActionPlugin {
             CLUSTER_LOGSDB_ENABLED,
             logsdbIndexModeSettingsProvider::updateClusterIndexModeLogsdbEnabled
         );
+
+        var clusterService = services.clusterService();
+        Supplier<Metadata> metadataSupplier = () -> clusterService.state().metadata();
+        var historicLogsUsageService = new LogsPatternUsageService(services.client(), settings, services.threadPool(), metadataSupplier);
+        clusterService.addLocalNodeMasterListener(historicLogsUsageService);
+        clusterService.addLifecycleListener(new LifecycleListener() {
+
+            @Override
+            public void beforeStop() {
+                historicLogsUsageService.offMaster();
+            }
+        });
+
         // Nothing to share here:
         return super.createComponents(services);
     }
@@ -76,7 +94,7 @@ public class LogsDBPlugin extends Plugin implements ActionPlugin {
 
     @Override
     public List<Setting<?>> getSettings() {
-        return List.of(FALLBACK_SETTING, CLUSTER_LOGSDB_ENABLED);
+        return List.of(FALLBACK_SETTING, CLUSTER_LOGSDB_ENABLED, USAGE_CHECK_MAX_PERIOD, LOGSDB_PRIOR_LOGS_USAGE);
     }
 
     @Override

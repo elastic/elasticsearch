@@ -7,8 +7,10 @@
 
 package org.elasticsearch.xpack.inference.external.request.elastic;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceUsageContext;
 
 import java.io.IOException;
 import java.util.List;
@@ -21,7 +23,9 @@ public record ElasticInferenceServiceSparseEmbeddingsRequestEntity(
 ) implements ToXContentObject {
 
     private static final String INPUT_FIELD = "input";
+
     private static final String MODEL_ID_FIELD = "model_id";
+
     private static final String USAGE_CONTEXT = "usage_context";
 
     public ElasticInferenceServiceSparseEmbeddingsRequestEntity {
@@ -51,4 +55,5 @@ public record ElasticInferenceServiceSparseEmbeddingsRequestEntity(
 
         return builder;
     }
+
 }

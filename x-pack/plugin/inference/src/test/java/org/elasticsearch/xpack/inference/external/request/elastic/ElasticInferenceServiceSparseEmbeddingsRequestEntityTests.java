@@ -12,6 +12,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceUsageContext;
 
 import java.io.IOException;
 import java.util.List;
@@ -79,6 +80,28 @@ public class ElasticInferenceServiceSparseEmbeddingsRequestEntityTests extends E
             {
                 "input": ["abc"],
                 "model_id": "my-model-id",
+                "usage_context": "ingest"
+            }
+            """));
+    }
+
+    public void testToXContent_MultipleInputs_SearchUsageContext() throws IOException {
+        var entity = new ElasticInferenceServiceSparseEmbeddingsRequestEntity(List.of("abc"), ElasticInferenceServiceUsageContext.SEARCH);
+        String xContentString = xContentEntityToString(entity);
+        assertThat(xContentString, equalToIgnoringWhitespaceInJsonString("""
+            {
+                "input": ["abc"],
+                "usage_context": "search"
+            }
+            """));
+    }
+
+    public void testToXContent_MultipleInputs_IngestUsageContext() throws IOException {
+        var entity = new ElasticInferenceServiceSparseEmbeddingsRequestEntity(List.of("abc"), ElasticInferenceServiceUsageContext.INGEST);
+        String xContentString = xContentEntityToString(entity);
+        assertThat(xContentString, equalToIgnoringWhitespaceInJsonString("""
+            {
+                "input": ["abc"],
                 "usage_context": "ingest"
             }
             """));

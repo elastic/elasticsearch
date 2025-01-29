@@ -9,18 +9,21 @@ package org.elasticsearch.xpack.inference.external.request.elastic;
 
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
+import org.elasticsearch.inference.InputType;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.common.TruncatorTests;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSparseEmbeddingsModelTests;
+import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceUsageContext;
 import org.elasticsearch.xpack.inference.telemetry.TraceContext;
 
 import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
+import static org.elasticsearch.xpack.inference.external.request.elastic.ElasticInferenceServiceSparseEmbeddingsRequest.inputTypeToUsageContext;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -28,7 +31,7 @@ import static org.hamcrest.Matchers.is;
 
 public class ElasticInferenceServiceSparseEmbeddingsRequestTests extends ESTestCase {
 
-    public void testCreateHttpRequest() throws IOException {
+    public void testCreateHttpRequest_UsageContextSearch() throws IOException {
         var url = "http://eis-gateway.com";
         var input = "input";
         var modelId = "my-model-id";
@@ -41,6 +44,7 @@ public class ElasticInferenceServiceSparseEmbeddingsRequestTests extends ESTestC
 
         assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
+
         assertThat(requestMap.size(), equalTo(3));
         assertThat(requestMap.get("input"), is(List.of(input)));
         assertThat(requestMap.get("model_id"), is(modelId));
@@ -88,6 +92,7 @@ public class ElasticInferenceServiceSparseEmbeddingsRequestTests extends ESTestC
         var input = "abcd";
         var modelId = "my-model-id";
 
+
         var request = createRequest(url, modelId, input, InputType.UNSPECIFIED);
         assertFalse(request.getTruncationInfo()[0]);
 
@@ -114,12 +119,13 @@ public class ElasticInferenceServiceSparseEmbeddingsRequestTests extends ESTestC
 
     public ElasticInferenceServiceSparseEmbeddingsRequest createRequest(String url, String modelId, String input, InputType inputType) {
         var embeddingsModel = ElasticInferenceServiceSparseEmbeddingsModelTests.createModel(url, modelId);
-
+  
         return new ElasticInferenceServiceSparseEmbeddingsRequest(
             TruncatorTests.createTruncator(),
             new Truncator.TruncationResult(List.of(input), new boolean[] { false }),
             embeddingsModel,
-            new TraceContext(randomAlphaOfLength(10), randomAlphaOfLength(10))
+            new TraceContext(randomAlphaOfLength(10), randomAlphaOfLength(10)),
+            inputType
         );
     }
 }

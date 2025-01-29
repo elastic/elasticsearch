@@ -129,6 +129,8 @@ import org.elasticsearch.search.NestedDocuments;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService.MultiBucketConsumer;
+import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
+import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.MetricsAggregator;
 import org.elasticsearch.search.aggregations.metrics.MultiValueAggregation;
@@ -752,8 +754,39 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 assertRoundTrip(internalAggregation.copyResults());
             }
         }
+        /* Verify that cancellation during final reduce correctly throws.
+         * We check reduce time cancellation only when consuming buckets.
+         */
+        try {
+            // I can't remember if we mutate the InternalAggregations list, so make a defensive copy
+            List<InternalAggregations> internalAggsCopy = new ArrayList<>(internalAggs);
+            A internalAgg = doFinalReduce(maxBucket, bigArraysForReduction, builder, internalAggsCopy, true);
+            if (internalAgg instanceof MultiBucketsAggregation mb) {
+                // Empty mutli-bucket aggs are expected to return before even getting to the cancellation check
+                assertEquals("Got non-empty result for a cancelled reduction", 0, mb.getBuckets().size());
+            } // other cases?
+        } catch (TaskCancelledException e) {
+            /* We may not always honor cancellation in reduce, for example if we are returning no results, so we can't
+             * just expectThrows here.
+             */
+        }
 
         // now do the final reduce
+        A internalAgg = doFinalReduce(maxBucket, bigArraysForReduction, builder, internalAggs, false);
+        assertRoundTrip(internalAgg);
+        if (aggTestConfig.builder instanceof ValuesSourceAggregationBuilder.MetricsAggregationBuilder<?>) {
+            verifyMetricNames((ValuesSourceAggregationBuilder.MetricsAggregationBuilder<?>) aggTestConfig.builder, internalAgg);
+        }
+        return internalAgg;
+    }
+
+    private <A extends InternalAggregation> A doFinalReduce(
+        int maxBucket,
+        BigArrays bigArraysForReduction,
+        Builder builder,
+        List<InternalAggregations> internalAggs,
+        boolean cancelled
+    ) throws IOException {
         MultiBucketConsumer reduceBucketConsumer = new MultiBucketConsumer(
             maxBucket,
             new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
@@ -761,7 +794,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
         AggregationReduceContext reduceContext = new AggregationReduceContext.ForFinal(
             bigArraysForReduction,
             getMockScriptService(),
-            () -> false,
+            () -> cancelled,
             builder,
             reduceBucketConsumer
         );
@@ -771,10 +804,6 @@ public abstract class AggregatorTestCase extends ESTestCase {
         assertRoundTrip(internalAgg);
 
         doAssertReducedMultiBucketConsumer(internalAgg, reduceBucketConsumer);
-        assertRoundTrip(internalAgg);
-        if (aggTestConfig.builder instanceof ValuesSourceAggregationBuilder.MetricsAggregationBuilder<?>) {
-            verifyMetricNames((ValuesSourceAggregationBuilder.MetricsAggregationBuilder<?>) aggTestConfig.builder, internalAgg);
-        }
         return internalAgg;
     }
 

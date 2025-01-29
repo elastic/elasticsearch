@@ -66,15 +66,18 @@ public class EntitlementInitialization {
         Map<MethodKey, CheckMethod> checkMethods = new HashMap<>();
         int javaVersion = Runtime.version().feature();
         Set<Class<?>> interfaces = new HashSet<>();
-        for (int i = MINIMUM_SUPPORTED_JAVA_VERSION; i <= javaVersion; ++ i) {
+        for (int i = MINIMUM_SUPPORTED_JAVA_VERSION; i <= javaVersion; ++i) {
             interfaces.add(getVersionSpecificCheckerClass(i, "org.elasticsearch.entitlement.bridge", "EntitlementChecker"));
         }
-        for (var checkerInterface: interfaces) {
+        for (var checkerInterface : interfaces) {
             checkMethods.putAll(INSTRUMENTER_FACTORY.lookupMethods(checkerInterface));
         }
 
         var latestCheckerInterface = getVersionSpecificCheckerClass(
-            javaVersion, "org.elasticsearch.entitlement.bridge", "EntitlementChecker");
+            javaVersion,
+            "org.elasticsearch.entitlement.bridge",
+            "EntitlementChecker"
+        );
         var classesToTransform = checkMethods.keySet().stream().map(MethodKey::className).collect(Collectors.toSet());
 
         Instrumenter instrumenter = INSTRUMENTER_FACTORY.newInstrumenter(latestCheckerInterface, checkMethods);
@@ -149,8 +152,7 @@ public class EntitlementInitialization {
         final String classNamePrefix;
         if (javaVersion >= 23) {
             classNamePrefix = "Java23";
-        }
-        else {
+        } else {
             classNamePrefix = "";
         }
         final String className = packageName + "." + classNamePrefix + baseClassName;

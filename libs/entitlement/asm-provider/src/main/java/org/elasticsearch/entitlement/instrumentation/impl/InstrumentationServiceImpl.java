@@ -9,6 +9,7 @@
 
 package org.elasticsearch.entitlement.instrumentation.impl;
 
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.entitlement.instrumentation.CheckMethod;
 import org.elasticsearch.entitlement.instrumentation.InstrumentationService;
 import org.elasticsearch.entitlement.instrumentation.Instrumenter;
@@ -68,6 +69,7 @@ public class InstrumentationServiceImpl implements InstrumentationService {
         return methodsToInstrument;
     }
 
+    @SuppressForbidden(reason = "Need access to abstract methods (protected/package internal) in base class")
     @Override
     public InstrumentationInfo lookupImplementationMethod(
         Class<?> targetSuperclass,
@@ -78,13 +80,10 @@ public class InstrumentationServiceImpl implements InstrumentationService {
         Class<?>... parameterTypes
     ) throws NoSuchMethodException, ClassNotFoundException {
 
-        var targetMethod = targetSuperclass.getMethod(methodName, parameterTypes);
+        var targetMethod = targetSuperclass.getDeclaredMethod(methodName, parameterTypes);
         validateTargetMethod(implementationClass, targetMethod);
 
-        var checkerAdditionalArguments = Modifier.isStatic(targetMethod.getModifiers())
-            ? Stream.of(Class.class)
-            : Stream.of(Class.class, targetSuperclass);
-
+        var checkerAdditionalArguments = Stream.of(Class.class, targetSuperclass);
         var checkMethodArgumentTypes = Stream.concat(checkerAdditionalArguments, Arrays.stream(parameterTypes))
             .map(Type::getType)
             .toArray(Type[]::new);
@@ -135,7 +134,7 @@ public class InstrumentationServiceImpl implements InstrumentationService {
             new MethodKey(
                 Type.getInternalName(implementationClass),
                 targetMethod.getName(),
-                Arrays.stream(parameterTypes).map(Type::getInternalName).toList()
+                Arrays.stream(parameterTypes).map(c -> Type.getType(c).getInternalName()).toList()
             ),
             checkMethod[0]
         );
@@ -163,6 +162,16 @@ public class InstrumentationServiceImpl implements InstrumentationService {
                 )
             );
         }
+        if (Modifier.isStatic(targetMethod.getModifiers())) {
+            throw new IllegalArgumentException(
+                String.format(
+                    Locale.ROOT,
+                    "Not a valid instrumentation method: %s is static in %s",
+                    targetMethod.getName(),
+                    targetMethod.getDeclaringClass().getName()
+                )
+            );
+        }
         try {
             var implementationMethod = implementationClass.getMethod(targetMethod.getName(), targetMethod.getParameterTypes());
             var methodModifiers = implementationMethod.getModifiers();
@@ -171,6 +180,16 @@ public class InstrumentationServiceImpl implements InstrumentationService {
                     String.format(
                         Locale.ROOT,
                         "Not a valid instrumentation method: %s is abstract in %s",
+                        targetMethod.getName(),
+                        implementationClass.getName()
+                    )
+                );
+            }
+            if (Modifier.isPublic(methodModifiers) == false) {
+                throw new IllegalArgumentException(
+                    String.format(
+                        Locale.ROOT,
+                        "Not a valid instrumentation method: %s is not public in %s",
                         targetMethod.getName(),
                         implementationClass.getName()
                     )

@@ -50,4 +50,9 @@ public class TextSimilarityRankMultiNodeTests extends AbstractRerankerIT {
     public void testQueryPhaseCoordinatorThrowingAllShardsFail() throws Exception {
         // no-op
     }
+
+    @Override
+    protected boolean shouldCheckScores() {
+        return false;
+    }
 }

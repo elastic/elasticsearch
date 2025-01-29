@@ -1,0 +1,5 @@
+pr: 120807
+summary: Remove INDEX_REFRESH_BLOCK after index becomes searchable
+area: CRUD
+type: enhancement
+issues: []

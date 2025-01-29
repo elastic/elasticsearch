@@ -12,7 +12,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * {@link AggregatorFunctionSupplier} implementation for {@link RateLongAggregator}.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code AggregatorFunctionSupplierImplementer} instead.
  */
 public final class RateLongAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
   private final List<Integer> channels;

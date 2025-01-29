@@ -1,4 +1,4 @@
-["appendix",role="exclude",id="ml-metric-functions"]
+[[ml-metric-functions]]
 = Metric functions
 
 The metric functions include functions such as mean, min and max. These values

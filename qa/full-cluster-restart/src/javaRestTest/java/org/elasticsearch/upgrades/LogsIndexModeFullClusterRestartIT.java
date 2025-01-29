@@ -121,6 +121,10 @@ public class LogsIndexModeFullClusterRestartIT extends ParameterizedFullClusterR
         }""";
 
     public void testLogsIndexing() throws IOException {
+        assumeTrue(
+            "otherwise first backing index of logs-apache-production will be in logsdb mode",
+            getOldClusterTestVersion().before("9.0.0")
+        );
         if (isRunningAgainstOldCluster()) {
             assertOK(client().performRequest(putTemplate(client(), "logs-template", STANDARD_TEMPLATE)));
             assertOK(client().performRequest(createDataStream("logs-apache-production")));

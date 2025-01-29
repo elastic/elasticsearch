@@ -52,11 +52,11 @@ public class IndexDeprecationChecker implements ResourceDeprecationChecker {
     public Map<String, List<DeprecationIssue>> check(
         ClusterState clusterState,
         DeprecationInfoAction.Request request,
-        TransportDeprecationInfoAction.Context context
+        TransportDeprecationInfoAction.PrecomputedData precomputedData
     ) {
         Map<String, List<DeprecationIssue>> indexSettingsIssues = new HashMap<>();
         String[] concreteIndexNames = indexNameExpressionResolver.concreteIndexNames(clusterState, request);
-        Map<String, List<String>> indexToTransformIds = indexToTransformIds(context.transformConfigs());
+        Map<String, List<String>> indexToTransformIds = indexToTransformIds(precomputedData.transformConfigs());
         for (String concreteIndex : concreteIndexNames) {
             IndexMetadata indexMetadata = clusterState.getMetadata().index(concreteIndex);
             List<DeprecationIssue> singleIndexIssues = filterChecks(

@@ -46,12 +46,13 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
 
     private final IndexNameExpressionResolver indexNameExpressionResolver = TestIndexNameExpressionResolver.newInstance();
     private final IndexDeprecationChecker checker = new IndexDeprecationChecker(indexNameExpressionResolver);
-    private final TransportDeprecationInfoAction.Context emptyContext = new TransportDeprecationInfoAction.Context();
+    private final TransportDeprecationInfoAction.PrecomputedData emptyPrecomputedData =
+        new TransportDeprecationInfoAction.PrecomputedData();
 
     public IndexDeprecationCheckerTests() {
-        emptyContext.setOnceNodeSettingsIssues(List.of());
-        emptyContext.setOncePluginIssues(Map.of());
-        emptyContext.setOnceTransformConfigs(List.of());
+        emptyPrecomputedData.setOnceNodeSettingsIssues(List.of());
+        emptyPrecomputedData.setOncePluginIssues(Map.of());
+        emptyPrecomputedData.setOnceTransformConfigs(List.of());
     }
 
     public void testOldIndicesCheck() {
@@ -75,7 +76,7 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
         Map<String, List<DeprecationIssue>> issuesByIndex = checker.check(
             clusterState,
             new DeprecationInfoAction.Request(TimeValue.THIRTY_SECONDS),
-            emptyContext
+            emptyPrecomputedData
         );
         List<DeprecationIssue> issues = issuesByIndex.get("test");
         assertEquals(singletonList(expected), issues);
@@ -202,7 +203,7 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
         Map<String, List<DeprecationIssue>> issuesByIndex = checker.check(
             clusterState,
             new DeprecationInfoAction.Request(TimeValue.THIRTY_SECONDS),
-            emptyContext
+            emptyPrecomputedData
         );
         assertThat(issuesByIndex.size(), equalTo(0));
     }
@@ -218,7 +219,7 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
         Map<String, List<DeprecationIssue>> issuesByIndex = checker.check(
             clusterState,
             new DeprecationInfoAction.Request(TimeValue.THIRTY_SECONDS),
-            emptyContext
+            emptyPrecomputedData
         );
         assertThat(issuesByIndex.size(), equalTo(0));
     }
@@ -240,7 +241,7 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
         Map<String, List<DeprecationIssue>> issuesByIndex = checker.check(
             clusterState,
             new DeprecationInfoAction.Request(TimeValue.THIRTY_SECONDS),
-            emptyContext
+            emptyPrecomputedData
         );
         assertTrue(issuesByIndex.containsKey("test"));
         assertEquals(List.of(expected), issuesByIndex.get("test"));
@@ -255,7 +256,7 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
         Map<String, List<DeprecationIssue>> issuesByIndex = checker.check(
             state,
             new DeprecationInfoAction.Request(TimeValue.THIRTY_SECONDS),
-            emptyContext
+            emptyPrecomputedData
         );
         List<DeprecationIssue> issues = issuesByIndex.get("test");
         assertThat(
@@ -291,7 +292,7 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
         Map<String, List<DeprecationIssue>> issuesByIndex = checker.check(
             state,
             new DeprecationInfoAction.Request(TimeValue.THIRTY_SECONDS),
-            emptyContext
+            emptyPrecomputedData
         );
         assertThat(issuesByIndex.size(), equalTo(0));
     }
@@ -304,7 +305,7 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
         Map<String, List<DeprecationIssue>> issuesByIndex = checker.check(
             state,
             new DeprecationInfoAction.Request(TimeValue.THIRTY_SECONDS),
-            emptyContext
+            emptyPrecomputedData
         );
         final String expectedUrl =
             "https://www.elastic.co/guide/en/elasticsearch/reference/7.13/breaking-changes-7.13.html#deprecate-shared-data-path-setting";
@@ -331,7 +332,7 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
         Map<String, List<DeprecationIssue>> issuesByIndex = checker.check(
             state,
             new DeprecationInfoAction.Request(TimeValue.THIRTY_SECONDS),
-            emptyContext
+            emptyPrecomputedData
         );
         assertThat(
             issuesByIndex.get("test"),
@@ -358,7 +359,7 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
         Map<String, List<DeprecationIssue>> issuesByIndex = checker.check(
             state,
             new DeprecationInfoAction.Request(TimeValue.THIRTY_SECONDS),
-            emptyContext
+            emptyPrecomputedData
         );
         assertThat(
             issuesByIndex.get("test"),
@@ -396,7 +397,7 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
         Map<String, List<DeprecationIssue>> issuesByIndex = checker.check(
             state,
             new DeprecationInfoAction.Request(TimeValue.THIRTY_SECONDS),
-            emptyContext
+            emptyPrecomputedData
         );
         DeprecationIssue expected = new DeprecationIssue(
             DeprecationIssue.Level.CRITICAL,
@@ -420,7 +421,7 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
         Map<String, List<DeprecationIssue>> issuesByIndex = checker.check(
             state,
             new DeprecationInfoAction.Request(TimeValue.THIRTY_SECONDS),
-            emptyContext
+            emptyPrecomputedData
         );
         assertThat(
             issuesByIndex.get("test"),
@@ -439,7 +440,7 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
         );
     }
 
-    private TransportDeprecationInfoAction.Context createContextWithTransformConfigs(Map<String, List<String>> indexToTransform) {
+    private TransportDeprecationInfoAction.PrecomputedData createContextWithTransformConfigs(Map<String, List<String>> indexToTransform) {
         List<TransformConfig> transforms = new ArrayList<>();
         for (Map.Entry<String, List<String>> entry : indexToTransform.entrySet()) {
             String index = entry.getKey();
@@ -447,8 +448,8 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
                 transforms.add(TransformConfig.builder().setId(transform).setDest(new DestConfig(index, List.of(), null)).build());
             }
         }
-        TransportDeprecationInfoAction.Context context = new TransportDeprecationInfoAction.Context();
-        context.setOnceTransformConfigs(transforms);
-        return context;
+        TransportDeprecationInfoAction.PrecomputedData precomputedData = new TransportDeprecationInfoAction.PrecomputedData();
+        precomputedData.setOnceTransformConfigs(transforms);
+        return precomputedData;
     }
 }

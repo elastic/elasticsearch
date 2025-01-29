@@ -48,7 +48,7 @@ public class TemplateDeprecationChecker implements ResourceDeprecationChecker {
     public Map<String, List<DeprecationIssue>> check(
         ClusterState clusterState,
         DeprecationInfoAction.Request request,
-        TransportDeprecationInfoAction.Context ignored
+        TransportDeprecationInfoAction.PrecomputedData ignored
     ) {
         var indexTemplates = clusterState.metadata().templatesV2().entrySet();
         var componentTemplates = clusterState.metadata().componentTemplates().entrySet();

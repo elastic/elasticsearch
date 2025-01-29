@@ -113,14 +113,14 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
         ClusterState state,
         final ActionListener<DeprecationInfoAction.Response> listener
     ) {
-        Context context = new Context();
-        try (var refs = new RefCountingListener(checkAndCreateResponse(state, request, context, listener))) {
+        PrecomputedData precomputedData = new PrecomputedData();
+        try (var refs = new RefCountingListener(checkAndCreateResponse(state, request, precomputedData, listener))) {
             nodeDeprecationChecker.check(
                 client,
-                refs.acquire().delegateFailureAndWrap((l, nodeIssues) -> context.setOnceNodeSettingsIssues(nodeIssues))
+                refs.acquire().delegateFailureAndWrap((l, nodeIssues) -> precomputedData.setOnceNodeSettingsIssues(nodeIssues))
             );
             transformConfigs(
-                refs.acquire().delegateFailureAndWrap((l, transformConfigs) -> context.setOnceTransformConfigs(transformConfigs))
+                refs.acquire().delegateFailureAndWrap((l, transformConfigs) -> precomputedData.setOnceTransformConfigs(transformConfigs))
             );
             DeprecationChecker.Components components = new DeprecationChecker.Components(
                 xContentRegistry,
@@ -130,7 +130,7 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
             pluginSettingIssues(
                 PLUGIN_CHECKERS,
                 components,
-                refs.acquire().delegateFailureAndWrap((l, pluginIssues) -> context.setOncePluginIssues(pluginIssues))
+                refs.acquire().delegateFailureAndWrap((l, pluginIssues) -> precomputedData.setOncePluginIssues(pluginIssues))
             );
         }
     }
@@ -144,14 +144,14 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
      *
      * @param state                       The cluster state
      * @param request                     The originating request containing the index expressions to evaluate
-     * @param context                     data from remote requests necessary to construct the response
+     * @param precomputedData             Data from remote requests necessary to construct the response
      * @param responseListener            The listener expecting the {@link DeprecationInfoAction.Response}
-     * @return The listener that should be executed after all the remote requests have completed and the {@link Context} is initialised.
+     * @return The listener that should be executed after all the remote requests have completed and the {@link PrecomputedData} is initialised.
      */
     public ActionListener<Void> checkAndCreateResponse(
         ClusterState state,
         DeprecationInfoAction.Request request,
-        Context context,
+        PrecomputedData precomputedData,
         ActionListener<DeprecationInfoAction.Response> responseListener
     ) {
         return executeInGenericThreadpool(
@@ -164,7 +164,7 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
                         skipTheseDeprecations,
                         clusterDeprecationChecker,
                         resourceDeprecationCheckers,
-                        context
+                        precomputedData
                     )
                 )
             )
@@ -176,7 +176,7 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
      * the precalculated information in {@code context} with the remaining checkers such as the cluster setting checker and the resource
      * checkers.This function will run a significant part of the checks and build out the final list of issues that exist in the
      * cluster. It's important that it does not run in the transport thread that's why it's combined with
-     * {@link #checkAndCreateResponse(ClusterState, DeprecationInfoAction.Request, Context, ActionListener)}. We keep this separated
+     * {@link #checkAndCreateResponse(ClusterState, DeprecationInfoAction.Request, PrecomputedData, ActionListener)}. We keep this separated
      * for testing purposes.
      *
      * @param state                       The cluster state
@@ -187,7 +187,7 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
      * @param clusterDeprecationChecker   The checker that provides the cluster settings deprecations warnings
      * @param resourceDeprecationCheckers these are checkers that take as input the cluster state and return a map from resource type
      *                                    to issues grouped by the resource name.
-     * @param context                     data from remote requests necessary to construct the response
+     * @param precomputedData             data from remote requests necessary to construct the response
      * @return The list of deprecation issues found in the cluster
      */
     static DeprecationInfoAction.Response checkAndCreateResponse(
@@ -197,7 +197,7 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
         List<String> skipTheseDeprecatedSettings,
         ClusterDeprecationChecker clusterDeprecationChecker,
         List<ResourceDeprecationChecker> resourceDeprecationCheckers,
-        Context context
+        PrecomputedData precomputedData
     ) {
         assert Transports.assertNotTransportThread("walking mappings in indexSettingsChecks is expensive");
         // Allow system index access here to prevent deprecation warnings when we call this API
@@ -205,7 +205,7 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
         ClusterState stateWithSkippedSettingsRemoved = removeSkippedSettings(state, concreteIndexNames, skipTheseDeprecatedSettings);
         List<DeprecationIssue> clusterSettingsIssues = clusterDeprecationChecker.check(
             stateWithSkippedSettingsRemoved,
-            context.transformConfigs()
+            precomputedData.transformConfigs()
         );
 
         Map<String, Map<String, List<DeprecationIssue>>> resourceDeprecationIssues = new HashMap<>();
@@ -213,7 +213,7 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
             Map<String, List<DeprecationIssue>> issues = resourceDeprecationChecker.check(
                 stateWithSkippedSettingsRemoved,
                 request,
-                context
+                precomputedData
             );
             if (issues.isEmpty() == false) {
                 resourceDeprecationIssues.put(resourceDeprecationChecker.getName(), issues);
@@ -222,9 +222,9 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
 
         return new DeprecationInfoAction.Response(
             clusterSettingsIssues,
-            context.nodeSettingsIssues(),
+            precomputedData.nodeSettingsIssues(),
             resourceDeprecationIssues,
-            context.pluginIssues()
+            precomputedData.pluginIssues()
         );
     }
 
@@ -237,7 +237,7 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
      * {@code nodeSettingsIssues} and {@code pluginIssues} or metadata needed for more than one types of checks such as
      * {@code transformConfigs}.
      */
-    public static class Context {
+    public static class PrecomputedData {
         private final SetOnce<List<DeprecationIssue>> nodeSettingsIssues = new SetOnce<>();
         private final SetOnce<Map<String, List<DeprecationIssue>>> pluginIssues = new SetOnce<>();
         private final SetOnce<List<TransformConfig>> transformConfigs = new SetOnce<>();

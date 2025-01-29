@@ -46,7 +46,7 @@ public class IlmPolicyDeprecationChecker implements ResourceDeprecationChecker {
     public Map<String, List<DeprecationIssue>> check(
         ClusterState clusterState,
         DeprecationInfoAction.Request request,
-        TransportDeprecationInfoAction.Context ignored
+        TransportDeprecationInfoAction.PrecomputedData ignored
     ) {
         IndexLifecycleMetadata lifecycleMetadata = clusterState.metadata().custom(IndexLifecycleMetadata.TYPE);
         if (lifecycleMetadata == null || lifecycleMetadata.getPolicyMetadatas().isEmpty()) {

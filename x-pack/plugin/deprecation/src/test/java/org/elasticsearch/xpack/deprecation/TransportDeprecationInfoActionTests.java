@@ -114,10 +114,10 @@ public class TransportDeprecationInfoActionTests extends ESTestCase {
         List<DeprecationIssue> nodeDeprecationIssues = nodeIssueFound ? List.of(foundIssue) : List.of();
 
         DeprecationInfoAction.Request request = new DeprecationInfoAction.Request(randomTimeValue(), Strings.EMPTY_ARRAY);
-        TransportDeprecationInfoAction.Context context = new TransportDeprecationInfoAction.Context();
-        context.setOnceTransformConfigs(List.of());
-        context.setOncePluginIssues(Map.of());
-        context.setOnceNodeSettingsIssues(nodeDeprecationIssues);
+        TransportDeprecationInfoAction.PrecomputedData precomputedData = new TransportDeprecationInfoAction.PrecomputedData();
+        precomputedData.setOnceTransformConfigs(List.of());
+        precomputedData.setOncePluginIssues(Map.of());
+        precomputedData.setOnceNodeSettingsIssues(nodeDeprecationIssues);
         DeprecationInfoAction.Response response = TransportDeprecationInfoAction.checkAndCreateResponse(
             state,
             resolver,
@@ -125,7 +125,7 @@ public class TransportDeprecationInfoActionTests extends ESTestCase {
             List.of(),
             clusterDeprecationChecker,
             resourceCheckers,
-            context
+            precomputedData
         );
 
         if (clusterIssueFound) {
@@ -231,10 +231,10 @@ public class TransportDeprecationInfoActionTests extends ESTestCase {
             cs.metadata().templatesV2().values().forEach(template -> visibleIndexTemplateSettings.set(template.template().settings()));
             return Map.of();
         }));
-        TransportDeprecationInfoAction.Context context = new TransportDeprecationInfoAction.Context();
-        context.setOnceTransformConfigs(List.of());
-        context.setOncePluginIssues(Map.of());
-        context.setOnceNodeSettingsIssues(List.of());
+        TransportDeprecationInfoAction.PrecomputedData precomputedData = new TransportDeprecationInfoAction.PrecomputedData();
+        precomputedData.setOnceTransformConfigs(List.of());
+        precomputedData.setOncePluginIssues(Map.of());
+        precomputedData.setOnceNodeSettingsIssues(List.of());
         DeprecationInfoAction.Request request = new DeprecationInfoAction.Request(randomTimeValue(), Strings.EMPTY_ARRAY);
         TransportDeprecationInfoAction.checkAndCreateResponse(
             state,
@@ -243,7 +243,7 @@ public class TransportDeprecationInfoActionTests extends ESTestCase {
             List.of("some.deprecated.property", "some.other.*.deprecated.property"),
             clusterDeprecationChecker,
             resourceCheckers,
-            context
+            precomputedData
         );
 
         settingsBuilder = settings(IndexVersion.current());
@@ -346,7 +346,7 @@ public class TransportDeprecationInfoActionTests extends ESTestCase {
             public Map<String, List<DeprecationIssue>> check(
                 ClusterState clusterState,
                 DeprecationInfoAction.Request request,
-                TransportDeprecationInfoAction.Context context
+                TransportDeprecationInfoAction.PrecomputedData precomputedData
             ) {
                 return check.apply(clusterState, request);
             }

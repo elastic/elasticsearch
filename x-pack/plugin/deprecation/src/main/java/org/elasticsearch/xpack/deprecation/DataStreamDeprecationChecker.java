@@ -50,7 +50,7 @@ public class DataStreamDeprecationChecker implements ResourceDeprecationChecker 
     public Map<String, List<DeprecationIssue>> check(
         ClusterState clusterState,
         DeprecationInfoAction.Request request,
-        TransportDeprecationInfoAction.Context ignored
+        TransportDeprecationInfoAction.PrecomputedData ignored
     ) {
         List<String> dataStreamNames = indexNameExpressionResolver.dataStreamNames(
             clusterState,

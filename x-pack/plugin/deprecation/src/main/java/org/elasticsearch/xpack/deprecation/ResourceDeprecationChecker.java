@@ -25,12 +25,12 @@ public interface ResourceDeprecationChecker {
      *
      * @param clusterState The cluster state provided for the checker
      * @param request The deprecation request that triggered this check
-     * @param context Data that have been remotely retrieved and might be useful in the checks
+     * @param precomputedData Data that have been remotely retrieved and might be useful in the checks
      */
     Map<String, List<DeprecationIssue>> check(
         ClusterState clusterState,
         DeprecationInfoAction.Request request,
-        TransportDeprecationInfoAction.Context context
+        TransportDeprecationInfoAction.PrecomputedData precomputedData
     );
 
     /**

@@ -29,6 +29,7 @@ public class MapperFeatures implements FeatureSpecification {
 
     public static final NodeFeature META_FETCH_FIELDS_ERROR_CODE_CHANGED = new NodeFeature("meta_fetch_fields_error_code_changed");
     public static final NodeFeature SPARSE_VECTOR_STORE_SUPPORT = new NodeFeature("mapper.sparse_vector.store_support");
+    public static final NodeFeature DYNAMIC_HANDLING_IN_COPY_TO = new NodeFeature("mapper.copy_to.dynamic_handling");
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
@@ -45,6 +46,7 @@ public class MapperFeatures implements FeatureSpecification {
             META_FETCH_FIELDS_ERROR_CODE_CHANGED,
             SPARSE_VECTOR_STORE_SUPPORT,
             COUNTED_KEYWORD_SYNTHETIC_SOURCE_NATIVE_SUPPORT,
+            DYNAMIC_HANDLING_IN_COPY_TO,
             SourceFieldMapper.SYNTHETIC_RECOVERY_SOURCE,
             ObjectMapper.SUBOBJECTS_FALSE_MAPPING_UPDATE_FIX
         );

@@ -1,5 +1,9 @@
 ---
 copy_to from object with dynamic strict to dynamic field:
+  - requires:
+      cluster_features: ["mapper.copy_to.dynamic_handling"]
+      reason: requires a fix
+
   - do:
       indices.create:
         index: test

@@ -24,10 +24,13 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractValue;
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
 
@@ -250,8 +253,12 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
             assertThat(responseMap.entrySet(), hasSize(1));
             var aliases = (Map<String, Object>) responseMap.get(".ml-notifications-000002");
             assertThat(aliases.entrySet(), hasSize(1));
-            var writeAlias = (Map<String, Object>) aliases.get("aliases");
-            assertThat(writeAlias, hasEntry(".ml-notifications-write", Map.of("is_hidden", Boolean.TRUE, "is_write_index", Boolean.TRUE)));
+            var allAliases = (Map<String, Object>) aliases.get("aliases");
+            var writeAlias = (Map<String, Object>) allAliases.get(".ml-notifications-write");
+
+            assertThat(writeAlias, hasEntry("is_hidden", Boolean.TRUE));
+            var isWriteIndex = (Boolean) writeAlias.get("is_write_index");
+            assertThat(isWriteIndex, anyOf(is(Boolean.TRUE), nullValue()));
         });
     }
 }

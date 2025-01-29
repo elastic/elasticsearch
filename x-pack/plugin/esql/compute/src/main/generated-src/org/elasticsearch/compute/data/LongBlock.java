@@ -19,7 +19,7 @@ import java.io.IOException;
 
 /**
  * Block that stores long values.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-Block.java.st} instead.
  */
 public sealed interface LongBlock extends Block permits LongArrayBlock, LongVectorBlock, ConstantNullBlock, LongBigArrayBlock {
 

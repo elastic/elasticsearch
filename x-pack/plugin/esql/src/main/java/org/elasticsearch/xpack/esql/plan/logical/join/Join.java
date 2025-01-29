@@ -190,11 +190,6 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware {
     }
 
     @Override
-    public String commandName() {
-        return "JOIN";
-    }
-
-    @Override
     public int hashCode() {
         return Objects.hash(config, left(), right());
     }

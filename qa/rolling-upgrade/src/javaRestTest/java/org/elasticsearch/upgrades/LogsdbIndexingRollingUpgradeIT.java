@@ -162,7 +162,7 @@ public class LogsdbIndexingRollingUpgradeIT extends AbstractRollingUpgradeTestCa
             var responseBody = entityAsMap(response);
             assertThat("errors in response:\n " + responseBody, responseBody.get("errors"), equalTo(false));
             if (firstIndex == null) {
-                firstIndex = (String) ((Map<?, ?>)((Map<?, ?>)((List<?>)responseBody.get("items")).get(0)).get("create")).get("_index");
+                firstIndex = (String) ((Map<?, ?>) ((Map<?, ?>) ((List<?>) responseBody.get("items")).get(0)).get("create")).get("_index");
             }
         }
         return firstIndex;

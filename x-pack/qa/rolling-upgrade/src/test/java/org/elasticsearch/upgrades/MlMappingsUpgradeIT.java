@@ -251,7 +251,7 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
             var aliases = (Map<String, Object>) responseMap.get(".ml-notifications-000002");
             assertThat(aliases.entrySet(), hasSize(1));
             var writeAlias = (Map<String, Object>) aliases.get("aliases");
-            assertThat(writeAlias, hasEntry(".ml-notifications-write", Map.of("is_hidden", Boolean.TRUE)));
+            assertThat(writeAlias, hasEntry(".ml-notifications-write", Map.of("is_hidden", Boolean.TRUE, "is_write_index", Boolean.TRUE)));
         });
     }
 }

@@ -112,7 +112,7 @@ public final class MlIndexAndAlias {
             clusterState,
             resolver,
             indexPatternPrefix,
-            "-000001",
+            FIRST_INDEX_SIX_DIGIT_SUFFIX,
             alias,
             masterNodeTimeout,
             waitForShardCount,

@@ -1244,10 +1244,6 @@ public class MachineLearning extends Plugin
                         ),
                         new MlIndexRollover.IndexPatternAndAlias(MlStatsIndex.indexPattern(), MlStatsIndex.writeAlias()),
                         new MlIndexRollover.IndexPatternAndAlias(AnnotationIndex.INDEX_PATTERN, AnnotationIndex.WRITE_ALIAS_NAME)
-                        // TODO notifications = https://github.com/elastic/elasticsearch/pull/120064
-                        // TODO anomaly results
-                        // TODO .ml-inference-XXXXXX - requires alias
-                        // TODO .ml-inference-native-XXXXXX - requires alias (index added in 8.0)
                     ),
                     indexNameExpressionResolver,
                     client

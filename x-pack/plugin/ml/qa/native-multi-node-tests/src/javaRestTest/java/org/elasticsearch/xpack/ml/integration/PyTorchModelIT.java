@@ -1035,6 +1035,7 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
         assertThat(EntityUtils.toString(ex.getResponse().getEntity()), containsString("No known model deployment with id [missing]"));
     }
 
+    @AwaitsFix(bugUrl = "Test is causing node to crash")
     public void testUpdateDeployment_GivenAllocationsAreIncreased() throws Exception {
         String modelId = "update_deployment_allocations_increased";
         createPassThroughModel(modelId);

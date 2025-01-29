@@ -1,6 +1,0 @@
-pr: 115266
-summary: ES|QL CCS uses `skip_unavailable` setting for handling disconnected remote
-  clusters
-area: ES|QL
-type: enhancement
-issues: [ 114531 ]

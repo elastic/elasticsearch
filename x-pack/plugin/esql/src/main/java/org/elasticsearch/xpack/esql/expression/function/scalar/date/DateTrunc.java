@@ -62,7 +62,7 @@ public class DateTrunc extends EsqlScalarFunction {
     protected static final ZoneId DEFAULT_TZ = ZoneOffset.UTC;
 
     @FunctionInfo(
-        returnType = "date",
+        returnType = { "date", "date_nanos" },
         description = "Rounds down a date to the closest interval.",
         examples = {
             @Example(file = "date", tag = "docsDateTrunc"),
@@ -83,7 +83,7 @@ public class DateTrunc extends EsqlScalarFunction {
             type = { "date_period", "time_duration" },
             description = "Interval; expressed using the timespan literal syntax."
         ) Expression interval,
-        @Param(name = "date", type = { "date" }, description = "Date expression") Expression field
+        @Param(name = "date", type = { "date", "date_nanos" }, description = "Date expression") Expression field
     ) {
         super(source, List.of(interval, field));
         this.interval = interval;
@@ -225,7 +225,7 @@ public class DateTrunc extends EsqlScalarFunction {
         }
         Object foldedInterval;
         try {
-            foldedInterval = interval.fold();
+            foldedInterval = interval.fold(toEvaluator.foldCtx());
             if (foldedInterval == null) {
                 throw new IllegalArgumentException("Interval cannot not be null");
             }

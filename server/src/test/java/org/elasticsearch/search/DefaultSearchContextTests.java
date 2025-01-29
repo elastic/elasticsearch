@@ -23,6 +23,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.SortField;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.store.BaseDirectoryWrapper;
@@ -204,7 +205,7 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
             );
 
             // resultWindow greater than maxResultWindow and scrollContext isn't null
-            when(shardSearchRequest.scroll()).thenReturn(new Scroll(TimeValue.timeValueMillis(randomInt(1000))));
+            when(shardSearchRequest.scroll()).thenReturn(TimeValue.timeValueMillis(randomInt(1000)));
             ReaderContext readerContext = new LegacyReaderContext(
                 newContextId(),
                 indexService,
@@ -245,7 +246,10 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
                 // resultWindow not greater than maxResultWindow and both rescore and sort are not null
                 context1.from(0);
                 DocValueFormat docValueFormat = mock(DocValueFormat.class);
-                SortAndFormats sortAndFormats = new SortAndFormats(new Sort(), new DocValueFormat[] { docValueFormat });
+                SortAndFormats sortAndFormats = new SortAndFormats(
+                    new Sort(new SortField[] { SortField.FIELD_DOC }),
+                    new DocValueFormat[] { docValueFormat }
+                );
                 context1.sort(sortAndFormats);
 
                 RescoreContext rescoreContext = mock(RescoreContext.class);
@@ -287,7 +291,7 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
                 @Override
                 public ScrollContext scrollContext() {
                     ScrollContext scrollContext = new ScrollContext();
-                    scrollContext.scroll = new Scroll(TimeValue.timeValueSeconds(5));
+                    scrollContext.scroll = TimeValue.timeValueSeconds(5);
                     return scrollContext;
                 }
             };

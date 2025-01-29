@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.rank.textsimilarity;
 
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -30,6 +31,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.search.rank.RankBuilder.DEFAULT_RANK_WINDOW_SIZE;
+import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService.DEFAULT_RERANK_ID;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -68,12 +70,7 @@ public class TextSimilarityRankRetrieverBuilderTests extends AbstractXContentTes
     protected TextSimilarityRankRetrieverBuilder doParseInstance(XContentParser parser) throws IOException {
         return (TextSimilarityRankRetrieverBuilder) RetrieverBuilder.parseTopLevelRetrieverBuilder(
             parser,
-            new RetrieverParserContext(
-                new SearchUsage(),
-                nf -> nf == RetrieverBuilder.RETRIEVERS_SUPPORTED
-                    || nf == TextSimilarityRankRetrieverBuilder.TEXT_SIMILARITY_RERANKER_RETRIEVER_SUPPORTED
-                    || nf == TextSimilarityRankRetrieverBuilder.TEXT_SIMILARITY_RERANKER_COMPOSITION_SUPPORTED
-            )
+            new RetrieverParserContext(new SearchUsage(), Predicates.never())
         );
     }
 
@@ -112,7 +109,6 @@ public class TextSimilarityRankRetrieverBuilderTests extends AbstractXContentTes
                 }
               },
               "field": "my-field",
-              "inference_id": "my-inference-id",
               "inference_text": "my-inference-text"
             }""";
 
@@ -122,6 +118,7 @@ public class TextSimilarityRankRetrieverBuilderTests extends AbstractXContentTes
                 new RetrieverParserContext(new SearchUsage(), nf -> true)
             );
             assertEquals(DEFAULT_RANK_WINDOW_SIZE, parsed.rankWindowSize());
+            assertEquals(DEFAULT_RERANK_ID, parsed.inferenceId());
         }
     }
 

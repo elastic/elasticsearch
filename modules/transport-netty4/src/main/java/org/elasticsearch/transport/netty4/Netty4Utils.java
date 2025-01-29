@@ -179,7 +179,7 @@ public class Netty4Utils {
     }
 
     public static HttpBody.Full fullHttpBodyFrom(final ByteBuf buf) {
-        return new HttpBody.ByteRefHttpBody(toBytesReference(buf));
+        return new HttpBody.ByteRefHttpBody(toReleasableBytesReference(buf));
     }
 
     public static Recycler<BytesRef> createRecycler(Settings settings) {

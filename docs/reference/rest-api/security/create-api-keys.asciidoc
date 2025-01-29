@@ -5,6 +5,12 @@
 <titleabbrev>Create API keys</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-security[Security APIs].
+--
+
 Creates an API key for access without requiring basic authentication.
 
 [[security-api-create-api-key-request]]

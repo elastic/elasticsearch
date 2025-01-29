@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.textstructure.rest;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -50,14 +50,14 @@ public class RestFindStructureAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) {
         FindStructureAction.Request request = new FindStructureAction.Request();
         RestFindStructureArgumentsParser.parse(restRequest, request);
+        var content = restRequest.requiredContent();
+        request.setSample(content);
 
-        if (restRequest.hasContent()) {
-            request.setSample(restRequest.content());
-        } else {
-            throw new ElasticsearchParseException("request body is required");
-        }
-
-        return channel -> client.execute(FindStructureAction.INSTANCE, request, new RestToXContentListener<>(channel));
+        return channel -> client.execute(
+            FindStructureAction.INSTANCE,
+            request,
+            ActionListener.withRef(new RestToXContentListener<>(channel), content)
+        );
     }
 
     @Override

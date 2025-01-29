@@ -72,7 +72,7 @@ public class EsField implements Writeable {
 
     private DataType readDataType(StreamInput in) throws IOException {
         String name = readCachedStringWithVersionCheck(in);
-        if (in.getTransportVersion().before(TransportVersions.ESQL_NESTED_UNSUPPORTED) && name.equalsIgnoreCase("NESTED")) {
+        if (in.getTransportVersion().before(TransportVersions.V_8_16_0) && name.equalsIgnoreCase("NESTED")) {
             /*
              * The "nested" data type existed in older versions of ESQL but was
              * entirely used to filter mappings away. Those versions will still

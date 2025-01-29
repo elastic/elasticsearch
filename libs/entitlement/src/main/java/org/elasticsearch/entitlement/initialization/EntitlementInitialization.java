@@ -10,16 +10,32 @@
 package org.elasticsearch.entitlement.initialization;
 
 import org.elasticsearch.core.internal.provider.ProviderLocator;
+import org.elasticsearch.entitlement.bootstrap.EntitlementBootstrap;
 import org.elasticsearch.entitlement.bridge.EntitlementChecker;
+import org.elasticsearch.entitlement.instrumentation.CheckMethod;
 import org.elasticsearch.entitlement.instrumentation.InstrumentationService;
+import org.elasticsearch.entitlement.instrumentation.Instrumenter;
 import org.elasticsearch.entitlement.instrumentation.MethodKey;
 import org.elasticsearch.entitlement.instrumentation.Transformer;
 import org.elasticsearch.entitlement.runtime.api.ElasticsearchEntitlementChecker;
+import org.elasticsearch.entitlement.runtime.policy.CreateClassLoaderEntitlement;
+import org.elasticsearch.entitlement.runtime.policy.Entitlement;
+import org.elasticsearch.entitlement.runtime.policy.ExitVMEntitlement;
+import org.elasticsearch.entitlement.runtime.policy.InboundNetworkEntitlement;
+import org.elasticsearch.entitlement.runtime.policy.LoadNativeLibrariesEntitlement;
+import org.elasticsearch.entitlement.runtime.policy.OutboundNetworkEntitlement;
+import org.elasticsearch.entitlement.runtime.policy.Policy;
+import org.elasticsearch.entitlement.runtime.policy.PolicyManager;
+import org.elasticsearch.entitlement.runtime.policy.Scope;
 
 import java.lang.instrument.Instrumentation;
-import java.lang.reflect.Method;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.InvocationTargetException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Called by the agent during {@code agentmain} to configure the entitlement system,
@@ -29,6 +45,10 @@ import java.util.Set;
  * to begin injecting our instrumentation.
  */
 public class EntitlementInitialization {
+
+    private static final String AGENTS_PACKAGE_NAME = "co.elastic.apm.agent";
+    private static final Module ENTITLEMENTS_MODULE = PolicyManager.class.getModule();
+
     private static ElasticsearchEntitlementChecker manager;
 
     // Note: referenced by bridge reflectively
@@ -38,20 +58,87 @@ public class EntitlementInitialization {
 
     // Note: referenced by agent reflectively
     public static void initialize(Instrumentation inst) throws Exception {
-        manager = new ElasticsearchEntitlementChecker();
+        manager = initChecker();
 
-        // TODO: Configure actual entitlement grants instead of this hardcoded one
-        Method targetMethod = System.class.getMethod("exit", int.class);
-        Method instrumentationMethod = Class.forName("org.elasticsearch.entitlement.bridge.EntitlementChecker")
-            .getMethod("checkSystemExit", Class.class, int.class);
-        Map<MethodKey, Method> methodMap = Map.of(INSTRUMENTER_FACTORY.methodKeyForTarget(targetMethod), instrumentationMethod);
+        Map<MethodKey, CheckMethod> checkMethods = INSTRUMENTER_FACTORY.lookupMethods(EntitlementChecker.class);
 
-        inst.addTransformer(new Transformer(INSTRUMENTER_FACTORY.newInstrumenter("", methodMap), Set.of(internalName(System.class))), true);
-        inst.retransformClasses(System.class);
+        var classesToTransform = checkMethods.keySet().stream().map(MethodKey::className).collect(Collectors.toSet());
+
+        Instrumenter instrumenter = INSTRUMENTER_FACTORY.newInstrumenter(EntitlementChecker.class, checkMethods);
+        inst.addTransformer(new Transformer(instrumenter, classesToTransform), true);
+        inst.retransformClasses(findClassesToRetransform(inst.getAllLoadedClasses(), classesToTransform));
     }
 
-    private static String internalName(Class<?> c) {
-        return c.getName().replace('.', '/');
+    private static Class<?>[] findClassesToRetransform(Class<?>[] loadedClasses, Set<String> classesToTransform) {
+        List<Class<?>> retransform = new ArrayList<>();
+        for (Class<?> loadedClass : loadedClasses) {
+            if (classesToTransform.contains(loadedClass.getName().replace(".", "/"))) {
+                retransform.add(loadedClass);
+            }
+        }
+        return retransform.toArray(new Class<?>[0]);
+    }
+
+    private static PolicyManager createPolicyManager() {
+        Map<String, Policy> pluginPolicies = EntitlementBootstrap.bootstrapArgs().pluginPolicies();
+
+        // TODO(ES-10031): Decide what goes in the elasticsearch default policy and extend it
+        var serverPolicy = new Policy(
+            "server",
+            List.of(
+                new Scope("org.elasticsearch.base", List.of(new CreateClassLoaderEntitlement())),
+                new Scope("org.elasticsearch.xcontent", List.of(new CreateClassLoaderEntitlement())),
+                new Scope(
+                    "org.elasticsearch.server",
+                    List.of(
+                        new ExitVMEntitlement(),
+                        new CreateClassLoaderEntitlement(),
+                        new InboundNetworkEntitlement(),
+                        new OutboundNetworkEntitlement(),
+                        new LoadNativeLibrariesEntitlement()
+                    )
+                ),
+                new Scope("org.apache.httpcomponents.httpclient", List.of(new OutboundNetworkEntitlement())),
+                new Scope("io.netty.transport", List.of(new InboundNetworkEntitlement(), new OutboundNetworkEntitlement())),
+                new Scope("org.apache.lucene.core", List.of(new LoadNativeLibrariesEntitlement())),
+                new Scope("org.elasticsearch.nativeaccess", List.of(new LoadNativeLibrariesEntitlement()))
+            )
+        );
+        // agents run without a module, so this is a special hack for the apm agent
+        // this should be removed once https://github.com/elastic/elasticsearch/issues/109335 is completed
+        List<Entitlement> agentEntitlements = List.of(new CreateClassLoaderEntitlement());
+        var resolver = EntitlementBootstrap.bootstrapArgs().pluginResolver();
+        return new PolicyManager(serverPolicy, agentEntitlements, pluginPolicies, resolver, AGENTS_PACKAGE_NAME, ENTITLEMENTS_MODULE);
+    }
+
+    private static ElasticsearchEntitlementChecker initChecker() {
+        final PolicyManager policyManager = createPolicyManager();
+
+        int javaVersion = Runtime.version().feature();
+        final String classNamePrefix;
+        if (javaVersion >= 23) {
+            classNamePrefix = "Java23";
+        } else {
+            classNamePrefix = "";
+        }
+        final String className = "org.elasticsearch.entitlement.runtime.api." + classNamePrefix + "ElasticsearchEntitlementChecker";
+        Class<?> clazz;
+        try {
+            clazz = Class.forName(className);
+        } catch (ClassNotFoundException e) {
+            throw new AssertionError("entitlement lib cannot find entitlement impl", e);
+        }
+        Constructor<?> constructor;
+        try {
+            constructor = clazz.getConstructor(PolicyManager.class);
+        } catch (NoSuchMethodException e) {
+            throw new AssertionError("entitlement impl is missing no arg constructor", e);
+        }
+        try {
+            return (ElasticsearchEntitlementChecker) constructor.newInstance(policyManager);
+        } catch (IllegalAccessException | InvocationTargetException | InstantiationException e) {
+            throw new AssertionError(e);
+        }
     }
 
     private static final InstrumentationService INSTRUMENTER_FACTORY = new ProviderLocator<>(

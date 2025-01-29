@@ -92,8 +92,16 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
     private final ShardId shardId = new ShardId("index", "_na_", 0);
     private final Settings idxSettings = indexSettings(IndexVersion.current(), 1, 0).build();
 
-    private IndexMetadata indexMetadata() throws IOException {
-        return IndexMetadata.builder("index").putMapping("""
+    private IndexMetadata indexMetadata(String mapping) {
+        IndexMetadata.Builder builder = IndexMetadata.builder("index").settings(idxSettings).primaryTerm(0, 1);
+        if (mapping != null) {
+            builder.putMapping(mapping);
+        }
+        return builder.build();
+    }
+
+    private IndexMetadata indexMetadata() {
+        return indexMetadata("""
             {
               "properties": {
                 "foo": {
@@ -106,7 +114,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
                   }
                 }
               }
-            }""").settings(idxSettings).primaryTerm(0, 1).build();
+            }""");
     }
 
     public void testExecuteBulkIndexRequest() throws Exception {
@@ -502,7 +510,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         IndexShard shard = mockShard(null, null);
 
         UpdateHelper updateHelper = mock(UpdateHelper.class);
-        when(updateHelper.prepare(any(), eq(shard), any())).thenReturn(
+        when(updateHelper.prepare(any(), eq(shard), any(), any())).thenReturn(
             new UpdateHelper.Result(
                 noopUpdateResponse,
                 DocWriteResponse.Result.NOOP,
@@ -557,7 +565,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         );
 
         UpdateHelper updateHelper = mock(UpdateHelper.class);
-        when(updateHelper.prepare(any(), eq(shard), any())).thenReturn(
+        when(updateHelper.prepare(any(), eq(shard), any(), any())).thenReturn(
             new UpdateHelper.Result(
                 updateResponse,
                 randomBoolean() ? DocWriteResponse.Result.CREATED : DocWriteResponse.Result.UPDATED,
@@ -618,7 +626,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         );
 
         UpdateHelper updateHelper = mock(UpdateHelper.class);
-        when(updateHelper.prepare(any(), eq(shard), any())).thenReturn(
+        when(updateHelper.prepare(any(), eq(shard), any(), any())).thenReturn(
             new UpdateHelper.Result(
                 updateResponse,
                 randomBoolean() ? DocWriteResponse.Result.CREATED : DocWriteResponse.Result.UPDATED,
@@ -681,7 +689,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         );
 
         UpdateHelper updateHelper = mock(UpdateHelper.class);
-        when(updateHelper.prepare(any(), eq(shard), any())).thenReturn(
+        when(updateHelper.prepare(any(), eq(shard), any(), any())).thenReturn(
             new UpdateHelper.Result(
                 updateResponse,
                 created ? DocWriteResponse.Result.CREATED : DocWriteResponse.Result.UPDATED,
@@ -738,7 +746,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         when(shard.applyDeleteOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyLong())).thenReturn(deleteResult);
 
         UpdateHelper updateHelper = mock(UpdateHelper.class);
-        when(updateHelper.prepare(any(), eq(shard), any())).thenReturn(
+        when(updateHelper.prepare(any(), eq(shard), any(), any())).thenReturn(
             new UpdateHelper.Result(
                 updateResponse,
                 DocWriteResponse.Result.DELETED,
@@ -784,7 +792,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
 
         UpdateHelper updateHelper = mock(UpdateHelper.class);
         final ElasticsearchException err = new ElasticsearchException("oops");
-        when(updateHelper.prepare(any(), eq(shard), any())).thenThrow(err);
+        when(updateHelper.prepare(any(), eq(shard), any(), any())).thenThrow(err);
         BulkItemRequest[] items = new BulkItemRequest[] { primaryRequest };
         BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, RefreshPolicy.NONE, items);
 
@@ -916,7 +924,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         });
 
         UpdateHelper updateHelper = mock(UpdateHelper.class);
-        when(updateHelper.prepare(any(), eq(shard), any())).thenReturn(
+        when(updateHelper.prepare(any(), eq(shard), any(), any())).thenReturn(
             new UpdateHelper.Result(
                 updateResponse,
                 randomBoolean() ? DocWriteResponse.Result.CREATED : DocWriteResponse.Result.UPDATED,
@@ -1129,7 +1137,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         );
 
         UpdateHelper updateHelper = mock(UpdateHelper.class);
-        when(updateHelper.prepare(any(), eq(shard), any())).thenReturn(
+        when(updateHelper.prepare(any(), eq(shard), any(), any())).thenReturn(
             new UpdateHelper.Result(
                 new IndexRequest("index").id("id").source(Requests.INDEX_CONTENT_TYPE, "field", "value"),
                 randomBoolean() ? DocWriteResponse.Result.CREATED : DocWriteResponse.Result.UPDATED,
@@ -1195,7 +1203,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         );
 
         UpdateHelper updateHelper = mock(UpdateHelper.class);
-        when(updateHelper.prepare(any(), eq(shard), any())).thenReturn(
+        when(updateHelper.prepare(any(), eq(shard), any(), any())).thenReturn(
             new UpdateHelper.Result(
                 new IndexRequest("index").id("id").source(Requests.INDEX_CONTENT_TYPE, "field", "value"),
                 randomBoolean() ? DocWriteResponse.Result.CREATED : DocWriteResponse.Result.UPDATED,
@@ -1235,6 +1243,9 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
 
         if (indexSettings != null) {
             when(shard.indexSettings()).thenReturn(indexSettings);
+        } else {
+            IndexSettings defaultIndexSettings = new IndexSettings(indexMetadata(null), Settings.EMPTY);
+            when(shard.indexSettings()).thenReturn(defaultIndexSettings);
         }
 
         if (mapperService != null) {

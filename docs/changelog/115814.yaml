@@ -1,6 +1,0 @@
-pr: 115814
-summary: "[ES|QL] Implicit casting string literal to intervals"
-area: ES|QL
-type: enhancement
-issues:
- - 115352

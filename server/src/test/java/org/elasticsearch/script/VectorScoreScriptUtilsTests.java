@@ -51,12 +51,12 @@ public class VectorScoreScriptUtilsTests extends ESTestCase {
                 BinaryDenseVectorScriptDocValuesTests.wrap(
                     new float[][] { docVector },
                     ElementType.FLOAT,
-                    IndexVersions.MINIMUM_COMPATIBLE
+                    IndexVersions.MINIMUM_READONLY_COMPATIBLE
                 ),
                 "test",
                 ElementType.FLOAT,
                 dims,
-                IndexVersions.MINIMUM_COMPATIBLE
+                IndexVersions.MINIMUM_READONLY_COMPATIBLE
             ),
             new BinaryDenseVectorDocValuesField(
                 BinaryDenseVectorScriptDocValuesTests.wrap(new float[][] { docVector }, ElementType.FLOAT, IndexVersion.current()),
@@ -267,7 +267,7 @@ public class VectorScoreScriptUtilsTests extends ESTestCase {
             function = new DotProduct(scoreScript, floatQueryVector, fieldName);
             assertEquals(
                 "dotProduct result is not equal to the expected value!",
-                0.42f + 0f + 1f - 1f - 0.42f,
+                -1.4f + 0.42f + 0f + 1f - 1f,
                 function.dotProduct(),
                 0.001
             );
@@ -303,12 +303,12 @@ public class VectorScoreScriptUtilsTests extends ESTestCase {
                 BinaryDenseVectorScriptDocValuesTests.wrap(
                     new float[][] { docVector },
                     ElementType.FLOAT,
-                    IndexVersions.MINIMUM_COMPATIBLE
+                    IndexVersions.MINIMUM_READONLY_COMPATIBLE
                 ),
                 "field0",
                 ElementType.FLOAT,
                 dims,
-                IndexVersions.MINIMUM_COMPATIBLE
+                IndexVersions.MINIMUM_READONLY_COMPATIBLE
             ),
             new BinaryDenseVectorDocValuesField(
                 BinaryDenseVectorScriptDocValuesTests.wrap(new float[][] { docVector }, ElementType.FLOAT, IndexVersion.current()),

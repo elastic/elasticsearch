@@ -1,5 +1,0 @@
-pr: 116082
-summary: Add support for bitwise inner-product in painless
-area: Vector Search
-type: enhancement
-issues: []

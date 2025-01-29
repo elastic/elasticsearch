@@ -69,7 +69,7 @@ booleanExpression
     | left=booleanExpression operator=OR right=booleanExpression                 #logicalBinary
     | valueExpression (NOT)? IN LP valueExpression (COMMA valueExpression)* RP   #logicalIn
     | valueExpression IS NOT? NULL                                               #isNull
-    | {this.isDevVersion()}? matchBooleanExpression                              #matchExpression
+    | matchBooleanExpression                                                     #matchExpression
     ;
 
 regexBooleanExpression
@@ -78,7 +78,7 @@ regexBooleanExpression
     ;
 
 matchBooleanExpression
-    : fieldExp=qualifiedName COLON queryString=constant
+    : fieldExp=qualifiedName (CAST_OP fieldType=dataType)? COLON matchQuery=constant
     ;
 
 valueExpression
@@ -102,11 +102,19 @@ primaryExpression
     ;
 
 functionExpression
-    : functionName LP (ASTERISK | (booleanExpression (COMMA booleanExpression)*))? RP
+    : functionName LP (ASTERISK | (booleanExpression (COMMA booleanExpression)* (COMMA mapExpression)?))? RP
     ;
 
 functionName
     : identifierOrParameter
+    ;
+
+mapExpression
+    : LEFT_BRACES entryExpression (COMMA entryExpression)* RIGHT_BRACES
+    ;
+
+entryExpression
+    : key=string COLON value=constant
     ;
 
 dataType
@@ -143,16 +151,7 @@ indexString
     ;
 
 metadata
-    : metadataOption
-    | deprecated_metadata
-    ;
-
-metadataOption
     : METADATA UNQUOTED_SOURCE (COMMA UNQUOTED_SOURCE)*
-    ;
-
-deprecated_metadata
-    : OPENING_BRACKET metadataOption CLOSING_BRACKET
     ;
 
 metricsCommand
@@ -329,7 +328,7 @@ joinCommand
     ;
 
 joinTarget
-    : index=identifier (AS alias=identifier)?
+    : index=indexPattern (AS alias=identifier)?
     ;
 
 joinCondition

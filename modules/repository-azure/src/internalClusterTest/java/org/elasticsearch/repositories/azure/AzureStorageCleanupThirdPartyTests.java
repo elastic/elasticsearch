@@ -10,6 +10,7 @@
 package org.elasticsearch.repositories.azure;
 
 import fixture.azure.AzureHttpFixture;
+import fixture.azure.MockAzureBlobStore;
 
 import com.azure.core.exception.HttpResponseException;
 import com.azure.storage.blob.BlobContainerClient;
@@ -60,7 +61,8 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
         System.getProperty("test.azure.container"),
         System.getProperty("test.azure.tenant_id"),
         System.getProperty("test.azure.client_id"),
-        AzureHttpFixture.sharedKeyForAccountPredicate(AZURE_ACCOUNT)
+        AzureHttpFixture.sharedKeyForAccountPredicate(AZURE_ACCOUNT),
+        MockAzureBlobStore.LeaseExpiryPredicate.NEVER_EXPIRE
     );
 
     @Override
@@ -113,7 +115,7 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
                 Settings.builder()
                     .put("container", System.getProperty("test.azure.container"))
                     .put("base_path", System.getProperty("test.azure.base") + randomAlphaOfLength(8))
-                    .put("max_single_part_upload_size", new ByteSizeValue(1, ByteSizeUnit.MB))
+                    .put("max_single_part_upload_size", ByteSizeValue.of(1, ByteSizeUnit.MB))
             )
             .get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));

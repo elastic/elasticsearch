@@ -619,7 +619,7 @@ public class SettingsTests extends ESTestCase {
 
     public void testReadWriteArray() throws IOException {
         BytesStreamOutput output = new BytesStreamOutput();
-        output.setTransportVersion(randomFrom(TransportVersion.current(), TransportVersions.V_7_0_0));
+        output.setTransportVersion(randomFrom(TransportVersion.current(), TransportVersions.V_8_0_0));
         Settings settings = Settings.builder().putList("foo.bar", "0", "1", "2", "3").put("foo.bar.baz", "baz").build();
         settings.writeTo(output);
         StreamInput in = StreamInput.wrap(BytesReference.toBytes(output.bytes()));
@@ -659,7 +659,7 @@ public class SettingsTests extends ESTestCase {
             "key",
             ByteSizeValue.parseBytesSizeValue(randomIntBetween(1, 16) + "k", "key")
         );
-        final ByteSizeValue expected = new ByteSizeValue(randomNonNegativeLong(), ByteSizeUnit.BYTES);
+        final ByteSizeValue expected = ByteSizeValue.of(randomNonNegativeLong(), ByteSizeUnit.BYTES);
         final Settings settings = Settings.builder().put("key", expected).build();
         /*
          * Previously we would internally convert the byte size value to a string using a method that tries to be smart about the units

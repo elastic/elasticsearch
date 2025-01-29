@@ -58,7 +58,7 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<FieldCapabil
         ActionListener<FieldCapabilitiesResponse> remoteListener
     ) {
         remoteClient.getConnection(remoteRequest, remoteListener.delegateFailure((l, conn) -> {
-            var remoteAction = conn.getTransportVersion().onOrAfter(TransportVersions.ESQL_ORIGINAL_INDICES)
+            var remoteAction = conn.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)
                 ? RESOLVE_REMOTE_TYPE
                 : TransportFieldCapabilitiesAction.REMOTE_TYPE;
             remoteClient.execute(conn, remoteAction, remoteRequest, l);

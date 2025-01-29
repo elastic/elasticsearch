@@ -20,6 +20,7 @@ public class InferenceRestIT extends ESClientYamlSuiteTestCase {
 
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
+        .systemProperty("tests.seed", System.getProperty("tests.seed"))
         .setting("xpack.security.enabled", "false")
         .setting("xpack.security.http.ssl.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
@@ -36,7 +37,7 @@ public class InferenceRestIT extends ESClientYamlSuiteTestCase {
         var baseSettings = super.restClientSettings();
         return Settings.builder()
             .put(baseSettings)
-            .put(CLIENT_SOCKET_TIMEOUT, "120s")  // Long timeout for model download
+            .put(CLIENT_SOCKET_TIMEOUT, "300s")  // Long timeout for model download
             .build();
     }
 

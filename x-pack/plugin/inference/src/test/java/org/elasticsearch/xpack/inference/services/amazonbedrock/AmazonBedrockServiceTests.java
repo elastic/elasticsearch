@@ -19,8 +19,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.inference.ChunkedInferenceServiceResults;
-import org.elasticsearch.inference.ChunkingOptions;
+import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -36,7 +35,7 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
-import org.elasticsearch.xpack.core.inference.results.InferenceChunkedTextEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbeddingFloat;
 import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.Utils;
 import org.elasticsearch.xpack.inference.external.amazonbedrock.AmazonBedrockMockRequestSender;
@@ -50,6 +49,7 @@ import org.elasticsearch.xpack.inference.services.amazonbedrock.completion.Amazo
 import org.elasticsearch.xpack.inference.services.amazonbedrock.embeddings.AmazonBedrockEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.embeddings.AmazonBedrockEmbeddingsModelTests;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.embeddings.AmazonBedrockEmbeddingsServiceSettings;
+import org.elasticsearch.xpack.inference.services.settings.RateLimitSettingsTests;
 import org.hamcrest.CoreMatchers;
 import org.hamcrest.MatcherAssert;
 import org.hamcrest.Matchers;
@@ -72,6 +72,7 @@ import static org.elasticsearch.xpack.inference.chunking.ChunkingSettingsTests.c
 import static org.elasticsearch.xpack.inference.results.ChatCompletionResultsTests.buildExpectationCompletion;
 import static org.elasticsearch.xpack.inference.results.TextEmbeddingResultsTests.buildExpectationFloat;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
+import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockProviderCapabilities.getProviderDefaultSimilarityMeasure;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockSecretSettingsTests.getAmazonBedrockSecretSettingsMap;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.completion.AmazonBedrockChatCompletionServiceSettingsTests.createChatCompletionRequestSettingsMap;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.completion.AmazonBedrockChatCompletionTaskSettingsTests.getChatCompletionTaskSettingsMap;
@@ -153,192 +154,69 @@ public class AmazonBedrockServiceTests extends ESTestCase {
     @SuppressWarnings("checkstyle:LineLength")
     public void testGetConfiguration() throws Exception {
         try (var service = createAmazonBedrockService()) {
-            String content = XContentHelper.stripWhitespace(
-                """
-                    {
-                         "provider": "amazonbedrock",
-                         "task_types": [
-                               {
-                                   "task_type": "text_embedding",
-                                   "configuration": {}
-                               },
-                               {
-                                   "task_type": "completion",
-                                   "configuration": {
-                                       "top_p": {
-                                           "default_value": null,
-                                           "depends_on": [],
-                                           "display": "numeric",
-                                           "label": "Top P",
-                                           "order": 3,
-                                           "required": false,
-                                           "sensitive": false,
-                                           "tooltip": "Alternative to temperature. A number in the range of 0.0 to 1.0, to eliminate low-probability tokens.",
-                                           "type": "int",
-                                           "ui_restrictions": [],
-                                           "validations": [],
-                                           "value": null
-                                       },
-                                       "max_new_tokens": {
-                                           "default_value": null,
-                                           "depends_on": [],
-                                           "display": "numeric",
-                                           "label": "Max New Tokens",
-                                           "order": 1,
-                                           "required": false,
-                                           "sensitive": false,
-                                           "tooltip": "Sets the maximum number for the output tokens to be generated.",
-                                           "type": "int",
-                                           "ui_restrictions": [],
-                                           "validations": [],
-                                           "value": null
-                                       },
-                                       "top_k": {
-                                           "default_value": null,
-                                           "depends_on": [],
-                                           "display": "numeric",
-                                           "label": "Top K",
-                                           "order": 4,
-                                           "required": false,
-                                           "sensitive": false,
-                                           "tooltip": "Only available for anthropic, cohere, and mistral providers. Alternative to temperature.",
-                                           "type": "int",
-                                           "ui_restrictions": [],
-                                           "validations": [],
-                                           "value": null
-                                       },
-                                       "temperature": {
-                                           "default_value": null,
-                                           "depends_on": [],
-                                           "display": "numeric",
-                                           "label": "Temperature",
-                                           "order": 2,
-                                           "required": false,
-                                           "sensitive": false,
-                                           "tooltip": "A number between 0.0 and 1.0 that controls the apparent creativity of the results.",
-                                           "type": "int",
-                                           "ui_restrictions": [],
-                                           "validations": [],
-                                           "value": null
-                                       }
-                                   }
-                               }
-                         ],
-                         "configuration": {
-                             "secret_key": {
-                                 "default_value": null,
-                                 "depends_on": [],
-                                 "display": "textbox",
-                                 "label": "Secret Key",
-                                 "order": 2,
-                                 "required": true,
-                                 "sensitive": true,
-                                 "tooltip": "A valid AWS secret key that is paired with the access_key.",
-                                 "type": "str",
-                                 "ui_restrictions": [],
-                                 "validations": [],
-                                 "value": null
-                             },
-                             "provider": {
-                                 "default_value": null,
-                                 "depends_on": [],
-                                 "display": "dropdown",
-                                 "label": "Provider",
-                                 "options": [
-                                     {
-                                         "label": "amazontitan",
-                                         "value": "amazontitan"
-                                     },
-                                     {
-                                         "label": "anthropic",
-                                         "value": "anthropic"
-                                     },
-                                     {
-                                         "label": "ai21labs",
-                                         "value": "ai21labs"
-                                     },
-                                     {
-                                         "label": "cohere",
-                                         "value": "cohere"
-                                     },
-                                     {
-                                         "label": "meta",
-                                         "value": "meta"
-                                     },
-                                     {
-                                         "label": "mistral",
-                                         "value": "mistral"
-                                     }
-                                 ],
-                                 "order": 3,
-                                 "required": true,
-                                 "sensitive": false,
-                                 "tooltip": "The model provider for your deployment.",
-                                 "type": "str",
-                                 "ui_restrictions": [],
-                                 "validations": [],
-                                 "value": null
-                             },
-                             "access_key": {
-                                 "default_value": null,
-                                 "depends_on": [],
-                                 "display": "textbox",
-                                 "label": "Access Key",
-                                 "order": 1,
-                                 "required": true,
-                                 "sensitive": true,
-                                 "tooltip": "A valid AWS access key that has permissions to use Amazon Bedrock.",
-                                 "type": "str",
-                                 "ui_restrictions": [],
-                                 "validations": [],
-                                 "value": null
-                             },
-                             "model": {
-                                 "default_value": null,
-                                 "depends_on": [],
-                                 "display": "textbox",
-                                 "label": "Model",
-                                 "order": 4,
-                                 "required": true,
-                                 "sensitive": false,
-                                 "tooltip": "The base model ID or an ARN to a custom model based on a foundational model.",
-                                 "type": "str",
-                                 "ui_restrictions": [],
-                                 "validations": [],
-                                 "value": null
-                             },
-                             "rate_limit.requests_per_minute": {
-                                 "default_value": null,
-                                 "depends_on": [],
-                                 "display": "numeric",
-                                 "label": "Rate Limit",
-                                 "order": 6,
-                                 "required": false,
-                                 "sensitive": false,
-                                 "tooltip": "By default, the amazonbedrock service sets the number of requests allowed per minute to 240.",
-                                 "type": "int",
-                                 "ui_restrictions": [],
-                                 "validations": [],
-                                 "value": null
-                             },
-                             "region": {
-                                 "default_value": null,
-                                 "depends_on": [],
-                                 "display": "textbox",
-                                 "label": "Region",
-                                 "order": 5,
-                                 "required": true,
-                                 "sensitive": false,
-                                 "tooltip": "The region that your model or ARN is deployed in.",
-                                 "type": "str",
-                                 "ui_restrictions": [],
-                                 "validations": [],
-                                 "value": null
-                             }
+            String content = XContentHelper.stripWhitespace("""
+                {
+                     "service": "amazonbedrock",
+                     "name": "Amazon Bedrock",
+                     "task_types": ["text_embedding", "completion"],
+                     "configurations": {
+                         "secret_key": {
+                             "description": "A valid AWS secret key that is paired with the access_key.",
+                             "label": "Secret Key",
+                             "required": true,
+                             "sensitive": true,
+                             "updatable": true,
+                             "type": "str",
+                             "supported_task_types": ["text_embedding", "completion"]
+                         },
+                         "provider": {
+                             "description": "The model provider for your deployment.",
+                             "label": "Provider",
+                             "required": true,
+                             "sensitive": false,
+                             "updatable": false,
+                             "type": "str",
+                             "supported_task_types": ["text_embedding", "completion"]
+                         },
+                         "access_key": {
+                             "description": "A valid AWS access key that has permissions to use Amazon Bedrock.",
+                             "label": "Access Key",
+                             "required": true,
+                             "sensitive": true,
+                             "updatable": true,
+                             "type": "str",
+                             "supported_task_types": ["text_embedding", "completion"]
+                         },
+                         "model": {
+                             "description": "The base model ID or an ARN to a custom model based on a foundational model.",
+                             "label": "Model",
+                             "required": true,
+                             "sensitive": false,
+                             "updatable": false,
+                             "type": "str",
+                             "supported_task_types": ["text_embedding", "completion"]
+                         },
+                         "rate_limit.requests_per_minute": {
+                             "description": "By default, the amazonbedrock service sets the number of requests allowed per minute to 240.",
+                             "label": "Rate Limit",
+                             "required": false,
+                             "sensitive": false,
+                             "updatable": false,
+                             "type": "int",
+                             "supported_task_types": ["text_embedding", "completion"]
+                         },
+                         "region": {
+                             "description": "The region that your model or ARN is deployed in.",
+                             "label": "Region",
+                             "required": true,
+                             "sensitive": false,
+                             "updatable": false,
+                             "type": "str",
+                             "supported_task_types": ["text_embedding", "completion"]
                          }
                      }
-                    """
-            );
+                 }
+                """);
             InferenceServiceConfiguration configuration = InferenceServiceConfiguration.fromXContentBytes(
                 new BytesArray(content),
                 XContentType.JSON
@@ -1375,6 +1253,78 @@ public class AmazonBedrockServiceTests extends ESTestCase {
         }
     }
 
+    public void testUpdateModelWithEmbeddingDetails_InvalidModelProvided() throws IOException {
+        var sender = mock(Sender.class);
+        var factory = mock(HttpRequestSender.Factory.class);
+        when(factory.createSender()).thenReturn(sender);
+
+        var amazonBedrockFactory = new AmazonBedrockMockRequestSender.Factory(
+            ServiceComponentsTests.createWithSettings(threadPool, Settings.EMPTY),
+            mockClusterServiceEmpty()
+        );
+
+        try (var service = new AmazonBedrockService(factory, amazonBedrockFactory, createWithEmptySettings(threadPool))) {
+            var model = AmazonBedrockChatCompletionModelTests.createModel(
+                randomAlphaOfLength(10),
+                randomAlphaOfLength(10),
+                randomAlphaOfLength(10),
+                randomFrom(AmazonBedrockProvider.values()),
+                randomAlphaOfLength(10),
+                randomAlphaOfLength(10)
+            );
+            assertThrows(
+                ElasticsearchStatusException.class,
+                () -> { service.updateModelWithEmbeddingDetails(model, randomNonNegativeInt()); }
+            );
+        }
+    }
+
+    public void testUpdateModelWithEmbeddingDetails_NullSimilarityInOriginalModel() throws IOException {
+        testUpdateModelWithEmbeddingDetails_Successful(null);
+    }
+
+    public void testUpdateModelWithEmbeddingDetails_NonNullSimilarityInOriginalModel() throws IOException {
+        testUpdateModelWithEmbeddingDetails_Successful(randomFrom(SimilarityMeasure.values()));
+    }
+
+    private void testUpdateModelWithEmbeddingDetails_Successful(SimilarityMeasure similarityMeasure) throws IOException {
+        var sender = mock(Sender.class);
+        var factory = mock(HttpRequestSender.Factory.class);
+        when(factory.createSender()).thenReturn(sender);
+
+        var amazonBedrockFactory = new AmazonBedrockMockRequestSender.Factory(
+            ServiceComponentsTests.createWithSettings(threadPool, Settings.EMPTY),
+            mockClusterServiceEmpty()
+        );
+
+        try (var service = new AmazonBedrockService(factory, amazonBedrockFactory, createWithEmptySettings(threadPool))) {
+            var embeddingSize = randomNonNegativeInt();
+            var provider = randomFrom(AmazonBedrockProvider.values());
+            var model = AmazonBedrockEmbeddingsModelTests.createModel(
+                randomAlphaOfLength(10),
+                randomAlphaOfLength(10),
+                randomAlphaOfLength(10),
+                provider,
+                randomNonNegativeInt(),
+                randomBoolean(),
+                randomNonNegativeInt(),
+                similarityMeasure,
+                RateLimitSettingsTests.createRandom(),
+                createRandomChunkingSettings(),
+                randomAlphaOfLength(10),
+                randomAlphaOfLength(10)
+            );
+
+            Model updatedModel = service.updateModelWithEmbeddingDetails(model, embeddingSize);
+
+            SimilarityMeasure expectedSimilarityMeasure = similarityMeasure == null
+                ? getProviderDefaultSimilarityMeasure(provider)
+                : similarityMeasure;
+            assertEquals(expectedSimilarityMeasure, updatedModel.getServiceSettings().similarity());
+            assertEquals(embeddingSize, updatedModel.getServiceSettings().dimensions().intValue());
+        }
+    }
+
     public void testInfer_UnauthorizedResponse() throws IOException {
         var sender = mock(Sender.class);
         var factory = mock(HttpRequestSender.Factory.class);
@@ -1478,14 +1428,13 @@ public class AmazonBedrockServiceTests extends ESTestCase {
                     requestSender.enqueue(mockResults2);
                 }
 
-                PlainActionFuture<List<ChunkedInferenceServiceResults>> listener = new PlainActionFuture<>();
+                PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
                 service.chunkedInfer(
                     model,
                     null,
                     List.of("abc", "xyz"),
                     new HashMap<>(),
                     InputType.INGEST,
-                    new ChunkingOptions(null, null),
                     InferenceAction.Request.DEFAULT_TIMEOUT,
                     listener
                 );
@@ -1493,15 +1442,15 @@ public class AmazonBedrockServiceTests extends ESTestCase {
                 var results = listener.actionGet(TIMEOUT);
                 assertThat(results, hasSize(2));
                 {
-                    assertThat(results.get(0), CoreMatchers.instanceOf(InferenceChunkedTextEmbeddingFloatResults.class));
-                    var floatResult = (InferenceChunkedTextEmbeddingFloatResults) results.get(0);
+                    assertThat(results.get(0), CoreMatchers.instanceOf(ChunkedInferenceEmbeddingFloat.class));
+                    var floatResult = (ChunkedInferenceEmbeddingFloat) results.get(0);
                     assertThat(floatResult.chunks(), hasSize(1));
                     assertEquals("abc", floatResult.chunks().get(0).matchedText());
                     assertArrayEquals(new float[] { 0.123F, 0.678F }, floatResult.chunks().get(0).embedding(), 0.0f);
                 }
                 {
-                    assertThat(results.get(1), CoreMatchers.instanceOf(InferenceChunkedTextEmbeddingFloatResults.class));
-                    var floatResult = (InferenceChunkedTextEmbeddingFloatResults) results.get(1);
+                    assertThat(results.get(1), CoreMatchers.instanceOf(ChunkedInferenceEmbeddingFloat.class));
+                    var floatResult = (ChunkedInferenceEmbeddingFloat) results.get(1);
                     assertThat(floatResult.chunks(), hasSize(1));
                     assertEquals("xyz", floatResult.chunks().get(0).matchedText());
                     assertArrayEquals(new float[] { 0.223F, 0.278F }, floatResult.chunks().get(0).embedding(), 0.0f);

@@ -37,6 +37,7 @@ import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
 
+import static org.elasticsearch.TransportVersions.NODE_VERSION_INFORMATION_WITH_MIN_READ_ONLY_INDEX_VERSION;
 import static org.elasticsearch.node.NodeRoleSettings.NODE_ROLES_SETTING;
 
 /**
@@ -325,7 +326,17 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
             }
         }
         this.roles = Collections.unmodifiableSortedSet(roles);
-        versionInfo = new VersionInformation(Version.readVersion(in), IndexVersion.readVersion(in), IndexVersion.readVersion(in));
+        Version version = Version.readVersion(in);
+        IndexVersion minIndexVersion = IndexVersion.readVersion(in);
+        IndexVersion minReadOnlyIndexVersion;
+        if (in.getTransportVersion().onOrAfter(NODE_VERSION_INFORMATION_WITH_MIN_READ_ONLY_INDEX_VERSION)) {
+            minReadOnlyIndexVersion = IndexVersion.readVersion(in);
+        } else {
+            minReadOnlyIndexVersion = minIndexVersion;
+
+        }
+        IndexVersion maxIndexVersion = IndexVersion.readVersion(in);
+        versionInfo = new VersionInformation(version, minIndexVersion, minReadOnlyIndexVersion, maxIndexVersion);
         if (in.getTransportVersion().onOrAfter(EXTERNAL_ID_VERSION)) {
             this.externalId = readStringLiteral.read(in);
         } else {
@@ -360,6 +371,9 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         });
         Version.writeVersion(versionInfo.nodeVersion(), out);
         IndexVersion.writeVersion(versionInfo.minIndexVersion(), out);
+        if (out.getTransportVersion().onOrAfter(NODE_VERSION_INFORMATION_WITH_MIN_READ_ONLY_INDEX_VERSION)) {
+            IndexVersion.writeVersion(versionInfo.minReadOnlyIndexVersion(), out);
+        }
         IndexVersion.writeVersion(versionInfo.maxIndexVersion(), out);
         if (out.getTransportVersion().onOrAfter(EXTERNAL_ID_VERSION)) {
             out.writeString(externalId);
@@ -476,6 +490,10 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
 
     public IndexVersion getMinIndexVersion() {
         return versionInfo.minIndexVersion();
+    }
+
+    public IndexVersion getMinReadOnlyIndexVersion() {
+        return versionInfo.minReadOnlyIndexVersion();
     }
 
     public IndexVersion getMaxIndexVersion() {

@@ -1,5 +1,0 @@
-pr: 115687
-summary: Add default ILM policies and switch to ILM for apm-data plugin
-area: Data streams
-type: feature
-issues: []

@@ -15,8 +15,6 @@
   - do:
       indices.close:
         index: test_index
-      allowed_warnings:
-        - "the default value for the ?wait_for_active_shards parameter will change from '0' to 'index-setting' in version 8; specify '?wait_for_active_shards=index-setting' to adopt the future default behaviour, or '?wait_for_active_shards=0' to preserve today's behaviour"
   - is_true: acknowledged
 
   - do:
@@ -55,8 +53,6 @@
   - do:
       indices.close:
         index: test_index
-      allowed_warnings:
-        - "the default value for the ?wait_for_active_shards parameter will change from '0' to 'index-setting' in version 8; specify '?wait_for_active_shards=index-setting' to adopt the future default behaviour, or '?wait_for_active_shards=0' to preserve today's behaviour"
   - is_true: acknowledged
 
   - do:
@@ -113,8 +109,6 @@
   - do:
       indices.close:
         index: "index_*"
-      allowed_warnings:
-        - "the default value for the ?wait_for_active_shards parameter will change from '0' to 'index-setting' in version 8; specify '?wait_for_active_shards=index-setting' to adopt the future default behaviour, or '?wait_for_active_shards=0' to preserve today's behaviour"
 
   - match: { acknowledged: true }
   - match: { shards_acknowledged: true }
@@ -123,11 +117,14 @@
   - match: { indices.index_3.closed: true }
 
 ---
-"?wait_for_active_shards=index-setting is deprecated":
+"?wait_for_active_shards=index-setting is removed":
   - requires:
-      cluster_features: ["gte_v8.0.0"]
-      reason: "required deprecation warning is only emitted in 8.0 and later"
-      test_runner_features: ["warnings"]
+      reason: "Parameter value 'index-setting' of 'wait-for-active-shards' is rejected with specialised error."
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /{index}/_close
+          capabilities: [ wait-for-active-shards-index-setting-removed ]
 
   - do:
       indices.create:
@@ -137,8 +134,7 @@
             number_of_replicas: 0
 
   - do:
+      catch: /The 'index-setting' value for parameter 'wait_for_active_shards' is the default behaviour and this configuration value is not supported anymore. Please remove 'wait_for_active_shards=index-setting'/
       indices.close:
         index: "index_*"
         wait_for_active_shards: index-setting
-      warnings:
-        - "?wait_for_active_shards=index-setting is now the default behaviour; the 'index-setting' value for this parameter should no longer be used since it will become unsupported in version 9"

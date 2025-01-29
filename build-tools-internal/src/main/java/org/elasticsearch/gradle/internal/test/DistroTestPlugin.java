@@ -31,6 +31,7 @@ import org.gradle.api.Task;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.dsl.DependencyHandler;
 import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
+import org.gradle.api.file.FileCollection;
 import org.gradle.api.plugins.JavaPluginExtension;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.specs.Specs;
@@ -51,7 +52,6 @@ import static org.elasticsearch.gradle.internal.distribution.InternalElasticsear
 import static org.elasticsearch.gradle.internal.distribution.InternalElasticsearchDistributionTypes.DOCKER;
 import static org.elasticsearch.gradle.internal.distribution.InternalElasticsearchDistributionTypes.DOCKER_CLOUD_ESS;
 import static org.elasticsearch.gradle.internal.distribution.InternalElasticsearchDistributionTypes.DOCKER_IRONBANK;
-import static org.elasticsearch.gradle.internal.distribution.InternalElasticsearchDistributionTypes.DOCKER_UBI;
 import static org.elasticsearch.gradle.internal.distribution.InternalElasticsearchDistributionTypes.DOCKER_WOLFI;
 import static org.elasticsearch.gradle.internal.distribution.InternalElasticsearchDistributionTypes.RPM;
 import static org.elasticsearch.gradle.internal.util.ParamsUtils.loadBuildParams;
@@ -89,8 +89,8 @@ public class DistroTestPlugin implements Plugin<Project> {
         Map<String, TaskProvider<?>> versionTasks = versionTasks(project, "destructiveDistroUpgradeTest", buildParams.getBwcVersions());
         TaskProvider<Task> destructiveDistroTest = project.getTasks().register("destructiveDistroTest");
 
-        Configuration examplePlugin = configureExamplePlugin(project);
-
+        Configuration examplePluginConfiguration = configureExamplePlugin(project);
+        FileCollection examplePluginFileCollection = examplePluginConfiguration;
         List<TaskProvider<Test>> windowsTestTasks = new ArrayList<>();
         Map<ElasticsearchDistributionType, List<TaskProvider<Test>>> linuxTestTasks = new HashMap<>();
 
@@ -103,9 +103,9 @@ public class DistroTestPlugin implements Plugin<Project> {
                     t2 -> distribution.isDocker() == false || dockerSupport.get().getDockerAvailability().isAvailable()
                 );
                 addDistributionSysprop(t, DISTRIBUTION_SYSPROP, distribution::getFilepath);
-                addDistributionSysprop(t, EXAMPLE_PLUGIN_SYSPROP, () -> examplePlugin.getSingleFile().toString());
+                addDistributionSysprop(t, EXAMPLE_PLUGIN_SYSPROP, () -> examplePluginFileCollection.getSingleFile().toString());
                 t.exclude("**/PackageUpgradeTests.class");
-            }, distribution, examplePlugin.getDependencies());
+            }, distribution, examplePluginConfiguration.getDependencies());
 
             if (distribution.getPlatform() == Platform.WINDOWS) {
                 windowsTestTasks.add(destructiveTask);
@@ -148,7 +148,6 @@ public class DistroTestPlugin implements Plugin<Project> {
     private static Map<ElasticsearchDistributionType, TaskProvider<?>> lifecycleTasks(Project project, String taskPrefix) {
         Map<ElasticsearchDistributionType, TaskProvider<?>> lifecyleTasks = new HashMap<>();
         lifecyleTasks.put(DOCKER, project.getTasks().register(taskPrefix + ".docker"));
-        lifecyleTasks.put(DOCKER_UBI, project.getTasks().register(taskPrefix + ".docker-ubi"));
         lifecyleTasks.put(DOCKER_IRONBANK, project.getTasks().register(taskPrefix + ".docker-ironbank"));
         lifecyleTasks.put(DOCKER_CLOUD_ESS, project.getTasks().register(taskPrefix + ".docker-cloud-ess"));
         lifecyleTasks.put(DOCKER_WOLFI, project.getTasks().register(taskPrefix + ".docker-wolfi"));

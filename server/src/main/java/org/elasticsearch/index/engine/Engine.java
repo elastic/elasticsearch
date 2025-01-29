@@ -75,6 +75,7 @@ import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.DenseVectorStats;
 import org.elasticsearch.index.shard.DocsStats;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.index.shard.SparseVectorStats;
@@ -937,7 +938,7 @@ public abstract class Engine implements Closeable {
      * @param source    the source of the request
      * @param fromSeqNo the start sequence number (inclusive)
      * @param toSeqNo   the end sequence number (inclusive)
-     * @see #newChangesSnapshot(String, long, long, boolean, boolean, boolean)
+     * @see #newChangesSnapshot(String, long, long, boolean, boolean, boolean, long)
      */
     public abstract int countChanges(String source, long fromSeqNo, long toSeqNo) throws IOException;
 
@@ -951,7 +952,8 @@ public abstract class Engine implements Closeable {
         long toSeqNo,
         boolean requiredFullRange,
         boolean singleConsumer,
-        boolean accessStats
+        boolean accessStats,
+        long maxChunkSize
     ) throws IOException;
 
     /**
@@ -2332,5 +2334,16 @@ public abstract class Engine implements Closeable {
 
         public static final long UNKNOWN_GENERATION = -1L;
         public static final FlushResult NO_FLUSH = new FlushResult(false, UNKNOWN_GENERATION);
+    }
+
+    /**
+     * Ensures the engine is in a state that it can be closed by a call to {@link IndexShard#resetEngine()}.
+     *
+     * In general, resetting the engine should be done with care, to consider any
+     * in-progress operations and listeners (e.g., primary term and generation listeners).
+     * At the moment, this is implemented in serverless for a special case that ensures the engine is prepared for reset.
+     */
+    public void prepareForEngineReset() throws IOException {
+        throw new UnsupportedOperationException("does not support engine reset");
     }
 }

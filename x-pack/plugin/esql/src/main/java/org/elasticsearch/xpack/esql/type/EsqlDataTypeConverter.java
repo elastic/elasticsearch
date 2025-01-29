@@ -13,11 +13,14 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.time.DateFormatters;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.Converter;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -51,7 +54,6 @@ import java.time.Instant;
 import java.time.Period;
 import java.time.ZoneId;
 import java.time.temporal.ChronoField;
-import java.time.temporal.TemporalAccessor;
 import java.time.temporal.TemporalAmount;
 import java.util.List;
 import java.util.Locale;
@@ -78,7 +80,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.TIME_DURATION;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isDateTime;
-import static org.elasticsearch.xpack.esql.core.type.DataType.isDateTimeOrTemporal;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isDateTimeOrNanosOrTemporal;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isNullOrDatePeriod;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isNullOrTemporalAmount;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isNullOrTimeDuration;
@@ -200,6 +202,9 @@ public class EsqlDataTypeConverter {
             if (to == DataType.DATETIME) {
                 return EsqlConverter.STRING_TO_DATETIME;
             }
+            if (to == DATE_NANOS) {
+                return EsqlConverter.STRING_TO_DATE_NANOS;
+            }
             if (to == DataType.IP) {
                 return EsqlConverter.STRING_TO_IP;
             }
@@ -235,9 +240,9 @@ public class EsqlDataTypeConverter {
         return null;
     }
 
-    public static TemporalAmount foldToTemporalAmount(Expression field, String sourceText, DataType expectedType) {
+    public static TemporalAmount foldToTemporalAmount(FoldContext ctx, Expression field, String sourceText, DataType expectedType) {
         if (field.foldable()) {
-            Object v = field.fold();
+            Object v = field.fold(ctx);
             if (v instanceof BytesRef b) {
                 try {
                     return EsqlDataTypeConverter.parseTemporalAmount(b.utf8ToString(), expectedType);
@@ -378,9 +383,12 @@ public class EsqlDataTypeConverter {
         if (right == NULL) {
             return left;
         }
-        if (isDateTimeOrTemporal(left) || isDateTimeOrTemporal(right)) {
+        if (isDateTimeOrNanosOrTemporal(left) || isDateTimeOrNanosOrTemporal(right)) {
             if ((isDateTime(left) && isNullOrTemporalAmount(right)) || (isNullOrTemporalAmount(left) && isDateTime(right))) {
                 return DATETIME;
+            }
+            if ((left == DATE_NANOS && isNullOrTemporalAmount(right)) || (isNullOrTemporalAmount(left) && right == DATE_NANOS)) {
+                return DATE_NANOS;
             }
             if (isNullOrTimeDuration(left) && isNullOrTimeDuration(right)) {
                 return TIME_DURATION;
@@ -456,11 +464,34 @@ public class EsqlDataTypeConverter {
 
     public static long chronoToLong(long dateTime, BytesRef chronoField, ZoneId zone) {
         ChronoField chrono = ChronoField.valueOf(chronoField.utf8ToString().toUpperCase(Locale.ROOT));
-        return Instant.ofEpochMilli(dateTime).atZone(zone).getLong(chrono);
+        return chronoToLong(dateTime, chrono, zone);
     }
 
     public static long chronoToLong(long dateTime, ChronoField chronoField, ZoneId zone) {
         return Instant.ofEpochMilli(dateTime).atZone(zone).getLong(chronoField);
+    }
+
+    /**
+     * Extract the given {@link ChronoField} value from a date specified as a long number of nanoseconds since epoch
+     * @param dateNanos - long nanoseconds since epoch
+     * @param chronoField - The field to extract
+     * @param zone - Timezone for the given date
+     * @return - long representing the given ChronoField value
+     */
+    public static long chronoToLongNanos(long dateNanos, BytesRef chronoField, ZoneId zone) {
+        ChronoField chrono = ChronoField.valueOf(chronoField.utf8ToString().toUpperCase(Locale.ROOT));
+        return chronoToLongNanos(dateNanos, chrono, zone);
+    }
+
+    /**
+     * Extract the given {@link ChronoField} value from a date specified as a long number of nanoseconds since epoch
+     * @param dateNanos - long nanoseconds since epoch
+     * @param chronoField - The field to extract
+     * @param zone - Timezone for the given date
+     * @return - long representing the given ChronoField value
+     */
+    public static long chronoToLongNanos(long dateNanos, ChronoField chronoField, ZoneId zone) {
+        return DateUtils.toInstant(dateNanos).atZone(zone).getLong(chronoField);
     }
 
     /**
@@ -511,13 +542,12 @@ public class EsqlDataTypeConverter {
     }
 
     public static long dateNanosToLong(String dateNano) {
-        return dateNanosToLong(dateNano, DateFormatter.forPattern("strict_date_optional_time_nanos"));
+        return dateNanosToLong(dateNano, DEFAULT_DATE_NANOS_FORMATTER);
     }
 
     public static long dateNanosToLong(String dateNano, DateFormatter formatter) {
-        TemporalAccessor parsed = formatter.parse(dateNano);
-        long nanos = parsed.getLong(ChronoField.INSTANT_SECONDS) * 1_000_000_000 + parsed.getLong(ChronoField.NANO_OF_SECOND);
-        return nanos;
+        Instant parsed = DateFormatters.from(formatter.parse(dateNano)).toInstant();
+        return DateUtils.toLong(parsed);
     }
 
     public static String dateTimeToString(long dateTime) {
@@ -530,6 +560,10 @@ public class EsqlDataTypeConverter {
 
     public static String dateTimeToString(long dateTime, DateFormatter formatter) {
         return formatter == null ? dateTimeToString(dateTime) : formatter.formatMillis(dateTime);
+    }
+
+    public static String nanoTimeToString(long dateTime, DateFormatter formatter) {
+        return formatter == null ? nanoTimeToString(dateTime) : formatter.formatNanos(dateTime);
     }
 
     public static BytesRef numericBooleanToString(Object field) {
@@ -636,6 +670,7 @@ public class EsqlDataTypeConverter {
         STRING_TO_TIME_DURATION(x -> EsqlDataTypeConverter.parseTemporalAmount(x, DataType.TIME_DURATION)),
         STRING_TO_CHRONO_FIELD(EsqlDataTypeConverter::stringToChrono),
         STRING_TO_DATETIME(x -> EsqlDataTypeConverter.dateTimeToLong((String) x)),
+        STRING_TO_DATE_NANOS(x -> EsqlDataTypeConverter.dateNanosToLong((String) x)),
         STRING_TO_IP(x -> EsqlDataTypeConverter.stringToIP((String) x)),
         STRING_TO_VERSION(x -> EsqlDataTypeConverter.stringToVersion((String) x)),
         STRING_TO_DOUBLE(x -> EsqlDataTypeConverter.stringToDouble((String) x)),

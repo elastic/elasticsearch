@@ -349,4 +349,5 @@ final class CompositeIndexEventListener implements IndexEventListener {
             }
         }
     }
+
 }

@@ -45,7 +45,7 @@ public final class SearchSlowLog implements SearchOperationListener {
     private static final Logger queryLogger = LogManager.getLogger(INDEX_SEARCH_SLOWLOG_PREFIX + ".query");
     private static final Logger fetchLogger = LogManager.getLogger(INDEX_SEARCH_SLOWLOG_PREFIX + ".fetch");
 
-    private final SlowLogFieldProvider slowLogFieldProvider;
+    private final SlowLogFields slowLogFields;
 
     public static final Setting<Boolean> INDEX_SEARCH_SLOWLOG_INCLUDE_USER_SETTING = Setting.boolSetting(
         INDEX_SEARCH_SLOWLOG_PREFIX + ".include.user",
@@ -126,9 +126,8 @@ public final class SearchSlowLog implements SearchOperationListener {
 
     private static final ToXContent.Params FORMAT_PARAMS = new ToXContent.MapParams(Collections.singletonMap("pretty", "false"));
 
-    public SearchSlowLog(IndexSettings indexSettings, SlowLogFieldProvider slowLogFieldProvider) {
-        slowLogFieldProvider.init(indexSettings);
-        this.slowLogFieldProvider = slowLogFieldProvider;
+    public SearchSlowLog(IndexSettings indexSettings, SlowLogFields slowLogFields) {
+        this.slowLogFields = slowLogFields;
         indexSettings.getScopedSettings()
             .addSettingsUpdateConsumer(INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_WARN_SETTING, this::setQueryWarnThreshold);
         this.queryWarnThreshold = indexSettings.getValue(INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_WARN_SETTING).nanos();
@@ -159,26 +158,26 @@ public final class SearchSlowLog implements SearchOperationListener {
     @Override
     public void onQueryPhase(SearchContext context, long tookInNanos) {
         if (queryWarnThreshold >= 0 && tookInNanos > queryWarnThreshold) {
-            queryLogger.warn(SearchSlowLogMessage.of(this.slowLogFieldProvider.searchSlowLogFields(), context, tookInNanos));
+            queryLogger.warn(SearchSlowLogMessage.of(this.slowLogFields.searchFields(), context, tookInNanos));
         } else if (queryInfoThreshold >= 0 && tookInNanos > queryInfoThreshold) {
-            queryLogger.info(SearchSlowLogMessage.of(this.slowLogFieldProvider.searchSlowLogFields(), context, tookInNanos));
+            queryLogger.info(SearchSlowLogMessage.of(this.slowLogFields.searchFields(), context, tookInNanos));
         } else if (queryDebugThreshold >= 0 && tookInNanos > queryDebugThreshold) {
-            queryLogger.debug(SearchSlowLogMessage.of(this.slowLogFieldProvider.searchSlowLogFields(), context, tookInNanos));
+            queryLogger.debug(SearchSlowLogMessage.of(this.slowLogFields.searchFields(), context, tookInNanos));
         } else if (queryTraceThreshold >= 0 && tookInNanos > queryTraceThreshold) {
-            queryLogger.trace(SearchSlowLogMessage.of(this.slowLogFieldProvider.searchSlowLogFields(), context, tookInNanos));
+            queryLogger.trace(SearchSlowLogMessage.of(this.slowLogFields.searchFields(), context, tookInNanos));
         }
     }
 
     @Override
     public void onFetchPhase(SearchContext context, long tookInNanos) {
         if (fetchWarnThreshold >= 0 && tookInNanos > fetchWarnThreshold) {
-            fetchLogger.warn(SearchSlowLogMessage.of(this.slowLogFieldProvider.searchSlowLogFields(), context, tookInNanos));
+            fetchLogger.warn(SearchSlowLogMessage.of(this.slowLogFields.searchFields(), context, tookInNanos));
         } else if (fetchInfoThreshold >= 0 && tookInNanos > fetchInfoThreshold) {
-            fetchLogger.info(SearchSlowLogMessage.of(this.slowLogFieldProvider.searchSlowLogFields(), context, tookInNanos));
+            fetchLogger.info(SearchSlowLogMessage.of(this.slowLogFields.searchFields(), context, tookInNanos));
         } else if (fetchDebugThreshold >= 0 && tookInNanos > fetchDebugThreshold) {
-            fetchLogger.debug(SearchSlowLogMessage.of(this.slowLogFieldProvider.searchSlowLogFields(), context, tookInNanos));
+            fetchLogger.debug(SearchSlowLogMessage.of(this.slowLogFields.searchFields(), context, tookInNanos));
         } else if (fetchTraceThreshold >= 0 && tookInNanos > fetchTraceThreshold) {
-            fetchLogger.trace(SearchSlowLogMessage.of(this.slowLogFieldProvider.searchSlowLogFields(), context, tookInNanos));
+            fetchLogger.trace(SearchSlowLogMessage.of(this.slowLogFields.searchFields(), context, tookInNanos));
         }
     }
 

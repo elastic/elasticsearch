@@ -112,8 +112,6 @@ WS
     : [ \r\n\t]+ -> channel(HIDDEN)
     ;
 
-COLON : ':';
-
 //
 // Expression - used by most command
 //
@@ -184,6 +182,7 @@ AND : 'and';
 ASC : 'asc';
 ASSIGN : '=';
 CAST_OP : '::';
+COLON : ':';
 COMMA : ',';
 DESC : 'desc';
 DOT : '.';
@@ -216,7 +215,9 @@ MINUS : '-';
 ASTERISK : '*';
 SLASH : '/';
 PERCENT : '%';
-EXPRESSION_COLON : {this.isDevVersion()}? COLON -> type(COLON);
+
+LEFT_BRACES : '{';
+RIGHT_BRACES : '}';
 
 NESTED_WHERE : WHERE -> type(WHERE);
 
@@ -559,6 +560,10 @@ JOIN_JOIN : DEV_JOIN -> type(DEV_JOIN);
 JOIN_AS : AS -> type(AS);
 JOIN_ON : ON -> type(ON), popMode, pushMode(EXPRESSION_MODE);
 USING : 'USING' -> popMode, pushMode(EXPRESSION_MODE);
+
+JOIN_UNQUOTED_SOURCE: UNQUOTED_SOURCE -> type(UNQUOTED_SOURCE);
+JOIN_QUOTED_SOURCE : QUOTED_STRING -> type(QUOTED_STRING);
+JOIN_COLON : COLON -> type(COLON);
 
 JOIN_UNQUOTED_IDENTIFER: UNQUOTED_IDENTIFIER -> type(UNQUOTED_IDENTIFIER);
 JOIN_QUOTED_IDENTIFIER : QUOTED_IDENTIFIER -> type(QUOTED_IDENTIFIER);

@@ -26,14 +26,13 @@ import org.elasticsearch.xpack.core.template.resources.TemplateResources;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 /**
  * A utility class used for index lifecycle policies
  */
 public class LifecyclePolicyUtils {
 
-    private LifecyclePolicyUtils() {};
+    private LifecyclePolicyUtils() {}
 
     /**
      * Loads a built-in index lifecycle policy and returns its source.
@@ -121,11 +120,11 @@ public class LifecyclePolicyUtils {
             .stream()
             .filter(indexMetadata -> policyName.equals(indexMetadata.getLifecyclePolicyName()))
             .map(indexMetadata -> indexMetadata.getIndex().getName())
-            .collect(Collectors.toList());
+            .toList();
 
         final List<String> allDataStreams = indexNameExpressionResolver.dataStreamNames(
             state,
-            IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN
+            IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN_NO_SELECTOR
         );
 
         final List<String> dataStreams = allDataStreams.stream().filter(dsName -> {
@@ -136,12 +135,12 @@ public class LifecyclePolicyUtils {
             } else {
                 return false;
             }
-        }).collect(Collectors.toList());
+        }).toList();
 
         final List<String> composableTemplates = state.metadata().templatesV2().keySet().stream().filter(templateName -> {
             Settings settings = MetadataIndexTemplateService.resolveSettings(state.metadata(), templateName);
             return policyName.equals(LifecycleSettings.LIFECYCLE_NAME_SETTING.get(settings));
-        }).collect(Collectors.toList());
+        }).toList();
 
         return new ItemUsage(indices, dataStreams, composableTemplates);
     }

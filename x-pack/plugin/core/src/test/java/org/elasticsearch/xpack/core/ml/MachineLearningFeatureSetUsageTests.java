@@ -57,7 +57,7 @@ public class MachineLearningFeatureSetUsageTests extends AbstractBWCWireSerializ
 
     @Override
     protected MachineLearningFeatureSetUsage mutateInstanceForVersion(MachineLearningFeatureSetUsage instance, TransportVersion version) {
-        if (version.before(TransportVersions.ML_TELEMETRY_MEMORY_ADDED)) {
+        if (version.before(TransportVersions.V_8_16_0)) {
             return new MachineLearningFeatureSetUsage(
                 instance.available(),
                 instance.enabled(),

@@ -205,15 +205,7 @@ public final class CompositeAggregator extends BucketsAggregator implements Size
                 CompositeKey key = queue.toCompositeKey(slot);
                 InternalAggregations aggs = subAggsForBuckets.apply(slot);
                 long docCount = queue.getDocCount(slot);
-                buckets[(int) queue.size()] = new InternalComposite.InternalBucket(
-                    sourceNames,
-                    formats,
-                    key,
-                    reverseMuls,
-                    missingOrders,
-                    docCount,
-                    aggs
-                );
+                buckets[(int) queue.size()] = new InternalComposite.InternalBucket(sourceNames, formats, key, docCount, aggs);
             }
             CompositeKey lastBucket = num > 0 ? buckets[num - 1].getRawKey() : null;
             return new InternalAggregation[] {

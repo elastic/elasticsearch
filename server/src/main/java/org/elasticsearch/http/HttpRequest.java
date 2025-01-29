@@ -52,10 +52,4 @@ public interface HttpRequest extends HttpPreRequest {
      */
     void release();
 
-    /**
-     * If this instances uses any pooled resources, creates a copy of this instance that does not use any pooled resources and releases
-     * any resources associated with this instance. If the instance does not use any shared resources, returns itself.
-     * @return a safe unpooled http request
-     */
-    HttpRequest releaseAndCopy();
 }

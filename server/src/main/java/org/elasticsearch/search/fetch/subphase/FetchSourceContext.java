@@ -85,12 +85,15 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
         return this.excludes;
     }
 
-    public boolean hasFilter() {
+    private boolean hasFilter() {
         return this.includes.length > 0 || this.excludes.length > 0;
     }
 
+    /**
+     * Returns a {@link SourceFilter} if filtering is enabled, {@code null} otherwise.
+     */
     public SourceFilter filter() {
-        return new SourceFilter(includes, excludes);
+        return hasFilter() ? new SourceFilter(includes, excludes) : null;
     }
 
     public static FetchSourceContext parseFromRestRequest(RestRequest request) {

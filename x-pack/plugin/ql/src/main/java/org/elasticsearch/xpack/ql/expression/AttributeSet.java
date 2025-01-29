@@ -113,7 +113,7 @@ public class AttributeSet implements Set<Attribute> {
 
     @Override
     public boolean add(Attribute e) {
-        return delegate.put(e, PRESENT) != null;
+        return delegate.put(e, PRESENT) == null;
     }
 
     @Override

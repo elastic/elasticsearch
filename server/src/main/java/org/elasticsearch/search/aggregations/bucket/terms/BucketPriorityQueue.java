@@ -13,17 +13,17 @@ import org.elasticsearch.common.util.ObjectArrayPriorityQueue;
 
 import java.util.Comparator;
 
-public class BucketPriorityQueue<B> extends ObjectArrayPriorityQueue<B> {
+public class BucketPriorityQueue<B> extends ObjectArrayPriorityQueue<BucketAndOrd<B>> {
 
-    private final Comparator<? super B> comparator;
+    private final Comparator<BucketAndOrd<B>> comparator;
 
-    public BucketPriorityQueue(int size, BigArrays bigArrays, Comparator<? super B> comparator) {
+    public BucketPriorityQueue(int size, BigArrays bigArrays, Comparator<BucketAndOrd<B>> comparator) {
         super(size, bigArrays);
         this.comparator = comparator;
     }
 
     @Override
-    protected boolean lessThan(B a, B b) {
+    protected boolean lessThan(BucketAndOrd<B> a, BucketAndOrd<B> b) {
         return comparator.compare(a, b) > 0; // reverse, since we reverse again when adding to a list
     }
 }

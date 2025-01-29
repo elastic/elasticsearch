@@ -1,5 +1,3 @@
-import org.elasticsearch.gradle.internal.info.BuildParams
-
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the "Elastic License
@@ -13,8 +11,8 @@ apply plugin: 'elasticsearch.legacy-yaml-rest-compat-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
-  description 'The ICU Analysis plugin integrates the Lucene ICU module into Elasticsearch, adding ICU-related analysis components.'
-  classname 'org.elasticsearch.plugin.analysis.icu.AnalysisICUPlugin'
+  description = 'The ICU Analysis plugin integrates the Lucene ICU module into Elasticsearch, adding ICU-related analysis components.'
+  classname ='org.elasticsearch.plugin.analysis.icu.AnalysisICUPlugin'
 }
 
 tasks.named("forbiddenApisMain").configure {

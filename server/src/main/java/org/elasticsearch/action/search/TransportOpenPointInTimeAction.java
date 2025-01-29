@@ -104,8 +104,7 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
     protected void doExecute(Task task, OpenPointInTimeRequest request, ActionListener<OpenPointInTimeResponse> listener) {
         final ClusterState clusterState = clusterService.state();
         // Check if all the nodes in this cluster know about the service
-        if (request.allowPartialSearchResults()
-            && clusterState.getMinTransportVersion().before(TransportVersions.ALLOW_PARTIAL_SEARCH_RESULTS_IN_PIT)) {
+        if (request.allowPartialSearchResults() && clusterState.getMinTransportVersion().before(TransportVersions.V_8_16_0)) {
             listener.onFailure(
                 new ElasticsearchStatusException(
                     format(
@@ -271,7 +270,7 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
                 protected SearchPhase getNextPhase() {
                     return new SearchPhase(getName()) {
                         @Override
-                        public void run() {
+                        protected void run() {
                             sendSearchResponse(SearchResponseSections.EMPTY_WITH_TOTAL_HITS, results.getAtomicArray());
                         }
                     };

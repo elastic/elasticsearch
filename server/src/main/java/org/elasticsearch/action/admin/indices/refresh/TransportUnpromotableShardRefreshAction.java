@@ -9,23 +9,31 @@
 
 package org.elasticsearch.action.admin.indices.refresh;
 
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.broadcast.unpromotable.TransportBroadcastUnpromotableAction;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
+import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
-import static org.elasticsearch.TransportVersions.FAST_REFRESH_RCO_2;
-import static org.elasticsearch.index.IndexSettings.INDEX_FAST_REFRESH_SETTING;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_REFRESH_BLOCK;
 
 public class TransportUnpromotableShardRefreshAction extends TransportBroadcastUnpromotableAction<
     UnpromotableShardRefreshRequest,
@@ -39,6 +47,8 @@ public class TransportUnpromotableShardRefreshAction extends TransportBroadcastU
     }
 
     private final IndicesService indicesService;
+    private final ThreadPool threadPool;
+    private final boolean useRefreshBlock;
 
     @Inject
     public TransportUnpromotableShardRefreshAction(
@@ -46,7 +56,28 @@ public class TransportUnpromotableShardRefreshAction extends TransportBroadcastU
         TransportService transportService,
         ShardStateAction shardStateAction,
         ActionFilters actionFilters,
-        IndicesService indicesService
+        IndicesService indicesService,
+        ThreadPool threadPool
+    ) {
+        this(
+            clusterService,
+            transportService,
+            shardStateAction,
+            actionFilters,
+            indicesService,
+            threadPool,
+            MetadataCreateIndexService.useRefreshBlock(clusterService.getSettings())
+        );
+    }
+
+    public TransportUnpromotableShardRefreshAction(
+        ClusterService clusterService,
+        TransportService transportService,
+        ShardStateAction shardStateAction,
+        ActionFilters actionFilters,
+        IndicesService indicesService,
+        ThreadPool threadPool,
+        boolean useRefreshBlock
     ) {
         super(
             NAME,
@@ -58,6 +89,53 @@ public class TransportUnpromotableShardRefreshAction extends TransportBroadcastU
             transportService.getThreadPool().executor(ThreadPool.Names.REFRESH)
         );
         this.indicesService = indicesService;
+        this.threadPool = threadPool;
+        this.useRefreshBlock = useRefreshBlock;
+    }
+
+    @Override
+    protected void doExecute(Task task, UnpromotableShardRefreshRequest request, ActionListener<ActionResponse.Empty> listener) {
+        beforeDispatchingRequestToUnpromotableShards(request, listener.delegateFailure((l, unused) -> super.doExecute(task, request, l)));
+    }
+
+    private void beforeDispatchingRequestToUnpromotableShards(UnpromotableShardRefreshRequest request, ActionListener<Void> listener) {
+        if (useRefreshBlock == false) {
+            listener.onResponse(null);
+            return;
+        }
+
+        var clusterStateObserver = new ClusterStateObserver(clusterService, request.getTimeout(), logger, threadPool.getThreadContext());
+
+        if (isIndexBlockedForRefresh(request.shardId().getIndexName(), clusterStateObserver.setAndGetObservedState()) == false) {
+            listener.onResponse(null);
+            return;
+        }
+
+        clusterStateObserver.waitForNextChange(new ClusterStateObserver.Listener() {
+            @Override
+            public void onNewClusterState(ClusterState state) {
+                listener.onResponse(null);
+            }
+
+            @Override
+            public void onClusterServiceClose() {
+                listener.onFailure(new NodeClosedException(clusterService.localNode()));
+            }
+
+            @Override
+            public void onTimeout(TimeValue timeout) {
+                listener.onFailure(
+                    new ElasticsearchTimeoutException(
+                        "shard refresh timed out waiting for index block to be removed",
+                        new ClusterBlockException(Map.of(request.shardId().getIndexName(), Set.of(INDEX_REFRESH_BLOCK)))
+                    )
+                );
+            }
+        }, clusterState -> isIndexBlockedForRefresh(request.shardId().getIndexName(), clusterState) == false);
+    }
+
+    private static boolean isIndexBlockedForRefresh(String index, ClusterState state) {
+        return state.blocks().hasIndexBlock(index, INDEX_REFRESH_BLOCK);
     }
 
     @Override
@@ -75,18 +153,6 @@ public class TransportUnpromotableShardRefreshAction extends TransportBroadcastU
             responseListener.onResponse(ActionResponse.Empty.INSTANCE);
             return;
         }
-
-        // During an upgrade to FAST_REFRESH_RCO_2, we expect search shards to be first upgraded before the primary is upgraded. Thus,
-        // when the primary is upgraded, and starts to deliver unpromotable refreshes, we expect the search shards to be upgraded already.
-        // Note that the fast refresh setting is final.
-        // TODO: remove assertion (ES-9563)
-        assert INDEX_FAST_REFRESH_SETTING.get(shard.indexSettings().getSettings()) == false
-            || transportService.getLocalNodeConnection().getTransportVersion().onOrAfter(FAST_REFRESH_RCO_2)
-            : "attempted to refresh a fast refresh search shard "
-                + shard
-                + " on transport version "
-                + transportService.getLocalNodeConnection().getTransportVersion()
-                + " (before FAST_REFRESH_RCO_2)";
 
         ActionListener.run(responseListener, listener -> {
             shard.waitForPrimaryTermAndGeneration(

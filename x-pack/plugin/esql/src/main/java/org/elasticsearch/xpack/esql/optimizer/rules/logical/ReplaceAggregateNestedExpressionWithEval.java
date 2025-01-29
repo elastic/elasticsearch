@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
+import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
 import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -46,15 +47,29 @@ public final class ReplaceAggregateNestedExpressionWithEval extends OptimizerRul
         // start with the groupings since the aggs might duplicate it
         for (int i = 0, s = newGroupings.size(); i < s; i++) {
             Expression g = newGroupings.get(i);
-            // move the alias into an eval and replace it with its attribute
+            // Move the alias into an eval and replace it with its attribute.
+            // Exception: Categorize is internal to the aggregation and remains in the groupings. We move its child expression into an eval.
             if (g instanceof Alias as) {
-                groupingChanged = true;
-                var attr = as.toAttribute();
-                evals.add(as);
-                evalNames.put(as.name(), attr);
-                newGroupings.set(i, attr);
-                if (as.child() instanceof GroupingFunction gf) {
-                    groupingAttributes.put(gf, attr);
+                if (as.child() instanceof Categorize cat) {
+                    // For Categorize grouping function, we only move the child expression into an eval
+                    if (cat.field() instanceof Attribute == false) {
+                        groupingChanged = true;
+                        var fieldAs = new Alias(as.source(), as.name(), cat.field(), null, true);
+                        var fieldAttr = fieldAs.toAttribute();
+                        evals.add(fieldAs);
+                        evalNames.put(fieldAs.name(), fieldAttr);
+                        Categorize replacement = cat.replaceChildren(List.of(fieldAttr));
+                        newGroupings.set(i, as.replaceChild(replacement));
+                    }
+                } else {
+                    groupingChanged = true;
+                    var attr = as.toAttribute();
+                    evals.add(as);
+                    evalNames.put(as.name(), attr);
+                    newGroupings.set(i, attr);
+                    if (as.child() instanceof GroupingFunction gf) {
+                        groupingAttributes.put(gf, attr);
+                    }
                 }
             }
         }
@@ -120,6 +135,10 @@ public final class ReplaceAggregateNestedExpressionWithEval extends OptimizerRul
                 });
                 // replace any grouping functions with their references pointing to the added synthetic eval
                 replaced = replaced.transformDown(GroupingFunction.class, gf -> {
+                    // Categorize in aggs depends on the grouping result, not on an early eval
+                    if (gf instanceof Categorize) {
+                        return gf;
+                    }
                     aggsChanged.set(true);
                     // should never return null, as it's verified.
                     // but even if broken, the transform will fail safely; otoh, returning `gf` will fail later due to incorrect plan.

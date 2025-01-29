@@ -18,7 +18,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.AbstractMultiClustersTestCase;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -31,6 +30,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
+import static org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase.randomIncludeCCSMetadata;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -42,7 +42,7 @@ public class CrossClusterQueryUnavailableRemotesIT extends AbstractMultiClusters
     private static final String REMOTE_CLUSTER_2 = "cluster-b";
 
     @Override
-    protected Collection<String> remoteClusterAlias() {
+    protected List<String> remoteClusterAlias() {
         return List.of(REMOTE_CLUSTER_1, REMOTE_CLUSTER_2);
     }
 
@@ -54,8 +54,8 @@ public class CrossClusterQueryUnavailableRemotesIT extends AbstractMultiClusters
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins(String clusterAlias) {
         List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins(clusterAlias));
-        plugins.add(EsqlPlugin.class);
-        plugins.add(org.elasticsearch.xpack.esql.action.CrossClustersQueryIT.InternalExchangePlugin.class);
+        plugins.add(EsqlPluginWithEnterpriseOrTrialLicense.class);
+        plugins.add(CrossClustersQueryIT.InternalExchangePlugin.class);
         return plugins;
     }
 
@@ -451,20 +451,6 @@ public class CrossClusterQueryUnavailableRemotesIT extends AbstractMultiClusters
 
     protected EsqlQueryResponse runQuery(EsqlQueryRequest request) {
         return client(LOCAL_CLUSTER).execute(EsqlQueryAction.INSTANCE, request).actionGet(30, TimeUnit.SECONDS);
-    }
-
-    /**
-     * v1: value to send to runQuery (can be null; null means use default value)
-     * v2: whether to expect CCS Metadata in the response (cannot be null)
-     * @return
-     */
-    public static Tuple<Boolean, Boolean> randomIncludeCCSMetadata() {
-        return switch (randomIntBetween(1, 3)) {
-            case 1 -> new Tuple<>(Boolean.TRUE, Boolean.TRUE);
-            case 2 -> new Tuple<>(Boolean.FALSE, Boolean.FALSE);
-            case 3 -> new Tuple<>(null, Boolean.FALSE);
-            default -> throw new AssertionError("should not get here");
-        };
     }
 
     Map<String, Object> setupClusters(int numClusters) {

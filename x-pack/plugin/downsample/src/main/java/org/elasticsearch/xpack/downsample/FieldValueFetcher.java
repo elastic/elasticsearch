@@ -12,6 +12,7 @@ import org.elasticsearch.index.fielddata.FormattedDocValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper;
@@ -65,6 +66,8 @@ class FieldValueFetcher {
             // If field is not a metric, we downsample it as a label
             if ("histogram".equals(fieldType.typeName())) {
                 return new LabelFieldProducer.HistogramLastLabelFieldProducer(name());
+            } else if ("flattened".equals(fieldType.typeName())) {
+                return new LabelFieldProducer.FlattenedLastValueFieldProducer(name());
             }
             return new LabelFieldProducer.LabelLastValueFieldProducer(name());
         }
@@ -90,7 +93,13 @@ class FieldValueFetcher {
                 }
             } else {
                 if (context.fieldExistsInIndex(field)) {
-                    final IndexFieldData<?> fieldData = context.getForField(fieldType, MappedFieldType.FielddataOperation.SEARCH);
+                    final IndexFieldData<?> fieldData;
+                    if (fieldType instanceof FlattenedFieldMapper.RootFlattenedFieldType flattenedFieldType) {
+                        var keyedFieldType = flattenedFieldType.getKeyedFieldType();
+                        fieldData = context.getForField(keyedFieldType, MappedFieldType.FielddataOperation.SEARCH);
+                    } else {
+                        fieldData = context.getForField(fieldType, MappedFieldType.FielddataOperation.SEARCH);
+                    }
                     final String fieldName = context.isMultiField(field)
                         ? fieldType.name().substring(0, fieldType.name().lastIndexOf('.'))
                         : fieldType.name();

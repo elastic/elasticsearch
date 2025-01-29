@@ -21,6 +21,22 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
     static final ESVectorizationProvider defaultedProvider = BaseVectorizationTests.defaultProvider();
     static final ESVectorizationProvider defOrPanamaProvider = BaseVectorizationTests.maybePanamaProvider();
 
+    public void testIpByteBit() {
+        byte[] q = new byte[16];
+        byte[] d = new byte[] { (byte) Integer.parseInt("01100010", 2), (byte) Integer.parseInt("10100111", 2) };
+        random().nextBytes(q);
+        int expected = q[1] + q[2] + q[6] + q[8] + q[10] + q[13] + q[14] + q[15];
+        assertEquals(expected, ESVectorUtil.ipByteBit(q, d));
+    }
+
+    public void testIpFloatBit() {
+        float[] q = new float[16];
+        byte[] d = new byte[] { (byte) Integer.parseInt("01100010", 2), (byte) Integer.parseInt("10100111", 2) };
+        random().nextFloat();
+        float expected = q[1] + q[2] + q[6] + q[8] + q[10] + q[13] + q[14] + q[15];
+        assertEquals(expected, ESVectorUtil.ipFloatBit(q, d), 1e-6);
+    }
+
     public void testBitAndCount() {
         testBasicBitAndImpl(ESVectorUtil::andBitCountLong);
     }

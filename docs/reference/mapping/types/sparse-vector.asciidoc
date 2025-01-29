@@ -26,6 +26,23 @@ PUT my-index
 
 See <<semantic-search-elser, semantic search with ELSER>> for a complete example on adding documents to a `sparse_vector` mapped field using ELSER.
 
+[[sparse-vectors-params]]
+==== Parameters for `sparse_vector` fields
+
+The following parameters are accepted by `sparse_vector` fields:
+
+[horizontal]
+
+<<mapping-store,store>>::
+
+Indicates whether the field value should be stored and retrievable independently of the <<mapping-source-field,_source>> field.
+Accepted values: true or false (default).
+The field's data is stored using term vectors, a disk-efficient structure compared to the original JSON input.
+The input map can be retrieved during a search request via the <<search-fields-param,`fields` parameter>>.
+To benefit from reduced disk usage, you must either:
+  * Exclude the field from <<source-filtering, _source>>.
+  * Use <<synthetic-source,synthetic `_source`>>.
+
 [[index-multi-value-sparse-vectors]]
 ==== Multi-value sparse vectors
 

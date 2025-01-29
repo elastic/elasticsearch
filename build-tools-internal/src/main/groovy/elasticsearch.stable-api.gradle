@@ -3,7 +3,6 @@ import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.internal.BwcVersions
 import org.elasticsearch.gradle.internal.JarApiComparisonTask
-import org.elasticsearch.gradle.internal.info.BuildParams
 
 import static org.elasticsearch.gradle.internal.InternalDistributionBwcSetupPlugin.buildBwcTaskName
 

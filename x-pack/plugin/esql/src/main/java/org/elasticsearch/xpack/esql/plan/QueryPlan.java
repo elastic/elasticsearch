@@ -33,6 +33,10 @@ public abstract class QueryPlan<PlanType extends QueryPlan<PlanType>> extends No
         super(source, children);
     }
 
+    /**
+     * The ordered list of attributes (i.e. columns) this plan produces when executed.
+     * Must be called only on resolved plans, otherwise may throw an exception or return wrong results.
+     */
     public abstract List<Attribute> output();
 
     public AttributeSet outputSet() {
@@ -87,6 +91,7 @@ public abstract class QueryPlan<PlanType extends QueryPlan<PlanType>> extends No
 
     /**
      * This very likely needs to be overridden for {@link QueryPlan#references} to be correct when inheriting.
+     * This can be called on unresolved plans and therefore must not rely on calls to {@link QueryPlan#output()}.
      */
     protected AttributeSet computeReferences() {
         return Expressions.references(expressions());

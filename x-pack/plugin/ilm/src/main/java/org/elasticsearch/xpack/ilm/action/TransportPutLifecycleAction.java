@@ -86,7 +86,6 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<PutLi
             threadPool,
             actionFilters,
             PutLifecycleRequest::new,
-            indexNameExpressionResolver,
             AcknowledgedResponse::readFrom,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
@@ -109,7 +108,7 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<PutLi
         Map<String, String> filteredHeaders = ClientHelper.getPersistableSafeSecurityHeaders(threadPool.getThreadContext(), state);
 
         LifecyclePolicy.validatePolicyName(request.getPolicy().getName());
-
+        request.getPolicy().maybeAddDeprecationWarningForFreezeAction(request.getPolicy().getName());
         {
             IndexLifecycleMetadata lifecycleMetadata = state.metadata().custom(IndexLifecycleMetadata.TYPE, IndexLifecycleMetadata.EMPTY);
             LifecyclePolicyMetadata existingPolicy = lifecycleMetadata.getPolicyMetadatas().get(request.getPolicy().getName());

@@ -110,8 +110,10 @@ public class SnapshotShutdownProgressTrackerTests extends ESTestCase {
     }
 
     public void testTrackerLogsStats() {
+        final String dummyStatusMsg = "Dummy log message for index shard snapshot statuses";
         SnapshotShutdownProgressTracker tracker = new SnapshotShutdownProgressTracker(
             getLocalNodeIdSupplier,
+            (callerLogger) -> callerLogger.info(dummyStatusMsg),
             clusterSettings,
             testThreadPool
         );
@@ -144,6 +146,14 @@ public class SnapshotShutdownProgressTrackerTests extends ESTestCase {
                     "*Shard snapshot completion stats since shutdown began: Done [2]; Failed [1]; Aborted [1]; Paused [1]*"
                 )
             );
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "index shard snapshot statuses",
+                    SnapshotShutdownProgressTracker.class.getCanonicalName(),
+                    Level.INFO,
+                    dummyStatusMsg
+                )
+            );
 
             // Simulate updating the shard snapshot completion stats.
             simulateShardSnapshotsCompleting(tracker, 5);
@@ -171,6 +181,7 @@ public class SnapshotShutdownProgressTrackerTests extends ESTestCase {
         );
         SnapshotShutdownProgressTracker tracker = new SnapshotShutdownProgressTracker(
             getLocalNodeIdSupplier,
+            (callerLogger) -> {},
             clusterSettingsDisabledLogging,
             testThreadPool
         );
@@ -214,6 +225,7 @@ public class SnapshotShutdownProgressTrackerTests extends ESTestCase {
         );
         SnapshotShutdownProgressTracker tracker = new SnapshotShutdownProgressTracker(
             getLocalNodeIdSupplier,
+            (callerLogger) -> {},
             clusterSettingsDisabledLogging,
             testThreadPool
         );
@@ -253,6 +265,7 @@ public class SnapshotShutdownProgressTrackerTests extends ESTestCase {
     public void testTrackerPauseTimestamp() {
         SnapshotShutdownProgressTracker tracker = new SnapshotShutdownProgressTracker(
             getLocalNodeIdSupplier,
+            (callerLogger) -> {},
             clusterSettings,
             testThreadPool
         );
@@ -263,7 +276,7 @@ public class SnapshotShutdownProgressTrackerTests extends ESTestCase {
                     "pausing timestamp should be set",
                     SnapshotShutdownProgressTracker.class.getName(),
                     Level.INFO,
-                    "*Finished signalling shard snapshots to pause at [" + testThreadPool.relativeTimeInMillis() + "]*"
+                    "*Finished signalling shard snapshots to pause at [" + testThreadPool.relativeTimeInMillis() + " millis]*"
                 )
             );
 
@@ -283,6 +296,7 @@ public class SnapshotShutdownProgressTrackerTests extends ESTestCase {
     public void testTrackerRequestsToMaster() {
         SnapshotShutdownProgressTracker tracker = new SnapshotShutdownProgressTracker(
             getLocalNodeIdSupplier,
+            (callerLogger) -> {},
             clusterSettings,
             testThreadPool
         );
@@ -335,6 +349,7 @@ public class SnapshotShutdownProgressTrackerTests extends ESTestCase {
     public void testTrackerClearShutdown() {
         SnapshotShutdownProgressTracker tracker = new SnapshotShutdownProgressTracker(
             getLocalNodeIdSupplier,
+            (callerLogger) -> {},
             clusterSettings,
             testThreadPool
         );
@@ -345,7 +360,7 @@ public class SnapshotShutdownProgressTrackerTests extends ESTestCase {
                     "pausing timestamp should be unset",
                     SnapshotShutdownProgressTracker.class.getName(),
                     Level.INFO,
-                    "*Finished signalling shard snapshots to pause at [-1]*"
+                    "*Finished signalling shard snapshots to pause at [-1 millis]*"
                 )
             );
 

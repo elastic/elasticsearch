@@ -98,7 +98,7 @@ public class BulkProcessorTests extends ESTestCase {
                 emptyListener(),
                 1,
                 bulkSize,
-                new ByteSizeValue(5, ByteSizeUnit.MB),
+                ByteSizeValue.of(5, ByteSizeUnit.MB),
                 flushInterval,
                 threadPool,
                 () -> {},

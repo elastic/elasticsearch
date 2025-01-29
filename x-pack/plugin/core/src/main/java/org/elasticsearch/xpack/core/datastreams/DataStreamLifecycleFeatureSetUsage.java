@@ -111,7 +111,7 @@ public class DataStreamLifecycleFeatureSetUsage extends XPackFeatureUsage {
         }
 
         public static LifecycleStats read(StreamInput in) throws IOException {
-            if (in.getTransportVersion().onOrAfter(TransportVersions.GLOBAL_RETENTION_TELEMETRY)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
                 return new LifecycleStats(
                     in.readVLong(),
                     in.readBoolean(),
@@ -139,7 +139,7 @@ public class DataStreamLifecycleFeatureSetUsage extends XPackFeatureUsage {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getTransportVersion().onOrAfter(TransportVersions.GLOBAL_RETENTION_TELEMETRY)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
                 out.writeVLong(dataStreamsWithLifecyclesCount);
                 out.writeBoolean(defaultRolloverUsed);
                 dataRetentionStats.writeTo(out);

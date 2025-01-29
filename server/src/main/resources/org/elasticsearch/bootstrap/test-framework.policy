@@ -88,6 +88,7 @@ grant codeBase "${codebase.elasticsearch}" {
 // this is the test-framework, but the jar is horribly named
 grant codeBase "${codebase.framework}" {
   permission java.lang.RuntimePermission "setSecurityManager";
+  permission java.lang.RuntimePermission "createClassLoader";
 };
 
 grant codeBase "${codebase.elasticsearch-rest-client}" {
@@ -126,7 +127,9 @@ grant codeBase "${codebase.netty-transport}" {
 
 grant {
   permission java.net.SocketPermission "127.0.0.1", "accept, connect, resolve";
+  permission java.net.SocketPermission "[0:0:0:0:0:0:0:1]", "accept, connect, resolve";
   permission java.nio.file.LinkPermission "symbolic";
   // needed for keystore tests
   permission java.lang.RuntimePermission "accessUserInformation";
+  permission java.lang.RuntimePermission "getClassLoader";
 };

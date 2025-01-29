@@ -11,8 +11,8 @@ apply plugin: 'elasticsearch.yaml-rest-compat-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
-  description 'Health report API extension providing the shards_availability output'
-  classname 'org.elasticsearch.health.plugin.ShardsAvailabilityPlugin'
+  description = 'Health report API extension providing the shards_availability output'
+  classname = 'org.elasticsearch.health.plugin.ShardsAvailabilityPlugin'
 }
 
 restResources {

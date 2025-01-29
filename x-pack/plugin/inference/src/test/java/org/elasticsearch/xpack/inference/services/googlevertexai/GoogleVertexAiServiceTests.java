@@ -19,6 +19,7 @@ import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
+import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockWebServer;
@@ -30,9 +31,11 @@ import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsModel;
+import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsModelTests;
 import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsTaskSettings;
 import org.elasticsearch.xpack.inference.services.googlevertexai.rerank.GoogleVertexAiRerankModel;
+import org.elasticsearch.xpack.inference.services.googlevertexai.rerank.GoogleVertexAiRerankModelTests;
 import org.elasticsearch.xpack.inference.services.googlevertexai.rerank.GoogleVertexAiRerankTaskSettings;
 import org.hamcrest.CoreMatchers;
 import org.hamcrest.Matchers;
@@ -827,6 +830,37 @@ public class GoogleVertexAiServiceTests extends ESTestCase {
         }
     }
 
+    public void testUpdateModelWithEmbeddingDetails_InvalidModelProvided() throws IOException {
+        try (var service = createGoogleVertexAiService()) {
+            var model = GoogleVertexAiRerankModelTests.createModel(randomAlphaOfLength(10), randomNonNegativeInt());
+            assertThrows(
+                ElasticsearchStatusException.class,
+                () -> { service.updateModelWithEmbeddingDetails(model, randomNonNegativeInt()); }
+            );
+        }
+    }
+
+    public void testUpdateModelWithEmbeddingDetails_NullSimilarityInOriginalModel() throws IOException {
+        testUpdateModelWithEmbeddingDetails_Successful(null);
+    }
+
+    public void testUpdateModelWithEmbeddingDetails_NonNullSimilarityInOriginalModel() throws IOException {
+        testUpdateModelWithEmbeddingDetails_Successful(randomFrom(SimilarityMeasure.values()));
+    }
+
+    private void testUpdateModelWithEmbeddingDetails_Successful(SimilarityMeasure similarityMeasure) throws IOException {
+        try (var service = createGoogleVertexAiService()) {
+            var embeddingSize = randomNonNegativeInt();
+            var model = GoogleVertexAiEmbeddingsModelTests.createModel(randomAlphaOfLength(10), randomBoolean(), similarityMeasure);
+
+            Model updatedModel = service.updateModelWithEmbeddingDetails(model, embeddingSize);
+
+            SimilarityMeasure expectedSimilarityMeasure = similarityMeasure == null ? SimilarityMeasure.DOT_PRODUCT : similarityMeasure;
+            assertEquals(expectedSimilarityMeasure, updatedModel.getServiceSettings().similarity());
+            assertEquals(embeddingSize, updatedModel.getServiceSettings().dimensions().intValue());
+        }
+    }
+
     // testInfer tested via end-to-end notebook tests in AppEx repo
 
     @SuppressWarnings("checkstyle:LineLength")
@@ -835,149 +869,54 @@ public class GoogleVertexAiServiceTests extends ESTestCase {
             String content = XContentHelper.stripWhitespace(
                 """
                     {
-                           "provider": "googlevertexai",
-                           "task_types": [
-                                {
-                                    "task_type": "text_embedding",
-                                    "configuration": {
-                                         "input_type": {
-                                             "default_value": null,
-                                             "depends_on": [],
-                                             "display": "dropdown",
-                                             "label": "Input Type",
-                                             "options": [
-                                                 {
-                                                     "label": "classification",
-                                                     "value": "classification"
-                                                 },
-                                                 {
-                                                     "label": "clustering",
-                                                     "value": "clustering"
-                                                 },
-                                                 {
-                                                     "label": "ingest",
-                                                     "value": "ingest"
-                                                 },
-                                                 {
-                                                     "label": "search",
-                                                     "value": "search"
-                                                 }
-                                             ],
-                                             "order": 1,
-                                             "required": false,
-                                             "sensitive": false,
-                                             "tooltip": "Specifies the type of input passed to the model.",
-                                             "type": "str",
-                                             "ui_restrictions": [],
-                                             "validations": [],
-                                             "value": ""
-                                        },
-                                        "auto_truncate": {
-                                            "default_value": null,
-                                            "depends_on": [],
-                                            "display": "toggle",
-                                            "label": "Auto Truncate",
-                                            "order": 2,
-                                            "required": false,
-                                            "sensitive": false,
-                                            "tooltip": "Specifies if the API truncates inputs longer than the maximum token length automatically.",
-                                            "type": "bool",
-                                            "ui_restrictions": [],
-                                            "validations": [],
-                                            "value": false
-                                        }
-                                    }
-                                },
-                                {
-                                    "task_type": "rerank",
-                                    "configuration": {
-                                        "top_n": {
-                                            "default_value": null,
-                                            "depends_on": [],
-                                            "display": "toggle",
-                                            "label": "Top N",
-                                            "order": 1,
-                                            "required": false,
-                                            "sensitive": false,
-                                            "tooltip": "Specifies the number of the top n documents, which should be returned.",
-                                            "type": "bool",
-                                            "ui_restrictions": [],
-                                            "validations": [],
-                                            "value": false
-                                        }
-                                    }
-                                }
-                           ],
-                           "configuration": {
+                           "service": "googlevertexai",
+                           "name": "Google Vertex AI",
+                           "task_types": ["text_embedding", "rerank"],
+                           "configurations": {
                                "service_account_json": {
-                                   "default_value": null,
-                                   "depends_on": [],
-                                   "display": "textbox",
+                                   "description": "API Key for the provider you're connecting to.",
                                    "label": "Credentials JSON",
-                                   "order": 1,
                                    "required": true,
                                    "sensitive": true,
-                                   "tooltip": "API Key for the provider you're connecting to.",
+                                   "updatable": true,
                                    "type": "str",
-                                   "ui_restrictions": [],
-                                   "validations": [],
-                                   "value": null
+                                   "supported_task_types": ["text_embedding", "rerank"]
                                },
                                "project_id": {
-                                   "default_value": null,
-                                   "depends_on": [],
-                                   "display": "textbox",
+                                   "description": "The GCP Project ID which has Vertex AI API(s) enabled. For more information on the URL, refer to the {geminiVertexAIDocs}.",
                                    "label": "GCP Project",
-                                   "order": 4,
                                    "required": true,
                                    "sensitive": false,
-                                   "tooltip": "The GCP Project ID which has Vertex AI API(s) enabled. For more information on the URL, refer to the {geminiVertexAIDocs}.",
+                                   "updatable": false,
                                    "type": "str",
-                                   "ui_restrictions": [],
-                                   "validations": [],
-                                   "value": null
+                                   "supported_task_types": ["text_embedding", "rerank"]
                                },
                                "location": {
-                                   "default_value": null,
-                                   "depends_on": [],
-                                   "display": "textbox",
+                                   "description": "Please provide the GCP region where the Vertex AI API(s) is enabled. For more information, refer to the {geminiVertexAIDocs}.",
                                    "label": "GCP Region",
-                                   "order": 3,
                                    "required": true,
                                    "sensitive": false,
-                                   "tooltip": "Please provide the GCP region where the Vertex AI API(s) is enabled. For more information, refer to the {geminiVertexAIDocs}.",
+                                   "updatable": false,
                                    "type": "str",
-                                   "ui_restrictions": [],
-                                   "validations": [],
-                                   "value": null
+                                   "supported_task_types": ["text_embedding", "rerank"]
                                },
                                "rate_limit.requests_per_minute": {
-                                   "default_value": null,
-                                   "depends_on": [],
-                                   "display": "numeric",
+                                   "description": "Minimize the number of rate limit errors.",
                                    "label": "Rate Limit",
-                                   "order": 6,
                                    "required": false,
                                    "sensitive": false,
-                                   "tooltip": "Minimize the number of rate limit errors.",
+                                   "updatable": false,
                                    "type": "int",
-                                   "ui_restrictions": [],
-                                   "validations": [],
-                                   "value": null
+                                   "supported_task_types": ["text_embedding", "rerank"]
                                },
                                "model_id": {
-                                   "default_value": null,
-                                   "depends_on": [],
-                                   "display": "textbox",
+                                   "description": "ID of the LLM you're using.",
                                    "label": "Model ID",
-                                   "order": 2,
                                    "required": true,
                                    "sensitive": false,
-                                   "tooltip": "ID of the LLM you're using.",
+                                   "updatable": false,
                                    "type": "str",
-                                   "ui_restrictions": [],
-                                   "validations": [],
-                                   "value": null
+                                   "supported_task_types": ["text_embedding", "rerank"]
                                }
                            }
                        }

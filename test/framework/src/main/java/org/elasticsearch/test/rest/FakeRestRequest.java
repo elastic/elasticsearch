@@ -139,11 +139,6 @@ public class FakeRestRequest extends RestRequest {
         public void release() {}
 
         @Override
-        public HttpRequest releaseAndCopy() {
-            return this;
-        }
-
-        @Override
         public Exception getInboundException() {
             return inboundException;
         }

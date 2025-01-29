@@ -12,7 +12,7 @@ package org.elasticsearch.rest;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.http.HttpBody;
 import org.elasticsearch.http.HttpChannel;
@@ -321,7 +321,7 @@ public class RestRequestTests extends ESTestCase {
         }
 
         @Override
-        public BytesReference content() {
+        public ReleasableBytesReference content() {
             return restRequest.content();
         }
     }

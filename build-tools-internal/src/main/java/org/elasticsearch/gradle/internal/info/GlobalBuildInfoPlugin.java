@@ -8,9 +8,13 @@
  */
 package org.elasticsearch.gradle.internal.info;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import org.apache.commons.io.IOUtils;
 import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.internal.BwcVersions;
+import org.elasticsearch.gradle.internal.conventions.GitInfoPlugin;
 import org.elasticsearch.gradle.internal.conventions.info.GitInfo;
 import org.elasticsearch.gradle.internal.conventions.info.ParallelDetector;
 import org.elasticsearch.gradle.internal.conventions.util.Util;
@@ -44,11 +48,11 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
-import java.time.ZoneOffset;
-import java.time.ZonedDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Random;
@@ -68,6 +72,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
     private final JavaInstallationRegistry javaInstallationRegistry;
     private final JvmMetadataDetector metadataDetector;
     private final ProviderFactory providers;
+    private final ObjectMapper objectMapper;
     private JavaToolchainService toolChainService;
     private Project project;
 
@@ -82,7 +87,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         this.javaInstallationRegistry = javaInstallationRegistry;
         this.metadataDetector = new ErrorTraceMetadataDetector(metadataDetector);
         this.providers = providers;
-
+        this.objectMapper = new ObjectMapper();
     }
 
     @Override
@@ -92,6 +97,8 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         }
         this.project = project;
         project.getPlugins().apply(JvmToolchainsPlugin.class);
+        Provider<GitInfo> gitInfo = project.getPlugins().apply(GitInfoPlugin.class).getGitInfo();
+
         toolChainService = project.getExtensions().getByType(JavaToolchainService.class);
         GradleVersion minimumGradleVersion = GradleVersion.version(getResourceContents("/minimumGradleVersion"));
         if (GradleVersion.current().compareTo(minimumGradleVersion) < 0) {
@@ -107,8 +114,6 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
             ? explicitRuntimeJavaHome
             : resolveJavaHomeFromToolChainService(VersionProperties.getBundledJdkMajorVersion());
 
-        GitInfo gitInfo = GitInfo.gitInfo(project.getRootDir());
-
         Provider<JvmInstallationMetadata> runtimeJdkMetaData = actualRuntimeJavaHome.map(
             runtimeJavaHome -> metadataDetector.getMetadata(getJavaInstallation(runtimeJavaHome))
         );
@@ -118,8 +123,10 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         );
         BuildParameterExtension buildParams = project.getExtensions()
             .create(
-                "buildParams",
                 BuildParameterExtension.class,
+                BuildParameterExtension.EXTENSION_NAME,
+                DefaultBuildParameterExtension.class,
+                providers,
                 actualRuntimeJavaHome,
                 resolveToolchainSpecFromEnv(),
                 actualRuntimeJavaHome.map(
@@ -137,9 +144,8 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
                 minimumCompilerVersion,
                 minimumRuntimeVersion,
                 Jvm.current().getJavaVersion(),
-                gitInfo.getRevision(),
-                gitInfo.getOrigin(),
-                ZonedDateTime.now(ZoneOffset.UTC),
+                gitInfo.map(g -> g.getRevision()),
+                gitInfo.map(g -> g.getOrigin()),
                 getTestSeed(),
                 System.getenv("JENKINS_URL") != null || System.getenv("BUILDKITE_BUILD_URL") != null || System.getProperty("isCI") != null,
                 ParallelDetector.findDefaultParallel(project),
@@ -150,13 +156,6 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         project.getGradle().getSharedServices().registerIfAbsent("buildParams", BuildParameterService.class, spec -> {
             // Provide some parameters
             spec.getParameters().getBuildParams().set(buildParams);
-        });
-
-        BuildParams.init(params -> {
-            params.reset();
-            params.setIsCi(
-                System.getenv("JENKINS_URL") != null || System.getenv("BUILDKITE_BUILD_URL") != null || System.getProperty("isCI") != null
-            );
         });
 
         // Enforce the minimum compiler version
@@ -197,10 +196,25 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         );
         try (var is = new FileInputStream(versionsFilePath)) {
             List<String> versionLines = IOUtils.readLines(is, "UTF-8");
-            return new BwcVersions(versionLines);
+            return new BwcVersions(versionLines, getDevelopmentBranches());
         } catch (IOException e) {
             throw new IllegalStateException("Unable to resolve to resolve bwc versions from versionsFile.", e);
         }
+    }
+
+    private List<String> getDevelopmentBranches() {
+        List<String> branches = new ArrayList<>();
+        File branchesFile = new File(Util.locateElasticsearchWorkspace(project.getGradle()), "branches.json");
+        try (InputStream is = new FileInputStream(branchesFile)) {
+            JsonNode json = objectMapper.readTree(is);
+            for (JsonNode node : json.get("branches")) {
+                branches.add(node.get("branch").asText());
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+
+        return branches;
     }
 
     private void logGlobalBuildInfo(BuildParameterExtension buildParams) {

@@ -25,6 +25,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /**
@@ -45,6 +46,7 @@ public class SnapshotShutdownProgressTracker {
     private static final Logger logger = LogManager.getLogger(SnapshotShutdownProgressTracker.class);
 
     private final Supplier<String> getLocalNodeId;
+    private final Consumer<Logger> logIndexShardSnapshotStatuses;
     private final ThreadPool threadPool;
 
     private volatile TimeValue progressLoggerInterval;
@@ -83,8 +85,14 @@ public class SnapshotShutdownProgressTracker {
     private final AtomicLong abortedCount = new AtomicLong();
     private final AtomicLong pausedCount = new AtomicLong();
 
-    public SnapshotShutdownProgressTracker(Supplier<String> localNodeIdSupplier, ClusterSettings clusterSettings, ThreadPool threadPool) {
+    public SnapshotShutdownProgressTracker(
+        Supplier<String> localNodeIdSupplier,
+        Consumer<Logger> logShardStatuses,
+        ClusterSettings clusterSettings,
+        ThreadPool threadPool
+    ) {
         this.getLocalNodeId = localNodeIdSupplier;
+        this.logIndexShardSnapshotStatuses = logShardStatuses;
         clusterSettings.initializeAndWatch(
             SNAPSHOT_PROGRESS_DURING_SHUTDOWN_LOG_INTERVAL_SETTING,
             value -> this.progressLoggerInterval = value
@@ -122,14 +130,14 @@ public class SnapshotShutdownProgressTracker {
     }
 
     /**
-     * Logs some statistics about shard snapshot progress.
+     * Logs information about shard snapshot progress.
      */
     private void logProgressReport() {
         logger.info(
             """
                 Current active shard snapshot stats on data node [{}]. \
-                Node shutdown cluster state update received at [{}]. \
-                Finished signalling shard snapshots to pause at [{}]. \
+                Node shutdown cluster state update received at [{} millis]. \
+                Finished signalling shard snapshots to pause at [{} millis]. \
                 Number shard snapshots running [{}]. \
                 Number shard snapshots waiting for master node reply to status update request [{}] \
                 Shard snapshot completion stats since shutdown began: Done [{}]; Failed [{}]; Aborted [{}]; Paused [{}]\
@@ -144,6 +152,8 @@ public class SnapshotShutdownProgressTracker {
             abortedCount.get(),
             pausedCount.get()
         );
+        // Use a callback to log the shard snapshot details.
+        logIndexShardSnapshotStatuses.accept(logger);
     }
 
     /**

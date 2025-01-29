@@ -9,6 +9,8 @@
 
 package org.elasticsearch.repositories.gcs;
 
+import org.elasticsearch.common.blobstore.BlobStoreActionStats;
+
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
@@ -46,11 +48,15 @@ final class GoogleCloudStorageOperationsStats {
         return bucketName;
     }
 
-    Map<String, Long> toMap() {
-        final Map<String, Long> results = new HashMap<>();
-        results.put("GetObject", getCount.get());
-        results.put("ListObjects", listCount.get());
-        results.put("InsertObject", postCount.get() + putCount.get());
+    // TODO: actually track requests and operations separately (see https://elasticco.atlassian.net/browse/ES-10213)
+    Map<String, BlobStoreActionStats> toMap() {
+        final Map<String, BlobStoreActionStats> results = new HashMap<>();
+        final long getOperations = getCount.get();
+        results.put("GetObject", new BlobStoreActionStats(getOperations, getOperations));
+        final long listOperations = listCount.get();
+        results.put("ListObjects", new BlobStoreActionStats(listOperations, listOperations));
+        final long insertOperations = postCount.get() + putCount.get();
+        results.put("InsertObject", new BlobStoreActionStats(insertOperations, insertOperations));
         return results;
     }
 }

@@ -28,4 +28,5 @@ tasks.named('forbiddenApisMain').configure {
 tasks.named("jarHell").configure { enabled = false }
 tasks.named("testTestingConventions").configure {
   baseClass 'junit.framework.TestCase'
+  baseClass 'org.junit.Assert'
 }

@@ -243,7 +243,7 @@ public class NodeInfoStreamingTests extends ESTestCase {
         return new NodeInfo(
             randomAlphaOfLengthBetween(6, 32),
             new CompatibilityVersions(TransportVersionUtils.randomVersion(random()), Map.of()),
-            IndexVersionUtils.randomVersion(random()),
+            IndexVersionUtils.randomVersion(),
             componentVersions,
             build,
             node,

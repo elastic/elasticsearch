@@ -1,5 +1,0 @@
-pr: 114193
-summary: Add postal_code support to the City and Enterprise databases
-area: Ingest Node
-type: enhancement
-issues: []

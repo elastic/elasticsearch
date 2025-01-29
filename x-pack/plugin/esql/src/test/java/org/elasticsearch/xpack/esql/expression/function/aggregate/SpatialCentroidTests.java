@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractAggregationTestCase;
 import org.elasticsearch.xpack.esql.expression.function.FunctionName;
 import org.elasticsearch.xpack.esql.expression.function.MultiRowTestCaseSupplier;
+import org.elasticsearch.xpack.esql.expression.function.MultiRowTestCaseSupplier.IncludingAltitude;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.hamcrest.BaseMatcher;
 import org.hamcrest.Description;
@@ -41,8 +42,8 @@ public class SpatialCentroidTests extends AbstractAggregationTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         var suppliers = Stream.of(
-            MultiRowTestCaseSupplier.geoPointCases(1, 1000, true),
-            MultiRowTestCaseSupplier.cartesianPointCases(1, 1000, true)
+            MultiRowTestCaseSupplier.geoPointCases(1, 1000, IncludingAltitude.NO),
+            MultiRowTestCaseSupplier.cartesianPointCases(1, 1000, IncludingAltitude.NO)
         ).flatMap(List::stream).map(SpatialCentroidTests::makeSupplier).toList();
 
         // The withNoRowsExpectingNull() cases don't work here, as this aggregator doesn't return nulls.

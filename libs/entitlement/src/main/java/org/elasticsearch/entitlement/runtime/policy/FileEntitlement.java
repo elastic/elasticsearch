@@ -9,59 +9,38 @@
 
 package org.elasticsearch.entitlement.runtime.policy;
 
-import java.util.List;
-import java.util.Objects;
+import java.nio.file.Paths;
 
 /**
- * Describes a file entitlement with a path and actions.
+ * Describes a file entitlement with a path and mode.
  */
-public class FileEntitlement implements Entitlement {
+public record FileEntitlement(String path, Mode mode) implements Entitlement {
 
-    public static final int READ_ACTION = 0x1;
-    public static final int WRITE_ACTION = 0x2;
+    public enum Mode {
+        READ,
+        READ_WRITE
+    }
 
-    private final String path;
-    private final int actions;
+    public FileEntitlement {
+        path = normalizePath(path);
+    }
 
-    @ExternalEntitlement(parameterNames = { "path", "actions" })
-    public FileEntitlement(String path, List<String> actionsList) {
-        this.path = path;
-        int actionsInt = 0;
+    private static String normalizePath(String path) {
+        return Paths.get(path).toAbsolutePath().normalize().toString();
+    }
 
-        for (String actionString : actionsList) {
-            if ("read".equals(actionString)) {
-                if ((actionsInt & READ_ACTION) == READ_ACTION) {
-                    throw new IllegalArgumentException("file action [read] specified multiple times");
-                }
-                actionsInt |= READ_ACTION;
-            } else if ("write".equals(actionString)) {
-                if ((actionsInt & WRITE_ACTION) == WRITE_ACTION) {
-                    throw new IllegalArgumentException("file action [write] specified multiple times");
-                }
-                actionsInt |= WRITE_ACTION;
-            } else {
-                throw new IllegalArgumentException("unknown file action [" + actionString + "]");
-            }
+    private static Mode parseMode(String mode) {
+        if (mode.equals("read")) {
+            return Mode.READ;
+        } else if (mode.equals("read_write")) {
+            return Mode.READ_WRITE;
+        } else {
+            throw new PolicyValidationException("invalid mode: " + mode + ", valid values: [read, read_write]");
         }
-
-        this.actions = actionsInt;
     }
 
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        FileEntitlement that = (FileEntitlement) o;
-        return actions == that.actions && Objects.equals(path, that.path);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(path, actions);
-    }
-
-    @Override
-    public String toString() {
-        return "FileEntitlement{" + "path='" + path + '\'' + ", actions=" + actions + '}';
+    @ExternalEntitlement(parameterNames = { "path", "mode" }, esModulesOnly = false)
+    public FileEntitlement(String path, String mode) {
+        this(path, parseMode(mode));
     }
 }

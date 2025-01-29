@@ -234,30 +234,34 @@ public final class BlockUtils {
             case DOUBLE -> blockFactory.newConstantDoubleBlockWith((double) val, size);
             case BOOLEAN -> blockFactory.newConstantBooleanBlockWith((boolean) val, size);
             case COMPOSITE -> {
-                try (AggregateMetricDoubleBlockBuilder builder = blockFactory.newAggregateMetricDoubleBlockBuilder(size)) {
-                    var aggregate_metric_double = (AggregateMetricDoubleLiteral) val;
-                    if (aggregate_metric_double.getMin() != null) {
-                        builder.min().appendDouble(aggregate_metric_double.getMin());
-                    } else {
-                        builder.min().appendNull();
+                if (val instanceof AggregateMetricDoubleLiteral aggregateMetricDoubleLiteral) {
+                    try (AggregateMetricDoubleBlockBuilder builder = blockFactory.newAggregateMetricDoubleBlockBuilder(size)) {
+                        if (aggregateMetricDoubleLiteral.getMin() != null) {
+                            builder.min().appendDouble(aggregateMetricDoubleLiteral.getMin());
+                        } else {
+                            builder.min().appendNull();
+                        }
+                        if (aggregateMetricDoubleLiteral.getMax() != null) {
+                            builder.max().appendDouble(aggregateMetricDoubleLiteral.getMax());
+                        } else {
+                            builder.max().appendNull();
+                        }
+                        if (aggregateMetricDoubleLiteral.getSum() != null) {
+                            builder.sum().appendDouble(aggregateMetricDoubleLiteral.getSum());
+                        } else {
+                            builder.sum().appendNull();
+                        }
+                        if (aggregateMetricDoubleLiteral.getCount() != null) {
+                            builder.count().appendInt(aggregateMetricDoubleLiteral.getCount());
+                        } else {
+                            builder.count().appendNull();
+                        }
+                        yield builder.build();
                     }
-                    if (aggregate_metric_double.getMax() != null) {
-                        builder.max().appendDouble(aggregate_metric_double.getMax());
-                    } else {
-                        builder.max().appendNull();
-                    }
-                    if (aggregate_metric_double.getSum() != null) {
-                        builder.sum().appendDouble(aggregate_metric_double.getSum());
-                    } else {
-                        builder.sum().appendNull();
-                    }
-                    if (aggregate_metric_double.getCount() != null) {
-                        builder.count().appendInt(aggregate_metric_double.getCount());
-                    } else {
-                        builder.count().appendNull();
-                    }
-                    yield builder.build();
                 }
+                throw new UnsupportedOperationException(
+                    "Composite block but received value that wasn't AggregateMetricDoubleLiteral [" + val + "]"
+                );
             }
             default -> throw new UnsupportedOperationException("unsupported element type [" + type + "]");
         };

@@ -37,7 +37,7 @@ public class InferenceServiceNodeLocalRateLimitCalculatorTests extends ESIntegTe
         var nodeNames = internalCluster().startNodes(numNodes);
         ensureStableCluster(numNodes);
 
-        InferenceServiceNodeLocalRateLimitCalculator.RateLimitAssignment firstAssignment = null;
+        RateLimitAssignment firstAssignment = null;
 
         for (String nodeName : nodeNames) {
             var calculator = internalCluster().getInstance(InferenceServiceNodeLocalRateLimitCalculator.class, nodeName);

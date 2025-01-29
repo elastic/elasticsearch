@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.inference.common;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.inference.InferenceService;
@@ -50,7 +49,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * - {@link HttpRequestSender} - Provides original rate limits that this calculator divides through the number of nodes
  *   responsible for a service/task type
  */
-public class InferenceServiceNodeLocalRateLimitCalculator implements ClusterStateListener {
+public class InferenceServiceNodeLocalRateLimitCalculator implements InferenceServiceRateLimitCalculator {
 
     public static final Integer DEFAULT_MAX_NODES_PER_GROUPING = 3;
 
@@ -80,13 +79,6 @@ public class InferenceServiceNodeLocalRateLimitCalculator implements ClusterStat
     private final InferenceServiceRegistry serviceRegistry;
 
     private final ConcurrentHashMap<String, Map<TaskType, RateLimitAssignment>> serviceAssignments;
-
-    /**
-     * Record for storing rate limit assignment information.
-     *
-     * @param responsibleNodes - nodes responsible for a certain service and task type
-     */
-    public record RateLimitAssignment(List<DiscoveryNode> responsibleNodes) {}
 
     public InferenceServiceNodeLocalRateLimitCalculator(ClusterService clusterService, InferenceServiceRegistry serviceRegistry) {
         clusterService.addListener(this);

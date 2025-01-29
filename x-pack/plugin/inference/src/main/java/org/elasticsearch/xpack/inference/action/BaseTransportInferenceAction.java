@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.action.task.StreamingTaskManager;
 import org.elasticsearch.xpack.inference.common.DelegatingProcessor;
 import org.elasticsearch.xpack.inference.common.InferenceServiceNodeLocalRateLimitCalculator;
+import org.elasticsearch.xpack.inference.common.InferenceServiceRateLimitCalculator;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.telemetry.InferenceStats;
 import org.elasticsearch.xpack.inference.telemetry.InferenceTimer;
@@ -78,7 +79,7 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
     private final InferenceServiceRegistry serviceRegistry;
     private final InferenceStats inferenceStats;
     private final StreamingTaskManager streamingTaskManager;
-    private final InferenceServiceNodeLocalRateLimitCalculator inferenceServiceNodeLocalRateLimitCalculator;
+    private final InferenceServiceRateLimitCalculator inferenceServiceRateLimitCalculator;
     private final NodeClient nodeClient;
     private final ThreadPool threadPool;
     private final TransportService transportService;
@@ -94,7 +95,7 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
         InferenceStats inferenceStats,
         StreamingTaskManager streamingTaskManager,
         Writeable.Reader<Request> requestReader,
-        InferenceServiceNodeLocalRateLimitCalculator inferenceServiceNodeLocalRateLimitCalculator,
+        InferenceServiceRateLimitCalculator inferenceServiceNodeLocalRateLimitCalculator,
         NodeClient nodeClient,
         ThreadPool threadPool
     ) {
@@ -104,7 +105,7 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
         this.serviceRegistry = serviceRegistry;
         this.inferenceStats = inferenceStats;
         this.streamingTaskManager = streamingTaskManager;
-        this.inferenceServiceNodeLocalRateLimitCalculator = inferenceServiceNodeLocalRateLimitCalculator;
+        this.inferenceServiceRateLimitCalculator = inferenceServiceNodeLocalRateLimitCalculator;
         this.nodeClient = nodeClient;
         this.threadPool = threadPool;
         this.transportService = transportService;
@@ -194,12 +195,12 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
         var modelTaskType = unparsedModel.taskType();
 
         // Rerouting not supported or request was already rerouted
-        if (inferenceServiceNodeLocalRateLimitCalculator.isTaskTypeReroutingSupported(serviceName, modelTaskType) == false
+        if (inferenceServiceRateLimitCalculator.isTaskTypeReroutingSupported(serviceName, modelTaskType) == false
             || request.hasBeenRerouted()) {
             return NodeRoutingDecision.handleLocally();
         }
 
-        var rateLimitAssignment = inferenceServiceNodeLocalRateLimitCalculator.getRateLimitAssignment(serviceName, modelTaskType);
+        var rateLimitAssignment = inferenceServiceRateLimitCalculator.getRateLimitAssignment(serviceName, modelTaskType);
 
         // No assignment yet
         if (rateLimitAssignment == null) {

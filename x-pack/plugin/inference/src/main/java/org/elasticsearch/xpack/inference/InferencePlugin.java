@@ -73,6 +73,7 @@ import org.elasticsearch.xpack.inference.action.TransportUnifiedCompletionInfere
 import org.elasticsearch.xpack.inference.action.TransportUpdateInferenceModelAction;
 import org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilter;
 import org.elasticsearch.xpack.inference.common.InferenceServiceNodeLocalRateLimitCalculator;
+import org.elasticsearch.xpack.inference.common.NoopNodeLocalRateLimitCalculator;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.external.amazonbedrock.AmazonBedrockRequestSender;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
@@ -323,6 +324,8 @@ public class InferencePlugin extends Plugin
         // if the rate limiting feature flags are enabled
         if (INFERENCE_API_CLUSTER_AWARE_RATE_LIMITING_FEATURE_FLAG.isEnabled()) {
             components.add(new InferenceServiceNodeLocalRateLimitCalculator(services.clusterService(), serviceRegistry));
+        } else {
+            components.add(new NoopNodeLocalRateLimitCalculator());
         }
 
         return components;

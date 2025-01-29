@@ -187,7 +187,7 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
     }
 
     private NodeRoutingDecision determineRouting(String serviceName, Request request, UnparsedModel unparsedModel) {
-        if(INFERENCE_API_CLUSTER_AWARE_RATE_LIMITING_FEATURE_FLAG.isEnabled() == false){
+        if (INFERENCE_API_CLUSTER_AWARE_RATE_LIMITING_FEATURE_FLAG.isEnabled() == false) {
             return NodeRoutingDecision.handleLocally();
         }
 

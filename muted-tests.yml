@@ -299,6 +299,9 @@ tests:
 - class: org.elasticsearch.xpack.security.authc.jwt.JwtRealmSingleNodeTests
   method: testActivateProfileForJWT
   issue: https://github.com/elastic/elasticsearch/issues/120983
+- class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
+  method: test {yaml=cluster.health/20_request_timeout/cluster health request timeout waiting for active shards}
+  issue: https://github.com/elastic/elasticsearch/issues/121130
 
 # Examples:
 #

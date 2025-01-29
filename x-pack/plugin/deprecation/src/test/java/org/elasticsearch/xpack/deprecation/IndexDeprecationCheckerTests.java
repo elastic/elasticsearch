@@ -30,6 +30,7 @@ import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 import org.elasticsearch.xpack.core.transform.transforms.DestConfig;
+import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 
 import java.util.ArrayList;
@@ -510,7 +511,13 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
         for (Map.Entry<String, List<String>> entry : indexToTransform.entrySet()) {
             String index = entry.getKey();
             for (String transform : entry.getValue()) {
-                transforms.add(TransformConfig.builder().setId(transform).setDest(new DestConfig(index, List.of(), null)).build());
+                transforms.add(
+                    TransformConfig.builder()
+                        .setId(transform)
+                        .setSource(new SourceConfig(randomAlphaOfLength(10)))
+                        .setDest(new DestConfig(index, List.of(), null))
+                        .build()
+                );
             }
         }
         TransportDeprecationInfoAction.PrecomputedData precomputedData = new TransportDeprecationInfoAction.PrecomputedData();

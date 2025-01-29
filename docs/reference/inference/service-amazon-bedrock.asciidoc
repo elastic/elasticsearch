@@ -100,8 +100,9 @@ Supported providers include:
 
 `model`:::
 (Required, string)
-The base model ID or an ARN to a custom model based on a foundational model.
+The base model ID or an ARN to a custom model based on a foundation model.
 The base model IDs can be found in the https://docs.aws.amazon.com/bedrock/latest/userguide/model-ids.html[Amazon Bedrock model IDs] documentation.
+The foundation models can be found in the https://docs.aws.amazon.com/bedrock/latest/userguide/models-supported.html[Amazon Bedrock supported foundation models] documentation.
 Note that the model ID must be available for the provider chosen, and your IAM user must have access to the model.
 
 `region`:::

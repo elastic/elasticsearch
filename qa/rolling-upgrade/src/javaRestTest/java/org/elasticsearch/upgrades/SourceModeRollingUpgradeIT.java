@@ -50,22 +50,9 @@ public class SourceModeRollingUpgradeIT extends AbstractRollingUpgradeTestCase {
             putComponentTemplateRequest.setOptions(expectWarnings(SourceFieldMapper.DEPRECATION_WARNING));
             putComponentTemplateRequest.setJsonEntity(storedSourceMapping);
             assertOK(client().performRequest(putComponentTemplateRequest));
-
-            var request = new Request("GET", "/_migration/deprecations");
-            var nodeSettings = (Map<?, ?>) ((List<?>) entityAsMap(client().performRequest(request)).get("node_settings")).getFirst();
-            assertThat(nodeSettings.get("message"), equalTo(SourceFieldMapper.DEPRECATION_WARNING));
-            assertThat(
-                (String) nodeSettings.get("details"),
-                containsString(SourceFieldMapper.DEPRECATION_WARNING + " Affected component templates: [" + templateName + "]")
-            );
+            assertDeprecationWarningForTemplate(templateName);
         } else if (isUpgradedCluster()) {
-            var request = new Request("GET", "/_migration/deprecations");
-            var nodeSettings = (Map<?, ?>) ((List<?>) entityAsMap(client().performRequest(request)).get("node_settings")).getFirst();
-            assertThat(nodeSettings.get("message"), equalTo(SourceFieldMapper.DEPRECATION_WARNING));
-            assertThat(
-                (String) nodeSettings.get("details"),
-                containsString(SourceFieldMapper.DEPRECATION_WARNING + " Affected component templates: [" + templateName + "]")
-            );
+            assertDeprecationWarningForTemplate(templateName);
         }
     }
 
@@ -87,17 +74,24 @@ public class SourceModeRollingUpgradeIT extends AbstractRollingUpgradeTestCase {
             putComponentTemplateRequest.setOptions(expectWarnings(SourceFieldMapper.DEPRECATION_WARNING));
             putComponentTemplateRequest.setJsonEntity(storedSourceMapping);
             assertOK(client().performRequest(putComponentTemplateRequest));
-
-            var request = new Request("GET", "/_migration/deprecations");
-            var nodeSettings = (Map<?, ?>) ((List<?>) entityAsMap(client().performRequest(request)).get("node_settings")).getFirst();
-            assertThat(nodeSettings.get("message"), equalTo(SourceFieldMapper.DEPRECATION_WARNING));
-            assertThat(
-                (String) nodeSettings.get("details"),
-                containsString(SourceFieldMapper.DEPRECATION_WARNING + " Affected component templates: [" + templateName + "]")
-            );
+            assertDeprecationWarningForTemplate(templateName);
         } else if (isUpgradedCluster()) {
-            var request = new Request("GET", "/_migration/deprecations");
-            var nodeSettings = (Map<?, ?>) ((List<?>) entityAsMap(client().performRequest(request)).get("node_settings")).getFirst();
+            assertDeprecationWarningForTemplate(templateName);
+        }
+    }
+
+    private void assertDeprecationWarningForTemplate(String templateName) throws IOException {
+        var request = new Request("GET", "/_migration/deprecations");
+        var response = entityAsMap(client().performRequest(request));
+        if (response.containsKey("templates")) {
+            // Check the newer version of the deprecation API that contains the templates section
+            Map<?, ?> issuesByTemplate = (Map<?, ?>) response.get("templates");
+            assertThat(issuesByTemplate.containsKey(templateName), equalTo(true));
+            var templateIssues = (List<?>) issuesByTemplate.get(templateName);
+            assertThat(((Map<?, ?>) templateIssues.getFirst()).get("message"), equalTo(SourceFieldMapper.DEPRECATION_WARNING));
+        } else {
+            // Bwc version with 8.18 until https://github.com/elastic/elasticsearch/pull/120505/ gets backported, clean up after backport
+            var nodeSettings = (Map<?, ?>) ((List<?>) response.get("node_settings")).getFirst();
             assertThat(nodeSettings.get("message"), equalTo(SourceFieldMapper.DEPRECATION_WARNING));
             assertThat(
                 (String) nodeSettings.get("details"),

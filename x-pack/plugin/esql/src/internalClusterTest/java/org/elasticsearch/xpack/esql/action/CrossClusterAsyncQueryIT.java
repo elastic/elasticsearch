@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionFuture;
@@ -146,8 +147,8 @@ public class CrossClusterAsyncQueryIT extends AbstractMultiClustersTestCase {
                 executionInfo.clusterAliases(),
                 equalTo(Set.of(REMOTE_CLUSTER_1, REMOTE_CLUSTER_2, RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY))
             );
-            assertThat(executionInfo.getClusterStateCount(EsqlExecutionInfo.Cluster.Status.RUNNING), equalTo(2));
-            assertThat(executionInfo.getClusterStateCount(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL), equalTo(1));
+            assertThat(executionInfo.getClusterStates(EsqlExecutionInfo.Cluster.Status.RUNNING).count(), equalTo(2L));
+            assertThat(executionInfo.getClusterStates(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL).count(), equalTo(1L));
 
             EsqlExecutionInfo.Cluster clusterA = executionInfo.getCluster(REMOTE_CLUSTER_1);
             // Should be done and successful
@@ -265,6 +266,7 @@ public class CrossClusterAsyncQueryIT extends AbstractMultiClustersTestCase {
     }
 
     public void testStopQuery() throws Exception {
+        assumeTrue("Pragme does not work in release builds", Build.current().isSnapshot());
         Map<String, Object> testClusterInfo = setupClusters(3);
         int localNumShards = (Integer) testClusterInfo.get("local.num_shards");
         int remote1NumShards = (Integer) testClusterInfo.get("remote1.num_shards");

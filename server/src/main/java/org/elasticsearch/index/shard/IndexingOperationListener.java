@@ -68,6 +68,9 @@ public interface IndexingOperationListener {
      * Called when a {@link org.elasticsearch.action.bulk.TransportShardBulkAction} is about to perform index and/or delete operation(s)
      * on a primary shard.
      *
+     * This is called from a transport thread and therefore the function should be lightweight and not block the thread. The acquired
+     * listener(s) can be asynchronously completed on another thread at a later time.
+     *
      * @param indexShard the shard the bulk is about to be performed on
      * @param proceedListenerSupplier call this immediately to get a listener which must be completed so that the bulk can proceed.
      */

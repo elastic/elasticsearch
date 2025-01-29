@@ -1190,12 +1190,11 @@ public class MetadataIndexStateService {
                     // verified-before-close in the first place.
                     var compatibilityVersion = indexMetadata.getCompatibilityVersion();
                     if (compatibilityVersion.before(minIndexCompatibilityVersion) && hasReadOnlyBlocks(indexMetadata) == false) {
-                        if (VERIFIED_BEFORE_CLOSE_SETTING.get(indexMetadata.getSettings())) {
-                            // at least set a write block if the index was verified-before-close, but not verified-read-only, at the time
-                            // the cluster was upgraded
-                            updatedSettings.put(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey(), true);
+                        if (isIndexVerifiedBeforeClosed(indexMetadata)) {
                             updatedSettings.put(VERIFIED_READ_ONLY_SETTING.getKey(), true);
+                            // at least set a write block if the index was verified-before-close at the time the cluster was upgraded
                             blocks.addIndexBlock(index.getName(), APIBlock.WRITE.block);
+                            updatedSettings.put(APIBlock.WRITE.settingName(), true);
                         } // or else, the following indexMetadataVerifier.verifyIndexMetadata() should throw.
                     }
 

@@ -320,6 +320,11 @@ tests:
 - class: org.elasticsearch.xpack.security.profile.ProfileIntegTests
   method: testGetUsersWithProfileUidWhenProfileIndexDoesNotExists
   issue: https://github.com/elastic/elasticsearch/issues/121179
+- class: org.elasticsearch.xpack.security.profile.ProfileIntegTests
+  method: testSetEnabled
+  issue: https://github.com/elastic/elasticsearch/issues/121183
+- class: org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizerTests
+  issue: https://github.com/elastic/elasticsearch/issues/121185
 
 # Examples:
 #

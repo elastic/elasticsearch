@@ -45,7 +45,6 @@ public class DeprecationChecks {
                 NodeDeprecationChecks::checkExporterPipelineMasterTimeoutSetting,
                 NodeDeprecationChecks::checkExporterCreateLegacyTemplateSetting,
                 NodeDeprecationChecks::checkMonitoringSettingHistoryDuration,
-                NodeDeprecationChecks::checkMonitoringSettingHistoryDuration,
                 NodeDeprecationChecks::checkMonitoringSettingCollectIndexRecovery,
                 NodeDeprecationChecks::checkMonitoringSettingCollectIndices,
                 NodeDeprecationChecks::checkMonitoringSettingCollectCcrTimeout,

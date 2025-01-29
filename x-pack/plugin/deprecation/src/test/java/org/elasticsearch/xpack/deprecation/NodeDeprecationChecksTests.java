@@ -244,7 +244,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             issues,
             hasItem(
                 new DeprecationIssue(
-                    DeprecationIssue.Level.WARNING,
+                    DeprecationIssue.Level.CRITICAL,
                     "setting [" + settingKey + "] is deprecated and will be removed after 8.0",
                     expectedUrl,
                     "the setting [" + settingKey + "] is currently set to [" + value + "], remove this setting",
@@ -268,7 +268,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             issues,
             hasItem(
                 new DeprecationIssue(
-                    DeprecationIssue.Level.WARNING,
+                    DeprecationIssue.Level.CRITICAL,
                     "The [" + settingKey + "] settings are deprecated and will be removed after 8.0",
                     expectedUrl,
                     "Remove the following settings: [" + settingKey + "]",
@@ -293,7 +293,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             issues,
             hasItem(
                 new DeprecationIssue(
-                    DeprecationIssue.Level.WARNING,
+                    DeprecationIssue.Level.CRITICAL,
                     "The [" + settingKey + ".*] settings are deprecated and will be removed after 8.0",
                     expectedUrl,
                     "Remove the following settings: [" + subSettingKey + "]",
@@ -319,7 +319,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             issues,
             hasItem(
                 new DeprecationIssue(
-                    DeprecationIssue.Level.WARNING,
+                    DeprecationIssue.Level.CRITICAL,
                     "The [" + settingKey + "] settings are deprecated and will be removed after 8.0",
                     expectedUrl,
                     "Remove the following settings from the keystore: [" + settingKey + "]",
@@ -467,7 +467,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             issues,
             hasItem(
                 new DeprecationIssue(
-                    DeprecationIssue.Level.WARNING,
+                    DeprecationIssue.Level.CRITICAL,
                     "The [xpack.monitoring.exporters.test.use_ingest] settings are deprecated and will be removed after 8.0",
                     expectedUrl,
                     "Remove the following settings: [xpack.monitoring.exporters.test.use_ingest]",
@@ -493,7 +493,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             issues,
             hasItem(
                 new DeprecationIssue(
-                    DeprecationIssue.Level.WARNING,
+                    DeprecationIssue.Level.CRITICAL,
                     "The [xpack.monitoring.exporters.test.index.pipeline.master_timeout] "
                         + "settings are deprecated and will be removed after 8.0",
                     expectedUrl,
@@ -518,7 +518,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             issues,
             hasItem(
                 new DeprecationIssue(
-                    DeprecationIssue.Level.WARNING,
+                    DeprecationIssue.Level.CRITICAL,
                     "The [xpack.monitoring.exporters.test.index.template.create_legacy_templates] settings are deprecated and will be "
                         + "removed after 8.0",
                     expectedUrl,
@@ -806,7 +806,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
 
         Map<String, Object> meta = null;
         final DeprecationIssue expected = new DeprecationIssue(
-            DeprecationIssue.Level.WARNING,
+            DeprecationIssue.Level.CRITICAL,
             "The [" + concreteSettingKey + "] settings are deprecated and will be removed after 8.0",
             "https://ela.st/es-deprecation-7-monitoring-exporter-use-ingest-setting",
             "Remove the following settings: [" + concreteSettingKey + "]",

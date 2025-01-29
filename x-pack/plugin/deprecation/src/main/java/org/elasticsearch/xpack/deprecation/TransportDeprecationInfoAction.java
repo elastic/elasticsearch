@@ -6,12 +6,11 @@
  */
 package org.elasticsearch.xpack.deprecation;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.GroupedActionListener;
+import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.client.internal.OriginSettingClient;
@@ -52,7 +51,6 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
     DeprecationInfoAction.Request,
     DeprecationInfoAction.Response> {
     private static final List<DeprecationChecker> PLUGIN_CHECKERS = List.of(new MlDeprecationChecker());
-    private static final Logger logger = LogManager.getLogger(TransportDeprecationInfoAction.class);
 
     private final NodeClient client;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
@@ -89,9 +87,10 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
         this.settings = settings;
         this.xContentRegistry = xContentRegistry;
         skipTheseDeprecations = DeprecationChecks.SKIP_DEPRECATIONS_SETTING.get(settings);
-        nodeDeprecationChecker = new NodeDeprecationChecker();
+        nodeDeprecationChecker = new NodeDeprecationChecker(threadPool);
         clusterDeprecationChecker = new ClusterDeprecationChecker(xContentRegistry);
         resourceDeprecationCheckers = List.of(
+            new IndexDeprecationChecker(indexNameExpressionResolver),
             new DataStreamDeprecationChecker(indexNameExpressionResolver),
             new TemplateDeprecationChecker(),
             new IlmPolicyDeprecationChecker()
@@ -99,62 +98,6 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
         // Safe to register this here because it happens synchronously before the cluster service is started:
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(DeprecationChecks.SKIP_DEPRECATIONS_SETTING, this::setSkipDeprecations);
-    }
-
-    /**
-     * This is the function that does the bulk of the logic of taking the appropriate ES dependencies
-     * like {@link NodeInfo}, {@link ClusterState}. Alongside these objects and the list of deprecation checks,
-     * this function will run through all the checks and build out the final list of issues that exist in the
-     * cluster.
-     *
-     * @param state The cluster state
-     * @param indexNameExpressionResolver Used to resolve indices into their concrete names
-     * @param request The originating request containing the index expressions to evaluate
-     * @param nodeSettingsIssues The response containing the deprecation issues found on each node
-     * @param clusterDeprecationChecker The checker that provides the cluster settings deprecations warnings
-     * @param pluginSettingIssues this map gets modified to move transform deprecation issues into cluster_settings
-     * @param skipTheseDeprecatedSettings the settings that will be removed from cluster metadata and the index metadata of all the
-     *                                    indexes specified by indexNames
-     * @param resourceDeprecationCheckers these are checkers that take as input the cluster state and return a map from resource type
-     *                                    to issues grouped by the resource name.
-     * @param transformConfigs the transform configuration that have been already retrieved
-     * @return The list of deprecation issues found in the cluster
-     */
-    public static DeprecationInfoAction.Response createResponse(
-        ClusterState state,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        DeprecationInfoAction.Request request,
-        List<DeprecationIssue> nodeSettingsIssues,
-        ClusterDeprecationChecker clusterDeprecationChecker,
-        Map<String, List<DeprecationIssue>> pluginSettingIssues,
-        List<String> skipTheseDeprecatedSettings,
-        List<ResourceDeprecationChecker> resourceDeprecationCheckers,
-        List<TransformConfig> transformConfigs
-    ) {
-        assert Transports.assertNotTransportThread("walking mappings in indexSettingsChecks is expensive");
-        // Allow system index access here to prevent deprecation warnings when we call this API
-        String[] concreteIndexNames = indexNameExpressionResolver.concreteIndexNames(state, request);
-        ClusterState stateWithSkippedSettingsRemoved = removeSkippedSettings(state, concreteIndexNames, skipTheseDeprecatedSettings);
-        List<DeprecationIssue> clusterSettingsIssues = clusterDeprecationChecker.check(stateWithSkippedSettingsRemoved, transformConfigs);
-
-        Map<String, Map<String, List<DeprecationIssue>>> resourceDeprecationIssues = new HashMap<>();
-        for (ResourceDeprecationChecker resourceDeprecationChecker : resourceDeprecationCheckers) {
-            Map<String, List<DeprecationIssue>> issues = resourceDeprecationChecker.check(stateWithSkippedSettingsRemoved, request);
-            if (issues.isEmpty() == false) {
-                resourceDeprecationIssues.put(resourceDeprecationChecker.getName(), issues);
-            }
-        }
-
-        return new DeprecationInfoAction.Response(
-            clusterSettingsIssues,
-            nodeSettingsIssues,
-            resourceDeprecationIssues,
-            pluginSettingIssues
-        );
-    }
-
-    private <T> void setSkipDeprecations(List<String> skipDeprecations) {
-        this.skipTheseDeprecations = Collections.unmodifiableList(skipDeprecations);
     }
 
     @Override
@@ -170,40 +113,158 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
         ClusterState state,
         final ActionListener<DeprecationInfoAction.Response> listener
     ) {
-        nodeDeprecationChecker.check(client, listener.delegateFailureAndWrap((l, nodeDeprecationIssues) -> {
-            transformConfigs(l.delegateFailureAndWrap((ll, transformConfigs) -> {
-                DeprecationChecker.Components components = new DeprecationChecker.Components(
-                    xContentRegistry,
-                    settings,
-                    new OriginSettingClient(client, ClientHelper.DEPRECATION_ORIGIN)
-                );
-                pluginSettingIssues(
-                    PLUGIN_CHECKERS,
-                    components,
-                    new ThreadedActionListener<>(
-                        client.threadPool().generic(),
-                        ll.map(
-                            deprecationIssues -> createResponse(
-                                state,
-                                indexNameExpressionResolver,
-                                request,
-                                nodeDeprecationIssues,
-                                clusterDeprecationChecker,
-                                deprecationIssues,
-                                skipTheseDeprecations,
-                                List.of(
-                                    new IndexDeprecationChecker(indexNameExpressionResolver, indexToTransformIds(transformConfigs)),
-                                    new DataStreamDeprecationChecker(indexNameExpressionResolver),
-                                    new TemplateDeprecationChecker(),
-                                    new IlmPolicyDeprecationChecker()
-                                ),
-                                transformConfigs
-                            )
-                        )
+        Context context = new Context();
+        try (var refs = new RefCountingListener(checkAndCreateResponse(state, request, context, listener))) {
+            nodeDeprecationChecker.check(
+                client,
+                refs.acquire().delegateFailureAndWrap((l, nodeIssues) -> context.setOnceNodeSettingsIssues(nodeIssues))
+            );
+            transformConfigs(
+                refs.acquire().delegateFailureAndWrap((l, transformConfigs) -> context.setOnceTransformConfigs(transformConfigs))
+            );
+            DeprecationChecker.Components components = new DeprecationChecker.Components(
+                xContentRegistry,
+                settings,
+                new OriginSettingClient(client, ClientHelper.DEPRECATION_ORIGIN)
+            );
+            pluginSettingIssues(
+                PLUGIN_CHECKERS,
+                components,
+                refs.acquire().delegateFailureAndWrap((l, pluginIssues) -> context.setOncePluginIssues(pluginIssues))
+            );
+        }
+    }
+
+    /**
+     * This is the function that does the bulk of the logic of combining the necessary dependencies together, including the cluster state,
+     * the precalculated information in {@code context} with the remaining checkers such as the cluster setting checker and the resource
+     * checkers.This function will run a significant part of the checks and build out the final list of issues that exist in the
+     * cluster. Because of that, it's important that it does not run in the transport thread that's why it's combined with
+     * {@link #executeInGenericThreadpool(ActionListener)}.
+     *
+     * @param state                       The cluster state
+     * @param request                     The originating request containing the index expressions to evaluate
+     * @param context                     data from remote requests necessary to construct the response
+     * @param responseListener            The listener expecting the {@link DeprecationInfoAction.Response}
+     * @return The listener that should be executed after all the remote requests have completed and the {@link Context} is initialised.
+     */
+    public ActionListener<Void> checkAndCreateResponse(
+        ClusterState state,
+        DeprecationInfoAction.Request request,
+        Context context,
+        ActionListener<DeprecationInfoAction.Response> responseListener
+    ) {
+        return executeInGenericThreadpool(
+            ActionListener.running(
+                () -> responseListener.onResponse(
+                    checkAndCreateResponse(
+                        state,
+                        indexNameExpressionResolver,
+                        request,
+                        skipTheseDeprecations,
+                        clusterDeprecationChecker,
+                        resourceDeprecationCheckers,
+                        context
                     )
-                );
-            }));
-        }));
+                )
+            )
+        );
+    }
+
+    /**
+     * This is the function that does the bulk of the logic of combining the necessary dependencies together, including the cluster state,
+     * the precalculated information in {@code context} with the remaining checkers such as the cluster setting checker and the resource
+     * checkers.This function will run a significant part of the checks and build out the final list of issues that exist in the
+     * cluster. It's important that it does not run in the transport thread that's why it's combined with
+     * {@link #checkAndCreateResponse(ClusterState, DeprecationInfoAction.Request, Context, ActionListener)}. We keep this separated
+     * for testing purposes.
+     *
+     * @param state                       The cluster state
+     * @param indexNameExpressionResolver Used to resolve indices into their concrete names
+     * @param request                     The originating request containing the index expressions to evaluate
+     * @param skipTheseDeprecatedSettings the settings that will be removed from cluster metadata and the index metadata of all the
+     *                                    indexes specified by indexNames
+     * @param clusterDeprecationChecker   The checker that provides the cluster settings deprecations warnings
+     * @param resourceDeprecationCheckers these are checkers that take as input the cluster state and return a map from resource type
+     *                                    to issues grouped by the resource name.
+     * @param context                     data from remote requests necessary to construct the response
+     * @return The list of deprecation issues found in the cluster
+     */
+    static DeprecationInfoAction.Response checkAndCreateResponse(
+        ClusterState state,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        DeprecationInfoAction.Request request,
+        List<String> skipTheseDeprecatedSettings,
+        ClusterDeprecationChecker clusterDeprecationChecker,
+        List<ResourceDeprecationChecker> resourceDeprecationCheckers,
+        Context context
+    ) {
+        assert Transports.assertNotTransportThread("walking mappings in indexSettingsChecks is expensive");
+        // Allow system index access here to prevent deprecation warnings when we call this API
+        String[] concreteIndexNames = indexNameExpressionResolver.concreteIndexNames(state, request);
+        ClusterState stateWithSkippedSettingsRemoved = removeSkippedSettings(state, concreteIndexNames, skipTheseDeprecatedSettings);
+        List<DeprecationIssue> clusterSettingsIssues = clusterDeprecationChecker.check(
+            stateWithSkippedSettingsRemoved,
+            context.transformConfigs()
+        );
+
+        Map<String, Map<String, List<DeprecationIssue>>> resourceDeprecationIssues = new HashMap<>();
+        for (ResourceDeprecationChecker resourceDeprecationChecker : resourceDeprecationCheckers) {
+            Map<String, List<DeprecationIssue>> issues = resourceDeprecationChecker.check(
+                stateWithSkippedSettingsRemoved,
+                request,
+                context
+            );
+            if (issues.isEmpty() == false) {
+                resourceDeprecationIssues.put(resourceDeprecationChecker.getName(), issues);
+            }
+        }
+
+        return new DeprecationInfoAction.Response(
+            clusterSettingsIssues,
+            context.nodeSettingsIssues(),
+            resourceDeprecationIssues,
+            context.pluginIssues()
+        );
+    }
+
+    private <T> void setSkipDeprecations(List<String> skipDeprecations) {
+        this.skipTheseDeprecations = Collections.unmodifiableList(skipDeprecations);
+    }
+
+    /**
+     * This class holds the results of remote requests. These can be either checks that require remote requests such as
+     * {@code nodeSettingsIssues} and {@code pluginIssues} or metadata needed for more than one types of checks such as
+     * {@code transformConfigs}.
+     */
+    public static class Context {
+        private final SetOnce<List<DeprecationIssue>> nodeSettingsIssues = new SetOnce<>();
+        private final SetOnce<Map<String, List<DeprecationIssue>>> pluginIssues = new SetOnce<>();
+        private final SetOnce<List<TransformConfig>> transformConfigs = new SetOnce<>();
+
+        public void setOnceNodeSettingsIssues(List<DeprecationIssue> nodeSettingsIssues) {
+            this.nodeSettingsIssues.set(nodeSettingsIssues);
+        }
+
+        public void setOncePluginIssues(Map<String, List<DeprecationIssue>> pluginIssues) {
+            this.pluginIssues.set(pluginIssues);
+        }
+
+        public void setOnceTransformConfigs(List<TransformConfig> transformConfigs) {
+            this.transformConfigs.set(transformConfigs);
+        }
+
+        public List<DeprecationIssue> nodeSettingsIssues() {
+            return nodeSettingsIssues.get();
+        }
+
+        public Map<String, List<DeprecationIssue>> pluginIssues() {
+            return pluginIssues.get();
+        }
+
+        public List<TransformConfig> transformConfigs() {
+            return transformConfigs.get();
+        }
     }
 
     /**
@@ -320,34 +381,21 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
         client.execute(
             GetTransformAction.INSTANCE,
             request,
-            new ThreadedActionListener<>(
-                threadPool.generic(),
-                currentPageListener.delegateFailureAndWrap((delegate, getTransformConfigResponse) -> {
-                    var currentPageOfConfigs = getTransformConfigResponse.getTransformConfigurations().stream();
-                    var currentPageSize = currentPage.getFrom() + currentPage.getSize();
-                    var totalTransformConfigCount = getTransformConfigResponse.getTransformConfigurationCount();
-                    if (totalTransformConfigCount >= currentPageSize) {
-                        var nextPage = new PageParams(currentPageSize, PageParams.DEFAULT_SIZE);
-                        transformConfigs(
-                            nextPage,
-                            delegate.map(nextPageOfConfigs -> Stream.concat(currentPageOfConfigs, nextPageOfConfigs))
-                        );
-                    } else {
-                        delegate.onResponse(currentPageOfConfigs);
-                    }
-                })
-            )
+            executeInGenericThreadpool(currentPageListener.delegateFailureAndWrap((delegate, getTransformConfigResponse) -> {
+                var currentPageOfConfigs = getTransformConfigResponse.getTransformConfigurations().stream();
+                var currentPageSize = currentPage.getFrom() + currentPage.getSize();
+                var totalTransformConfigCount = getTransformConfigResponse.getTransformConfigurationCount();
+                if (totalTransformConfigCount >= currentPageSize) {
+                    var nextPage = new PageParams(currentPageSize, PageParams.DEFAULT_SIZE);
+                    transformConfigs(nextPage, delegate.map(nextPageOfConfigs -> Stream.concat(currentPageOfConfigs, nextPageOfConfigs)));
+                } else {
+                    delegate.onResponse(currentPageOfConfigs);
+                }
+            }))
         );
     }
 
-    private Map<String, List<String>> indexToTransformIds(List<TransformConfig> transformConfigs) {
-        return transformConfigs.stream()
-            .collect(
-                Collectors.groupingBy(
-                    config -> config.getDestination().getIndex(),
-                    Collectors.mapping(TransformConfig::getId, Collectors.toList())
-                )
-            );
+    private <T> ActionListener<T> executeInGenericThreadpool(ActionListener<T> listener) {
+        return new ThreadedActionListener<>(threadPool.generic(), listener);
     }
-
 }

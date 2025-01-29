@@ -57,7 +57,7 @@ import static org.mockito.Mockito.when;
 
 public class TransportDeprecationInfoActionTests extends ESTestCase {
 
-    public void testCreateResponse() throws IOException {
+    public void testCheckAndCreateResponse() throws IOException {
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("_all");
         mapping.field("enabled", false);
         mapping.endObject().endObject();
@@ -114,16 +114,18 @@ public class TransportDeprecationInfoActionTests extends ESTestCase {
         List<DeprecationIssue> nodeDeprecationIssues = nodeIssueFound ? List.of(foundIssue) : List.of();
 
         DeprecationInfoAction.Request request = new DeprecationInfoAction.Request(randomTimeValue(), Strings.EMPTY_ARRAY);
-        DeprecationInfoAction.Response response = TransportDeprecationInfoAction.createResponse(
+        TransportDeprecationInfoAction.Context context = new TransportDeprecationInfoAction.Context();
+        context.setOnceTransformConfigs(List.of());
+        context.setOncePluginIssues(Map.of());
+        context.setOnceNodeSettingsIssues(nodeDeprecationIssues);
+        DeprecationInfoAction.Response response = TransportDeprecationInfoAction.checkAndCreateResponse(
             state,
             resolver,
             request,
-            nodeDeprecationIssues,
-            clusterDeprecationChecker,
-            Map.of(),
             List.of(),
+            clusterDeprecationChecker,
             resourceCheckers,
-            List.of()
+            context
         );
 
         if (clusterIssueFound) {
@@ -229,18 +231,19 @@ public class TransportDeprecationInfoActionTests extends ESTestCase {
             cs.metadata().templatesV2().values().forEach(template -> visibleIndexTemplateSettings.set(template.template().settings()));
             return Map.of();
         }));
-
+        TransportDeprecationInfoAction.Context context = new TransportDeprecationInfoAction.Context();
+        context.setOnceTransformConfigs(List.of());
+        context.setOncePluginIssues(Map.of());
+        context.setOnceNodeSettingsIssues(List.of());
         DeprecationInfoAction.Request request = new DeprecationInfoAction.Request(randomTimeValue(), Strings.EMPTY_ARRAY);
-        TransportDeprecationInfoAction.createResponse(
+        TransportDeprecationInfoAction.checkAndCreateResponse(
             state,
             resolver,
             request,
-            List.of(),
-            clusterDeprecationChecker,
-            Map.of(),
             List.of("some.deprecated.property", "some.other.*.deprecated.property"),
+            clusterDeprecationChecker,
             resourceCheckers,
-            List.of()
+            context
         );
 
         settingsBuilder = settings(IndexVersion.current());
@@ -340,7 +343,11 @@ public class TransportDeprecationInfoActionTests extends ESTestCase {
         return new ResourceDeprecationChecker() {
 
             @Override
-            public Map<String, List<DeprecationIssue>> check(ClusterState clusterState, DeprecationInfoAction.Request request) {
+            public Map<String, List<DeprecationIssue>> check(
+                ClusterState clusterState,
+                DeprecationInfoAction.Request request,
+                TransportDeprecationInfoAction.Context context
+            ) {
                 return check.apply(clusterState, request);
             }
 

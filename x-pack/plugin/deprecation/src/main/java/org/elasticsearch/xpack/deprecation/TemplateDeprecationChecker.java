@@ -45,7 +45,11 @@ public class TemplateDeprecationChecker implements ResourceDeprecationChecker {
      * @return the name of the data streams that have violated the checks with their respective warnings.
      */
     @Override
-    public Map<String, List<DeprecationIssue>> check(ClusterState clusterState, DeprecationInfoAction.Request request) {
+    public Map<String, List<DeprecationIssue>> check(
+        ClusterState clusterState,
+        DeprecationInfoAction.Request request,
+        TransportDeprecationInfoAction.Context ignored
+    ) {
         var indexTemplates = clusterState.metadata().templatesV2().entrySet();
         var componentTemplates = clusterState.metadata().componentTemplates().entrySet();
         if (indexTemplates.isEmpty() && componentTemplates.isEmpty()) {
@@ -58,7 +62,7 @@ public class TemplateDeprecationChecker implements ResourceDeprecationChecker {
 
             List<DeprecationIssue> issuesForSingleIndexTemplate = filterChecks(INDEX_TEMPLATE_CHECKS, c -> c.apply(template));
             if (issuesForSingleIndexTemplate.isEmpty() == false) {
-                issues.computeIfAbsent(name, ignored -> new ArrayList<>()).addAll(issuesForSingleIndexTemplate);
+                issues.computeIfAbsent(name, ignore -> new ArrayList<>()).addAll(issuesForSingleIndexTemplate);
             }
         }
         for (Map.Entry<String, ComponentTemplate> entry : componentTemplates) {
@@ -67,7 +71,7 @@ public class TemplateDeprecationChecker implements ResourceDeprecationChecker {
 
             List<DeprecationIssue> issuesForSingleIndexTemplate = filterChecks(COMPONENT_TEMPLATE_CHECKS, c -> c.apply(template));
             if (issuesForSingleIndexTemplate.isEmpty() == false) {
-                issues.computeIfAbsent(name, ignored -> new ArrayList<>()).addAll(issuesForSingleIndexTemplate);
+                issues.computeIfAbsent(name, ignore -> new ArrayList<>()).addAll(issuesForSingleIndexTemplate);
             }
         }
         return issues.isEmpty() ? Map.of() : issues;

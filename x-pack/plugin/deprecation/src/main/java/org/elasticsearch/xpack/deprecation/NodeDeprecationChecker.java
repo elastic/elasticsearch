@@ -11,8 +11,10 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
+import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
@@ -29,6 +31,11 @@ import java.util.stream.Collectors;
 public class NodeDeprecationChecker {
 
     private static final Logger logger = LogManager.getLogger(NodeDeprecationChecker.class);
+    private final ThreadPool threadPool;
+
+    public NodeDeprecationChecker(ThreadPool threadPool) {
+        this.threadPool = threadPool;
+    }
 
     public void check(Client client, ActionListener<List<DeprecationIssue>> listener) {
         NodesDeprecationCheckRequest nodeDepReq = new NodesDeprecationCheckRequest("_all");
@@ -37,7 +44,7 @@ public class NodeDeprecationChecker {
             ClientHelper.DEPRECATION_ORIGIN,
             NodesDeprecationCheckAction.INSTANCE,
             nodeDepReq,
-            listener.delegateFailureAndWrap((l, response) -> {
+            new ThreadedActionListener<>(threadPool.generic(), listener.delegateFailureAndWrap((l, response) -> {
                 if (response.hasFailures()) {
                     List<String> failedNodeIds = response.failures()
                         .stream()
@@ -49,7 +56,7 @@ public class NodeDeprecationChecker {
                     }
                 }
                 l.onResponse(reduceToDeprecationIssues(response));
-            })
+            }))
         );
     }
 

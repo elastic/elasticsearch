@@ -5,10 +5,11 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.rank.rrf;
+package org.elasticsearch.xpack.rank;
 
 import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.xpack.rank.rrf.RRFRetrieverBuilder;
 
 import java.util.Set;
 
@@ -18,11 +19,13 @@ import static org.elasticsearch.xpack.rank.rrf.RRFRetrieverBuilder.RRF_RETRIEVER
 /**
  * A set of features specifically for the rrf plugin.
  */
-public class RRFFeatures implements FeatureSpecification {
+public class RankRRFFeatures implements FeatureSpecification {
+
+    public static final NodeFeature LINEAR_RETRIEVER_SUPPORTED = new NodeFeature("linear_retriever_supported");
 
     @Override
     public Set<NodeFeature> getFeatures() {
-        return Set.of(RRFRetrieverBuilder.RRF_RETRIEVER_SUPPORTED, RRF_RETRIEVER_COMPOSITION_SUPPORTED);
+        return Set.of(RRFRetrieverBuilder.RRF_RETRIEVER_SUPPORTED, RRF_RETRIEVER_COMPOSITION_SUPPORTED, LINEAR_RETRIEVER_SUPPORTED);
     }
 
     @Override

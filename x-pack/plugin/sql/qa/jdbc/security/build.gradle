@@ -50,6 +50,7 @@ subprojects {
 
 
   tasks.withType(RestIntegTestTask).configureEach {
+    def taskName = name
     dependsOn copyTestClasses
     classpath += configurations.testArtifacts
     testClassesDirs = project.files(testArtifactsDir)

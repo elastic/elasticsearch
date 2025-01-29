@@ -18,6 +18,7 @@ import org.elasticsearch.dissect.DissectParser;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
@@ -525,7 +526,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     public PlanFactory visitJoinCommand(EsqlBaseParser.JoinCommandContext ctx) {
         var source = source(ctx);
-        if (false == Build.current().isSnapshot()) {
+        if (false == EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled()) {
             throw new ParsingException(source, "JOIN is in preview and only available in SNAPSHOT build");
         }
 

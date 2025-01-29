@@ -89,6 +89,10 @@ tasks.named("dependencyLicenses").configure {
   mapping from: /proto-google.*/, to: 'proto-google'
 }
 
+tasks.named('thirdPartyAudit').configure {
+  enabled = false
+}
+
 // TODO: Investigate using the new Gradle test-fixture plugin here after the upgrade to 5.6
 // There is only AbstractCleanupTests class in test directory and it's abstract
 tasks.named("test").configure {

@@ -21,7 +21,6 @@ import java.util.List;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.hamcrest.CoreMatchers.containsString;
-import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
@@ -270,7 +269,7 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
             FROM test METADATA _score
             | WHERE match(content, "fox") OR length(content) < 20
             | KEEP id, _score
-            | SORT _score DESC
+            | SORT _score DESC, id ASC
             """;
 
         try (var resp = run(query)) {
@@ -280,16 +279,15 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
             assertThat(values.size(), equalTo(3));
 
             assertThat(values.get(0).get(0), equalTo(1));
-            assertThat(values.get(1).get(0), equalTo(2));
-            assertThat(values.get(2).get(0), equalTo(6));
+            assertThat(values.get(1).get(0), equalTo(6));
+            assertThat(values.get(2).get(0), equalTo(2));
 
             // Matches full text query and non pushable query
-            assertThat((Double) values.get(0).get(1), greaterThan(2.0));
+            assertThat((Double) values.get(0).get(1), greaterThan(0.0));
             // Matches just non pushable query
-            assertThat((Double) values.get(1).get(1), equalTo(1.0));
+            assertThat((Double) values.get(1).get(1), greaterThan(0.0));
             // Matches just full text query
-            assertThat((Double) values.get(2).get(1), lessThan(1.0));
-            assertThat((Double) values.get(2).get(1), greaterThan(0.0));
+            assertThat((Double) values.get(2).get(1), equalTo(0.0));
         }
     }
 
@@ -319,24 +317,6 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
-    public void testScoresAreSimilarToPushable() {
-        var nonPushableQuery = """
-            FROM test METADATA _score
-            | WHERE match(content, "fox") OR (length(content) < 40 AND id > 3)
-            | KEEP id, _score
-            | SORT _score DESC
-            """;
-
-        var pushableQuery = """
-            FROM test METADATA _score
-            | WHERE match(content, "fox") OR (length < 40 AND id > 3)
-            | KEEP id, _score
-            | SORT _score DESC
-            """;
-
-        compareQueryResultsAndScores(nonPushableQuery, pushableQuery);
-    }
-
     public void testDisjunctionScoringWithNot() {
         var query = """
             FROM test METADATA _score
@@ -351,48 +331,14 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
             List<List<Object>> values = getValuesList(resp);
             assertThat(values.size(), equalTo(3));
 
-            assertThat(values.get(0).get(0), equalTo(4));
-            assertThat(values.get(1).get(0), equalTo(1));
+            assertThat(values.get(0).get(0), equalTo(1));
+            assertThat(values.get(1).get(0), equalTo(4));
             assertThat(values.get(2).get(0), equalTo(5));
 
-            // Matches NOT and non pushable query
-            assertThat((Double) values.get(0).get(1), equalTo(1.0));
-            // Matches just NOT
+            // Matches NOT and non pushable query gets score of 0.0
+            assertThat((Double) values.get(0).get(1), equalTo(0.0));
             assertThat((Double) values.get(1).get(1), equalTo(0.0));
             assertThat((Double) values.get(2).get(1), equalTo(0.0));
-        }
-    }
-
-    public void testScoresAreSimilarToPushableUsingNot() {
-        var nonPushableQuery = """
-            FROM test METADATA _score
-            | WHERE NOT(match(content, "fox")) OR (length(content) < 25 AND id > 3)
-            | KEEP id, _score
-            | SORT _score DESC, id ASC
-            """;
-
-        var pushableQuery = """
-            FROM test METADATA _score
-            | WHERE NOT(match(content, "fox")) OR (length < 25 AND id > 3)
-            | KEEP id, _score
-            | SORT _score DESC, id ASC
-            """;
-
-        compareQueryResultsAndScores(nonPushableQuery, pushableQuery);
-    }
-
-    private void compareQueryResultsAndScores(String queryMatch, String queryQstr) {
-        try (var respMatch = run(queryMatch); var respQstr = run(queryQstr)) {
-            assertEquals(respMatch.columns(), respQstr.columns());
-            var matchValues = getValuesList(respMatch);
-            var qstrValues = getValuesList(respQstr);
-            assertEquals(matchValues.size(), qstrValues.size());
-            for (int i = 0; i < matchValues.size(); i++) {
-                // Compare ids
-                assertEquals(matchValues.get(i).get(0), qstrValues.get(i).get(0));
-                // Compare scores
-                assertThat((Double) matchValues.get(i).get(1), closeTo((Double) qstrValues.get(i).get(1), 0.0001));
-            }
         }
     }
 

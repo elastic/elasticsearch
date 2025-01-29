@@ -24,6 +24,8 @@ import static org.elasticsearch.compute.lucene.LuceneQueryExpressionEvaluator.SC
  */
 public class BooleanToScoringExpressionEvaluator implements EvalOperator.ExpressionEvaluator {
 
+    public static final double SCORE_FOR_TRUE = 0.0;
+
     private final EvalOperator.ExpressionEvaluator inner;
     private final DriverContext driverContext;
 
@@ -59,7 +61,7 @@ public class BooleanToScoringExpressionEvaluator implements EvalOperator.Express
             for (int i = 0; i < positionCount; i++) {
                 boolean value = booleanBlock.getBoolean(i);
                 if (value) {
-                    builder.appendDouble(1.0);
+                    builder.appendDouble(SCORE_FOR_TRUE);
                 } else {
                     builder.appendDouble(SCORE_FOR_FALSE);
                 }

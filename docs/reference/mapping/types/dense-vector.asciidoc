@@ -177,7 +177,7 @@ PUT my-byte-quantized-index
 }
 --------------------------------------------------
 
-experimental:[] Here is an example of how to create a binary quantized index:
+Here is an example of how to create a binary quantized index:
 
 [source,console]
 --------------------------------------------------

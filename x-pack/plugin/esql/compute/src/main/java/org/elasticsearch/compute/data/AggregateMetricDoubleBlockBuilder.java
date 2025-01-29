@@ -154,4 +154,12 @@ public class AggregateMetricDoubleBlockBuilder extends AbstractBlockBuilder impl
             return index;
         }
     }
+
+    public record AggregateMetricDoubleLiteral(Double min, Double max, Double sum, Integer count) {
+        public AggregateMetricDoubleLiteral {
+            min = min.isNaN() ? null : min;
+            max = max.isNaN() ? null : max;
+            sum = sum.isNaN() ? null : sum;
+        }
+    }
 }

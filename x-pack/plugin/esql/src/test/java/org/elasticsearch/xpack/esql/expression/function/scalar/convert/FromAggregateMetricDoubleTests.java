@@ -11,7 +11,6 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
-import org.elasticsearch.compute.data.AggregateMetricDoubleLiteral;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -43,16 +42,16 @@ public class FromAggregateMetricDoubleTests extends AbstractScalarFunctionTestCa
         for (int i = 0; i < 4; i++) {
             int index = i;
             suppliers.add(new TestCaseSupplier(List.of(dataType, DataType.INTEGER), () -> {
-                var agg_metric = new AggregateMetricDoubleLiteral(
+                var agg_metric = new AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral(
                     randomDoubleBetween(Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, true),
                     randomDoubleBetween(Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, true),
                     randomDoubleBetween(Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, true),
                     randomIntBetween(Integer.MIN_VALUE, Integer.MAX_VALUE)
                 );
-                Double expectedValue = index == AggregateMetricDoubleBlockBuilder.Metric.MIN.getIndex() ? agg_metric.getMin()
-                    : index == AggregateMetricDoubleBlockBuilder.Metric.MAX.getIndex() ? agg_metric.getMax()
-                    : index == AggregateMetricDoubleBlockBuilder.Metric.SUM.getIndex() ? agg_metric.getSum()
-                    : (Double) agg_metric.getCount().doubleValue();
+                Double expectedValue = index == AggregateMetricDoubleBlockBuilder.Metric.MIN.getIndex() ? agg_metric.min()
+                    : index == AggregateMetricDoubleBlockBuilder.Metric.MAX.getIndex() ? agg_metric.max()
+                    : index == AggregateMetricDoubleBlockBuilder.Metric.SUM.getIndex() ? agg_metric.sum()
+                    : (Double) agg_metric.count().doubleValue();
 
                 return new TestCaseSupplier.TestCase(
                     List.of(
@@ -61,7 +60,7 @@ public class FromAggregateMetricDoubleTests extends AbstractScalarFunctionTestCa
                     ),
                     "FromAggregateMetricDoubleEvaluator[field=Attribute[channel=0],subfieldIndex=" + index + "]",
                     index == AggregateMetricDoubleBlockBuilder.Metric.COUNT.getIndex() ? DataType.INTEGER : DataType.DOUBLE,
-                    index == AggregateMetricDoubleBlockBuilder.Metric.COUNT.getIndex() ? Matchers.equalTo(agg_metric.getCount())
+                    index == AggregateMetricDoubleBlockBuilder.Metric.COUNT.getIndex() ? Matchers.equalTo(agg_metric.count())
                         : expectedValue == null ? Matchers.nullValue()
                         : Matchers.closeTo(expectedValue, Math.abs(expectedValue * 0.00001))
                 );

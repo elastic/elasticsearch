@@ -234,25 +234,25 @@ public final class BlockUtils {
             case DOUBLE -> blockFactory.newConstantDoubleBlockWith((double) val, size);
             case BOOLEAN -> blockFactory.newConstantBooleanBlockWith((boolean) val, size);
             case COMPOSITE -> {
-                if (val instanceof AggregateMetricDoubleLiteral aggregateMetricDoubleLiteral) {
+                if (val instanceof AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral(Double min, Double max, Double sum, Integer count)) {
                     try (AggregateMetricDoubleBlockBuilder builder = blockFactory.newAggregateMetricDoubleBlockBuilder(size)) {
-                        if (aggregateMetricDoubleLiteral.getMin() != null) {
-                            builder.min().appendDouble(aggregateMetricDoubleLiteral.getMin());
+                        if (min != null) {
+                            builder.min().appendDouble(min);
                         } else {
                             builder.min().appendNull();
                         }
-                        if (aggregateMetricDoubleLiteral.getMax() != null) {
-                            builder.max().appendDouble(aggregateMetricDoubleLiteral.getMax());
+                        if (max != null) {
+                            builder.max().appendDouble(max);
                         } else {
                             builder.max().appendNull();
                         }
-                        if (aggregateMetricDoubleLiteral.getSum() != null) {
-                            builder.sum().appendDouble(aggregateMetricDoubleLiteral.getSum());
+                        if (sum != null) {
+                            builder.sum().appendDouble(sum);
                         } else {
                             builder.sum().appendNull();
                         }
-                        if (aggregateMetricDoubleLiteral.getCount() != null) {
-                            builder.count().appendInt(aggregateMetricDoubleLiteral.getCount());
+                        if (count != null) {
+                            builder.count().appendInt(count);
                         } else {
                             builder.count().appendNull();
                         }

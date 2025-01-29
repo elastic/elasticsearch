@@ -272,7 +272,7 @@ public class PolicyManagerTests extends ESTestCase {
             createEmptyTestServerPolicy(),
             List.of(new CreateClassLoaderEntitlement()),
             Map.of(),
-            c -> "test",
+            c -> c.getPackageName().startsWith(TEST_AGENTS_PACKAGE_NAME) ? null : "test",
             TEST_AGENTS_PACKAGE_NAME,
             NO_ENTITLEMENTS_MODULE
         );
@@ -287,6 +287,22 @@ public class PolicyManagerTests extends ESTestCase {
             notAgentsEntitlements = policyManager.getEntitlements(unnamedNotAgentClass);
             assertThat(notAgentsEntitlements.hasEntitlement(CreateClassLoaderEntitlement.class), is(false));
         }
+    }
+
+    /**
+     * If the plugin resolver tells us a class is in a plugin, don't conclude that it's in an agent.
+     */
+    public void testPluginResolverOverridesAgents() {
+        var policyManager = new PolicyManager(
+            createEmptyTestServerPolicy(),
+            List.of(new CreateClassLoaderEntitlement()),
+            Map.of(),
+            c -> "test", // Insist that the class is in a plugin
+            TEST_AGENTS_PACKAGE_NAME,
+            NO_ENTITLEMENTS_MODULE
+        );
+        ModuleEntitlements notAgentsEntitlements = policyManager.getEntitlements(TestAgent.class);
+        assertThat(notAgentsEntitlements.hasEntitlement(CreateClassLoaderEntitlement.class), is(false));
     }
 
     private static Class<?> makeClassInItsOwnModule() throws IOException, ClassNotFoundException {

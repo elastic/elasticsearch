@@ -365,7 +365,9 @@ public class PolicyManager {
         var pluginName = pluginResolver.apply(requestingClass);
         if (pluginName != null) {
             var pluginEntitlements = pluginsEntitlements.get(pluginName);
-            if (pluginEntitlements != null) {
+            if (pluginEntitlements == null) {
+                return ModuleEntitlements.NONE;
+            } else {
                 final String scopeName;
                 if (requestingModule.isNamed() == false) {
                     scopeName = ALL_UNNAMED;

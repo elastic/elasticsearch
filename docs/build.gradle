@@ -120,7 +120,6 @@ testClusters.matching { it.name == "yamlRestTest"}.configureEach {
   // TODO: remove this once cname is prepended to transport.publish_address by default in 8.0
   systemProperty 'es.transport.cname_in_publish_address', 'true'
 
-  systemProperty 'es.queryable_built_in_roles_enabled', 'false'
 
   requiresFeature 'es.index_mode_feature_flag_registered', Version.fromString("8.0.0")
   requiresFeature 'es.failure_store_feature_flag_enabled', Version.fromString("8.12.0")
@@ -856,6 +855,9 @@ buildRestTests.setups['library'] = '''
 
 '''
 buildRestTests.setups['sensor_rollup_job'] = '''
+  - requires:
+      test_runner_features: [ "allowed_warnings" ]
+
   - do:
       indices.create:
         index: dummy-rollup-index
@@ -886,9 +888,10 @@ buildRestTests.setups['sensor_rollup_job'] = '''
               node:
                 type: keyword
   - do:
-      raw:
-        method: PUT
-        path: _rollup/job/sensor
+      allowed_warnings:
+        - "The rollup functionality will be removed in Elasticsearch 10.0. See docs for more information."
+      rollup.put_job:
+        id: sensor
         body:  >
             {
                 "index_pattern": "sensor-*",
@@ -918,6 +921,9 @@ buildRestTests.setups['sensor_rollup_job'] = '''
             }
 '''
 buildRestTests.setups['sensor_started_rollup_job'] = '''
+  - requires:
+      test_runner_features: [ "allowed_warnings" ]
+
   - do:
       indices.create:
         index: dummy-rollup-index
@@ -967,9 +973,10 @@ buildRestTests.setups['sensor_started_rollup_job'] = '''
           {"timestamp": 1516297294000, "temperature": 202, "voltage": 4.0, "node": "c"}
 
   - do:
-      raw:
-        method: PUT
-        path: _rollup/job/sensor
+      allowed_warnings:
+        - "The rollup functionality will be removed in Elasticsearch 10.0. See docs for more information."
+      rollup.put_job:
+        id: sensor
         body:  >
             {
                 "index_pattern": "sensor-*",
@@ -998,9 +1005,10 @@ buildRestTests.setups['sensor_started_rollup_job'] = '''
                 ]
             }
   - do:
-      raw:
-        method: POST
-        path: _rollup/job/sensor/_start
+      allowed_warnings:
+        - "The rollup functionality will be removed in Elasticsearch 10.0. See docs for more information."
+      rollup.start_job:
+        id: sensor
 '''
 
 buildRestTests.setups['sensor_index'] = '''

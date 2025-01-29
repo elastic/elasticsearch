@@ -159,10 +159,6 @@ public class SourceMatcher extends GenericEqualsMatcher<List<Map<String, Object>
             }
         }
 
-        if (sourceMatchesExactly(expectedFieldMapping, expectedValues)) {
-            return Optional.empty();
-        }
-
         var fieldSpecificMatcher = fieldSpecificMatchers.get(actualFieldType);
         if (fieldSpecificMatcher == null) {
             return Optional.empty();
@@ -175,13 +171,6 @@ public class SourceMatcher extends GenericEqualsMatcher<List<Map<String, Object>
             expectedFieldMapping.mappingParameters()
         );
         return Optional.of(matched);
-    }
-
-    // Checks for scenarios when source is stored exactly and therefore can be compared without special logic.
-    private boolean sourceMatchesExactly(MappingTransforms.FieldMapping mapping, List<Object> expectedValues) {
-        return mapping.parentMappingParameters().stream().anyMatch(m -> m.getOrDefault("enabled", "true").equals("false"))
-            || mapping.mappingParameters().getOrDefault("synthetic_source_keep", "none").equals("all")
-            || expectedValues.size() > 1 && mapping.mappingParameters().getOrDefault("synthetic_source_keep", "none").equals("arrays");
     }
 
     private MatchResult matchWithGenericMatcher(List<Object> actualValues, List<Object> expectedValues) {

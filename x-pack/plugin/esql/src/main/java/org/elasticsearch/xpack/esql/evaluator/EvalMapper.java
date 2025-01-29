@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.evaluator.mapper.ExpressionMapper;
+import org.elasticsearch.xpack.esql.evaluator.predicate.operator.logical.NotScoringEvaluator;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.BinaryLogic;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
@@ -114,7 +115,10 @@ public final class EvalMapper {
             List<ShardContext> shardContexts,
             boolean usesScoring
         ) {
-            var expEval = toEvaluator(foldCtx, not.field(), layout);
+            var expEval = toEvaluator(foldCtx, not.field(), layout, shardContexts, usesScoring);
+            if (usesScoring) {
+                return new NotScoringEvaluator.Factory(not.source(), expEval);
+            }
             return dvrCtx -> new org.elasticsearch.xpack.esql.evaluator.predicate.operator.logical.NotEvaluator(
                 not.source(),
                 expEval.get(dvrCtx),

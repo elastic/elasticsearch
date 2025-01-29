@@ -48,6 +48,7 @@ import java.util.stream.Collectors;
  */
 public class EntitlementInitialization {
 
+    private static final String AGENTS_PACKAGE_NAME = "co.elastic.apm.agent";
     private static final Module ENTITLEMENTS_MODULE = PolicyManager.class.getModule();
 
     private static ElasticsearchEntitlementChecker manager;
@@ -122,7 +123,7 @@ public class EntitlementInitialization {
         // this should be removed once https://github.com/elastic/elasticsearch/issues/109335 is completed
         List<Entitlement> agentEntitlements = List.of(new CreateClassLoaderEntitlement());
         var resolver = EntitlementBootstrap.bootstrapArgs().pluginResolver();
-        return new PolicyManager(serverPolicy, agentEntitlements, pluginPolicies, resolver, ENTITLEMENTS_MODULE);
+        return new PolicyManager(serverPolicy, agentEntitlements, pluginPolicies, resolver, AGENTS_PACKAGE_NAME, ENTITLEMENTS_MODULE);
     }
 
     private static ElasticsearchEntitlementChecker initChecker() {

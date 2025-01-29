@@ -1052,7 +1052,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         if (fieldType.stored() || hasDocValues) {
-            return new SyntheticSourceSupport.Native(syntheticFieldLoader(fullPath(), leafName()));
+            return new SyntheticSourceSupport.Native(() -> syntheticFieldLoader(fullPath(), leafName()));
         }
 
         return super.syntheticSourceSupport();

@@ -115,23 +115,14 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
     ) {
         PrecomputedData precomputedData = new PrecomputedData();
         try (var refs = new RefCountingListener(checkAndCreateResponse(state, request, precomputedData, listener))) {
-            nodeDeprecationChecker.check(
-                client,
-                refs.acquire().delegateFailureAndWrap((l, nodeIssues) -> precomputedData.setOnceNodeSettingsIssues(nodeIssues))
-            );
-            transformConfigs(
-                refs.acquire().delegateFailureAndWrap((l, transformConfigs) -> precomputedData.setOnceTransformConfigs(transformConfigs))
-            );
+            nodeDeprecationChecker.check(client, refs.acquire(precomputedData::setOnceNodeSettingsIssues));
+            transformConfigs(refs.acquire(precomputedData::setOnceTransformConfigs));
             DeprecationChecker.Components components = new DeprecationChecker.Components(
                 xContentRegistry,
                 settings,
                 new OriginSettingClient(client, ClientHelper.DEPRECATION_ORIGIN)
             );
-            pluginSettingIssues(
-                PLUGIN_CHECKERS,
-                components,
-                refs.acquire().delegateFailureAndWrap((l, pluginIssues) -> precomputedData.setOncePluginIssues(pluginIssues))
-            );
+            pluginSettingIssues(PLUGIN_CHECKERS, components, refs.acquire(precomputedData::setOncePluginIssues));
         }
     }
 

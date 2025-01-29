@@ -1839,10 +1839,9 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
     /**
      * Expected
-     * TopN[[Order[first_name{f}#170,ASC,LAST]],1000[INTEGER]]
-     *  \_MvExpand[first_name{f}#170]
-     *    \_TopN[[Order[emp_no{f}#169,ASC,LAST]],1000[INTEGER]]
-     *      \_EsRelation[test][avg_worked_seconds{f}#167, birth_date{f}#168, emp_n..]
+     * TopN[[Order[first_name{r}#5575,ASC,LAST]],1000[INTEGER]]
+     * \_MvExpand[first_name{f}#5565,first_name{r}#5575,null]
+     *   \_EsRelation[test][_meta_field{f}#5570, emp_no{f}#5564, first_name{f}#..]
      */
     public void testDontCombineOrderByThroughMvExpand() {
         LogicalPlan plan = optimizedPlan("""
@@ -1854,9 +1853,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var topN = as(plan, TopN.class);
         assertThat(orderNames(topN), contains("first_name"));
         var mvExpand = as(topN.child(), MvExpand.class);
-        topN = as(mvExpand.child(), TopN.class);
-        assertThat(orderNames(topN), contains("emp_no"));
-        as(topN.child(), EsRelation.class);
+        as(mvExpand.child(), EsRelation.class);
     }
 
     /**
@@ -2065,12 +2062,10 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     }
 
     /**
-     * Expected
-     * EsqlProject[[emp_no{f}#350, first_name{f}#351, salary{f}#352]]
-     *  \_TopN[[Order[salary{f}#352,ASC,LAST], Order[first_name{f}#351,ASC,LAST]],5[INTEGER]]
-     *    \_MvExpand[first_name{f}#351]
-     *      \_TopN[[Order[emp_no{f}#350,ASC,LAST]],10000[INTEGER]]
-     *        \_EsRelation[employees][emp_no{f}#350, first_name{f}#351, salary{f}#352]
+     * EsqlProject[[emp_no{f}#10, first_name{r}#21, salary{f}#15]]
+     * \_TopN[[Order[salary{f}#15,ASC,LAST], Order[first_name{r}#21,ASC,LAST]],5[INTEGER]]
+     *   \_MvExpand[first_name{f}#11,first_name{r}#21,null]
+     *     \_EsRelation[test][_meta_field{f}#16, emp_no{f}#10, first_name{f}#11, ..]
      */
     public void testPushDownLimitThroughMultipleSort_AfterMvExpand() {
         LogicalPlan plan = optimizedPlan("""
@@ -2086,20 +2081,16 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(topN.limit().fold(FoldContext.small()), equalTo(5));
         assertThat(orderNames(topN), contains("salary", "first_name"));
         var mvExp = as(topN.child(), MvExpand.class);
-        topN = as(mvExp.child(), TopN.class);
-        assertThat(topN.limit().fold(FoldContext.small()), equalTo(10000));
-        assertThat(orderNames(topN), contains("emp_no"));
-        as(topN.child(), EsRelation.class);
+        as(mvExp.child(), EsRelation.class);
     }
 
     /**
      * Expected
-     * EsqlProject[[emp_no{f}#361, first_name{f}#362, salary{f}#363]]
-     *  \_TopN[[Order[first_name{f}#362,ASC,LAST]],5[INTEGER]]
-     *    \_TopN[[Order[salary{f}#363,ASC,LAST]],5[INTEGER]]
-     *      \_MvExpand[first_name{f}#362]
-     *        \_TopN[[Order[emp_no{f}#361,ASC,LAST]],10000[INTEGER]]
-     *          \_EsRelation[employees][emp_no{f}#361, first_name{f}#362, salary{f}#363]
+     * EsqlProject[[emp_no{f}#2560, first_name{r}#2571, salary{f}#2565]]
+     * \_TopN[[Order[first_name{r}#2571,ASC,LAST]],5[INTEGER]]
+     *   \_TopN[[Order[salary{f}#2565,ASC,LAST]],5[INTEGER]]
+     *     \_MvExpand[first_name{f}#2561,first_name{r}#2571,null]
+     *       \_EsRelation[test][_meta_field{f}#2566, emp_no{f}#2560, first_name{f}#..]
      */
     public void testPushDownLimitThroughMultipleSort_AfterMvExpand2() {
         LogicalPlan plan = optimizedPlan("""
@@ -2119,10 +2110,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(topN.limit().fold(FoldContext.small()), equalTo(5));
         assertThat(orderNames(topN), contains("salary"));
         var mvExp = as(topN.child(), MvExpand.class);
-        topN = as(mvExp.child(), TopN.class);
-        assertThat(topN.limit().fold(FoldContext.small()), equalTo(10000));
-        assertThat(orderNames(topN), contains("emp_no"));
-        as(topN.child(), EsRelation.class);
+        as(mvExp.child(), EsRelation.class);
     }
 
     /**
@@ -2258,14 +2246,13 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
     /**
      * Expected
-     * EsqlProject[[emp_no{f}#12, first_name{r}#22, salary{f}#17]]
-     * \_TopN[[Order[salary{f}#17,ASC,LAST], Order[first_name{r}#22,ASC,LAST]],1000[INTEGER]]
-     *   \_Filter[gender{f}#14 == [46][KEYWORD] AND WILDCARDLIKE(first_name{r}#22)]
-     *     \_MvExpand[first_name{f}#13,first_name{r}#22,null]
-     *       \_TopN[[Order[emp_no{f}#12,ASC,LAST]],10000[INTEGER]]
-     *         \_EsRelation[test][_meta_field{f}#18, emp_no{f}#12, first_name{f}#13, ..]
+     * EsqlProject[[emp_no{f}#5885, first_name{r}#5896, salary{f}#5890]]
+     * \_TopN[[Order[salary{f}#5890,ASC,LAST], Order[first_name{r}#5896,ASC,LAST]],1000[INTEGER]]
+     *   \_Filter[gender{f}#5887 == [46][KEYWORD] AND WILDCARDLIKE(first_name{r}#5896)]
+     *     \_MvExpand[first_name{f}#5886,first_name{r}#5896,null]
+     *       \_EsRelation[test][_meta_field{f}#5891, emp_no{f}#5885, first_name{f}#..]
      */
-    public void testAddDefaultLimit_BeforeMvExpand_WithFilterOnExpandedField_ResultTruncationDefaultSize() {
+    public void testRedundantSort_BeforeMvExpand_WithFilterOnExpandedField_ResultTruncationDefaultSize() {
         LogicalPlan plan = optimizedPlan("""
             from test
             | sort emp_no
@@ -2282,9 +2269,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var filter = as(topN.child(), Filter.class);
         assertThat(filter.condition(), instanceOf(And.class));
         var mvExp = as(filter.child(), MvExpand.class);
-        topN = as(mvExp.child(), TopN.class); // TODO is it correct? Double-check AddDefaultTopN rule
-        assertThat(orderNames(topN), contains("emp_no"));
-        as(topN.child(), EsRelation.class);
+        as(mvExp.child(), EsRelation.class);
     }
 
     /**
@@ -2367,8 +2352,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var mvExpand = as(topN.child(), MvExpand.class);
         var filter = as(mvExpand.child(), Filter.class);
         mvExpand = as(filter.child(), MvExpand.class);
-        var topN2 = as(mvExpand.child(), TopN.class);  // TODO is it correct? Double-check AddDefaultTopN rule
-        as(topN2.child(), EsRelation.class);
+        as(mvExpand.child(), EsRelation.class);
     }
 
     /**
@@ -2463,20 +2447,18 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(orderNames(topN), contains("first_name"));
         assertThat(topN.limit().fold(FoldContext.small()), equalTo(10000));
         var mvExpand = as(topN.child(), MvExpand.class);
-        var topN2 = as(mvExpand.child(), TopN.class); // TODO is it correct? Double-check AddDefaultTopN rule
-        as(topN2.child(), EsRelation.class);
+        as(mvExpand.child(), EsRelation.class);
     }
 
     /**
      * Expected
-     * EsqlProject[[emp_no{f}#104, first_name{f}#105, salary{f}#106]]
-     *  \_TopN[[Order[salary{f}#106,ASC,LAST], Order[first_name{f}#105,ASC,LAST]],15[INTEGER]]
-     *    \_Filter[gender{f}#215 == [46][KEYWORD] AND WILDCARDLIKE(first_name{f}#105)]
-     *      \_MvExpand[first_name{f}#105]
-     *        \_TopN[[Order[emp_no{f}#104,ASC,LAST]],10000[INTEGER]]
-     *          \_EsRelation[employees][emp_no{f}#104, first_name{f}#105, salary{f}#106]
+     * EsqlProject[[emp_no{f}#3517, first_name{r}#3528, salary{f}#3522]]
+     * \_TopN[[Order[salary{f}#3522,ASC,LAST], Order[first_name{r}#3528,ASC,LAST]],15[INTEGER]]
+     *   \_Filter[gender{f}#3519 == [46][KEYWORD] AND WILDCARDLIKE(first_name{r}#3528)]
+     *     \_MvExpand[first_name{f}#3518,first_name{r}#3528,null]
+     *       \_EsRelation[test][_meta_field{f}#3523, emp_no{f}#3517, first_name{f}#..]
      */
-    public void testAddDefaultLimit_BeforeMvExpand_WithFilterOnExpandedField() {
+    public void testRedundantSort_BeforeMvExpand_WithFilterOnExpandedField() {
         LogicalPlan plan = optimizedPlan("""
             from test
             | sort emp_no
@@ -2494,24 +2476,18 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var filter = as(topN.child(), Filter.class);
         assertThat(filter.condition(), instanceOf(And.class));
         var mvExp = as(filter.child(), MvExpand.class);
-        topN = as(mvExp.child(), TopN.class);
-        // the filter acts on first_name (the one used in mv_expand), so the limit 15 is not pushed down past mv_expand
-        // instead the default limit is added
-        assertThat(topN.limit().fold(FoldContext.small()), equalTo(10000));
-        assertThat(orderNames(topN), contains("emp_no"));
-        as(topN.child(), EsRelation.class);
+        as(mvExp.child(), EsRelation.class);
     }
 
     /**
      * Expected
-     * EsqlProject[[emp_no{f}#104, first_name{f}#105, salary{f}#106]]
-     *  \_TopN[[Order[salary{f}#106,ASC,LAST], Order[first_name{f}#105,ASC,LAST]],15[INTEGER]]
-     *    \_Filter[gender{f}#215 == [46][KEYWORD] AND salary{f}#106 > 60000[INTEGER]]
-     *      \_MvExpand[first_name{f}#105]
-     *        \_TopN[[Order[emp_no{f}#104,ASC,LAST]],10000[INTEGER]]
-     *          \_EsRelation[employees][emp_no{f}#104, first_name{f}#105, salary{f}#106]
+     * EsqlProject[[emp_no{f}#3421, first_name{r}#3432, salary{f}#3426]]
+     * \_TopN[[Order[salary{f}#3426,ASC,LAST], Order[first_name{r}#3432,ASC,LAST]],15[INTEGER]]
+     *   \_Filter[gender{f}#3423 == [46][KEYWORD] AND salary{f}#3426 > 60000[INTEGER]]
+     *     \_MvExpand[first_name{f}#3422,first_name{r}#3432,null]
+     *       \_EsRelation[test][_meta_field{f}#3427, emp_no{f}#3421, first_name{f}#..]
      */
-    public void testAddDefaultLimit_BeforeMvExpand_WithFilter_NOT_OnExpandedField() {
+    public void testRedundantSort_BeforeMvExpand_WithFilter_NOT_OnExpandedField() {
         LogicalPlan plan = optimizedPlan("""
             from test
             | sort emp_no
@@ -2529,24 +2505,18 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var filter = as(topN.child(), Filter.class);
         assertThat(filter.condition(), instanceOf(And.class));
         var mvExp = as(filter.child(), MvExpand.class);
-        topN = as(mvExp.child(), TopN.class);
-        // the filters after mv_expand do not act on the expanded field values, as such the limit 15 is the one being pushed down
-        // otherwise that limit wouldn't have pushed down and the default limit was instead being added by default before mv_expanded
-        assertThat(topN.limit().fold(FoldContext.small()), equalTo(10000));
-        assertThat(orderNames(topN), contains("emp_no"));
-        as(topN.child(), EsRelation.class);
+        as(mvExp.child(), EsRelation.class);
     }
 
     /**
      * Expected
-     * EsqlProject[[emp_no{f}#116, first_name{f}#117 AS x, salary{f}#119]]
-     *  \_TopN[[Order[salary{f}#119,ASC,LAST], Order[first_name{f}#117,ASC,LAST]],15[INTEGER]]
-     *    \_Filter[gender{f}#118 == [46][KEYWORD] AND WILDCARDLIKE(first_name{f}#117)]
-     *      \_MvExpand[first_name{f}#117]
-     *        \_TopN[[Order[gender{f}#118,ASC,LAST]],10000[INTEGER]]
-     *          \_EsRelation[employees][emp_no{f}#116, first_name{f}#117, gender{f}#118, sa..]
+     * EsqlProject[[emp_no{f}#2085, first_name{r}#2096 AS x, salary{f}#2090]]
+     * \_TopN[[Order[salary{f}#2090,ASC,LAST], Order[first_name{r}#2096,ASC,LAST]],15[INTEGER]]
+     *   \_Filter[gender{f}#2087 == [46][KEYWORD] AND WILDCARDLIKE(first_name{r}#2096)]
+     *     \_MvExpand[first_name{f}#2086,first_name{r}#2096,null]
+     *       \_EsRelation[test][_meta_field{f}#2091, emp_no{f}#2085, first_name{f}#..]
      */
-    public void testAddDefaultLimit_BeforeMvExpand_WithFilterOnExpandedFieldAlias() {
+    public void testRedundantSort_BeforeMvExpand_WithFilterOnExpandedFieldAlias() {
         LogicalPlan plan = optimizedPlan("""
             from test
             | sort gender
@@ -2565,11 +2535,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var filter = as(topN.child(), Filter.class);
         assertThat(filter.condition(), instanceOf(And.class));
         var mvExp = as(filter.child(), MvExpand.class);
-        topN = as(mvExp.child(), TopN.class);
-        // the filter uses an alias ("x") to the expanded field ("first_name"), so the default limit is used and not the one provided
-        assertThat(topN.limit().fold(FoldContext.small()), equalTo(10000));
-        assertThat(orderNames(topN), contains("gender"));
-        as(topN.child(), EsRelation.class);
+        as(mvExp.child(), EsRelation.class);
     }
 
     /**
@@ -7301,5 +7267,117 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertEquals("minimum_should_match", key.utf8ToString());
         assertEquals(new Literal(EMPTY, 2.0, DataType.DOUBLE), ee.value());
         assertEquals(DataType.DOUBLE, ee.dataType());
+    }
+
+    /**
+     * TopN[[Order[emp_no{f}#11,ASC,LAST]],1000[INTEGER]]
+     * \_Join[LEFT,[language_code{r}#5],[language_code{r}#5],[language_code{f}#22]]
+     *   |_EsqlProject[[_meta_field{f}#17, emp_no{f}#11, first_name{f}#12, gender{f}#13, hire_date{f}#18, job{f}#19, job.raw{f}#20, l
+     * anguages{f}#14 AS language_code, last_name{f}#15, long_noidx{f}#21, salary{f}#16, foo{r}#7]]
+     *   | \_Eval[[[62 61 72][KEYWORD] AS foo]]
+     *   |   \_Filter[languages{f}#14 > 1[INTEGER]]
+     *   |     \_EsRelation[test][_meta_field{f}#17, emp_no{f}#11, first_name{f}#12, ..]
+     *   \_EsRelation[languages_lookup][LOOKUP][language_code{f}#22, language_name{f}#23]
+     */
+    public void testRedundantSortOnJoin() throws Exception {
+        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
+
+        var plan = optimizedPlan("""
+              FROM test
+            | SORT languages
+            | RENAME languages AS language_code
+            | EVAL foo = "bar"
+            | LOOKUP JOIN languages_lookup ON language_code
+            | WHERE language_code > 1
+            | SORT emp_no
+            """);
+
+        var topN = as(plan, TopN.class);
+        var join = as(topN.child(), Join.class);
+        var project = as(join.left(), EsqlProject.class);
+        var eval = as(project.child(), Eval.class);
+        var filter = as(eval.child(), Filter.class);
+        as(filter.child(), EsRelation.class);
+    }
+
+    /**
+     * TopN[[Order[emp_no{f}#9,ASC,LAST]],1000[INTEGER]]
+     * \_Filter[emp_no{f}#9 > 1[INTEGER]]
+     *   \_MvExpand[languages{f}#12,languages{r}#20,null]
+     *     \_Eval[[[62 61 72][KEYWORD] AS foo]]
+     *       \_EsRelation[test][_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, g..]
+     */
+    public void testRedundantSortOnMvExpand() throws Exception {
+        var plan = optimizedPlan("""
+              FROM test
+            | SORT languages
+            | EVAL foo = "bar"
+            | MV_EXPAND languages
+            | WHERE emp_no > 1
+            | SORT emp_no
+            """);
+
+        var topN = as(plan, TopN.class);
+        var filter = as(topN.child(), Filter.class);
+        var mvExpand = as(filter.child(), MvExpand.class);
+        var eval = as(mvExpand.child(), Eval.class);
+        as(eval.child(), EsRelation.class);
+    }
+
+    /**
+     * TopN[[Order[emp_no{f}#11,ASC,LAST]],1000[INTEGER]]
+     * \_Join[LEFT,[language_code{r}#5],[language_code{r}#5],[language_code{f}#22]]
+     *   |_Filter[emp_no{f}#11 > 1[INTEGER]]
+     *   | \_MvExpand[languages{f}#14,languages{r}#24,null]
+     *   |   \_Eval[[languages{f}#14 AS language_code]]
+     *   |     \_EsRelation[test][_meta_field{f}#17, emp_no{f}#11, first_name{f}#12, ..]
+     *   \_EsRelation[languages_lookup][LOOKUP][language_code{f}#22, language_name{f}#23]
+     */
+    public void testRedundantSortOnMvExpandAndJoin() throws Exception {
+        var plan = optimizedPlan("""
+              FROM test
+            | SORT languages
+            | EVAL language_code = languages
+            | MV_EXPAND languages
+            | WHERE emp_no > 1
+            | LOOKUP JOIN languages_lookup ON language_code
+            | SORT emp_no
+            """);
+
+        var topN = as(plan, TopN.class);
+        var join = as(topN.child(), Join.class);
+        var filter = as(join.left(), Filter.class);
+        var mvExpand = as(filter.child(), MvExpand.class);
+        var eval = as(mvExpand.child(), Eval.class);
+        as(eval.child(), EsRelation.class);
+    }
+
+    /**
+     * TopN[[Order[emp_no{f}#12,ASC,LAST]],1000[INTEGER]]
+     * \_Join[LEFT,[language_code{r}#5],[language_code{r}#5],[language_code{f}#23]]
+     *   |_Filter[emp_no{f}#12 > 1[INTEGER]]
+     *   | \_MvExpand[languages{f}#15,languages{r}#25,null]
+     *   |   \_Eval[[languages{f}#15 AS language_code]]
+     *   |     \_EsRelation[test][_meta_field{f}#18, emp_no{f}#12, first_name{f}#13, ..]
+     *   \_EsRelation[languages_lookup][LOOKUP][language_code{f}#23, language_name{f}#24]
+     */
+    public void testMultlipleRedundantSortOnMvExpandAndJoin() throws Exception {
+        var plan = optimizedPlan("""
+              FROM test
+            | SORT first_name
+            | EVAL language_code = languages
+            | MV_EXPAND languages
+            | sort last_name
+            | WHERE emp_no > 1
+            | LOOKUP JOIN languages_lookup ON language_code
+            | SORT emp_no
+            """);
+
+        var topN = as(plan, TopN.class);
+        var join = as(topN.child(), Join.class);
+        var filter = as(join.left(), Filter.class);
+        var mvExpand = as(filter.child(), MvExpand.class);
+        var eval = as(mvExpand.child(), Eval.class);
+        as(eval.child(), EsRelation.class);
     }
 }

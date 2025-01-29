@@ -779,7 +779,14 @@ public class EsqlCapabilities {
         /**
          * Support match options in match function
          */
-        MATCH_FUNCTION_OPTIONS;
+        MATCH_FUNCTION_OPTIONS,
+
+        /**
+         * Fix for https://github.com/elastic/elasticsearch/issues/120817
+         * and https://github.com/elastic/elasticsearch/issues/120803
+         * Support for queries that have multiple SORTs that cannot become TopN
+         */
+        REMOVE_REDUNDANT_SORT;
 
         private final boolean enabled;
 

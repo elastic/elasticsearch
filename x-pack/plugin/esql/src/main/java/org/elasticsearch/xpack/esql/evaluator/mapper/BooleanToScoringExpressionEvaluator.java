@@ -17,6 +17,11 @@ import org.elasticsearch.core.Releasables;
 
 import static org.elasticsearch.compute.lucene.LuceneQueryExpressionEvaluator.SCORE_FOR_FALSE;
 
+/**
+ * Converts a {@link BooleanBlock} to a {@link DoubleBlock} if needed. This is needed to convert boolean expressions
+ * into scores that can be mixed together with other scoring expressions, or just for boolean expressions to be scored.
+ * Scores are converted using 1.0 for true and {* @link LuceneQueryExpressionEvaluator#SCORE_FOR_FALSE} for false.
+ */
 public class BooleanToScoringExpressionEvaluator implements EvalOperator.ExpressionEvaluator {
 
     private final EvalOperator.ExpressionEvaluator inner;

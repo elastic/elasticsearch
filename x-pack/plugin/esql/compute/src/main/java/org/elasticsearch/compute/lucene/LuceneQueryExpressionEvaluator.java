@@ -149,7 +149,7 @@ public class LuceneQueryExpressionEvaluator implements EvalOperator.ExpressionEv
                 prevSegment = segment;
             }
             if (segmentState.noMatch) {
-                docScorerVectorProvider.scoreNoHit();
+                docScorerVectorProvider.addNoMatchingDoc();
             } else {
                 segmentState.scoreSingleDocWithScorer(docs.docs().getInt(map[i]));
             }
@@ -291,14 +291,14 @@ public class LuceneQueryExpressionEvaluator implements EvalOperator.ExpressionEv
 
         private void scoreSingleDocWithScorer(int doc) throws IOException {
             if (scorer.iterator().docID() == doc) {
-                docScorerVectorProvider.scoreHit(scorer);
+                docScorerVectorProvider.addNatchingDoc(scorer);
             } else if (scorer.iterator().docID() > doc) {
-                docScorerVectorProvider.scoreNoHit();
+                docScorerVectorProvider.addNoMatchingDoc();
             } else {
                 if (scorer.iterator().advance(doc) == doc) {
-                    docScorerVectorProvider.scoreHit(scorer);
+                    docScorerVectorProvider.addNatchingDoc(scorer);
                 } else {
-                    docScorerVectorProvider.scoreNoHit();
+                    docScorerVectorProvider.addNoMatchingDoc();
                 }
             }
         }
@@ -334,9 +334,9 @@ public class LuceneQueryExpressionEvaluator implements EvalOperator.ExpressionEv
         @Override
         public void collect(int doc) throws IOException {
             while (next++ < doc) {
-                docScorerVectorProvider.scoreNoHit();
+                docScorerVectorProvider.addNoMatchingDoc();
             }
-            docScorerVectorProvider.scoreHit(scorable);
+            docScorerVectorProvider.addNatchingDoc(scorable);
         }
 
         public Vector build() {
@@ -346,7 +346,7 @@ public class LuceneQueryExpressionEvaluator implements EvalOperator.ExpressionEv
         @Override
         public void finish() {
             while (next++ <= max) {
-                docScorerVectorProvider.scoreNoHit();
+                docScorerVectorProvider.addNoMatchingDoc();
             }
         }
 
@@ -356,18 +356,40 @@ public class LuceneQueryExpressionEvaluator implements EvalOperator.ExpressionEv
         }
     }
 
+    /**
+     * Encapsulates the logic for scoring documents, depending on whether we need a boolean vector for filtering
+     * or a double vector for scoring
+     */
     private interface DocScorerVectorProvider extends Releasable {
 
+        /**
+         * Returns the vector to use when no documents match the query
+         */
         Vector noMatchVector(int docs);
 
+        /**
+         * Initializes the vector to build. Needed to be called before scoring any documents
+         */
         void init(int numDocs);
 
-        void scoreHit(Scorable scorable) throws IOException;
+        /**
+         * Adds a document that matches the query
+         */
+        void addNatchingDoc(Scorable scorable) throws IOException;
 
-        void scoreNoHit();
+        /**
+         * Adds a document that does not match the query
+         */
+        void addNoMatchingDoc();
 
+        /**
+         * Builds the resulting vector after adding all docs
+         */
         Vector build();
 
+        /**
+         * Retrieves the score mode for the query
+         */
         ScoreMode scoreMode();
     }
 
@@ -396,13 +418,13 @@ public class LuceneQueryExpressionEvaluator implements EvalOperator.ExpressionEv
         }
 
         @Override
-        public void scoreHit(Scorable scorable) {
+        public void addNatchingDoc(Scorable scorable) {
             assert builder != null : "init must be called before scoring";
             builder.appendBoolean(true);
         }
 
         @Override
-        public void scoreNoHit() {
+        public void addNoMatchingDoc() {
             assert builder != null : "init must be called before scoring";
             builder.appendBoolean(false);
         }
@@ -444,13 +466,13 @@ public class LuceneQueryExpressionEvaluator implements EvalOperator.ExpressionEv
         }
 
         @Override
-        public void scoreHit(Scorable scorable) throws IOException {
+        public void addNatchingDoc(Scorable scorable) throws IOException {
             assert builder != null : "init must be called before scoring";
             builder.appendDouble(scorable.score());
         }
 
         @Override
-        public void scoreNoHit() {
+        public void addNoMatchingDoc() {
             assert builder != null : "init must be called before scoring";
             builder.appendDouble(SCORE_FOR_FALSE);
         }

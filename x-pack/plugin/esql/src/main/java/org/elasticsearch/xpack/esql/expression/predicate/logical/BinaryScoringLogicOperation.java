@@ -13,6 +13,9 @@ import java.util.function.BiFunction;
 
 import static org.elasticsearch.compute.lucene.LuceneQueryExpressionEvaluator.SCORE_FOR_FALSE;
 
+/**
+ * Implementation of binary logic operations when scores are used
+ */
 public enum BinaryScoringLogicOperation implements PredicateBiFunction<Double, Double, Double> {
 
     AND((l, r) -> {

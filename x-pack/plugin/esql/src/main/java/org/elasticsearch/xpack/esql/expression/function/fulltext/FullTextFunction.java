@@ -23,11 +23,9 @@ import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.BinaryLogic;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
-import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -212,65 +210,6 @@ public abstract class FullTextFunction extends Function implements TranslationAw
                 failures.add(fail(ftf, "[{}] {} is only supported in WHERE commands", ftf.functionName(), ftf.functionType()));
             });
         }
-    }
-
-    /**
-     * Checks whether a condition contains a disjunction with a full text search.
-     * If it does, check that every element of the disjunction is a full text search or combinations (AND, OR, NOT) of them.
-     * If not, add a failure to the failures collection.
-     *
-     * @param condition        condition to check for disjunctions of full text searches
-     * @param failures         failures collection to add to
-     */
-    private static void checkFullTextSearchDisjunctions(Expression condition, Failures failures) {
-        Holder<Boolean> isInvalid = new Holder<>(false);
-        condition.forEachDown(Or.class, or -> {
-            if (isInvalid.get()) {
-                // Exit early if we already have a failures
-                return;
-            }
-            if (checkDisjunctionPushable(or) == false) {
-                isInvalid.set(true);
-                failures.add(
-                    fail(
-                        or,
-                        "Invalid condition when using METADATA _score [{}]. Full text functions can be used in an OR condition, "
-                            + "but only if just full text functions are used in the OR condition",
-                        or.sourceText()
-                    )
-                );
-            }
-        });
-    }
-
-    /**
-     * Checks if a disjunction is pushable from the point of view of FullTextFunctions. Either it has no FullTextFunctions disjunction
-     * all it contains are FullTextFunctions.
-     *
-     * @param disjunction disjunction to check
-     * @return true if the disjunction is pushable, false otherwise
-     */
-    public static boolean checkDisjunctionPushable(Expression disjunction) {
-        boolean hasFullText = disjunction.anyMatch(FullTextFunction.class::isInstance);
-        return hasFullText == false || onlyFullTextFunctionsInExpression(disjunction);
-    }
-
-    /**
-     * Checks whether an expression contains just full text functions or negations (NOT) and combinations (AND, OR) of full text functions
-     *
-     * @param expression expression to check
-     * @return true if all children are full text functions or negations of full text functions, false otherwise
-     */
-    private static boolean onlyFullTextFunctionsInExpression(Expression expression) {
-        if (expression instanceof FullTextFunction) {
-            return true;
-        } else if (expression instanceof Not) {
-            return onlyFullTextFunctionsInExpression(expression.children().get(0));
-        } else if (expression instanceof BinaryLogic binaryLogic) {
-            return onlyFullTextFunctionsInExpression(binaryLogic.left()) && onlyFullTextFunctionsInExpression(binaryLogic.right());
-        }
-
-        return false;
     }
 
     /**

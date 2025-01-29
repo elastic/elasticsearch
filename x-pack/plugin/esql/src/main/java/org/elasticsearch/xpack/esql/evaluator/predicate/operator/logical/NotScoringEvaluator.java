@@ -20,8 +20,8 @@ import org.elasticsearch.xpack.esql.evaluator.mapper.BooleanToScoringExpressionE
 import static org.elasticsearch.compute.lucene.LuceneQueryExpressionEvaluator.SCORE_FOR_FALSE;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Not}.
- * This class is generated. Do not edit it.
+ * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Not} when scores are used.
+ * It returns 0.0 for false and {@link org.elasticsearch.compute.lucene.LuceneQueryExpressionEvaluator#SCORE_FOR_FALSE} for true.
  */
 public final class NotScoringEvaluator implements EvalOperator.ExpressionEvaluator {
     private final Source source;

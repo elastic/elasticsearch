@@ -19,6 +19,10 @@ import org.elasticsearch.core.Releasables;
 
 import java.util.Objects;
 
+/**
+ * Expression evaluator for boolean logic operations when scoring is used
+ * TODO May merge with {@link BooleanLogicExpressionEvaluator} instead of separating into a new class
+ */
 public class BooleanScoringLogicExpressionEvaluator implements EvalOperator.ExpressionEvaluator {
     private final BinaryScoringLogicOperation bsl;
     private final EvalOperator.ExpressionEvaluator leftEval;

@@ -34,6 +34,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isBoo
 
 public abstract class BinaryLogic extends BinaryOperator<Boolean, Boolean, Boolean, BinaryLogicOperation> implements TranslationAware {
 
+    // Provides a way to score the result of the logical operation in case scoring is used
     private final BinaryScoringLogicOperation scoringFunction;
 
     protected BinaryLogic(

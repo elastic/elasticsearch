@@ -15,6 +15,7 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.license.XPackLicenseState;
@@ -25,6 +26,7 @@ import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
+import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo.Cluster;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.TableInfo;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
@@ -37,7 +39,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-class EsqlSessionCCSUtils {
+public class EsqlSessionCCSUtils {
 
     private EsqlSessionCCSUtils() {}
 
@@ -171,16 +173,7 @@ class EsqlSessionCCSUtils {
                 entry.getValue().getException()
             );
             if (skipUnavailable) {
-                execInfo.swapCluster(
-                    clusterAlias,
-                    (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setStatus(EsqlExecutionInfo.Cluster.Status.SKIPPED)
-                        .setTotalShards(0)
-                        .setSuccessfulShards(0)
-                        .setSkippedShards(0)
-                        .setFailedShards(0)
-                        .setFailures(List.of(new ShardSearchFailure(e)))
-                        .build()
-                );
+                markClusterWithFinalStateAndNoShards(execInfo, clusterAlias, EsqlExecutionInfo.Cluster.Status.SKIPPED, e);
             } else {
                 throw e;
             }
@@ -337,5 +330,31 @@ class EsqlSessionCCSUtils {
                 }
             }
         }
+    }
+
+    /**
+     * Mark cluster with a default cluster state with the given status and potentially failure from exception.
+     * Most metrics are set to 0 except for "took" which is set to the total time taken so far.
+     * The status must be the final state of the cluster, not RUNNING.
+     */
+    public static void markClusterWithFinalStateAndNoShards(
+        EsqlExecutionInfo executionInfo,
+        String clusterAlias,
+        Cluster.Status status,
+        @Nullable Exception ex
+    ) {
+        assert status != Cluster.Status.RUNNING : "status must be a final state, not RUNNING";
+        executionInfo.swapCluster(clusterAlias, (k, v) -> {
+            Cluster.Builder builder = new Cluster.Builder(v).setStatus(status)
+                .setTook(executionInfo.tookSoFar())
+                .setTotalShards(0)
+                .setSuccessfulShards(0)
+                .setSkippedShards(0)
+                .setFailedShards(0);
+            if (ex != null) {
+                builder.setFailures(List.of(new ShardSearchFailure(ex)));
+            }
+            return builder.build();
+        });
     }
 }

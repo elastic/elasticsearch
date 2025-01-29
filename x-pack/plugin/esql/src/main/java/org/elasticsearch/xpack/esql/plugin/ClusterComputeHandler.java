@@ -25,6 +25,7 @@ import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -36,6 +37,8 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
+
+import static org.elasticsearch.xpack.esql.session.EsqlSessionCCSUtils.markClusterWithFinalStateAndNoShards;
 
 /**
  * Manages computes across multiple clusters by sending {@link ClusterComputeRequest} to remote clusters and executing the computes.
@@ -71,34 +74,51 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
         ExchangeSourceHandler exchangeSource,
         RemoteCluster cluster,
         Runnable cancelQueryOnFailure,
+        EsqlExecutionInfo executionInfo,
         ActionListener<ComputeResponse> listener
     ) {
         var queryPragmas = configuration.pragmas();
         listener = ActionListener.runBefore(listener, exchangeSource.addEmptySink()::close);
         final var childSessionId = computeService.newChildSession(sessionId);
         final AtomicReference<ComputeResponse> finalResponse = new AtomicReference<>();
+        final String clusterAlias = cluster.clusterAlias();
         try (var computeListener = new ComputeListener(transportService.getThreadPool(), cancelQueryOnFailure, listener.map(profiles -> {
             var resp = finalResponse.get();
             return Objects.requireNonNullElseGet(resp, () -> new ComputeResponse(profiles));
         }))) {
+            var openExchangeListener = computeListener.acquireAvoid();
             ExchangeService.openExchange(
                 transportService,
                 cluster.connection,
                 childSessionId,
                 queryPragmas.exchangeBufferSize(),
                 esqlExecutor,
-                computeListener.acquireCompute().delegateFailureAndWrap((l, unused) -> {
-                    var remoteSink = exchangeService.newRemoteSink(rootTask, childSessionId, transportService, cluster.connection);
+                ActionListener.wrap(unused -> {
+                    var listenerGroup = new RemoteListenerGroup(
+                        transportService,
+                        rootTask,
+                        computeListener,
+                        clusterAlias,
+                        executionInfo,
+                        openExchangeListener
+                    );
+
+                    var remoteSink = exchangeService.newRemoteSink(
+                        listenerGroup.getGroupTask(),
+                        childSessionId,
+                        transportService,
+                        cluster.connection
+                    );
                     exchangeSource.addRemoteSink(
                         remoteSink,
-                        true,
+                        executionInfo.isSkipUnavailable(clusterAlias) == false,
                         () -> {},
                         queryPragmas.concurrentExchangeClients(),
-                        computeListener.acquireAvoid()
+                        listenerGroup.getExchangeRequestListener()
                     );
                     var remotePlan = new RemoteClusterPlan(plan, cluster.concreteIndices, cluster.originalIndices);
-                    var clusterRequest = new ClusterComputeRequest(cluster.clusterAlias, childSessionId, configuration, remotePlan);
-                    final ActionListener<ComputeResponse> clusterListener = l.map(r -> {
+                    var clusterRequest = new ClusterComputeRequest(clusterAlias, childSessionId, configuration, remotePlan);
+                    final ActionListener<ComputeResponse> clusterListener = listenerGroup.getClusterRequestListener().map(r -> {
                         finalResponse.set(r);
                         return r.getProfiles();
                     });
@@ -110,9 +130,17 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                         TransportRequestOptions.EMPTY,
                         new ActionListenerResponseHandler<>(clusterListener, ComputeResponse::new, esqlExecutor)
                     );
+                }, e -> {
+                    if (executionInfo.isSkipUnavailable(clusterAlias)) {
+                        markClusterWithFinalStateAndNoShards(executionInfo, clusterAlias, EsqlExecutionInfo.Cluster.Status.SKIPPED, e);
+                        openExchangeListener.onResponse(null);
+                    } else {
+                        openExchangeListener.onFailure(e);
+                    }
                 })
             );
         }
+
     }
 
     List<RemoteCluster> getRemoteClusters(

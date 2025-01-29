@@ -61,6 +61,7 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME;
+import static org.elasticsearch.xpack.esql.session.EsqlSessionCCSUtils.markClusterWithFinalStateAndNoShards;
 
 /**
  * Computes the result of a {@link PhysicalPlan}.
@@ -268,6 +269,8 @@ public class ComputeService {
                 // starts computes on remote clusters
                 final var remoteClusters = clusterComputeHandler.getRemoteClusters(clusterToConcreteIndices, clusterToOriginalIndices);
                 for (ClusterComputeHandler.RemoteCluster cluster : remoteClusters) {
+                    var remoteListener = computeListener.acquireCompute();
+                    String clusterAlias = cluster.clusterAlias();
                     clusterComputeHandler.startComputeOnRemoteCluster(
                         sessionId,
                         rootTask,
@@ -276,14 +279,26 @@ public class ComputeService {
                         exchangeSource,
                         cluster,
                         cancelQueryOnFailure,
-                        computeListener.acquireCompute().map(r -> {
-                            updateExecutionInfo(execInfo, cluster.clusterAlias(), r);
-                            return r.getProfiles();
+                        execInfo,
+                        ActionListener.wrap((ComputeResponse r) -> {
+                            updateExecutionInfo(execInfo, clusterAlias, r);
+                            remoteListener.onResponse(r.getProfiles());
+                        }, e -> {
+                            if (shouldIgnoreRemoteError(clusterAlias, e)) {
+                                markClusterWithFinalStateAndNoShards(execInfo, clusterAlias, EsqlExecutionInfo.Cluster.Status.SKIPPED, e);
+                                remoteListener.onResponse(Collections.emptyList());
+                            } else {
+                                remoteListener.onFailure(e);
+                            }
                         })
                     );
                 }
             }
         }
+    }
+
+    private boolean shouldIgnoreRemoteError(String clusterAlias, Exception e) {
+        return true;
     }
 
     private void updateExecutionInfo(EsqlExecutionInfo executionInfo, String clusterAlias, ComputeResponse resp) {
@@ -309,11 +324,10 @@ public class ComputeService {
         } else {
             // if the cluster is an older version and does not send back took time, then calculate it here on the coordinator
             // and leave shard info unset, so it is not shown in the CCS metadata section of the JSON response
-            var tookTime = TimeValue.timeValueNanos(System.nanoTime() - executionInfo.getRelativeStartNanos());
             executionInfo.swapCluster(
                 clusterAlias,
                 (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setStatus(runningToSuccess.apply(v.getStatus()))
-                    .setTook(tookTime)
+                    .setTook(executionInfo.tookSoFar())
                     .build()
             );
         }

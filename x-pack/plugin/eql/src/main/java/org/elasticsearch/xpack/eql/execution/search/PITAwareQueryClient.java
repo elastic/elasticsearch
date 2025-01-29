@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.eql.execution.search;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.ClosePointInTimeRequest;
 import org.elasticsearch.action.search.ClosePointInTimeResponse;
@@ -137,8 +138,11 @@ public class PITAwareQueryClient extends BasicQueryClient {
 
     private <Response> void openPIT(ActionListener<Response> listener, Runnable runnable, boolean allowPartialSearchResults) {
         OpenPointInTimeRequest request = new OpenPointInTimeRequest(indices).indicesOptions(IndexResolver.FIELD_CAPS_INDICES_OPTIONS)
-            .keepAlive(keepAlive)
-            .allowPartialSearchResults(allowPartialSearchResults);
+            .keepAlive(keepAlive);
+        if (allowPartialSearchResults && cfg.minTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
+            // in previous versions OpenPIT does not support allow_partial_search_results.
+            request = request.allowPartialSearchResults(allowPartialSearchResults);
+        }
         request.indexFilter(filter);
         client.execute(TransportOpenPointInTimeAction.TYPE, request, listener.delegateFailureAndWrap((l, r) -> {
             pitId = r.getPointInTimeId();

@@ -61,8 +61,6 @@ setup:
                 type: semantic_text
                 inference_id: dense-inference-id
 
----
-"Highlighting using a sparse embedding model":
   - do:
       index:
         index: test-sparse-index
@@ -72,18 +70,29 @@ setup:
           body: ["ElasticSearch is an open source, distributed, RESTful, search engine which is built on top of Lucene internally and enjoys all the features it provides.", "You Know, for Search!"]
         refresh: true
 
-  - match: { result: created }
+  - do:
+      index:
+        index: test-dense-index
+        id: doc_1
+        body:
+          title: "Elasticsearch"
+          body: [ "ElasticSearch is an open source, distributed, RESTful, search engine which is built on top of Lucene internally and enjoys all the features it provides.", "You Know, for Search!" ]
+        refresh: true
 
+---
+"Highlighting using a sparse embedding model":
   - do:
       search:
         index: test-sparse-index
         body:
           query:
-            match:
-              body: "What is Elasticsearch?"
+            semantic:
+              field: "body"
+              query: "What is Elasticsearch?"
           highlight:
             fields:
               body:
+                type: "semantic"
                 number_of_fragments: 1
 
   - match:  { hits.total.value: 1 }
@@ -96,11 +105,13 @@ setup:
         index: test-sparse-index
         body:
           query:
-            match:
-              body: "What is Elasticsearch?"
+            semantic:
+              field: "body"
+              query: "What is Elasticsearch?"
           highlight:
             fields:
               body:
+                type: "semantic"
                 number_of_fragments: 2
 
   - match:  { hits.total.value: 1 }
@@ -114,11 +125,13 @@ setup:
         index: test-sparse-index
         body:
           query:
-            match:
-              body: "What is Elasticsearch?"
+            semantic:
+              field: "body"
+              query: "What is Elasticsearch?"
           highlight:
             fields:
               body:
+                type: "semantic"
                 order: "score"
                 number_of_fragments: 1
 
@@ -132,11 +145,13 @@ setup:
         index: test-sparse-index
         body:
           query:
-            match:
-              body: "What is Elasticsearch?"
+            semantic:
+              field: "body"
+              query: "What is Elasticsearch?"
           highlight:
             fields:
               body:
+                type: "semantic"
                 order: "score"
                 number_of_fragments: 2
 
@@ -149,26 +164,17 @@ setup:
 ---
 "Highlighting using a dense embedding model":
   - do:
-      index:
-        index: test-dense-index
-        id: doc_1
-        body:
-          title: "Elasticsearch"
-          body: ["ElasticSearch is an open source, distributed, RESTful, search engine which is built on top of Lucene internally and enjoys all the features it provides.", "You Know, for Search!"]
-        refresh: true
-
-  - match: { result: created }
-
-  - do:
       search:
         index: test-dense-index
         body:
           query:
-            match:
-              body: "What is Elasticsearch?"
+            semantic:
+              field: "body"
+              query: "What is Elasticsearch?"
           highlight:
             fields:
               body:
+                type: "semantic"
                 number_of_fragments: 1
 
   - match:  { hits.total.value: 1 }
@@ -181,11 +187,13 @@ setup:
         index: test-dense-index
         body:
           query:
-            match:
-              body: What is Elasticsearch?"
+            semantic:
+              field: "body"
+              query: "What is Elasticsearch?"
           highlight:
             fields:
               body:
+                type: "semantic"
                 number_of_fragments: 2
 
   - match:  { hits.total.value: 1 }
@@ -199,11 +207,13 @@ setup:
         index: test-dense-index
         body:
           query:
-            match:
-              body: "What is Elasticsearch?"
+            semantic:
+              field: "body"
+              query: "What is Elasticsearch?"
           highlight:
             fields:
               body:
+                type: "semantic"
                 order: "score"
                 number_of_fragments: 1
 
@@ -217,12 +227,13 @@ setup:
         index: test-dense-index
         body:
           query:
-            match:
-              body: "What is Elasticsearch?"
+            semantic:
+              field: "body"
+              query: "What is Elasticsearch?"
           highlight:
             fields:
               body:
-                type: semantic
+                type: "semantic"
                 order: "score"
                 number_of_fragments: 2
 
@@ -232,6 +243,11 @@ setup:
   - match:  { hits.hits.0.highlight.body.0: "You Know, for Search!" }
   - match:  { hits.hits.0.highlight.body.1: "ElasticSearch is an open source, distributed, RESTful, search engine which is built on top of Lucene internally and enjoys all the features it provides." }
 
+---
+"Default highlighter for fields":
+  - requires:
+        cluster_features: "semantic_text.highlighter.default"
+        reason: semantic text field defaults to the semantic highlighter
 
   - do:
       search:
@@ -243,7 +259,7 @@ setup:
           highlight:
             fields:
               body:
-                type: semantic
+                type: "semantic"
                 order: "score"
                 number_of_fragments: 2
 
@@ -264,9 +280,9 @@ setup:
             fields:
               title:
                 type: semantic
-                order: "score"
                 number_of_fragments: 2
 
   - match:      { hits.total.value: 1 }
   - match:      { hits.hits.0._id: "doc_1" }
   - not_exists: hits.hits.0.highlight.title
+

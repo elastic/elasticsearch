@@ -64,7 +64,7 @@ public final class FileAccessTree {
         int ndx = Arrays.binarySearch(paths, path);
         if (ndx < -1) {
             String maybeParent = paths[-ndx - 2];
-            return path.startsWith(maybeParent);
+            return path.startsWith(maybeParent) && path.charAt(maybeParent.length()) == '/';
         }
         return ndx >= 0;
     }

@@ -41,7 +41,9 @@ public class FileAccessTreeTests extends ESTestCase {
         var tree = FileAccessTree.of(List.of(entitlement("foo", "read")));
         assertThat(tree.canRead(path("foo")), is(true));
         assertThat(tree.canRead(path("foo/subdir")), is(true));
+        assertThat(tree.canRead(path("food")), is(false));
         assertThat(tree.canWrite(path("foo")), is(false));
+        assertThat(tree.canWrite(path("food")), is(false));
 
         assertThat(tree.canRead(path("before")), is(false));
         assertThat(tree.canRead(path("later")), is(false));
@@ -51,7 +53,9 @@ public class FileAccessTreeTests extends ESTestCase {
         var tree = FileAccessTree.of(List.of(entitlement("foo", "read_write")));
         assertThat(tree.canWrite(path("foo")), is(true));
         assertThat(tree.canWrite(path("foo/subdir")), is(true));
+        assertThat(tree.canWrite(path("food")), is(false));
         assertThat(tree.canRead(path("foo")), is(true));
+        assertThat(tree.canRead(path("food")), is(false));
 
         assertThat(tree.canWrite(path("before")), is(false));
         assertThat(tree.canWrite(path("later")), is(false));

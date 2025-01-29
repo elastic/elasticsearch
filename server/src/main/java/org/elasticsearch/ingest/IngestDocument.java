@@ -56,6 +56,9 @@ public final class IngestDocument {
     // This is the maximum number of nested pipelines that can be within a pipeline. If there are more, we bail out with an error
     public static final int MAX_PIPELINES = Integer.parseInt(System.getProperty("es.ingest.max_pipelines", "100"));
 
+    // a 'not found' sentinel value for use in getOrDefault calls in order to avoid containsKey-and-then-get
+    private static final Object NOT_FOUND = new Object();
+
     private final IngestCtxMap ctxMap;
     private final Map<String, Object> ingestMetadata;
 
@@ -376,11 +379,15 @@ public final class IngestDocument {
         if (context == null) {
             return ResolveResult.error("cannot resolve [" + pathElement + "] from null as part of path [" + fullPath + "]");
         }
-        if (context instanceof Map<?, ?> map) {
-            if (map.containsKey(pathElement)) {
-                return ResolveResult.success(map.get(pathElement));
+        if (context instanceof Map<?, ?>) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> map = (Map<String, Object>) context;
+            Object object = map.getOrDefault(pathElement, NOT_FOUND); // getOrDefault is faster than containsKey + get
+            if (object == NOT_FOUND) {
+                return ResolveResult.error("field [" + pathElement + "] not present as part of path [" + fullPath + "]");
+            } else {
+                return ResolveResult.success(object);
             }
-            return ResolveResult.error("field [" + pathElement + "] not present as part of path [" + fullPath + "]");
         }
         if (context instanceof List<?> list) {
             int index;
@@ -547,12 +554,13 @@ public final class IngestDocument {
             if (context instanceof Map) {
                 @SuppressWarnings("unchecked")
                 Map<String, Object> map = (Map<String, Object>) context;
-                if (map.containsKey(pathElement)) {
-                    context = map.get(pathElement);
-                } else {
-                    HashMap<Object, Object> newMap = new HashMap<>();
+                Object object = map.getOrDefault(pathElement, NOT_FOUND); // getOrDefault is faster than containsKey + get
+                if (object == NOT_FOUND) {
+                    Map<Object, Object> newMap = new HashMap<>();
                     map.put(pathElement, newMap);
                     context = newMap;
+                } else {
+                    context = object;
                 }
             } else if (context instanceof List<?> list) {
                 int index;
@@ -591,16 +599,16 @@ public final class IngestDocument {
             @SuppressWarnings("unchecked")
             Map<String, Object> map = (Map<String, Object>) context;
             if (append) {
-                if (map.containsKey(leafKey)) {
-                    Object object = map.get(leafKey);
+                Object object = map.getOrDefault(leafKey, NOT_FOUND); // getOrDefault is faster than containsKey + get
+                if (object == NOT_FOUND) {
+                    List<Object> list = new ArrayList<>();
+                    appendValues(list, value);
+                    map.put(leafKey, list);
+                } else {
                     Object list = appendValues(object, value, allowDuplicates);
                     if (list != object) {
                         map.put(leafKey, list);
                     }
-                } else {
-                    List<Object> list = new ArrayList<>();
-                    appendValues(list, value);
-                    map.put(leafKey, list);
                 }
                 return;
             }

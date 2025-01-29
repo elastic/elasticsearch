@@ -107,7 +107,7 @@ abstract class AbstractGradleFuncTest extends Specification {
                                 .forwardOutput()
             ), configurationCacheCompatible,
                 buildApiRestrictionsDisabled)
-        ).withArguments(arguments.collect { it.toString() })
+        ).withArguments(arguments.collect { it.toString() } + "--full-stacktrace")
     }
 
     def assertOutputContains(String givenOutput, String expected) {

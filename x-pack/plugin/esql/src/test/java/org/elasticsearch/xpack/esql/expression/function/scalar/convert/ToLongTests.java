@@ -236,11 +236,7 @@ public class ToLongTests extends AbstractScalarFunctionTestCase {
             l -> ((Integer) l).longValue(),
             List.of()
         );
-        return parameterSuppliersFromTypedDataWithDefaultChecks(
-            true,
-            suppliers,
-            (v, p) -> "boolean or counter_integer or counter_long or date_nanos or datetime or numeric or string"
-        );
+        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
     }
 
     @Override

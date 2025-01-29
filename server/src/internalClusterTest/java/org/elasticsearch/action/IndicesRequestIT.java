@@ -519,7 +519,7 @@ public class IndicesRequestIT extends ESIntegTestCase {
     public void testGetMappings() {
         interceptTransportActions(GetMappingsAction.NAME);
 
-        GetMappingsRequest getMappingsRequest = new GetMappingsRequest().indices(randomIndicesOrAliases());
+        GetMappingsRequest getMappingsRequest = new GetMappingsRequest(TEST_REQUEST_TIMEOUT).indices(randomIndicesOrAliases());
         internalCluster().coordOnlyNodeClient().admin().indices().getMappings(getMappingsRequest).actionGet();
 
         clearInterceptedActions();

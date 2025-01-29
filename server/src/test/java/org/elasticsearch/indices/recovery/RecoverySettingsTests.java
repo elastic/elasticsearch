@@ -423,7 +423,7 @@ public class RecoverySettingsTests extends ESTestCase {
                     .withMemory(ByteSizeValue.ofBytes(randomLongBetween(1L, ByteSizeUnit.GB.toBytes(4L))))
                     .build()
                     .getMaxBytesPerSec(),
-                equalTo(new ByteSizeValue(40, ByteSizeUnit.MB))
+                equalTo(ByteSizeValue.of(40, ByteSizeUnit.MB))
             );
         }
         {
@@ -433,7 +433,7 @@ public class RecoverySettingsTests extends ESTestCase {
                     .withMemory(ByteSizeValue.ofBytes(randomLongBetween(ByteSizeUnit.GB.toBytes(4L) + 1L, ByteSizeUnit.GB.toBytes(8L))))
                     .build()
                     .getMaxBytesPerSec(),
-                equalTo(new ByteSizeValue(60, ByteSizeUnit.MB))
+                equalTo(ByteSizeValue.of(60, ByteSizeUnit.MB))
             );
         }
         {
@@ -443,7 +443,7 @@ public class RecoverySettingsTests extends ESTestCase {
                     .withMemory(ByteSizeValue.ofBytes(randomLongBetween(ByteSizeUnit.GB.toBytes(8L) + 1L, ByteSizeUnit.GB.toBytes(16L))))
                     .build()
                     .getMaxBytesPerSec(),
-                equalTo(new ByteSizeValue(90, ByteSizeUnit.MB))
+                equalTo(ByteSizeValue.of(90, ByteSizeUnit.MB))
             );
         }
         {
@@ -453,7 +453,7 @@ public class RecoverySettingsTests extends ESTestCase {
                     .withMemory(ByteSizeValue.ofBytes(randomLongBetween(ByteSizeUnit.GB.toBytes(16L) + 1L, ByteSizeUnit.GB.toBytes(32L))))
                     .build()
                     .getMaxBytesPerSec(),
-                equalTo(new ByteSizeValue(125, ByteSizeUnit.MB))
+                equalTo(ByteSizeValue.of(125, ByteSizeUnit.MB))
             );
         }
         {
@@ -463,7 +463,7 @@ public class RecoverySettingsTests extends ESTestCase {
                     .withMemory(ByteSizeValue.ofBytes(randomLongBetween(ByteSizeUnit.GB.toBytes(32L) + 1L, ByteSizeUnit.TB.toBytes(4L))))
                     .build()
                     .getMaxBytesPerSec(),
-                equalTo(new ByteSizeValue(250, ByteSizeUnit.MB))
+                equalTo(ByteSizeValue.of(250, ByteSizeUnit.MB))
             );
         }
     }

@@ -90,7 +90,7 @@ public class GetTopNFunctionsResponseTests extends ESTestCase {
             22.0d,
             12.0d,
             120.0d,
-            SubGroup.root("transaction.name", false).addCount("basket", 7L)
+            SubGroup.root("transaction.name").addCount("basket", 7L)
         );
         GetTopNFunctionsResponse response = new GetTopNFunctionsResponse(1, 10, 2.2d, 12.0d, List.of(topNFunction));
         response.toXContent(actualResponse, ToXContent.EMPTY_PARAMS);

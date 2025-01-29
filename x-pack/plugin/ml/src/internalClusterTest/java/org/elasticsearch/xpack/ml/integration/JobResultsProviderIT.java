@@ -255,7 +255,7 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
 
         // Assert that the mappings contain all the additional fields: field1, field2, field3, etc.
         String sharedResultsIndex = AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT;
-        GetMappingsRequest request = new GetMappingsRequest().indices(sharedResultsIndex);
+        GetMappingsRequest request = new GetMappingsRequest(TEST_REQUEST_TIMEOUT).indices(sharedResultsIndex);
         GetMappingsResponse response = client().execute(GetMappingsAction.INSTANCE, request).actionGet();
         Map<String, MappingMetadata> indexMappings = response.getMappings();
         assertNotNull(indexMappings);
@@ -506,7 +506,7 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
     }
 
     private Map<String, Object> getIndexMappingProperties(String index) {
-        GetMappingsRequest request = new GetMappingsRequest().indices(index);
+        GetMappingsRequest request = new GetMappingsRequest(TEST_REQUEST_TIMEOUT).indices(index);
         GetMappingsResponse response = client().execute(GetMappingsAction.INSTANCE, request).actionGet();
         Map<String, MappingMetadata> indexMappings = response.getMappings();
         assertNotNull(indexMappings);
@@ -530,7 +530,10 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
     }
 
     private Set<String> getAliases(String index) {
-        GetAliasesResponse getAliasesResponse = client().admin().indices().getAliases(new GetAliasesRequest().indices(index)).actionGet();
+        GetAliasesResponse getAliasesResponse = client().admin()
+            .indices()
+            .getAliases(new GetAliasesRequest(TEST_REQUEST_TIMEOUT).indices(index))
+            .actionGet();
         Map<String, List<AliasMetadata>> aliases = getAliasesResponse.getAliases();
         assertThat(aliases.containsKey(index), is(true));
         List<AliasMetadata> aliasMetadataList = aliases.get(index);

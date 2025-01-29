@@ -34,6 +34,9 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.common.settings.Setting.Property.Deprecated;
+import static org.elasticsearch.common.settings.Setting.Property.NodeScope;
+import static org.elasticsearch.common.settings.Setting.Property.OperatorDynamic;
 import static org.elasticsearch.xpack.core.security.authc.RealmSettings.RESERVED_REALM_AND_DOMAIN_NAME_PREFIX;
 
 public class NodeDeprecationChecks {
@@ -95,21 +98,58 @@ public class NodeDeprecationChecks {
             return null;
         }
         final String removedSettingKey = removedSetting.getKey();
-        Object removedSettingValue = removedSetting.exists(clusterSettings)
-            ? removedSetting.get(clusterSettings)
-            : removedSetting.get(nodeSettings);
-        String value;
-        if (removedSettingValue instanceof TimeValue) {
-            value = ((TimeValue) removedSettingValue).getStringRep();
+        // read setting to force the deprecation warning
+        if (removedSetting.exists(clusterSettings)) {
+            removedSetting.get(clusterSettings);
         } else {
-            value = removedSettingValue.toString();
+            removedSetting.get(nodeSettings);
         }
+
         final String message = String.format(Locale.ROOT, "Setting [%s] is deprecated", removedSettingKey);
         final String details = additionalDetailMessage == null
             ? String.format(Locale.ROOT, "Remove the [%s] setting.", removedSettingKey)
             : String.format(Locale.ROOT, "Remove the [%s] setting. %s", removedSettingKey, additionalDetailMessage);
         boolean canAutoRemoveSetting = removedSetting.exists(clusterSettings) && removedSetting.exists(nodeSettings) == false;
         Map<String, Object> meta = createMetaMapForRemovableSettings(canAutoRemoveSetting, removedSettingKey);
+        return new DeprecationIssue(deprecationLevel, message, url, details, false, meta);
+    }
+
+    static DeprecationIssue checkMultipleRemovedSettings(
+        final Settings clusterSettings,
+        final Settings nodeSettings,
+        final List<Setting<?>> removedSettings,
+        final String url,
+        String additionalDetailMessage,
+        DeprecationIssue.Level deprecationLevel
+    ) {
+
+        var removedSettingsRemaining = removedSettings.stream().filter(s -> s.exists(clusterSettings) || s.exists(nodeSettings)).toList();
+        if (removedSettingsRemaining.isEmpty()) {
+            return null;
+        }
+        if (removedSettingsRemaining.size() == 1) {
+            Setting<?> removedSetting = removedSettingsRemaining.get(0);
+            return checkRemovedSetting(clusterSettings, nodeSettings, removedSetting, url, additionalDetailMessage, deprecationLevel);
+        }
+
+        // read settings to force the deprecation warning
+        removedSettingsRemaining.forEach(s -> {
+            if (s.exists(clusterSettings)) {
+                s.get(clusterSettings);
+            } else {
+                s.get(nodeSettings);
+            }
+        });
+
+        var removedSettingKeysRemaining = removedSettingsRemaining.stream().map(Setting::getKey).sorted().toList();
+        final String message = String.format(Locale.ROOT, "Settings %s are deprecated", removedSettingKeysRemaining);
+        final String details = additionalDetailMessage == null
+            ? String.format(Locale.ROOT, "Remove each setting in %s.", removedSettingKeysRemaining)
+            : String.format(Locale.ROOT, "Remove each setting in %s. %s", removedSettingKeysRemaining, additionalDetailMessage);
+
+        var canAutoRemoveSettings = removedSettingsRemaining.stream()
+            .allMatch(s -> s.exists(clusterSettings) && s.exists(nodeSettings) == false);
+        var meta = createMetaMapForRemovableSettings(canAutoRemoveSettings, removedSettingKeysRemaining);
         return new DeprecationIssue(deprecationLevel, message, url, details, false, meta);
     }
 
@@ -942,6 +982,34 @@ public class NodeDeprecationChecks {
             url,
             "As of 8.8.0 this setting is ignored.",
             DeprecationIssue.Level.WARNING
+        );
+    }
+
+    static DeprecationIssue checkTracingApmSettings(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
+        String url = "https://ela.st/es-deprecation-9-tracing-apm-settings";
+        Setting.Property[] properties = { NodeScope, OperatorDynamic, Deprecated };
+        List<Setting<?>> tracingApmSettings = List.of(
+            Setting.prefixKeySetting("tracing.apm.agent.", key -> Setting.simpleString(key, properties)),
+            Setting.stringListSetting("tracing.apm.names.include", properties),
+            Setting.stringListSetting("tracing.apm.names.exclude", properties),
+            Setting.stringListSetting("tracing.apm.sanitize_field_names", properties),
+            Setting.boolSetting("tracing.apm.enabled", false, properties),
+            SecureSetting.secureString("tracing.apm.api_key", null, Deprecated),
+            SecureSetting.secureString("tracing.apm.secret_token", null, Deprecated)
+        );
+        return checkMultipleRemovedSettings(
+            clusterState.metadata().settings(),
+            settings,
+            tracingApmSettings,
+            url,
+            "[tracing.apm.*] settings are no longer accepted as of 9.0.0"
+                + " and should be replaced by [telemetry.*] or [telemetry.tracing.*] settings.",
+            DeprecationIssue.Level.CRITICAL
         );
     }
 }

@@ -346,7 +346,8 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
     }
 
     private GetIndexResponse getGetIndexResponseAndCheck(String createdEnrichIndex) {
-        GetIndexResponse enrichIndex = indicesAdmin().getIndex(new GetIndexRequest().indices(".enrich-test1")).actionGet();
+        GetIndexResponse enrichIndex = indicesAdmin().getIndex(new GetIndexRequest(TEST_REQUEST_TIMEOUT).indices(".enrich-test1"))
+            .actionGet();
         assertThat(enrichIndex.getIndices().length, equalTo(1));
         assertThat(enrichIndex.getIndices()[0], equalTo(createdEnrichIndex));
         Settings settings = enrichIndex.getSettings().get(createdEnrichIndex);
@@ -363,7 +364,8 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
             .actionGet();
         assertEquals(RestStatus.CREATED, indexRequest.status());
 
-        GetIndexResponse sourceIndex = indicesAdmin().getIndex(new GetIndexRequest().indices(sourceIndexName)).actionGet();
+        GetIndexResponse sourceIndex = indicesAdmin().getIndex(new GetIndexRequest(TEST_REQUEST_TIMEOUT).indices(sourceIndexName))
+            .actionGet();
         // Validate Mapping
         Map<String, Object> sourceIndexMapping = sourceIndex.getMappings().get(sourceIndexName).sourceAsMap();
         Map<?, ?> sourceIndexProperties = (Map<?, ?>) sourceIndexMapping.get("properties");

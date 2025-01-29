@@ -23,9 +23,12 @@ import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnparsedModel;
+import org.elasticsearch.license.LicenseUtils;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.inference.action.task.StreamingTaskManager;
@@ -38,6 +41,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.xpack.inference.InferencePlugin.INFERENCE_API_FEATURE;
 import static org.elasticsearch.xpack.inference.telemetry.InferenceStats.modelAttributes;
 import static org.elasticsearch.xpack.inference.telemetry.InferenceStats.responseAttributes;
 
@@ -48,6 +52,7 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
     private static final Logger log = LogManager.getLogger(BaseTransportInferenceAction.class);
     private static final String STREAMING_INFERENCE_TASK_TYPE = "streaming_inference";
     private static final String STREAMING_TASK_ACTION = "xpack/inference/streaming_inference[n]";
+    private final XPackLicenseState licenseState;
     private final ModelRegistry modelRegistry;
     private final InferenceServiceRegistry serviceRegistry;
     private final InferenceStats inferenceStats;
@@ -57,6 +62,7 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
         String inferenceActionName,
         TransportService transportService,
         ActionFilters actionFilters,
+        XPackLicenseState licenseState,
         ModelRegistry modelRegistry,
         InferenceServiceRegistry serviceRegistry,
         InferenceStats inferenceStats,
@@ -64,6 +70,7 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
         Writeable.Reader<Request> requestReader
     ) {
         super(inferenceActionName, transportService, actionFilters, requestReader, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        this.licenseState = licenseState;
         this.modelRegistry = modelRegistry;
         this.serviceRegistry = serviceRegistry;
         this.inferenceStats = inferenceStats;
@@ -72,6 +79,11 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
 
     @Override
     protected void doExecute(Task task, Request request, ActionListener<InferenceAction.Response> listener) {
+        if (INFERENCE_API_FEATURE.check(licenseState) == false) {
+            listener.onFailure(LicenseUtils.newComplianceException(XPackField.INFERENCE));
+            return;
+        }
+
         var timer = InferenceTimer.start();
 
         var getModelListener = ActionListener.wrap((UnparsedModel unparsedModel) -> {

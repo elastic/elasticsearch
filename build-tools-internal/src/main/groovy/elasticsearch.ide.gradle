@@ -10,6 +10,8 @@
 import org.elasticsearch.gradle.util.Pair
 import org.elasticsearch.gradle.util.GradleUtils
 import org.elasticsearch.gradle.internal.test.TestUtil
+import org.elasticsearch.gradle.internal.idea.EnablePreviewFeaturesTask
+import org.elasticsearch.gradle.internal.idea.IdeaXmlUtil
 import org.jetbrains.gradle.ext.JUnit
 
 import java.nio.file.Files
@@ -144,19 +146,10 @@ if (providers.systemProperty('idea.active').getOrNull() == 'true') {
   }
 
   // modifies the idea module config to enable preview features on ':libs:native' module
-  tasks.register("enablePreviewFeatures") {
+  tasks.register("enablePreviewFeatures", EnablePreviewFeaturesTask) {
     group = 'ide'
     description = 'Enables preview features on native library module'
     dependsOn tasks.named("enableExternalConfiguration")
-
-//    ext {
-      def enablePreview = { moduleFile, languageLevel ->
-        IdeaXmlUtil.modifyXml(moduleFile) { xml ->
-          xml.component.find { it.'@name' == 'NewModuleRootManager' }?.'@LANGUAGE_LEVEL' = languageLevel
-        }
-      }
-//    }
-
     doLast {
       enablePreview('.idea/modules/libs/native/elasticsearch.libs.native.main.iml', 'JDK_21_PREVIEW')
       enablePreview('.idea/modules/libs/native/elasticsearch.libs.native.test.iml', 'JDK_21_PREVIEW')
@@ -276,46 +269,6 @@ if (providers.systemProperty('idea.active').getOrNull() == 'true') {
     }
   }
 }
-
-/**
- * Parses a given XML file, applies a set of changes, and writes those changes back to the original file.
- *
- * @param path Path to existing XML file
- * @param action Action to perform on parsed XML document
- * @param preface optional front matter to add after the XML declaration
- * but before the XML document, e.g. a doctype or comment
- */
-
-class IdeaXmlUtil {
-  static Node parseXml(Object xmlPath) {
-    File xmlFile = new File(xmlPath)
-    XmlParser xmlParser = new XmlParser(false, true, true)
-    xmlParser.setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false)
-    Node xml = xmlParser.parse(xmlFile)
-    return xml
-  }
-
-  static void modifyXml(Object xmlPath, Action<? super Node> action, String preface = null) {
-    File xmlFile = new File(xmlPath)
-    if (xmlFile.exists()) {
-      Node xml = parseXml(xmlPath)
-      action.execute(xml)
-
-      xmlFile.withPrintWriter { writer ->
-        def printer = new XmlNodePrinter(writer)
-        printer.namespaceAware = true
-        printer.preserveWhitespace = true
-        writer.write("<?xml version=\"1.0\"?>\n")
-
-        if (preface != null) {
-          writer.write(preface)
-        }
-        printer.print(xml)
-      }
-    }
-  }
-}
-
 
 Pair<File, IncludedBuild> locateElasticsearchWorkspace(Gradle gradle) {
   if (gradle.parent == null) {

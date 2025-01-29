@@ -33,6 +33,7 @@ import org.elasticsearch.compute.operator.AbstractPageMappingOperator;
 import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.DriverSleeps;
 import org.elasticsearch.compute.operator.DriverStatus;
+import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
@@ -50,7 +51,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.xpack.esql.TestBlockFactory;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.versionfield.Version;
@@ -518,30 +518,66 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
         }
     }
 
+    public static int clusterDetailsSize(int numClusters) {
+        /* Example:
+        "_clusters" : {
+            "total" : 2,
+            "successful" : 2,
+            "running" : 0,
+            "skipped" : 0,
+            "partial" : 0,
+            "failed" : 0,
+            "details" : {
+                "(local)" : {
+                    "status" : "successful",
+                    "indices" : "logs-1",
+                    "took" : 4444,
+                    "_shards" : {
+                      "total" : 10,
+                      "successful" : 10,
+                      "skipped" : 3,
+                      "failed" : 0
+                    }
+                },
+                "remote1" : {
+                    "status" : "successful",
+                    "indices" : "remote1:logs-1",
+                    "took" : 4999,
+                    "_shards" : {
+                      "total" : 12,
+                      "successful" : 12,
+                      "skipped" : 5,
+                      "failed" : 0
+                    }
+                }
+            }
+         }
+         */
+        return numClusters * 4 + 1;
+    }
+
     public void testChunkResponseSizeColumnar() {
-        int sizeClusterDetails = 14;
         try (EsqlQueryResponse resp = randomResponse(true, null)) {
             int columnCount = resp.pages().get(0).getBlockCount();
             int bodySize = resp.pages().stream().mapToInt(p -> p.getPositionCount() * p.getBlockCount()).sum() + columnCount * 2;
-            assertChunkCount(resp, r -> 5 + sizeClusterDetails + bodySize);
+            assertChunkCount(resp, r -> 5 + clusterDetailsSize(resp.getExecutionInfo().clusterInfo.size()) + bodySize);
         }
 
         try (EsqlQueryResponse resp = randomResponseAsync(true, null, true)) {
             int columnCount = resp.pages().get(0).getBlockCount();
             int bodySize = resp.pages().stream().mapToInt(p -> p.getPositionCount() * p.getBlockCount()).sum() + columnCount * 2;
-            assertChunkCount(resp, r -> 6 + sizeClusterDetails + bodySize); // is_running
+            assertChunkCount(resp, r -> 6 + clusterDetailsSize(resp.getExecutionInfo().clusterInfo.size()) + bodySize); // is_running
         }
     }
 
     public void testChunkResponseSizeRows() {
-        int sizeClusterDetails = 14;
         try (EsqlQueryResponse resp = randomResponse(false, null)) {
             int bodySize = resp.pages().stream().mapToInt(Page::getPositionCount).sum();
-            assertChunkCount(resp, r -> 5 + sizeClusterDetails + bodySize);
+            assertChunkCount(resp, r -> 5 + clusterDetailsSize(resp.getExecutionInfo().clusterInfo.size()) + bodySize);
         }
         try (EsqlQueryResponse resp = randomResponseAsync(false, null, true)) {
             int bodySize = resp.pages().stream().mapToInt(Page::getPositionCount).sum();
-            assertChunkCount(resp, r -> 6 + sizeClusterDetails + bodySize);
+            assertChunkCount(resp, r -> 6 + clusterDetailsSize(resp.getExecutionInfo().clusterInfo.size()) + bodySize);
         }
     }
 
@@ -683,7 +719,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                             20021,
                             20000,
                             12,
-                            List.of(new DriverStatus.OperatorStatus("asdf", new AbstractPageMappingOperator.Status(10021, 10))),
+                            List.of(new DriverStatus.OperatorStatus("asdf", new AbstractPageMappingOperator.Status(10021, 10, 111, 222))),
                             DriverSleeps.empty()
                         )
                     )
@@ -722,7 +758,9 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                             "operator" : "asdf",
                             "status" : {
                               "process_nanos" : 10021,
-                              "pages_processed" : 10
+                              "pages_processed" : 10,
+                              "rows_received" : 111,
+                              "rows_emitted" : 222
                             }
                           }
                         ],

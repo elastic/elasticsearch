@@ -18,7 +18,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.elasticsearch.xpack.esql.core.expression.predicate.Predicates.extractCommon;
+import static org.elasticsearch.xpack.esql.expression.predicate.Predicates.extractCommon;
 
 /**
  * Extract a per-function expression filter applied to all the aggs as a query {@link Filter}, when no groups are provided.

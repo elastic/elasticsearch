@@ -128,7 +128,7 @@ import java.util.stream.IntStream;
  * |     l99 | null | null |
  * }</pre>
  */
-class RightChunkedLeftJoin implements Releasable {
+public class RightChunkedLeftJoin implements Releasable {
     private final Page leftHand;
     private final int mergedElementCount;
     /**
@@ -138,12 +138,12 @@ class RightChunkedLeftJoin implements Releasable {
      */
     private int next = 0;
 
-    RightChunkedLeftJoin(Page leftHand, int mergedElementCounts) {
+    public RightChunkedLeftJoin(Page leftHand, int mergedElementCounts) {
         this.leftHand = leftHand;
         this.mergedElementCount = mergedElementCounts;
     }
 
-    Page join(Page rightHand) {
+    public Page join(Page rightHand) {
         IntVector positions = rightHand.<IntBlock>getBlock(0).asVector();
         if (positions.getInt(0) < next - 1) {
             throw new IllegalArgumentException("maximum overlap is one position");
@@ -209,7 +209,7 @@ class RightChunkedLeftJoin implements Releasable {
         }
     }
 
-    Optional<Page> noMoreRightHandPages() {
+    public Optional<Page> noMoreRightHandPages() {
         if (next == leftHand.getPositionCount()) {
             return Optional.empty();
         }
@@ -235,6 +235,14 @@ class RightChunkedLeftJoin implements Releasable {
                 Releasables.close(blocks);
             }
         }
+    }
+
+    /**
+     * Release this on <strong>any</strong> thread, rather than just the thread that built it.
+     */
+    public void releaseOnAnyThread() {
+        leftHand.allowPassingToDifferentDriver();
+        leftHand.releaseBlocks();
     }
 
     @Override

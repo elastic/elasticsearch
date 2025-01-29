@@ -302,6 +302,9 @@
         },
         "sync_now": {
           "type": "boolean"
+        },
+        "deleted": {
+          "type": "boolean"
         }
       }
     }

@@ -417,7 +417,6 @@
 
   - requires:
       test_runner_features: [arbitrary_key]
-      cluster_features: ["mapper.query_index_mode"]
       reason:  "_ignored_source added to mappings"
 
   - do:
@@ -511,10 +510,6 @@
 ---
 "Lucene segment level fields stats":
 
-  - requires:
-      cluster_features: ["mapper.segment_level_fields_stats"]
-      reason: "segment level fields stats"
-
   - do:
       indices.create:
         index: index1
@@ -575,14 +570,14 @@
       nodes.stats: { metric: _all, level: "indices", human: true }
 
   - gte: { nodes.$node_id.indices.mappings.total_count: 28 }
-  - lte: { nodes.$node_id.indices.mappings.total_count: 29 }
+  - lte: { nodes.$node_id.indices.mappings.total_count: 30 }
   - gte: { nodes.$node_id.indices.mappings.total_estimated_overhead_in_bytes: 28672 }
-  - lte: { nodes.$node_id.indices.mappings.total_estimated_overhead_in_bytes: 29696 }
+  - lte: { nodes.$node_id.indices.mappings.total_estimated_overhead_in_bytes: 30720 }
   - match: { nodes.$node_id.indices.mappings.total_segments: 1 }
   - gte: { nodes.$node_id.indices.mappings.total_segment_fields: 28 }
-  - lte: { nodes.$node_id.indices.mappings.total_segment_fields: 29 }
+  - lte: { nodes.$node_id.indices.mappings.total_segment_fields: 30 }
   - gte: { nodes.$node_id.indices.mappings.average_fields_per_segment: 28 }
-  - lte: { nodes.$node_id.indices.mappings.average_fields_per_segment: 29 }
+  - lte: { nodes.$node_id.indices.mappings.average_fields_per_segment: 30 }
 
   - do:
       index:
@@ -595,14 +590,14 @@
       nodes.stats: { metric: _all, level: "indices", human: true }
 
   - gte: { nodes.$node_id.indices.mappings.total_count: 28 }
-  - lte: { nodes.$node_id.indices.mappings.total_count: 29 }
+  - lte: { nodes.$node_id.indices.mappings.total_count: 30 }
   - gte: { nodes.$node_id.indices.mappings.total_estimated_overhead_in_bytes: 28672 }
-  - lte: { nodes.$node_id.indices.mappings.total_estimated_overhead_in_bytes: 29696 }
+  - lte: { nodes.$node_id.indices.mappings.total_estimated_overhead_in_bytes: 30720 }
   - match: { nodes.$node_id.indices.mappings.total_segments: 2 }
   - gte: { nodes.$node_id.indices.mappings.total_segment_fields: 56 }
-  - lte: { nodes.$node_id.indices.mappings.total_segment_fields: 58 }
+  - lte: { nodes.$node_id.indices.mappings.total_segment_fields: 60 }
   - gte: { nodes.$node_id.indices.mappings.average_fields_per_segment: 28 }
-  - lte: { nodes.$node_id.indices.mappings.average_fields_per_segment: 29 }
+  - lte: { nodes.$node_id.indices.mappings.average_fields_per_segment: 30 }
 ---
 
 "indices mappings does not exist in shards level":

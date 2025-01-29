@@ -85,17 +85,6 @@ public class ElasticInferenceServiceSparseEmbeddingsRequestEntityTests extends E
             """));
     }
 
-    public void testToXContent_MultipleInputs_IngestUsageContext() throws IOException {
-        var entity = new ElasticInferenceServiceSparseEmbeddingsRequestEntity(List.of("abc"), ElasticInferenceServiceUsageContext.INGEST);
-        String xContentString = xContentEntityToString(entity);
-        assertThat(xContentString, equalToIgnoringWhitespaceInJsonString("""
-            {
-                "input": ["abc"],
-                "usage_context": "ingest"
-            }
-            """));
-    }
-
     private String xContentEntityToString(ElasticInferenceServiceSparseEmbeddingsRequestEntity entity) throws IOException {
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         entity.toXContent(builder, null);

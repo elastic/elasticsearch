@@ -630,7 +630,8 @@ public class CsvTests extends ESTestCase {
             () -> exchangeSink.createExchangeSink(() -> {}),
             Mockito.mock(EnrichLookupService.class),
             Mockito.mock(LookupFromIndexService.class),
-            physicalOperationProviders
+            physicalOperationProviders,
+            List.of()
         );
 
         List<Page> collectedPages = Collections.synchronizedList(new ArrayList<>());

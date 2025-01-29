@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.injection.guice.Inject;
@@ -28,21 +29,23 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
+import org.elasticsearch.xpack.core.transform.action.GetTransformAction;
+import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.deprecation.DeprecationChecks.CLUSTER_SETTINGS_CHECKS;
-import static org.elasticsearch.xpack.deprecation.DeprecationChecks.DATA_STREAM_CHECKS;
-import static org.elasticsearch.xpack.deprecation.DeprecationChecks.INDEX_SETTINGS_CHECKS;
 
 public class TransportDeprecationInfoAction extends TransportMasterNodeReadAction<
     DeprecationInfoAction.Request,
     DeprecationInfoAction.Response> {
-    private static final List<DeprecationChecker> PLUGIN_CHECKERS = List.of(new MlDeprecationChecker(), new TransformDeprecationChecker());
+    private static final DeprecationChecker ML_CHECKER = new MlDeprecationChecker();
     private static final Logger logger = LogManager.getLogger(TransportDeprecationInfoAction.class);
 
     private final NodeClient client;
@@ -105,7 +108,7 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
             ClientHelper.DEPRECATION_ORIGIN,
             NodesDeprecationCheckAction.INSTANCE,
             nodeDepReq,
-            listener.delegateFailureAndWrap((delegate, response) -> {
+            listener.delegateFailureAndWrap((l, response) -> {
                 if (response.hasFailures()) {
                     List<String> failedNodeIds = response.failures()
                         .stream()
@@ -116,32 +119,37 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
                         logger.debug("node {} failed to run deprecation checks: {}", failure.nodeId(), failure);
                     }
                 }
-
-                DeprecationChecker.Components components = new DeprecationChecker.Components(
-                    xContentRegistry,
-                    settings,
-                    new OriginSettingClient(client, ClientHelper.DEPRECATION_ORIGIN)
-                );
-                pluginSettingIssues(
-                    PLUGIN_CHECKERS,
-                    components,
-                    new ThreadedActionListener<>(
-                        client.threadPool().generic(),
-                        delegate.map(
-                            deprecationIssues -> DeprecationInfoAction.Response.from(
-                                state,
-                                indexNameExpressionResolver,
-                                request,
-                                response,
-                                INDEX_SETTINGS_CHECKS,
-                                DATA_STREAM_CHECKS,
-                                CLUSTER_SETTINGS_CHECKS,
-                                deprecationIssues,
-                                skipTheseDeprecations
+                transformConfigs(l.delegateFailureAndWrap((ll, transformConfigs) -> {
+                    DeprecationChecker.Components components = new DeprecationChecker.Components(
+                        xContentRegistry,
+                        settings,
+                        new OriginSettingClient(client, ClientHelper.DEPRECATION_ORIGIN)
+                    );
+                    pluginSettingIssues(
+                        List.of(ML_CHECKER, new TransformDeprecationChecker(transformConfigs)),
+                        components,
+                        new ThreadedActionListener<>(
+                            client.threadPool().generic(),
+                            ll.map(
+                                deprecationIssues -> DeprecationInfoAction.Response.from(
+                                    state,
+                                    indexNameExpressionResolver,
+                                    request,
+                                    response,
+                                    CLUSTER_SETTINGS_CHECKS,
+                                    deprecationIssues,
+                                    skipTheseDeprecations,
+                                    List.of(
+                                        new IndexDeprecationChecker(indexNameExpressionResolver, indexToTransformIds(transformConfigs)),
+                                        new DataStreamDeprecationChecker(indexNameExpressionResolver),
+                                        new TemplateDeprecationChecker(),
+                                        new IlmPolicyDeprecationChecker()
+                                    )
+                                )
                             )
                         )
-                    )
-                );
+                    );
+                }));
             })
         );
     }
@@ -170,6 +178,48 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
         for (DeprecationChecker checker : checkers) {
             checker.check(components, groupedActionListener);
         }
+    }
+
+    private void transformConfigs(ActionListener<List<TransformConfig>> transformConfigsListener) {
+        transformConfigs(new PageParams(0, PageParams.DEFAULT_SIZE), transformConfigsListener.map(Stream::toList));
+    }
+
+    private void transformConfigs(PageParams currentPage, ActionListener<Stream<TransformConfig>> currentPageListener) {
+        var request = new GetTransformAction.Request(Metadata.ALL);
+        request.setPageParams(currentPage);
+        request.setAllowNoResources(true);
+
+        client.execute(
+            GetTransformAction.INSTANCE,
+            request,
+            new ThreadedActionListener<>(
+                threadPool.generic(),
+                currentPageListener.delegateFailureAndWrap((delegate, getTransformConfigResponse) -> {
+                    var currentPageOfConfigs = getTransformConfigResponse.getTransformConfigurations().stream();
+                    var currentPageSize = currentPage.getFrom() + currentPage.getSize();
+                    var totalTransformConfigCount = getTransformConfigResponse.getTransformConfigurationCount();
+                    if (totalTransformConfigCount >= currentPageSize) {
+                        var nextPage = new PageParams(currentPageSize, PageParams.DEFAULT_SIZE);
+                        transformConfigs(
+                            nextPage,
+                            delegate.map(nextPageOfConfigs -> Stream.concat(currentPageOfConfigs, nextPageOfConfigs))
+                        );
+                    } else {
+                        delegate.onResponse(currentPageOfConfigs);
+                    }
+                })
+            )
+        );
+    }
+
+    private Map<String, List<String>> indexToTransformIds(List<TransformConfig> transformConfigs) {
+        return transformConfigs.stream()
+            .collect(
+                Collectors.groupingBy(
+                    config -> config.getDestination().getIndex(),
+                    Collectors.mapping(TransformConfig::getId, Collectors.toList())
+                )
+            );
     }
 
 }

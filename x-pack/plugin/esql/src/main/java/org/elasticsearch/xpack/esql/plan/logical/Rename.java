@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.plan.logical;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.analysis.Analyzer.ResolveRefs;
+import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
@@ -20,7 +21,7 @@ import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import java.util.List;
 import java.util.Objects;
 
-public class Rename extends UnaryPlan {
+public class Rename extends UnaryPlan implements TelemetryAware {
 
     private final List<Alias> renamings;
 
@@ -49,11 +50,6 @@ public class Rename extends UnaryPlan {
         List<NamedExpression> projectionsAfterResolution = ResolveRefs.projectionsForRename(this, this.child().output(), null);
 
         return Expressions.asAttributes(projectionsAfterResolution);
-    }
-
-    @Override
-    public String commandName() {
-        return "RENAME";
     }
 
     @Override

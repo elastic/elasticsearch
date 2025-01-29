@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.stats;
+package org.elasticsearch.xpack.esql.telemetry;
 
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
@@ -22,23 +22,23 @@ import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyzer;
-import static org.elasticsearch.xpack.esql.stats.FeatureMetric.DISSECT;
-import static org.elasticsearch.xpack.esql.stats.FeatureMetric.DROP;
-import static org.elasticsearch.xpack.esql.stats.FeatureMetric.ENRICH;
-import static org.elasticsearch.xpack.esql.stats.FeatureMetric.EVAL;
-import static org.elasticsearch.xpack.esql.stats.FeatureMetric.FROM;
-import static org.elasticsearch.xpack.esql.stats.FeatureMetric.GROK;
-import static org.elasticsearch.xpack.esql.stats.FeatureMetric.KEEP;
-import static org.elasticsearch.xpack.esql.stats.FeatureMetric.LIMIT;
-import static org.elasticsearch.xpack.esql.stats.FeatureMetric.MV_EXPAND;
-import static org.elasticsearch.xpack.esql.stats.FeatureMetric.RENAME;
-import static org.elasticsearch.xpack.esql.stats.FeatureMetric.ROW;
-import static org.elasticsearch.xpack.esql.stats.FeatureMetric.SHOW;
-import static org.elasticsearch.xpack.esql.stats.FeatureMetric.SORT;
-import static org.elasticsearch.xpack.esql.stats.FeatureMetric.STATS;
-import static org.elasticsearch.xpack.esql.stats.FeatureMetric.WHERE;
-import static org.elasticsearch.xpack.esql.stats.Metrics.FPREFIX;
-import static org.elasticsearch.xpack.esql.stats.Metrics.FUNC_PREFIX;
+import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.DISSECT;
+import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.DROP;
+import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.ENRICH;
+import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.EVAL;
+import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.FROM;
+import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.GROK;
+import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.KEEP;
+import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.LIMIT;
+import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.MV_EXPAND;
+import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.RENAME;
+import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.ROW;
+import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.SHOW;
+import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.SORT;
+import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.STATS;
+import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.WHERE;
+import static org.elasticsearch.xpack.esql.telemetry.Metrics.FPREFIX;
+import static org.elasticsearch.xpack.esql.telemetry.Metrics.FUNC_PREFIX;
 
 public class VerifierMetricsTests extends ESTestCase {
 

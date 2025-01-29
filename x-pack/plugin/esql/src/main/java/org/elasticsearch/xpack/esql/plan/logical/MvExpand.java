@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.plan.logical;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
@@ -23,24 +22,18 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
-public class MvExpand extends UnaryPlan implements TelemetryAware {
+public class MvExpand extends UnaryPlan {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "MvExpand", MvExpand::new);
 
     private final NamedExpression target;
     private final Attribute expanded;
-    private final Integer limit;
 
     private List<Attribute> output;
 
     public MvExpand(Source source, LogicalPlan child, NamedExpression target, Attribute expanded) {
-        this(source, child, target, expanded, null);
-    }
-
-    public MvExpand(Source source, LogicalPlan child, NamedExpression target, Attribute expanded, Integer limit) {
         super(source, child);
         this.target = target;
         this.expanded = expanded;
-        this.limit = limit;
     }
 
     private MvExpand(StreamInput in) throws IOException {
@@ -48,8 +41,7 @@ public class MvExpand extends UnaryPlan implements TelemetryAware {
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(LogicalPlan.class),
             in.readNamedWriteable(NamedExpression.class),
-            in.readNamedWriteable(Attribute.class),
-            null // we only need this on the coordinator
+            in.readNamedWriteable(Attribute.class)
         );
     }
 
@@ -59,7 +51,6 @@ public class MvExpand extends UnaryPlan implements TelemetryAware {
         out.writeNamedWriteable(child());
         out.writeNamedWriteable(target());
         out.writeNamedWriteable(expanded());
-        assert limit == null;
     }
 
     @Override
@@ -87,16 +78,12 @@ public class MvExpand extends UnaryPlan implements TelemetryAware {
         return expanded;
     }
 
-    public Integer limit() {
-        return limit;
-    }
-
     @Override
     protected AttributeSet computeReferences() {
         return target.references();
     }
 
-    public String telemetryLabel() {
+    public String commandName() {
         return "MV_EXPAND";
     }
 
@@ -106,8 +93,8 @@ public class MvExpand extends UnaryPlan implements TelemetryAware {
     }
 
     @Override
-    public UnaryPlan replaceChild(LogicalPlan newChild) {
-        return new MvExpand(source(), newChild, target, expanded, limit);
+    public MvExpand replaceChild(LogicalPlan newChild) {
+        return new MvExpand(source(), newChild, target, expanded);
     }
 
     @Override
@@ -120,12 +107,12 @@ public class MvExpand extends UnaryPlan implements TelemetryAware {
 
     @Override
     protected NodeInfo<? extends LogicalPlan> info() {
-        return NodeInfo.create(this, MvExpand::new, child(), target, expanded, limit);
+        return NodeInfo.create(this, MvExpand::new, child(), target, expanded);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), target, expanded, limit);
+        return Objects.hash(super.hashCode(), target, expanded);
     }
 
     @Override
@@ -134,6 +121,6 @@ public class MvExpand extends UnaryPlan implements TelemetryAware {
             return false;
         }
         MvExpand other = ((MvExpand) obj);
-        return Objects.equals(target, other.target) && Objects.equals(expanded, other.expanded) && Objects.equals(limit, other.limit);
+        return Objects.equals(target, other.target) && Objects.equals(expanded, other.expanded);
     }
 }

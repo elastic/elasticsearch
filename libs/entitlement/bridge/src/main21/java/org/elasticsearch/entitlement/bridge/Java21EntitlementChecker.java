@@ -9,15 +9,4 @@
 
 package org.elasticsearch.entitlement.bridge;
 
-import java.lang.foreign.AddressLayout;
-import java.lang.foreign.Arena;
-import java.lang.foreign.FunctionDescriptor;
-import java.lang.foreign.Linker;
-import java.lang.foreign.MemoryLayout;
-import java.lang.foreign.MemorySegment;
-import java.lang.invoke.MethodHandle;
-import java.nio.file.Path;
-import java.util.function.Consumer;
-
-public interface Java21EntitlementChecker extends EntitlementChecker {
-}
+public interface Java21EntitlementChecker extends EntitlementChecker {}

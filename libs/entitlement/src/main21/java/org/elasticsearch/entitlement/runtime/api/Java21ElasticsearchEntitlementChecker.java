@@ -12,16 +12,6 @@ package org.elasticsearch.entitlement.runtime.api;
 import org.elasticsearch.entitlement.bridge.Java21EntitlementChecker;
 import org.elasticsearch.entitlement.runtime.policy.PolicyManager;
 
-import java.lang.foreign.AddressLayout;
-import java.lang.foreign.Arena;
-import java.lang.foreign.FunctionDescriptor;
-import java.lang.foreign.Linker;
-import java.lang.foreign.MemoryLayout;
-import java.lang.foreign.MemorySegment;
-import java.lang.invoke.MethodHandle;
-import java.nio.file.Path;
-import java.util.function.Consumer;
-
 public class Java21ElasticsearchEntitlementChecker extends ElasticsearchEntitlementChecker implements Java21EntitlementChecker {
 
     public Java21ElasticsearchEntitlementChecker(PolicyManager policyManager) {

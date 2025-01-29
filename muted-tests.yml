@@ -489,3 +489,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/121151
 - class: org.elasticsearch.xpack.ml.integration.PyTorchModelIT
   issue: https://github.com/elastic/elasticsearch/issues/121165
+- class: org.elasticsearch.xpack.security.authc.jwt.JwtRealmSingleNodeTests
+  method: testClientSecretRotation
+  issue: https://github.com/elastic/elasticsearch/issues/120985

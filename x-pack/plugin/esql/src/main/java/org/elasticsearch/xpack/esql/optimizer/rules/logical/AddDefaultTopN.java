@@ -34,7 +34,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
  * | sort first_name
  * | limit 15
  * <p>
- * PushDownAndCombineLimits rule will copy the "limit 15" after "sort emp_no" if there is no filter on the expanded values
+ * {@link PushDownAndCombineLimits} will copy the "limit 15" after "sort emp_no" if there is no filter on the expanded values
  * OR if there is no sort between "limit" and "mv_expand".
  * But, since this type of query has such a filter, the "sort emp_no" will have no limit when it reaches the current rule.
  */

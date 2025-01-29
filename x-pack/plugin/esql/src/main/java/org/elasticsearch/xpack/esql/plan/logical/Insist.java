@@ -52,11 +52,6 @@ public class Insist extends UnaryPlan {
     }
 
     @Override
-    public String commandName() {
-        return "INSIST";
-    }
-
-    @Override
     public boolean expressionsResolved() {
         return computeOutput().stream().allMatch(Attribute::resolved);
     }

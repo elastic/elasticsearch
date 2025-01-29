@@ -203,6 +203,10 @@ non-default sort settings:
 
 ---
 non-default sort settings with presence of nested:
+  - requires:
+      cluster_features: [ "mapper.nested.sorting_fields_check_fix" ]
+      reason: "Fixed behavior"
+
   - do:
       indices.create:
         index: test-sort

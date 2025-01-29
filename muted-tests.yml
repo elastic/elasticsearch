@@ -296,6 +296,9 @@ tests:
 - class: org.elasticsearch.xpack.shutdown.AllocationFailuresResetOnShutdownIT
   method: testResetAllocationFailuresOnNodeShutdown
   issue: https://github.com/elastic/elasticsearch/issues/121129
+- class: org.elasticsearch.xpack.security.authc.jwt.JwtRealmSingleNodeTests
+  method: testActivateProfileForJWT
+  issue: https://github.com/elastic/elasticsearch/issues/120983
 
 # Examples:
 #

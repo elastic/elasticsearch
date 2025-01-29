@@ -806,7 +806,7 @@ public class ShardStateAction {
                 assert clusterState.blocks().hasIndexBlock(indexName, INDEX_REFRESH_BLOCK) : indexWithUnpromotableShardsStarted;
 
                 var indexRoutingTable = clusterState.routingTable().index(indexWithUnpromotableShardsStarted);
-                if (indexRoutingTable.readyForSearch(clusterState)) {
+                if (indexRoutingTable.readyForSearch()) {
                     if (clusterBlocksBuilder == null) {
                         clusterBlocksBuilder = ClusterBlocks.builder(clusterState.blocks());
                     }
@@ -847,7 +847,7 @@ public class ShardStateAction {
         private static boolean assertRefreshBlockIsNotPresentWhenTheIndexIsSearchable(ClusterState clusterState) {
             for (Map.Entry<String, Set<ClusterBlock>> indexBlock : clusterState.blocks().indices().entrySet()) {
                 if (indexBlock.getValue().contains(INDEX_REFRESH_BLOCK)) {
-                    assert clusterState.routingTable().index(indexBlock.getKey()).readyForSearch(clusterState) == false
+                    assert clusterState.routingTable().index(indexBlock.getKey()).readyForSearch() == false
                         : "Index [" + indexBlock.getKey() + "] is searchable but has an INDEX_REFRESH_BLOCK";
                 }
             }

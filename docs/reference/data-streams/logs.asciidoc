@@ -70,19 +70,19 @@ log fields, such as DNS A records, HTTP headers, and log entries that represent 
 [[logsdb-sort-settings]]
 === Index sort settings
 
-In `logsdb` index mode, indices are sorted by the fields `host.name` and `@timestamp` by default.
+In `logsdb` index mode, indices are sorted by the fields `host.name` and `@timestamp` by default. 
 
 * If the `@timestamp` field is not present, it is automatically injected.
-* If the `host.name` field is not present, it is automatically injected as a `keyword` field, if possible.
-** If `host.name` can't be injected (for example, `host` is a keyword field) or can't be used for sorting
+* If the `host.name` field is not present, it is automatically injected as a `keyword` field, if possible. 
+** If `host.name` can't be injected (for example, `host` is a keyword field) or can't be used for sorting 
 (for example, its value is an IP address), only the `@timestamp` is used for sorting.
-** If `host.name` is injected and `subobjects` is set to `true` (default), the `host` field is mapped as
-an object field named `host` with a `name` child field of type `keyword`. If `subobjects` is set to `false`,
+** If `host.name` is injected and `subobjects` is set to `true` (default), the `host` field is mapped as 
+an object field named `host` with a `name` child field of type `keyword`. If `subobjects` is set to `false`, 
 a single `host.name` field is mapped as a `keyword` field.
-* To prioritize the latest data, `host.name` is sorted in ascending order and `@timestamp` is sorted in
+* To prioritize the latest data, `host.name` is sorted in ascending order and `@timestamp` is sorted in 
 descending order.
 
-You can override the default sort settings by manually configuring `index.sort.field`
+You can override the default sort settings by manually configuring `index.sort.field` 
 and `index.sort.order`. For more details, see <<index-modules-index-sorting>>.
 
 To modify the sort configuration of an existing data stream, update the data stream's
@@ -112,7 +112,7 @@ IMPORTANT: On existing data streams, `logsdb` mode is applied on <<data-streams-
 [[logsdb-sort-routing]]
 ==== Optimized routing on sort fields
 
-To reduce the storage footprint of `logsdb` indexes, you can enable routing optimizations. A routing optimization uses the fields in the sort configuration (except for `@timestamp`) to route documents to shards.
+To reduce the storage footprint of `logsdb` indexes, you can enable routing optimizations. A routing optimization uses the fields in the sort configuration (except for `@timestamp`) to route documents to shards. 
 
 In benchmarks,
 routing optimizations reduced storage requirements by 20% compared to the default `logsdb` configuration, with a negligible penalty to ingestion
@@ -126,8 +126,8 @@ To configure a routing optimization:
  * Make sure the <<mapping-id-field,`_id`>> field is not populated in ingested documents. It should be
    auto-generated instead.
 
-A custom sort configuration is required, to improve storage efficiency and to minimize hotspots
-from logging spikes that may route documents to a single shard. For best results, use a few sort fields
+A custom sort configuration is required, to improve storage efficiency and to minimize hotspots 
+from logging spikes that may route documents to a single shard. For best results, use a few sort fields 
 that have a relatively low cardinality and don't co-vary (for example, `host.name` and `host.id` are not optimal).
 
 [discrete]
@@ -237,9 +237,3 @@ The `logsdb` index mode uses the following settings:
 * **`index.mapping.ignore_above`**: `8191`
 
 * **`index.mapping.total_fields.ignore_dynamic_beyond_limit`**: `true`
-
-[discrete]
-[[upgrade-to-logsdb-notes]]
-=== Notes about upgrading to Logsdb
-
-Add notes.

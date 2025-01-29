@@ -102,6 +102,8 @@ tasks.named("yamlRestCompatTestTransform").configure({ task ->
   task.skipTest("esql/190_lookup_join/alias-pattern-multiple", "LOOKUP JOIN does not support index aliases for now")
   task.skipTest("esql/190_lookup_join/alias-pattern-single", "LOOKUP JOIN does not support index aliases for now")
   task.skipTest("esql/180_match_operator/match with disjunctions", "Disjunctions in full text functions work now")
+  // Expected deprecation warning to compat yaml tests:
+  task.addAllowedWarningRegex(".*rollup functionality will be removed in Elasticsearch.*")
 })
 
 tasks.named('yamlRestCompatTest').configure {

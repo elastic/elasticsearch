@@ -273,6 +273,58 @@ emp_no:integer
 10001
 ;
 
+
+lookupIndexInFromRepeatedRowBug
+// Test for https://github.com/elastic/elasticsearch/issues/118852
+required_capability: join_lookup_v12
+FROM languages_lookup_non_unique_key
+| WHERE language_code == 1
+| LOOKUP JOIN languages_lookup ON language_code
+| KEEP language_code, language_name, country
+| SORT language_code, language_name, country
+;
+
+language_code:integer | language_name:keyword       | country:text
+1                     | English                     | Canada
+1                     | English                     | United Kingdom
+1                     | English                     | United States of America
+1                     | English                     | null
+;
+
+nonUniqueRightKeyOnTheCoordinatorLateLimit
+required_capability: join_lookup_v12
+required_capability: join_lookup_fix_limit_pushdown
+
+FROM employees
+| SORT emp_no
+| EVAL language_code = emp_no % 10
+| LOOKUP JOIN languages_lookup_non_unique_key ON language_code
+| KEEP emp_no, language_code, language_name, country
+| LIMIT 4
+| SORT country
+;
+
+emp_no:integer | language_code:integer | language_name:keyword | country:text
+10001          | 1                     | English               | Canada
+10001          | 1                     | null                  | United Kingdom
+10001          | 1                     | English               | United States of America
+10001          | 1                     | English               | null
+;
+
+nonUniqueRightKeyLateLimitWithEmptyRelation
+required_capability: join_lookup_v12
+required_capability: join_lookup_fix_limit_pushdown
+
+ROW language_code = 1
+| WHERE language_code != 1
+| LOOKUP JOIN languages_lookup_non_unique_key ON language_code
+| LIMIT 1
+| KEEP language_code, language_name
+;
+
+language_code:integer | language_name:keyword
+;
+
 ###########################################################################
 # null and multi-value behavior with languages_lookup_non_unique_key index
 ###########################################################################
@@ -1276,23 +1328,6 @@ ignoreOrder:true
 2023-10-23T13:33:34.937Z | 172.21.0.5        | 1232382             | Development     | null
 2023-10-23T12:27:28.948Z | 172.21.2.113      | 2764889             | QA              | null
 2023-10-23T12:15:03.360Z | 172.21.2.162      | 3450233             | QA              | null
-;
-
-lookupIndexInFromRepeatedRowBug
-// Test for https://github.com/elastic/elasticsearch/issues/118852
-required_capability: join_lookup_v12
-FROM languages_lookup_non_unique_key
-| WHERE language_code == 1
-| LOOKUP JOIN languages_lookup ON language_code
-| KEEP language_code, language_name, country
-| SORT language_code, language_name, country
-;
-
-language_code:integer | language_name:keyword       | country:text
-1                     | English                     | Canada
-1                     | English                     | United Kingdom
-1                     | English                     | United States of America
-1                     | English                     | null
 ;
 
 lookupIndexQuoting

@@ -53,7 +53,7 @@ GET _cluster/allocation/explain
 [[fix-watermark-errors-temporary]]
 ==== Temporary Relief
 
-To immediately restore write operations, you may consider temporarily increasing the 
+To immediately restore write operations, you can temporarily increase 
 <<disk-based-shard-allocation,disk watermarks>> and remove the 
 <<index-block-settings,write block>>.
 
@@ -102,16 +102,15 @@ PUT _cluster/settings
 [[fix-watermark-errors-resolve]]
 ==== Resolve
 
-To resolve, we recommend you do one of the following best suited 
-to your use case: 
+To resolve watermark errors permanently, perform one of the following actions:
 
-* horizontally scale nodes of the affected <<data-tiers,data tiers>>
+* Horizontally scale nodes of the affected <<data-tiers,data tiers>>.
 
-* vertically scale existing nodes to increase disk space
+* Vertically scale existing nodes to increase disk space.
 
-* delete indices using the <<indices-delete-index,delete index API>>, either
-permanently if unneeded or temporarily to later 
-<<snapshots-restore-snapshot,snapshot restore>>
+* Delete indices using the <<indices-delete-index,delete index API>>, either
+permanently if the index isn't needed, or temporarily to later 
+<<snapshots-restore-snapshot,restore>>.
 
 * update related <<index-lifecycle-management,ILM policy>> to push indices 
 through to later <<data-tiers,data tiers>>
@@ -124,12 +123,12 @@ its {cloud}/ec-api-console.html[Elasticsearch API Console] to later
 with this resolution flow on {ess}, kindly reach out to
 https://support.elastic.co[Elastic Support] for assistance.
 
-To avoid this situation, we recommend you do one of the following best
-suited to your use case:
+== Prevent watermark errors
 
-* enable <<xpack-autoscaling,autoscaling>> for clusters deployed using our
-{ess}, {ece}, and {eck} platforms 
+To avoid watermark errors in future, , perform one of the following actions:
 
-* setup {kibana-ref}/kibana-alerts.html[Stack Monitoring Alerts] on top of
-<<monitor-elasticsearch-cluster,{es} Monitoring>> to be notified before
-flood-stage watermark is reached 
+* If you're using {ess}, {ece}, or {eck}: Enable <<xpack-autoscaling,autoscaling>>.
+
+* Set up {kibana-ref}/kibana-alerts.html[stack monitoring alerts] on top of
+<<monitor-elasticsearch-cluster,{es} monitoring>> to be notified before
+the flood-stage watermark is reached.

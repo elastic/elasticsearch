@@ -13,7 +13,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 
 import java.lang.reflect.Modifier;
-import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
@@ -185,7 +184,7 @@ public class TransportVersionTests extends ESTestCase {
     }
 
     public void testCURRENTIsLatest() {
-        assertThat(Collections.max(TransportVersion.getAllVersions()), is(TransportVersion.current()));
+        assertThat(TransportVersion.getAllVersions().getLast(), is(TransportVersion.current()));
     }
 
     public void testToReleaseVersion() {

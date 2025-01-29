@@ -15,16 +15,15 @@ import org.elasticsearch.core.Assertions;
 
 import java.lang.reflect.Field;
 import java.text.ParseException;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.NavigableMap;
+import java.util.NavigableSet;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.function.IntFunction;
-import java.util.stream.Collectors;
 
 @SuppressWarnings("deprecation")
 public class IndexVersions {
@@ -248,12 +247,12 @@ public class IndexVersions {
         return Collections.unmodifiableNavigableMap(builder);
     }
 
-    static Collection<IndexVersion> getAllWriteVersions() {
-        return VERSION_IDS.values().stream().filter(v -> v.onOrAfter(IndexVersions.MINIMUM_COMPATIBLE)).collect(Collectors.toSet());
+    static NavigableSet<IndexVersion> getAllWriteVersions() {
+        return getAllVersions().tailSet(IndexVersions.MINIMUM_COMPATIBLE, true);
     }
 
-    static Collection<IndexVersion> getAllVersions() {
-        return VERSION_IDS.values();
+    static NavigableSet<IndexVersion> getAllVersions() {
+        return new TreeSet<>(VERSION_IDS.values());
     }
 
     static final IntFunction<String> VERSION_LOOKUP = ReleaseVersions.generateVersionsLookup(IndexVersions.class, LATEST_DEFINED.id());

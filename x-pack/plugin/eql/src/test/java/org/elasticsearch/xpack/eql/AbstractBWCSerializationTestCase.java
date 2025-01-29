@@ -13,20 +13,17 @@ import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
-import java.util.Collections;
-import java.util.List;
+import java.util.NavigableSet;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public abstract class AbstractBWCSerializationTestCase<T extends Writeable & ToXContent> extends AbstractXContentSerializingTestCase<T> {
 
-    private static List<TransportVersion> getAllBWCVersions() {
-        List<TransportVersion> allVersions = TransportVersion.getAllVersions();
-        int minCompatVersion = Collections.binarySearch(allVersions, TransportVersions.MINIMUM_COMPATIBLE);
-        return allVersions.subList(minCompatVersion, allVersions.size());
+    private static NavigableSet<TransportVersion> getAllBWCVersions() {
+        return TransportVersion.getAllVersions().tailSet(TransportVersions.MINIMUM_COMPATIBLE, true);
     }
 
-    private static final List<TransportVersion> DEFAULT_BWC_VERSIONS = getAllBWCVersions();
+    private static final NavigableSet<TransportVersion> DEFAULT_BWC_VERSIONS = getAllBWCVersions();
 
     protected abstract T mutateInstanceForVersion(T instance, TransportVersion version);
 

@@ -13,11 +13,10 @@ import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.UpdateForV9;
 
 import java.lang.reflect.Field;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
+import java.util.NavigableSet;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.IntFunction;
@@ -236,7 +235,7 @@ public class TransportVersions {
     /**
      * Sorted list of all versions defined in this class
      */
-    static final List<TransportVersion> DEFINED_VERSIONS = collectAllVersionIdsDefinedInClass(TransportVersions.class);
+    static final NavigableSet<TransportVersion> DEFINED_VERSIONS = collectAllVersionIdsDefinedInClass(TransportVersions.class);
 
     // the highest transport version constant defined
     static final TransportVersion LATEST_DEFINED;
@@ -248,9 +247,9 @@ public class TransportVersions {
         IDS = null;
     }
 
-    public static List<TransportVersion> collectAllVersionIdsDefinedInClass(Class<?> cls) {
+    public static NavigableSet<TransportVersion> collectAllVersionIdsDefinedInClass(Class<?> cls) {
         Map<Integer, String> versionIdFields = new HashMap<>();
-        List<TransportVersion> definedTransportVersions = new ArrayList<>();
+        NavigableSet<TransportVersion> definedTransportVersions = new TreeSet<>();
 
         Set<String> ignore = Set.of("ZERO", "CURRENT", "MINIMUM_COMPATIBLE", "MINIMUM_CCS_VERSION");
 
@@ -284,9 +283,7 @@ public class TransportVersions {
             }
         }
 
-        Collections.sort(definedTransportVersions);
-
-        return List.copyOf(definedTransportVersions);
+        return Collections.unmodifiableNavigableSet(definedTransportVersions);
     }
 
     static final IntFunction<String> VERSION_LOOKUP = ReleaseVersions.generateVersionsLookup(TransportVersions.class, LATEST_DEFINED.id());

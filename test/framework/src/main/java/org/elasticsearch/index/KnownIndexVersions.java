@@ -9,7 +9,8 @@
 
 package org.elasticsearch.index;
 
-import java.util.List;
+import java.util.Collections;
+import java.util.NavigableSet;
 
 /**
  * Provides access to all known index versions
@@ -18,10 +19,12 @@ public class KnownIndexVersions {
     /**
      * A sorted list of all known index versions
      */
-    public static final List<IndexVersion> ALL_VERSIONS = List.copyOf(IndexVersions.getAllVersions());
+    public static final NavigableSet<IndexVersion> ALL_VERSIONS = Collections.unmodifiableNavigableSet(IndexVersions.getAllVersions());
 
     /**
      * A sorted list of all known index versions that can be written to
      */
-    public static final List<IndexVersion> ALL_WRITE_VERSIONS = List.copyOf(IndexVersions.getAllWriteVersions());
+    public static final NavigableSet<IndexVersion> ALL_WRITE_VERSIONS = Collections.unmodifiableNavigableSet(
+        IndexVersions.getAllWriteVersions()
+    );
 }

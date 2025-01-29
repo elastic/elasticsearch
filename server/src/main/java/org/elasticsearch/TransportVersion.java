@@ -18,9 +18,10 @@ import org.elasticsearch.plugins.ExtensionLoader;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
+import java.util.NavigableSet;
 import java.util.ServiceLoader;
+import java.util.TreeSet;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -112,9 +113,9 @@ public record TransportVersion(int id) implements VersionId<TransportVersion> {
     }
 
     /**
-     * Sorted list of all defined transport versions
+     * Sorted set of all defined transport versions
      */
-    public static List<TransportVersion> getAllVersions() {
+    public static NavigableSet<TransportVersion> getAllVersions() {
         return VersionsHolder.ALL_VERSIONS;
     }
 
@@ -160,7 +161,7 @@ public record TransportVersion(int id) implements VersionId<TransportVersion> {
     }
 
     private static class VersionsHolder {
-        private static final List<TransportVersion> ALL_VERSIONS;
+        private static final NavigableSet<TransportVersion> ALL_VERSIONS;
         private static final Map<Integer, TransportVersion> ALL_VERSIONS_MAP;
         private static final TransportVersion CURRENT;
 
@@ -172,7 +173,8 @@ public record TransportVersion(int id) implements VersionId<TransportVersion> {
             if (extendedVersions.isEmpty()) {
                 ALL_VERSIONS = TransportVersions.DEFINED_VERSIONS;
             } else {
-                ALL_VERSIONS = Stream.concat(TransportVersions.DEFINED_VERSIONS.stream(), extendedVersions.stream()).sorted().toList();
+                ALL_VERSIONS = Stream.concat(TransportVersions.DEFINED_VERSIONS.stream(), extendedVersions.stream())
+                    .collect(Collectors.toCollection(TreeSet::new));
             }
 
             ALL_VERSIONS_MAP = ALL_VERSIONS.stream().collect(Collectors.toUnmodifiableMap(TransportVersion::id, Function.identity()));

@@ -32,7 +32,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.deprecation.DeprecationChecks.NODE_SETTINGS_CHECKS;
+import static org.elasticsearch.xpack.deprecation.NodeDeprecationChecks.SINGLE_NODE_CHECKS;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.not;
@@ -155,7 +155,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             .build();
 
         List<DeprecationIssue> issues = DeprecationChecks.filterChecks(
-            NODE_SETTINGS_CHECKS,
+            SINGLE_NODE_CHECKS,
             c -> c.apply(settings, null, ClusterState.EMPTY_STATE, new XPackLicenseState(() -> 0))
         );
         final String expectedUrl =
@@ -210,7 +210,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
 
         final Settings settings = builder.build();
         final List<DeprecationIssue> deprecationIssues = DeprecationChecks.filterChecks(
-            NODE_SETTINGS_CHECKS,
+            SINGLE_NODE_CHECKS,
             c -> c.apply(settings, null, ClusterState.EMPTY_STATE, new XPackLicenseState(() -> 0))
         );
 
@@ -236,7 +236,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
     void monitoringSetting(String settingKey, String value) {
         Settings settings = Settings.builder().put(settingKey, value).build();
         List<DeprecationIssue> issues = DeprecationChecks.filterChecks(
-            NODE_SETTINGS_CHECKS,
+            SINGLE_NODE_CHECKS,
             c -> c.apply(settings, null, ClusterState.EMPTY_STATE, new XPackLicenseState(() -> 0))
         );
         final String expectedUrl = "https://ela.st/es-deprecation-7-monitoring-settings";
@@ -260,7 +260,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         Settings settings = Settings.builder().put(settingKey, value).build();
         final XPackLicenseState licenseState = new XPackLicenseState(() -> 0);
         List<DeprecationIssue> issues = DeprecationChecks.filterChecks(
-            NODE_SETTINGS_CHECKS,
+            SINGLE_NODE_CHECKS,
             c -> c.apply(settings, null, ClusterState.EMPTY_STATE, licenseState)
         );
         final String expectedUrl = "https://ela.st/es-deprecation-7-monitoring-settings";
@@ -285,7 +285,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         Settings settings = Settings.builder().put(subSettingKey, value).build();
         final XPackLicenseState licenseState = new XPackLicenseState(() -> 0);
         List<DeprecationIssue> issues = DeprecationChecks.filterChecks(
-            NODE_SETTINGS_CHECKS,
+            SINGLE_NODE_CHECKS,
             c -> c.apply(settings, null, ClusterState.EMPTY_STATE, licenseState)
         );
         final String expectedUrl = "https://ela.st/es-deprecation-7-monitoring-settings";
@@ -311,7 +311,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         Settings settings = Settings.builder().setSecureSettings(secureSettings).build();
         final XPackLicenseState licenseState = new XPackLicenseState(() -> 0);
         List<DeprecationIssue> issues = DeprecationChecks.filterChecks(
-            NODE_SETTINGS_CHECKS,
+            SINGLE_NODE_CHECKS,
             c -> c.apply(settings, null, ClusterState.EMPTY_STATE, licenseState)
         );
         final String expectedUrl = "https://ela.st/es-deprecation-7-monitoring-settings";
@@ -458,7 +458,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         Settings settings = Settings.builder().put("xpack.monitoring.exporters.test.use_ingest", true).build();
 
         List<DeprecationIssue> issues = DeprecationChecks.filterChecks(
-            NODE_SETTINGS_CHECKS,
+            SINGLE_NODE_CHECKS,
             c -> c.apply(settings, null, ClusterState.EMPTY_STATE, new XPackLicenseState(() -> 0))
         );
 
@@ -484,7 +484,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             .build();
 
         List<DeprecationIssue> issues = DeprecationChecks.filterChecks(
-            NODE_SETTINGS_CHECKS,
+            SINGLE_NODE_CHECKS,
             c -> c.apply(settings, null, ClusterState.EMPTY_STATE, new XPackLicenseState(() -> 0))
         );
 
@@ -509,7 +509,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         Settings settings = Settings.builder().put("xpack.monitoring.exporters.test.index.template.create_legacy_templates", true).build();
 
         List<DeprecationIssue> issues = DeprecationChecks.filterChecks(
-            NODE_SETTINGS_CHECKS,
+            SINGLE_NODE_CHECKS,
             c -> c.apply(settings, null, ClusterState.EMPTY_STATE, new XPackLicenseState(() -> 0))
         );
 
@@ -536,7 +536,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             .build();
 
         List<DeprecationIssue> issues = DeprecationChecks.filterChecks(
-            NODE_SETTINGS_CHECKS,
+            SINGLE_NODE_CHECKS,
             c -> c.apply(settings, null, ClusterState.EMPTY_STATE, new XPackLicenseState(() -> 0))
         );
 
@@ -565,7 +565,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             .build();
 
         List<DeprecationIssue> issues = DeprecationChecks.filterChecks(
-            NODE_SETTINGS_CHECKS,
+            SINGLE_NODE_CHECKS,
             c -> c.apply(settings, null, ClusterState.EMPTY_STATE, new XPackLicenseState(() -> 0))
         );
 
@@ -602,7 +602,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             .build();
 
         List<DeprecationIssue> issues = DeprecationChecks.filterChecks(
-            NODE_SETTINGS_CHECKS,
+            SINGLE_NODE_CHECKS,
             c -> c.apply(settings, null, ClusterState.EMPTY_STATE, new XPackLicenseState(() -> 0))
         );
 
@@ -640,7 +640,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             .build();
 
         List<DeprecationIssue> issues = DeprecationChecks.filterChecks(
-            NODE_SETTINGS_CHECKS,
+            SINGLE_NODE_CHECKS,
             c -> c.apply(settings, null, ClusterState.EMPTY_STATE, new XPackLicenseState(() -> 0))
         );
 
@@ -677,7 +677,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             .build();
 
         List<DeprecationIssue> issues = DeprecationChecks.filterChecks(
-            NODE_SETTINGS_CHECKS,
+            SINGLE_NODE_CHECKS,
             c -> c.apply(settings, null, ClusterState.EMPTY_STATE, new XPackLicenseState(() -> 0))
         );
 
@@ -709,7 +709,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         Settings settings = Settings.builder().put(DataTier.ENFORCE_DEFAULT_TIER_PREFERENCE_SETTING.getKey(), randomBoolean()).build();
 
         List<DeprecationIssue> issues = DeprecationChecks.filterChecks(
-            NODE_SETTINGS_CHECKS,
+            SINGLE_NODE_CHECKS,
             c -> c.apply(settings, null, ClusterState.EMPTY_STATE, new XPackLicenseState(() -> 0))
         );
 
@@ -732,7 +732,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
 
     private List<DeprecationIssue> getDeprecationIssues(Settings settings, PluginsAndModules pluginsAndModules) {
         final List<DeprecationIssue> issues = DeprecationChecks.filterChecks(
-            DeprecationChecks.NODE_SETTINGS_CHECKS,
+            NodeDeprecationChecks.SINGLE_NODE_CHECKS,
             c -> c.apply(settings, pluginsAndModules, ClusterState.EMPTY_STATE, new XPackLicenseState(() -> 0))
         );
 
@@ -800,7 +800,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         Metadata metadata = metadataBuilder.build();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).build();
         final List<DeprecationIssue> issues = DeprecationChecks.filterChecks(
-            DeprecationChecks.NODE_SETTINGS_CHECKS,
+            NodeDeprecationChecks.SINGLE_NODE_CHECKS,
             c -> c.apply(nodettings, pluginsAndModules, clusterState, licenseState)
         );
 

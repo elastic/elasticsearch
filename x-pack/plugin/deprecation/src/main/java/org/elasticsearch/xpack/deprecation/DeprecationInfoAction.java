@@ -37,9 +37,7 @@ import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -70,81 +68,6 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
      */
     public static <T> List<DeprecationIssue> filterChecks(List<T> checks, Function<T, DeprecationIssue> mapper) {
         return checks.stream().map(mapper).filter(Objects::nonNull).collect(Collectors.toList());
-    }
-
-    /**
-     * This method rolls up DeprecationIssues that are identical but on different nodes. It also roles up DeprecationIssues that are
-     * identical (and on different nodes) except that they differ in the removable settings listed in their meta object. We roll these up
-     * by taking the intersection of all removable settings in otherwise identical DeprecationIssues. That way we don't claim that a
-     * setting can be automatically removed if any node has it in its elasticsearch.yml.
-     * @param response
-     * @return
-     */
-    private static List<DeprecationIssue> mergeNodeIssues(NodesDeprecationCheckResponse response) {
-        // A collection whose values are lists of DeprecationIssues that differ only by meta values (if that):
-        Collection<List<Tuple<DeprecationIssue, String>>> issuesToMerge = getDeprecationIssuesThatDifferOnlyByMeta(response.getNodes());
-        // A map of DeprecationIssues (containing only the intersection of removable settings) to the nodes they are seen on
-        Map<DeprecationIssue, List<String>> issueToListOfNodesMap = getMergedIssuesToNodesMap(issuesToMerge);
-
-        return issueToListOfNodesMap.entrySet().stream().map(entry -> {
-            DeprecationIssue issue = entry.getKey();
-            String details = issue.getDetails() != null ? issue.getDetails() + " " : "";
-            return new DeprecationIssue(
-                issue.getLevel(),
-                issue.getMessage(),
-                issue.getUrl(),
-                details + "(nodes impacted: " + entry.getValue() + ")",
-                issue.isResolveDuringRollingUpgrade(),
-                issue.getMeta()
-            );
-        }).collect(Collectors.toList());
-    }
-
-    /*
-     * This method pulls all the DeprecationIssues from the given nodeResponses, and buckets them into lists of DeprecationIssues that
-     * differ at most by meta values (if that). The returned tuples also contain the node name the deprecation issue was found on. If all
-     * nodes in the cluster were configured identically then all tuples in a list will differ only by the node name.
-     */
-    private static Collection<List<Tuple<DeprecationIssue, String>>> getDeprecationIssuesThatDifferOnlyByMeta(
-        List<NodesDeprecationCheckAction.NodeResponse> nodeResponses
-    ) {
-        Map<DeprecationIssue, List<Tuple<DeprecationIssue, String>>> issuesToMerge = new HashMap<>();
-        for (NodesDeprecationCheckAction.NodeResponse resp : nodeResponses) {
-            for (DeprecationIssue issue : resp.getDeprecationIssues()) {
-                issuesToMerge.computeIfAbsent(
-                    new DeprecationIssue(
-                        issue.getLevel(),
-                        issue.getMessage(),
-                        issue.getUrl(),
-                        issue.getDetails(),
-                        issue.isResolveDuringRollingUpgrade(),
-                        null // Intentionally removing meta from the key so that it's not taken into account for equality
-                    ),
-                    (key) -> new ArrayList<>()
-                ).add(new Tuple<>(issue, resp.getNode().getName()));
-            }
-        }
-        return issuesToMerge.values();
-    }
-
-    /*
-     * At this point we have one DeprecationIssue per node for a given deprecation. This method rolls them up into a single DeprecationIssue
-     * with a list of nodes that they appear on. If two DeprecationIssues on two different nodes differ only by the set of removable
-     * settings (i.e. they have different elasticsearch.yml configurations) then this method takes the intersection of those settings when
-     * it rolls them up.
-     */
-    private static Map<DeprecationIssue, List<String>> getMergedIssuesToNodesMap(
-        Collection<List<Tuple<DeprecationIssue, String>>> issuesToMerge
-    ) {
-        Map<DeprecationIssue, List<String>> issueToListOfNodesMap = new HashMap<>();
-        for (List<Tuple<DeprecationIssue, String>> similarIssues : issuesToMerge) {
-            DeprecationIssue leastCommonDenominator = DeprecationIssue.getIntersectionOfRemovableSettings(
-                similarIssues.stream().map(Tuple::v1).toList()
-            );
-            issueToListOfNodesMap.computeIfAbsent(leastCommonDenominator, (key) -> new ArrayList<>())
-                .addAll(similarIssues.stream().map(Tuple::v2).toList());
-        }
-        return issueToListOfNodesMap;
     }
 
     public static class Response extends ActionResponse implements ToXContentObject {
@@ -299,7 +222,7 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
          * @param state The cluster state
          * @param indexNameExpressionResolver Used to resolve indices into their concrete names
          * @param request The originating request containing the index expressions to evaluate
-         * @param nodeDeprecationResponse The response containing the deprecation issues found on each node
+         * @param nodeSettingsIssues The response containing the deprecation issues found on each node
          * @param clusterDeprecationChecker The checker that provides the cluster settings deprecations warnings
          * @param pluginSettingIssues this map gets modified to move transform deprecation issues into cluster_settings
          * @param skipTheseDeprecatedSettings the settings that will be removed from cluster metadata and the index metadata of all the
@@ -313,7 +236,7 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
             ClusterState state,
             IndexNameExpressionResolver indexNameExpressionResolver,
             Request request,
-            NodesDeprecationCheckResponse nodeDeprecationResponse,
+            List<DeprecationIssue> nodeSettingsIssues,
             ClusterDeprecationChecker clusterDeprecationChecker,
             Map<String, List<DeprecationIssue>> pluginSettingIssues,
             List<String> skipTheseDeprecatedSettings,
@@ -328,7 +251,6 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
                 stateWithSkippedSettingsRemoved,
                 transformConfigs
             );
-            List<DeprecationIssue> nodeSettingsIssues = mergeNodeIssues(nodeDeprecationResponse);
 
             Map<String, Map<String, List<DeprecationIssue>>> resourceDeprecationIssues = new HashMap<>();
             for (ResourceDeprecationChecker resourceDeprecationChecker : resourceDeprecationCheckers) {

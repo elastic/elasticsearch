@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.deprecation;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.ThreadedActionListener;
@@ -51,6 +50,7 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
     private final Settings settings;
     private final NamedXContentRegistry xContentRegistry;
     private volatile List<String> skipTheseDeprecations;
+    private final NodeDeprecationChecker nodeDeprecationChecker;
     private final ClusterDeprecationChecker clusterDeprecationChecker;
     private final List<ResourceDeprecationChecker> resourceDeprecationCheckers;
 
@@ -80,6 +80,7 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
         this.settings = settings;
         this.xContentRegistry = xContentRegistry;
         skipTheseDeprecations = DeprecationChecks.SKIP_DEPRECATIONS_SETTING.get(settings);
+        nodeDeprecationChecker = new NodeDeprecationChecker();
         clusterDeprecationChecker = new ClusterDeprecationChecker(xContentRegistry);
         resourceDeprecationCheckers = List.of(
             new DataStreamDeprecationChecker(indexNameExpressionResolver),
@@ -108,57 +109,40 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
         ClusterState state,
         final ActionListener<DeprecationInfoAction.Response> listener
     ) {
-        NodesDeprecationCheckRequest nodeDepReq = new NodesDeprecationCheckRequest("_all");
-        ClientHelper.executeAsyncWithOrigin(
-            client,
-            ClientHelper.DEPRECATION_ORIGIN,
-            NodesDeprecationCheckAction.INSTANCE,
-            nodeDepReq,
-            listener.delegateFailureAndWrap((l, response) -> {
-                if (response.hasFailures()) {
-                    List<String> failedNodeIds = response.failures()
-                        .stream()
-                        .map(failure -> failure.nodeId() + ": " + failure.getMessage())
-                        .collect(Collectors.toList());
-                    logger.warn("nodes failed to run deprecation checks: {}", failedNodeIds);
-                    for (FailedNodeException failure : response.failures()) {
-                        logger.debug("node {} failed to run deprecation checks: {}", failure.nodeId(), failure);
-                    }
-                }
-                transformConfigs(l.delegateFailureAndWrap((ll, transformConfigs) -> {
-                    DeprecationChecker.Components components = new DeprecationChecker.Components(
-                        xContentRegistry,
-                        settings,
-                        new OriginSettingClient(client, ClientHelper.DEPRECATION_ORIGIN)
-                    );
-                    pluginSettingIssues(
-                        PLUGIN_CHECKERS,
-                        components,
-                        new ThreadedActionListener<>(
-                            client.threadPool().generic(),
-                            ll.map(
-                                deprecationIssues -> DeprecationInfoAction.Response.from(
-                                    state,
-                                    indexNameExpressionResolver,
-                                    request,
-                                    response,
-                                    clusterDeprecationChecker,
-                                    deprecationIssues,
-                                    skipTheseDeprecations,
-                                    List.of(
-                                        new IndexDeprecationChecker(indexNameExpressionResolver, indexToTransformIds(transformConfigs)),
-                                        new DataStreamDeprecationChecker(indexNameExpressionResolver),
-                                        new TemplateDeprecationChecker(),
-                                        new IlmPolicyDeprecationChecker()
-                                    ),
-                                    transformConfigs
-                                )
+        nodeDeprecationChecker.check(client, listener.delegateFailureAndWrap((l, nodeDeprecationIssues) -> {
+            transformConfigs(l.delegateFailureAndWrap((ll, transformConfigs) -> {
+                DeprecationChecker.Components components = new DeprecationChecker.Components(
+                    xContentRegistry,
+                    settings,
+                    new OriginSettingClient(client, ClientHelper.DEPRECATION_ORIGIN)
+                );
+                pluginSettingIssues(
+                    PLUGIN_CHECKERS,
+                    components,
+                    new ThreadedActionListener<>(
+                        client.threadPool().generic(),
+                        ll.map(
+                            deprecationIssues -> DeprecationInfoAction.Response.from(
+                                state,
+                                indexNameExpressionResolver,
+                                request,
+                                nodeDeprecationIssues,
+                                clusterDeprecationChecker,
+                                deprecationIssues,
+                                skipTheseDeprecations,
+                                List.of(
+                                    new IndexDeprecationChecker(indexNameExpressionResolver, indexToTransformIds(transformConfigs)),
+                                    new DataStreamDeprecationChecker(indexNameExpressionResolver),
+                                    new TemplateDeprecationChecker(),
+                                    new IlmPolicyDeprecationChecker()
+                                ),
+                                transformConfigs
                             )
                         )
-                    );
-                }));
-            })
-        );
+                    )
+                );
+            }));
+        }));
     }
 
     static void pluginSettingIssues(

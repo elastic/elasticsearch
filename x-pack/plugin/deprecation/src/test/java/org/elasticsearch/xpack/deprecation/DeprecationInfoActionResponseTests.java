@@ -26,7 +26,6 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
@@ -34,7 +33,6 @@ import org.elasticsearch.xpack.core.deprecation.DeprecationIssue.Level;
 import org.junit.Assert;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -211,11 +209,7 @@ public class DeprecationInfoActionResponseTests extends AbstractWireSerializingT
             return Map.of();
         }));
 
-        NodesDeprecationCheckResponse nodeDeprecationIssues = new NodesDeprecationCheckResponse(
-            new ClusterName(randomAlphaOfLength(5)),
-            nodeIssueFound ? List.of(new NodesDeprecationCheckAction.NodeResponse(discoveryNode, List.of(foundIssue))) : List.of(),
-            List.of()
-        );
+        List<DeprecationIssue> nodeDeprecationIssues = nodeIssueFound ? List.of(foundIssue) : List.of();
 
         DeprecationInfoAction.Request request = new DeprecationInfoAction.Request(randomTimeValue(), Strings.EMPTY_ARRAY);
         DeprecationInfoAction.Response response = DeprecationInfoAction.Response.from(
@@ -279,76 +273,6 @@ public class DeprecationInfoActionResponseTests extends AbstractWireSerializingT
         }
     }
 
-    public void testFromWithMergeableNodeIssues() throws IOException {
-        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("_all");
-        mapping.field("enabled", false);
-        mapping.endObject().endObject();
-
-        Metadata metadata = Metadata.builder()
-            .put(
-                IndexMetadata.builder("test")
-                    .putMapping(Strings.toString(mapping))
-                    .settings(settings(IndexVersion.current()))
-                    .numberOfShards(1)
-                    .numberOfReplicas(0)
-            )
-            .build();
-
-        DiscoveryNode node1 = DiscoveryNodeUtils.builder("nodeId1")
-            .name("node1")
-            .ephemeralId("ephemeralId1")
-            .address("hostName1", "hostAddress1", new TransportAddress(TransportAddress.META_ADDRESS, 9300))
-            .roles(Set.of())
-            .build();
-        DiscoveryNode node2 = DiscoveryNodeUtils.builder("nodeId2")
-            .name("node2")
-            .ephemeralId("ephemeralId2")
-            .address("hostName2", "hostAddress2", new TransportAddress(TransportAddress.META_ADDRESS, 9500))
-            .roles(Set.of())
-            .build();
-        ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).build();
-        IndexNameExpressionResolver resolver = TestIndexNameExpressionResolver.newInstance();
-        Map<String, Object> metaMap1 = DeprecationIssue.createMetaMapForRemovableSettings(List.of("setting.1", "setting.2", "setting.3"));
-        Map<String, Object> metaMap2 = DeprecationIssue.createMetaMapForRemovableSettings(List.of("setting.2", "setting.3"));
-        DeprecationIssue foundIssue1 = createTestDeprecationIssue(metaMap1);
-        DeprecationIssue foundIssue2 = createTestDeprecationIssue(foundIssue1, metaMap2);
-        List<Function<ClusterState, DeprecationIssue>> clusterSettingsChecks = List.of();
-        List<ResourceDeprecationChecker> resourceCheckers = List.of();
-
-        NodesDeprecationCheckResponse nodeDeprecationIssues = new NodesDeprecationCheckResponse(
-            new ClusterName(randomAlphaOfLength(5)),
-            Arrays.asList(
-                new NodesDeprecationCheckAction.NodeResponse(node1, List.of(foundIssue1)),
-                new NodesDeprecationCheckAction.NodeResponse(node2, List.of(foundIssue2))
-            ),
-            List.of()
-        );
-
-        DeprecationInfoAction.Request request = new DeprecationInfoAction.Request(randomTimeValue(), Strings.EMPTY_ARRAY);
-        DeprecationInfoAction.Response response = DeprecationInfoAction.Response.from(
-            state,
-            resolver,
-            request,
-            nodeDeprecationIssues,
-            new ClusterDeprecationChecker(NamedXContentRegistry.EMPTY),
-            Map.of(),
-            List.of(),
-            resourceCheckers,
-            List.of()
-        );
-
-        String details = foundIssue1.getDetails() != null ? foundIssue1.getDetails() + " " : "";
-        DeprecationIssue mergedFoundIssue = new DeprecationIssue(
-            foundIssue1.getLevel(),
-            foundIssue1.getMessage(),
-            foundIssue1.getUrl(),
-            details + "(nodes impacted: [" + node1.getName() + ", " + node2.getName() + "])",
-            foundIssue1.isResolveDuringRollingUpgrade(),
-            foundIssue2.getMeta()
-        );
-        assertThat(response.getNodeSettingsIssues(), equalTo(List.of(mergedFoundIssue)));
-    }
-
     public void testRemoveSkippedSettings() {
         Settings.Builder settingsBuilder = settings(IndexVersion.current());
         settingsBuilder.put("some.deprecated.property", "someValue1");
@@ -404,18 +328,12 @@ public class DeprecationInfoActionResponseTests extends AbstractWireSerializingT
             return Map.of();
         }));
 
-        NodesDeprecationCheckResponse nodeDeprecationIssues = new NodesDeprecationCheckResponse(
-            new ClusterName(randomAlphaOfLength(5)),
-            List.of(),
-            List.of()
-        );
-
         DeprecationInfoAction.Request request = new DeprecationInfoAction.Request(randomTimeValue(), Strings.EMPTY_ARRAY);
         DeprecationInfoAction.Response.from(
             state,
             resolver,
             request,
-            nodeDeprecationIssues,
+            List.of(),
             clusterDeprecationChecker,
             Map.of(),
             List.of("some.deprecated.property", "some.other.*.deprecated.property"),

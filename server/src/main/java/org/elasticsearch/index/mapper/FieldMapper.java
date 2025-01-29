@@ -852,6 +852,10 @@ public abstract class FieldMapper extends Mapper {
             return isSet && Objects.equals(value, getDefaultValue()) == false;
         }
 
+        public boolean isSet() {
+            return isSet;
+        }
+
         /**
          * Allows the parameter to accept a {@code null} value
          */

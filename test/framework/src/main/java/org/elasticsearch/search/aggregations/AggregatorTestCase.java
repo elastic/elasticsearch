@@ -296,7 +296,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
      * not responsible for releasing it. Instead, it is released automatically in
      * in {@link #cleanupReleasables()}.
      */
-    private AggregationContext createAggregationContext(
+    protected AggregationContext createAggregationContext(
         IndexReader indexReader,
         IndexSettings indexSettings,
         Query query,

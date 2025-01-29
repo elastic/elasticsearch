@@ -300,7 +300,7 @@ public class XPackSettings {
                     "Invalid algorithm: "
                         + v
                         + ". Valid values for secure token hashing are "
-                        + Hasher.getAvailableAlgoStoredPasswordHash().toString()
+                        + Hasher.getAvailableAlgoStoredSecureTokenHash().toString()
                 );
             } else if (v.regionMatches(true, 0, "pbkdf2", 0, "pbkdf2".length())) {
                 try {

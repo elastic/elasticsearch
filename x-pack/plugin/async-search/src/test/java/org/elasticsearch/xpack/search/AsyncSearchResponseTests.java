@@ -268,7 +268,6 @@ public class AsyncSearchResponseTests extends ESTestCase {
                       "response" : {
                         "took" : %s,
                         "timed_out" : false,
-                        "num_reduce_phases" : 2,
                         "_shards" : {
                           "total" : 10,
                           "successful" : 9,
@@ -304,7 +303,6 @@ public class AsyncSearchResponseTests extends ESTestCase {
                               "response" : {
                                 "took" : %s,
                                 "timed_out" : false,
-                                "num_reduce_phases" : 2,
                                 "_shards" : {
                                   "total" : 10,
                                   "successful" : 9,
@@ -388,7 +386,6 @@ public class AsyncSearchResponseTests extends ESTestCase {
                       "response" : {
                         "took" : %s,
                         "timed_out" : false,
-                        "num_reduce_phases" : 2,
                         "_shards" : {
                           "total" : 10,
                           "successful" : 9,
@@ -447,7 +444,6 @@ public class AsyncSearchResponseTests extends ESTestCase {
                               "response" : {
                                 "took" : %s,
                                 "timed_out" : false,
-                                "num_reduce_phases" : 2,
                                 "_shards" : {
                                   "total" : 10,
                                   "successful" : 9,
@@ -623,7 +619,6 @@ public class AsyncSearchResponseTests extends ESTestCase {
                   "response" : {
                     "took" : %s,
                     "timed_out" : true,
-                    "num_reduce_phases" : 2,
                     "_shards" : {
                       "total" : 10,
                       "successful" : 9,
@@ -770,7 +765,6 @@ public class AsyncSearchResponseTests extends ESTestCase {
                       "response" : {
                         "took" : %s,
                         "timed_out" : false,
-                        "num_reduce_phases" : 2,
                         "_shards" : {
                           "total" : 10,
                           "successful" : 9,
@@ -804,7 +798,6 @@ public class AsyncSearchResponseTests extends ESTestCase {
                               "response" : {
                                 "took" : %s,
                                 "timed_out" : false,
-                                "num_reduce_phases" : 2,
                                 "_shards" : {
                                   "total" : 10,
                                   "successful" : 9,

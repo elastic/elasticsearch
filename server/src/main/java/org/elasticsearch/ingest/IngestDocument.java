@@ -1004,6 +1004,13 @@ public final class IngestDocument {
         private static final int MAX_SIZE = 512;
         private static final Map<String, FieldPath> CACHE = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
 
+        // constructing a new FieldPath requires that we parse a String (e.g. "foo.bar.baz") into an array
+        // of path elements (e.g. ["foo", "bar", "baz"]). Calling String#split results in the allocation
+        // of an ArrayList to hold the results, then a new String is created for each path element, and
+        // then finally a String[] is allocated to hold the actual result -- in addition to all that, we
+        // do some processing ourselves on the path and path elements to validate and prepare them.
+        // the above CACHE and the below 'FieldPath.of' method allow us to almost always avoid this work.
+
         static FieldPath of(String path) {
             if (Strings.isEmpty(path)) {
                 throw new IllegalArgumentException("path cannot be null nor empty");
@@ -1023,6 +1030,7 @@ public final class IngestDocument {
         private final String[] pathElements;
         private final boolean useIngestContext;
 
+        // you shouldn't call this directly, use the FieldPath.of method above instead!
         private FieldPath(String path) {
             String newPath;
             if (path.startsWith(INGEST_KEY_PREFIX)) {

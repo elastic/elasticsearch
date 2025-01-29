@@ -1,22 +1,28 @@
 [[size-your-shards]]
 == Size your shards
-
-Proper shard sizing is crucial for maintaining the performance and stability of an {es} cluster. _Oversharding_ occurs when data is distributed across an excessive number of shards, which can degrade search performance and make the cluster unstable. Conversely, very large shards may slow down search operations and prolong recovery times after failures. To strike the right balance, the <<shard-size-recommendation,general guidelines>> are to aim for shard sizes between 10GB and 50GB, keeping the per-shard document count below 200 million. To ensure that each node is working optimally, it's important to distribute shards evenly across nodes. Having uneven shard distribution will make some nodes work harder than others leading to performance degradation and potential instability. 
-
-Despite these general guidelines, it is good to develop a tailored <<create-a-sharding-strategy, sharding strategy>> that considers your specific infrastructure, use case, and performance expectations.
-
 [discrete]
 [[what-is-a-shard]]
 === What is a shard?
 
-A shard is a basic unit of storage in {es}. Every index is divided into one or more shards to help distribute data and workload across nodes in a cluster. This division allows {es} to handle large datasets and perform operations like searches and indexing efficiently. Here’s how shards work:
-
+A shard is a basic unit of storage in {es}. Every index is divided into one or more shards to help distribute data and workload across nodes in a cluster. This division allows {es} to handle large datasets and perform operations like searches and indexing efficiently but not without cost. Each index and shard has some overhead and if you divide your data across too many shards then the overhead will degrade performance. Shards play several key roles in {es}:
 
 * *Data Distribution:* Each shard contains a portion of the data from the index. When you add more nodes to your cluster, {es} will spread the shards across the nodes, balancing the workload between them.
-* *Replication:* Shards can have replicas which are copies of the original shard. Replicas ensure data availability and improve search performance by allowing multiple nodes to handle requests.
+* *Replication:* Shards can have replicas which are copies of the original shard. Replicas ensure data availability and improve search performance by allowing multiple nodes to handle requests for that shard.
 * *Parallel Processing:* Shards enable {es} to process queries in parallel across nodes, making searches faster and more efficient.
 
 By effectively using shards, {es} can scale horizontally and provide fault tolerance, ensuring your data is distributed and queries are processed efficiently.
+
+[discrete]
+[[sizing-shard-guidelines]]
+=== Sizing Shard Guidelines
+
+Proper shard sizing is crucial for maintaining the performance and stability of an {es} cluster. _Oversharding_ occurs when data is distributed across an excessive number of shards, which can degrade search performance and make the cluster unstable. Conversely, very large shards may slow down search operations and prolong recovery times after failures. 
+
+To strike the right balance, the <<shard-size-recommendation,general guidelines>> are to aim for shard sizes between 10GB and 50GB, keeping the per-shard document count below 200 million. To ensure that each node is working optimally, it's important to distribute shards evenly across nodes. Having uneven shard distribution will make some nodes work harder than others leading to performance degradation and potential instability. 
+
+If you are using <<data-streams>>, each data stream consists of multiple backing indices, each with its own set of shards. Proper shard planning for these indices is essential to maintaining performance and stability.
+
+Despite these general guidelines, it is good to develop a tailored <<create-a-sharding-strategy, sharding strategy>> that considers your specific infrastructure, use case, and performance expectations. 
 
 [discrete]
 [[create-a-sharding-strategy]]
@@ -213,6 +219,7 @@ index can be <<indices-delete-index,removed>>. You may then consider setting
 <<indices-add-alias,Create Alias>> against the destination index for the source 
 index's name to point to it for continuity. 
 
+See this https://www.youtube.com/watch?v=sHyNYnwbYro[fixing shard sizes video] for an example troubleshooting walkthrough.
 
 [discrete]
 [[shard-count-recommendation]]
@@ -575,6 +582,8 @@ PUT _cluster/settings
   }
 }
 ----
+
+See this https://www.youtube.com/watch?v=tZKbDegt4-M[fixing "max shards open" video] for an example troubleshooting walkthrough. For more information, see <<troubleshooting-shards-capacity-issues,Troubleshooting shards capacity>>.
 
 [discrete]
 [[troubleshooting-max-docs-limit]]

@@ -263,7 +263,7 @@ public class XPackSettings {
         String key,
         Function<Settings, String> defaultHashingAlgorithm
     ) {
-        return new Setting<>(key, defaultHashingAlgorithm, Function.identity(), v -> {
+        return new Setting<>(new Setting.SimpleKey(key), defaultHashingAlgorithm, Function.identity(), v -> {
             if (Hasher.getAvailableAlgoStoredPasswordHash().contains(v.toLowerCase(Locale.ROOT)) == false) {
                 throw new IllegalArgumentException(
                     "Invalid algorithm: "
@@ -294,7 +294,7 @@ public class XPackSettings {
         String key,
         Function<Settings, String> defaultHashingAlgorithm
     ) {
-        return new Setting<>(key, defaultHashingAlgorithm, Function.identity(), v -> {
+        return new Setting<>(new Setting.SimpleKey(key), defaultHashingAlgorithm, Function.identity(), v -> {
             if (Hasher.getAvailableAlgoStoredSecureTokenHash().contains(v.toLowerCase(Locale.ROOT)) == false) {
                 throw new IllegalArgumentException(
                     "Invalid algorithm: "

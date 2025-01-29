@@ -384,9 +384,12 @@ public final class DateFieldMapper extends FieldMapper {
 
         @Override
         public DateFieldMapper build(MapperBuilderContext context) {
+            boolean hasDocValuesSparseIndex = FieldMapper.DOC_VALUES_SPARSE_INDEX.isEnabled()
+                && indexCreatedVersion.onOrAfter(IndexVersions.TIMESTAMP_DOC_VALUES_SPARSE_INDEX)
+                && hasDocValuesSparseIndex(context.buildFullName(leafName()));
             DateFieldType ft = new DateFieldType(
                 context.buildFullName(leafName()),
-                index.getValue() && indexCreatedVersion.isLegacyIndexVersion() == false,
+                index.getValue() && indexCreatedVersion.isLegacyIndexVersion() == false && hasDocValuesSparseIndex == false,
                 index.getValue(),
                 store.getValue(),
                 docValues.getValue(),
@@ -414,9 +417,7 @@ public final class DateFieldMapper extends FieldMapper {
                 context.isSourceSynthetic(),
                 indexMode,
                 indexSortConfig,
-                FieldMapper.DOC_VALUES_SPARSE_INDEX.isEnabled()
-                    && indexCreatedVersion.onOrAfter(IndexVersions.TIMESTAMP_DOC_VALUES_SPARSE_INDEX)
-                    && hasDocValuesSparseIndex(context.buildFullName(leafName())),
+                hasDocValuesSparseIndex,
                 this
             );
         }

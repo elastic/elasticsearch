@@ -242,7 +242,7 @@ public class DataStreamTimestampFieldMapperTests extends MetadataMapperTestCase 
                 .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), DataStreamTimestampFieldMapper.DEFAULT_PATH)
                 .build(),
             timestampMapping(true, b -> {
-                b.startObject("@timestamp");
+                b.startObject(DataStreamTimestampFieldMapper.DEFAULT_PATH);
                 b.field("type", "date");
                 b.endObject();
             })
@@ -251,6 +251,8 @@ public class DataStreamTimestampFieldMapperTests extends MetadataMapperTestCase 
         final DateFieldMapper timestampMapper = (DateFieldMapper) mapperService.documentMapper()
             .mappers()
             .getMapper(DataStreamTimestampFieldMapper.DEFAULT_PATH);
+        assertTrue(timestampMapper.fieldType().hasDocValues());
+        assertFalse(timestampMapper.fieldType().isIndexed());
         assertTrue(timestampMapper.hasDocValuesSparseIndex());
     }
 
@@ -258,7 +260,7 @@ public class DataStreamTimestampFieldMapperTests extends MetadataMapperTestCase 
         final MapperService mapperService = createMapperService(
             Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.name()).build(),
             timestampMapping(true, b -> {
-                b.startObject("@timestamp");
+                b.startObject(DataStreamTimestampFieldMapper.DEFAULT_PATH);
                 b.field("type", "date");
                 b.endObject();
             })
@@ -267,6 +269,8 @@ public class DataStreamTimestampFieldMapperTests extends MetadataMapperTestCase 
         final DateFieldMapper timestampMapper = (DateFieldMapper) mapperService.documentMapper()
             .mappers()
             .getMapper(DataStreamTimestampFieldMapper.DEFAULT_PATH);
+        assertTrue(timestampMapper.fieldType().hasDocValues());
+        assertFalse(timestampMapper.fieldType().isIndexed());
         assertTrue(timestampMapper.hasDocValuesSparseIndex());
     }
 
@@ -274,7 +278,7 @@ public class DataStreamTimestampFieldMapperTests extends MetadataMapperTestCase 
         final MapperService mapperService = createMapperService(
             Settings.builder().put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), DataStreamTimestampFieldMapper.DEFAULT_PATH).build(),
             timestampMapping(true, b -> {
-                b.startObject("@timestamp");
+                b.startObject(DataStreamTimestampFieldMapper.DEFAULT_PATH);
                 b.field("type", "date");
                 b.endObject();
             })
@@ -283,6 +287,8 @@ public class DataStreamTimestampFieldMapperTests extends MetadataMapperTestCase 
         final DateFieldMapper timestampMapper = (DateFieldMapper) mapperService.documentMapper()
             .mappers()
             .getMapper(DataStreamTimestampFieldMapper.DEFAULT_PATH);
+        assertTrue(timestampMapper.fieldType().hasDocValues());
+        assertTrue(timestampMapper.fieldType().isIndexed());
         assertFalse(timestampMapper.hasDocValuesSparseIndex());
     }
 
@@ -300,10 +306,14 @@ public class DataStreamTimestampFieldMapperTests extends MetadataMapperTestCase 
         );
 
         final DateFieldMapper customTimestamp = (DateFieldMapper) mapperService.documentMapper().mappers().getMapper("timestamp");
+        assertTrue(customTimestamp.fieldType().hasDocValues());
+        assertTrue(customTimestamp.fieldType().isIndexed());
         assertFalse(customTimestamp.hasDocValuesSparseIndex());
 
         // Default LogsDB mapping including @timestamp field is used
         final DateFieldMapper defaultTimestamp = (DateFieldMapper) mapperService.documentMapper().mappers().getMapper("@timestamp");
+        assertTrue(defaultTimestamp.fieldType().hasDocValues());
+        assertFalse(defaultTimestamp.fieldType().isIndexed());
         assertTrue(defaultTimestamp.hasDocValuesSparseIndex());
     }
 }

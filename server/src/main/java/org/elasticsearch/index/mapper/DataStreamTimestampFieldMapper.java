@@ -15,6 +15,8 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.TimestampBounds;
 import org.elasticsearch.index.mapper.DateFieldMapper.Resolution;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -25,6 +27,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.time.Instant;
 import java.util.Map;
+import java.util.function.Function;
 
 import static org.elasticsearch.core.TimeValue.NSEC_PER_MSEC;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
@@ -39,8 +42,10 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
     public static final String DEFAULT_PATH = "@timestamp";
     public static final String TIMESTAMP_VALUE_KEY = "@timestamp._value";
 
-    public static final DataStreamTimestampFieldMapper ENABLED_INSTANCE = new DataStreamTimestampFieldMapper(true);
-    private static final DataStreamTimestampFieldMapper DISABLED_INSTANCE = new DataStreamTimestampFieldMapper(false);
+    public static final Function<IndexVersion, DataStreamTimestampFieldMapper> ENABLED_INSTANCE =
+        indexCreatedVersion -> new DataStreamTimestampFieldMapper(true, indexCreatedVersion);
+    private static final Function<IndexVersion, DataStreamTimestampFieldMapper> DISABLED_INSTANCE =
+        indexCreatedVersion -> new DataStreamTimestampFieldMapper(false, indexCreatedVersion);
 
     // For now the field shouldn't be useable in searches.
     // In the future it should act as an alias to the actual data stream timestamp field.
@@ -83,8 +88,11 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
             // this field mapper may be enabled but once enabled, may not be disabled
             .setMergeValidator((previous, current, conflicts) -> (previous == current) || (previous == false && current));
 
-        public Builder() {
+        private final IndexVersion indexCreatedVersion;
+
+        public Builder(final IndexVersion indexCreatedVersion) {
             super(NAME);
+            this.indexCreatedVersion = indexCreatedVersion;
         }
 
         @Override
@@ -94,22 +102,27 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
 
         @Override
         public MetadataFieldMapper build() {
-            return enabled.getValue() ? ENABLED_INSTANCE : DISABLED_INSTANCE;
+            return enabled.getValue() ? ENABLED_INSTANCE.apply(indexCreatedVersion) : DISABLED_INSTANCE.apply(indexCreatedVersion);
         }
     }
 
-    public static final TypeParser PARSER = new ConfigurableTypeParser(c -> DISABLED_INSTANCE, c -> new Builder());
+    public static final TypeParser PARSER = new ConfigurableTypeParser(
+        c -> DISABLED_INSTANCE.apply(c.getIndexSettings().getIndexVersionCreated()),
+        c -> new Builder(c.getIndexSettings().getIndexVersionCreated())
+    );
 
     private final boolean enabled;
+    private final IndexVersion indexCreatedVersion;
 
-    private DataStreamTimestampFieldMapper(boolean enabled) {
+    private DataStreamTimestampFieldMapper(boolean enabled, final IndexVersion indexCreatedVersion) {
         super(TimestampFieldType.INSTANCE);
         this.enabled = enabled;
+        this.indexCreatedVersion = indexCreatedVersion;
     }
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder().init(this);
+        return new Builder(indexCreatedVersion).init(this);
     }
 
     public void doValidate(MappingLookup lookup) {
@@ -139,9 +152,12 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
         }
 
         DateFieldMapper dateFieldMapper = (DateFieldMapper) mapper;
-        if (dateFieldMapper.fieldType().isIndexed() == false) {
+        if (dateFieldMapper.fieldType().isIndexed() == false
+            && (indexCreatedVersion.onOrAfter(IndexVersions.TIMESTAMP_DOC_VALUES_SPARSE_INDEX) == false
+                || dateFieldMapper.hasDocValuesSparseIndex() == false)) {
             throw new IllegalArgumentException("data stream timestamp field [" + DEFAULT_PATH + "] is not indexed");
         }
+
         if (dateFieldMapper.fieldType().hasDocValues() == false) {
             throw new IllegalArgumentException("data stream timestamp field [" + DEFAULT_PATH + "] doesn't have doc values");
         }

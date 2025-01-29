@@ -298,7 +298,7 @@ public class ModelRegistryMetadata implements Metadata.Custom {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.ZERO;
+            return TransportVersions.INFERENCE_MODEL_REGISTRY_METADATA;
         }
 
         @Override

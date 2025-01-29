@@ -34,6 +34,8 @@ import static org.elasticsearch.transport.RemoteClusterService.REMOTE_CLUSTER_HA
 
 public class RemoteConnectionManager implements ConnectionManager {
 
+    private static final Logger logger = LogManager.getLogger(RemoteConnectionManager.class);
+
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RemoteConnectionManager.class);
 
     private final String clusterAlias;
@@ -50,6 +52,12 @@ public class RemoteConnectionManager implements ConnectionManager {
             @Override
             public void onNodeConnected(DiscoveryNode node, Transport.Connection connection) {
                 addConnectedNode(node);
+                try {
+                    // called when a node is successfully connected through a proxy connection
+                    maybeLogDeprecationWarning(wrapConnectionWithRemoteClusterInfo(connection, clusterAlias, credentialsManager));
+                } catch (Exception e) {
+                    logger.warn("Failed to log deprecation warning.", e);
+                }
             }
 
             @Override
@@ -120,9 +128,9 @@ public class RemoteConnectionManager implements ConnectionManager {
             deprecationLogger.warn(
                 DeprecationCategory.SECURITY,
                 "remote_cluster_certificate_access-" + connection.getClusterAlias(),
-                "The remote cluster connection to [{}] is using deprecated certificate based security model. "
-                    + "The certificate based security model is deprecated and will be removed in a future major version. "
-                    + "Migrate remote cluster from certificate to API key based security model.",
+                "The remote cluster connection to [{}] is using the certificate-based security model. "
+                    + "The certificate-based security model is deprecated and will be removed in a future major version. "
+                    + "Migrate the remote cluster from the certificate-based to the API key-based security model.",
                 connection.getClusterAlias()
             );
         }

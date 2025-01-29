@@ -100,6 +100,12 @@ public class RemoteConnectionManagerTests extends ESTestCase {
         proxyNodes.add(((ProxyConnection) remoteConnectionManager.getConnection(node4)).getConnection().getNode().getId());
 
         assertThat(proxyNodes, containsInAnyOrder("node-2"));
+
+        assertWarnings(
+            "The remote cluster connection to [remote-cluster] is using the certificate-based security model. "
+                + "The certificate-based security model is deprecated and will be removed in a future major version. "
+                + "Migrate the remote cluster from the certificate-based to the API key-based security model."
+        );
     }
 
     public void testDisconnectedException() {
@@ -142,9 +148,9 @@ public class RemoteConnectionManagerTests extends ESTestCase {
         assertWarnings(
             "The remote cluster connection to ["
                 + remoteClusterAlias
-                + "] is using deprecated certificate based security model. "
-                + "The certificate based security model is deprecated and will be removed in a future major version. "
-                + "Migrate remote cluster from certificate to API key based security model."
+                + "] is using the certificate-based security model. "
+                + "The certificate-based security model is deprecated and will be removed in a future major version. "
+                + "Migrate the remote cluster from the certificate-based to the API key-based security model."
         );
     }
 

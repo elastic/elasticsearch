@@ -91,7 +91,10 @@ public abstract class SemanticMatchTestCase extends ESRestTestCase {
                    "service": "test_service",
                    "service_settings": {
                      "model": "my_model",
-                     "api_key": "abc64"
+                     "api_key": "abc64",
+                     "dimensions": 128,
+                     "element_type": "float",
+                     "similarity": "cosine"
                    },
                    "task_settings": {
                    }

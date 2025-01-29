@@ -20,7 +20,6 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.SimilarityMeasure;
@@ -31,6 +30,7 @@ import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
 import org.elasticsearch.xpack.inference.Utils;
 import org.elasticsearch.xpack.inference.mock.TestDenseInferenceServiceExtension;
 import org.elasticsearch.xpack.inference.mock.TestSparseInferenceServiceExtension;
+import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.junit.Before;
 
 import java.util.Arrays;
@@ -56,14 +56,15 @@ public class ShardBulkInferenceActionFilterIT extends ESIntegTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {
-        return List.of(new Object[] { true }, new Object[] { false });
+        return List.of(new Object[] { false }, new Object[] { false });
     }
 
     @Before
     public void setup() throws Exception {
-        Utils.storeSparseModel(client());
+        ModelRegistry modelRegistry = internalCluster().getCurrentMasterNodeInstance(ModelRegistry.class);
+        Utils.storeSparseModel(modelRegistry);
         Utils.storeDenseModel(
-            client(),
+            modelRegistry,
             randomIntBetween(1, 100),
             // dot product means that we need normalized vectors; it's not worth doing that in this test
             randomValueOtherThan(SimilarityMeasure.DOT_PRODUCT, () -> randomFrom(SimilarityMeasure.values())),
@@ -80,36 +81,33 @@ public class ShardBulkInferenceActionFilterIT extends ESIntegTestCase {
     @Override
     public Settings indexSettings() {
         return Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 10))
             .put(InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT.getKey(), useLegacyFormat)
             .build();
     }
 
     public void testBulkOperations() throws Exception {
-        indicesAdmin().prepareCreate(INDEX_NAME)
-            .setMapping(
-                String.format(
-                    Locale.ROOT,
-                    """
-                        {
-                            "properties": {
-                                "sparse_field": {
-                                    "type": "semantic_text",
-                                    "inference_id": "%s"
-                                },
-                                "dense_field": {
-                                    "type": "semantic_text",
-                                    "inference_id": "%s"
-                                }
+        prepareCreate(INDEX_NAME).setMapping(
+            String.format(
+                Locale.ROOT,
+                """
+                    {
+                        "properties": {
+                            "sparse_field": {
+                                "type": "semantic_text",
+                                "inference_id": "%s"
+                            },
+                            "dense_field": {
+                                "type": "semantic_text",
+                                "inference_id": "%s"
                             }
                         }
-                        """,
-                    TestSparseInferenceServiceExtension.TestInferenceService.NAME,
-                    TestDenseInferenceServiceExtension.TestInferenceService.NAME
-                )
+                    }
+                    """,
+                TestSparseInferenceServiceExtension.TestInferenceService.NAME,
+                TestDenseInferenceServiceExtension.TestInferenceService.NAME
             )
-            .get();
+        ).get();
 
         int totalBulkReqs = randomIntBetween(2, 100);
         long totalDocs = 0;

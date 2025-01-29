@@ -11,7 +11,6 @@ import org.apache.http.HttpHeaders;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -27,7 +26,8 @@ import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -36,6 +36,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbeddingSparse;
 import org.elasticsearch.xpack.core.ml.search.WeightedToken;
+import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
@@ -55,6 +56,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
@@ -84,17 +86,25 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
-public class ElasticInferenceServiceTests extends ESTestCase {
+public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
 
     private static final TimeValue TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
     private final MockWebServer webServer = new MockWebServer();
+
+    private ModelRegistry modelRegistry;
     private ThreadPool threadPool;
 
     private HttpClientManager clientManager;
 
+    @Override
+    protected Collection<Class<? extends Plugin>> getPlugins() {
+        return List.of(LocalStateInferencePlugin.class);
+    }
+
     @Before
     public void init() throws Exception {
         webServer.start();
+        modelRegistry = node().injector().getInstance(ModelRegistry.class);
         threadPool = createThreadPool(inferenceUtilityPool());
         clientManager = HttpClientManager.create(Settings.EMPTY, threadPool, mockClusterServiceEmpty(), mock(ThrottlerManager.class));
     }
@@ -351,12 +361,6 @@ public class ElasticInferenceServiceTests extends ESTestCase {
         verify(sender, times(1)).close();
         verifyNoMoreInteractions(factory);
         verifyNoMoreInteractions(sender);
-    }
-
-    private ModelRegistry mockModelRegistry() {
-        var client = mock(Client.class);
-        when(client.threadPool()).thenReturn(threadPool);
-        return new ModelRegistry(client);
     }
 
     public void testInfer_ThrowsErrorWhenTaskTypeIsNotValid() throws IOException {
@@ -965,7 +969,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
             mock(HttpRequestSender.Factory.class),
             createWithEmptySettings(threadPool),
             new ElasticInferenceServiceComponents(null),
-            mockModelRegistry(),
+            modelRegistry,
             mockAuthHandler
         );
     }
@@ -994,7 +998,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
             senderFactory,
             createWithEmptySettings(threadPool),
             new ElasticInferenceServiceComponents(gatewayUrl),
-            mockModelRegistry(),
+            modelRegistry,
             mockAuthHandler
         );
     }
@@ -1004,7 +1008,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
             senderFactory,
             createWithEmptySettings(threadPool),
             new ElasticInferenceServiceComponents(eisGatewayUrl),
-            mockModelRegistry(),
+            modelRegistry,
             new ElasticInferenceServiceAuthorizationHandler(eisGatewayUrl, threadPool)
         );
     }

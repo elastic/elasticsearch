@@ -28,7 +28,7 @@ import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
-import static org.elasticsearch.xpack.deprecation.DeprecationInfoAction.filterChecks;
+import static org.elasticsearch.xpack.deprecation.DeprecationChecks.filterChecks;
 import static org.elasticsearch.xpack.deprecation.LegacyTiersDetection.DEPRECATION_COMMON_DETAIL;
 import static org.elasticsearch.xpack.deprecation.LegacyTiersDetection.DEPRECATION_HELP_URL;
 

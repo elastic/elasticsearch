@@ -130,7 +130,7 @@ public class TransportNodeDeprecationCheckAction extends TransportNodesAction<
             .metadata(Metadata.builder(metadata).transientSettings(transientSettings).persistentSettings(persistentSettings).build())
             .build();
 
-        List<DeprecationIssue> issues = DeprecationInfoAction.filterChecks(
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(
             nodeSettingsChecks,
             (c) -> c.apply(filteredNodeSettings, pluginsService.info(), filteredClusterState, licenseState)
         );

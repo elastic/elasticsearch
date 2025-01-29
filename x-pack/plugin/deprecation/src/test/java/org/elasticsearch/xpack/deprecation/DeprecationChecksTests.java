@@ -30,7 +30,7 @@ public class DeprecationChecksTests extends ESTestCase {
         for (int i = 0; i < numChecksPassed; i++) {
             checks.add(() -> null);
         }
-        List<DeprecationIssue> filteredIssues = DeprecationInfoAction.filterChecks(checks, Supplier::get);
+        List<DeprecationIssue> filteredIssues = DeprecationChecks.filterChecks(checks, Supplier::get);
         assertThat(filteredIssues.size(), equalTo(numChecksFailed));
     }
 

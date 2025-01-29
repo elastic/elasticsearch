@@ -24,7 +24,7 @@ import java.util.stream.Collectors;
 
 import static java.util.Map.entry;
 import static java.util.Map.ofEntries;
-import static org.elasticsearch.xpack.deprecation.DeprecationInfoAction.filterChecks;
+import static org.elasticsearch.xpack.deprecation.DeprecationChecks.filterChecks;
 
 /**
  * Checks the data streams for deprecation warnings.

@@ -382,7 +382,7 @@ count:long | languages:integer
 basicGrok
 // tag::basicGrok[]
 ROW a = "2023-01-23T12:15:00.000Z 127.0.0.1 some.email@foo.com 42" 
-| GROK a "%{TIMESTAMP_ISO8601:date} %{IP:ip} %{EMAILADDRESS:email} %{NUMBER:num}" 
+| GROK a """%{TIMESTAMP_ISO8601:date} %{IP:ip} %{EMAILADDRESS:email} %{NUMBER:num}""" 
 | KEEP date, ip, email, num
 // end::basicGrok[]
 ;
@@ -396,7 +396,7 @@ date:keyword          | ip:keyword    | email:keyword       | num:keyword
 grokWithConversionSuffix
 // tag::grokWithConversionSuffix[]
 ROW a = "2023-01-23T12:15:00.000Z 127.0.0.1 some.email@foo.com 42" 
-| GROK a "%{TIMESTAMP_ISO8601:date} %{IP:ip} %{EMAILADDRESS:email} %{NUMBER:num:int}" 
+| GROK a """%{TIMESTAMP_ISO8601:date} %{IP:ip} %{EMAILADDRESS:email} %{NUMBER:num:int}""" 
 | KEEP date, ip, email, num
 // end::grokWithConversionSuffix[]
 ;
@@ -410,7 +410,7 @@ date:keyword              | ip:keyword    | email:keyword       | num:integer
 grokWithToDatetime
 // tag::grokWithToDatetime[]
 ROW a = "2023-01-23T12:15:00.000Z 127.0.0.1 some.email@foo.com 42" 
-| GROK a "%{TIMESTAMP_ISO8601:date} %{IP:ip} %{EMAILADDRESS:email} %{NUMBER:num:int}" 
+| GROK a """%{TIMESTAMP_ISO8601:date} %{IP:ip} %{EMAILADDRESS:email} %{NUMBER:num:int}""" 
 | KEEP date, ip, email, num
 | EVAL date = TO_DATETIME(date)
 // end::grokWithToDatetime[]
@@ -436,11 +436,27 @@ ROW a = "1.2.3.4 [2023-01-23T12:15:00.000Z] Connected"
 // end::grokWithEscape-result[]
 ;
 
+
+grokWithEscapeTripleQuotes
+// tag::grokWithEscapeTripleQuotes[]
+ROW a = "1.2.3.4 [2023-01-23T12:15:00.000Z] Connected"
+| GROK a """%{IP:ip} \[%{TIMESTAMP_ISO8601:@timestamp}\] %{GREEDYDATA:status}"""
+// end::grokWithEscapeTripleQuotes[]
+| KEEP @timestamp
+;
+
+// tag::grokWithEscapeTripleQuotes-result[]
+@timestamp:keyword
+2023-01-23T12:15:00.000Z
+// end::grokWithEscapeTripleQuotes-result[]
+;
+
+
 grokWithDuplicateFieldNames
 // tag::grokWithDuplicateFieldNames[]
 FROM addresses
 | KEEP city.name, zip_code
-| GROK zip_code "%{WORD:zip_parts} %{WORD:zip_parts}"
+| GROK zip_code """%{WORD:zip_parts} %{WORD:zip_parts}"""
 // end::grokWithDuplicateFieldNames[]
 | SORT city.name
 ;
@@ -456,7 +472,7 @@ Tokyo             | 100-7014         | null
 basicDissect
 // tag::basicDissect[]
 ROW a = "2023-01-23T12:15:00.000Z - some text - 127.0.0.1" 
-| DISSECT a "%{date} - %{msg} - %{ip}"
+| DISSECT a """%{date} - %{msg} - %{ip}"""
 | KEEP date, msg, ip
 // end::basicDissect[]
 ;
@@ -470,7 +486,7 @@ date:keyword             | msg:keyword  | ip:keyword
 dissectWithToDatetime
 // tag::dissectWithToDatetime[]
 ROW a = "2023-01-23T12:15:00.000Z - some text - 127.0.0.1" 
-| DISSECT a "%{date} - %{msg} - %{ip}" 
+| DISSECT a """%{date} - %{msg} - %{ip}""" 
 | KEEP date, msg, ip
 | EVAL date = TO_DATETIME(date)
 // end::dissectWithToDatetime[]
@@ -485,7 +501,7 @@ some text    | 127.0.0.1  | 2023-01-23T12:15:00.000Z
 dissectRightPaddingModifier
 // tag::dissectRightPaddingModifier[]
 ROW message="1998-08-10T17:15:42          WARN"
-| DISSECT message "%{ts->} %{level}"
+| DISSECT message """%{ts->} %{level}"""
 // end::dissectRightPaddingModifier[]
 ;
 
@@ -498,7 +514,7 @@ message:keyword  | ts:keyword | level:keyword
 dissectEmptyRightPaddingModifier#[skip:-8.11.2, reason:Support for empty right padding modifiers introduced in 8.11.2]
 // tag::dissectEmptyRightPaddingModifier[]
 ROW message="[1998-08-10T17:15:42]          [WARN]"
-| DISSECT message "[%{ts}]%{->}[%{level}]"
+| DISSECT message """[%{ts}]%{->}[%{level}]"""
 // end::dissectEmptyRightPaddingModifier[]
 ;
 
@@ -511,7 +527,7 @@ ROW message="[1998-08-10T17:15:42]          [WARN]"
 dissectAppendModifier
 // tag::dissectAppendModifier[]
 ROW message="john jacob jingleheimer schmidt"
-| DISSECT message "%{+name} %{+name} %{+name} %{+name}" APPEND_SEPARATOR=" "
+| DISSECT message """%{+name} %{+name} %{+name} %{+name}""" APPEND_SEPARATOR=" "
 // end::dissectAppendModifier[]
 ;
 
@@ -524,7 +540,7 @@ john jacob jingleheimer schmidt|john jacob jingleheimer schmidt
 dissectAppendWithOrderModifier
 // tag::dissectAppendWithOrderModifier[]
 ROW message="john jacob jingleheimer schmidt"
-| DISSECT message "%{+name/2} %{+name/4} %{+name/3} %{+name/1}" APPEND_SEPARATOR=","
+| DISSECT message """%{+name/2} %{+name/4} %{+name/3} %{+name/1}""" APPEND_SEPARATOR=","
 // end::dissectAppendWithOrderModifier[]
 ;
 
@@ -537,7 +553,7 @@ john jacob jingleheimer schmidt|schmidt,john,jingleheimer,jacob
 dissectNamedSkipKey
 // tag::dissectNamedSkipKey[]
 ROW message="1.2.3.4 - - 30/Apr/1998:22:00:52 +0000"
-| DISSECT message "%{clientip} %{?ident} %{?auth} %{@timestamp}"
+| DISSECT message """%{clientip} %{?ident} %{?auth} %{@timestamp}"""
 // end::dissectNamedSkipKey[]
 ;
 
@@ -550,7 +566,7 @@ message:keyword  | clientip:keyword  | @timestamp:keyword
 docsLike
 // tag::like[]
 FROM employees
-| WHERE first_name LIKE "?b*"
+| WHERE first_name LIKE """?b*"""
 | KEEP first_name, last_name
 // end::like[]
 | SORT first_name
@@ -566,7 +582,7 @@ Eberhardt      |Terkki
 docsRlike
 // tag::rlike[]
 FROM employees
-| WHERE first_name RLIKE ".leja.*"
+| WHERE first_name RLIKE """.leja.*"""
 | KEEP first_name, last_name
 // end::rlike[]
 ;

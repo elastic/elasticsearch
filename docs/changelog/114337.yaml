@@ -1,5 +1,0 @@
-pr: 114337
-summary: "Enables cluster state role mapper, to include ECK operator-defined role mappings in role resolution"
-area: Authentication
-type: bug
-issues: []

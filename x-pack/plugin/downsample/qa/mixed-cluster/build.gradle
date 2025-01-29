@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-import org.elasticsearch.gradle.Version
+import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
@@ -26,7 +26,7 @@ restResources {
 }
 
 def supportedVersion = bwcVersion -> {
-  return bwcVersion.onOrAfter("8.10.0");
+  return bwcVersion.onOrAfter("8.10.0") && bwcVersion != VersionProperties.elasticsearchVersion
 }
 
 BuildParams.bwcVersions.withWireCompatible(supportedVersion) { bwcVersion, baseName ->

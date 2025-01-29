@@ -259,7 +259,6 @@ setup:
           highlight:
             fields:
               body:
-                type: "semantic"
                 order: "score"
                 number_of_fragments: 2
 
@@ -268,6 +267,29 @@ setup:
   - length: { hits.hits.0.highlight.body: 2 }
   - match:  { hits.hits.0.highlight.body.0: "You Know, for Search!" }
   - match:  { hits.hits.0.highlight.body.1: "ElasticSearch is an open source, distributed, RESTful, search engine which is built on top of Lucene internally and enjoys all the features it provides." }
+
+  - do:
+      search:
+        index: test-dense-index
+        body:
+          query:
+            match:
+              title: "Elasticsearch"
+          highlight:
+            fields:
+              title:
+                type: semantic
+                number_of_fragments: 2
+
+  - match:      { hits.total.value: 1 }
+  - match:      { hits.hits.0._id: "doc_1" }
+  - not_exists: hits.hits.0.highlight.title
+
+---
+"semantic highlighter ignores non-inference fields":
+  - requires:
+      cluster_features: "semantic_text.highlighter.default"
+      reason: semantic text field defaults to the semantic highlighter
 
   - do:
       search:

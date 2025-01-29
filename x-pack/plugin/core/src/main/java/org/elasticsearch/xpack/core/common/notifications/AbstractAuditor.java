@@ -13,7 +13,6 @@ import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -213,7 +212,6 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
                 indexDetails.indexVersion(),
                 auditIndexWriteAlias,
                 MASTER_TIMEOUT,
-                ActiveShardCount.DEFAULT,
                 l
             );
 

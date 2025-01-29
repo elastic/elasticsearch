@@ -113,7 +113,6 @@ public final class MlIndexAndAlias {
             FIRST_INDEX_SIX_DIGIT_SUFFIX,
             alias,
             masterNodeTimeout,
-            waitForShardCount,
             finalListener
         );
     }
@@ -130,7 +129,6 @@ public final class MlIndexAndAlias {
         String indexNumber,
         String alias,
         TimeValue masterNodeTimeout,
-        ActiveShardCount waitForShardCount,
         ActionListener<Boolean> finalListener
     ) {
 

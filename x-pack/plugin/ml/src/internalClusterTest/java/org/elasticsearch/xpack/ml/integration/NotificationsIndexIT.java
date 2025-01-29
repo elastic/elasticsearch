@@ -12,7 +12,6 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ml.notifications.NotificationsIndex;
@@ -49,7 +48,7 @@ public class NotificationsIndexIT extends MlSingleNodeTestCase {
     }
 
     private void assertNotificationsIndexExists() {
-        GetIndexResponse getIndexResponse = indicesAdmin().prepareGetIndex(TEST_REQUEST_TIMEOUT)
+        GetIndexResponse getIndexResponse = indicesAdmin().prepareGetIndex()
             .setIndices(NotificationsIndex.NOTIFICATIONS_INDEX)
             .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN)
             .get();
@@ -57,10 +56,10 @@ public class NotificationsIndexIT extends MlSingleNodeTestCase {
     }
 
     private void assertNotificationsWriteAliasCreated() {
-        Map<String, List<AliasMetadata>> aliases = indicesAdmin().prepareGetAliases(
-            TimeValue.timeValueSeconds(10L),
-            NotificationsIndex.NOTIFICATIONS_INDEX_WRITE_ALIAS
-        ).setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN).get().getAliases();
+        Map<String, List<AliasMetadata>> aliases = indicesAdmin().prepareGetAliases(NotificationsIndex.NOTIFICATIONS_INDEX_WRITE_ALIAS)
+            .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN)
+            .get()
+            .getAliases();
         assertThat(aliases.size(), is(1));
         List<AliasMetadata> indexAliases = aliases.get(NotificationsIndex.NOTIFICATIONS_INDEX);
         assertNotNull(aliases.toString(), indexAliases);

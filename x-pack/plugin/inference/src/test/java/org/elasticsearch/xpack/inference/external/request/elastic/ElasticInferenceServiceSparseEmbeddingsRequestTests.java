@@ -31,8 +31,9 @@ public class ElasticInferenceServiceSparseEmbeddingsRequestTests extends ESTestC
     public void testCreateHttpRequest() throws IOException {
         var url = "http://eis-gateway.com";
         var input = "input";
+        var modelId = "my-model-id";
 
-        var request = createRequest(url, input);
+        var request = createRequest(url, modelId, input, InputType.SEARCH);
         var httpRequest = request.createHttpRequest();
 
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
@@ -40,15 +41,18 @@ public class ElasticInferenceServiceSparseEmbeddingsRequestTests extends ESTestC
 
         assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
-        assertThat(requestMap.size(), equalTo(1));
+        assertThat(requestMap.size(), equalTo(3));
         assertThat(requestMap.get("input"), is(List.of(input)));
+        assertThat(requestMap.get("model_id"), is(modelId));
+        assertThat(requestMap.get("usage_context"), equalTo("search"));
     }
 
     public void testTraceContextPropagatedThroughHTTPHeaders() {
         var url = "http://eis-gateway.com";
         var input = "input";
+        var modelId = "my-model-id";
 
-        var request = createRequest(url, input);
+        var request = createRequest(url, modelId, input, InputType.UNSPECIFIED);
         var httpRequest = request.createHttpRequest();
 
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
@@ -64,8 +68,9 @@ public class ElasticInferenceServiceSparseEmbeddingsRequestTests extends ESTestC
     public void testTruncate_ReducesInputTextSizeByHalf() throws IOException {
         var url = "http://eis-gateway.com";
         var input = "abcd";
+        var modelId = "my-model-id";
 
-        var request = createRequest(url, input);
+        var request = createRequest(url, modelId, input, InputType.UNSPECIFIED);
         var truncatedRequest = request.truncate();
 
         var httpRequest = truncatedRequest.createHttpRequest();
@@ -73,23 +78,42 @@ public class ElasticInferenceServiceSparseEmbeddingsRequestTests extends ESTestC
 
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
-        assertThat(requestMap, aMapWithSize(1));
+        assertThat(requestMap, aMapWithSize(2));
         assertThat(requestMap.get("input"), is(List.of("ab")));
+        assertThat(requestMap.get("model_id"), is(modelId));
     }
 
     public void testIsTruncated_ReturnsTrue() {
         var url = "http://eis-gateway.com";
         var input = "abcd";
+        var modelId = "my-model-id";
 
-        var request = createRequest(url, input);
+        var request = createRequest(url, modelId, input, InputType.UNSPECIFIED);
         assertFalse(request.getTruncationInfo()[0]);
 
         var truncatedRequest = request.truncate();
         assertTrue(truncatedRequest.getTruncationInfo()[0]);
     }
 
-    public ElasticInferenceServiceSparseEmbeddingsRequest createRequest(String url, String input) {
-        var embeddingsModel = ElasticInferenceServiceSparseEmbeddingsModelTests.createModel(url);
+    public void testInputTypeToUsageContext_Search() {
+        assertThat(inputTypeToUsageContext(InputType.SEARCH), equalTo(ElasticInferenceServiceUsageContext.SEARCH));
+    }
+
+    public void testInputTypeToUsageContext_Ingest() {
+        assertThat(inputTypeToUsageContext(InputType.INGEST), equalTo(ElasticInferenceServiceUsageContext.INGEST));
+    }
+
+    public void testInputTypeToUsageContext_Unspecified() {
+        assertThat(inputTypeToUsageContext(InputType.UNSPECIFIED), equalTo(ElasticInferenceServiceUsageContext.UNSPECIFIED));
+    }
+
+    public void testInputTypeToUsageContext_Unknown_DefaultToUnspecified() {
+        assertThat(inputTypeToUsageContext(InputType.CLASSIFICATION), equalTo(ElasticInferenceServiceUsageContext.UNSPECIFIED));
+        assertThat(inputTypeToUsageContext(InputType.CLUSTERING), equalTo(ElasticInferenceServiceUsageContext.UNSPECIFIED));
+    }
+
+    public ElasticInferenceServiceSparseEmbeddingsRequest createRequest(String url, String modelId, String input, InputType inputType) {
+        var embeddingsModel = ElasticInferenceServiceSparseEmbeddingsModelTests.createModel(url, modelId);
 
         return new ElasticInferenceServiceSparseEmbeddingsRequest(
             TruncatorTests.createTruncator(),

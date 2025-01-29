@@ -18,6 +18,7 @@ import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.InvertableType;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StoredField;
+import org.apache.lucene.index.DocValuesSkipIndexType;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
@@ -38,7 +39,10 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.FieldData;
@@ -87,9 +91,11 @@ public final class KeywordFieldMapper extends FieldMapper {
     private static final Logger logger = LogManager.getLogger(KeywordFieldMapper.class);
 
     public static final String CONTENT_TYPE = "keyword";
+    private static final String HOST_NAME = "host.name";
 
     public static class Defaults {
         public static final FieldType FIELD_TYPE;
+        public static final FieldType FIELD_TYPE_WITH_SKIP_DOC_VALUES;
 
         static {
             FieldType ft = new FieldType();
@@ -98,6 +104,16 @@ public final class KeywordFieldMapper extends FieldMapper {
             ft.setIndexOptions(IndexOptions.DOCS);
             ft.setDocValuesType(DocValuesType.SORTED_SET);
             FIELD_TYPE = freezeAndDeduplicateFieldType(ft);
+        }
+
+        static {
+            FieldType ft = new FieldType();
+            ft.setTokenized(false);
+            ft.setOmitNorms(true);
+            ft.setIndexOptions(IndexOptions.NONE);
+            ft.setDocValuesType(DocValuesType.SORTED_SET);
+            ft.setDocValuesSkipIndexType(DocValuesSkipIndexType.RANGE);
+            FIELD_TYPE_WITH_SKIP_DOC_VALUES = freezeAndDeduplicateFieldType(ft);
         }
 
         public static final TextSearchInfo TEXT_SEARCH_INFO = new TextSearchInfo(
@@ -154,7 +170,8 @@ public final class KeywordFieldMapper extends FieldMapper {
         );
         private final Parameter<Integer> ignoreAbove;
         private final int ignoreAboveDefault;
-
+        private final IndexSortConfig indexSortConfig;
+        private final IndexMode indexMode;
         private final Parameter<String> indexOptions = TextParams.keywordIndexOptions(m -> toType(m).indexOptions);
         private final Parameter<Boolean> hasNorms = TextParams.norms(false, m -> toType(m).fieldType.omitNorms() == false);
         private final Parameter<SimilarityProvider> similarity = TextParams.similarity(
@@ -189,7 +206,9 @@ public final class KeywordFieldMapper extends FieldMapper {
                 mappingParserContext.getIndexAnalyzers(),
                 mappingParserContext.scriptCompiler(),
                 IGNORE_ABOVE_SETTING.get(mappingParserContext.getSettings()),
-                mappingParserContext.getIndexSettings().getIndexVersionCreated()
+                mappingParserContext.getIndexSettings().getIndexVersionCreated(),
+                mappingParserContext.getIndexSettings().getMode(),
+                mappingParserContext.getIndexSettings().getIndexSortConfig()
             );
         }
 
@@ -199,6 +218,18 @@ public final class KeywordFieldMapper extends FieldMapper {
             ScriptCompiler scriptCompiler,
             int ignoreAboveDefault,
             IndexVersion indexCreatedVersion
+        ) {
+            this(name, indexAnalyzers, scriptCompiler, ignoreAboveDefault, indexCreatedVersion, IndexMode.STANDARD, null);
+        }
+
+        private Builder(
+            String name,
+            IndexAnalyzers indexAnalyzers,
+            ScriptCompiler scriptCompiler,
+            int ignoreAboveDefault,
+            IndexVersion indexCreatedVersion,
+            IndexMode indexMode,
+            IndexSortConfig indexSortConfig
         ) {
             super(name);
             this.indexAnalyzers = indexAnalyzers;
@@ -233,6 +264,8 @@ public final class KeywordFieldMapper extends FieldMapper {
                         throw new IllegalArgumentException("[ignore_above] must be positive, got [" + v + "]");
                     }
                 });
+            this.indexSortConfig = indexSortConfig;
+            this.indexMode = indexMode;
         }
 
         public Builder(String name, IndexVersion indexCreatedVersion) {
@@ -359,14 +392,20 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         @Override
         public KeywordFieldMapper build(MapperBuilderContext context) {
-            FieldType fieldtype = new FieldType(Defaults.FIELD_TYPE);
+            FieldType fieldtype = resolveFieldType(indexCreatedVersion, indexSortConfig, indexMode, context.buildFullName(leafName()));
             fieldtype.setOmitNorms(this.hasNorms.getValue() == false);
-            fieldtype.setIndexOptions(TextParams.toIndexOptions(this.indexed.getValue(), this.indexOptions.getValue()));
             fieldtype.setStored(this.stored.getValue());
             fieldtype.setDocValuesType(this.hasDocValues.getValue() ? DocValuesType.SORTED_SET : DocValuesType.NONE);
+            if (fieldtype.equals(Defaults.FIELD_TYPE_WITH_SKIP_DOC_VALUES) == false) {
+                // NOTE: override index options only if we are not using a sparse doc values index (and we use an inverted index)
+                fieldtype.setIndexOptions(TextParams.toIndexOptions(this.indexed.getValue(), this.indexOptions.getValue()));
+            }
             if (fieldtype.equals(Defaults.FIELD_TYPE)) {
                 // deduplicate in the common default case to save some memory
                 fieldtype = Defaults.FIELD_TYPE;
+            }
+            if (fieldtype.equals(Defaults.FIELD_TYPE_WITH_SKIP_DOC_VALUES)) {
+                fieldtype = Defaults.FIELD_TYPE_WITH_SKIP_DOC_VALUES;
             }
             super.hasScript = script.get() != null;
             super.onScriptError = onScriptError.getValue();
@@ -378,6 +417,63 @@ public final class KeywordFieldMapper extends FieldMapper {
                 context.isSourceSynthetic(),
                 this
             );
+        }
+
+        private FieldType resolveFieldType(
+            final IndexVersion indexCreatedVersion,
+            final IndexSortConfig indexSortConfig,
+            final IndexMode indexMode,
+            final String fullFieldName
+        ) {
+            if (FieldMapper.DOC_VALUES_SPARSE_INDEX.isEnabled()
+                && indexCreatedVersion.onOrAfter(IndexVersions.HOSTNAME_DOC_VALUES_SPARSE_INDEX)
+                && shouldUseDocValuesSparseIndex(indexSortConfig, indexMode, fullFieldName)) {
+                return new FieldType(Defaults.FIELD_TYPE_WITH_SKIP_DOC_VALUES);
+            }
+            return new FieldType(Defaults.FIELD_TYPE);
+        }
+
+        /**
+         * Determines whether to use a sparse index representation for doc values.
+         *
+         * <p>If the field is explicitly indexed by setting {@code index: true}, we do not use
+         * a sparse doc values index but instead rely on the inverted index, as is typically
+         * the case for keyword fields.</p>
+         *
+         * <p>This method checks several conditions to decide if the sparse index format
+         * should be applied:</p>
+         *
+         * <ul>
+         *     <li>Returns {@code false} immediately if the field is explicitly indexed.</li>
+         *     <li>Ensures the field is not explicitly configured as indexed (i.e., {@code index} has its default value).</li>
+         *     <li>Requires doc values to be enabled.</li>
+         *     <li>Index mode must be {@link IndexMode#LOGSDB}.</li>
+         *     <li>Field name must be {@code host.name}.</li>
+         *     <li>The {@code host.name} field must be a primary sort field.</li>
+         * </ul>
+         *
+         * <p>Returns {@code true} if all conditions are met, indicating that sparse doc values
+         * should be used. Otherwise, returns {@code false}.</p>
+         *
+         * @param indexSortConfig The index sort configuration, used to check primary sorting.
+         * @param indexMode The mode of the index, which must be {@link IndexMode#LOGSDB}.
+         * @param fullFieldName The name of the field being checked, which must be {@code host.name}.
+         * @return {@code true} if sparse doc values should be used, otherwise {@code false}.
+         */
+
+        private boolean shouldUseDocValuesSparseIndex(
+            final IndexSortConfig indexSortConfig,
+            final IndexMode indexMode,
+            final String fullFieldName
+        ) {
+            if (indexed.isSet() && indexed.getValue()) {
+                return false;
+            }
+            return indexed.isConfigured() == false
+                && hasDocValues.getValue()
+                && IndexMode.LOGSDB.equals(indexMode)
+                && HOST_NAME.equals(fullFieldName)
+                && (indexSortConfig != null && indexSortConfig.hasPrimarySortOnField(HOST_NAME));
         }
     }
 
@@ -392,6 +488,9 @@ public final class KeywordFieldMapper extends FieldMapper {
         private final FieldValues<String> scriptValues;
         private final boolean isDimension;
         private final boolean isSyntheticSource;
+        private final IndexMode indexMode;
+        private final IndexSortConfig indexSortConfig;
+        private final boolean hasDocValuesSparseIndex;
 
         public KeywordFieldType(
             String name,
@@ -417,6 +516,9 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.scriptValues = builder.scriptValues();
             this.isDimension = builder.dimension.getValue();
             this.isSyntheticSource = isSyntheticSource;
+            this.indexMode = builder.indexMode;
+            this.indexSortConfig = builder.indexSortConfig;
+            this.hasDocValuesSparseIndex = DocValuesSkipIndexType.NONE.equals(fieldType.docValuesSkipIndexType()) == false;
         }
 
         public KeywordFieldType(String name, boolean isIndexed, boolean hasDocValues, Map<String, String> meta) {
@@ -428,6 +530,9 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.scriptValues = null;
             this.isDimension = false;
             this.isSyntheticSource = false;
+            this.indexMode = IndexMode.STANDARD;
+            this.indexSortConfig = null;
+            this.hasDocValuesSparseIndex = false;
         }
 
         public KeywordFieldType(String name) {
@@ -450,6 +555,9 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.scriptValues = null;
             this.isDimension = false;
             this.isSyntheticSource = false;
+            this.indexMode = IndexMode.STANDARD;
+            this.indexSortConfig = null;
+            this.hasDocValuesSparseIndex = DocValuesSkipIndexType.NONE.equals(fieldType.docValuesSkipIndexType()) == false;
         }
 
         public KeywordFieldType(String name, NamedAnalyzer analyzer) {
@@ -461,6 +569,9 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.scriptValues = null;
             this.isDimension = false;
             this.isSyntheticSource = false;
+            this.indexMode = IndexMode.STANDARD;
+            this.indexSortConfig = null;
+            this.hasDocValuesSparseIndex = false;
         }
 
         @Override
@@ -851,6 +962,18 @@ public final class KeywordFieldMapper extends FieldMapper {
         public boolean hasNormalizer() {
             return normalizer != Lucene.KEYWORD_ANALYZER;
         }
+
+        public IndexMode getIndexMode() {
+            return indexMode;
+        }
+
+        public IndexSortConfig getIndexSortConfig() {
+            return indexSortConfig;
+        }
+
+        public boolean hasDocValuesSparseIndex() {
+            return hasDocValuesSparseIndex;
+        }
     }
 
     private final boolean indexed;
@@ -866,7 +989,8 @@ public final class KeywordFieldMapper extends FieldMapper {
 
     private final IndexAnalyzers indexAnalyzers;
     private final int ignoreAboveDefault;
-    private final int ignoreAbove;
+    private final IndexMode indexMode;
+    private final IndexSortConfig indexSortConfig;
 
     private KeywordFieldMapper(
         String simpleName,
@@ -890,7 +1014,8 @@ public final class KeywordFieldMapper extends FieldMapper {
         this.indexCreatedVersion = builder.indexCreatedVersion;
         this.isSyntheticSource = isSyntheticSource;
         this.ignoreAboveDefault = builder.ignoreAboveDefault;
-        this.ignoreAbove = builder.ignoreAbove.getValue();
+        this.indexMode = builder.indexMode;
+        this.indexSortConfig = builder.indexSortConfig;
     }
 
     @Override
@@ -1008,9 +1133,9 @@ public final class KeywordFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), indexAnalyzers, scriptCompiler, ignoreAboveDefault, indexCreatedVersion).dimension(
-            fieldType().isDimension()
-        ).init(this);
+        return new Builder(leafName(), indexAnalyzers, scriptCompiler, ignoreAboveDefault, indexCreatedVersion, indexMode, indexSortConfig)
+            .dimension(fieldType().isDimension())
+            .init(this);
     }
 
     @Override

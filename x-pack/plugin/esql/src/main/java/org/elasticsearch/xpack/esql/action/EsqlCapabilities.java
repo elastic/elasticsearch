@@ -657,7 +657,12 @@ public class EsqlCapabilities {
         /**
          * Support match options in match function
          */
-        MATCH_FUNCTION_OPTIONS;
+        MATCH_FUNCTION_OPTIONS,
+
+        /**
+         * Support for aggregate_metric_double type
+         */
+        AGGREGATE_METRIC_DOUBLE;
 
         private final boolean enabled;
 

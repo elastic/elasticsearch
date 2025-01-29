@@ -859,33 +859,37 @@ public class ModelRegistry implements ClusterStateListener {
             return;
         }
 
-        client.execute(GetInferenceModelAction.INSTANCE, new GetInferenceModelAction.Request("*", TaskType.ANY, false), new ActionListener<>() {
-            @Override
-            public void onResponse(GetInferenceModelAction.Response response) {
-                Map<String, MinimalServiceSettings> map = new HashMap<>();
-                for (var model : response.getEndpoints()) {
-                    map.put(
-                        model.getInferenceEntityId(),
-                        new MinimalServiceSettings(
-                            model.getTaskType(),
-                            model.getServiceSettings().dimensions(),
-                            model.getServiceSettings().similarity(),
-                            model.getServiceSettings().elementType()
-                        )
+        client.execute(
+            GetInferenceModelAction.INSTANCE,
+            new GetInferenceModelAction.Request("*", TaskType.ANY, false),
+            new ActionListener<>() {
+                @Override
+                public void onResponse(GetInferenceModelAction.Response response) {
+                    Map<String, MinimalServiceSettings> map = new HashMap<>();
+                    for (var model : response.getEndpoints()) {
+                        map.put(
+                            model.getInferenceEntityId(),
+                            new MinimalServiceSettings(
+                                model.getTaskType(),
+                                model.getServiceSettings().dimensions(),
+                                model.getServiceSettings().similarity(),
+                                model.getServiceSettings().elementType()
+                            )
+                        );
+                    }
+                    metadataTaskQueue.submitTask(
+                        "auto upgrade",
+                        new UpgradeModelsMetadataTask(map, ActionListener.running(() -> upgradeMetadataInProgress.set(false))),
+                        null
                     );
                 }
-                metadataTaskQueue.submitTask(
-                    "auto upgrade",
-                    new UpgradeModelsMetadataTask(map, ActionListener.running(() -> upgradeMetadataInProgress.set(false))),
-                    null
-                );
-            }
 
-            @Override
-            public void onFailure(Exception e) {
-                upgradeMetadataInProgress.set(false);
+                @Override
+                public void onFailure(Exception e) {
+                    upgradeMetadataInProgress.set(false);
+                }
             }
-        });
+        );
     }
 
     private abstract static class MetadataTask extends AckedBatchedClusterStateUpdateTask {

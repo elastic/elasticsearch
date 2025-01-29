@@ -66,6 +66,7 @@ import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.parser.QueryParam;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
@@ -111,6 +112,7 @@ import java.util.zip.ZipEntry;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
+import static org.elasticsearch.test.ESTestCase.assertEquals;
 import static org.elasticsearch.test.ESTestCase.between;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
@@ -401,6 +403,21 @@ public final class EsqlTestUtils {
     public static <T> T as(Object node, Class<T> type) {
         Assert.assertThat(node, instanceOf(type));
         return type.cast(node);
+    }
+
+    public static Limit asLimit(Object node, Integer limitLiteral) {
+        return asLimit(node, limitLiteral, null);
+    }
+
+    public static Limit asLimit(Object node, Integer limitLiteral, Boolean duplicated) {
+        Limit limit = as(node, Limit.class);
+        if (limitLiteral != null) {
+            assertEquals(as(limit.limit(), Literal.class).value(), limitLiteral);
+        }
+        if (duplicated != null) {
+            assertEquals(limit.duplicated(), duplicated);
+        }
+        return limit;
     }
 
     public static Map<String, EsField> loadMapping(String name) {

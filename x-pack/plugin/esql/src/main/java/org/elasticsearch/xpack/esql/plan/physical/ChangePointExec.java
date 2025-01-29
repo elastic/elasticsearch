@@ -64,12 +64,7 @@ public class ChangePointExec extends UnaryExec {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        Source.EMPTY.writeTo(out);
-        out.writeNamedWriteable(child());
-        out.writeNamedWriteable(value);
-        out.writeNamedWriteable(key);
-        out.writeNamedWriteable(targetType);
-        out.writeNamedWriteable(targetPvalue);
+        throw new UnsupportedOperationException("ChangePoint should run on the coordinating node, so never be serialized.");
     }
 
     @Override

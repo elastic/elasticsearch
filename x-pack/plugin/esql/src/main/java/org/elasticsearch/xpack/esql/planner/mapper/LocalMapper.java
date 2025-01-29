@@ -95,26 +95,6 @@ public class LocalMapper {
             return new TopNExec(topN.source(), mappedChild, topN.order(), topN.limit(), null);
         }
 
-        if (unary instanceof ChangePoint changePoint) {
-            // TODO: ChangePoint shouldn't run on the local node
-            // TODO: fix hardcoded 1000
-            mappedChild = new TopNExec(
-                changePoint.source(),
-                mappedChild,
-                List.of(new Order(changePoint.source(), changePoint.key(), Order.OrderDirection.ASC, Order.NullsPosition.ANY)),
-                new Literal(Source.EMPTY, 1000, DataType.INTEGER),
-                null
-            );
-            return new ChangePointExec(
-                changePoint.source(),
-                mappedChild,
-                changePoint.value(),
-                changePoint.key(),
-                changePoint.targetType(),
-                changePoint.targetPvalue()
-            );
-        }
-
         //
         // Pipeline operators
         //

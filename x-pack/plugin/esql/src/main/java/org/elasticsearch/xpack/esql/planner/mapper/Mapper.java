@@ -177,25 +177,6 @@ public class Mapper {
             return new TopNExec(topN.source(), mappedChild, topN.order(), topN.limit(), null);
         }
 
-        if (unary instanceof ChangePoint changePoint) {
-            mappedChild = addExchangeForFragment(changePoint, mappedChild);
-            mappedChild = new TopNExec(
-                changePoint.source(),
-                mappedChild,
-                List.of(new Order(changePoint.source(), changePoint.key(), Order.OrderDirection.ASC, Order.NullsPosition.ANY)),
-                new Literal(Source.EMPTY, 1000, DataType.INTEGER),
-                null
-            );
-            return new ChangePointExec(
-                changePoint.source(),
-                mappedChild,
-                changePoint.value(),
-                changePoint.key(),
-                changePoint.targetType(),
-                changePoint.targetPvalue()
-            );
-        }
-
         //
         // Pipeline operators
         //

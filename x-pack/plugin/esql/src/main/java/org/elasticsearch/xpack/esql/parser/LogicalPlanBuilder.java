@@ -457,7 +457,13 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         NamedExpression key = visitQualifiedName(ctx.key);
         Attribute targetType = new ReferenceAttribute(src, visitQualifiedName(ctx.targetType).name(), DataType.TEXT);
         Attribute targetPvalue = new ReferenceAttribute(src, visitQualifiedName(ctx.targetPvalue).name(), DataType.DOUBLE);
-        return child -> new ChangePoint(src, child, value, key, targetType, targetPvalue);
+        return child -> {
+            // ChangePoint should always run on the coordinating node after all data is collected
+            // in sorted order. This is enforced by adding OrderBy and Limit here.
+            OrderBy orderBy = new OrderBy(src, child, List.of(new Order(src, key, Order.OrderDirection.ASC, Order.NullsPosition.ANY)));
+            Limit limit = new Limit(src, new Literal(Source.EMPTY, 1000, DataType.INTEGER), orderBy);
+            return new ChangePoint(src, limit, value, key, targetType, targetPvalue);
+        };
     }
 
     private static Tuple<Mode, String> parsePolicyName(Token policyToken) {

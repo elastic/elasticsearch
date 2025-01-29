@@ -25,10 +25,10 @@ import java.util.stream.Stream;
 
 final class SystemJvmOptions {
 
-    static List<String> systemJvmOptions(Settings nodeSettings, final Map<String, String> sysprops, JvmOptionDefaults defaults) {
+    static List<String> systemJvmOptions(Settings nodeSettings, final Map<String, String> sysprops) {
         String distroType = sysprops.get("es.distribution.type");
         boolean isHotspot = sysprops.getOrDefault("sun.management.compiler", "").contains("HotSpot");
-        boolean entitlementsEnabled = Booleans.parseBoolean(sysprops.get("es.entitlements.enabled"), defaults.esEntitlementsEnabled());
+        boolean entitlementsEnabled = Booleans.parseBoolean(sysprops.get("es.entitlements.enabled"), true);
         // java 24+ only supports entitlements, but it may be enabled on earlier versions explicitly
         boolean useEntitlements = RuntimeVersionFeature.isSecurityManagerAvailable() == false || entitlementsEnabled;
         return Stream.of(

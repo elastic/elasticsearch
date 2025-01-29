@@ -74,7 +74,6 @@ public final class JvmOptionsParser {
      * @param processInfo     information about the CLI process.
      * @param tmpDir          the directory that should be passed to {@code -Djava.io.tmpdir}
      * @param machineDependentHeap the heap configurator to use
-     * @param defaults        default values for JVM options
      * @return the list of options to put on the Java command line
      * @throws InterruptedException if the java subprocess is interrupted
      * @throws IOException          if there is a problem reading any of the files
@@ -84,8 +83,7 @@ public final class JvmOptionsParser {
         ServerArgs args,
         ProcessInfo processInfo,
         Path tmpDir,
-        MachineDependentHeap machineDependentHeap,
-        JvmOptionDefaults defaults
+        MachineDependentHeap machineDependentHeap
     ) throws InterruptedException, IOException, UserException {
         final JvmOptionsParser parser = new JvmOptionsParser();
 
@@ -97,16 +95,7 @@ public final class JvmOptionsParser {
 
         try {
             return Collections.unmodifiableList(
-                parser.jvmOptions(
-                    args,
-                    args.configDir(),
-                    tmpDir,
-                    envOptions,
-                    substitutions,
-                    processInfo.sysprops(),
-                    machineDependentHeap,
-                    defaults
-                )
+                parser.jvmOptions(args, args.configDir(), tmpDir, envOptions, substitutions, processInfo.sysprops(), machineDependentHeap)
             );
         } catch (final JvmOptionsFileParserException e) {
             final String errorMessage = String.format(
@@ -143,8 +132,7 @@ public final class JvmOptionsParser {
         final String esJavaOpts,
         final Map<String, String> substitutions,
         final Map<String, String> cliSysprops,
-        final MachineDependentHeap machineDependentHeap,
-        final JvmOptionDefaults defaults
+        final MachineDependentHeap machineDependentHeap
     ) throws InterruptedException, IOException, JvmOptionsFileParserException, UserException {
 
         final List<String> jvmOptions = readJvmOptionsFiles(config);
@@ -157,7 +145,7 @@ public final class JvmOptionsParser {
         final SystemMemoryInfo memoryInfo = new OverridableSystemMemoryInfo(substitutedJvmOptions, new DefaultSystemMemoryInfo());
         substitutedJvmOptions.addAll(machineDependentHeap.determineHeapSettings(args.nodeSettings(), memoryInfo, substitutedJvmOptions));
         final List<String> ergonomicJvmOptions = JvmErgonomics.choose(substitutedJvmOptions, args.nodeSettings());
-        final List<String> systemJvmOptions = SystemJvmOptions.systemJvmOptions(args.nodeSettings(), cliSysprops, defaults);
+        final List<String> systemJvmOptions = SystemJvmOptions.systemJvmOptions(args.nodeSettings(), cliSysprops);
 
         final List<String> apmOptions = APMJvmOptions.apmJvmOptions(args.nodeSettings(), args.secrets(), args.logsDir(), tmpDir);
 

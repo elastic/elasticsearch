@@ -190,6 +190,7 @@ public abstract class AsyncOperator<Fetched> implements Operator {
     public boolean isFinished() {
         if (finished && checkpoint.getPersistedCheckpoint() == checkpoint.getMaxSeqNo()) {
             checkFailure();
+            restoreWarnings();
             return true;
         } else {
             return false;

@@ -95,8 +95,12 @@ public class Term extends FullTextFunction implements PostOptimizationVerificati
     }
 
     @Override
-    protected TypeResolution resolveNonQueryParamTypes() {
-        return isNotNull(field, sourceText(), FIRST).and(isString(field, sourceText(), FIRST)).and(super.resolveNonQueryParamTypes());
+    protected TypeResolution resolveParams() {
+        return resolveField().and(resolveQuery(SECOND));
+    }
+
+    private TypeResolution resolveField() {
+        return isNotNull(field, sourceText(), FIRST).and(isString(field, sourceText(), FIRST));
     }
 
     @Override

@@ -15,6 +15,7 @@ import org.elasticsearch.test.cluster.local.PluginInstallSpec;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.yaml.YamlXContent;
+import org.junit.rules.ExternalResource;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TemporaryFolder;
 import org.junit.rules.TestRule;
@@ -23,6 +24,7 @@ import org.junit.runners.model.Statement;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 
 class EntitlementsTestRule implements TestRule {
@@ -38,13 +40,24 @@ class EntitlementsTestRule implements TestRule {
     @SuppressWarnings("this-escape")
     EntitlementsTestRule(boolean modular, PolicyBuilder policyBuilder) {
         testDir = new TemporaryFolder();
+        var tempDirSetup = new ExternalResource() {
+            @Override
+            protected void before() throws Throwable {
+                Path testPath = testDir.getRoot().toPath();
+                Files.createDirectory(testPath.resolve("read_dir"));
+                Files.createDirectory(testPath.resolve("read_write_dir"));
+                Files.writeString(testPath.resolve("read_file"), "");
+                Files.writeString(testPath.resolve("read_write_file"), "");
+            }
+        };
         cluster = ElasticsearchCluster.local()
+            .module("entitled")
             .module("entitlement-test-plugin", spec -> setupEntitlements(spec, modular, policyBuilder))
             .systemProperty("es.entitlements.enabled", "true")
             .systemProperty("es.entitlements.testdir", () -> testDir.getRoot().getAbsolutePath())
             .setting("xpack.security.enabled", "false")
             .build();
-        ruleChain = RuleChain.outerRule(testDir).around(cluster);
+        ruleChain = RuleChain.outerRule(testDir).around(tempDirSetup).around(cluster);
     }
 
     @Override
@@ -61,6 +74,7 @@ class EntitlementsTestRule implements TestRule {
                         builder.startObject();
                         builder.field(moduleName);
                         builder.startArray();
+
                         policyBuilder.build(builder, testDir.getRoot().toPath());
                         builder.endArray();
                         builder.endObject();

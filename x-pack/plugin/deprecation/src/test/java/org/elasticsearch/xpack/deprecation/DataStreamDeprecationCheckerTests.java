@@ -75,23 +75,15 @@ public class DataStreamDeprecationCheckerTests extends ESTestCase {
         assertThat(issuesByDataStream.get(dataStream.getName()), equalTo(List.of(expected)));
     }
 
-    public void testOldIndicesCheckWithOnlyClosedOrNewIndices() {
+    public void testOldIndicesCheckWithOnlyNewIndices() {
         // This tests what happens when any old indices that we have are closed. We expect no deprecation warning.
-        int oldClosedIndexCount = randomIntBetween(1, 100);
         int newOpenIndexCount = randomIntBetween(0, 100);
         int newClosedIndexCount = randomIntBetween(0, 100);
 
         Map<String, IndexMetadata> nameToIndexMetadata = new HashMap<>();
         Set<String> expectedIndices = new HashSet<>();
 
-        DataStream dataStream = createTestDataStream(
-            0,
-            oldClosedIndexCount,
-            newOpenIndexCount,
-            newClosedIndexCount,
-            nameToIndexMetadata,
-            expectedIndices
-        );
+        DataStream dataStream = createTestDataStream(0, 0, newOpenIndexCount, newClosedIndexCount, nameToIndexMetadata, expectedIndices);
 
         Metadata metadata = Metadata.builder()
             .indices(nameToIndexMetadata)
@@ -168,7 +160,7 @@ public class DataStreamDeprecationCheckerTests extends ESTestCase {
             allIndices.add(createOldIndex(i, false, nameToIndexMetadata, expectedIndices));
         }
         for (int i = 0; i < oldClosedIndexCount; i++) {
-            allIndices.add(createOldIndex(i, true, nameToIndexMetadata, null));
+            allIndices.add(createOldIndex(i, true, nameToIndexMetadata, expectedIndices));
         }
         for (int i = 0; i < newOpenIndexCount; i++) {
             allIndices.add(createNewIndex(i, false, nameToIndexMetadata));
@@ -218,7 +210,7 @@ public class DataStreamDeprecationCheckerTests extends ESTestCase {
     ) {
         Settings.Builder settingsBuilder = isOld ? settings(IndexVersion.fromId(7170099)) : settings(IndexVersion.current());
         String indexName = (isOld ? "old-" : "new-") + (isClosed ? "closed-" : "") + "data-stream-index-" + suffix;
-        if (isOld && isClosed == false) { // we only expect warnings on open old indices
+        if (isOld) {
             if (expectedIndices.isEmpty() == false && randomIntBetween(0, 2) == 0) {
                 settingsBuilder.put(INDEX_STORE_TYPE_SETTING.getKey(), SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_STORE_TYPE);
             } else {

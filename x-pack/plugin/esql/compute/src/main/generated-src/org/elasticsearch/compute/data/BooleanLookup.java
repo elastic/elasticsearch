@@ -14,7 +14,7 @@ import org.elasticsearch.core.Releasables;
 
 /**
  * Generic {@link Block#lookup} implementation {@link BooleanBlock}s.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-Lookup.java.st} instead.
  */
 final class BooleanLookup implements ReleasableIterator<BooleanBlock> {
     private final BooleanBlock values;

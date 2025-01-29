@@ -567,7 +567,7 @@ public class EsqlSession {
             return result.withFieldNames(IndexResolver.ALL_FIELDS);
         }
 
-        AttributeSet references = new AttributeSet();
+        Map<String, Attribute> references = new HashMap<>();
         // "keep" attributes are special whenever a wildcard is used in their name
         // ie "from test | eval lang = languages + 1 | keep *l" should consider both "languages" and "*l" as valid fields to ask for
         AttributeSet keepCommandReferences = new AttributeSet();
@@ -578,17 +578,21 @@ public class EsqlSession {
             if (p instanceof RegexExtract re) { // for Grok and Dissect
                 // remove other down-the-tree references to the extracted fields
                 for (Attribute extracted : re.extractedFields()) {
-                    references.removeIf(attr -> matchByName(attr, extracted.name(), false));
+                    references.remove(extracted.name());
                 }
                 // but keep the inputs needed by Grok/Dissect
-                references.addAll(re.input().references());
+                for (Attribute ref : re.input().references()) {
+                    references.put(ref.name(), ref);
+                }
             } else if (p instanceof Enrich enrich) {
                 AttributeSet enrichRefs = Expressions.references(enrich.enrichFields());
                 enrichRefs = enrichRefs.combine(enrich.matchField().references());
                 // Enrich adds an EmptyAttribute if no match field is specified
                 // The exact name of the field will be added later as part of enrichPolicyMatchFields Set
                 enrichRefs.removeIf(attr -> attr instanceof EmptyAttribute);
-                references.addAll(enrichRefs);
+                for (Attribute ref : enrichRefs) {
+                    references.put(ref.name(), ref);
+                }
             } else if (p instanceof LookupJoin join) {
                 if (join.config().type() instanceof JoinTypes.UsingJoinType usingJoinType) {
                     keepJoinReferences.addAll(usingJoinType.columns());
@@ -601,15 +605,20 @@ public class EsqlSession {
                     keepJoinReferences.addAll(keepCommandReferences);
                 }
             } else {
-                references.addAll(p.references());
+                for (Attribute ref : p.references()) {
+                    references.put(ref.name(), ref);
+                }
                 if (p instanceof UnresolvedRelation ur && ur.indexMode() == IndexMode.TIME_SERIES) {
                     // METRICS aggs generally rely on @timestamp without the user having to mention it.
-                    references.add(new UnresolvedAttribute(ur.source(), MetadataAttribute.TIMESTAMP_FIELD));
+                    references.put(
+                        MetadataAttribute.TIMESTAMP_FIELD,
+                        new UnresolvedAttribute(ur.source(), MetadataAttribute.TIMESTAMP_FIELD)
+                    );
                 }
                 // special handling for UnresolvedPattern (which is not an UnresolvedAttribute)
                 p.forEachExpression(UnresolvedNamePattern.class, up -> {
                     var ua = new UnresolvedAttribute(up.source(), up.name());
-                    references.add(ua);
+                    references.put(ua.name(), ua);
                     if (p instanceof Keep) {
                         keepCommandReferences.add(ua);
                     }
@@ -629,11 +638,19 @@ public class EsqlSession {
                 if (planRefs.names().contains(alias.name())) {
                     return;
                 }
-                references.removeIf(attr -> matchByName(attr, alias.name(), keepCommandReferences.contains(attr)));
+                var attr = references.get(alias.name());
+                // Likely safer if we check that any keepCommandReference element has the same name, not the same id.
+                // Otherwise, this is potentially insufficient in case that a reference was overwritten by another with
+                // the same name but not contained in a keep command.
+                if (keepCommandReferences.contains(attr) == false || Regex.isSimpleMatchPattern(attr.name()) == false) {
+                    references.remove(alias.name());
+                }
             });
         });
         // Add JOIN ON column references afterward to avoid Alias removal
-        references.addAll(keepJoinReferences);
+        for (Attribute ref : keepJoinReferences) {
+            references.put(ref.name(), ref);
+        }
         // If any JOIN commands need wildcard field-caps calls, persist the index names
         if (wildcardJoinIndices.isEmpty() == false) {
             result = result.withWildcardJoinIndices(wildcardJoinIndices);
@@ -641,8 +658,10 @@ public class EsqlSession {
 
         // remove valid metadata attributes because they will be filtered out by the IndexResolver anyway
         // otherwise, in some edge cases, we will fail to ask for "*" (all fields) instead
-        references.removeIf(a -> a instanceof MetadataAttribute || MetadataAttribute.isSupported(a.name()));
-        Set<String> fieldNames = references.names();
+        Set<String> fieldNames = references.keySet()
+            .stream()
+            .filter(name -> references.get(name) instanceof MetadataAttribute == false && MetadataAttribute.isSupported(name) == false)
+            .collect(Collectors.toSet());
 
         if (fieldNames.isEmpty() && enrichPolicyMatchFields.isEmpty()) {
             // there cannot be an empty list of fields, we'll ask the simplest and lightest one instead: _index
@@ -653,15 +672,6 @@ public class EsqlSession {
             fieldNames.addAll(subfields(enrichPolicyMatchFields));
             return result.withFieldNames(fieldNames);
         }
-    }
-
-    private static boolean matchByName(Attribute attr, String other, boolean skipIfPattern) {
-        boolean isPattern = Regex.isSimpleMatchPattern(attr.name());
-        if (skipIfPattern && isPattern) {
-            return false;
-        }
-        var name = attr.name();
-        return isPattern ? Regex.simpleMatch(name, other) : name.equals(other);
     }
 
     private static Set<String> subfields(Set<String> names) {

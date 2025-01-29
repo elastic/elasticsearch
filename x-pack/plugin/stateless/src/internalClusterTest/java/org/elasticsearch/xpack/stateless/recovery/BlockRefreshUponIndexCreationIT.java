@@ -231,9 +231,17 @@ public class BlockRefreshUponIndexCreationIT extends AbstractStatelessIntegTestC
             // we should assert that refreshes are unblocked as soon as that criteria is met.
 
             for (var bulkFuture : concurrentBulkFutures) {
+                if (bulkFuture.isDone()) {
+                    // Just to debug CI failures
+                    assertNoFailures(safeGet(bulkFuture));
+                }
                 assertThat(bulkFuture.isDone(), is(false));
             }
             for (ActionFuture<BroadcastResponse> concurrentRefreshFuture : concurrentRefreshFutures) {
+                if (concurrentRefreshFuture.isDone()) {
+                    // Just to debug CI failures
+                    assertNoFailures(safeGet(concurrentRefreshFuture));
+                }
                 assertThat(concurrentRefreshFuture.isDone(), is(false));
             }
             delayRegisterCommitForRecovery.set(false);

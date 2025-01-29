@@ -22,6 +22,9 @@ public class ElasticInferenceServiceSettings {
 
     public static final String ELASTIC_INFERENCE_SERVICE_SSL_CONFIGURATION_PREFIX = "xpack.inference.elastic.http.ssl.";
 
+    @Deprecated
+    static final Setting<String> EIS_GATEWAY_URL = Setting.simpleString("xpack.inference.eis.gateway.url", Setting.Property.NodeScope);
+
     static final Setting<String> ELASTIC_INFERENCE_SERVICE_URL = Setting.simpleString(
         "xpack.inference.elastic.url",
         Setting.Property.NodeScope
@@ -46,6 +49,7 @@ public class ElasticInferenceServiceSettings {
 
     public static List<Setting<?>> getSettingsDefinitions() {
         ArrayList<Setting<?>> settings = new ArrayList<>();
+        settings.add(EIS_GATEWAY_URL);
         settings.add(ELASTIC_INFERENCE_SERVICE_URL);
         settings.add(ELASTIC_INFERENCE_SERVICE_SSL_ENABLED);
         settings.addAll(ELASTIC_INFERENCE_SERVICE_SSL_CONFIGURATION_SETTINGS.getEnabledSettings());

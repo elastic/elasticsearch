@@ -55,7 +55,9 @@ public class IdentifierGenerator {
             if (randomBoolean()) {
                 index.append('*');
             } else {
-                index.insert(randomIntBetween(0, index.length() - 1), '*');
+                for (int i = 0; i < randomIntBetween(1, 3); i++) {
+                    index.insert(randomIntBetween(0, index.length()), '*');
+                }
             }
         }
         if (canAdd(Features.DATE_MATH, features)) {

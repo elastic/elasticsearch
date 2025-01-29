@@ -176,17 +176,17 @@ public class GetFlamegraphResponse extends ActionResponse implements ChunkedToXC
     @UpdateForV9(owner = UpdateForV9.Owner.PROFILING) // change casing from Camel Case to Snake Case (requires updates in Kibana as well)
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
+        /*
+         * The flamegraph response can be quite big. Some of these arrays need to be individual chunks, some can be a single chunk.
+         * They also need to be in-line so that neither the constants nor the fields get captured in a closure.
+         */
         return Iterators.concat(
             ChunkedToXContentHelper.startObject(),
             ChunkedToXContentHelper.array(
                 "Edges",
                 Iterators.flatMap(
                     edges.iterator(),
-                    perNodeEdges -> Iterators.concat(
-                        ChunkedToXContentHelper.startArray(),
-                        Iterators.map(perNodeEdges.entrySet().iterator(), edge -> (b, p) -> b.value(edge.getValue())),
-                        ChunkedToXContentHelper.endArray()
-                    )
+                    perNodeEdges -> ChunkedToXContentHelper.array(perNodeEdges.values().iterator(), edge -> (b, p) -> b.value(edge))
                 )
             ),
             ChunkedToXContentHelper.array("FileID", Iterators.map(fileIds.iterator(), e -> (b, p) -> b.value(e))),

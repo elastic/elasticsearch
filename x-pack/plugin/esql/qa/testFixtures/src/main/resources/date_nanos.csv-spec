@@ -506,7 +506,8 @@ required_capability: date_nanos_date_extract
 FROM date_nanos
 | EVAL nn = MV_MAX(nanos)
 | EVAL year = DATE_EXTRACT("year", nn), ns = DATE_EXTRACT("nano_of_second", nn)
-| KEEP nn, year, ns;
+| KEEP nn, year, ns
+| SORT nn DESC;
 
 nn:date_nanos                  | year:long | ns:long
 2023-10-23T13:55:01.543123456Z | 2023      | 543123456

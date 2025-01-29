@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.elastic;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
@@ -30,9 +31,13 @@ public class ElasticInferenceServiceSettings {
         Setting.Property.NodeScope
     );
 
+    @Deprecated
+    private final String eisGatewayUrl;
+
     private final String elasticInferenceServiceUrl;
 
     public ElasticInferenceServiceSettings(Settings settings) {
+        eisGatewayUrl = EIS_GATEWAY_URL.get(settings);
         elasticInferenceServiceUrl = ELASTIC_INFERENCE_SERVICE_URL.get(settings);
     }
 
@@ -58,7 +63,7 @@ public class ElasticInferenceServiceSettings {
     }
 
     public String getElasticInferenceServiceUrl() {
-        return elasticInferenceServiceUrl;
+        return Strings.isEmpty(elasticInferenceServiceUrl) ? eisGatewayUrl : elasticInferenceServiceUrl;
     }
 
 }

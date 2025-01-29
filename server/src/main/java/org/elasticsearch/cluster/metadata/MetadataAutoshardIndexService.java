@@ -102,7 +102,7 @@ public class MetadataAutoshardIndexService {
                     })
                 );
             } else {
-                logger.trace("index creation not acknowledged for [{}]", request);
+                logger.trace("index autoshard not acknowledged for [{}]", request);
                 delegate.onResponse(ShardsAcknowledgedResponse.NOT_ACKNOWLEDGED);
             }
         }));
@@ -127,9 +127,9 @@ public class MetadataAutoshardIndexService {
                 @Override
                 public void onFailure(Exception e) {
                     if (e instanceof ResourceAlreadyExistsException) {
-                        logger.trace(() -> "[" + request.index() + "] failed to create", e);
+                        logger.trace(() -> "[" + request.index() + "] failed to autoshard", e);
                     } else {
-                        logger.debug(() -> "[" + request.index() + "] failed to create", e);
+                        logger.debug(() -> "[" + request.index() + "] failed to autoshard", e);
                     }
                     super.onFailure(e);
                 }

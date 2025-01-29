@@ -620,8 +620,8 @@ public class CsvTests extends ESTestCase {
             blockFactory,
             randomNodeSettings(),
             configuration,
-            exchangeSource,
-            exchangeSink,
+            exchangeSource::createExchangeSource,
+            () -> exchangeSink.createExchangeSink(() -> {}),
             Mockito.mock(EnrichLookupService.class),
             Mockito.mock(LookupFromIndexService.class),
             physicalOperationProviders,
@@ -648,6 +648,7 @@ public class CsvTests extends ESTestCase {
             exchangeSource.addRemoteSink(
                 exchangeSink::fetchPageAsync,
                 Randomness.get().nextBoolean(),
+                () -> {},
                 randomIntBetween(1, 3),
                 ActionListener.<Void>noop().delegateResponse((l, e) -> {
                     throw new AssertionError("expected no failure", e);

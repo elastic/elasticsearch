@@ -7380,4 +7380,78 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var eval = as(mvExpand.child(), Eval.class);
         as(eval.child(), EsRelation.class);
     }
+
+    /**
+     * TopN[[Order[emp_no{f}#16,ASC,LAST]],1000[INTEGER]]
+     * \_Filter[emp_no{f}#16 > 1[INTEGER]]
+     *   \_MvExpand[languages{f}#19,languages{r}#31]
+     *     \_Dissect[foo{r}#5,Parser[pattern=%{z}, appendSeparator=, parser=org.elasticsearch.dissect.DissectParser@26f2cab],[z{r}#10
+     * ]]
+     *       \_Grok[foo{r}#5,Parser[pattern=%{WORD:y}, grok=org.elasticsearch.grok.Grok@6ea44ccd],[y{r}#9]]
+     *         \_Enrich[ANY,[6c 61 6e 67 75 61 67 65 73 5f 69 64 78][KEYWORD],foo{r}#5,{"match":{"indices":[],"match_field":"id","enrich_
+     * fields":["language_code","language_name"]}},{=languages_idx},[language_code{r}#29, language_name{r}#30]]
+     *           \_Eval[[TOSTRING(languages{f}#19) AS foo]]
+     *             \_EsRelation[test][_meta_field{f}#22, emp_no{f}#16, first_name{f}#17, ..]
+     */
+    public void testRedundantSortOnMvExpandEnrichGrokDissect() throws Exception {
+        var plan = optimizedPlan("""
+              FROM test
+            | SORT languages
+            | EVAL foo = to_string(languages)
+            | ENRICH languages_idx on foo
+            | GROK foo "%{WORD:y}"
+            | DISSECT foo "%{z}"
+            | MV_EXPAND languages
+            | WHERE emp_no > 1
+            | SORT emp_no
+            """);
+
+        var topN = as(plan, TopN.class);
+        var filter = as(topN.child(), Filter.class);
+        var mvExpand = as(filter.child(), MvExpand.class);
+        var dissect = as(mvExpand.child(), Dissect.class);
+        var grok = as(dissect.child(), Grok.class);
+        var enrich = as(grok.child(), Enrich.class);
+        var eval = as(enrich.child(), Eval.class);
+        as(eval.child(), EsRelation.class);
+    }
+
+    /**
+     * TopN[[Order[emp_no{f}#20,ASC,LAST]],1000[INTEGER]]
+     * \_Filter[emp_no{f}#20 > 1[INTEGER]]
+     *   \_MvExpand[languages{f}#23,languages{r}#37]
+     *     \_Dissect[foo{r}#5,Parser[pattern=%{z}, appendSeparator=, parser=org.elasticsearch.dissect.DissectParser@3e922db0],[z{r}#1
+     * 4]]
+     *       \_Grok[foo{r}#5,Parser[pattern=%{WORD:y}, grok=org.elasticsearch.grok.Grok@4d6ad024],[y{r}#13]]
+     *         \_Enrich[ANY,[6c 61 6e 67 75 61 67 65 73 5f 69 64 78][KEYWORD],foo{r}#5,{"match":{"indices":[],"match_field":"id","enrich_
+     * fields":["language_code","language_name"]}},{=languages_idx},[language_code{r}#35, language_name{r}#36]]
+     *           \_Join[LEFT,[language_code{r}#8],[language_code{r}#8],[language_code{f}#31]]
+     *             |_Eval[[TOSTRING(languages{f}#23) AS foo, languages{f}#23 AS language_code]]
+     *             | \_EsRelation[test][_meta_field{f}#26, emp_no{f}#20, first_name{f}#21, ..]
+     *             \_EsRelation[languages_lookup][LOOKUP][language_code{f}#31]
+     */
+    public void testRedundantSortOnMvExpandJoinEnrichGrokDissect() throws Exception {
+        var plan = optimizedPlan("""
+              FROM test
+            | SORT languages
+            | EVAL foo = to_string(languages), language_code = languages
+            | LOOKUP JOIN languages_lookup ON language_code
+            | ENRICH languages_idx on foo
+            | GROK foo "%{WORD:y}"
+            | DISSECT foo "%{z}"
+            | MV_EXPAND languages
+            | WHERE emp_no > 1
+            | SORT emp_no
+            """);
+
+        var topN = as(plan, TopN.class);
+        var filter = as(topN.child(), Filter.class);
+        var mvExpand = as(filter.child(), MvExpand.class);
+        var dissect = as(mvExpand.child(), Dissect.class);
+        var grok = as(dissect.child(), Grok.class);
+        var enrich = as(grok.child(), Enrich.class);
+        var join = as(enrich.child(), Join.class);
+        var eval = as(join.left(), Eval.class);
+        as(eval.child(), EsRelation.class);
+    }
 }

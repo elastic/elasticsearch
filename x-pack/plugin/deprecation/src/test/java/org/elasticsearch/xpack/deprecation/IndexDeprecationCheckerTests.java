@@ -7,7 +7,11 @@
 
 package org.elasticsearch.xpack.deprecation;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamMetadata;
 import org.elasticsearch.cluster.metadata.DataStreamOptions;
@@ -21,7 +25,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.engine.frozen.FrozenEngine;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.test.ESTestCase;
@@ -39,6 +42,17 @@ import static org.hamcrest.Matchers.hasItem;
 
 public class IndexDeprecationCheckerTests extends ESTestCase {
 
+    private final IndexMetadata.State indexMetdataState;
+
+    public IndexDeprecationCheckerTests(@Name("indexMetadataState") IndexMetadata.State indexMetdataState) {
+        this.indexMetdataState = indexMetdataState;
+    }
+
+    @ParametersFactory
+    public static List<Object[]> createParameters() {
+        return List.of(new Object[] { IndexMetadata.State.OPEN }, new Object[] { IndexMetadata.State.CLOSE });
+    }
+
     private static final IndexVersion OLD_VERSION = IndexVersion.fromId(7170099);
 
     private final IndexNameExpressionResolver indexNameExpressionResolver = TestIndexNameExpressionResolver.newInstance();
@@ -49,10 +63,11 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
             .settings(settings(OLD_VERSION))
             .numberOfShards(1)
             .numberOfReplicas(0)
-            .state(randomBoolean() ? IndexMetadata.State.OPEN : IndexMetadata.State.CLOSE) // does not matter if its open or closed
+            .state(indexMetdataState)
             .build();
         ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
             .metadata(Metadata.builder().put(indexMetadata, true))
+            .blocks(clusterBlocksForIndices(indexMetadata))
             .build();
         DeprecationIssue expected = new DeprecationIssue(
             DeprecationIssue.Level.CRITICAL,
@@ -73,7 +88,10 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
     public void testOldTransformIndicesCheck() {
         var checker = new IndexDeprecationChecker(indexNameExpressionResolver, Map.of("test", List.of("test-transform")));
         var indexMetadata = indexMetadata("test", OLD_VERSION);
-        var clusterState = ClusterState.builder(ClusterState.EMPTY_STATE).metadata(Metadata.builder().put(indexMetadata, true)).build();
+        var clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .metadata(Metadata.builder().put(indexMetadata, true))
+            .blocks(clusterBlocksForIndices(indexMetadata))
+            .build();
         var expected = new DeprecationIssue(
             DeprecationIssue.Level.CRITICAL,
             "Old index with a compatibility version < 9.0",
@@ -92,7 +110,10 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
             Map.of("test", List.of("test-transform1", "test-transform2"))
         );
         var indexMetadata = indexMetadata("test", OLD_VERSION);
-        var clusterState = ClusterState.builder(ClusterState.EMPTY_STATE).metadata(Metadata.builder().put(indexMetadata, true)).build();
+        var clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .metadata(Metadata.builder().put(indexMetadata, true))
+            .blocks(clusterBlocksForIndices(indexMetadata))
+            .build();
         var expected = new DeprecationIssue(
             DeprecationIssue.Level.CRITICAL,
             "Old index with a compatibility version < 9.0",
@@ -114,6 +135,7 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
         var indexMetadata2 = indexMetadata("test2", OLD_VERSION);
         var clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
             .metadata(Metadata.builder().put(indexMetadata1, true).put(indexMetadata2, true))
+            .blocks(clusterBlocksForIndices(indexMetadata1, indexMetadata2))
             .build();
         var expected = Map.of(
             "test1",
@@ -144,7 +166,12 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
     }
 
     private IndexMetadata indexMetadata(String indexName, IndexVersion indexVersion) {
-        return IndexMetadata.builder(indexName).settings(settings(indexVersion)).numberOfShards(1).numberOfReplicas(0).build();
+        return IndexMetadata.builder(indexName)
+            .settings(settings(indexVersion))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .state(indexMetdataState)
+            .build();
     }
 
     public void testOldIndicesCheckDataStreamIndex() {
@@ -152,6 +179,7 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
             .settings(settings(OLD_VERSION).put("index.hidden", true))
             .numberOfShards(1)
             .numberOfReplicas(0)
+            .state(indexMetdataState)
             .build();
         DataStream dataStream = new DataStream(
             randomAlphaOfLength(10),
@@ -183,6 +211,7 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
                         )
                     )
             )
+            .blocks(clusterBlocksForIndices(indexMetadata))
             .build();
         Map<String, List<DeprecationIssue>> issuesByIndex = checker.check(
             clusterState,
@@ -194,9 +223,15 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
     public void testOldIndicesCheckSnapshotIgnored() {
         Settings.Builder settings = settings(OLD_VERSION);
         settings.put(INDEX_STORE_TYPE_SETTING.getKey(), SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_STORE_TYPE);
-        IndexMetadata indexMetadata = IndexMetadata.builder("test").settings(settings).numberOfShards(1).numberOfReplicas(0).build();
+        IndexMetadata indexMetadata = IndexMetadata.builder("test")
+            .settings(settings)
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .state(indexMetdataState)
+            .build();
         ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
             .metadata(Metadata.builder().put(indexMetadata, true))
+            .blocks(clusterBlocksForIndices(indexMetadata))
             .build();
 
         Map<String, List<DeprecationIssue>> issuesByIndex = checker.check(
@@ -208,9 +243,15 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
 
     public void testOldIndicesIgnoredWarningCheck() {
         Settings.Builder settings = settings(OLD_VERSION).put(MetadataIndexStateService.VERIFIED_READ_ONLY_SETTING.getKey(), true);
-        IndexMetadata indexMetadata = IndexMetadata.builder("test").settings(settings).numberOfShards(1).numberOfReplicas(0).build();
+        IndexMetadata indexMetadata = IndexMetadata.builder("test")
+            .settings(settings)
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .state(indexMetdataState)
+            .build();
         ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
             .metadata(Metadata.builder().put(indexMetadata, true))
+            .blocks(clusterBlocksForIndices(indexMetadata))
             .build();
         DeprecationIssue expected = new DeprecationIssue(
             DeprecationIssue.Level.WARNING,
@@ -232,8 +273,16 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
         Settings.Builder settings = settings(IndexVersion.current());
         settings.put(IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.getKey(), randomPositiveTimeValue());
         settings.put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(), between(1, 1024) + "b");
-        IndexMetadata indexMetadata = IndexMetadata.builder("test").settings(settings).numberOfShards(1).numberOfReplicas(0).build();
-        ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE).metadata(Metadata.builder().put(indexMetadata, true)).build();
+        IndexMetadata indexMetadata = IndexMetadata.builder("test")
+            .settings(settings)
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .state(indexMetdataState)
+            .build();
+        ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .metadata(Metadata.builder().put(indexMetadata, true))
+            .blocks(clusterBlocksForIndices(indexMetadata))
+            .build();
         Map<String, List<DeprecationIssue>> issuesByIndex = checker.check(
             state,
             new DeprecationInfoAction.Request(TimeValue.THIRTY_SECONDS)
@@ -267,8 +316,16 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
             settings.put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(), between(1, 1024) + "b");
             settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), false);
         }
-        IndexMetadata indexMetadata = IndexMetadata.builder("test").settings(settings).numberOfShards(1).numberOfReplicas(0).build();
-        ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE).metadata(Metadata.builder().put(indexMetadata, true)).build();
+        IndexMetadata indexMetadata = IndexMetadata.builder("test")
+            .settings(settings)
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .state(indexMetdataState)
+            .build();
+        ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .metadata(Metadata.builder().put(indexMetadata, true))
+            .blocks(clusterBlocksForIndices(indexMetadata))
+            .build();
         Map<String, List<DeprecationIssue>> issuesByIndex = checker.check(
             state,
             new DeprecationInfoAction.Request(TimeValue.THIRTY_SECONDS)
@@ -279,8 +336,16 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
     public void testIndexDataPathSetting() {
         Settings.Builder settings = settings(IndexVersion.current());
         settings.put(IndexMetadata.INDEX_DATA_PATH_SETTING.getKey(), createTempDir());
-        IndexMetadata indexMetadata = IndexMetadata.builder("test").settings(settings).numberOfShards(1).numberOfReplicas(0).build();
-        ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE).metadata(Metadata.builder().put(indexMetadata, true)).build();
+        IndexMetadata indexMetadata = IndexMetadata.builder("test")
+            .settings(settings)
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .state(indexMetdataState)
+            .build();
+        ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .metadata(Metadata.builder().put(indexMetadata, true))
+            .blocks(clusterBlocksForIndices(indexMetadata))
+            .build();
         Map<String, List<DeprecationIssue>> issuesByIndex = checker.check(
             state,
             new DeprecationInfoAction.Request(TimeValue.THIRTY_SECONDS)
@@ -305,8 +370,16 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
     public void testSimpleFSSetting() {
         Settings.Builder settings = settings(IndexVersion.current());
         settings.put(INDEX_STORE_TYPE_SETTING.getKey(), "simplefs");
-        IndexMetadata indexMetadata = IndexMetadata.builder("test").settings(settings).numberOfShards(1).numberOfReplicas(0).build();
-        ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE).metadata(Metadata.builder().put(indexMetadata, true)).build();
+        IndexMetadata indexMetadata = IndexMetadata.builder("test")
+            .settings(settings)
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .state(indexMetdataState)
+            .build();
+        ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .metadata(Metadata.builder().put(indexMetadata, true))
+            .blocks(clusterBlocksForIndices(indexMetadata))
+            .build();
         Map<String, List<DeprecationIssue>> issuesByIndex = checker.check(
             state,
             new DeprecationInfoAction.Request(TimeValue.THIRTY_SECONDS)
@@ -321,30 +394,6 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
                     "[simplefs] is deprecated and will be removed in 8.0. Use [niofs] or other file systems instead. "
                         + "Elasticsearch 7.15 or later uses [niofs] for the [simplefs] store type "
                         + "as it offers superior or equivalent performance to [simplefs].",
-                    false,
-                    null
-                )
-            )
-        );
-    }
-
-    public void testFrozenIndex() {
-        Settings.Builder settings = settings(IndexVersion.current());
-        settings.put(FrozenEngine.INDEX_FROZEN.getKey(), true);
-        IndexMetadata indexMetadata = IndexMetadata.builder("test").settings(settings).numberOfShards(1).numberOfReplicas(0).build();
-        ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE).metadata(Metadata.builder().put(indexMetadata, true)).build();
-        Map<String, List<DeprecationIssue>> issuesByIndex = checker.check(
-            state,
-            new DeprecationInfoAction.Request(TimeValue.THIRTY_SECONDS)
-        );
-        assertThat(
-            issuesByIndex.get("test"),
-            contains(
-                new DeprecationIssue(
-                    DeprecationIssue.Level.WARNING,
-                    "index [test] is a frozen index. The frozen indices feature is deprecated and will be removed in a future version",
-                    "https://www.elastic.co/guide/en/elasticsearch/reference/master/frozen-indices.html",
-                    "Frozen indices no longer offer any advantages. Consider cold or frozen tiers in place of frozen indices.",
                     false,
                     null
                 )
@@ -368,8 +417,12 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
             .numberOfShards(1)
             .numberOfReplicas(1)
             .putMapping(simpleMapping)
+            .state(indexMetdataState)
             .build();
-        ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE).metadata(Metadata.builder().put(simpleIndex, true)).build();
+        ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .metadata(Metadata.builder().put(simpleIndex, true))
+            .blocks(clusterBlocksForIndices(simpleIndex))
+            .build();
         Map<String, List<DeprecationIssue>> issuesByIndex = checker.check(
             state,
             new DeprecationInfoAction.Request(TimeValue.THIRTY_SECONDS)
@@ -391,8 +444,16 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
         String filter = randomFrom("include", "exclude", "require");
         String tier = randomFrom("hot", "warm", "cold", "frozen");
         settings.put("index.routing.allocation." + filter + ".data", tier);
-        IndexMetadata indexMetadata = IndexMetadata.builder("test").settings(settings).numberOfShards(1).numberOfReplicas(0).build();
-        ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE).metadata(Metadata.builder().put(indexMetadata, true)).build();
+        IndexMetadata indexMetadata = IndexMetadata.builder("test")
+            .settings(settings)
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .state(indexMetdataState)
+            .build();
+        ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .metadata(Metadata.builder().put(indexMetadata, true))
+            .blocks(clusterBlocksForIndices(indexMetadata))
+            .build();
         Map<String, List<DeprecationIssue>> issuesByIndex = checker.check(
             state,
             new DeprecationInfoAction.Request(TimeValue.THIRTY_SECONDS)
@@ -412,5 +473,15 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
                 )
             )
         );
+    }
+
+    private ClusterBlocks clusterBlocksForIndices(IndexMetadata... indicesMetadatas) {
+        ClusterBlocks.Builder builder = ClusterBlocks.builder();
+        for (IndexMetadata indexMetadata : indicesMetadatas) {
+            if (indexMetadata.getState() == IndexMetadata.State.CLOSE) {
+                builder.addIndexBlock(indexMetadata.getIndex().getName(), MetadataIndexStateService.INDEX_CLOSED_BLOCK);
+            }
+        }
+        return builder.build();
     }
 }

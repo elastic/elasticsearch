@@ -79,14 +79,6 @@ public class Project extends UnaryPlan {
     }
 
     @Override
-    public String commandName() {
-        // this could represent multiple commands (KEEP, DROP, RENAME)
-        // and should not be present in a pre-analyzed plan.
-        // maybe it should throw exception?
-        return "<project>";
-    }
-
-    @Override
     public boolean expressionsResolved() {
         return Resolvables.resolved(projections);
     }

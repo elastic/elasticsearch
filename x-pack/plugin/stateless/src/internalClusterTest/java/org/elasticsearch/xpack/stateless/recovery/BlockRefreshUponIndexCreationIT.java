@@ -37,10 +37,12 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.test.transport.MockTransportService;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Queue;
 import java.util.Set;
@@ -52,6 +54,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -275,6 +278,102 @@ public class BlockRefreshUponIndexCreationIT extends AbstractStatelessIntegTestC
 
             assertThat(states, equalTo(Set.of(shardRoutingStates)));
         });
+    }
+
+    public void testRefreshBlockRemovedAfterDelay() throws Exception {
+        var nodeSettings = Settings.builder()
+            .put(StoreHeartbeatService.MAX_MISSED_HEARTBEATS.getKey(), 1)
+            .put(StoreHeartbeatService.HEARTBEAT_FREQUENCY.getKey(), TimeValue.timeValueSeconds(1))
+            .put(RemoveRefreshClusterBlockService.EXPIRE_AFTER_SETTING.getKey(), TimeValue.timeValueHours(1L))
+            .put(useRefreshBlockSetting(true))
+            .build();
+
+        String masterNode = startMasterAndIndexNode(nodeSettings);
+
+        final int nbBlockedIndices = randomIntBetween(1, 4);
+        final Set<Index> blockedIndices = new HashSet<>(nbBlockedIndices);
+        for (int i = 0; i < nbBlockedIndices; i++) {
+            var indexName = "index-" + i;
+            assertAcked(prepareCreate(indexName).setSettings(indexSettings(1, 1)).setWaitForActiveShards(ActiveShardCount.NONE));
+            blockedIndices.add(resolveIndex(indexName));
+        }
+        ensureYellow("index-*");
+
+        blockedIndices.forEach(
+            index -> assertThat(clusterBlocks().hasIndexBlock(index.getName(), IndexMetadata.INDEX_REFRESH_BLOCK), is(true))
+        );
+
+        if (randomBoolean()) {
+            startMasterAndIndexNode(nodeSettings);
+            ensureStableCluster(2);
+
+            internalCluster().stopNode(masterNode);
+            ensureYellow("index-*");
+
+            blockedIndices.forEach(
+                index -> assertThat(clusterBlocks().hasIndexBlock(index.getName(), IndexMetadata.INDEX_REFRESH_BLOCK), is(true))
+            );
+        }
+
+        assertBusy(() -> {
+            var removeRefreshClusterBlockService = internalCluster().getCurrentMasterNodeInstance(RemoveRefreshClusterBlockService.class);
+            assertThat(removeRefreshClusterBlockService.blockedIndices(), equalTo(blockedIndices));
+        });
+
+        updateClusterSettings(
+            Settings.builder().put(RemoveRefreshClusterBlockService.EXPIRE_AFTER_SETTING.getKey(), TimeValue.timeValueSeconds(1L))
+        );
+
+        assertBusy(() -> {
+            var removeRefreshClusterBlockService = internalCluster().getCurrentMasterNodeInstance(RemoveRefreshClusterBlockService.class);
+            assertThat(removeRefreshClusterBlockService.blockedIndices(), hasSize(0));
+        });
+
+        blockedIndices.forEach(
+            index -> assertThat(clusterBlocks().hasIndexBlock(index.getName(), IndexMetadata.INDEX_REFRESH_BLOCK), is(false))
+        );
+    }
+
+    public void testRefreshBlockRemovedAfterReplicasUpdate() {
+        startMasterAndIndexNode(
+            Settings.builder()
+                .put(RemoveRefreshClusterBlockService.EXPIRE_AFTER_SETTING.getKey(), TimeValue.timeValueHours(1L))
+                .put(useRefreshBlockSetting(true))
+                .build()
+        );
+
+        final int nbBlockedIndices = randomIntBetween(2, 5);
+        final Set<Index> blockedIndices = new HashSet<>(nbBlockedIndices);
+        for (int i = 0; i < nbBlockedIndices; i++) {
+            var indexName = "index-" + i;
+            assertAcked(prepareCreate(indexName).setSettings(indexSettings(1, 1)).setWaitForActiveShards(ActiveShardCount.NONE));
+            blockedIndices.add(resolveIndex(indexName));
+        }
+        ensureYellow("index-*");
+
+        blockedIndices.forEach(
+            index -> assertThat(clusterBlocks().hasIndexBlock(index.getName(), IndexMetadata.INDEX_REFRESH_BLOCK), is(true))
+        );
+
+        var blockedIndicesNoReplicas = randomSubsetOf(randomIntBetween(1, blockedIndices.size()), blockedIndices).stream()
+            .map(Index::getName)
+            .toArray(String[]::new);
+        updateIndexSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0), blockedIndicesNoReplicas);
+        ensureGreen(blockedIndicesNoReplicas);
+
+        for (var blockedIndexNoReplicas : blockedIndicesNoReplicas) {
+            assertThat(clusterBlocks().hasIndexBlock(blockedIndexNoReplicas, IndexMetadata.INDEX_REFRESH_BLOCK), is(false));
+        }
+
+        updateIndexSettings(
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0),
+            blockedIndices.stream().map(Index::getName).toArray(String[]::new)
+        );
+        ensureGreen("index-*");
+
+        blockedIndices.forEach(
+            index -> assertThat(clusterBlocks().hasIndexBlock(index.getName(), IndexMetadata.INDEX_REFRESH_BLOCK), is(false))
+        );
     }
 
     private ActionFuture<BulkResponse> indexDocsWithRefreshPolicy(

@@ -8,9 +8,9 @@ A shard is a basic unit of storage in {es}. Every index is divided into one or m
 
 * *Data Distribution:* Each shard contains a portion of the data from the index. When you add more nodes to your cluster, {es} will spread the shards across the nodes, balancing the workload between them.
 * *Replication:* Shards can have replicas which are copies of the original shard. Replicas ensure data availability and improve search performance by allowing multiple nodes to handle requests for that shard.
-* *Parallel Processing:* Shards enable {es} to process queries in parallel across nodes, making searches faster and more efficient.
+* *Parallel Processing:* Shards enable {es} to distribute indexing of documents, and process queries in parallel across shards, making ingestion and searches faster and more efficient.
 
-By effectively using shards, {es} can scale horizontally and provide fault tolerance, ensuring your data is distributed and queries are processed efficiently.
+By effectively using shards, {es} can scale horizontally and provide fault tolerance, ensuring your data is distributed and indexing and searches are processed efficiently.
 
 [discrete]
 [[sizing-shard-guidelines]]

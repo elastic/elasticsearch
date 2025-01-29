@@ -18,7 +18,6 @@ You can use this API to:
 NOTE: Elasticsearch does not allow in-place field type changes. If you need to change a field’s type, you must create a new index with the updated mapping and <<docs-reindex,reindex>> the data. 
 
 
-You can also use this API to change the search settings of existing fields.
 
 For data streams, these changes are applied to all backing indices by default.
 

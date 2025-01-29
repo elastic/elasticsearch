@@ -26,18 +26,17 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.test.transport.MockTransportService;
 
 import java.util.ArrayList;
@@ -53,6 +52,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -64,16 +64,84 @@ public class BlockRefreshUponIndexCreationIT extends AbstractStatelessIntegTestC
         startMasterAndIndexNode(useRefreshBlockSetting(true));
 
         int nbReplicas = randomIntBetween(0, 3);
-        if (0 < nbReplicas) {
-            startSearchNodes(nbReplicas);
-        }
 
         var indexName = randomIdentifier();
-        assertAcked(prepareCreate(indexName).setSettings(indexSettings(1, nbReplicas)));
-        ensureGreen(indexName);
+        assertAcked(prepareCreate(indexName).setSettings(indexSettings(1, nbReplicas)).setWaitForActiveShards(ActiveShardCount.NONE));
+        ensureYellowAndNoInitializingShards(indexName);
 
         var blocks = clusterBlocks();
         assertThat(blocks.hasIndexBlock(indexName, IndexMetadata.INDEX_REFRESH_BLOCK), equalTo(0 < nbReplicas));
+
+        if (0 < nbReplicas) {
+            startSearchNodes(nbReplicas);
+            ensureGreen(indexName);
+            assertThat(clusterBlocks().hasIndexBlock(indexName, IndexMetadata.INDEX_REFRESH_BLOCK), equalTo(false));
+        }
+    }
+
+    public void testRefreshBlockIsRemovedOnceTheIndexIsSearchable() throws Exception {
+        var nodeSettings = Settings.builder()
+            .put(useRefreshBlockSetting(true))
+            .put("cluster.routing.allocation.node_concurrent_recoveries", 3)
+            .put("cluster.routing.allocation.node_concurrent_incoming_recoveries", 3)
+            .put("cluster.routing.allocation.node_concurrent_outgoing_recoveries", 3)
+            .build();
+        startMasterAndIndexNode(nodeSettings);
+        var searchNode = startSearchNode(nodeSettings);
+        int nbShards = randomIntBetween(2, 3);
+        // Even though we cannot allocate all the replicas, we'll be able to accommodate at least 1 replica per shard
+        // in the searchNode. Thus, the index will be searchable and therefore the block should be removed.
+        int nbReplicas = randomIntBetween(2, 3);
+
+        var indexName = randomIdentifier();
+        assertAcked(
+            prepareCreate(indexName).setSettings(
+                indexSettings(nbShards, nbReplicas).put("index.routing.allocation.exclude._name", searchNode)
+            ).setWaitForActiveShards(ActiveShardCount.NONE)
+        );
+        ensureYellowAndNoInitializingShards(indexName);
+
+        assertThat(clusterBlocks().hasIndexBlock(indexName, IndexMetadata.INDEX_REFRESH_BLOCK), equalTo(true));
+
+        Queue<CheckedRunnable<Exception>> delayedCommitRegistrations = new ConcurrentLinkedQueue<>();
+
+        var transportService = MockTransportService.getInstance(searchNode);
+        var registerCommitForRecoverySentLatch = new CountDownLatch(nbShards);
+        transportService.addSendBehavior((connection, requestId, action, request, options) -> {
+            if (action.equals(TransportRegisterCommitForRecoveryAction.NAME)) {
+                delayedCommitRegistrations.add(() -> connection.sendRequest(requestId, action, request, options));
+                registerCommitForRecoverySentLatch.countDown();
+            } else {
+                connection.sendRequest(requestId, action, request, options);
+            }
+        });
+
+        updateIndexSettings(Settings.builder().putNull("index.routing.allocation.exclude._name"), indexName);
+
+        safeAwait(registerCommitForRecoverySentLatch);
+
+        // Let all search shards but one to be started
+        for (int i = 0; i < (nbShards - 1); i++) {
+            var delayedCommitRegistration = delayedCommitRegistrations.poll();
+            assertThat(delayedCommitRegistration, notNullValue());
+            delayedCommitRegistration.run();
+        }
+
+        assertThat(clusterBlocks().hasIndexBlock(indexName, IndexMetadata.INDEX_REFRESH_BLOCK), equalTo(true));
+
+        // Let the latest search shard to be started
+        var delayedCommitRegistration = delayedCommitRegistrations.poll();
+        assertThat(delayedCommitRegistration, notNullValue());
+        delayedCommitRegistration.run();
+
+        ensureYellowAndNoInitializingShards(indexName);
+        assertThat(clusterBlocks().hasIndexBlock(indexName, IndexMetadata.INDEX_REFRESH_BLOCK), equalTo(false));
+
+        assertResponse(client().prepareSearch(indexName).setQuery(new MatchAllQueryBuilder()), ElasticsearchAssertions::assertNoFailures);
+
+        // Once the refresh block is removed it won't be added again even if the index becomes unavailable for searches
+        internalCluster().stopNode(searchNode);
+        assertThat(clusterBlocks().hasIndexBlock(indexName, IndexMetadata.INDEX_REFRESH_BLOCK), equalTo(false));
     }
 
     public void testIndexCreatedWithRefreshBlockDisabled() {
@@ -230,9 +298,6 @@ public class BlockRefreshUponIndexCreationIT extends AbstractStatelessIntegTestC
         if (useRefreshBlock) {
             assertAllUnpromotableShardsAreInState(ShardRoutingState.UNASSIGNED, ShardRoutingState.INITIALIZING, ShardRoutingState.STARTED);
 
-            // TODO: Once ES-10278 is implemented, the index will be unblocked as soon as at least one replica for each shard has started,
-            // we should assert that refreshes are unblocked as soon as that criteria is met.
-
             for (var bulkFuture : concurrentBulkFutures) {
                 if (bulkFuture.isDone()) {
                     // Just to debug CI failures
@@ -259,8 +324,6 @@ public class BlockRefreshUponIndexCreationIT extends AbstractStatelessIntegTestC
             }
 
             ensureGreen(indices.toArray(new String[] {}));
-            // TODO: Remove once ES-10278 is implemented
-            indices.forEach(this::removeIndexRefreshBlock);
         }
 
         concurrentBulkFutures.forEach(bulkFuture -> assertNoFailures(safeGet(bulkFuture)));
@@ -393,30 +456,6 @@ public class BlockRefreshUponIndexCreationIT extends AbstractStatelessIntegTestC
         // hence the reason to use ActiveShardCount.NONE
         bulkRequest.setWaitForActiveShards(ActiveShardCount.NONE);
         return bulkRequest.execute();
-    }
-
-    private void removeIndexRefreshBlock(String indexName) {
-        var latch = new CountDownLatch(1);
-        var clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
-        clusterService.submitUnbatchedStateUpdateTask("remove-index-refresh-block-test", new ClusterStateUpdateTask() {
-            @Override
-            public ClusterState execute(ClusterState currentState) {
-                return ClusterState.builder(currentState)
-                    .blocks(ClusterBlocks.builder(currentState.blocks()).removeIndexBlock(indexName, IndexMetadata.INDEX_REFRESH_BLOCK))
-                    .build();
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                fail();
-            }
-
-            @Override
-            public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-                latch.countDown();
-            }
-        });
-        safeAwait(latch);
     }
 
     private static ClusterBlocks clusterBlocks() {

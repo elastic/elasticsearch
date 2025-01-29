@@ -1251,6 +1251,7 @@ class NodeConstruction {
             b.bind(DataStreamAutoShardingService.class).toInstance(dataStreamAutoShardingService);
             b.bind(FailureStoreMetrics.class).toInstance(failureStoreMetrics);
             b.bind(ShutdownPrepareService.class).toInstance(shutdownPrepareService);
+            b.bind(MetadataAutoshardIndexService.class).toInstance(metadataAutoshardIndexService);
         });
 
         if (ReadinessService.enabled(environment)) {

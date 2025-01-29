@@ -48,8 +48,11 @@ public class MlHiddenIndicesFullClusterRestartIT extends AbstractXpackFullCluste
         Tuple.tuple(List.of(".ml-annotations-000001"), ".ml-annotations-write"),
         // .ml-state-000002 is will be created on upgrade if earlier indices are 7.x versions
         Tuple.tuple(List.of(".ml-state", ".ml-state-000001", ".ml-state-000002"), ".ml-state-write"),
-        Tuple.tuple(List.of(".ml-anomalies-shared"), ".ml-anomalies-" + JOB_ID),
-        Tuple.tuple(List.of(".ml-anomalies-shared"), ".ml-anomalies-.write-" + JOB_ID)
+        // .ml-anomalies-shared-000001 is created if upgrading from 7.x
+        // The read alias will point to all indices
+        Tuple.tuple(List.of(".ml-anomalies-shared", ".ml-anomalies-shared-000001"), ".ml-anomalies-" + JOB_ID),
+        // and the write alias will point to the latest one of these indices
+        Tuple.tuple(List.of(".ml-anomalies-shared", ".ml-anomalies-shared-000001"), ".ml-anomalies-.write-" + JOB_ID)
     );
 
     public MlHiddenIndicesFullClusterRestartIT(@Name("cluster") FullClusterRestartUpgradeStatus upgradeStatus) {

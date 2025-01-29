@@ -50,7 +50,6 @@ public class DeprecatedIndexPredicate {
     public static boolean reindexRequired(IndexMetadata indexMetadata, boolean filterToBlockedStatus) {
         return creationVersionBeforeMinimumWritableVersion(indexMetadata)
             && isNotSearchableSnapshot(indexMetadata)
-            && isNotClosed(indexMetadata)
             && matchBlockedStatus(indexMetadata, filterToBlockedStatus);
     }
 
@@ -60,10 +59,6 @@ public class DeprecatedIndexPredicate {
 
     private static boolean creationVersionBeforeMinimumWritableVersion(IndexMetadata metadata) {
         return metadata.getCreationVersion().before(MINIMUM_WRITEABLE_VERSION_AFTER_UPGRADE);
-    }
-
-    private static boolean isNotClosed(IndexMetadata indexMetadata) {
-        return indexMetadata.getState().equals(IndexMetadata.State.CLOSE) == false;
     }
 
     private static boolean matchBlockedStatus(IndexMetadata indexMetadata, boolean filterToBlockedStatus) {

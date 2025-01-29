@@ -8,12 +8,16 @@
 package org.elasticsearch.xpack.esql.expression.function.fulltext;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.compute.lucene.LuceneQueryExpressionEvaluator;
+import org.elasticsearch.compute.lucene.LuceneQueryExpressionEvaluator.ShardConfig;
+import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
@@ -21,6 +25,7 @@ import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Holder;
+import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.BinaryLogic;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
@@ -31,6 +36,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
+import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 import org.elasticsearch.xpack.esql.querydsl.query.TranslationAwareExpressionQuery;
 
@@ -50,7 +56,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isStr
  * These functions needs to be pushed down to Lucene queries to be executed - there's no Evaluator for them, but depend on
  * {@link org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizer} to rewrite them into Lucene queries.
  */
-public abstract class FullTextFunction extends Function implements TranslationAware, PostAnalysisPlanVerificationAware {
+public abstract class FullTextFunction extends Function implements TranslationAware, PostAnalysisPlanVerificationAware, EvaluatorMapper {
 
     private final Expression query;
     private final QueryBuilder queryBuilder;
@@ -141,6 +147,7 @@ public abstract class FullTextFunction extends Function implements TranslationAw
 
     @Override
     public boolean translatable(LucenePushdownPredicates pushdownPredicates) {
+        // In isolation, full text functions are pushable to source. We check if there are no disjunctions in Or conditions
         return true;
     }
 
@@ -200,8 +207,14 @@ public abstract class FullTextFunction extends Function implements TranslationAw
                 m -> "[" + m.functionName() + "] " + m.functionType(),
                 failures
             );
-            checkFullTextSearchDisjunctions(condition, ftf -> "[" + ftf.functionName() + "] " + ftf.functionType(), failures);
             checkFullTextFunctionsParents(condition, failures);
+
+            boolean usesScore = plan.output()
+                .stream()
+                .anyMatch(attr -> attr instanceof MetadataAttribute ma && ma.name().equals(MetadataAttribute.SCORE));
+            if (usesScore) {
+                checkFullTextSearchDisjunctions(condition, failures);
+            }
         } else {
             plan.forEachExpression(FullTextFunction.class, ftf -> {
                 failures.add(fail(ftf, "[{}] {} is only supported in WHERE commands", ftf.functionName(), ftf.functionType()));
@@ -215,36 +228,39 @@ public abstract class FullTextFunction extends Function implements TranslationAw
      * If not, add a failure to the failures collection.
      *
      * @param condition        condition to check for disjunctions of full text searches
-     * @param typeNameProvider provider for the type name to add in the failure message
      * @param failures         failures collection to add to
      */
-    private static void checkFullTextSearchDisjunctions(
-        Expression condition,
-        java.util.function.Function<FullTextFunction, String> typeNameProvider,
-        Failures failures
-    ) {
+    private static void checkFullTextSearchDisjunctions(Expression condition, Failures failures) {
         Holder<Boolean> isInvalid = new Holder<>(false);
         condition.forEachDown(Or.class, or -> {
             if (isInvalid.get()) {
                 // Exit early if we already have a failures
                 return;
             }
-            boolean hasFullText = or.anyMatch(FullTextFunction.class::isInstance);
-            if (hasFullText) {
-                boolean hasOnlyFullText = onlyFullTextFunctionsInExpression(or);
-                if (hasOnlyFullText == false) {
-                    isInvalid.set(true);
-                    failures.add(
-                        fail(
-                            or,
-                            "Invalid condition [{}]. Full text functions can be used in an OR condition, "
-                                + "but only if just full text functions are used in the OR condition",
-                            or.sourceText()
-                        )
-                    );
-                }
+            if (checkDisjunctionPushable(or) == false) {
+                isInvalid.set(true);
+                failures.add(
+                    fail(
+                        or,
+                        "Invalid condition when using METADATA _score [{}]. Full text functions can be used in an OR condition, "
+                            + "but only if just full text functions are used in the OR condition",
+                        or.sourceText()
+                    )
+                );
             }
         });
+    }
+
+    /**
+     * Checks if a disjunction is pushable from the point of view of FullTextFunctions. Either it has no FullTextFunctions or
+     * all it contains are FullTextFunctions.
+     *
+     * @param or disjunction to check
+     * @return true if the disjunction is pushable, false otherwise
+     */
+    private static boolean checkDisjunctionPushable(Or or) {
+        boolean hasFullText = or.anyMatch(FullTextFunction.class::isInstance);
+        return hasFullText == false || onlyFullTextFunctionsInExpression(or);
     }
 
     /**
@@ -341,5 +357,16 @@ public abstract class FullTextFunction extends Function implements TranslationAw
             }
         }
         return null;
+    }
+
+    @Override
+    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+        List<EsPhysicalOperationProviders.ShardContext> shardContexts = toEvaluator.shardContexts();
+        ShardConfig[] shardConfigs = new ShardConfig[shardContexts.size()];
+        int i = 0;
+        for (EsPhysicalOperationProviders.ShardContext shardContext : shardContexts) {
+            shardConfigs[i++] = new ShardConfig(shardContext.toQuery(queryBuilder()), shardContext.searcher());
+        }
+        return new LuceneQueryExpressionEvaluator.Factory(shardConfigs);
     }
 }

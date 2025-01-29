@@ -322,6 +322,9 @@ tests:
 - class: org.elasticsearch.index.mapper.KeywordFieldMapperTests
   method: testFieldTypeWithSkipDocValues_LogsDbMode
   issue: https://github.com/elastic/elasticsearch/issues/121232
+- class: org.elasticsearch.index.mapper.KeywordFieldMapperTests
+  method: testFieldTypeDefault_ConfiguredDocValues
+  issue: https://github.com/elastic/elasticsearch/issues/121233
 
 # Examples:
 #

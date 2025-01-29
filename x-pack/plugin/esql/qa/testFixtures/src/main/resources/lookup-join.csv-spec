@@ -311,6 +311,9 @@ FROM employees
 | KEEP emp_no, language_code, language_name
 ;
 
+warning:Line 4:3: evaluation of [LOOKUP JOIN languages_lookup_non_unique_key ON language_code] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 4:3: java.lang.IllegalArgumentException: LOOKUP JOIN encountered multi-value
+
 emp_no:integer | language_code:integer | language_name:keyword
 10004          | 4                     | Quenya
 10005          | 5                     | null
@@ -330,6 +333,9 @@ FROM employees
 | KEEP emp_no, language_code, language_name
 ;
 
+warning:Line 4:3: evaluation of [LOOKUP JOIN languages_lookup ON language_code] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 4:3: java.lang.IllegalArgumentException: LOOKUP JOIN encountered multi-value
+
 emp_no:integer | language_code:integer | language_name:keyword
 10001          | 1                     | English              
 10002          | [-7, 11]              | null                 
@@ -348,6 +354,9 @@ ROW language_code = [4, 5, 6, 7]
 | SORT language_code, language_name, country
 ;
 
+warning:Line 2:3: evaluation of [LOOKUP JOIN languages_lookup_non_unique_key ON language_code] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:3: java.lang.IllegalArgumentException: LOOKUP JOIN encountered multi-value
+
 language_code:integer | language_name:keyword | country:text
 [4, 5, 6, 7]          | null                  | null
 ;
@@ -362,6 +371,9 @@ ROW language_code = [4, 5, 6, 7, 8]
 | KEEP language_code, language_name, country
 | SORT language_code, language_name, country
 ;
+
+warning:Line 3:3: evaluation of [LOOKUP JOIN languages_lookup_non_unique_key ON language_code] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 3:3: java.lang.IllegalArgumentException: LOOKUP JOIN encountered multi-value
 
 language_code:integer | language_name:keyword | country:text
 4                     | Quenya                | null

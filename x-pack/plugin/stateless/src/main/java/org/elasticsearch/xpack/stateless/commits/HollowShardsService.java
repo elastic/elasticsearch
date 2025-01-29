@@ -231,6 +231,10 @@ public class HollowShardsService extends AbstractLifecycleComponent {
     }
 
     public void assertIngestionBlocked(ShardId shardId, boolean blocked, String message) {
-        assert blocked == (hollowShardsIngestionBlocker.get(shardId) != null) : message;
+        final boolean isCurrentlyBlocked = hollowShardsIngestionBlocker.get(shardId) != null;
+        if (blocked != isCurrentlyBlocked) {
+            assert false : message;
+            throw new IllegalStateException(message);
+        }
     }
 }

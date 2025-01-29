@@ -1001,6 +1001,7 @@ public class Stateless extends Plugin
         // register an IndexCommitListener so that stateless is notified of newly created commits on "index" nodes
         if (hasIndexRole) {
 
+            indexModule.addIndexOperationListener(new StatelessIndexingOperationListener(hollowShardsService.get()));
             indexModule.addIndexEventListener(shardsMappingSizeCollector.get());
 
             indexModule.addIndexEventListener(new IndexEventListener() {

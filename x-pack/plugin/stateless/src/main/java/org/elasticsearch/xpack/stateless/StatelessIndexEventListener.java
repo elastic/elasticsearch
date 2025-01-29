@@ -61,7 +61,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.Set;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService.Type.INDEXING;
@@ -371,8 +370,4 @@ class StatelessIndexEventListener implements IndexEventListener {
         });
     }
 
-    @Override
-    public void onAcquirePrimaryOperationPermit(IndexShard indexShard, Supplier<ActionListener<Void>> onPermitAcquiredListenerSupplier) {
-        hollowShardsService.onIngestion(indexShard.shardId(), onPermitAcquiredListenerSupplier);
-    }
 }

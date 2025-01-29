@@ -55,11 +55,7 @@ public class RollingUpgradeLuceneIndexCompatibilityTestCase extends RollingUpgra
             createIndex(
                 client(),
                 index,
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                    .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
-                    .build()
+                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
             );
             indexDocs(index, numDocs);
             return;
@@ -196,7 +192,6 @@ public class RollingUpgradeLuceneIndexCompatibilityTestCase extends RollingUpgra
                 Settings.builder()
                     .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                     .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                    .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
                     .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), randomFrom(Translog.Durability.values()))
                     .build()
             );
@@ -269,11 +264,7 @@ public class RollingUpgradeLuceneIndexCompatibilityTestCase extends RollingUpgra
             createIndex(
                 client(),
                 index,
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                    .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
-                    .build()
+                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
             );
 
             logger.debug("--> indexing [{}] docs in [{}]", numDocs, index);

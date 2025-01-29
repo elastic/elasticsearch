@@ -12,6 +12,7 @@ package org.elasticsearch.lucene;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.test.cluster.util.Version;
 
@@ -24,6 +25,7 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 
 public class FullClusterRestartLuceneIndexCompatibilityIT extends FullClusterRestartIndexCompatibilityTestCase {
 
@@ -49,7 +51,6 @@ public class FullClusterRestartLuceneIndexCompatibilityIT extends FullClusterRes
                 Settings.builder()
                     .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                     .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomInt(2))
-                    .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
                     .build()
             );
             indexDocs(index, numDocs);
@@ -183,7 +184,7 @@ public class FullClusterRestartLuceneIndexCompatibilityIT extends FullClusterRes
                 Settings.builder()
                     .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                     .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomInt(2))
-                    .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
+                    .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), randomFrom(Translog.Durability.values()))
                     .build()
             );
             indexDocs(index, numDocs);
@@ -202,6 +203,7 @@ public class FullClusterRestartLuceneIndexCompatibilityIT extends FullClusterRes
             closeIndex(index);
 
             assertThat(indexBlocks(index), contains(INDEX_CLOSED_BLOCK));
+            assertThat(indexBlocks(index), not(contains(INDEX_WRITE_BLOCK)));
             assertIndexSetting(index, VERIFIED_BEFORE_CLOSE_SETTING, is(true));
             assertIndexSetting(index, VERIFIED_READ_ONLY_SETTING, is(false));
             return;
@@ -250,11 +252,7 @@ public class FullClusterRestartLuceneIndexCompatibilityIT extends FullClusterRes
             createIndex(
                 client(),
                 index,
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                    .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
-                    .build()
+                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
             );
 
             logger.debug("--> indexing [{}] docs in [{}]", numDocs, index);
@@ -332,11 +330,7 @@ public class FullClusterRestartLuceneIndexCompatibilityIT extends FullClusterRes
             createIndex(
                 client(),
                 index,
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                    .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
-                    .build()
+                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
             );
 
             logger.debug("--> indexing [{}] docs in [{}]", numDocs, index);

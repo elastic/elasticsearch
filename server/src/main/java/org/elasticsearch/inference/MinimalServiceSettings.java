@@ -89,6 +89,7 @@ public record MinimalServiceSettings(
     public static MinimalServiceSettings textEmbedding(int dimensions, SimilarityMeasure similarity, ElementType elementType) {
         return new MinimalServiceSettings(TEXT_EMBEDDING, dimensions, similarity, elementType);
     }
+
     public static MinimalServiceSettings sparseEmbedding() {
         return new MinimalServiceSettings(SPARSE_EMBEDDING, null, null, null);
     }

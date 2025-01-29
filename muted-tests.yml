@@ -337,6 +337,9 @@ tests:
 - class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
   method: test {yaml=cluster.stats/10_basic/Sparse vector stats}
   issue: https://github.com/elastic/elasticsearch/issues/121246
+- class: org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityEsqlIT
+  method: testCrossClusterAsyncQueryStop
+  issue: https://github.com/elastic/elasticsearch/issues/121249
 
 # Examples:
 #

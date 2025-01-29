@@ -30,13 +30,13 @@ The cluster remote info API allows you to retrieve information about configured
 remote clusters. It returns connection and endpoint information keyed
 by the configured remote cluster alias.
 
-TIP: This endpoint returns the information that reflects state on the cluster
-you are querying. The `connected` field does not necessarily reflect whether
-the remote cluster is down or unavailable, only whether there is currently an open
-connection to it. Elasticsearch does not spontaneously try to reconnect to a
-disconnected remote cluster. To trigger a reconnection, attempt a
-<<modules-cross-cluster-search,{ccs}>>, <<esql-cross-clusters,{esql} {ccs}>>,
-or try the <<indices-resolve-cluster-api,resolve cluster>> endpoint.
+TIP: This API returns information that reflects current state on the local cluster.
+The `connected` field does not necessarily reflect whether a remote cluster is
+down or unavailable, only whether there is currently an open connection to it.
+Elasticsearch does not spontaneously try to reconnect to a disconnected remote
+cluster. To trigger a reconnection, attempt a <<modules-cross-cluster-search,{ccs}>>,
+<<esql-cross-clusters,{esql} {ccs}>>, or try the
+<<indices-resolve-cluster-api,resolve cluster>> endpoint.
 
 
 [[cluster-remote-info-api-response-body]]

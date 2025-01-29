@@ -475,7 +475,10 @@ public class EsqlCapabilities {
          * Support Least and Greatest functions on Date Nanos type
          */
         LEAST_GREATEST_FOR_DATENANOS(),
-
+        /**
+         * support date extract function for date nanos
+         */
+        DATE_NANOS_DATE_EXTRACT(),
         /**
          * Support add and subtract on date nanos
          */
@@ -503,7 +506,10 @@ public class EsqlCapabilities {
          * Support running date format function on nanosecond dates
          */
         DATE_NANOS_DATE_FORMAT(),
-
+        /**
+         * support date diff function on date nanos type, and mixed nanos/millis
+         */
+        DATE_NANOS_DATE_DIFF(),
         /**
          * DATE_PARSE supports reading timezones
          */
@@ -688,7 +694,27 @@ public class EsqlCapabilities {
         /**
          * LOOKUP JOIN
          */
-        JOIN_LOOKUP_V11(Build.current().isSnapshot()),
+        JOIN_LOOKUP_V12(Build.current().isSnapshot()),
+
+        /**
+         * LOOKUP JOIN with TEXT fields on the right (right side of the join) (#119473)
+         */
+        LOOKUP_JOIN_TEXT(JOIN_LOOKUP_V12.isEnabled()),
+
+        /**
+         * LOOKUP JOIN without MV matching (https://github.com/elastic/elasticsearch/issues/118780)
+         */
+        JOIN_LOOKUP_SKIP_MV(JOIN_LOOKUP_V12.isEnabled()),
+
+        /**
+         * LOOKUP JOIN without MV matching on lookup index key (https://github.com/elastic/elasticsearch/issues/118780)
+         */
+        JOIN_LOOKUP_SKIP_MV_ON_LOOKUP_KEY(JOIN_LOOKUP_V12.isEnabled()),
+
+        /**
+         * Fix pushing down LIMIT past LOOKUP JOIN in case of multiple matching join keys.
+         */
+        JOIN_LOOKUP_FIX_LIMIT_PUSHDOWN(JOIN_LOOKUP_V12.isEnabled()),
 
         /**
          * Fix for https://github.com/elastic/elasticsearch/issues/117054
@@ -708,7 +734,7 @@ public class EsqlCapabilities {
         /**
          * Support the "METADATA _score" directive to enable _score column.
          */
-        METADATA_SCORE(Build.current().isSnapshot()),
+        METADATA_SCORE,
 
         /**
          * Term function
@@ -741,9 +767,19 @@ public class EsqlCapabilities {
         OPTIONAL_NAMED_ARGUMENT_MAP_FOR_FUNCTION(Build.current().isSnapshot()),
 
         /**
+         * Disabled support for index aliases in lookup joins
+         */
+        LOOKUP_JOIN_NO_ALIASES(JOIN_LOOKUP_V12.isEnabled()),
+
+        /**
          * Full text functions can be used in disjunctions as they are implemented in compute engine
          */
-        FULL_TEXT_FUNCTIONS_DISJUNCTIONS_COMPUTE_ENGINE;
+        FULL_TEXT_FUNCTIONS_DISJUNCTIONS_COMPUTE_ENGINE,
+
+        /**
+         * Support match options in match function
+         */
+        MATCH_FUNCTION_OPTIONS;
 
         private final boolean enabled;
 

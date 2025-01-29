@@ -69,7 +69,6 @@ public class TransportMoveToStepAction extends TransportMasterNodeAction<Transpo
             threadPool,
             actionFilters,
             Request::new,
-            indexNameExpressionResolver,
             AcknowledgedResponse::readFrom,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );

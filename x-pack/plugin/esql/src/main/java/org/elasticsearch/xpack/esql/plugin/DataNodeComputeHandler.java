@@ -17,13 +17,14 @@ import org.elasticsearch.action.search.SearchShardsResponse;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.compute.EsqlRefCountingListener;
+import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.compute.operator.exchange.ExchangeSink;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.shard.IndexShard;
@@ -42,7 +43,6 @@ import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlSearchShardsAction;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
@@ -95,39 +95,45 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         Set<String> concreteIndices,
         OriginalIndices originalIndices,
         ExchangeSourceHandler exchangeSource,
-        EsqlExecutionInfo executionInfo,
-        ComputeListener computeListener
+        Runnable runOnTaskFailure,
+        ActionListener<ComputeResponse> outListener
     ) {
         QueryBuilder requestFilter = PlannerUtils.requestTimestampFilter(dataNodePlan);
-        var lookupListener = ActionListener.releaseAfter(computeListener.acquireAvoid(), exchangeSource.addEmptySink());
-        // SearchShards API can_match is done in lookupDataNodes
+        var listener = ActionListener.runAfter(outListener, exchangeSource.addEmptySink()::close);
+        final long startTimeInNanos = System.nanoTime();
         lookupDataNodes(parentTask, clusterAlias, requestFilter, concreteIndices, originalIndices, ActionListener.wrap(dataNodeResult -> {
-            try (EsqlRefCountingListener refs = new EsqlRefCountingListener(lookupListener)) {
-                // update ExecutionInfo with shard counts (total and skipped)
-                executionInfo.swapCluster(
-                    clusterAlias,
-                    (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setTotalShards(dataNodeResult.totalShards())
-                        // do not set successful or failed shard count here - do it when search is done
-                        .setSkippedShards(dataNodeResult.skippedShards())
-                        .build()
+            try (var computeListener = new ComputeListener(transportService.getThreadPool(), runOnTaskFailure, listener.map(profiles -> {
+                TimeValue took = TimeValue.timeValueNanos(System.nanoTime() - startTimeInNanos);
+                return new ComputeResponse(
+                    profiles,
+                    took,
+                    dataNodeResult.totalShards(),
+                    dataNodeResult.totalShards(),
+                    dataNodeResult.skippedShards(),
+                    0
                 );
-
+            }))) {
                 // For each target node, first open a remote exchange on the remote node, then link the exchange source to
                 // the new remote exchange sink, and initialize the computation on the target node via data-node-request.
                 for (DataNode node : dataNodeResult.dataNodes()) {
                     var queryPragmas = configuration.pragmas();
                     var childSessionId = computeService.newChildSession(sessionId);
+                    ActionListener<ComputeResponse> nodeListener = computeListener.acquireCompute().map(ComputeResponse::getProfiles);
                     ExchangeService.openExchange(
                         transportService,
                         node.connection,
                         childSessionId,
                         queryPragmas.exchangeBufferSize(),
                         esqlExecutor,
-                        refs.acquire().delegateFailureAndWrap((l, unused) -> {
+                        nodeListener.delegateFailureAndWrap((l, unused) -> {
                             var remoteSink = exchangeService.newRemoteSink(parentTask, childSessionId, transportService, node.connection);
-                            exchangeSource.addRemoteSink(remoteSink, true, queryPragmas.concurrentExchangeClients(), ActionListener.noop());
-                            ActionListener<ComputeResponse> computeResponseListener = computeListener.acquireCompute(clusterAlias);
-                            var dataNodeListener = ActionListener.runBefore(computeResponseListener, () -> l.onResponse(null));
+                            exchangeSource.addRemoteSink(
+                                remoteSink,
+                                true,
+                                () -> {},
+                                queryPragmas.concurrentExchangeClients(),
+                                computeListener.acquireAvoid()
+                            );
                             final boolean sameNode = transportService.getLocalNode().getId().equals(node.connection.getNode().getId());
                             var dataNodeRequest = new DataNodeRequest(
                                 childSessionId,
@@ -146,13 +152,13 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                                 dataNodeRequest,
                                 parentTask,
                                 TransportRequestOptions.EMPTY,
-                                new ActionListenerResponseHandler<>(dataNodeListener, ComputeResponse::new, esqlExecutor)
+                                new ActionListenerResponseHandler<>(nodeListener, ComputeResponse::new, esqlExecutor)
                             );
                         })
                     );
                 }
             }
-        }, lookupListener::onFailure));
+        }, listener::onFailure));
     }
 
     private void acquireSearchContexts(
@@ -325,7 +331,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             this.exchangeSink = exchangeSink;
             this.computeListener = computeListener;
             this.maxConcurrentShards = maxConcurrentShards;
-            this.blockingSink = exchangeSink.createExchangeSink();
+            this.blockingSink = exchangeSink.createExchangeSink(() -> {});
         }
 
         void start() {
@@ -341,11 +347,11 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             final var sessionId = request.sessionId();
             final int endBatchIndex = Math.min(startBatchIndex + maxConcurrentShards, request.shardIds().size());
             List<ShardId> shardIds = request.shardIds().subList(startBatchIndex, endBatchIndex);
-            ActionListener<ComputeResponse> batchListener = new ActionListener<>() {
-                final ActionListener<ComputeResponse> ref = computeListener.acquireCompute();
+            ActionListener<List<DriverProfile>> batchListener = new ActionListener<>() {
+                final ActionListener<List<DriverProfile>> ref = computeListener.acquireCompute();
 
                 @Override
-                public void onResponse(ComputeResponse result) {
+                public void onResponse(List<DriverProfile> result) {
                     try {
                         onBatchCompleted(endBatchIndex);
                     } finally {
@@ -371,7 +377,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     configuration,
                     configuration.newFoldContext(),
                     null,
-                    exchangeSink
+                    () -> exchangeSink.createExchangeSink(() -> {})
                 );
                 computeService.runCompute(parentTask, computeContext, request.plan(), batchListener);
             }, batchListener::onFailure));
@@ -396,54 +402,64 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         String externalId,
         PhysicalPlan reducePlan,
         DataNodeRequest request,
-        ComputeListener computeListener
+        ActionListener<ComputeResponse> listener
     ) {
-        var parentListener = computeListener.acquireAvoid();
-        try {
-            // run compute with target shards
-            var internalSink = exchangeService.createSinkHandler(request.sessionId(), request.pragmas().exchangeBufferSize());
-            DataNodeRequestExecutor dataNodeRequestExecutor = new DataNodeRequestExecutor(
-                request,
-                task,
-                internalSink,
-                request.configuration().pragmas().maxConcurrentShardsPerNode(),
-                computeListener
-            );
-            dataNodeRequestExecutor.start();
-            // run the node-level reduction
-            var externalSink = exchangeService.getSinkHandler(externalId);
-            task.addListener(() -> exchangeService.finishSinkHandler(externalId, new TaskCancelledException(task.getReasonCancelled())));
-            var exchangeSource = new ExchangeSourceHandler(1, esqlExecutor, computeListener.acquireAvoid());
-            exchangeSource.addRemoteSink(internalSink::fetchPageAsync, true, 1, ActionListener.noop());
-            ActionListener<ComputeResponse> reductionListener = computeListener.acquireCompute();
-            computeService.runCompute(
-                task,
-                new ComputeContext(
-                    request.sessionId(),
-                    request.clusterAlias(),
-                    List.of(),
-                    request.configuration(),
-                    new FoldContext(request.pragmas().foldLimit().getBytes()),
-                    exchangeSource,
-                    externalSink
-                ),
-                reducePlan,
-                ActionListener.wrap(resp -> {
-                    // don't return until all pages are fetched
-                    externalSink.addCompletionListener(ActionListener.running(() -> {
-                        exchangeService.finishSinkHandler(externalId, null);
-                        reductionListener.onResponse(resp);
-                    }));
-                }, e -> {
-                    exchangeService.finishSinkHandler(externalId, e);
-                    reductionListener.onFailure(e);
-                })
-            );
-            parentListener.onResponse(null);
-        } catch (Exception e) {
-            exchangeService.finishSinkHandler(externalId, e);
-            exchangeService.finishSinkHandler(request.sessionId(), e);
-            parentListener.onFailure(e);
+        try (
+            ComputeListener computeListener = new ComputeListener(
+                transportService.getThreadPool(),
+                computeService.cancelQueryOnFailure(task),
+                listener.map(ComputeResponse::new)
+            )
+        ) {
+            var parentListener = computeListener.acquireAvoid();
+            try {
+                // run compute with target shards
+                var internalSink = exchangeService.createSinkHandler(request.sessionId(), request.pragmas().exchangeBufferSize());
+                DataNodeRequestExecutor dataNodeRequestExecutor = new DataNodeRequestExecutor(
+                    request,
+                    task,
+                    internalSink,
+                    request.configuration().pragmas().maxConcurrentShardsPerNode(),
+                    computeListener
+                );
+                dataNodeRequestExecutor.start();
+                // run the node-level reduction
+                var externalSink = exchangeService.getSinkHandler(externalId);
+                task.addListener(
+                    () -> exchangeService.finishSinkHandler(externalId, new TaskCancelledException(task.getReasonCancelled()))
+                );
+                var exchangeSource = new ExchangeSourceHandler(1, esqlExecutor, computeListener.acquireAvoid());
+                exchangeSource.addRemoteSink(internalSink::fetchPageAsync, true, () -> {}, 1, ActionListener.noop());
+                var reductionListener = computeListener.acquireCompute();
+                computeService.runCompute(
+                    task,
+                    new ComputeContext(
+                        request.sessionId(),
+                        request.clusterAlias(),
+                        List.of(),
+                        request.configuration(),
+                        new FoldContext(request.pragmas().foldLimit().getBytes()),
+                        exchangeSource::createExchangeSource,
+                        () -> externalSink.createExchangeSink(() -> {})
+                    ),
+                    reducePlan,
+                    ActionListener.wrap(resp -> {
+                        // don't return until all pages are fetched
+                        externalSink.addCompletionListener(ActionListener.running(() -> {
+                            exchangeService.finishSinkHandler(externalId, null);
+                            reductionListener.onResponse(resp);
+                        }));
+                    }, e -> {
+                        exchangeService.finishSinkHandler(externalId, e);
+                        reductionListener.onFailure(e);
+                    })
+                );
+                parentListener.onResponse(null);
+            } catch (Exception e) {
+                exchangeService.finishSinkHandler(externalId, e);
+                exchangeService.finishSinkHandler(request.sessionId(), e);
+                parentListener.onFailure(e);
+            }
         }
     }
 
@@ -469,8 +485,6 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             request.indicesOptions(),
             request.runNodeLevelReduction()
         );
-        try (var computeListener = ComputeListener.create(transportService, (CancellableTask) task, listener)) {
-            runComputeOnDataNode((CancellableTask) task, sessionId, reductionPlan, request, computeListener);
-        }
+        runComputeOnDataNode((CancellableTask) task, sessionId, reductionPlan, request, listener);
     }
 }

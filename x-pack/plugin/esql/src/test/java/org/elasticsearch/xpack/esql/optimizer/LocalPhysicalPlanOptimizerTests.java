@@ -12,6 +12,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.MapperService;
@@ -19,6 +20,7 @@ import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
+import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryStringQueryBuilder;
@@ -200,13 +202,6 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         var stat = queryStatsFor(plan);
         assertThat(stat.type(), is(StatsType.COUNT));
         assertThat(stat.query(), is(nullValue()));
-    }
-
-    public void testDELETEME() {
-        var plan = plannerOptimizer.plan("""
-              from test | eval s = salary + emp_no | eval newSalary = s - 10
-            """);
-        assertThat(plan, instanceOf(ProjectExec.class));
     }
 
     /**
@@ -1586,6 +1581,36 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         assertThat(actualLuceneQuery.toString(), is(expectedLuceneQuery.toString()));
     }
 
+    public void testMatchOptionsPushDown() {
+        String query = """
+            from test
+            | where match(first_name, "Anna", {"fuzziness": "AUTO", "prefix_length": 3, "max_expansions": 10,
+            "fuzzy_transpositions": false, "auto_generate_synonyms_phrase_query": true, "analyzer": "my_analyzer",
+            "boost": 2.1, "minimum_should_match": 2, "operator": "AND"})
+            """;
+        var plan = plannerOptimizer.plan(query);
+
+        var limit = as(plan, LimitExec.class);
+        var exchange = as(limit.child(), ExchangeExec.class);
+        var project = as(exchange.child(), ProjectExec.class);
+        var fieldExtract = as(project.child(), FieldExtractExec.class);
+        var actualLuceneQuery = as(fieldExtract.child(), EsQueryExec.class).query();
+
+        Source filterSource = new Source(4, 8, "emp_no > 10000");
+        var expectedLuceneQuery = new MatchQueryBuilder("first_name", "Anna").fuzziness(Fuzziness.AUTO)
+            .prefixLength(3)
+            .maxExpansions(10)
+            .fuzzyTranspositions(false)
+            .autoGenerateSynonymsPhraseQuery(true)
+            .analyzer("my_analyzer")
+            .boost(2.1f)
+            .minimumShouldMatch("2")
+            .operator(Operator.AND)
+            .prefixLength(3)
+            .lenient(true);
+        assertThat(actualLuceneQuery.toString(), is(expectedLuceneQuery.toString()));
+    }
+
     /**
      * Expecting
      * LimitExec[1000[INTEGER]]
@@ -1678,6 +1703,24 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         assertThat(or.right(), instanceOf(GreaterThan.class));
         var fieldExtract = as(filter.child(), FieldExtractExec.class);
         assertThat(fieldExtract.child(), instanceOf(EsQueryExec.class));
+    }
+
+    public void testMatchFunctionWithPushableDisjunction() {
+        String query = """
+            from test
+            | where match(last_name, "Smith") or emp_no > 10""";
+        var plan = plannerOptimizer.plan(query);
+
+        var limit = as(plan, LimitExec.class);
+        var exchange = as(limit.child(), ExchangeExec.class);
+        var project = as(exchange.child(), ProjectExec.class);
+        var fieldExtract = as(project.child(), FieldExtractExec.class);
+        var esQuery = as(fieldExtract.child(), EsQueryExec.class);
+        var boolQuery = as(esQuery.query(), BoolQueryBuilder.class);
+        Source source = new Source(2, 37, "emp_no > 10");
+        BoolQueryBuilder expected = new BoolQueryBuilder().should(new MatchQueryBuilder("last_name", "Smith").lenient(true))
+            .should(wrapWithSingleQuery(query, QueryBuilders.rangeQuery("emp_no").gt(10), "emp_no", source));
+        assertThat(esQuery.query().toString(), equalTo(expected.toString()));
     }
 
     private QueryBuilder wrapWithSingleQuery(String query, QueryBuilder inner, String fieldName, Source source) {

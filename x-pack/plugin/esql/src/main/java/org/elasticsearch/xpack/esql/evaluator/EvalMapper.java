@@ -52,6 +52,15 @@ public final class EvalMapper {
         return toEvaluator(foldCtx, exp, layout, List.of(), false);
     }
 
+    /**
+     * Provides an ExpressionEvaluator factory to evaluate an expression.
+     *
+     * @param foldCtx the fold context for folding expressions
+     * @param exp the expression to generate an evaluator for
+     * @param layout the mapping from attributes to channels
+     * @param shardContexts the shard contexts, needed to generate queries for expressions that couldn't be pushed down to Lucene
+     * @param usesScoring whether to use scoring for retrieving the evaluator
+     */
     @SuppressWarnings({ "rawtypes", "unchecked" })
     public static ExpressionEvaluator.Factory toEvaluator(
         FoldContext foldCtx,

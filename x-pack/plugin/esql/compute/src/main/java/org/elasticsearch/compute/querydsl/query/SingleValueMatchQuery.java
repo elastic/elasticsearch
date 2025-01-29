@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.querydsl.query;
+package org.elasticsearch.compute.querydsl.query;
 
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
@@ -39,7 +39,7 @@ import java.util.Objects;
 /**
  * Finds all fields with a single-value. If a field has a multi-value, it emits a {@link Warnings}.
  */
-final class SingleValueMatchQuery extends Query {
+public final class SingleValueMatchQuery extends Query {
 
     /**
      * Choose a big enough value so this approximation never drives the iteration.
@@ -52,7 +52,7 @@ final class SingleValueMatchQuery extends Query {
     private final IndexFieldData<?> fieldData;
     private final Warnings warnings;
 
-    SingleValueMatchQuery(IndexFieldData<?> fieldData, Warnings warnings) {
+    public SingleValueMatchQuery(IndexFieldData<?> fieldData, Warnings warnings) {
         this.fieldData = fieldData;
         this.warnings = warnings;
     }

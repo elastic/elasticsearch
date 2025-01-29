@@ -224,9 +224,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.CrossClusterAsyncEnrichStopIT
   method: testEnrichAfterStop
   issue: https://github.com/elastic/elasticsearch/issues/120757
-- class: org.elasticsearch.xpack.esql.action.CrossClusterAsyncQueryIT
-  method: testStopQuery
-  issue: https://github.com/elastic/elasticsearch/issues/120767
 - class: org.elasticsearch.search.fieldcaps.FieldCapabilitiesIT
   issue: https://github.com/elastic/elasticsearch/issues/120772
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
@@ -258,11 +255,6 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test070BindMountCustomPathConfAndJvmOptions
   issue: https://github.com/elastic/elasticsearch/issues/120910
-- class: org.elasticsearch.xpack.esql.qa.multi_node.RestEsqlIT
-  issue: https://github.com/elastic/elasticsearch/issues/120948
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=nodes.stats/11_indices_metrics/indices mappings exact count test for indices level}
-  issue: https://github.com/elastic/elasticsearch/issues/120950
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test071BindMountCustomPathWithDifferentUID
   issue: https://github.com/elastic/elasticsearch/issues/120918
@@ -283,15 +275,33 @@ tests:
 - class: org.elasticsearch.xpack.esql.parser.StatementParserTests
   method: testNamedFunctionArgumentInMap
   issue: https://github.com/elastic/elasticsearch/issues/121020
-- class: org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityEsqlIT
-  method: testCrossClusterAsyncQuery
-  issue: https://github.com/elastic/elasticsearch/issues/121021
-- class: org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityEsqlIT
-  method: testCrossClusterAsyncQueryStop
-  issue: https://github.com/elastic/elasticsearch/issues/121021
 - class: org.elasticsearch.xpack.security.profile.ProfileIntegTests
   method: testSuggestProfilesWithName
   issue: https://github.com/elastic/elasticsearch/issues/121022
+- class: org.elasticsearch.xpack.security.profile.ProfileIntegTests
+  method: testProfileAPIsWhenIndexNotCreated
+  issue: https://github.com/elastic/elasticsearch/issues/121096
+- class: org.elasticsearch.xpack.security.profile.ProfileIntegTests
+  method: testGetProfiles
+  issue: https://github.com/elastic/elasticsearch/issues/121101
+- class: org.elasticsearch.xpack.security.authc.service.ServiceAccountSingleNodeTests
+  method: testAuthenticateWithServiceFileToken
+  issue: https://github.com/elastic/elasticsearch/issues/120988
+- class: org.elasticsearch.xpack.security.profile.ProfileIntegTests
+  method: testUpdateProfileData
+  issue: https://github.com/elastic/elasticsearch/issues/121108
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=nodes.stats/11_indices_metrics/indices mappings exact count test for indices level}
+  issue: https://github.com/elastic/elasticsearch/issues/120950
+- class: org.elasticsearch.xpack.shutdown.AllocationFailuresResetOnShutdownIT
+  method: testResetAllocationFailuresOnNodeShutdown
+  issue: https://github.com/elastic/elasticsearch/issues/121129
+- class: org.elasticsearch.xpack.security.authc.jwt.JwtRealmSingleNodeTests
+  method: testActivateProfileForJWT
+  issue: https://github.com/elastic/elasticsearch/issues/120983
+- class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
+  method: test {yaml=cluster.health/20_request_timeout/cluster health request timeout waiting for active shards}
+  issue: https://github.com/elastic/elasticsearch/issues/121130
 
 # Examples:
 #

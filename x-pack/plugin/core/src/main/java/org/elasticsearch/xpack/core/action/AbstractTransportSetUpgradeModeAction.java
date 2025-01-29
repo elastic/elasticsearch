@@ -56,7 +56,6 @@ public abstract class AbstractTransportSetUpgradeModeAction extends Acknowledged
             threadPool,
             actionFilters,
             SetUpgradeModeActionRequest::new,
-            indexNameExpressionResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
 

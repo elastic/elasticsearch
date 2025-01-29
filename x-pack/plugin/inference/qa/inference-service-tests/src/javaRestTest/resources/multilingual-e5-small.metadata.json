@@ -1,0 +1,32 @@
+{
+  "packaged_model_id": "multilingual-e5-small",
+  "minimum_version": "12.0.0",
+  "size": 5531160,
+  "sha256": "92e24566eff554d3a6808cc62731dbecf32db63e01801f3f62210aa9131c7a8b",
+  "description": "E5 small multilingual",
+  "model_type": "pytorch",
+  "tags": [],
+  "inference_config": {
+    "text_embedding": {
+      "tokenization": {
+        "xlm_roberta": {
+          "do_lower_case": false,
+          "with_special_tokens": true,
+          "max_sequence_length": 512,
+          "truncate": "first",
+          "span": -1
+        }
+      },
+      "embedding_size": 384
+    }
+  },
+  "prefix_strings": {
+      "search": "query: ",
+      "ingest": "passage: "
+  },
+  "metadata": {
+    "per_allocation_memory_bytes": 557785256,
+    "per_deployment_memory_bytes": 470031872
+  },
+  "vocabulary_file": "multilingual-e5-small.vocab.json"
+}

@@ -31,14 +31,7 @@ public class EnrichUsageTransportAction extends XPackUsageFeatureTransportAction
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
-        super(
-            XPackUsageFeatureAction.ENRICH.name(),
-            transportService,
-            clusterService,
-            threadPool,
-            actionFilters,
-            indexNameExpressionResolver
-        );
+        super(XPackUsageFeatureAction.ENRICH.name(), transportService, clusterService, threadPool, actionFilters);
     }
 
     @Override

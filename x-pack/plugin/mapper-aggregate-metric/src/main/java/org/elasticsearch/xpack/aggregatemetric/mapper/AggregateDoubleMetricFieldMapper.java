@@ -709,14 +709,14 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport() {
-        var loader = new CompositeSyntheticFieldLoader(
-            leafName(),
-            fullPath(),
-            new AggregateMetricSyntheticFieldLoader(fullPath(), metrics),
-            new CompositeSyntheticFieldLoader.MalformedValuesLayer(fullPath())
+        return new SyntheticSourceSupport.Native(
+            () -> new CompositeSyntheticFieldLoader(
+                leafName(),
+                fullPath(),
+                new AggregateMetricSyntheticFieldLoader(fullPath(), metrics),
+                new CompositeSyntheticFieldLoader.MalformedValuesLayer(fullPath())
+            )
         );
-
-        return new SyntheticSourceSupport.Native(loader);
     }
 
     public static class AggregateMetricSyntheticFieldLoader implements CompositeSyntheticFieldLoader.DocValuesLayer {

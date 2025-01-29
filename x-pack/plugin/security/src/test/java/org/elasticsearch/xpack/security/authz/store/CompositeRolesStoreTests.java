@@ -492,10 +492,10 @@ public class CompositeRolesStoreTests extends ESTestCase {
         getRoleForRoleNames(compositeRolesStore, Set.of("_mock_role"), future);
 
         final ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, future::actionGet);
-        // TODO: [Jake] should we figure out how to avoid exposing this error to the user?
+        // TODO: [Jake] should we figure out how to avoid exposing the written pattern to the user?
         assertThat(
             e.getMessage(),
-            containsString("The set of patterns [/(~(([.]|ilm-history-).*)&~(~(([.]|ilm-history-).*::failures)/] is invalid")
+            containsString("The set of patterns [/(~(([.]|ilm-history-).*)&~((~(([.]|ilm-history-).*)::failures)/] is invalid")
         );
         assertThat(e.getCause().getClass(), is(IllegalArgumentException.class));
     }

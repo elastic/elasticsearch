@@ -841,10 +841,9 @@ public final class IndicesPermission {
             this.actionMatcher = privilege.predicate();
             this.indices = indices;
             // TODO: [Jake] how to support selectors for hasPrivileges ? (are reg-ex's just broken for hasPrivilege index checks ?)
-            // TODO: [Jake] can regular expressions can be used to match failure indices with a single expression ?
-            // TODO: [Jake] ensure that only ::failure selectors can be added the role
+            // TODO: [Jake] ensure that only ::failure selectors can be added the role (i.e. error on name::* or name::data)
             // TODO: [Jake] ensure that no selectors can be added to remote_indices (or gate usage with a feature flag, or just test)
-            String[] indicesResolved = resolvePatternsForNameMatching(indices);
+            String[] indicesResolved = maybeAddFailureExclusions(indices);
             this.allowRestrictedIndices = allowRestrictedIndices;
             ConcurrentHashMap<String[], Automaton> indexNameAutomatonMemo = new ConcurrentHashMap<>(1);
             if (allowRestrictedIndices) {
@@ -859,19 +858,6 @@ public final class IndicesPermission {
             }
             this.fieldPermissions = Objects.requireNonNull(fieldPermissions);
             this.query = query;
-        }
-
-        /**
-         * Helper method to ensure that order of resolving patterns is correct and provide some debug logging
-         * @param indexPatterns The original index patterns as defined in the role
-         * @return the resolved indices that have been transformed
-         */
-        final String[] resolvePatternsForNameMatching(final String[] indexPatterns) {
-            // TODO: [Jake] use trace logging !
-            logger.error(() -> String.format(Locale.ROOT, "original indices: %s", Arrays.toString(indexPatterns)));
-            String[] afterFailureExclusions = maybeAddFailureExclusions(indexPatterns);
-            logger.error(() -> String.format(Locale.ROOT, "after failure exclusions: %s", Arrays.toString(afterFailureExclusions)));
-            return afterFailureExclusions;
         }
 
         // TODO: [Jake] ensure this javadoc is still correct before merging (some minor details are wrong, but the gist is correct)
@@ -900,6 +886,8 @@ public final class IndicesPermission {
          *         that will be used for authorization purposes
          */
         static String[] maybeAddFailureExclusions(final String[] indexPatterns) {
+            // TODO: [Jake] use trace logging !
+            logger.error(() -> String.format(Locale.ROOT, "original indices: %s", Arrays.toString(indexPatterns)));
             String[] indexPatternsWithExclusions = new String[indexPatterns.length];
             for (int i = 0; i < indexPatterns.length; i++) {
                 assert indexPatterns[i].endsWith("::data") == false : "Data selector is not allowed in this context";
@@ -911,6 +899,7 @@ public final class IndicesPermission {
                     indexPatternsWithExclusions[i] = indexPatterns[i];
                 }
             }
+            logger.error(() -> String.format(Locale.ROOT, "after failure exclusions: %s", Arrays.toString(indexPatternsWithExclusions)));
             return indexPatternsWithExclusions;
         }
 

@@ -169,23 +169,7 @@ public class PolicyManager {
     }
 
     public void checkStartProcess(Class<?> callerClass) {
-        neverEntitled(callerClass, "start process");
-    }
-
-    private void neverEntitled(Class<?> callerClass, String operationDescription) {
-        var requestingClass = requestingClass(callerClass);
-        if (isTriviallyAllowed(requestingClass)) {
-            return;
-        }
-
-        throw new NotEntitledException(
-            Strings.format(
-                "Not entitled: caller [%s], module [%s], operation [%s]",
-                callerClass,
-                requestingClass.getModule() == null ? "<none>" : requestingClass.getModule().getName(),
-                operationDescription
-            )
-        );
+        neverEntitled(callerClass, () -> "start process");
     }
 
     /**

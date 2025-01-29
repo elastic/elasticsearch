@@ -26,6 +26,7 @@ import java.util.function.Function;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 @SuppressWarnings("unchecked")
 public class LogsIndexModeCustomSettingsIT extends LogsIndexModeRestTestIT {
@@ -124,14 +125,7 @@ public class LogsIndexModeCustomSettingsIT extends LogsIndexModeRestTestIT {
         var mapping = getMapping(client, getDataStreamBackingIndex(client, "logs-custom-dev", 0));
         String sourceMode = (String) subObject("_source").apply(mapping).get("mode");
         assertThat(sourceMode, equalTo("stored"));
-
-        request = new Request("GET", "/_migration/deprecations");
-        var nodeSettings = (Map<?, ?>) ((List<?>) entityAsMap(client.performRequest(request)).get("node_settings")).get(0);
-        assertThat(nodeSettings.get("message"), equalTo(SourceFieldMapper.DEPRECATION_WARNING));
-        assertThat(
-            (String) nodeSettings.get("details"),
-            containsString(SourceFieldMapper.DEPRECATION_WARNING + " Affected component templates: [logs@custom]")
-        );
+        assertDeprecationWarningForTemplate("logs@custom");
     }
 
     public void testConfigureDisabledSourceBeforeIndexCreation() {
@@ -206,14 +200,7 @@ public class LogsIndexModeCustomSettingsIT extends LogsIndexModeRestTestIT {
         var mapping = getMapping(client, getDataStreamBackingIndex(client, "logs-custom-dev", 0));
         String sourceMode = (String) subObject("_source").apply(mapping).get("mode");
         assertThat(sourceMode, equalTo("stored"));
-
-        request = new Request("GET", "/_migration/deprecations");
-        var nodeSettings = (Map<?, ?>) ((List<?>) entityAsMap(client.performRequest(request)).get("node_settings")).get(0);
-        assertThat(nodeSettings.get("message"), equalTo(SourceFieldMapper.DEPRECATION_WARNING));
-        assertThat(
-            (String) nodeSettings.get("details"),
-            containsString(SourceFieldMapper.DEPRECATION_WARNING + " Affected component templates: [logs@custom]")
-        );
+        assertDeprecationWarningForTemplate("logs@custom");
     }
 
     public void testConfigureDisabledSourceWhenIndexIsCreated() throws IOException {
@@ -524,5 +511,15 @@ public class LogsIndexModeCustomSettingsIT extends LogsIndexModeRestTestIT {
 
     private Function<Object, Map<String, Object>> subObject(String key) {
         return (mapAsObject) -> (Map<String, Object>) ((Map<String, Object>) mapAsObject).get(key);
+    }
+
+    private void assertDeprecationWarningForTemplate(String templateName) throws IOException {
+        var request = new Request("GET", "/_migration/deprecations");
+        var response = entityAsMap(client().performRequest(request));
+        assertThat(response.containsKey("templates"), is(true));
+        Map<?, ?> issuesByTemplate = (Map<?, ?>) response.get("templates");
+        assertThat(issuesByTemplate.containsKey(templateName), equalTo(true));
+        var templateIssues = (List<?>) issuesByTemplate.get(templateName);
+        assertThat(((Map<?, ?>) templateIssues.get(0)).get("message"), equalTo(SourceFieldMapper.DEPRECATION_WARNING));
     }
 }

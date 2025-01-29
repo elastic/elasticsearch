@@ -49,6 +49,7 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
             .settings(settings(OLD_VERSION))
             .numberOfShards(1)
             .numberOfReplicas(0)
+            .state(randomBoolean() ? IndexMetadata.State.OPEN : IndexMetadata.State.CLOSE) // does not matter if its open or closed
             .build();
         ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
             .metadata(Metadata.builder().put(indexMetadata, true))
@@ -198,24 +199,6 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
             .metadata(Metadata.builder().put(indexMetadata, true))
             .build();
 
-        Map<String, List<DeprecationIssue>> issuesByIndex = checker.check(
-            clusterState,
-            new DeprecationInfoAction.Request(TimeValue.THIRTY_SECONDS)
-        );
-        assertThat(issuesByIndex.size(), equalTo(0));
-    }
-
-    public void testOldIndicesCheckClosedIgnored() {
-        Settings.Builder settings = settings(OLD_VERSION);
-        IndexMetadata indexMetadata = IndexMetadata.builder("test")
-            .settings(settings)
-            .numberOfShards(1)
-            .numberOfReplicas(0)
-            .state(IndexMetadata.State.CLOSE)
-            .build();
-        ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .metadata(Metadata.builder().put(indexMetadata, true))
-            .build();
         Map<String, List<DeprecationIssue>> issuesByIndex = checker.check(
             clusterState,
             new DeprecationInfoAction.Request(TimeValue.THIRTY_SECONDS)

@@ -220,6 +220,7 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
         sourceExchanger.addRemoteSink(
             sinkExchanger::fetchPageAsync,
             randomBoolean(),
+            () -> {},
             1,
             ActionListener.<Void>noop().delegateResponse((l, e) -> {
                 throw new AssertionError("unexpected failure", e);
@@ -248,7 +249,7 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
                         simpleWithMode(AggregatorMode.INTERMEDIATE).get(driver1Context),
                         intermediateOperatorItr.next()
                     ),
-                    new ExchangeSinkOperator(sinkExchanger.createExchangeSink(), Function.identity()),
+                    new ExchangeSinkOperator(sinkExchanger.createExchangeSink(() -> {}), Function.identity()),
                     () -> {}
                 )
             );

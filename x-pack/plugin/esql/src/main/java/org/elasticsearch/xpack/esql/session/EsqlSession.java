@@ -73,7 +73,7 @@ import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
-import org.elasticsearch.xpack.esql.stats.PlanningMetrics;
+import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -112,7 +112,7 @@ public class EsqlSession {
 
     private final Mapper mapper;
     private final PhysicalPlanOptimizer physicalPlanOptimizer;
-    private final PlanningMetrics planningMetrics;
+    private final PlanTelemetry planTelemetry;
     private final IndicesExpressionGrouper indicesExpressionGrouper;
     private final QueryBuilderResolver queryBuilderResolver;
 
@@ -126,7 +126,7 @@ public class EsqlSession {
         LogicalPlanOptimizer logicalPlanOptimizer,
         Mapper mapper,
         Verifier verifier,
-        PlanningMetrics planningMetrics,
+        PlanTelemetry planTelemetry,
         IndicesExpressionGrouper indicesExpressionGrouper,
         QueryBuilderResolver queryBuilderResolver
     ) {
@@ -140,7 +140,7 @@ public class EsqlSession {
         this.mapper = mapper;
         this.logicalPlanOptimizer = logicalPlanOptimizer;
         this.physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(configuration));
-        this.planningMetrics = planningMetrics;
+        this.planTelemetry = planTelemetry;
         this.indicesExpressionGrouper = indicesExpressionGrouper;
         this.queryBuilderResolver = queryBuilderResolver;
     }
@@ -280,7 +280,7 @@ public class EsqlSession {
     }
 
     private LogicalPlan parse(String query, QueryParams params) {
-        var parsed = new EsqlParser().createStatement(query, params);
+        var parsed = new EsqlParser().createStatement(query, params, planTelemetry);
         LOGGER.debug("Parsed logical plan:\n{}", parsed);
         return parsed;
     }
@@ -297,7 +297,6 @@ public class EsqlSession {
         }
 
         Function<PreAnalysisResult, LogicalPlan> analyzeAction = (l) -> {
-            planningMetrics.gatherPreAnalysisMetrics(parsed);
             Analyzer analyzer = new Analyzer(
                 new AnalyzerContext(configuration, functionRegistry, l.indices, l.lookupIndices, l.enrichResolution),
                 verifier
@@ -469,7 +468,8 @@ public class EsqlSession {
         IndexResolution indexResolution = result.indices;
         EsqlSessionCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolution);
         EsqlSessionCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.unavailableClusters());
-        if (executionInfo.isCrossClusterSearch() && executionInfo.getClusterStateCount(EsqlExecutionInfo.Cluster.Status.RUNNING) == 0) {
+        if (executionInfo.isCrossClusterSearch()
+            && executionInfo.getClusterStates(EsqlExecutionInfo.Cluster.Status.RUNNING).findAny().isEmpty()) {
             // for a CCS, if all clusters have been marked as SKIPPED, nothing to search so send a sentinel Exception
             // to let the LogicalPlanActionListener decide how to proceed
             logicalPlanListener.onFailure(new NoClustersToSearchException());
@@ -484,7 +484,7 @@ public class EsqlSession {
         // TODO: add a test for this
         if (targetClusters.containsAll(newClusters) == false
             // do not bother with a re-resolution if only remotes were requested and all were offline
-            && executionInfo.getClusterStateCount(EsqlExecutionInfo.Cluster.Status.RUNNING) > 0) {
+            && executionInfo.getClusterStates(EsqlExecutionInfo.Cluster.Status.RUNNING).findAny().isPresent()) {
             enrichPolicyResolver.resolvePolicies(
                 newClusters,
                 unresolvedPolicies,
@@ -623,10 +623,11 @@ public class EsqlSession {
             // for example "from test | eval x = salary | stats max = max(x) by gender"
             // remove the UnresolvedAttribute "x", since that is an Alias defined in "eval"
             AttributeSet planRefs = p.references();
+            Set<String> fieldNames = planRefs.names();
             p.forEachExpressionDown(Alias.class, alias -> {
                 // do not remove the UnresolvedAttribute that has the same name as its alias, ie "rename id = id"
                 // or the UnresolvedAttributes that are used in Functions that have aliases "STATS id = MAX(id)"
-                if (planRefs.names().contains(alias.name())) {
+                if (fieldNames.contains(alias.name())) {
                     return;
                 }
                 references.removeIf(attr -> matchByName(attr, alias.name(), keepCommandReferences.contains(attr)));

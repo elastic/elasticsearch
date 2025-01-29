@@ -14,6 +14,7 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.test.cluster.util.Version;
 
@@ -182,6 +183,76 @@ public class RollingUpgradeLuceneIndexCompatibilityTestCase extends RollingUpgra
     }
 
     /**
+     * Creates an index on N-2, closes it on N-1 and then upgrades the cluster.
+     */
+    public void testClosedIndexUpgrade() throws Exception {
+        final String index = suffix("closed-rolling-upgraded");
+        final int numDocs = 1543;
+
+        if (isFullyUpgradedTo(VERSION_MINUS_2)) {
+            createIndex(
+                client(),
+                index,
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
+                    .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), randomFrom(Translog.Durability.values()))
+                    .build()
+            );
+            indexDocs(index, numDocs);
+            return;
+        }
+
+        assertThat(indexVersion(index), equalTo(VERSION_MINUS_2));
+        ensureGreen(index);
+
+        if (isIndexClosed(index) == false) {
+            assertDocCount(client(), index, numDocs);
+        }
+
+        if (isFullyUpgradedTo(VERSION_MINUS_1)) {
+            logger.debug("--> closing index [{}]", index);
+            closeIndex(index);
+
+            assertThat(indexBlocks(index), contains(INDEX_CLOSED_BLOCK));
+            assertIndexSetting(index, VERIFIED_BEFORE_CLOSE_SETTING, is(true));
+            assertIndexSetting(index, VERIFIED_READ_ONLY_SETTING, is(false));
+            return;
+        }
+
+        if (nodesVersions().values().stream().anyMatch(v -> v.onOrAfter(VERSION_CURRENT))) {
+            long upgradedNodes = nodesVersions().values().stream().filter(v -> v.onOrAfter(VERSION_CURRENT)).count();
+            if (upgradedNodes == 1) {
+                // Mixed cluster with 1 of the 3 nodes upgraded: the index hasn't been reopened yet
+                assertThat(indexBlocks(index), contains(INDEX_CLOSED_BLOCK));
+                assertIndexSetting(index, VERIFIED_BEFORE_CLOSE_SETTING, is(true));
+                assertIndexSetting(index, VERIFIED_READ_ONLY_SETTING, is(false));
+
+            } else {
+                // Index has been reopened at least once, it should have an additional write block and the verified-read-only setting
+                assertThat(indexBlocks(index), contains(INDEX_CLOSED_BLOCK, INDEX_WRITE_BLOCK));
+                assertIndexSetting(index, VERIFIED_BEFORE_CLOSE_SETTING, is(true));
+                assertIndexSetting(index, VERIFIED_READ_ONLY_SETTING, is(true));
+            }
+
+            openIndex(index);
+            ensureGreen(index);
+
+            assertThat(indexBlocks(index), contains(INDEX_WRITE_BLOCK));
+            assertIndexSetting(index, VERIFIED_BEFORE_CLOSE_SETTING, is(false));
+            assertIndexSetting(index, VERIFIED_READ_ONLY_SETTING, is(true));
+            assertDocCount(client(), index, numDocs);
+
+            updateRandomIndexSettings(index);
+            updateRandomMappings(index);
+
+            closeIndex(index);
+            ensureGreen(index);
+        }
+    }
+
+    /**
      * Creates an index on N-2, marks as read-only on N-1 and creates a snapshot, then restores the snapshot during rolling upgrades to N.
      */
     public void testRestoreIndex() throws Exception {
@@ -253,18 +324,28 @@ public class RollingUpgradeLuceneIndexCompatibilityTestCase extends RollingUpgra
                 closeIndex(restoredIndex);
                 ensureGreen(restoredIndex);
 
+                assertThat(indexBlocks(restoredIndex), contains(INDEX_CLOSED_BLOCK, INDEX_WRITE_BLOCK));
+                assertIndexSetting(restoredIndex, VERIFIED_BEFORE_CLOSE_SETTING, is(true));
+                assertIndexSetting(restoredIndex, VERIFIED_READ_ONLY_SETTING, is(true));
+
                 logger.debug("--> write API block can be removed on a closed index: INDEX_CLOSED_BLOCK already blocks writes");
                 updateIndexSettings(restoredIndex, Settings.builder().putNull(IndexMetadata.APIBlock.WRITE.settingName()));
 
-                logger.debug("--> but attempts to re-opening [{}] should fail due to the missing block", restoredIndex);
-                ex = expectThrows(ResponseException.class, () -> openIndex(restoredIndex));
-                assertThat(ex.getMessage(), containsString("must be marked as read-only"));
+                assertThat(indexBlocks(restoredIndex), contains(INDEX_CLOSED_BLOCK));
+                assertIndexSetting(restoredIndex, VERIFIED_BEFORE_CLOSE_SETTING, is(true));
+                assertIndexSetting(restoredIndex, VERIFIED_READ_ONLY_SETTING, is(true));
 
-                addIndexBlock(restoredIndex, IndexMetadata.APIBlock.WRITE);
+                if (randomBoolean()) {
+                    addIndexBlock(restoredIndex, IndexMetadata.APIBlock.WRITE);
+                }
 
                 logger.debug("--> re-opening restored index [{}]", restoredIndex);
                 openIndex(restoredIndex);
                 ensureGreen(restoredIndex);
+
+                assertThat(indexBlocks(restoredIndex), contains(INDEX_WRITE_BLOCK));
+                assertIndexSetting(restoredIndex, VERIFIED_BEFORE_CLOSE_SETTING, is(false));
+                assertIndexSetting(restoredIndex, VERIFIED_READ_ONLY_SETTING, is(true));
 
                 assertDocCount(client(), restoredIndex, numDocs);
 

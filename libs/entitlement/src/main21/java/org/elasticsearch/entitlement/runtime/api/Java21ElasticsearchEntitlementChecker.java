@@ -9,18 +9,12 @@
 
 package org.elasticsearch.entitlement.runtime.api;
 
-import org.elasticsearch.entitlement.bridge.Java23EntitlementChecker;
+import org.elasticsearch.entitlement.bridge.Java21EntitlementChecker;
 import org.elasticsearch.entitlement.runtime.policy.PolicyManager;
 
-public class Java23ElasticsearchEntitlementChecker extends Java22ElasticsearchEntitlementChecker implements Java23EntitlementChecker {
+public class Java21ElasticsearchEntitlementChecker extends ElasticsearchEntitlementChecker implements Java21EntitlementChecker {
 
-    public Java23ElasticsearchEntitlementChecker(PolicyManager policyManager) {
+    public Java21ElasticsearchEntitlementChecker(PolicyManager policyManager) {
         super(policyManager);
-    }
-
-    @Override
-    public void check$java_lang_Runtime$exit(Class<?> callerClass, Runtime runtime, int status) {
-        // TODO: this is just an example, we shouldn't really override a method implemented in the superclass
-        super.check$java_lang_Runtime$exit(callerClass, runtime, status);
     }
 }

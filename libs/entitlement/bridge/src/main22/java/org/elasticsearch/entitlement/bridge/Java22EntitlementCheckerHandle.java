@@ -9,4 +9,19 @@
 
 package org.elasticsearch.entitlement.bridge;
 
-public interface Java23EntitlementChecker extends Java22EntitlementChecker {}
+/**
+ * Java22 variant of {@link EntitlementChecker} handle holder.
+ */
+public class Java22EntitlementCheckerHandle {
+
+    public static Java22EntitlementChecker instance() {
+        return Holder.instance;
+    }
+
+    private static class Holder {
+        private static final Java22EntitlementChecker instance = HandleLoader.load(Java22EntitlementChecker.class);
+    }
+
+    // no construction
+    private Java22EntitlementCheckerHandle() {}
+}

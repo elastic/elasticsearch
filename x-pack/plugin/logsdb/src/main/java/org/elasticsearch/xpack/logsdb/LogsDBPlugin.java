@@ -11,10 +11,8 @@ import org.elasticsearch.Build;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
@@ -42,17 +40,21 @@ import java.util.List;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.xpack.logsdb.LogsPatternUsageService.LOGSDB_PRIOR_LOGS_USAGE;
-import static org.elasticsearch.xpack.logsdb.LogsPatternUsageService.USAGE_CHECK_MAX_PERIOD;
 import static org.elasticsearch.xpack.logsdb.SyntheticSourceLicenseService.FALLBACK_SETTING;
 
 public class LogsDBPlugin extends Plugin implements ActionPlugin {
 
     private final Settings settings;
     private final SyntheticSourceLicenseService licenseService;
+    private static final Setting<Boolean> LOGSDB_PRIOR_LOGS_USAGE = Setting.boolSetting(
+        "logsdb.prior_logs_usage",
+        false,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
     public static final Setting<Boolean> CLUSTER_LOGSDB_ENABLED = Setting.boolSetting(
         "cluster.logsdb.enabled",
-        false,
+        settings -> Boolean.toString(LOGSDB_PRIOR_LOGS_USAGE.get(settings) == false),
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
@@ -81,18 +83,6 @@ public class LogsDBPlugin extends Plugin implements ActionPlugin {
             logsdbIndexModeSettingsProvider::updateClusterIndexModeLogsdbEnabled
         );
 
-        var clusterService = services.clusterService();
-        Supplier<Metadata> metadataSupplier = () -> clusterService.state().metadata();
-        var historicLogsUsageService = new LogsPatternUsageService(services.client(), settings, services.threadPool(), metadataSupplier);
-        clusterService.addLocalNodeMasterListener(historicLogsUsageService);
-        clusterService.addLifecycleListener(new LifecycleListener() {
-
-            @Override
-            public void beforeStop() {
-                historicLogsUsageService.offMaster();
-            }
-        });
-
         // Nothing to share here:
         return super.createComponents(services);
     }
@@ -112,7 +102,7 @@ public class LogsDBPlugin extends Plugin implements ActionPlugin {
 
     @Override
     public List<Setting<?>> getSettings() {
-        return List.of(FALLBACK_SETTING, CLUSTER_LOGSDB_ENABLED, USAGE_CHECK_MAX_PERIOD, LOGSDB_PRIOR_LOGS_USAGE);
+        return List.of(FALLBACK_SETTING, CLUSTER_LOGSDB_ENABLED, LOGSDB_PRIOR_LOGS_USAGE);
     }
 
     @Override

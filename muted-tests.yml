@@ -305,15 +305,23 @@ tests:
 - class: org.elasticsearch.xpack.security.profile.ProfileIntegTests
   method: testProfileIndexAutoCreation
   issue: https://github.com/elastic/elasticsearch/issues/120987
-- class: org.elasticsearch.lucene.RollingUpgradeLuceneIndexCompatibilityTestCase
-  method: testRestoreIndex {p0=[9.0.0, 9.0.0, 8.18.0]}
-  issue: https://github.com/elastic/elasticsearch/issues/121170
-- class: org.elasticsearch.lucene.RollingUpgradeLuceneIndexCompatibilityTestCase
-  method: testRestoreIndex {p0=[9.0.0, 8.18.0, 8.18.0]}
-  issue: https://github.com/elastic/elasticsearch/issues/121171
 - class: org.elasticsearch.xpack.security.FileSettingsRoleMappingsRestartIT
   method: testFileSettingsReprocessedOnRestartWithoutVersionChange
   issue: https://github.com/elastic/elasticsearch/issues/120964
+- class: org.elasticsearch.xpack.ml.integration.ClassificationIT
+  method: testWithOnlyTrainingRowsAndTrainingPercentIsFifty_DependentVariableIsKeyword
+  issue: https://github.com/elastic/elasticsearch/issues/120071
+- class: org.elasticsearch.xpack.security.profile.ProfileIntegTests
+  method: testGetUsersWithProfileUidWhenProfileIndexDoesNotExists
+  issue: https://github.com/elastic/elasticsearch/issues/121179
+- class: org.elasticsearch.xpack.security.profile.ProfileIntegTests
+  method: testSetEnabled
+  issue: https://github.com/elastic/elasticsearch/issues/121183
+- class: org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizerTests
+  issue: https://github.com/elastic/elasticsearch/issues/121185
+- class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
+  method: test {yaml=cat.aliases/10_basic/Simple alias}
+  issue: https://github.com/elastic/elasticsearch/issues/121186
 
 # Examples:
 #

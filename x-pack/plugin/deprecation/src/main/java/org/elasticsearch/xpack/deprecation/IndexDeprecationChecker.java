@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.deprecation;
 
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.LegacyFormatNames;
@@ -20,6 +21,7 @@ import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -27,10 +29,54 @@ import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
+import static org.elasticsearch.xpack.deprecation.DeprecationInfoAction.filterChecks;
+import static org.elasticsearch.xpack.deprecation.LegacyTiersDetection.DEPRECATION_COMMON_DETAIL;
+import static org.elasticsearch.xpack.deprecation.LegacyTiersDetection.DEPRECATION_HELP_URL;
+
 /**
  * Index-specific deprecation checks
  */
-public class IndexDeprecationChecks {
+public class IndexDeprecationChecker implements ResourceDeprecationChecker {
+
+    public static final String NAME = "index_settings";
+    private static final List<BiFunction<IndexMetadata, ClusterState, DeprecationIssue>> INDEX_SETTINGS_CHECKS = List.of(
+        IndexDeprecationChecker::oldIndicesCheck,
+        IndexDeprecationChecker::ignoredOldIndicesCheck,
+        IndexDeprecationChecker::translogRetentionSettingCheck,
+        IndexDeprecationChecker::checkIndexDataPath,
+        IndexDeprecationChecker::storeTypeSettingCheck,
+        IndexDeprecationChecker::frozenIndexSettingCheck,
+        IndexDeprecationChecker::deprecatedCamelCasePattern,
+        IndexDeprecationChecker::legacyRoutingSettingCheck
+    );
+
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
+
+    public IndexDeprecationChecker(IndexNameExpressionResolver indexNameExpressionResolver) {
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
+    }
+
+    @Override
+    public Map<String, List<DeprecationIssue>> check(ClusterState clusterState, DeprecationInfoAction.Request request) {
+        Map<String, List<DeprecationIssue>> indexSettingsIssues = new HashMap<>();
+        String[] concreteIndexNames = indexNameExpressionResolver.concreteIndexNames(clusterState, request);
+        for (String concreteIndex : concreteIndexNames) {
+            IndexMetadata indexMetadata = clusterState.getMetadata().index(concreteIndex);
+            List<DeprecationIssue> singleIndexIssues = filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(indexMetadata, clusterState));
+            if (singleIndexIssues.isEmpty() == false) {
+                indexSettingsIssues.put(concreteIndex, singleIndexIssues);
+            }
+        }
+        if (indexSettingsIssues.isEmpty()) {
+            return Map.of();
+        }
+        return indexSettingsIssues;
+    }
+
+    @Override
+    public String getName() {
+        return NAME;
+    }
 
     static DeprecationIssue oldIndicesCheck(IndexMetadata indexMetadata, ClusterState clusterState) {
         // TODO: this check needs to be revised. It's trivially true right now.
@@ -148,6 +194,22 @@ public class IndexDeprecationChecks {
         return null;
     }
 
+    static DeprecationIssue legacyRoutingSettingCheck(IndexMetadata indexMetadata, ClusterState clusterState) {
+        List<String> deprecatedSettings = LegacyTiersDetection.getDeprecatedFilteredAllocationSettings(indexMetadata.getSettings());
+        if (deprecatedSettings.isEmpty()) {
+            return null;
+        }
+        String indexName = indexMetadata.getIndex().getName();
+        return new DeprecationIssue(
+            DeprecationIssue.Level.WARNING,
+            "index [" + indexName + "] is configuring tiers via filtered allocation which is not recommended.",
+            DEPRECATION_HELP_URL,
+            "One or more of your indices is configured with 'index.routing.allocation.*.data' settings. " + DEPRECATION_COMMON_DETAIL,
+            false,
+            DeprecationIssue.createMetaMapForRemovableSettings(deprecatedSettings)
+        );
+    }
+
     private static void fieldLevelMappingIssue(IndexMetadata indexMetadata, BiConsumer<MappingMetadata, Map<String, Object>> checker) {
         if (indexMetadata.mapping() != null) {
             Map<String, Object> sourceAsMap = indexMetadata.mapping().sourceAsMap();
@@ -228,8 +290,8 @@ public class IndexDeprecationChecks {
                 findInPropertiesRecursively(
                     mappingMetadata.type(),
                     sourceAsMap,
-                    IndexDeprecationChecks::isDateFieldWithCamelCasePattern,
-                    IndexDeprecationChecks::changeFormatToSnakeCase,
+                    IndexDeprecationChecker::isDateFieldWithCamelCasePattern,
+                    IndexDeprecationChecker::changeFormatToSnakeCase,
                     "",
                     ""
                 )

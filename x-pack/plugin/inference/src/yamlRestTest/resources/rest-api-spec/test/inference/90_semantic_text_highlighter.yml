@@ -82,7 +82,6 @@ setup:
           highlight:
             fields:
               body:
-                type: "semantic"
                 number_of_fragments: 1
 
   - match:  { hits.total.value: 1 }
@@ -101,7 +100,6 @@ setup:
           highlight:
             fields:
               body:
-                type: "semantic"
                 number_of_fragments: 2
 
   - match:  { hits.total.value: 1 }
@@ -121,7 +119,6 @@ setup:
           highlight:
             fields:
               body:
-                type: "semantic"
                 order: "score"
                 number_of_fragments: 1
 
@@ -141,7 +138,6 @@ setup:
           highlight:
             fields:
               body:
-                type: "semantic"
                 order: "score"
                 number_of_fragments: 2
 
@@ -174,7 +170,6 @@ setup:
           highlight:
             fields:
               body:
-                type: "semantic"
                 number_of_fragments: 1
 
   - match:  { hits.total.value: 1 }
@@ -193,7 +188,6 @@ setup:
           highlight:
             fields:
               body:
-                type: "semantic"
                 number_of_fragments: 2
 
   - match:  { hits.total.value: 1 }
@@ -213,7 +207,6 @@ setup:
           highlight:
             fields:
               body:
-                type: "semantic"
                 order: "score"
                 number_of_fragments: 1
 
@@ -233,7 +226,6 @@ setup:
           highlight:
             fields:
               body:
-                type: "semantic"
                 order: "score"
                 number_of_fragments: 2
 

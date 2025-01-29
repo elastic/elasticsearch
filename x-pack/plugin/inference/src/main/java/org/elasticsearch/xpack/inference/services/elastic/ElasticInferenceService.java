@@ -70,6 +70,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.core.inference.results.ResultUtils.createInvalidChunkedResultException;
+import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.constructFailedToSendRequestMessage;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT_TOKENS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
@@ -177,18 +178,30 @@ public class ElasticInferenceService extends SenderService {
         var authorizedTaskTypesAndModels = auth.newLimitedToTaskTypes(EnumSet.copyOf(IMPLEMENTED_TASK_TYPES));
 
         // recalculate which default config ids and models are authorized now
-        var authorizedDefaultConfigIds = getAuthorizedDefaultConfigIds(auth);
-        var authorizedDefaultModelObjects = getAuthorizedDefaultModelsObjects(auth);
+        var authorizedDefaultModelIds = getAuthorizedDefaultModelIds(auth);
+
+        var authorizedDefaultConfigIds = getAuthorizedDefaultConfigIds(authorizedDefaultModelIds, auth);
+        var authorizedDefaultModelObjects = getAuthorizedDefaultModelsObjects(authorizedDefaultModelIds);
         authRef.set(new AuthorizedContent(authorizedTaskTypesAndModels, authorizedDefaultConfigIds, authorizedDefaultModelObjects));
 
         configuration = new Configuration(authRef.get().taskTypesAndModels.getAuthorizedTaskTypes());
 
         defaultConfigIds().forEach(modelRegistry::addDefaultIds);
+        handleRevokedDefaultConfigs(authorizedDefaultModelIds);
     }
 
-    private List<DefaultConfigId> getAuthorizedDefaultConfigIds(ElasticInferenceServiceAuthorization auth) {
-        var authorizedDefaultModelIds = getAuthorizedDefaultModelIds(auth);
+    private Set<String> getAuthorizedDefaultModelIds(ElasticInferenceServiceAuthorization auth) {
+        var authorizedModels = auth.getAuthorizedModelIds();
+        var authorizedDefaultModelIds = new HashSet<>(defaultModelsConfigs.keySet());
+        authorizedDefaultModelIds.retainAll(authorizedModels);
 
+        return authorizedDefaultModelIds;
+    }
+
+    private List<DefaultConfigId> getAuthorizedDefaultConfigIds(
+        Set<String> authorizedDefaultModelIds,
+        ElasticInferenceServiceAuthorization auth
+    ) {
         var authorizedConfigIds = new ArrayList<DefaultConfigId>();
         for (var id : authorizedDefaultModelIds) {
             var modelConfig = defaultModelsConfigs.get(id);
@@ -210,17 +223,7 @@ public class ElasticInferenceService extends SenderService {
         return authorizedConfigIds;
     }
 
-    private Set<String> getAuthorizedDefaultModelIds(ElasticInferenceServiceAuthorization auth) {
-        var authorizedModels = auth.getAuthorizedModelIds();
-        var authorizedDefaultModelIds = new HashSet<>(defaultModelsConfigs.keySet());
-        authorizedDefaultModelIds.retainAll(authorizedModels);
-
-        return authorizedDefaultModelIds;
-    }
-
-    private List<DefaultModelConfig> getAuthorizedDefaultModelsObjects(ElasticInferenceServiceAuthorization auth) {
-        var authorizedDefaultModelIds = getAuthorizedDefaultModelIds(auth);
-
+    private List<DefaultModelConfig> getAuthorizedDefaultModelsObjects(Set<String> authorizedDefaultModelIds) {
         var authorizedModels = new ArrayList<DefaultModelConfig>();
         for (var id : authorizedDefaultModelIds) {
             var modelConfig = defaultModelsConfigs.get(id);
@@ -230,6 +233,24 @@ public class ElasticInferenceService extends SenderService {
         }
 
         return authorizedModels;
+    }
+
+    private void handleRevokedDefaultConfigs(Set<String> authorizedDefaultModelIds) {
+        // if a model was initially returned in the authorization response but is absent, then we'll assume authorization was revoked
+        var unauthorizedDefaultModelIds = new HashSet<>(defaultModelsConfigs.keySet());
+        unauthorizedDefaultModelIds.removeAll(authorizedDefaultModelIds);
+
+        var deleteInferenceEndpointsListener = ActionListener.<Boolean>wrap(result -> {
+            logger.trace(Strings.format("Successfully revoked access to default inference endpoint IDs: %s", unauthorizedDefaultModelIds));
+        }, e -> {
+            logger.warn(
+                Strings.format("Failed to revoke access to default inference endpoint IDs: %s, error: %s", unauthorizedDefaultModelIds, e)
+            );
+        });
+
+        getServiceComponents().threadPool()
+            .executor(UTILITY_THREAD_POOL_NAME)
+            .execute(() -> modelRegistry.removeDefaultConfigs(unauthorizedDefaultModelIds, deleteInferenceEndpointsListener));
     }
 
     // Default for testing

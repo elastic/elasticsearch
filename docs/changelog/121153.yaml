@@ -1,0 +1,5 @@
+pr: 121153
+summary: ESQL - Add scoring for full text functions disjunctions
+area: ES|QL
+type: enhancement
+issues: []

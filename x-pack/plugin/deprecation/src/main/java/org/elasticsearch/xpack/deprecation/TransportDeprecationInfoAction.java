@@ -40,12 +40,10 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.xpack.deprecation.DeprecationChecks.CLUSTER_SETTINGS_CHECKS;
-
 public class TransportDeprecationInfoAction extends TransportMasterNodeReadAction<
     DeprecationInfoAction.Request,
     DeprecationInfoAction.Response> {
-    private static final DeprecationChecker ML_CHECKER = new MlDeprecationChecker();
+    private static final List<DeprecationChecker> PLUGIN_CHECKERS = List.of(new MlDeprecationChecker());
     private static final Logger logger = LogManager.getLogger(TransportDeprecationInfoAction.class);
 
     private final NodeClient client;
@@ -53,6 +51,8 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
     private final Settings settings;
     private final NamedXContentRegistry xContentRegistry;
     private volatile List<String> skipTheseDeprecations;
+    private final ClusterDeprecationChecker clusterDeprecationChecker;
+    private final List<ResourceDeprecationChecker> resourceDeprecationCheckers;
 
     @Inject
     public TransportDeprecationInfoAction(
@@ -80,6 +80,12 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
         this.settings = settings;
         this.xContentRegistry = xContentRegistry;
         skipTheseDeprecations = DeprecationChecks.SKIP_DEPRECATIONS_SETTING.get(settings);
+        clusterDeprecationChecker = new ClusterDeprecationChecker(xContentRegistry);
+        resourceDeprecationCheckers = List.of(
+            new DataStreamDeprecationChecker(indexNameExpressionResolver),
+            new TemplateDeprecationChecker(),
+            new IlmPolicyDeprecationChecker()
+        );
         // Safe to register this here because it happens synchronously before the cluster service is started:
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(DeprecationChecks.SKIP_DEPRECATIONS_SETTING, this::setSkipDeprecations);
@@ -126,7 +132,7 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
                         new OriginSettingClient(client, ClientHelper.DEPRECATION_ORIGIN)
                     );
                     pluginSettingIssues(
-                        List.of(ML_CHECKER, new TransformDeprecationChecker(transformConfigs)),
+                        PLUGIN_CHECKERS,
                         components,
                         new ThreadedActionListener<>(
                             client.threadPool().generic(),
@@ -136,7 +142,7 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
                                     indexNameExpressionResolver,
                                     request,
                                     response,
-                                    CLUSTER_SETTINGS_CHECKS,
+                                    clusterDeprecationChecker,
                                     deprecationIssues,
                                     skipTheseDeprecations,
                                     List.of(
@@ -144,7 +150,8 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
                                         new DataStreamDeprecationChecker(indexNameExpressionResolver),
                                         new TemplateDeprecationChecker(),
                                         new IlmPolicyDeprecationChecker()
-                                    )
+                                    ),
+                                    transformConfigs
                                 )
                             )
                         )

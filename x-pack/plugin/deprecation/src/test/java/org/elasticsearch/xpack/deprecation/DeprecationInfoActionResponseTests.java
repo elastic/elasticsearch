@@ -26,6 +26,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
@@ -49,6 +50,9 @@ import java.util.stream.Stream;
 import static org.elasticsearch.xpack.deprecation.DeprecationInfoAction.Response.RESERVED_NAMES;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.core.IsEqual.equalTo;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class DeprecationInfoActionResponseTests extends AbstractWireSerializingTestCase<DeprecationInfoAction.Response> {
 
@@ -179,7 +183,8 @@ public class DeprecationInfoActionResponseTests extends AbstractWireSerializingT
         boolean componentTemplateIssueFound = randomBoolean();
         boolean ilmPolicyIssueFound = randomBoolean();
         DeprecationIssue foundIssue = createTestDeprecationIssue();
-        List<Function<ClusterState, DeprecationIssue>> clusterSettingsChecks = List.of((s) -> clusterIssueFound ? foundIssue : null);
+        ClusterDeprecationChecker clusterDeprecationChecker = mock(ClusterDeprecationChecker.class);
+        when(clusterDeprecationChecker.check(any(), any())).thenReturn(clusterIssueFound ? List.of(foundIssue) : List.of());
         List<ResourceDeprecationChecker> resourceCheckers = List.of(createResourceChecker("index_settings", (cs, req) -> {
             if (indexIssueFound) {
                 return Map.of("test", List.of(foundIssue));
@@ -218,10 +223,11 @@ public class DeprecationInfoActionResponseTests extends AbstractWireSerializingT
             resolver,
             request,
             nodeDeprecationIssues,
-            clusterSettingsChecks,
-            new HashMap<>(), // modified in the method to move transform deprecation issues into cluster_settings
+            clusterDeprecationChecker,
+            Map.of(),
             List.of(),
-            resourceCheckers
+            resourceCheckers,
+            List.of()
         );
 
         if (clusterIssueFound) {
@@ -324,10 +330,11 @@ public class DeprecationInfoActionResponseTests extends AbstractWireSerializingT
             resolver,
             request,
             nodeDeprecationIssues,
-            clusterSettingsChecks,
-            new HashMap<>(), // modified in the method to move transform deprecation issues into cluster_settings
+            new ClusterDeprecationChecker(NamedXContentRegistry.EMPTY),
+            Map.of(),
             List.of(),
-            resourceCheckers
+            resourceCheckers,
+            List.of()
         );
 
         String details = foundIssue1.getDetails() != null ? foundIssue1.getDetails() + " " : "";
@@ -370,9 +377,11 @@ public class DeprecationInfoActionResponseTests extends AbstractWireSerializingT
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).build();
         IndexNameExpressionResolver resolver = TestIndexNameExpressionResolver.newInstance();
         AtomicReference<Settings> visibleClusterSettings = new AtomicReference<>();
-        List<Function<ClusterState, DeprecationIssue>> clusterSettingsChecks = List.of((s) -> {
-            visibleClusterSettings.set(s.getMetadata().settings());
-            return null;
+        ClusterDeprecationChecker clusterDeprecationChecker = mock(ClusterDeprecationChecker.class);
+        when(clusterDeprecationChecker.check(any(), any())).thenAnswer(invocationOnMock -> {
+            ClusterState observedState = invocationOnMock.getArgument(0);
+            visibleClusterSettings.set(observedState.getMetadata().settings());
+            return List.of();
         });
         AtomicReference<Settings> visibleIndexSettings = new AtomicReference<>();
         AtomicReference<Settings> visibleComponentTemplateSettings = new AtomicReference<>();
@@ -407,10 +416,11 @@ public class DeprecationInfoActionResponseTests extends AbstractWireSerializingT
             resolver,
             request,
             nodeDeprecationIssues,
-            clusterSettingsChecks,
-            new HashMap<>(), // modified in the method to move transform deprecation issues into cluster_settings
+            clusterDeprecationChecker,
+            Map.of(),
             List.of("some.deprecated.property", "some.other.*.deprecated.property"),
-            resourceCheckers
+            resourceCheckers,
+            List.of()
         );
 
         settingsBuilder = settings(IndexVersion.current());

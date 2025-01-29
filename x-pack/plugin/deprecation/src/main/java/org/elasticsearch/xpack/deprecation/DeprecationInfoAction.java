@@ -34,6 +34,7 @@ import org.elasticsearch.transport.Transports;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
+import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -299,12 +300,13 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
          * @param indexNameExpressionResolver Used to resolve indices into their concrete names
          * @param request The originating request containing the index expressions to evaluate
          * @param nodeDeprecationResponse The response containing the deprecation issues found on each node
-         * @param clusterSettingsChecks The list of cluster-level checks
+         * @param clusterDeprecationChecker The checker that provides the cluster settings deprecations warnings
          * @param pluginSettingIssues this map gets modified to move transform deprecation issues into cluster_settings
          * @param skipTheseDeprecatedSettings the settings that will be removed from cluster metadata and the index metadata of all the
          *                                    indexes specified by indexNames
          * @param resourceDeprecationCheckers these are checkers that take as input the cluster state and return a map from resource type
          *                                    to issues grouped by the resource name.
+         * @param transformConfigs the transform configuration that have been already retrieved
          * @return The list of deprecation issues found in the cluster
          */
         public static DeprecationInfoAction.Response from(
@@ -312,18 +314,19 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
             IndexNameExpressionResolver indexNameExpressionResolver,
             Request request,
             NodesDeprecationCheckResponse nodeDeprecationResponse,
-            List<Function<ClusterState, DeprecationIssue>> clusterSettingsChecks,
+            ClusterDeprecationChecker clusterDeprecationChecker,
             Map<String, List<DeprecationIssue>> pluginSettingIssues,
             List<String> skipTheseDeprecatedSettings,
-            List<ResourceDeprecationChecker> resourceDeprecationCheckers
+            List<ResourceDeprecationChecker> resourceDeprecationCheckers,
+            List<TransformConfig> transformConfigs
         ) {
             assert Transports.assertNotTransportThread("walking mappings in indexSettingsChecks is expensive");
             // Allow system index access here to prevent deprecation warnings when we call this API
             String[] concreteIndexNames = indexNameExpressionResolver.concreteIndexNames(state, request);
             ClusterState stateWithSkippedSettingsRemoved = removeSkippedSettings(state, concreteIndexNames, skipTheseDeprecatedSettings);
-            List<DeprecationIssue> clusterSettingsIssues = filterChecks(
-                clusterSettingsChecks,
-                (c) -> c.apply(stateWithSkippedSettingsRemoved)
+            List<DeprecationIssue> clusterSettingsIssues = clusterDeprecationChecker.check(
+                stateWithSkippedSettingsRemoved,
+                transformConfigs
             );
             List<DeprecationIssue> nodeSettingsIssues = mergeNodeIssues(nodeDeprecationResponse);
 
@@ -333,14 +336,6 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
                 if (issues.isEmpty() == false) {
                     resourceDeprecationIssues.put(resourceDeprecationChecker.getName(), issues);
                 }
-            }
-
-            // WORKAROUND: move transform deprecation issues into cluster_settings
-            List<DeprecationIssue> transformDeprecations = pluginSettingIssues.remove(
-                TransformDeprecationChecker.TRANSFORM_DEPRECATION_KEY
-            );
-            if (transformDeprecations != null) {
-                clusterSettingsIssues.addAll(transformDeprecations);
             }
 
             return new DeprecationInfoAction.Response(

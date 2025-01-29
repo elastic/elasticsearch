@@ -379,10 +379,7 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
                 TaskType.TEXT_EMBEDDING
             )
         );
-        assertThat(
-            e.getMessage(),
-            containsString("Requested task type [text_embedding] does not match the inference endpoint's task type [sparse_embedding]")
-        );
+        assertThat(e.getMessage(), containsString("Task type must match the task type of the existing endpoint"));
     }
 
     public void testUpdateEndpointWithWrongTaskTypeInBody() throws IOException {

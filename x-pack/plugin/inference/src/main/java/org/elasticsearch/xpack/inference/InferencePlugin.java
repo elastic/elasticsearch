@@ -73,6 +73,7 @@ import org.elasticsearch.xpack.inference.action.TransportUnifiedCompletionInfere
 import org.elasticsearch.xpack.inference.action.TransportUpdateInferenceModelAction;
 import org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilter;
 import org.elasticsearch.xpack.inference.common.InferenceServiceNodeLocalRateLimitCalculator;
+import org.elasticsearch.xpack.inference.common.InferenceServiceRateLimitCalculator;
 import org.elasticsearch.xpack.inference.common.NoopNodeLocalRateLimitCalculator;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.external.amazonbedrock.AmazonBedrockRequestSender;
@@ -233,7 +234,6 @@ public class InferencePlugin extends Plugin
     @Override
     public Collection<?> createComponents(PluginServices services) {
         var components = new ArrayList<>();
-
         var throttlerManager = new ThrottlerManager(settings, services.threadPool(), services.clusterService());
         var truncator = new Truncator(settings, services.clusterService());
         serviceComponents.set(new ServiceComponents(services.threadPool(), throttlerManager, settings, truncator));
@@ -321,12 +321,17 @@ public class InferencePlugin extends Plugin
         components.add(inferenceStats);
 
         // Only add InferenceServiceNodeLocalRateLimitCalculator (which is a ClusterStateListener) for cluster aware rate limiting,
-        // if the rate limiting feature flags are enabled
+        // if the rate limiting feature flags are enabled, otherwise provide noop implementation
+        InferenceServiceRateLimitCalculator calculator;
         if (INFERENCE_API_CLUSTER_AWARE_RATE_LIMITING_FEATURE_FLAG.isEnabled()) {
-            components.add(new InferenceServiceNodeLocalRateLimitCalculator(services.clusterService(), serviceRegistry));
+            calculator = new InferenceServiceNodeLocalRateLimitCalculator(services.clusterService(), serviceRegistry);
         } else {
-            components.add(new NoopNodeLocalRateLimitCalculator());
+            calculator = new NoopNodeLocalRateLimitCalculator();
         }
+
+        // Add binding for interface -> implementation
+        components.add(new PluginComponentBinding<>(InferenceServiceRateLimitCalculator.class, calculator));
+        components.add(calculator);
 
         return components;
     }

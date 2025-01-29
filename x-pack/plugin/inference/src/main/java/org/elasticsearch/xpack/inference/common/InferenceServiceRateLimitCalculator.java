@@ -15,5 +15,4 @@ public interface InferenceServiceRateLimitCalculator extends ClusterStateListene
     boolean isTaskTypeReroutingSupported(String serviceName, TaskType taskType);
 
     RateLimitAssignment getRateLimitAssignment(String service, TaskType taskType);
-
 }

@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest;
 import org.elasticsearch.xpack.inference.action.BaseTransportInferenceAction;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
@@ -80,6 +81,7 @@ public class InferenceServiceNodeLocalRateLimitCalculator implements InferenceSe
 
     private final ConcurrentHashMap<String, Map<TaskType, RateLimitAssignment>> serviceAssignments;
 
+    @Inject
     public InferenceServiceNodeLocalRateLimitCalculator(ClusterService clusterService, InferenceServiceRegistry serviceRegistry) {
         clusterService.addListener(this);
         this.serviceRegistry = serviceRegistry;

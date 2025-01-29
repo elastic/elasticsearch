@@ -43,6 +43,24 @@ public class CreateFromDeploymentIT extends InferenceBaseRestTest {
         var results = infer(inferenceId, List.of("washing machine"));
         assertNotNull(results.get("sparse_embedding"));
 
+        var updatedNumAllocations = randomIntBetween(1, 10);
+        var updatedEndpointConfig = updateEndpoint(inferenceId, updatedEndpointConfig(updatedNumAllocations), TaskType.SPARSE_EMBEDDING);
+        assertThat(
+            updatedEndpointConfig.get("service_settings"),
+            is(
+                Map.of(
+                    "num_allocations",
+                    updatedNumAllocations,
+                    "num_threads",
+                    1,
+                    "model_id",
+                    "attach_to_deployment",
+                    "deployment_id",
+                    "existing_deployment"
+                )
+            )
+        );
+
         deleteModel(inferenceId);
         // assert deployment not stopped
         var stats = (List<Map<String, Object>>) getTrainedModelStats(modelId).get("trained_model_stats");
@@ -82,6 +100,24 @@ public class CreateFromDeploymentIT extends InferenceBaseRestTest {
 
         var results = infer(inferenceId, List.of("washing machine"));
         assertNotNull(results.get("sparse_embedding"));
+
+        var updatedNumAllocations = randomIntBetween(1, 10);
+        var updatedEndpointConfig = updateEndpoint(inferenceId, updatedEndpointConfig(updatedNumAllocations), TaskType.SPARSE_EMBEDDING);
+        assertThat(
+            updatedEndpointConfig.get("service_settings"),
+            is(
+                Map.of(
+                    "num_allocations",
+                    updatedNumAllocations,
+                    "num_threads",
+                    1,
+                    "model_id",
+                    "attach_with_model_id",
+                    "deployment_id",
+                    "existing_deployment_with_model_id"
+                )
+            )
+        );
 
         stopMlNodeDeployment(deploymentId);
     }
@@ -187,6 +223,16 @@ public class CreateFromDeploymentIT extends InferenceBaseRestTest {
               }
             }
             """, modelId, deploymentId);
+    }
+
+    private String updatedEndpointConfig(int numAllocations) {
+        return Strings.format("""
+            {
+              "service_settings": {
+                "num_allocations": %d
+              }
+            }
+            """, numAllocations);
     }
 
     private Response startMlNodeDeploymemnt(String modelId, String deploymentId) throws IOException {

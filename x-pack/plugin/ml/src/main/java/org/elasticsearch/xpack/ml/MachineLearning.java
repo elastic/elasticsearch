@@ -1251,7 +1251,8 @@ public class MachineLearning extends Plugin
                     ),
                     indexNameExpressionResolver,
                     client
-                )
+                ),
+                new MlAnomaliesIndexUpdate(indexNameExpressionResolver, client)
             )
         );
         clusterService.addListener(mlAutoUpdateService);

@@ -19,7 +19,7 @@ import java.io.IOException;
 
 /**
  * Block that stores double values.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-Block.java.st} instead.
  */
 public sealed interface DoubleBlock extends Block permits DoubleArrayBlock, DoubleVectorBlock, ConstantNullBlock, DoubleBigArrayBlock {
 
@@ -216,6 +216,14 @@ public sealed interface DoubleBlock extends Block permits DoubleArrayBlock, Doub
          * {@code endExclusive} into this builder.
          */
         Builder copyFrom(DoubleBlock block, int beginInclusive, int endExclusive);
+
+        /**
+         * Copy the values in {@code block} at {@code position}. If this position
+         * has a single value, this'll copy a single value. If this positions has
+         * many values, it'll copy all of them. If this is {@code null}, then it'll
+         * copy the {@code null}.
+         */
+        Builder copyFrom(DoubleBlock block, int position);
 
         @Override
         Builder appendNull();

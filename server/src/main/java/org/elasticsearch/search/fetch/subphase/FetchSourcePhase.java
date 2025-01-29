@@ -10,6 +10,7 @@
 package org.elasticsearch.search.fetch.subphase;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
@@ -63,6 +64,7 @@ public final class FetchSourcePhase implements FetchSubPhase {
 
                 // If this is a parent document and there are no source filters, then add the source as-is.
                 if (nestedHit == false && sourceFilter == null) {
+                    source = replaceInferenceMetadataFields(hitContext.hit(), source);
                     hitContext.hit().sourceRef(source.internalSourceRef());
                     fastPath++;
                     return;
@@ -77,8 +79,28 @@ public final class FetchSourcePhase implements FetchSubPhase {
                 }
                 if (nestedHit) {
                     source = extractNested(source, hitContext.hit().getNestedIdentity());
+                } else {
+                    source = replaceInferenceMetadataFields(hitContext.hit(), source);
                 }
                 hitContext.hit().sourceRef(source.internalSourceRef());
+            }
+
+            /**
+             * Transfers the {@link InferenceMetadataFieldsMapper#NAME} field from the document fields
+             * to the original _source if it has been requested.
+             */
+            private Source replaceInferenceMetadataFields(SearchHit hit, Source source) {
+                if (InferenceMetadataFieldsMapper.isEnabled(fetchContext.getSearchExecutionContext().getMappingLookup()) == false) {
+                    return source;
+                }
+
+                var field = hit.removeDocumentField(InferenceMetadataFieldsMapper.NAME);
+                if (field == null || field.getValues().isEmpty()) {
+                    return source;
+                }
+                var newSource = source.source();
+                newSource.put(InferenceMetadataFieldsMapper.NAME, field.getValues().get(0));
+                return Source.fromMap(newSource, source.sourceContentType());
             }
 
             @Override

@@ -6,6 +6,12 @@
 <titleabbrev>EQL search</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-eql[EQL APIs].
+--
+
 Returns search results for an <<eql,Event Query Language (EQL)>> query.
 
 EQL assumes each document in a data stream or index corresponds to an
@@ -96,10 +102,10 @@ If `false`, the request returns an error if one or more shards involved in the q
 If `true`, the query is executed only on the available shards, ignoring shard request timeouts and
 <<shard-failures,shard failures>>.
 +
-Defaults to `false`.
+Defaults to `true`.
 +
 To override the default for this field, set the
-`xpack.eql.default_allow_partial_results` cluster setting to `true`.
+`xpack.eql.default_allow_partial_results` cluster setting to `false`.
 
 
 [IMPORTANT]

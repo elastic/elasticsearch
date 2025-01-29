@@ -4,6 +4,11 @@
 <titleabbrev>Field capabilities</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-search[Search APIs].
+--
 
 Allows you to retrieve the capabilities of fields among multiple indices.
 For data streams, the API returns field capabilities among the stream's backing

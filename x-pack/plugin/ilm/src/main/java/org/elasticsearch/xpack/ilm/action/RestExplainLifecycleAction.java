@@ -36,12 +36,11 @@ public class RestExplainLifecycleAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) {
         String[] indexes = Strings.splitStringByCommaToArray(restRequest.param("index"));
-        ExplainLifecycleRequest explainLifecycleRequest = new ExplainLifecycleRequest();
+        ExplainLifecycleRequest explainLifecycleRequest = new ExplainLifecycleRequest(getMasterNodeTimeout(restRequest));
         explainLifecycleRequest.indices(indexes);
         explainLifecycleRequest.indicesOptions(IndicesOptions.fromRequest(restRequest, IndicesOptions.strictExpandOpen()));
         explainLifecycleRequest.onlyManaged(restRequest.paramAsBoolean("only_managed", false));
         explainLifecycleRequest.onlyErrors(restRequest.paramAsBoolean("only_errors", false));
-        explainLifecycleRequest.masterNodeTimeout(getMasterNodeTimeout(restRequest));
         return channel -> client.execute(ExplainLifecycleAction.INSTANCE, explainLifecycleRequest, new RestToXContentListener<>(channel));
     }
 }

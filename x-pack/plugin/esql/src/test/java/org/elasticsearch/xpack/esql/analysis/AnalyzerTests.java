@@ -20,9 +20,12 @@ import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
+import org.elasticsearch.xpack.esql.core.expression.EntryExpression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
@@ -33,11 +36,12 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchOperator;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
-import org.elasticsearch.xpack.esql.plan.TableIdentifier;
+import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -94,7 +98,7 @@ public class AnalyzerTests extends ESTestCase {
 
     private static final UnresolvedRelation UNRESOLVED_RELATION = new UnresolvedRelation(
         EMPTY,
-        new TableIdentifier(EMPTY, null, "idx"),
+        new IndexPattern(EMPTY, "idx"),
         false,
         List.of(),
         IndexMode.STANDARD,
@@ -111,7 +115,7 @@ public class AnalyzerTests extends ESTestCase {
         var plan = analyzer.analyze(UNRESOLVED_RELATION);
         var limit = as(plan, Limit.class);
 
-        assertEquals(new EsRelation(EMPTY, idx, NO_FIELDS, IndexMode.STANDARD), limit.child());
+        assertEquals(new EsRelation(EMPTY, idx.name(), IndexMode.STANDARD, idx.indexNameWithModes(), NO_FIELDS), limit.child());
     }
 
     public void testFailOnUnresolvedIndex() {
@@ -129,7 +133,7 @@ public class AnalyzerTests extends ESTestCase {
         var plan = analyzer.analyze(UNRESOLVED_RELATION);
         var limit = as(plan, Limit.class);
 
-        assertEquals(new EsRelation(EMPTY, idx, NO_FIELDS, IndexMode.STANDARD), limit.child());
+        assertEquals(new EsRelation(EMPTY, idx.name(), IndexMode.STANDARD, idx.indexNameWithModes(), NO_FIELDS), limit.child());
     }
 
     public void testAttributeResolution() {
@@ -1076,7 +1080,7 @@ public class AnalyzerTests extends ESTestCase {
             from test
             """);
         var limit = as(plan, Limit.class);
-        assertThat(limit.limit().fold(), equalTo(DEFAULT_LIMIT));
+        assertThat(as(limit.limit(), Literal.class).value(), equalTo(DEFAULT_LIMIT));
         as(limit.child(), EsRelation.class);
     }
 
@@ -1084,7 +1088,7 @@ public class AnalyzerTests extends ESTestCase {
         for (int i = -1; i <= 1; i++) {
             var plan = analyze("from test | limit " + (MAX_LIMIT + i));
             var limit = as(plan, Limit.class);
-            assertThat(limit.limit().fold(), equalTo(MAX_LIMIT));
+            assertThat(as(limit.limit(), Literal.class).value(), equalTo(MAX_LIMIT));
             limit = as(limit.child(), Limit.class);
             as(limit.child(), EsRelation.class);
         }
@@ -1101,7 +1105,7 @@ public class AnalyzerTests extends ESTestCase {
         for (int i = -1; i <= 1; i++) {
             var plan = analyze("from test | limit " + (MAX_LIMIT + i) + " | eval s = salary * 10 | where s > 0");
             var limit = as(plan, Limit.class);
-            assertThat(limit.limit().fold(), equalTo(MAX_LIMIT));
+            assertThat(as(limit.limit(), Literal.class).value(), equalTo(MAX_LIMIT));
             var filter = as(limit.child(), Filter.class);
             var eval = as(filter.child(), Eval.class);
             limit = as(eval.child(), Limit.class);
@@ -1113,7 +1117,7 @@ public class AnalyzerTests extends ESTestCase {
         for (var breaker : List.of("stats c = count(salary) by last_name", "sort salary")) {
             var plan = analyze("from test | limit 100000 | " + breaker);
             var limit = as(plan, Limit.class);
-            assertThat(limit.limit().fold(), equalTo(MAX_LIMIT));
+            assertThat(as(limit.limit(), Literal.class).value(), equalTo(MAX_LIMIT));
         }
     }
 
@@ -1121,7 +1125,7 @@ public class AnalyzerTests extends ESTestCase {
         for (var breaker : List.of("stats c = count(salary) by last_name", "eval c = salary | sort c")) {
             var plan = analyze("from test | " + breaker + " | eval cc = c * 10 | where cc > 0");
             var limit = as(plan, Limit.class);
-            assertThat(limit.limit().fold(), equalTo(DEFAULT_LIMIT));
+            assertThat(as(limit.limit(), Literal.class).value(), equalTo(DEFAULT_LIMIT));
         }
     }
 
@@ -1197,21 +1201,21 @@ public class AnalyzerTests extends ESTestCase {
         verifyUnsupported("""
             from test
             | eval date_format(int)
-            """, "first argument of [date_format(int)] must be [datetime], found value [int] type [integer]");
+            """, "first argument of [date_format(int)] must be [datetime or date_nanos], found value [int] type [integer]");
     }
 
     public void testDateFormatOnFloat() {
         verifyUnsupported("""
             from test
             | eval date_format(float)
-            """, "first argument of [date_format(float)] must be [datetime], found value [float] type [double]");
+            """, "first argument of [date_format(float)] must be [datetime or date_nanos], found value [float] type [double]");
     }
 
     public void testDateFormatOnText() {
         verifyUnsupported("""
             from test
             | eval date_format(keyword)
-            """, "first argument of [date_format(keyword)] must be [datetime], found value [keyword] type [keyword]");
+            """, "first argument of [date_format(keyword)] must be [datetime or date_nanos], found value [keyword] type [keyword]");
     }
 
     public void testDateFormatWithNumericFormat() {
@@ -1427,7 +1431,7 @@ public class AnalyzerTests extends ESTestCase {
         var plan = analyzeWithEmptyFieldCapsResponse(query);
         var limit = as(plan, Limit.class);
         limit = as(limit.child(), Limit.class);
-        assertThat(limit.limit().fold(), equalTo(0));
+        assertThat(as(limit.limit(), Literal.class).value(), equalTo(0));
         var orderBy = as(limit.child(), OrderBy.class);
         var agg = as(orderBy.child(), Aggregate.class);
         assertEmptyEsRelation(agg.child());
@@ -1442,7 +1446,7 @@ public class AnalyzerTests extends ESTestCase {
         var plan = analyzeWithEmptyFieldCapsResponse(query);
         var limit = as(plan, Limit.class);
         limit = as(limit.child(), Limit.class);
-        assertThat(limit.limit().fold(), equalTo(2));
+        assertThat(as(limit.limit(), Literal.class).value(), equalTo(2));
         var project = as(limit.child(), EsqlProject.class);
         var eval = as(project.child(), Eval.class);
         assertEmptyEsRelation(eval.child());
@@ -1459,7 +1463,7 @@ public class AnalyzerTests extends ESTestCase {
         var agg = as(limit.child(), Aggregate.class);
         var eval = as(agg.child(), Eval.class);
         limit = as(eval.child(), Limit.class);
-        assertThat(limit.limit().fold(), equalTo(10));
+        assertThat(as(limit.limit(), Literal.class).value(), equalTo(10));
         assertEmptyEsRelation(limit.child());
     }
 
@@ -2053,10 +2057,10 @@ public class AnalyzerTests extends ESTestCase {
         }
         LogicalPlan plan = analyze(query);
         var limit = as(plan, Limit.class);
-        assertThat(limit.limit().fold(), equalTo(1000));
+        assertThat(as(limit.limit(), Literal.class).value(), equalTo(1000));
 
         var lookup = as(limit.child(), Lookup.class);
-        assertThat(lookup.tableName().fold(), equalTo("int_number_names"));
+        assertThat(as(lookup.tableName(), Literal.class).value(), equalTo("int_number_names"));
         assertMap(lookup.matchFields().stream().map(Object::toString).toList(), matchesList().item(startsWith("int{r}")));
         assertThat(
             lookup.localRelation().output().stream().map(Object::toString).toList(),
@@ -2067,7 +2071,7 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(project.projections().stream().map(Object::toString).toList(), hasItem(matchesRegex("languages\\{f}#\\d+ AS int#\\d+")));
 
         var esRelation = as(project.child(), EsRelation.class);
-        assertThat(esRelation.index().name(), equalTo("test"));
+        assertThat(esRelation.indexPattern(), equalTo("test"));
 
         // Lookup's output looks sensible too
         assertMap(
@@ -2139,7 +2143,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testLookupJoinUnknownIndex() {
-        assumeTrue("requires LOOKUP JOIN capability", EsqlCapabilities.Cap.JOIN_LOOKUP_V7.isEnabled());
+        assumeTrue("requires LOOKUP JOIN capability", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
 
         String errorMessage = "Unknown index [foobar]";
         IndexResolution missingLookupIndex = IndexResolution.invalid(errorMessage);
@@ -2168,7 +2172,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testLookupJoinUnknownField() {
-        assumeTrue("requires LOOKUP JOIN capability", EsqlCapabilities.Cap.JOIN_LOOKUP_V7.isEnabled());
+        assumeTrue("requires LOOKUP JOIN capability", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
 
         String query = "FROM test | LOOKUP JOIN languages_lookup ON last_name";
         String errorMessage = "1:45: Unknown column [last_name] in right side of join";
@@ -2188,6 +2192,65 @@ public class AnalyzerTests extends ESTestCase {
         e = expectThrows(VerificationException.class, () -> analyze(query3));
         assertThat(e.getMessage(), containsString(errorMessage3 + "left side of join"));
         assertThat(e.getMessage(), containsString(errorMessage3 + "right side of join"));
+    }
+
+    public void testMultipleLookupJoinsGiveDifferentAttributes() {
+        assumeTrue("requires LOOKUP JOIN capability", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
+
+        // The field attributes that get contributed by different LOOKUP JOIN commands must have different name ids,
+        // even if they have the same names. Otherwise, things like dependency analysis - like in PruneColumns - cannot work based on
+        // name ids and shadowing semantics proliferate into all kinds of optimizer code.
+
+        String query = "FROM test"
+            + "| EVAL language_code = languages"
+            + "| LOOKUP JOIN languages_lookup ON language_code"
+            + "| LOOKUP JOIN languages_lookup ON language_code";
+        LogicalPlan analyzedPlan = analyze(query);
+
+        List<AttributeSet> lookupFields = new ArrayList<>();
+        List<Set<String>> lookupFieldNames = new ArrayList<>();
+        analyzedPlan.forEachUp(EsRelation.class, esRelation -> {
+            if (esRelation.indexMode() == IndexMode.LOOKUP) {
+                lookupFields.add(esRelation.outputSet());
+                lookupFieldNames.add(esRelation.outputSet().stream().map(NamedExpression::name).collect(Collectors.toSet()));
+            }
+        });
+
+        assertEquals(lookupFieldNames.size(), 2);
+        assertEquals(lookupFieldNames.get(0), lookupFieldNames.get(1));
+
+        assertEquals(lookupFields.size(), 2);
+        AttributeSet intersection = lookupFields.get(0).intersect(lookupFields.get(1));
+        assertEquals(AttributeSet.EMPTY, intersection);
+    }
+
+    public void testLookupJoinIndexMode() {
+        assumeTrue("requires LOOKUP JOIN capability", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
+
+        var indexResolution = AnalyzerTestUtils.expandedDefaultIndexResolution();
+        var lookupResolution = AnalyzerTestUtils.defaultLookupResolution();
+        var indexResolutionAsLookup = Map.of("test", indexResolution);
+        var lookupResolutionAsIndex = lookupResolution.get("languages_lookup");
+
+        analyze("FROM test | EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code");
+        analyze(
+            "FROM languages_lookup | LOOKUP JOIN languages_lookup ON language_code",
+            AnalyzerTestUtils.analyzer(lookupResolutionAsIndex, lookupResolution)
+        );
+
+        VerificationException e = expectThrows(
+            VerificationException.class,
+            () -> analyze(
+                "FROM languages_lookup | EVAL languages = language_code | LOOKUP JOIN test ON languages",
+                AnalyzerTestUtils.analyzer(lookupResolutionAsIndex, indexResolutionAsLookup)
+            )
+        );
+        assertThat(e.getMessage(), containsString("1:70: invalid [test] resolution in lookup mode to an index in [standard] mode"));
+        e = expectThrows(
+            VerificationException.class,
+            () -> analyze("FROM test | LOOKUP JOIN test ON languages", AnalyzerTestUtils.analyzer(indexResolution, indexResolutionAsLookup))
+        );
+        assertThat(e.getMessage(), containsString("1:25: invalid [test] resolution in lookup mode to an index in [standard] mode"));
     }
 
     public void testImplicitCasting() {
@@ -2276,7 +2339,7 @@ public class AnalyzerTests extends ESTestCase {
         projection = as(projections.get(3), ReferenceAttribute.class);
         assertEquals(projection.name(), "w");
         assertEquals(projection.dataType(), DataType.DOUBLE);
-        assertThat(limit.limit().fold(), equalTo(1000));
+        assertThat(as(limit.limit(), Literal.class).value(), equalTo(1000));
     }
 
     public void testNamedParamsForIdentifiers() {
@@ -2514,14 +2577,29 @@ public class AnalyzerTests extends ESTestCase {
             """, "mapping-default.json");
         var limit = as(plan, Limit.class);
         var filter = as(limit.child(), Filter.class);
-        var match = as(filter.condition(), Match.class);
+        var match = as(filter.condition(), MatchOperator.class);
         var enrich = as(filter.child(), Enrich.class);
         assertEquals(enrich.mode(), Enrich.Mode.ANY);
         assertEquals(enrich.policy().getMatchField(), "language_code");
         var eval = as(enrich.child(), Eval.class);
         var esRelation = as(eval.child(), EsRelation.class);
-        assertEquals(esRelation.index().name(), "test");
+        assertEquals(esRelation.indexPattern(), "test");
+    }
 
+    public void testFunctionNamedParamsAsFunctionArgument() {
+        LogicalPlan plan = analyze("""
+            from test
+            | WHERE MATCH(first_name, "Anna Smith", {"minimum_should_match": 2.0})
+            """);
+        Limit limit = as(plan, Limit.class);
+        Filter filter = as(limit.child(), Filter.class);
+        Match match = as(filter.condition(), Match.class);
+        MapExpression me = as(match.options(), MapExpression.class);
+        assertEquals(1, me.entryExpressions().size());
+        EntryExpression ee = as(me.entryExpressions().get(0), EntryExpression.class);
+        assertEquals(new Literal(EMPTY, "minimum_should_match", DataType.KEYWORD), ee.key());
+        assertEquals(new Literal(EMPTY, 2.0, DataType.DOUBLE), ee.value());
+        assertEquals(DataType.DOUBLE, ee.dataType());
     }
 
     private void verifyUnsupported(String query, String errorMessage) {
@@ -2584,7 +2662,6 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(plan, instanceOf(EsRelation.class));
         EsRelation esRelation = (EsRelation) plan;
         assertThat(esRelation.output(), equalTo(NO_FIELDS));
-        assertTrue(esRelation.index().mapping().isEmpty());
     }
 
     @Override

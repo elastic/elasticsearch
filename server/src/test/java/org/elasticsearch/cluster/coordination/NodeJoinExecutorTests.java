@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.metadata.DesiredNodes;
 import org.elasticsearch.cluster.metadata.DesiredNodesTestCase;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
@@ -39,6 +40,7 @@ import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
@@ -58,10 +60,12 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.cluster.metadata.DesiredNodesTestCase.assertDesiredNodesStatusIsCorrect;
 import static org.elasticsearch.cluster.metadata.DesiredNodesTestCase.randomDesiredNode;
+import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
 import static org.elasticsearch.test.VersionUtils.maxCompatibleVersion;
 import static org.elasticsearch.test.VersionUtils.randomCompatibleVersion;
 import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.elasticsearch.test.VersionUtils.randomVersionBetween;
+import static org.elasticsearch.test.index.IndexVersionUtils.getPreviousVersion;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -89,12 +93,18 @@ public class NodeJoinExecutorTests extends ESTestCase {
             .build();
         metaBuilder.put(indexMetadata, false);
         Metadata metadata = metaBuilder.build();
-        NodeJoinExecutor.ensureIndexCompatibility(IndexVersions.MINIMUM_COMPATIBLE, IndexVersion.current(), metadata);
+        NodeJoinExecutor.ensureIndexCompatibility(
+            IndexVersions.MINIMUM_COMPATIBLE,
+            IndexVersions.MINIMUM_READONLY_COMPATIBLE,
+            IndexVersion.current(),
+            metadata
+        );
 
         expectThrows(
             IllegalStateException.class,
             () -> NodeJoinExecutor.ensureIndexCompatibility(
                 IndexVersions.MINIMUM_COMPATIBLE,
+                IndexVersions.MINIMUM_READONLY_COMPATIBLE,
                 IndexVersionUtils.getPreviousVersion(IndexVersion.current()),
                 metadata
             )
@@ -113,8 +123,184 @@ public class NodeJoinExecutorTests extends ESTestCase {
         Metadata metadata = metaBuilder.build();
         expectThrows(
             IllegalStateException.class,
-            () -> NodeJoinExecutor.ensureIndexCompatibility(IndexVersions.MINIMUM_COMPATIBLE, IndexVersion.current(), metadata)
+            () -> NodeJoinExecutor.ensureIndexCompatibility(
+                IndexVersions.MINIMUM_COMPATIBLE,
+                IndexVersions.MINIMUM_READONLY_COMPATIBLE,
+                IndexVersion.current(),
+                metadata
+            )
         );
+    }
+
+    public void testJoinClusterWithReadOnlyCompatibleIndices() {
+        var randomBlock = randomFrom(IndexMetadata.SETTING_BLOCKS_WRITE, IndexMetadata.SETTING_READ_ONLY);
+        {
+            var indexMetadata = IndexMetadata.builder("searchable-snapshot")
+                .settings(
+                    Settings.builder()
+                        .put(INDEX_STORE_TYPE_SETTING.getKey(), SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_STORE_TYPE)
+                        .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersions.MINIMUM_READONLY_COMPATIBLE)
+                        .put(randomBlock, true)
+                )
+                .numberOfShards(1)
+                .numberOfReplicas(1)
+                .build();
+
+            NodeJoinExecutor.ensureIndexCompatibility(
+                IndexVersions.MINIMUM_COMPATIBLE,
+                IndexVersions.MINIMUM_READONLY_COMPATIBLE,
+                IndexVersion.current(),
+                Metadata.builder().put(indexMetadata, false).build()
+            );
+        }
+        {
+            var indexMetadata = IndexMetadata.builder("searchable-snapshot-no-write-block")
+                .settings(
+                    Settings.builder()
+                        .put(INDEX_STORE_TYPE_SETTING.getKey(), SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_STORE_TYPE)
+                        .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersions.MINIMUM_READONLY_COMPATIBLE)
+                )
+                .numberOfShards(1)
+                .numberOfReplicas(1)
+                .build();
+
+            expectThrows(
+                IllegalStateException.class,
+                () -> NodeJoinExecutor.ensureIndexCompatibility(
+                    IndexVersions.MINIMUM_COMPATIBLE,
+                    IndexVersions.MINIMUM_READONLY_COMPATIBLE,
+                    IndexVersion.current(),
+                    Metadata.builder().put(indexMetadata, false).build()
+                )
+            );
+        }
+        {
+            var indexMetadata = IndexMetadata.builder("archive")
+                .settings(
+                    Settings.builder()
+                        .put(IndexMetadata.SETTING_VERSION_CREATED, Version.fromId(randomFrom(5000099, 6000099)))
+                        .put(IndexMetadata.SETTING_VERSION_COMPATIBILITY, IndexVersions.MINIMUM_READONLY_COMPATIBLE)
+                        .put(IndexMetadata.SETTING_BLOCKS_WRITE, true)
+                )
+                .numberOfShards(1)
+                .numberOfReplicas(1)
+                .build();
+
+            NodeJoinExecutor.ensureIndexCompatibility(
+                IndexVersions.MINIMUM_COMPATIBLE,
+                IndexVersions.MINIMUM_READONLY_COMPATIBLE,
+                IndexVersion.current(),
+                Metadata.builder().put(indexMetadata, false).build()
+            );
+        }
+        {
+            var indexMetadata = IndexMetadata.builder("archive-no-write-block")
+                .settings(
+                    Settings.builder()
+                        .put(IndexMetadata.SETTING_VERSION_CREATED, Version.fromId(randomFrom(5000099, 6000099)))
+                        .put(IndexMetadata.SETTING_VERSION_COMPATIBILITY, IndexVersions.MINIMUM_READONLY_COMPATIBLE)
+                )
+                .numberOfShards(1)
+                .numberOfReplicas(1)
+                .build();
+
+            expectThrows(
+                IllegalStateException.class,
+                () -> NodeJoinExecutor.ensureIndexCompatibility(
+                    IndexVersions.MINIMUM_COMPATIBLE,
+                    IndexVersions.MINIMUM_READONLY_COMPATIBLE,
+                    IndexVersion.current(),
+                    Metadata.builder().put(indexMetadata, false).build()
+                )
+            );
+        }
+        {
+            var indexMetadata = IndexMetadata.builder("legacy")
+                .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.fromId(randomFrom(5000099, 6000099))))
+                .numberOfShards(1)
+                .numberOfReplicas(1)
+                .build();
+
+            expectThrows(
+                IllegalStateException.class,
+                () -> NodeJoinExecutor.ensureIndexCompatibility(
+                    IndexVersions.MINIMUM_COMPATIBLE,
+                    IndexVersions.MINIMUM_READONLY_COMPATIBLE,
+                    IndexVersion.current(),
+                    Metadata.builder().put(indexMetadata, false).build()
+                )
+            );
+        }
+        var indexCreated = IndexVersionUtils.randomVersionBetween(
+            random(),
+            IndexVersions.MINIMUM_READONLY_COMPATIBLE,
+            getPreviousVersion(IndexVersions.MINIMUM_COMPATIBLE)
+        );
+        {
+            var indexMetadata = IndexMetadata.builder("regular")
+                .settings(
+                    Settings.builder()
+                        .put(randomBlock, true)
+                        .put(MetadataIndexStateService.VERIFIED_READ_ONLY_SETTING.getKey(), true)
+                        .put(IndexMetadata.SETTING_VERSION_CREATED, indexCreated)
+                        .build()
+                )
+                .numberOfShards(1)
+                .numberOfReplicas(1)
+                .build();
+
+            NodeJoinExecutor.ensureIndexCompatibility(
+                IndexVersions.MINIMUM_COMPATIBLE,
+                IndexVersions.MINIMUM_READONLY_COMPATIBLE,
+                IndexVersion.current(),
+                Metadata.builder().put(indexMetadata, false).build()
+            );
+        }
+        {
+            var settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, indexCreated);
+            if (randomBoolean()) {
+                settings.put(MetadataIndexStateService.VERIFIED_READ_ONLY_SETTING.getKey(), randomBoolean());
+            }
+            if (randomBoolean()) {
+                settings.put(randomBlock, false);
+            }
+            var indexMetadata = IndexMetadata.builder("regular").settings(settings).numberOfShards(1).numberOfReplicas(1).build();
+
+            expectThrows(
+                IllegalStateException.class,
+                () -> NodeJoinExecutor.ensureIndexCompatibility(
+                    IndexVersions.MINIMUM_COMPATIBLE,
+                    IndexVersions.MINIMUM_READONLY_COMPATIBLE,
+                    IndexVersion.current(),
+                    Metadata.builder().put(indexMetadata, false).build()
+                )
+            );
+        }
+        {
+            var settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, indexCreated);
+            if (randomBoolean()) {
+                settings.put(MetadataIndexStateService.VERIFIED_READ_ONLY_SETTING.getKey(), false);
+            }
+            if (randomBoolean()) {
+                settings.put(randomBlock, randomBoolean());
+            }
+
+            var indexMetadata = IndexMetadata.builder("regular-not-read-only-verified")
+                .settings(settings)
+                .numberOfShards(1)
+                .numberOfReplicas(1)
+                .build();
+
+            expectThrows(
+                IllegalStateException.class,
+                () -> NodeJoinExecutor.ensureIndexCompatibility(
+                    IndexVersions.MINIMUM_COMPATIBLE,
+                    IndexVersions.MINIMUM_READONLY_COMPATIBLE,
+                    IndexVersion.current(),
+                    Metadata.builder().put(indexMetadata, false).build()
+                )
+            );
+        }
     }
 
     public void testPreventJoinClusterWithUnsupportedNodeVersions() {
@@ -467,7 +653,13 @@ public class NodeJoinExecutorTests extends ESTestCase {
             .build();
         metaBuilder.put(indexMetadata, false);
         Metadata metadata = metaBuilder.build();
-        NodeJoinExecutor.ensureIndexCompatibility(IndexVersions.MINIMUM_COMPATIBLE, IndexVersion.current(), metadata);
+        NodeJoinExecutor.ensureIndexCompatibility(
+            // randomCompatibleVersionSettings() can set a version as low as MINIMUM_READONLY_COMPATIBLE
+            IndexVersions.MINIMUM_READONLY_COMPATIBLE,
+            IndexVersions.MINIMUM_READONLY_COMPATIBLE,
+            IndexVersion.current(),
+            metadata
+        );
     }
 
     public static Settings.Builder randomCompatibleVersionSettings() {

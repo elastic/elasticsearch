@@ -5,6 +5,12 @@
 <titleabbrev>Simulate ingest</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-ingest[Ingest APIs].
+--
+
 Executes ingest pipelines against a set of provided documents, optionally
 with substitute pipeline definitions. This API is meant to be used for
 troubleshooting or pipeline development, as it does not actually index any

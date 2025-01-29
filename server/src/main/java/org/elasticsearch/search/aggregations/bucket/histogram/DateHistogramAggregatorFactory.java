@@ -11,7 +11,6 @@ package org.elasticsearch.search.aggregations.bucket.histogram;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.Rounding;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -30,7 +29,6 @@ import java.util.List;
 import java.util.Map;
 
 public final class DateHistogramAggregatorFactory extends ValuesSourceAggregatorFactory {
-    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(DateHistogramAggregatorFactory.class);
 
     public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
         builder.register(

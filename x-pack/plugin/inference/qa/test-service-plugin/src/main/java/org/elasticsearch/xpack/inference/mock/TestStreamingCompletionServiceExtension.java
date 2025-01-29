@@ -11,7 +11,6 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.ValidationException;
-import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.LazyInitializable;
@@ -19,7 +18,6 @@ import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInference;
-import org.elasticsearch.inference.EmptySettingsConfiguration;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -28,10 +26,8 @@ import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SettingsConfiguration;
-import org.elasticsearch.inference.TaskSettingsConfiguration;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
-import org.elasticsearch.inference.configuration.SettingsConfigurationDisplayType;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -58,9 +54,9 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
 
     public static class TestInferenceService extends AbstractTestInferenceService {
         private static final String NAME = "streaming_completion_test_service";
-        private static final Set<TaskType> supportedStreamingTasks = Set.of(TaskType.COMPLETION);
+        private static final Set<TaskType> supportedStreamingTasks = Set.of(TaskType.COMPLETION, TaskType.CHAT_COMPLETION);
 
-        private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(TaskType.COMPLETION);
+        private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(TaskType.COMPLETION, TaskType.CHAT_COMPLETION);
 
         public TestInferenceService(InferenceServiceExtension.InferenceServiceFactoryContext context) {}
 
@@ -132,7 +128,7 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
             ActionListener<InferenceServiceResults> listener
         ) {
             switch (model.getConfigurations().getTaskType()) {
-                case COMPLETION -> listener.onResponse(makeUnifiedResults(request));
+                case CHAT_COMPLETION -> listener.onResponse(makeUnifiedResults(request));
                 default -> listener.onFailure(
                     new ElasticsearchStatusException(
                         TaskType.unsupportedTaskTypeErrorMsg(model.getConfigurations().getTaskType(), name()),
@@ -162,14 +158,8 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
         }
 
         private ChunkedToXContent completionChunk(String delta) {
-            return params -> Iterators.concat(
-                ChunkedToXContentHelper.startObject(),
-                ChunkedToXContentHelper.startArray(COMPLETION),
-                ChunkedToXContentHelper.startObject(),
-                ChunkedToXContentHelper.field("delta", delta),
-                ChunkedToXContentHelper.endObject(),
-                ChunkedToXContentHelper.endArray(),
-                ChunkedToXContentHelper.endObject()
+            return params -> ChunkedToXContentHelper.chunk(
+                (b, p) -> b.startObject().startArray(COMPLETION).startObject().field("delta", delta).endObject().endArray().endObject()
             );
         }
 
@@ -209,20 +199,20 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
         }
          */
         private ChunkedToXContent unifiedCompletionChunk(String delta) {
-            return params -> Iterators.concat(
-                ChunkedToXContentHelper.startObject(),
-                ChunkedToXContentHelper.field("id", "id"),
-                ChunkedToXContentHelper.startArray("choices"),
-                ChunkedToXContentHelper.startObject(),
-                ChunkedToXContentHelper.startObject("delta"),
-                ChunkedToXContentHelper.field("content", delta),
-                ChunkedToXContentHelper.endObject(),
-                ChunkedToXContentHelper.field("index", 0),
-                ChunkedToXContentHelper.endObject(),
-                ChunkedToXContentHelper.endArray(),
-                ChunkedToXContentHelper.field("model", "gpt-4o-2024-08-06"),
-                ChunkedToXContentHelper.field("object", "chat.completion.chunk"),
-                ChunkedToXContentHelper.endObject()
+            return params -> ChunkedToXContentHelper.chunk(
+                (b, p) -> b.startObject()
+                    .field("id", "id")
+                    .startArray("choices")
+                    .startObject()
+                    .startObject("delta")
+                    .field("content", delta)
+                    .endObject()
+                    .field("index", 0)
+                    .endObject()
+                    .endArray()
+                    .field("model", "gpt-4o-2024-08-06")
+                    .field("object", "chat.completion.chunk")
+                    .endObject()
             );
         }
 
@@ -260,23 +250,18 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
 
                     configurationMap.put(
                         "model_id",
-                        new SettingsConfiguration.Builder().setDisplay(SettingsConfigurationDisplayType.TEXTBOX)
+                        new SettingsConfiguration.Builder(EnumSet.of(TaskType.COMPLETION)).setDescription("")
                             .setLabel("Model ID")
-                            .setOrder(1)
                             .setRequired(true)
                             .setSensitive(true)
-                            .setTooltip("")
                             .setType(SettingsConfigurationFieldType.STRING)
                             .build()
                     );
 
-                    return new InferenceServiceConfiguration.Builder().setProvider(NAME).setTaskTypes(supportedTaskTypes.stream().map(t -> {
-                        Map<String, SettingsConfiguration> taskSettingsConfig;
-                        switch (t) {
-                            default -> taskSettingsConfig = EmptySettingsConfiguration.get();
-                        }
-                        return new TaskSettingsConfiguration.Builder().setTaskType(t).setConfiguration(taskSettingsConfig).build();
-                    }).toList()).setConfiguration(configurationMap).build();
+                    return new InferenceServiceConfiguration.Builder().setService(NAME)
+                        .setTaskTypes(supportedTaskTypes)
+                        .setConfigurations(configurationMap)
+                        .build();
                 }
             );
         }

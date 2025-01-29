@@ -11,9 +11,6 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
-import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 
 import java.util.Set;
 
@@ -22,43 +19,12 @@ import java.util.Set;
  */
 public class MapperFeatures implements FeatureSpecification {
 
-    // Used to avoid noise in mixed cluster and rest compatibility tests. Must not be backported to 8.x branch.
-    // This label gets added to tests with such failures before merging with main, then removed when backported to 8.x.
-    public static final NodeFeature BWC_WORKAROUND_9_0 = new NodeFeature("mapper.bwc_workaround_9_0");
-
-    @Override
-    public Set<NodeFeature> getFeatures() {
-        return Set.of(
-            BWC_WORKAROUND_9_0,
-            IgnoredSourceFieldMapper.TRACK_IGNORED_SOURCE,
-            PassThroughObjectMapper.PASS_THROUGH_PRIORITY,
-            RangeFieldMapper.NULL_VALUES_OFF_BY_ONE_FIX,
-            SourceFieldMapper.SYNTHETIC_SOURCE_FALLBACK,
-            DenseVectorFieldMapper.INT4_QUANTIZATION,
-            DenseVectorFieldMapper.BIT_VECTORS,
-            DocumentMapper.INDEX_SORTING_ON_NESTED,
-            KeywordFieldMapper.KEYWORD_DIMENSION_IGNORE_ABOVE,
-            IndexModeFieldMapper.QUERYING_INDEX_MODE,
-            NodeMappingStats.SEGMENT_LEVEL_FIELDS_STATS,
-            BooleanFieldMapper.BOOLEAN_DIMENSION,
-            ObjectMapper.SUBOBJECTS_AUTO,
-            ObjectMapper.SUBOBJECTS_AUTO_FIXES,
-            KeywordFieldMapper.KEYWORD_NORMALIZER_SYNTHETIC_SOURCE,
-            SourceFieldMapper.SYNTHETIC_SOURCE_STORED_FIELDS_ADVANCE_FIX,
-            Mapper.SYNTHETIC_SOURCE_KEEP_FEATURE,
-            SourceFieldMapper.SYNTHETIC_SOURCE_WITH_COPY_TO_AND_DOC_VALUES_FALSE_SUPPORT,
-            SourceFieldMapper.SYNTHETIC_SOURCE_COPY_TO_FIX,
-            FlattenedFieldMapper.IGNORE_ABOVE_SUPPORT,
-            IndexSettings.IGNORE_ABOVE_INDEX_LEVEL_SETTING,
-            SourceFieldMapper.SYNTHETIC_SOURCE_COPY_TO_INSIDE_OBJECTS_FIX,
-            TimeSeriesRoutingHashFieldMapper.TS_ROUTING_HASH_FIELD_PARSES_BYTES_REF,
-            FlattenedFieldMapper.IGNORE_ABOVE_WITH_ARRAYS_SUPPORT,
-            DenseVectorFieldMapper.BBQ_FORMAT
-        );
-    }
-
     public static final NodeFeature CONSTANT_KEYWORD_SYNTHETIC_SOURCE_WRITE_FIX = new NodeFeature(
         "mapper.constant_keyword.synthetic_source_write_fix"
+    );
+
+    public static final NodeFeature COUNTED_KEYWORD_SYNTHETIC_SOURCE_NATIVE_SUPPORT = new NodeFeature(
+        "mapper.counted_keyword.synthetic_source_native_support"
     );
 
     public static final NodeFeature META_FETCH_FIELDS_ERROR_CODE_CHANGED = new NodeFeature("meta_fetch_fields_error_code_changed");
@@ -77,7 +43,10 @@ public class MapperFeatures implements FeatureSpecification {
             DocumentParser.FIX_PARSING_SUBOBJECTS_FALSE_DYNAMIC_FALSE,
             CONSTANT_KEYWORD_SYNTHETIC_SOURCE_WRITE_FIX,
             META_FETCH_FIELDS_ERROR_CODE_CHANGED,
-            SPARSE_VECTOR_STORE_SUPPORT
+            SPARSE_VECTOR_STORE_SUPPORT,
+            COUNTED_KEYWORD_SYNTHETIC_SOURCE_NATIVE_SUPPORT,
+            SourceFieldMapper.SYNTHETIC_RECOVERY_SOURCE,
+            ObjectMapper.SUBOBJECTS_FALSE_MAPPING_UPDATE_FIX
         );
     }
 }

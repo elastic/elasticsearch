@@ -57,7 +57,7 @@ public class HashTests extends AbstractScalarFunctionTestCase {
                 .withWarning("Line -1:-1: java.security.NoSuchAlgorithmException: invalid MessageDigest not available")
                 .withFoldingException(InvalidArgumentException.class, "invalid algorithm for []: invalid MessageDigest not available");
         }));
-        return parameterSuppliersFromTypedDataWithDefaultChecks(true, cases, (v, p) -> "string");
+        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, cases);
     }
 
     private static List<TestCaseSupplier> createTestCases(String algorithm) {
@@ -87,12 +87,22 @@ public class HashTests extends AbstractScalarFunctionTestCase {
         });
     }
 
+    static void addHashFunctionTestCases(List<TestCaseSupplier> cases, String algorithm) {
+        TestCaseSupplier.forUnaryStrings(
+            cases,
+            "HashConstantEvaluator[algorithm=" + algorithm + ", input=Attribute[channel=0]]",
+            DataType.KEYWORD,
+            input -> new BytesRef(HashTests.hash(algorithm, BytesRefs.toString(input))),
+            List.of()
+        );
+    }
+
     private static TestCaseSupplier.TypedData createTypedData(String value, boolean forceLiteral, DataType type, String name) {
         var data = new TestCaseSupplier.TypedData(new BytesRef(value), type, name);
         return forceLiteral ? data.forceLiteral() : data;
     }
 
-    private static String hash(String algorithm, String input) {
+    static String hash(String algorithm, String input) {
         try {
             return HexFormat.of().formatHex(MessageDigest.getInstance(algorithm).digest(input.getBytes(StandardCharsets.UTF_8)));
         } catch (NoSuchAlgorithmException e) {

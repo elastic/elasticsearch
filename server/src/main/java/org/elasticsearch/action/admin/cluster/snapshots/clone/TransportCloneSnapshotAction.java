@@ -50,7 +50,6 @@ public final class TransportCloneSnapshotAction extends AcknowledgedTransportMas
             threadPool,
             actionFilters,
             CloneSnapshotRequest::new,
-            indexNameExpressionResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.snapshotsService = snapshotsService;

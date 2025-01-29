@@ -4,6 +4,12 @@
 <titleabbrev>Delete IP geolocation database configuration</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-ingest[Ingest APIs].
+--
+
 Deletes a IP geolocation database configuration.
 
 [source,console]

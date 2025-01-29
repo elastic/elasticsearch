@@ -20,6 +20,7 @@ import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.FoldNull;
@@ -38,6 +39,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -58,7 +60,11 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
      * </p>
      *
      * @param entirelyNullPreservesType See {@link #anyNullIsNull(boolean, List)}
+     * @deprecated use {@link #parameterSuppliersFromTypedDataWithDefaultChecksNoErrors}
+     *             and make a subclass of {@link ErrorsForCasesWithoutExamplesTestCase}.
+     *             It's a <strong>long</strong> faster.
      */
+    @Deprecated
     protected static Iterable<Object[]> parameterSuppliersFromTypedDataWithDefaultChecks(
         boolean entirelyNullPreservesType,
         List<TestCaseSupplier> suppliers,
@@ -70,6 +76,41 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
                 positionalErrorMessageSupplier
             )
         );
+    }
+
+    /**
+     * Converts a list of test cases into a list of parameter suppliers.
+     * Also, adds a default set of extra test cases.
+     * <p>
+     *     Use if possible, as this method may get updated with new checks in the future.
+     * </p>
+     *
+     * @param entirelyNullPreservesType See {@link #anyNullIsNull(boolean, List)}
+     */
+    protected static Iterable<Object[]> parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(
+        // TODO remove after removing parameterSuppliersFromTypedDataWithDefaultChecks rename this to that.
+        boolean entirelyNullPreservesType,
+        List<TestCaseSupplier> suppliers
+    ) {
+        return parameterSuppliersFromTypedData(anyNullIsNull(entirelyNullPreservesType, randomizeBytesRefsOffset(suppliers)));
+    }
+
+    /**
+     * Converts a list of test cases into a list of parameter suppliers.
+     * Also, adds a default set of extra test cases.
+     * <p>
+     *     Use if possible, as this method may get updated with new checks in the future.
+     * </p>
+     *
+     * @param nullsExpectedType See {@link #anyNullIsNull(List, ExpectedType, ExpectedEvaluatorToString)}
+     * @param evaluatorToString See {@link #anyNullIsNull(List, ExpectedType, ExpectedEvaluatorToString)}
+     */
+    protected static Iterable<Object[]> parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(
+        ExpectedType nullsExpectedType,
+        ExpectedEvaluatorToString evaluatorToString,
+        List<TestCaseSupplier> suppliers
+    ) {
+        return parameterSuppliersFromTypedData(anyNullIsNull(randomizeBytesRefsOffset(suppliers), nullsExpectedType, evaluatorToString));
     }
 
     /**
@@ -111,7 +152,7 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
         if (resolution.unresolved()) {
             throw new AssertionError("expected resolved " + resolution.message());
         }
-        expression = new FoldNull().rule(expression);
+        expression = new FoldNull().rule(expression, unboundLogicalOptimizerContext());
         assertThat(expression.dataType(), equalTo(testCase.expectedType()));
         logger.info("Result type: " + expression.dataType());
 
@@ -342,14 +383,18 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
             return;
         }
         assertFalse("expected resolved", expression.typeResolved().unresolved());
-        Expression nullOptimized = new FoldNull().rule(expression);
+        Expression nullOptimized = new FoldNull().rule(expression, unboundLogicalOptimizerContext());
         assertThat(nullOptimized.dataType(), equalTo(testCase.expectedType()));
         assertTrue(nullOptimized.foldable());
         if (testCase.foldingExceptionClass() == null) {
-            Object result = nullOptimized.fold();
+            Object result = nullOptimized.fold(FoldContext.small());
             // Decode unsigned longs into BigIntegers
             if (testCase.expectedType() == DataType.UNSIGNED_LONG && result != null) {
-                result = NumericUtils.unsignedLongAsBigInteger((Long) result);
+                if (result instanceof List<?> l) {
+                    result = l.stream().map(v -> NumericUtils.unsignedLongAsBigInteger((Long) v)).toList();
+                } else {
+                    result = NumericUtils.unsignedLongAsBigInteger((Long) result);
+                }
             }
             assertThat(result, testCase.getMatcher());
             if (testCase.getExpectedBuildEvaluatorWarnings() != null) {
@@ -359,40 +404,8 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
                 assertWarnings(testCase.getExpectedWarnings());
             }
         } else {
-            Throwable t = expectThrows(testCase.foldingExceptionClass(), nullOptimized::fold);
+            Throwable t = expectThrows(testCase.foldingExceptionClass(), () -> nullOptimized.fold(FoldContext.small()));
             assertThat(t.getMessage(), equalTo(testCase.foldingExceptionMessage()));
-        }
-    }
-
-    public static String errorMessageStringForBinaryOperators(
-        boolean includeOrdinal,
-        List<Set<DataType>> validPerPosition,
-        List<DataType> types,
-        PositionalErrorMessageSupplier positionalErrorMessageSupplier
-    ) {
-        try {
-            return typeErrorMessage(includeOrdinal, validPerPosition, types, positionalErrorMessageSupplier);
-        } catch (IllegalStateException e) {
-            // This means all the positional args were okay, so the expected error is from the combination
-            if (types.get(0).equals(DataType.UNSIGNED_LONG)) {
-                return "first argument of [] is [unsigned_long] and second is ["
-                    + types.get(1).typeName()
-                    + "]. [unsigned_long] can only be operated on together with another [unsigned_long]";
-
-            }
-            if (types.get(1).equals(DataType.UNSIGNED_LONG)) {
-                return "first argument of [] is ["
-                    + types.get(0).typeName()
-                    + "] and second is [unsigned_long]. [unsigned_long] can only be operated on together with another [unsigned_long]";
-            }
-            return "first argument of [] is ["
-                + (types.get(0).isNumeric() ? "numeric" : types.get(0).typeName())
-                + "] so second argument must also be ["
-                + (types.get(0).isNumeric() ? "numeric" : types.get(0).typeName())
-                + "] but was ["
-                + types.get(1).typeName()
-                + "]";
-
         }
     }
 
@@ -400,7 +413,6 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
      * Adds test cases containing unsupported parameter types that immediately fail.
      */
     protected static List<TestCaseSupplier> failureForCasesWithoutExamples(List<TestCaseSupplier> testCaseSuppliers) {
-        typesRequired(testCaseSuppliers);
         List<TestCaseSupplier> suppliers = new ArrayList<>(testCaseSuppliers.size());
         suppliers.addAll(testCaseSuppliers);
 
@@ -431,7 +443,7 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
         String typeNameOverflow = dataType.typeName().toLowerCase(Locale.ROOT) + " overflow";
         return new TestCaseSupplier(
             "<" + typeNameOverflow + ">",
-            List.of(dataType),
+            List.of(dataType, dataType),
             () -> new TestCaseSupplier.TestCase(
                 List.of(
                     new TestCaseSupplier.TypedData(lhsSupplier.get(), dataType, "lhs"),

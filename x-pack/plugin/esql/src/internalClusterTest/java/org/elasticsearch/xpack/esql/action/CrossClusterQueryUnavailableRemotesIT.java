@@ -30,6 +30,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
+import static org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase.randomIncludeCCSMetadata;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -450,20 +451,6 @@ public class CrossClusterQueryUnavailableRemotesIT extends AbstractMultiClusters
 
     protected EsqlQueryResponse runQuery(EsqlQueryRequest request) {
         return client(LOCAL_CLUSTER).execute(EsqlQueryAction.INSTANCE, request).actionGet(30, TimeUnit.SECONDS);
-    }
-
-    /**
-     * v1: value to send to runQuery (can be null; null means use default value)
-     * v2: whether to expect CCS Metadata in the response (cannot be null)
-     * @return
-     */
-    public static Tuple<Boolean, Boolean> randomIncludeCCSMetadata() {
-        return switch (randomIntBetween(1, 3)) {
-            case 1 -> new Tuple<>(Boolean.TRUE, Boolean.TRUE);
-            case 2 -> new Tuple<>(Boolean.FALSE, Boolean.FALSE);
-            case 3 -> new Tuple<>(null, Boolean.FALSE);
-            default -> throw new AssertionError("should not get here");
-        };
     }
 
     Map<String, Object> setupClusters(int numClusters) {

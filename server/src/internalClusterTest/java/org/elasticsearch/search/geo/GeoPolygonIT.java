@@ -39,7 +39,7 @@ public class GeoPolygonIT extends ESIntegTestCase {
 
     @Override
     protected void setupSuiteScopeCluster() throws Exception {
-        IndexVersion version = IndexVersionUtils.randomCompatibleVersion(random());
+        IndexVersion version = IndexVersionUtils.randomCompatibleWriteVersion(random());
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
 
         assertAcked(

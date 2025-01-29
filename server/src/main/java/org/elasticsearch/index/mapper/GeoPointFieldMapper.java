@@ -8,15 +8,20 @@
  */
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.document.Field;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.document.LatLonPoint;
 import org.apache.lucene.document.ShapeField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.geo.LatLonGeometry;
+import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.geo.GeoFormatterFactory;
@@ -228,17 +233,14 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
 
     }
 
-    private static final IndexVersion MINIMUM_COMPATIBILITY_VERSION = IndexVersion.fromId(5000099);
-
-    public static TypeParser PARSER = new TypeParser(
+    public static final TypeParser PARSER = createTypeParserWithLegacySupport(
         (n, c) -> new Builder(
             n,
             c.scriptCompiler(),
             IGNORE_MALFORMED_SETTING.get(c.getSettings()),
             c.indexVersionCreated(),
             c.getIndexSettings().getMode()
-        ),
-        MINIMUM_COMPATIBILITY_VERSION
+        )
     );
 
     private final Builder builder;
@@ -285,17 +287,24 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
 
     @Override
     protected void index(DocumentParserContext context, GeoPoint geometry) throws IOException {
-        if (fieldType().isIndexed()) {
+        final boolean indexed = fieldType().isIndexed();
+        final boolean hasDocValues = fieldType().hasDocValues();
+        final boolean store = fieldType().isStored();
+        if (indexed && hasDocValues) {
+            context.doc().add(new LatLonPointWithDocValues(fieldType().name(), geometry.lat(), geometry.lon()));
+        } else if (hasDocValues) {
+            context.doc().add(new LatLonDocValuesField(fieldType().name(), geometry.lat(), geometry.lon()));
+        } else if (indexed) {
             context.doc().add(new LatLonPoint(fieldType().name(), geometry.lat(), geometry.lon()));
         }
-        if (fieldType().hasDocValues()) {
-            context.doc().add(new LatLonDocValuesField(fieldType().name(), geometry.lat(), geometry.lon()));
-        } else if (fieldType().isStored() || fieldType().isIndexed()) {
-            context.addToFieldNames(fieldType().name());
-        }
-        if (fieldType().isStored()) {
+        if (store) {
             context.doc().add(new StoredField(fieldType().name(), geometry.toString()));
         }
+        if (hasDocValues == false && (indexed || store)) {
+            // When the field doesn't have doc values so that we can run exists queries, we also need to index the field name separately.
+            context.addToFieldNames(fieldType().name());
+        }
+
         // TODO phase out geohash (which is currently used in the CompletionSuggester)
         // we only expose the geohash value and disallow advancing tokens, hence we can reuse the same parser throughout multiple sub-fields
         DocumentParserContext parserContext = context.switchParser(new GeoHashMultiFieldParser(context.parser(), geometry.geohash()));
@@ -610,19 +619,75 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport() {
         if (fieldType().hasDocValues()) {
-            var loader = new SortedNumericDocValuesSyntheticFieldLoader(fullPath(), leafName(), ignoreMalformed()) {
-                final GeoPoint point = new GeoPoint();
+            return new SyntheticSourceSupport.Native(
+                () -> new SortedNumericDocValuesSyntheticFieldLoader(fullPath(), leafName(), ignoreMalformed()) {
+                    final GeoPoint point = new GeoPoint();
 
-                @Override
-                protected void writeValue(XContentBuilder b, long value) throws IOException {
-                    point.reset(GeoEncodingUtils.decodeLatitude((int) (value >>> 32)), GeoEncodingUtils.decodeLongitude((int) value));
-                    point.toXContent(b, ToXContent.EMPTY_PARAMS);
+                    @Override
+                    protected void writeValue(XContentBuilder b, long value) throws IOException {
+                        point.reset(GeoEncodingUtils.decodeLatitude((int) (value >>> 32)), GeoEncodingUtils.decodeLongitude((int) value));
+                        point.toXContent(b, ToXContent.EMPTY_PARAMS);
+                    }
                 }
-            };
-
-            return new SyntheticSourceSupport.Native(loader);
+            );
         }
 
         return super.syntheticSourceSupport();
+    }
+
+    /**
+     * Utility class that allows adding index and doc values in one field
+     */
+    public static class LatLonPointWithDocValues extends Field {
+
+        public static final FieldType TYPE = new FieldType();
+
+        static {
+            TYPE.setDimensions(2, Integer.BYTES);
+            TYPE.setDocValuesType(DocValuesType.SORTED_NUMERIC);
+            TYPE.freeze();
+        }
+
+        // holds the doc value value.
+        private final long docValue;
+
+        public LatLonPointWithDocValues(String name, double latitude, double longitude) {
+            super(name, TYPE);
+            final byte[] bytes;
+            if (fieldsData == null) {
+                bytes = new byte[8];
+                fieldsData = new BytesRef(bytes);
+            } else {
+                bytes = ((BytesRef) fieldsData).bytes;
+            }
+
+            final int latitudeEncoded = GeoEncodingUtils.encodeLatitude(latitude);
+            final int longitudeEncoded = GeoEncodingUtils.encodeLongitude(longitude);
+            NumericUtils.intToSortableBytes(latitudeEncoded, bytes, 0);
+            NumericUtils.intToSortableBytes(longitudeEncoded, bytes, Integer.BYTES);
+            docValue = (((long) latitudeEncoded) << 32) | (longitudeEncoded & 0xFFFFFFFFL);
+        }
+
+        @Override
+        public Number numericValue() {
+            return docValue;
+        }
+
+        @Override
+        public String toString() {
+            StringBuilder result = new StringBuilder();
+            result.append(getClass().getSimpleName());
+            result.append(" <");
+            result.append(name);
+            result.append(':');
+
+            byte[] bytes = ((BytesRef) fieldsData).bytes;
+            result.append(GeoEncodingUtils.decodeLatitude(bytes, 0));
+            result.append(',');
+            result.append(GeoEncodingUtils.decodeLongitude(bytes, Integer.BYTES));
+
+            result.append('>');
+            return result.toString();
+        }
     }
 }

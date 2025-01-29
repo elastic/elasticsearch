@@ -70,7 +70,7 @@ public class ToRadiansTests extends AbstractScalarFunctionTestCase {
             List.of()
         );
 
-        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers, (v, p) -> "numeric");
+        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
     }
 
     @Override

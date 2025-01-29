@@ -9,7 +9,10 @@
 
 package org.elasticsearch.ingest;
 
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentType;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 
@@ -1127,5 +1130,48 @@ public class IngestDocumentTests extends ESTestCase {
         // an index cycle cannot be introduced, however
         assertFalse(ingestDocument.updateIndexHistory(index1));
         assertThat(ingestDocument.getIndexHistory(), Matchers.contains(index1, index2));
+    }
+
+    public void testSourceHashMapIsNotCopied() {
+        // an ingest document's ctxMap will, as an optimization, just use the passed-in map reference
+        {
+            Map<String, Object> source = new HashMap<>(Map.of("foo", 1));
+            IngestDocument document = new IngestDocument("index", "id", 1, null, null, source);
+            assertThat(document.getSource(), sameInstance(source));
+            assertThat(document.getCtxMap().getSource(), sameInstance(source));
+        }
+
+        {
+            Map<String, Object> source = XContentHelper.convertToMap(new BytesArray("{ \"foo\": 1 }"), false, XContentType.JSON).v2();
+            IngestDocument document = new IngestDocument("index", "id", 1, null, null, source);
+            assertThat(document.getSource(), sameInstance(source));
+            assertThat(document.getCtxMap().getSource(), sameInstance(source));
+        }
+
+        {
+            Map<String, Object> source = Map.of("foo", 1);
+            IngestDocument document = new IngestDocument("index", "id", 1, null, null, source);
+            assertThat(document.getSource(), sameInstance(source));
+            assertThat(document.getCtxMap().getSource(), sameInstance(source));
+        }
+
+        // a cloned ingest document will copy the map, though
+        {
+            Map<String, Object> source = Map.of("foo", 1);
+            IngestDocument document1 = new IngestDocument("index", "id", 1, null, null, source);
+            document1.getIngestMetadata().put("bar", 2);
+            IngestDocument document2 = new IngestDocument(document1);
+            assertThat(document2.getCtxMap().getMetadata(), equalTo(document1.getCtxMap().getMetadata()));
+            assertThat(document2.getSource(), not(sameInstance(source)));
+            assertThat(document2.getCtxMap().getMetadata(), equalTo(document1.getCtxMap().getMetadata()));
+            assertThat(document2.getCtxMap().getSource(), not(sameInstance(source)));
+
+            // it also copies these other nearby maps
+            assertThat(document2.getIngestMetadata(), equalTo(document1.getIngestMetadata()));
+            assertThat(document2.getIngestMetadata(), not(sameInstance(document1.getIngestMetadata())));
+
+            assertThat(document2.getCtxMap().getMetadata(), not(sameInstance(document1.getCtxMap().getMetadata())));
+            assertThat(document2.getCtxMap().getMetadata(), not(sameInstance(document1.getCtxMap().getMetadata())));
+        }
     }
 }

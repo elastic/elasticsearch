@@ -30,7 +30,7 @@ import java.util.Objects;
  */
 final class DefaultBuildVersion extends BuildVersion {
 
-    public static BuildVersion CURRENT = new DefaultBuildVersion(Version.CURRENT.id());
+    public static final BuildVersion CURRENT = new DefaultBuildVersion(Version.CURRENT.id());
 
     final Version version;
 
@@ -71,6 +71,11 @@ final class DefaultBuildVersion extends BuildVersion {
     @Override
     public String toNodeMetadata() {
         return Integer.toString(version.id());
+    }
+
+    @Override
+    public BuildVersion minimumCompatibilityVersion() {
+        return fromVersionId(version.minimumCompatibilityVersion().id);
     }
 
     @Override

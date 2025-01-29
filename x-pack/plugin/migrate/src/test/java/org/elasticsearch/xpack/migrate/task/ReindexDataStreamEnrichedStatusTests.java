@@ -74,7 +74,7 @@ public class ReindexDataStreamEnrichedStatusTests extends AbstractWireSerializin
     }
 
     private Set<String> randomSet(int minSize) {
-        return randomSet(minSize, 100, () -> randomAlphaOfLength(50));
+        return randomSet(minSize, Math.max(minSize, 100), () -> randomAlphaOfLength(50));
     }
 
     private List<Tuple<String, Exception>> randomErrorList() {

@@ -38,7 +38,6 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -89,9 +88,6 @@ public final class KeywordFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "keyword";
 
-    static final NodeFeature KEYWORD_DIMENSION_IGNORE_ABOVE = new NodeFeature("mapper.keyword_dimension_ignore_above");
-    static final NodeFeature KEYWORD_NORMALIZER_SYNTHETIC_SOURCE = new NodeFeature("mapper.keyword_normalizer_synthetic_source");
-
     public static class Defaults {
         public static final FieldType FIELD_TYPE;
 
@@ -104,7 +100,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             FIELD_TYPE = freezeAndDeduplicateFieldType(ft);
         }
 
-        public static TextSearchInfo TEXT_SEARCH_INFO = new TextSearchInfo(
+        public static final TextSearchInfo TEXT_SEARCH_INFO = new TextSearchInfo(
             FIELD_TYPE,
             null,
             Lucene.KEYWORD_ANALYZER,
@@ -385,9 +381,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
     }
 
-    private static final IndexVersion MINIMUM_COMPATIBILITY_VERSION = IndexVersion.fromId(5000099);
-
-    public static final TypeParser PARSER = new TypeParser(Builder::new, MINIMUM_COMPATIBILITY_VERSION);
+    public static final TypeParser PARSER = createTypeParserWithLegacySupport(Builder::new);
 
     public static final class KeywordFieldType extends StringFieldType {
 
@@ -1050,7 +1044,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         if (fieldType.stored() || hasDocValues) {
-            return new SyntheticSourceSupport.Native(syntheticFieldLoader(fullPath(), leafName()));
+            return new SyntheticSourceSupport.Native(() -> syntheticFieldLoader(fullPath(), leafName()));
         }
 
         return super.syntheticSourceSupport();

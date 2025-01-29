@@ -41,7 +41,7 @@ public class PreConfiguredTokenFilterTests extends ESTestCase {
 
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", Settings.EMPTY);
 
-        IndexVersion version1 = IndexVersionUtils.randomVersion(random());
+        IndexVersion version1 = IndexVersionUtils.randomVersion();
         Settings settings1 = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version1).build();
         TokenFilterFactory tff_v1_1 = pctf.get(indexSettings, TestEnvironment.newEnvironment(emptyNodeSettings), "singleton", settings1);
         TokenFilterFactory tff_v1_2 = pctf.get(indexSettings, TestEnvironment.newEnvironment(emptyNodeSettings), "singleton", settings1);
@@ -66,7 +66,7 @@ public class PreConfiguredTokenFilterTests extends ESTestCase {
             }
         );
 
-        IndexVersion version1 = IndexVersionUtils.randomVersion(random());
+        IndexVersion version1 = IndexVersionUtils.randomVersion();
         IndexSettings indexSettings1 = IndexSettingsModule.newIndexSettings(
             "test",
             Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version1).build()
@@ -133,7 +133,7 @@ public class PreConfiguredTokenFilterTests extends ESTestCase {
         );
         assertSame(tff_v1_1, tff_v1_2);
 
-        IndexVersion version2 = IndexVersionUtils.getPreviousMajorVersion(IndexVersionUtils.getFirstVersion());
+        IndexVersion version2 = IndexVersionUtils.getPreviousMajorVersion(IndexVersionUtils.getLowestReadCompatibleVersion());
         IndexSettings indexSettings2 = IndexSettingsModule.newIndexSettings(
             "test",
             Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version2).build()

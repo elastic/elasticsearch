@@ -15,6 +15,7 @@ import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheReque
 import org.elasticsearch.action.admin.indices.cache.clear.TransportClearIndicesCacheAction;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.close.TransportCloseIndexAction;
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
@@ -157,9 +158,11 @@ public class IndicesRequestIT extends ESIntegTestCase {
         for (int i = 0; i < numIndices; i++) {
             indices.add("test" + i);
         }
-        for (String index : indices) {
-            assertAcked(prepareCreate(index).addAlias(new Alias(index + "-alias")));
-        }
+        assertAcked(
+            indices.stream()
+                .map(index -> prepareCreate(index).addAlias(new Alias(index + "-alias")))
+                .toArray(CreateIndexRequestBuilder[]::new)
+        );
         ensureGreen();
     }
 
@@ -516,7 +519,7 @@ public class IndicesRequestIT extends ESIntegTestCase {
     public void testGetMappings() {
         interceptTransportActions(GetMappingsAction.NAME);
 
-        GetMappingsRequest getMappingsRequest = new GetMappingsRequest().indices(randomIndicesOrAliases());
+        GetMappingsRequest getMappingsRequest = new GetMappingsRequest(TEST_REQUEST_TIMEOUT).indices(randomIndicesOrAliases());
         internalCluster().coordOnlyNodeClient().admin().indices().getMappings(getMappingsRequest).actionGet();
 
         clearInterceptedActions();

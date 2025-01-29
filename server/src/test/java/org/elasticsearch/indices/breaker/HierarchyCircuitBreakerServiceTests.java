@@ -211,19 +211,19 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
         CircuitBreaker requestCircuitBreaker = service.getBreaker(CircuitBreaker.REQUEST);
         CircuitBreaker fieldDataCircuitBreaker = service.getBreaker(CircuitBreaker.FIELDDATA);
 
-        assertEquals(new ByteSizeValue(200, ByteSizeUnit.MB).getBytes(), service.stats().getStats(CircuitBreaker.PARENT).getLimit());
-        assertEquals(new ByteSizeValue(150, ByteSizeUnit.MB).getBytes(), requestCircuitBreaker.getLimit());
-        assertEquals(new ByteSizeValue(150, ByteSizeUnit.MB).getBytes(), fieldDataCircuitBreaker.getLimit());
+        assertEquals(ByteSizeValue.of(200, ByteSizeUnit.MB).getBytes(), service.stats().getStats(CircuitBreaker.PARENT).getLimit());
+        assertEquals(ByteSizeValue.of(150, ByteSizeUnit.MB).getBytes(), requestCircuitBreaker.getLimit());
+        assertEquals(ByteSizeValue.of(150, ByteSizeUnit.MB).getBytes(), fieldDataCircuitBreaker.getLimit());
 
-        fieldDataCircuitBreaker.addEstimateBytesAndMaybeBreak(new ByteSizeValue(50, ByteSizeUnit.MB).getBytes(), "should not break");
-        assertEquals(new ByteSizeValue(50, ByteSizeUnit.MB).getBytes(), fieldDataCircuitBreaker.getUsed(), 0.0);
-        requestCircuitBreaker.addEstimateBytesAndMaybeBreak(new ByteSizeValue(50, ByteSizeUnit.MB).getBytes(), "should not break");
-        assertEquals(new ByteSizeValue(50, ByteSizeUnit.MB).getBytes(), requestCircuitBreaker.getUsed(), 0.0);
-        requestCircuitBreaker.addEstimateBytesAndMaybeBreak(new ByteSizeValue(50, ByteSizeUnit.MB).getBytes(), "should not break");
-        assertEquals(new ByteSizeValue(100, ByteSizeUnit.MB).getBytes(), requestCircuitBreaker.getUsed(), 0.0);
+        fieldDataCircuitBreaker.addEstimateBytesAndMaybeBreak(ByteSizeValue.of(50, ByteSizeUnit.MB).getBytes(), "should not break");
+        assertEquals(ByteSizeValue.of(50, ByteSizeUnit.MB).getBytes(), fieldDataCircuitBreaker.getUsed(), 0.0);
+        requestCircuitBreaker.addEstimateBytesAndMaybeBreak(ByteSizeValue.of(50, ByteSizeUnit.MB).getBytes(), "should not break");
+        assertEquals(ByteSizeValue.of(50, ByteSizeUnit.MB).getBytes(), requestCircuitBreaker.getUsed(), 0.0);
+        requestCircuitBreaker.addEstimateBytesAndMaybeBreak(ByteSizeValue.of(50, ByteSizeUnit.MB).getBytes(), "should not break");
+        assertEquals(ByteSizeValue.of(100, ByteSizeUnit.MB).getBytes(), requestCircuitBreaker.getUsed(), 0.0);
         CircuitBreakingException exception = expectThrows(
             CircuitBreakingException.class,
-            () -> requestCircuitBreaker.addEstimateBytesAndMaybeBreak(new ByteSizeValue(50, ByteSizeUnit.MB).getBytes(), "should break")
+            () -> requestCircuitBreaker.addEstimateBytesAndMaybeBreak(ByteSizeValue.of(50, ByteSizeUnit.MB).getBytes(), "should break")
         );
         assertThat(exception.getMessage(), containsString("[parent] Data too large, data for [should break] would be"));
         assertThat(exception.getMessage(), containsString("which is larger than the limit of [209715200/200mb]"));
@@ -733,7 +733,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
         );
 
         long parentLimitBytes = service.getParentLimit();
-        assertEquals(new ByteSizeValue(100, ByteSizeUnit.BYTES).getBytes(), parentLimitBytes);
+        assertEquals(ByteSizeValue.of(100, ByteSizeUnit.BYTES).getBytes(), parentLimitBytes);
 
         CircuitBreaker breaker = service.getBreaker(CircuitBreaker.REQUEST);
         MultiBucketConsumerService.MultiBucketConsumer multiBucketConsumer = new MultiBucketConsumerService.MultiBucketConsumer(
@@ -800,7 +800,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
     }
 
     private static long mb(long size) {
-        return new ByteSizeValue(size, ByteSizeUnit.MB).getBytes();
+        return ByteSizeValue.of(size, ByteSizeUnit.MB).getBytes();
     }
 
     public void testUpdatingUseRealMemory() {

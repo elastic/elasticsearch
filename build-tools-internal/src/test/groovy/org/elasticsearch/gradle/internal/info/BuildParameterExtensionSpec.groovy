@@ -9,9 +9,9 @@
 
 package org.elasticsearch.gradle.internal.info
 
+import spock.lang.Ignore
 import spock.lang.Specification
 
-import org.elasticsearch.gradle.internal.BwcVersions
 import org.gradle.api.JavaVersion
 import org.gradle.api.Project
 import org.gradle.api.provider.Provider
@@ -31,6 +31,7 @@ class BuildParameterExtensionSpec extends Specification {
 
     ProjectBuilder projectBuilder = new ProjectBuilder()
 
+    @Ignore
     def "#getterName is cached anc concurrently accessible"() {
         given:
         def project = projectBuilder.build()
@@ -85,8 +86,8 @@ class BuildParameterExtensionSpec extends Specification {
             JavaVersion.VERSION_11,
             JavaVersion.VERSION_11,
             JavaVersion.VERSION_11,
-            "gitRevision",
-            "gitOrigin",
+            providerMock(),
+            providerMock(),
             "testSeed",
             false,
             5,

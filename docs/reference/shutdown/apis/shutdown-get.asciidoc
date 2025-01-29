@@ -3,6 +3,12 @@
 
 NOTE: {cloud-only}
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-shutdown[Node lifecycle APIs].
+--
+
 Retrieves the status of a node that's being prepared for shutdown.
 
 [[get-shutdown-api-request]]
@@ -72,6 +78,7 @@ including the status of shard migration, task migration, and plugin cleanup:
     "nodes": [
         {
             "node_id": "USpTGYaBSIKbgSUJR2Z9lg",
+            "node_ephemeral_id": null,
             "type": "RESTART",
             "reason": "Demonstrating how the node shutdown API works",
             "shutdown_startedmillis": 1624406108685,

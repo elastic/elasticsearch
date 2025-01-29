@@ -3568,7 +3568,8 @@ public class InternalEngineTests extends EngineTestCase {
             new TranslogDeletionPolicy(),
             () -> SequenceNumbers.NO_OPS_PERFORMED,
             primaryTerm::get,
-            seqNo -> {}
+            seqNo -> {},
+            TranslogOperationAsserter.DEFAULT
         );
         translog.add(TranslogOperationsUtils.indexOp("SomeBogusId", 0, primaryTerm.get()));
         assertEquals(generation.translogFileGeneration(), translog.currentFileGeneration());
@@ -6645,7 +6646,7 @@ public class InternalEngineTests extends EngineTestCase {
         for (IndexVersion createdVersion : List.of(
             IndexVersion.current(),
             lowestCompatiblePreviousVersion,
-            IndexVersionUtils.getFirstVersion()
+            IndexVersionUtils.getLowestWriteCompatibleVersion()
         )) {
             Settings settings = Settings.builder().put(indexSettings()).put(IndexMetadata.SETTING_VERSION_CREATED, createdVersion).build();
             IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", settings);

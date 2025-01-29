@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
@@ -29,7 +30,6 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StDistance;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
-import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
@@ -417,7 +417,7 @@ public class PushTopNToSourceTests extends ESTestCase {
 
     private static PhysicalPlan pushTopNToSource(TopNExec topNExec) {
         var configuration = EsqlTestUtils.configuration("from test");
-        var ctx = new LocalPhysicalOptimizerContext(configuration, SearchStats.EMPTY);
+        var ctx = new LocalPhysicalOptimizerContext(configuration, FoldContext.small(), SearchStats.EMPTY);
         var pushTopNToSource = new PushTopNToSource();
         return pushTopNToSource.rule(topNExec, ctx);
     }
@@ -581,9 +581,8 @@ public class PushTopNToSourceTests extends ESTestCase {
         }
 
         public TopNExec build() {
-            EsIndex esIndex = new EsIndex(this.index, Map.of());
             List<Attribute> attributes = new ArrayList<>(fields.values());
-            PhysicalPlan child = new EsQueryExec(Source.EMPTY, esIndex, indexMode, attributes, null, null, List.of(), 0);
+            PhysicalPlan child = new EsQueryExec(Source.EMPTY, this.index, indexMode, Map.of(), attributes, null, null, List.of(), 0);
             if (aliases.isEmpty() == false) {
                 child = new EvalExec(Source.EMPTY, child, aliases);
             }

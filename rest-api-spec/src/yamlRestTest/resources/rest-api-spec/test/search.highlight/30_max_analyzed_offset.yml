@@ -115,11 +115,69 @@ setup:
   - match: {hits.hits.0.highlight.field2.0: "The quick brown <em>fox</em> went to the forest and saw another fox."}
 
 ---
-"Plain highlighter with max_analyzed_offset < 0 should FAIL":
+"Plain highlighter on a field WITH OFFSETS exceeding index.highlight.max_analyzed_offset with max_analyzed_offset=0 should FAIL":
+
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: GET
+          path: /_search
+          capabilities: [ highlight_max_analyzed_offset_default ]
+      reason: Behavior of max_analyzed_offset query param changed in 8.18.
+
+  - do:
+      catch: bad_request
+      search:
+        rest_total_hits_as_int: true
+        index: test1
+        body: {"query" : {"match" : {"field2" : "fox"}}, "highlight" : {"type" : "plain", "fields" : {"field2" : {}}, "max_analyzed_offset": 0}}
+  - match: { status: 400 }
+  - match: { error.root_cause.0.type: "x_content_parse_exception" }
+  - match: { error.caused_by.type: "illegal_argument_exception" }
+  - match: { error.caused_by.reason: "[max_analyzed_offset] must be a positive integer, or -1" }
+
+---
+"Plain highlighter on a field WITH OFFSETS exceeding index.highlight.max_analyzed_offset with max_analyzed_offset=1 should SUCCEED":
 
   - requires:
       cluster_features: ["gte_v7.12.0"]
       reason: max_analyzed_offset query param added in 7.12.0
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test1
+        body: {"query" : {"match" : {"field2" : "fox"}}, "highlight" : {"type" : "plain", "fields" : {"field2" : {}}, "max_analyzed_offset": 1}}
+  - match: { hits.hits.0.highlight: null }
+
+---
+"Plain highlighter with max_analyzed_offset = -1 default to index analyze offset should SUCCEED":
+
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: GET
+          path: /_search
+          capabilities: [ highlight_max_analyzed_offset_default ]
+      reason: Behavior of max_analyzed_offset query param changed in 8.18.
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test1
+        body: {"query" : {"match" : {"field2" : "fox"}}, "highlight" : {"type" : "plain", "fields" : {"field2" : {}}, "max_analyzed_offset": -1}}
+  - match: {hits.hits.0.highlight.field2.0: "The quick brown <em>fox</em> went to the forest and saw another fox."}
+
+---
+"Plain highlighter with max_analyzed_offset < -1 should FAIL":
+
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: GET
+          path: /_search
+          capabilities: [ highlight_max_analyzed_offset_default ]
+      reason: Behavior of max_analyzed_offset query param changed in 8.18.
 
   - do:
       catch: bad_request
@@ -130,4 +188,4 @@ setup:
   - match: { status: 400 }
   - match: { error.root_cause.0.type: "x_content_parse_exception" }
   - match: { error.caused_by.type: "illegal_argument_exception" }
-  - match: { error.caused_by.reason: "[max_analyzed_offset] must be a positive integer" }
+  - match: { error.caused_by.reason: "[max_analyzed_offset] must be a positive integer, or -1" }

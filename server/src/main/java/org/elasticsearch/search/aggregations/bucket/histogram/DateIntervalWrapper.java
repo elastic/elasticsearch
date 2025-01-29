@@ -15,7 +15,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -34,9 +33,6 @@ import java.util.Objects;
  * - Provides a variety of helper methods to interpret the intervals as different types, depending on caller's need
  */
 public class DateIntervalWrapper implements ToXContentFragment, Writeable {
-    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(DateHistogramAggregationBuilder.class);
-    private static final String DEPRECATION_TEXT = "[interval] on [date_histogram] is deprecated, use [fixed_interval] or "
-        + "[calendar_interval] in the future.";
     private static final ParseField FIXED_INTERVAL_FIELD = new ParseField("fixed_interval");
     private static final ParseField CALENDAR_INTERVAL_FIELD = new ParseField("calendar_interval");
 

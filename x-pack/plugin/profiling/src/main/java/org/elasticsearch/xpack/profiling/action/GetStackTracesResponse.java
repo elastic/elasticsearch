@@ -8,20 +8,19 @@ package org.elasticsearch.xpack.profiling.action;
 
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.TransportAction;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.TriConsumer;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ChunkedToXContent;
-import org.elasticsearch.common.xcontent.ChunkedToXContentBuilder;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.xcontent.ToXContent;
 
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.Consumer;
+import java.util.function.BiFunction;
 
 public class GetStackTracesResponse extends ActionResponse implements ChunkedToXContentObject {
     @Nullable
@@ -91,33 +90,34 @@ public class GetStackTracesResponse extends ActionResponse implements ChunkedToX
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-        return ChunkedToXContent.builder(params).object(ob -> {
-            ob.execute(optional("stack_traces", stackTraces, ChunkedToXContentBuilder::xContentObjectFields));
-            ob.execute(optional("stack_frames", stackFrames, ChunkedToXContentBuilder::xContentObjectFields));
-            ob.execute(optional("executables", executables, ChunkedToXContentBuilder::object));
+        return Iterators.concat(
+            ChunkedToXContentHelper.startObject(),
+            optional("stack_traces", stackTraces, ChunkedToXContentHelper::xContentObjectFields),
+            optional("stack_frames", stackFrames, ChunkedToXContentHelper::xContentObjectFields),
+            optional("executables", executables, ChunkedToXContentHelper::object),
             // render only count for backwards-compatibility
-            ob.execute(
-                optional(
-                    "stack_trace_events",
-                    stackTraceEvents,
-                    (steb, n, v) -> steb.object(n, v.entrySet().iterator(), e -> (b, p) -> b.field(e.getKey(), e.getValue().count))
-                )
-            );
-            ob.field("total_frames", totalFrames);
-            ob.field("sampling_rate", samplingRate);
+            optional(
+                "stack_trace_events",
+                stackTraceEvents,
+                (n, v) -> ChunkedToXContentHelper.object(n, v, entry -> (b, p) -> b.field(entry.getKey(), entry.getValue().count))
+            ),
+            Iterators.single((b, p) -> b.field("total_frames", totalFrames)),
+            Iterators.single((b, p) -> b.field("sampling_rate", samplingRate)),
             // the following fields are intentionally not written to the XContent representation (only needed on the transport layer):
+            //
             // * start
             // * end
             // * totalSamples
-        });
+            ChunkedToXContentHelper.endObject()
+        );
     }
 
-    private static <T> Consumer<ChunkedToXContentBuilder> optional(
+    private static <T> Iterator<? extends ToXContent> optional(
         String name,
         Map<String, T> values,
-        TriConsumer<ChunkedToXContentBuilder, String, Map<String, T>> function
+        BiFunction<String, Map<String, T>, Iterator<? extends ToXContent>> supplier
     ) {
-        return values != null ? b -> function.apply(b, name, values) : b -> {};
+        return (values != null) ? supplier.apply(name, values) : Collections.emptyIterator();
     }
 
     @Override
@@ -140,10 +140,5 @@ public class GetStackTracesResponse extends ActionResponse implements ChunkedToX
     @Override
     public int hashCode() {
         return Objects.hash(stackTraces, stackFrames, executables, stackTraceEvents, totalFrames, samplingRate);
-    }
-
-    @Override
-    public String toString() {
-        return Strings.toString(this, true, true);
     }
 }

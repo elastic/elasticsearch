@@ -16,27 +16,27 @@ import org.elasticsearch.compute.operator.DriverContext;
 abstract class SpatialExtentLongitudeWrappingAggregator {
     public static void combineIntermediate(
         SpatialExtentStateWrappedLongitudeState current,
-        int minNegX,
-        int minPosX,
-        int maxNegX,
-        int maxPosX,
-        int maxY,
-        int minY
+        int top,
+        int bottom,
+        int negLeft,
+        int negRight,
+        int posLeft,
+        int posRight
     ) {
-        current.add(minNegX, minPosX, maxNegX, maxPosX, maxY, minY);
+        current.add(top, bottom, negLeft, negRight, posLeft, posRight);
     }
 
     public static void combineIntermediate(
         SpatialExtentGroupingStateWrappedLongitudeState current,
         int groupId,
-        int minNegX,
-        int minPosX,
-        int maxNegX,
-        int maxPosX,
-        int maxY,
-        int minY
+        int top,
+        int bottom,
+        int negLeft,
+        int negRight,
+        int posLeft,
+        int posRight
     ) {
-        current.add(groupId, minNegX, minPosX, maxNegX, maxPosX, maxY, minY);
+        current.add(groupId, top, bottom, negLeft, negRight, posLeft, posRight);
     }
 
     public static Block evaluateFinal(SpatialExtentStateWrappedLongitudeState state, DriverContext driverContext) {

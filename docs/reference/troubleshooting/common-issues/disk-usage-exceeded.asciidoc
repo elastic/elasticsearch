@@ -21,6 +21,10 @@ usage falls below the <<cluster-routing-watermark-high,high disk watermark>>.
 To achieve this, {es} attempts to rebalance some of the affected node's shards 
 to other nodes in the same data tier.
 
+****
+If you're using Elastic Cloud Hosted, then you can use AutoOps to monitor your cluster. AutoOps significantly simplifies cluster management with performance recommendations, resource utilization visibility, real-time issue detection and resolution paths. For more information, refer to https://www.elastic.co/guide/en/cloud/current/ec-autoops.html[Monitor with AutoOps].
+****
+
 [[fix-watermark-errors-rebalance]]
 ==== Monitor rebalancing
 

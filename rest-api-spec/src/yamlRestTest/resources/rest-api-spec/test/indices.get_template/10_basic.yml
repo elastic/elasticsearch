@@ -62,13 +62,49 @@ setup:
 
 ---
 "Get template with local flag":
+  - requires:
+      test_runner_features: ["allowed_warnings"]
 
   - do:
       indices.get_template:
         name: test
         local: true
+      allowed_warnings:
+        - "the [?local] query parameter to this API has no effect, is now deprecated, and will be removed in a future version"
 
   - is_true: test
+
+---
+"Deprecated local parameter":
+  - requires:
+      capabilities:
+        - method: GET
+          path: /_template
+          capabilities: ["local_param_deprecated"]
+      test_runner_features: ["capabilities", "warnings"]
+      reason: Deprecation was implemented with capability
+
+  - do:
+      indices.get_template:
+        name: test
+        local: true
+      warnings:
+        - "the [?local] query parameter to this API has no effect, is now deprecated, and will be removed in a future version"
+
+---
+"Deprecated local parameter works in v8 compat mode":
+  - requires:
+      test_runner_features: ["headers"]
+
+  - do:
+      headers:
+        Content-Type: "application/vnd.elasticsearch+json;compatible-with=8"
+        Accept: "application/vnd.elasticsearch+json;compatible-with=8"
+      indices.get_template:
+        name: test
+        local: true
+
+  - exists: test.index_patterns
 
 ---
 "Get template with flat settings and master timeout":

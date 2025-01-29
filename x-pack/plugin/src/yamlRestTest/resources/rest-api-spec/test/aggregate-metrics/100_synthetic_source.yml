@@ -61,10 +61,6 @@ aggregate_metric_double:
 
 ---
 aggregate_metric_double with ignore_malformed:
-  - requires:
-      cluster_features: ["mapper.track_ignored_source"]
-      reason: requires tracking ignored source
-
   - do:
       indices.create:
         index: test

@@ -32,7 +32,7 @@ public class ClassificationConfigUpdate implements InferenceConfigUpdate, NamedX
 
     public static final ParseField NAME = ClassificationConfig.NAME;
 
-    public static ClassificationConfigUpdate EMPTY_PARAMS = new ClassificationConfigUpdate(null, null, null, null, null);
+    public static final ClassificationConfigUpdate EMPTY_PARAMS = new ClassificationConfigUpdate(null, null, null, null, null);
 
     private final Integer numTopClasses;
     private final String topClassesResultsField;

@@ -52,14 +52,16 @@ public class TransportVersions {
     @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA) // remove the transport versions with which v9 will not need to interact
     public static final TransportVersion ZERO = def(0);
     public static final TransportVersion V_7_0_0 = def(7_00_00_99);
+    public static final TransportVersion V_7_1_0 = def(7_01_00_99);
+    public static final TransportVersion V_7_2_0 = def(7_02_00_99);
     public static final TransportVersion V_7_3_0 = def(7_03_00_99);
+    public static final TransportVersion V_7_3_2 = def(7_03_02_99);
     public static final TransportVersion V_7_4_0 = def(7_04_00_99);
     public static final TransportVersion V_7_6_0 = def(7_06_00_99);
     public static final TransportVersion V_7_8_0 = def(7_08_00_99);
     public static final TransportVersion V_7_8_1 = def(7_08_01_99);
     public static final TransportVersion V_7_9_0 = def(7_09_00_99);
     public static final TransportVersion V_7_10_0 = def(7_10_00_99);
-    public static final TransportVersion V_7_10_1 = def(7_10_01_99);
     public static final TransportVersion V_7_11_0 = def(7_11_00_99);
     public static final TransportVersion V_7_12_0 = def(7_12_00_99);
     public static final TransportVersion V_7_13_0 = def(7_13_00_99);
@@ -140,6 +142,34 @@ public class TransportVersions {
     public static final TransportVersion ESQL_QUERY_BUILDER_IN_SEARCH_FUNCTIONS = def(8_808_00_0);
     public static final TransportVersion EQL_ALLOW_PARTIAL_SEARCH_RESULTS = def(8_809_00_0);
     public static final TransportVersion NODE_VERSION_INFORMATION_WITH_MIN_READ_ONLY_INDEX_VERSION = def(8_810_00_0);
+    public static final TransportVersion ERROR_TRACE_IN_TRANSPORT_HEADER = def(8_811_00_0);
+    public static final TransportVersion FAILURE_STORE_ENABLED_BY_CLUSTER_SETTING = def(8_812_00_0);
+    public static final TransportVersion SIMULATE_IGNORED_FIELDS = def(8_813_00_0);
+    public static final TransportVersion TRANSFORMS_UPGRADE_MODE = def(8_814_00_0);
+    public static final TransportVersion NODE_SHUTDOWN_EPHEMERAL_ID_ADDED = def(8_815_00_0);
+    public static final TransportVersion ESQL_CCS_TELEMETRY_STATS = def(8_816_00_0);
+    public static final TransportVersion TEXT_EMBEDDING_QUERY_VECTOR_BUILDER_INFER_MODEL_ID = def(8_817_00_0);
+    public static final TransportVersion ESQL_ENABLE_NODE_LEVEL_REDUCTION = def(8_818_00_0);
+    public static final TransportVersion JINA_AI_INTEGRATION_ADDED = def(8_819_00_0);
+    public static final TransportVersion TRACK_INDEX_FAILED_DUE_TO_VERSION_CONFLICT_METRIC = def(8_820_00_0);
+    public static final TransportVersion REPLACE_FAILURE_STORE_OPTIONS_WITH_SELECTOR_SYNTAX = def(8_821_00_0);
+    public static final TransportVersion ELASTIC_INFERENCE_SERVICE_UNIFIED_CHAT_COMPLETIONS_INTEGRATION = def(8_822_00_0);
+    public static final TransportVersion KQL_QUERY_TECH_PREVIEW = def(8_823_00_0);
+    public static final TransportVersion ESQL_PROFILE_ROWS_PROCESSED = def(8_824_00_0);
+    public static final TransportVersion BYTE_SIZE_VALUE_ALWAYS_USES_BYTES_1 = def(8_825_00_0);
+    public static final TransportVersion REVERT_BYTE_SIZE_VALUE_ALWAYS_USES_BYTES_1 = def(8_826_00_0);
+    public static final TransportVersion ESQL_SKIP_ES_INDEX_SERIALIZATION = def(8_827_00_0);
+    public static final TransportVersion ADD_INDEX_BLOCK_TWO_PHASE = def(8_828_00_0);
+    public static final TransportVersion RESOLVE_CLUSTER_NO_INDEX_EXPRESSION = def(8_829_00_0);
+    public static final TransportVersion ML_ROLLOVER_LEGACY_INDICES = def(8_830_00_0);
+    public static final TransportVersion ADD_INCLUDE_FAILURE_INDICES_OPTION = def(8_831_00_0);
+    public static final TransportVersion ESQL_RESPONSE_PARTIAL = def(8_832_00_0);
+    public static final TransportVersion RANK_DOC_OPTIONAL_METADATA_FOR_EXPLAIN = def(8_833_00_0);
+    public static final TransportVersion ILM_ADD_SEARCHABLE_SNAPSHOT_ADD_REPLICATE_FOR = def(8_834_00_0);
+    public static final TransportVersion INGEST_REQUEST_INCLUDE_SOURCE_ON_ERROR = def(8_835_00_0);
+    public static final TransportVersion RESOURCE_DEPRECATION_CHECKS = def(8_836_00_0);
+    public static final TransportVersion LINEAR_RETRIEVER_SUPPORT = def(8_837_00_0);
+    public static final TransportVersion TIMEOUT_GET_PARAM_FOR_RESOLVE_CLUSTER = def(8_838_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

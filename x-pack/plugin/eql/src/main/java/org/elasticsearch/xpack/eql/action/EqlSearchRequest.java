@@ -44,8 +44,8 @@ import static org.elasticsearch.xpack.eql.action.RequestDefaults.FIELD_TIMESTAMP
 
 public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Replaceable, ToXContent {
 
-    public static long MIN_KEEP_ALIVE = TimeValue.timeValueMinutes(1).millis();
-    public static TimeValue DEFAULT_KEEP_ALIVE = TimeValue.timeValueDays(5);
+    public static final long MIN_KEEP_ALIVE = TimeValue.timeValueMinutes(1).millis();
+    public static final TimeValue DEFAULT_KEEP_ALIVE = TimeValue.timeValueDays(5);
     public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.fromOptions(true, true, true, false);
 
     private String[] indices;

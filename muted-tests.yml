@@ -495,3 +495,6 @@ tests:
 - class: org.elasticsearch.datastreams.DataStreamsClientYamlTestSuiteIT
   method: test {p0=data_stream/140_data_stream_aliases/Create data stream alias with filter}
   issue: https://github.com/elastic/elasticsearch/issues/121014
+- class: org.elasticsearch.xpack.transform.integration.TransformAuditorIT
+  method: testAuditorWritesAudits
+  issue: https://github.com/elastic/elasticsearch/issues/121241

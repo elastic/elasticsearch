@@ -874,6 +874,7 @@ public final class IndicesPermission {
             return afterFailureExclusions;
         }
 
+        // TODO: [Jake] ensure this javadoc is still correct before merging (some minor details are wrong, but the gist is correct)
         /**
          * This method looks for any index patterns in this group that have all the following characteristics:
          * <ul>
@@ -917,14 +918,16 @@ public final class IndicesPermission {
             assert indexPattern != "*" : "* is a special case and should never exclude failures";
             assert indexPattern.endsWith("*") || Automatons.isLuceneRegex(indexPattern)
                 : "Only patterns with a trailing wildcard " + "or regular expressions should explicitly exclude failures";
-            // TODO: [Jake] also handle properly convert `?` and `\\` and `.` cases for non-regular expressions
-            // TODO: [Jake] look for other special characters allowed by Lucene regular expressions vs. special chars in role vs. special
-            // chars allowed in index names
+            // TODO: [Jake] also properly convert `?` and properly escape any characters such as `.` that is valid in index names but have
+            // special meaning in the regular expression
+            StringBuilder sb = new StringBuilder();
             if (indexPattern.endsWith("*")) {
-                return "/(" + indexPattern.replaceAll("\\*", ".*") + ")&~(" + indexPattern.replaceAll("\\*", ".*") + "::failures)/";
+                // using Strings.replace instead of String.replaceAll to avoid regex compilation
+                String inny = Strings.replace(indexPattern, "*", ".*");
+                return sb.append("/(").append(inny).append(")&~(").append(inny).append("::failures)/").toString();
             } else if (Automatons.isLuceneRegex(indexPattern)) {
-                String innerPattern = indexPattern.substring(1, indexPattern.length() - 1);
-                return "/(" + innerPattern + ")&~((" + innerPattern + ")::failures)/";
+                String inny = indexPattern.substring(1, indexPattern.length() - 1);
+                return sb.append("/(").append(inny).append(")&~((").append(inny).append(")::failures)/").toString();
             } else {
                 throw new IllegalArgumentException("Unexpected index pattern: " + indexPattern); // should never happen
             }

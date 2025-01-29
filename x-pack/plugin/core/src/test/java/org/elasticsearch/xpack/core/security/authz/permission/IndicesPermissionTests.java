@@ -30,7 +30,6 @@ public class IndicesPermissionTests extends ESTestCase {
         String[] result = IndicesPermission.Group.maybeAddFailureExclusions(indices);
         // System.out.println(java.util.Arrays.toString(result));
         assertThat(result[0], Matchers.equalTo("/(foo.*)&~(foo.*::failures)/"));
-        assertThat(result[0], Matchers.equalTo(result[1]));
-
+        assertThat(result[1], Matchers.equalTo("/(foo.*)&~((foo.*)::failures)/"));
     }
 }

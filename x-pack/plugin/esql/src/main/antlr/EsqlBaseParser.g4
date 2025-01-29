@@ -328,7 +328,7 @@ joinCommand
     ;
 
 joinTarget
-    : index=indexPattern (AS alias=identifier)?
+    : index=indexPattern
     ;
 
 joinCondition

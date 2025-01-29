@@ -30,11 +30,14 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractValue;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
 
@@ -78,6 +81,7 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
                 IndexMappingTemplateAsserter.assertMlMappingsMatchTemplates(client());
                 assertLegacyIndicesRollover();
                 assertAnomalyIndicesRollover();
+                assertNotificationsIndexAliasCreated();
                 break;
             default:
                 throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");
@@ -351,6 +355,24 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
                 var filter = XContentMapValues.extractValue(olcustomResultsIndex, "aliases", expectedReadAlias, "filter");
                 assertNotNull(filter);
             }
+        });
+    }
+
+    @SuppressWarnings("unchecked")
+    private void assertNotificationsIndexAliasCreated() throws Exception {
+        assertBusy(() -> {
+            Request getMappings = new Request("GET", "_alias/.ml-notifications-write");
+            Response response = client().performRequest(getMappings);
+            Map<String, Object> responseMap = entityAsMap(response);
+            assertThat(responseMap.entrySet(), hasSize(1));
+            var aliases = (Map<String, Object>) responseMap.get(".ml-notifications-000002");
+            assertThat(aliases.entrySet(), hasSize(1));
+            var allAliases = (Map<String, Object>) aliases.get("aliases");
+            var writeAlias = (Map<String, Object>) allAliases.get(".ml-notifications-write");
+
+            assertThat(writeAlias, hasEntry("is_hidden", Boolean.TRUE));
+            var isWriteIndex = (Boolean) writeAlias.get("is_write_index");
+            assertThat(isWriteIndex, anyOf(is(Boolean.TRUE), nullValue()));
         });
     }
 }

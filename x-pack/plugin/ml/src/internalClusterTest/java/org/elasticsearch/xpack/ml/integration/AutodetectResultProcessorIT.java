@@ -148,7 +148,12 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
             .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueSeconds(1));
         // We can't change the signature of createComponents to e.g. pass differing values of includeNodeInfo to pass to the
         // AnomalyDetectionAuditor constructor. Instead we generate a random boolean value for that purpose.
-        AnomalyDetectionAuditor auditor = new AnomalyDetectionAuditor(client(), getInstanceFromNode(ClusterService.class), randomBoolean());
+        AnomalyDetectionAuditor auditor = new AnomalyDetectionAuditor(
+            client(),
+            getInstanceFromNode(ClusterService.class),
+            TestIndexNameExpressionResolver.newInstance(),
+            randomBoolean()
+        );
         jobResultsProvider = new JobResultsProvider(client(), builder.build(), TestIndexNameExpressionResolver.newInstance());
         renormalizer = mock(Renormalizer.class);
         process = mock(AutodetectProcess.class);

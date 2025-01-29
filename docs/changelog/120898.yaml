@@ -1,0 +1,5 @@
+pr: 120898
+summary: "[8.x] Test/107515 `RestoreTemplateWithMatchOnlyTextMapperIT`"
+area: Search
+type: bug
+issues: []

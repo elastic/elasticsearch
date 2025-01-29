@@ -128,6 +128,7 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
                 XContentType.JSON,
                 null,
                 Map.of(),
+                true,
                 XContentMeteringParserDecorator.NOOP
             );
             LuceneDocument doc = mapperService.documentMapper().parse(source).rootDoc();

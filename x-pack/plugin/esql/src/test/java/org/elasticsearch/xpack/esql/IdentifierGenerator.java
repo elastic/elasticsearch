@@ -60,7 +60,7 @@ public class IdentifierGenerator {
         }
         if (canAdd(Features.DATE_MATH, features)) {
             // https://www.elastic.co/guide/en/elasticsearch/reference/8.17/api-conventions.html#api-date-math-index-names
-            index.insert(0, randomFrom("<", "-<"));
+            index.insert(0, "<");
             index.append("-{now/");
             index.append(randomFrom("d", "M", "M-1M"));
             if (randomBoolean()) {
@@ -71,6 +71,9 @@ public class IdentifierGenerator {
                 }).append("}");
             }
             index.append("}>");
+        }
+        if (canAdd(Features.EXCLUDE_PATTERN, features)) {
+            index.insert(0, "-");
         }
 
         var pattern = maybeQuote(index.toString());
@@ -94,9 +97,10 @@ public class IdentifierGenerator {
 
     public enum Features implements Feature {
         CROSS_CLUSTER,
+        HIDDEN_INDEX,
         WILDCARD_PATTERN,
-        DATE_MATH,
-        HIDDEN_INDEX
+        EXCLUDE_PATTERN,
+        DATE_MATH
     }
 
     private record ExcludedFeature(Feature feature) implements Feature {}

@@ -62,7 +62,7 @@ import javax.net.ssl.SSLSocketFactory;
  */
 public class ElasticsearchEntitlementChecker implements EntitlementChecker {
 
-    private final PolicyManager policyManager;
+    protected final PolicyManager policyManager;
 
     public ElasticsearchEntitlementChecker(PolicyManager policyManager) {
         this.policyManager = policyManager;
@@ -752,6 +752,7 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
 
     @Override
     public void check$java_lang_Runtime$load(Class<?> callerClass, Runtime that, String filename) {
+        // TODO: check filesystem entitlement READ
         policyManager.checkLoadingNativeLibraries(callerClass);
     }
 
@@ -762,11 +763,21 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
 
     @Override
     public void check$java_lang_System$$load(Class<?> callerClass, String filename) {
+        // TODO: check filesystem entitlement READ
         policyManager.checkLoadingNativeLibraries(callerClass);
     }
 
     @Override
     public void check$java_lang_System$$loadLibrary(Class<?> callerClass, String libname) {
+        policyManager.checkLoadingNativeLibraries(callerClass);
+    }
+
+    @Override
+    public void check$java_lang_ModuleLayer$Controller$enableNativeAccess(
+        Class<?> callerClass,
+        ModuleLayer.Controller that,
+        Module target
+    ) {
         policyManager.checkLoadingNativeLibraries(callerClass);
     }
 }

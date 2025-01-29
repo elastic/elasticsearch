@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.deprecation;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.ThreadedActionListener;
@@ -18,14 +19,21 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.ComponentTemplate;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.Transports;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.action.util.PageParams;
@@ -34,6 +42,7 @@ import org.elasticsearch.xpack.core.transform.action.GetTransformAction;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -92,6 +101,58 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
             .addSettingsUpdateConsumer(DeprecationChecks.SKIP_DEPRECATIONS_SETTING, this::setSkipDeprecations);
     }
 
+    /**
+     * This is the function that does the bulk of the logic of taking the appropriate ES dependencies
+     * like {@link NodeInfo}, {@link ClusterState}. Alongside these objects and the list of deprecation checks,
+     * this function will run through all the checks and build out the final list of issues that exist in the
+     * cluster.
+     *
+     * @param state The cluster state
+     * @param indexNameExpressionResolver Used to resolve indices into their concrete names
+     * @param request The originating request containing the index expressions to evaluate
+     * @param nodeSettingsIssues The response containing the deprecation issues found on each node
+     * @param clusterDeprecationChecker The checker that provides the cluster settings deprecations warnings
+     * @param pluginSettingIssues this map gets modified to move transform deprecation issues into cluster_settings
+     * @param skipTheseDeprecatedSettings the settings that will be removed from cluster metadata and the index metadata of all the
+     *                                    indexes specified by indexNames
+     * @param resourceDeprecationCheckers these are checkers that take as input the cluster state and return a map from resource type
+     *                                    to issues grouped by the resource name.
+     * @param transformConfigs the transform configuration that have been already retrieved
+     * @return The list of deprecation issues found in the cluster
+     */
+    public static DeprecationInfoAction.Response createResponse(
+        ClusterState state,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        DeprecationInfoAction.Request request,
+        List<DeprecationIssue> nodeSettingsIssues,
+        ClusterDeprecationChecker clusterDeprecationChecker,
+        Map<String, List<DeprecationIssue>> pluginSettingIssues,
+        List<String> skipTheseDeprecatedSettings,
+        List<ResourceDeprecationChecker> resourceDeprecationCheckers,
+        List<TransformConfig> transformConfigs
+    ) {
+        assert Transports.assertNotTransportThread("walking mappings in indexSettingsChecks is expensive");
+        // Allow system index access here to prevent deprecation warnings when we call this API
+        String[] concreteIndexNames = indexNameExpressionResolver.concreteIndexNames(state, request);
+        ClusterState stateWithSkippedSettingsRemoved = removeSkippedSettings(state, concreteIndexNames, skipTheseDeprecatedSettings);
+        List<DeprecationIssue> clusterSettingsIssues = clusterDeprecationChecker.check(stateWithSkippedSettingsRemoved, transformConfigs);
+
+        Map<String, Map<String, List<DeprecationIssue>>> resourceDeprecationIssues = new HashMap<>();
+        for (ResourceDeprecationChecker resourceDeprecationChecker : resourceDeprecationCheckers) {
+            Map<String, List<DeprecationIssue>> issues = resourceDeprecationChecker.check(stateWithSkippedSettingsRemoved, request);
+            if (issues.isEmpty() == false) {
+                resourceDeprecationIssues.put(resourceDeprecationChecker.getName(), issues);
+            }
+        }
+
+        return new DeprecationInfoAction.Response(
+            clusterSettingsIssues,
+            nodeSettingsIssues,
+            resourceDeprecationIssues,
+            pluginSettingIssues
+        );
+    }
+
     private <T> void setSkipDeprecations(List<String> skipDeprecations) {
         this.skipTheseDeprecations = Collections.unmodifiableList(skipDeprecations);
     }
@@ -122,7 +183,7 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
                     new ThreadedActionListener<>(
                         client.threadPool().generic(),
                         ll.map(
-                            deprecationIssues -> DeprecationInfoAction.Response.from(
+                            deprecationIssues -> createResponse(
                                 state,
                                 indexNameExpressionResolver,
                                 request,
@@ -143,6 +204,82 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
                 );
             }));
         }));
+    }
+
+    /**
+     *
+     * @param state The cluster state to modify
+     * @param indexNames The names of the indexes whose settings need to be filtered
+     * @param skipTheseDeprecatedSettings The settings that will be removed from cluster metadata and the index metadata of all the
+     *                                    indexes specified by indexNames
+     * @return A modified cluster state with the given settings removed
+     */
+    private static ClusterState removeSkippedSettings(ClusterState state, String[] indexNames, List<String> skipTheseDeprecatedSettings) {
+        // Short-circuit, no need to reconstruct the cluster state if there are no settings to remove
+        if (skipTheseDeprecatedSettings == null || skipTheseDeprecatedSettings.isEmpty()) {
+            return state;
+        }
+        ClusterState.Builder clusterStateBuilder = new ClusterState.Builder(state);
+        Metadata.Builder metadataBuilder = Metadata.builder(state.metadata());
+        metadataBuilder.transientSettings(
+            metadataBuilder.transientSettings().filter(setting -> Regex.simpleMatch(skipTheseDeprecatedSettings, setting) == false)
+        );
+        metadataBuilder.persistentSettings(
+            metadataBuilder.persistentSettings().filter(setting -> Regex.simpleMatch(skipTheseDeprecatedSettings, setting) == false)
+        );
+        Map<String, IndexMetadata> indicesBuilder = new HashMap<>(state.getMetadata().indices());
+        for (String indexName : indexNames) {
+            IndexMetadata indexMetadata = state.getMetadata().index(indexName);
+            IndexMetadata.Builder filteredIndexMetadataBuilder = new IndexMetadata.Builder(indexMetadata);
+            Settings filteredSettings = indexMetadata.getSettings()
+                .filter(setting -> Regex.simpleMatch(skipTheseDeprecatedSettings, setting) == false);
+            filteredIndexMetadataBuilder.settings(filteredSettings);
+            indicesBuilder.put(indexName, filteredIndexMetadataBuilder.build());
+        }
+        metadataBuilder.componentTemplates(state.metadata().componentTemplates().entrySet().stream().map(entry -> {
+            String templateName = entry.getKey();
+            ComponentTemplate componentTemplate = entry.getValue();
+            Template template = componentTemplate.template();
+            if (template.settings() == null || template.settings().isEmpty()) {
+                return Tuple.tuple(templateName, componentTemplate);
+            }
+            return Tuple.tuple(
+                templateName,
+                new ComponentTemplate(
+                    Template.builder(template)
+                        .settings(template.settings().filter(setting -> Regex.simpleMatch(skipTheseDeprecatedSettings, setting) == false))
+                        .build(),
+                    componentTemplate.version(),
+                    componentTemplate.metadata(),
+                    componentTemplate.deprecated()
+                )
+            );
+        }).collect(Collectors.toMap(Tuple::v1, Tuple::v2)));
+        metadataBuilder.indexTemplates(state.metadata().templatesV2().entrySet().stream().map(entry -> {
+            String templateName = entry.getKey();
+            ComposableIndexTemplate indexTemplate = entry.getValue();
+            Template template = indexTemplate.template();
+            if (templateName == null || template.settings() == null || template.settings().isEmpty()) {
+                return Tuple.tuple(templateName, indexTemplate);
+            }
+            return Tuple.tuple(
+                templateName,
+                indexTemplate.toBuilder()
+                    .template(
+                        Template.builder(indexTemplate.template())
+                            .settings(
+                                indexTemplate.template()
+                                    .settings()
+                                    .filter(setting -> Regex.simpleMatch(skipTheseDeprecatedSettings, setting) == false)
+                            )
+                    )
+                    .build()
+            );
+        }).collect(Collectors.toMap(Tuple::v1, Tuple::v2)));
+
+        metadataBuilder.indices(indicesBuilder);
+        clusterStateBuilder.metadata(metadataBuilder);
+        return clusterStateBuilder.build();
     }
 
     static void pluginSettingIssues(

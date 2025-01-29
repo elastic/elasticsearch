@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.deprecation.DeprecationInfoActionResponseTests.createTestDeprecationIssue;
 import static org.hamcrest.core.IsEqual.equalTo;
 
 public class NodeDeprecationCheckerTests extends ESTestCase {
@@ -69,28 +70,5 @@ public class NodeDeprecationCheckerTests extends ESTestCase {
             foundIssue2.getMeta()
         );
         assertThat(result, equalTo(List.of(mergedFoundIssue)));
-    }
-
-    private static DeprecationIssue createTestDeprecationIssue(Map<String, Object> metaMap) {
-        String details = randomBoolean() ? randomAlphaOfLength(10) : null;
-        return new DeprecationIssue(
-            randomFrom(DeprecationIssue.Level.values()),
-            randomAlphaOfLength(10),
-            randomAlphaOfLength(10),
-            details,
-            randomBoolean(),
-            metaMap
-        );
-    }
-
-    private static DeprecationIssue createTestDeprecationIssue(DeprecationIssue seedIssue, Map<String, Object> metaMap) {
-        return new DeprecationIssue(
-            seedIssue.getLevel(),
-            seedIssue.getMessage(),
-            seedIssue.getUrl(),
-            seedIssue.getDetails(),
-            seedIssue.isResolveDuringRollingUpgrade(),
-            metaMap
-        );
     }
 }

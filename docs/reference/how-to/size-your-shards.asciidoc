@@ -16,11 +16,11 @@ By effectively using shards, {es} can scale horizontally and provide fault toler
 [[sizing-shard-guidelines]]
 === Sizing Shard Guidelines
 
-Proper shard sizing is crucial for maintaining the performance and stability of an {es} cluster. _Oversharding_ occurs when data is distributed across an excessive number of shards, which can degrade search performance and make the cluster unstable. Conversely, very large shards may slow down search operations and prolong recovery times after failures. 
+Proper shard sizing is crucial for maintaining the performance and stability of an {es} cluster. _Oversharding_ occurs when data is distributed across an excessive number of shards (primary or replica), which can degrade search performance and make the cluster unstable. Conversely, very large shards may slow down search operations and prolong recovery times after failures. 
 
-To strike the right balance, the <<shard-size-recommendation,general guidelines>> are to aim for shard sizes between 10GB and 50GB, keeping the per-shard document count below 200 million. To ensure that each node is working optimally, it's important to distribute shards evenly across nodes. Having uneven shard distribution will make some nodes work harder than others leading to performance degradation and potential instability. 
+To strike the right balance, the <<shard-size-recommendation,general guidelines>> are to aim for shard sizes between 10GB and 50GB, keeping the per-shard document count below 200 million. To ensure that each node is working optimally, it's important to distribute shards evenly across nodes. Uneven distribution can cause some nodes to work harder than others, leading to performance degradation and instability. While Elasticsearch automatically balances shards, it’s important to configure your indices with an appropriate number of shards and replicas to facilitate even distribution across nodes.
 
-If you are using <<data-streams>>, each data stream consists of multiple backing indices, each with its own set of shards. Proper shard planning for these indices is essential to maintaining performance and stability.
+If you are using <<data-streams>>, each data stream is backed by a sequence of indices, each index potentially having multiple shards. 
 
 Despite these general guidelines, it is good to develop a tailored <<create-a-sharding-strategy, sharding strategy>> that considers your specific infrastructure, use case, and performance expectations. 
 

@@ -73,7 +73,7 @@ SHOW : 'show'                 -> pushMode(SHOW_MODE);
 SORT : 'sort'                 -> pushMode(EXPRESSION_MODE);
 STATS : 'stats'               -> pushMode(EXPRESSION_MODE);
 WHERE : 'where'               -> pushMode(EXPRESSION_MODE);
-DEV_JOIN_LOOKUP : 'lookup'    -> pushMode(JOIN_MODE);
+JOIN_LOOKUP : 'lookup'        -> pushMode(JOIN_MODE);
 //
 // in development
 //
@@ -555,7 +555,7 @@ LOOKUP_FIELD_WS
 //
 mode JOIN_MODE;
 JOIN_PIPE : PIPE -> type(PIPE), popMode;
-JOIN_JOIN : 'join';
+JOIN : 'join';
 JOIN_AS : AS -> type(AS);
 JOIN_ON : ON -> type(ON), popMode, pushMode(EXPRESSION_MODE);
 USING : 'USING' -> popMode, pushMode(EXPRESSION_MODE);

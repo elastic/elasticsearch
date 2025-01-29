@@ -32,6 +32,7 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -46,13 +47,20 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
         this.fieldType = fieldType;
         this.fieldName = randomAlphaOfLengthBetween(5, 10);
 
-        // Disable all dynamic mapping
         var specification = DataGeneratorSpecification.builder()
             .withFullyDynamicMapping(false)
+            // Disable dynamic mapping and disabled objects
             .withDataSourceHandlers(List.of(new DataSourceHandler() {
                 @Override
                 public DataSourceResponse.DynamicMappingGenerator handle(DataSourceRequest.DynamicMappingGenerator request) {
                     return new DataSourceResponse.DynamicMappingGenerator(isObject -> false);
+                }
+
+                @Override
+                public DataSourceResponse.ObjectMappingParametersGenerator handle(
+                    DataSourceRequest.ObjectMappingParametersGenerator request
+                ) {
+                    return new DataSourceResponse.ObjectMappingParametersGenerator(HashMap::new); // just defaults
                 }
             }))
             .build();
@@ -148,6 +156,9 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
         var columnAtATimeReader = blockLoader.columnAtATimeReader(context);
         if (columnAtATimeReader != null) {
             var block = (TestBlock) columnAtATimeReader.read(TestBlock.factory(context.reader().numDocs()), TestBlock.docs(0));
+            if (block.size() == 0) {
+                return null;
+            }
             return block.get(0);
         }
 
@@ -169,6 +180,9 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
         BlockLoader.Builder builder = blockLoader.builder(TestBlock.factory(context.reader().numDocs()), 1);
         blockLoader.rowStrideReader(context).read(0, storedFieldsLoader, builder);
         var block = (TestBlock) builder.build();
+        if (block.size() == 0) {
+            return null;
+        }
         return block.get(0);
     }
 

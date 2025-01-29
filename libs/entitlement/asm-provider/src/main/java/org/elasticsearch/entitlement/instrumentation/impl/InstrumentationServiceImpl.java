@@ -20,13 +20,17 @@ import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
 
 import java.io.IOException;
+import java.util.ArrayDeque;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
 public class InstrumentationServiceImpl implements InstrumentationService {
+
+    private static final String OBJECT_INTERNAL_NAME = Type.getInternalName(Object.class);
 
     @Override
     public Instrumenter newInstrumenter(Class<?> clazz, Map<MethodKey, CheckMethod> methods) {
@@ -35,32 +39,55 @@ public class InstrumentationServiceImpl implements InstrumentationService {
 
     @Override
     public Map<MethodKey, CheckMethod> lookupMethods(Class<?> checkerClass) throws IOException {
-        var methodsToInstrument = new HashMap<MethodKey, CheckMethod>();
-        var classFileInfo = InstrumenterImpl.getClassFileInfo(checkerClass);
-        ClassReader reader = new ClassReader(classFileInfo.bytecodes());
-        ClassVisitor visitor = new ClassVisitor(Opcodes.ASM9) {
-            @Override
-            public MethodVisitor visitMethod(
-                int access,
-                String checkerMethodName,
-                String checkerMethodDescriptor,
-                String signature,
-                String[] exceptions
-            ) {
-                var mv = super.visitMethod(access, checkerMethodName, checkerMethodDescriptor, signature, exceptions);
+        Map<MethodKey, CheckMethod> methodsToInstrument = new HashMap<>();
 
-                var checkerMethodArgumentTypes = Type.getArgumentTypes(checkerMethodDescriptor);
-                var methodToInstrument = parseCheckerMethodSignature(checkerMethodName, checkerMethodArgumentTypes);
+        ArrayDeque<Class<?>> classesToVisit = new ArrayDeque<>(Collections.singleton(checkerClass));
+        while (classesToVisit.isEmpty() == false) {
+            var currentClass = classesToVisit.remove();
 
-                var checkerParameterDescriptors = Arrays.stream(checkerMethodArgumentTypes).map(Type::getDescriptor).toList();
-                var checkMethod = new CheckMethod(Type.getInternalName(checkerClass), checkerMethodName, checkerParameterDescriptors);
+            var classFileInfo = InstrumenterImpl.getClassFileInfo(currentClass);
+            ClassReader reader = new ClassReader(classFileInfo.bytecodes());
+            ClassVisitor visitor = new ClassVisitor(Opcodes.ASM9) {
 
-                methodsToInstrument.put(methodToInstrument, checkMethod);
+                @Override
+                public void visit(int version, int access, String name, String signature, String superName, String[] interfaces) {
+                    super.visit(version, access, name, signature, superName, interfaces);
+                    try {
+                        if (OBJECT_INTERNAL_NAME.equals(superName) == false) {
+                            var className = Type.getObjectType(superName).getClassName();
+                            classesToVisit.add(Class.forName(className));
+                        }
+                        for (var interfaceName : interfaces) {
+                            var className = Type.getObjectType(interfaceName).getClassName();
+                            classesToVisit.add(Class.forName(className));
+                        }
+                    } catch (ClassNotFoundException e) {
+                        throw new IllegalArgumentException("Cannot inspect checker class " + checkerClass.getName(), e);
+                    }
+                }
 
-                return mv;
-            }
-        };
-        reader.accept(visitor, 0);
+                @Override
+                public MethodVisitor visitMethod(
+                    int access,
+                    String checkerMethodName,
+                    String checkerMethodDescriptor,
+                    String signature,
+                    String[] exceptions
+                ) {
+                    var mv = super.visitMethod(access, checkerMethodName, checkerMethodDescriptor, signature, exceptions);
+
+                    var checkerMethodArgumentTypes = Type.getArgumentTypes(checkerMethodDescriptor);
+                    var methodToInstrument = parseCheckerMethodSignature(checkerMethodName, checkerMethodArgumentTypes);
+
+                    var checkerParameterDescriptors = Arrays.stream(checkerMethodArgumentTypes).map(Type::getDescriptor).toList();
+                    var checkMethod = new CheckMethod(Type.getInternalName(currentClass), checkerMethodName, checkerParameterDescriptors);
+
+                    methodsToInstrument.putIfAbsent(methodToInstrument, checkMethod);
+                    return mv;
+                }
+            };
+            reader.accept(visitor, 0);
+        }
         return methodsToInstrument;
     }
 

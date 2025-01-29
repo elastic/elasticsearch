@@ -60,11 +60,13 @@ public class EntitlementInitialization {
     public static void initialize(Instrumentation inst) throws Exception {
         manager = initChecker();
 
-        Map<MethodKey, CheckMethod> checkMethods = INSTRUMENTER_FACTORY.lookupMethods(EntitlementChecker.class);
+        var latestCheckerInterface = getVersionSpecificCheckerClass("org.elasticsearch.entitlement.bridge", "EntitlementChecker");
+
+        Map<MethodKey, CheckMethod> checkMethods = INSTRUMENTER_FACTORY.lookupMethods(latestCheckerInterface);
 
         var classesToTransform = checkMethods.keySet().stream().map(MethodKey::className).collect(Collectors.toSet());
 
-        Instrumenter instrumenter = INSTRUMENTER_FACTORY.newInstrumenter(EntitlementChecker.class, checkMethods);
+        Instrumenter instrumenter = INSTRUMENTER_FACTORY.newInstrumenter(latestCheckerInterface, checkMethods);
         inst.addTransformer(new Transformer(instrumenter, classesToTransform), true);
         inst.retransformClasses(findClassesToRetransform(inst.getAllLoadedClasses(), classesToTransform));
     }
@@ -111,9 +113,7 @@ public class EntitlementInitialization {
         return new PolicyManager(serverPolicy, agentEntitlements, pluginPolicies, resolver, AGENTS_PACKAGE_NAME, ENTITLEMENTS_MODULE);
     }
 
-    private static ElasticsearchEntitlementChecker initChecker() {
-        final PolicyManager policyManager = createPolicyManager();
-
+    private static Class<?> getVersionSpecificCheckerClass(String packageName, String baseClassName) {
         int javaVersion = Runtime.version().feature();
         final String classNamePrefix;
         if (javaVersion >= 23) {
@@ -121,13 +121,24 @@ public class EntitlementInitialization {
         } else {
             classNamePrefix = "";
         }
-        final String className = "org.elasticsearch.entitlement.runtime.api." + classNamePrefix + "ElasticsearchEntitlementChecker";
+        final String className = packageName + "." + classNamePrefix + baseClassName;
         Class<?> clazz;
         try {
             clazz = Class.forName(className);
         } catch (ClassNotFoundException e) {
-            throw new AssertionError("entitlement lib cannot find entitlement impl", e);
+            throw new AssertionError("entitlement lib cannot find entitlement class " + className, e);
         }
+        return clazz;
+    }
+
+    private static ElasticsearchEntitlementChecker initChecker() {
+        final PolicyManager policyManager = createPolicyManager();
+
+        final Class<?> clazz = getVersionSpecificCheckerClass(
+            "org.elasticsearch.entitlement.runtime.api",
+            "ElasticsearchEntitlementChecker"
+        );
+
         Constructor<?> constructor;
         try {
             constructor = clazz.getConstructor(PolicyManager.class);

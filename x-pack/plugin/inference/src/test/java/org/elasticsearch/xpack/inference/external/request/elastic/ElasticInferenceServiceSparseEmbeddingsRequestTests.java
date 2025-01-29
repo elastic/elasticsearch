@@ -92,7 +92,6 @@ public class ElasticInferenceServiceSparseEmbeddingsRequestTests extends ESTestC
         var input = "abcd";
         var modelId = "my-model-id";
 
-
         var request = createRequest(url, modelId, input, InputType.UNSPECIFIED);
         assertFalse(request.getTruncationInfo()[0]);
 
@@ -119,7 +118,7 @@ public class ElasticInferenceServiceSparseEmbeddingsRequestTests extends ESTestC
 
     public ElasticInferenceServiceSparseEmbeddingsRequest createRequest(String url, String modelId, String input, InputType inputType) {
         var embeddingsModel = ElasticInferenceServiceSparseEmbeddingsModelTests.createModel(url, modelId);
-  
+
         return new ElasticInferenceServiceSparseEmbeddingsRequest(
             TruncatorTests.createTruncator(),
             new Truncator.TruncationResult(List.of(input), new boolean[] { false }),

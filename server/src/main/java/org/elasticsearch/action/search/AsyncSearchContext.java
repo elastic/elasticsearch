@@ -398,4 +398,46 @@ public abstract class AsyncSearchContext<Result extends SearchPhaseResult> {
             ? source.pointInTimeBuilder().getEncodedId()
             : null;
     }
+
+    /**
+     * Executed once for every successful shard level request.
+     * @param result the result returned form the shard
+     */
+    protected void onShardResult(Result result) {
+        assert result.getShardIndex() != -1 : "shard index is not set";
+        assert result.getSearchShardTarget() != null : "search shard target must not be null";
+        if (hasShardResponse == false) {
+            hasShardResponse = true;
+        }
+        if (logger.isTraceEnabled()) {
+            logger.trace("got first-phase result from {}", result.getSearchShardTarget());
+        }
+        results.consumeResult(result, () -> onShardResultConsumed(result));
+    }
+
+    /**
+     * Executed once all shard results have been received and processed
+     * @see #onShardFailure(int, SearchShardTarget, Exception)
+     * @see #onShardResult(SearchPhaseResult)
+     */
+    protected abstract void finish();
+
+    protected void finishShardAndMaybePhase() {
+        if (finishShard()) {
+            finish();
+        }
+    }
+
+    private void onShardResultConsumed(Result result) {
+        successfulOps.incrementAndGet();
+        // clean a previous error on this shard group (note, this code will be serialized on the same shardIndex value level
+        // so its ok concurrency wise to miss potentially the shard failures being created because of another failure
+        // in the #addShardFailure, because by definition, it will happen on *another* shardIndex
+        AtomicArray<ShardSearchFailure> shardFailures = this.shardFailures.get();
+        if (shardFailures != null) {
+            shardFailures.set(result.getShardIndex(), null);
+        }
+        finishShardAndMaybePhase();
+    }
+
 }

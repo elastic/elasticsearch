@@ -177,7 +177,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
 
     private void run() {
         if (shardsIts.size() == 0) {
-            onPhaseDone();
+            finish();
             return;
         }
         final Map<SearchShardIterator, Integer> shardIndexMap = Maps.newHashMapWithExpectedSize(shardIterators.length);
@@ -347,40 +347,6 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         handleFailedAndCancelled(shardIndex, shardTarget, e);
     }
 
-    /**
-     * Executed once for every successful shard level request.
-     * @param result the result returned form the shard
-     */
-    protected void onShardResult(Result result) {
-        assert result.getShardIndex() != -1 : "shard index is not set";
-        assert result.getSearchShardTarget() != null : "search shard target must not be null";
-        if (hasShardResponse == false) {
-            hasShardResponse = true;
-        }
-        if (logger.isTraceEnabled()) {
-            logger.trace("got first-phase result from {}", result.getSearchShardTarget());
-        }
-        results.consumeResult(result, () -> onShardResultConsumed(result));
-    }
-
-    private void onShardResultConsumed(Result result) {
-        successfulOps.incrementAndGet();
-        // clean a previous error on this shard group (note, this code will be serialized on the same shardIndex value level
-        // so its ok concurrency wise to miss potentially the shard failures being created because of another failure
-        // in the #addShardFailure, because by definition, it will happen on *another* shardIndex
-        AtomicArray<ShardSearchFailure> shardFailures = this.shardFailures.get();
-        if (shardFailures != null) {
-            shardFailures.set(result.getShardIndex(), null);
-        }
-        finishShardAndMaybePhase();
-    }
-
-    private void finishShardAndMaybePhase() {
-        if (finishShard()) {
-            onPhaseDone();
-        }
-    }
-
     private SearchResponse buildSearchResponse(
         SearchResponseSections internalSearchResponse,
         ShardSearchFailure[] failures,
@@ -459,12 +425,8 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         }
     }
 
-    /**
-     * Executed once all shard results have been received and processed
-     * @see #onShardFailure(int, SearchShardTarget, Exception)
-     * @see #onShardResult(SearchPhaseResult)
-     */
-    private void onPhaseDone() {  // as a tribute to @kimchy aka. finishHim()
+    @Override
+    protected void finish() {  // as a tribute to @kimchy aka. finishHim()
         executeNextPhase(name, this::getNextPhase);
     }
 

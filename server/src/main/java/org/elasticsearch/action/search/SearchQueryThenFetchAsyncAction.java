@@ -418,6 +418,7 @@ public class SearchQueryThenFetchAsyncAction<Result extends SearchPhaseResult> e
         progressListener.notifyQueryFailure(shardIndex, shardTarget, exc);
     }
 
+    @Override
     protected void onShardResult(Result result) {
         QuerySearchResult queryResult = result.queryResult();
         if (queryResult.isNull() == false
@@ -437,15 +438,7 @@ public class SearchQueryThenFetchAsyncAction<Result extends SearchPhaseResult> e
             }
             bottomSortCollector.consumeTopDocs(topDocs, queryResult.sortValueFormats());
         }
-        assert result.getShardIndex() != -1 : "shard index is not set";
-        assert result.getSearchShardTarget() != null : "search shard target must not be null";
-        if (hasShardResponse == false) {
-            hasShardResponse = true;
-        }
-        if (logger.isTraceEnabled()) {
-            logger.trace("got first-phase result from {}", result != null ? result.getSearchShardTarget() : null);
-        }
-        results.consumeResult(result, () -> onShardResultConsumed(result));
+        super.onShardResult(result);
     }
 
     static SearchPhase nextPhase(
@@ -488,7 +481,7 @@ public class SearchQueryThenFetchAsyncAction<Result extends SearchPhaseResult> e
 
     private void run() {
         if (shardsIts.size() == 0) {
-            finish();
+            executeNextPhase(NAME, this::getNextPhase);
             return;
         }
         // TODO: stupid but we kinda need to fill all of these in with the current logic, do something nicer before merging
@@ -687,13 +680,7 @@ public class SearchQueryThenFetchAsyncAction<Result extends SearchPhaseResult> e
         }
     }
 
-    private void finishShardAndMaybePhase() {
-        if (finishShard()) {
-            finish();
-        }
-    }
-
-    private void finish() {
+    protected void finish() {
         executeNextPhase(NAME, this::getNextPhase);
     }
 
@@ -772,18 +759,6 @@ public class SearchQueryThenFetchAsyncAction<Result extends SearchPhaseResult> e
         if (connection != null) {
             searchTransportService.sendFreeContext(connection, contextId, ActionListener.noop());
         }
-    }
-
-    private void onShardResultConsumed(SearchPhaseResult result) {
-        successfulOps.incrementAndGet();
-        // clean a previous error on this shard group (note, this code will be serialized on the same shardIndex value level
-        // so its ok concurrency wise to miss potentially the shard failures being created because of another failure
-        // in the #addShardFailure, because by definition, it will happen on *another* shardIndex
-        AtomicArray<ShardSearchFailure> shardFailures = this.shardFailures.get();
-        if (shardFailures != null) {
-            shardFailures.set(result.getShardIndex(), null);
-        }
-        finishShardAndMaybePhase();
     }
 
     public static final String NODE_SEARCH_ACTION_NAME = "indices:data/read/search[query][n]";

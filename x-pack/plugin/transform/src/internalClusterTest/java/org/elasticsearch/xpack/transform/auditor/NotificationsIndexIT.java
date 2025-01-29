@@ -11,7 +11,6 @@ import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
 import org.elasticsearch.xpack.transform.TransformSingleNodeTestCase;
@@ -37,7 +36,7 @@ public class NotificationsIndexIT extends TransformSingleNodeTestCase {
     }
 
     private void assertNotificationsIndexExists() {
-        GetIndexResponse getIndexResponse = indicesAdmin().prepareGetIndex(TEST_REQUEST_TIMEOUT)
+        GetIndexResponse getIndexResponse = indicesAdmin().prepareGetIndex()
             .setIndices(TransformInternalIndexConstants.AUDIT_INDEX)
             .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN)
             .get();
@@ -45,10 +44,10 @@ public class NotificationsIndexIT extends TransformSingleNodeTestCase {
     }
 
     private void assertNotificationsWriteAliasCreated() {
-        Map<String, List<AliasMetadata>> aliases = indicesAdmin().prepareGetAliases(
-            TimeValue.timeValueSeconds(10L),
-            TransformInternalIndexConstants.AUDIT_INDEX_WRITE_ALIAS
-        ).setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN).get().getAliases();
+        Map<String, List<AliasMetadata>> aliases = indicesAdmin().prepareGetAliases(TransformInternalIndexConstants.AUDIT_INDEX_WRITE_ALIAS)
+            .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN)
+            .get()
+            .getAliases();
         assertThat(aliases.size(), is(1));
         List<AliasMetadata> indexAliases = aliases.get(TransformInternalIndexConstants.AUDIT_INDEX);
         assertNotNull(aliases.toString(), indexAliases);

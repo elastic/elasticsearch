@@ -708,12 +708,24 @@ public class SecurityTests extends ESTestCase {
         var nonCompliant = randomFrom(
             Hasher.getAvailableAlgoStoredPasswordHash()
                 .stream()
-                .filter(alg -> alg.startsWith("pbkdf2") == false || alg.startsWith("ssha256") == false)
+                .filter(alg -> alg.startsWith("pbkdf2") == false && alg.startsWith("ssha256") == false)
                 .collect(Collectors.toList())
         );
         String key = ApiKeyService.STORED_HASH_ALGO_SETTING.getKey();
         final Settings settings = Settings.builder().put(XPackSettings.FIPS_MODE_ENABLED.getKey(), true).put(key, nonCompliant).build();
         assertThatLogger(() -> Security.validateForFips(settings), Security.class, logEventForNonCompliantStoredApiKeyHash(key));
+    }
+
+    public void testValidateForFipsFipsCompliantApiKeyStoredHashAlgoWarningLog() {
+        var compliant = randomFrom(
+            Hasher.getAvailableAlgoStoredPasswordHash()
+                .stream()
+                .filter(alg -> alg.startsWith("pbkdf2") || alg.startsWith("ssha256"))
+                .collect(Collectors.toList())
+        );
+        String key = ApiKeyService.STORED_HASH_ALGO_SETTING.getKey();
+        final Settings settings = Settings.builder().put(XPackSettings.FIPS_MODE_ENABLED.getKey(), true).put(key, compliant).build();
+        assertThatLogger(() -> Security.validateForFips(settings), Security.class);
     }
 
     public void testValidateForMultipleNonFipsCompliantCacheHashAlgoWarningLogs() throws IllegalAccessException {

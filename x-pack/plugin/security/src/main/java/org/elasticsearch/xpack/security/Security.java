@@ -1833,7 +1833,7 @@ public class Security extends Plugin
         final var apiKeyStoredHashSettings = ApiKeyService.STORED_HASH_ALGO_SETTING;
         final var apiKeyStoredHashAlgo = apiKeyStoredHashSettings.get(settings);
         if (apiKeyStoredHashAlgo.toLowerCase(Locale.ROOT).startsWith("ssha256") == false
-            || apiKeyStoredHashAlgo.toLowerCase(Locale.ROOT).startsWith("pbkdf2") == false) {
+            && apiKeyStoredHashAlgo.toLowerCase(Locale.ROOT).startsWith("pbkdf2") == false) {
             // log instead of validation error for backwards compatibility
             logger.warn(
                 "[{}] is not recommended for stored API key hashing in a FIPS 140 JVM. The recommended hasher for [{}] is SSHA256.",

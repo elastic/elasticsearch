@@ -350,15 +350,7 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
                         IOUtils.deleteWithRetry(distributionDir);
                     }
 
-                    try {
-                        IOUtils.syncWithLinks(distributionDescriptor.getDistributionDir(), distributionDir);
-                    } catch (IOUtils.LinkCreationException e) {
-                        // Note does not work for network drives, e.g. Vagrant
-                        LOGGER.info("Failed to create working dir using hard links. Falling back to copy", e);
-                        // ensure we get a clean copy
-                        IOUtils.deleteWithRetry(distributionDir);
-                        IOUtils.syncWithCopy(distributionDescriptor.getDistributionDir(), distributionDir);
-                    }
+                    IOUtils.syncMaybeWithLinks(distributionDescriptor.getDistributionDir(), distributionDir);
                 }
                 Files.createDirectories(repoDir);
                 Files.createDirectories(dataDir);
@@ -773,7 +765,8 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
 
                 });
 
-                IOUtils.syncWithCopy(modulePath, destination);
+                IOUtils.syncMaybeWithLinks(modulePath, destination);
+
                 try {
                     if (installSpec.entitlementsOverride != null) {
                         Path entitlementsFile = modulePath.resolve(ENTITLEMENT_POLICY_YAML);

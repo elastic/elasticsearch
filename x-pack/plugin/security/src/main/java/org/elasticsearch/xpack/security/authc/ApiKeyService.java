@@ -266,7 +266,9 @@ public class ApiKeyService implements Closeable {
                     if (apiKeyDocCache != null) {
                         apiKeyDocCache.invalidate(keys);
                     }
-                    keys.forEach(apiKeyAuthCache::invalidate);
+                    if (apiKeyAuthCache != null) {
+                        keys.forEach(apiKeyAuthCache::invalidate);
+                    }
                 }
 
                 @Override
@@ -274,7 +276,9 @@ public class ApiKeyService implements Closeable {
                     if (apiKeyDocCache != null) {
                         apiKeyDocCache.invalidateAll();
                     }
-                    apiKeyAuthCache.invalidateAll();
+                    if (apiKeyAuthCache != null) {
+                        apiKeyAuthCache.invalidateAll();
+                    }
                 }
             });
             cacheInvalidatorRegistry.registerCacheInvalidator("api_key_doc", new CacheInvalidatorRegistry.CacheInvalidator() {
@@ -589,9 +593,11 @@ public class ApiKeyService implements Closeable {
                                     + "])";
                             assert indexResponse.getResult() == DocWriteResponse.Result.CREATED
                                 : "Index response was [" + indexResponse.getResult() + "]";
-                            final ListenableFuture<CachedApiKeyHashResult> listenableFuture = new ListenableFuture<>();
-                            listenableFuture.onResponse(new CachedApiKeyHashResult(true, apiKey));
-                            apiKeyAuthCache.put(request.getId(), listenableFuture);
+                            if (apiKeyAuthCache != null) {
+                                final ListenableFuture<CachedApiKeyHashResult> listenableFuture = new ListenableFuture<>();
+                                listenableFuture.onResponse(new CachedApiKeyHashResult(true, apiKey));
+                                apiKeyAuthCache.put(request.getId(), listenableFuture);
+                            }
                             listener.onResponse(new CreateApiKeyResponse(request.getName(), request.getId(), apiKey, expiration));
                         }, listener::onFailure))
                     )

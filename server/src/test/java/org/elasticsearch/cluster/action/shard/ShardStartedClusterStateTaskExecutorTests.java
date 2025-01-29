@@ -543,7 +543,7 @@ public class ShardStartedClusterStateTaskExecutorTests extends ESAllocationTestC
         }
 
         var indexRoutingTable = clusterState.routingTable().index(indexName);
-        assertThat(indexRoutingTable.readyForSearch(clusterState), is(true));
+        assertThat(indexRoutingTable.readyForSearch(), is(true));
         for (int i = 0; i < numberOfShards; i++) {
             var shardRoutingTable = indexRoutingTable.shard(i);
             assertThat(shardRoutingTable, is(notNullValue()));

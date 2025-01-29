@@ -10,7 +10,6 @@
 For the most up-to-date API details, refer to {api-es}/group/endpoint-indices[Index APIs].
 --
 
-
 You can use this API to add new fields to an existing index. However, Elasticsearch does not allow in-place field type changes. If you need to change a field’s type, you must create a new index with the updated mapping and reindex the data. 
 
 Changing field types is often done to improve query performance, enhance search relevance, or resolve data type mismatches (e.g., converting a text field to a keyword field for faster aggregations). However, if the existing data is malformed or incompatible with the updated field type, such as attempting to convert a text field to a date field, it may result in data loss during ingestion.

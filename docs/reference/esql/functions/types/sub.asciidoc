@@ -5,9 +5,12 @@
 [%header.monospaced.styled,format=dsv,separator=|]
 |===
 lhs | rhs | result
+date | date_period | date
+date | time_duration | date
+date_nanos | date_period | date_nanos
+date_nanos | time_duration | date_nanos
+date_period | date_nanos | date_nanos
 date_period | date_period | date_period
-datetime | date_period | datetime
-datetime | time_duration | datetime
 double | double | double
 double | integer | double
 double | long | double
@@ -17,6 +20,7 @@ integer | long | long
 long | double | double
 long | integer | long
 long | long | long
+time_duration | date_nanos | date_nanos
 time_duration | time_duration | time_duration
 unsigned_long | unsigned_long | unsigned_long
 |===

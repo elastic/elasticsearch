@@ -13,7 +13,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 
 import java.util.Objects;
 
-public class GeoDistanceQuery extends LeafQuery {
+public class GeoDistanceQuery extends Query {
 
     private final String field;
     private final double lat;

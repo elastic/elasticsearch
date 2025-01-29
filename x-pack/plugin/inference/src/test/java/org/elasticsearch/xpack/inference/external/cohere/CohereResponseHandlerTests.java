@@ -132,7 +132,7 @@ public class CohereResponseHandlerTests extends ESTestCase {
         var mockRequest = mock(Request.class);
         when(mockRequest.getInferenceEntityId()).thenReturn(modelId);
         var httpResult = new HttpResult(httpResponse, errorMessage == null ? new byte[] {} : responseJson.getBytes(StandardCharsets.UTF_8));
-        var handler = new CohereResponseHandler("", (request, result) -> null);
+        var handler = new CohereResponseHandler("", (request, result) -> null, false);
 
         handler.checkForFailureStatusCode(mockRequest, httpResult);
     }

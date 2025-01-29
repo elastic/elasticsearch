@@ -21,7 +21,7 @@ import java.io.IOException;
 /**
  * Vector implementation that stores an array of BytesRef values.
  * Does not take ownership of the given {@link BytesRefArray} and does not adjust circuit breakers to account for it.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-ArrayVector.java.st} instead.
  */
 final class BytesRefArrayVector extends AbstractVector implements BytesRefVector {
 
@@ -88,6 +88,33 @@ final class BytesRefArrayVector extends AbstractVector implements BytesRefVector
         try (BytesRefVector.Builder builder = blockFactory().newBytesRefVectorBuilder(positions.length)) {
             for (int pos : positions) {
                 builder.appendBytesRef(values.get(pos, scratch));
+            }
+            return builder.build();
+        }
+    }
+
+    @Override
+    public BytesRefBlock keepMask(BooleanVector mask) {
+        if (getPositionCount() == 0) {
+            incRef();
+            return new BytesRefVectorBlock(this);
+        }
+        if (mask.isConstant()) {
+            if (mask.getBoolean(0)) {
+                incRef();
+                return new BytesRefVectorBlock(this);
+            }
+            return (BytesRefBlock) blockFactory().newConstantNullBlock(getPositionCount());
+        }
+        BytesRef scratch = new BytesRef();
+        try (BytesRefBlock.Builder builder = blockFactory().newBytesRefBlockBuilder(getPositionCount())) {
+            // TODO if X-ArrayBlock used BooleanVector for it's null mask then we could shuffle references here.
+            for (int p = 0; p < getPositionCount(); p++) {
+                if (mask.getBoolean(p)) {
+                    builder.appendBytesRef(getBytesRef(p, scratch));
+                } else {
+                    builder.appendNull();
+                }
             }
             return builder.build();
         }

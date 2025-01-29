@@ -14,7 +14,7 @@ import java.util.Set;
 
 import static org.elasticsearch.index.query.QueryBuilders.termsQuery;
 
-public class TermsQuery extends LeafQuery {
+public class TermsQuery extends Query {
 
     private final String term;
     private final Set<Object> values;

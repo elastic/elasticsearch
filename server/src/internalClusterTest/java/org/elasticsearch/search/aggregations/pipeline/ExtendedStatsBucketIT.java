@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.pipeline;
@@ -12,8 +13,8 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.search.aggregations.BucketOrder;
+import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
-import org.elasticsearch.search.aggregations.bucket.histogram.Histogram.Bucket;
 import org.elasticsearch.search.aggregations.metrics.ExtendedStats.Bounds;
 
 import java.util.ArrayList;
@@ -119,7 +120,7 @@ public class ExtendedStatsBucketIT extends BucketMetricsPipeLineAggregationTestC
                     } else {
                         expectedDocCount = 1;
                     }
-                    Histogram.Bucket bucket = buckets.get(i);
+                    Bucket bucket = buckets.get(i);
                     assertThat("i: " + i, bucket, notNullValue());
                     assertThat("i: " + i, ((Number) bucket.getKey()).longValue(), equalTo((long) i));
                     assertThat("i: " + i, bucket.getDocCount(), equalTo(expectedDocCount));

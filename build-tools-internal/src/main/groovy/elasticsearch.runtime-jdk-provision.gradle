@@ -1,15 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 import org.elasticsearch.gradle.Architecture
 import org.elasticsearch.gradle.OS
 import org.elasticsearch.gradle.VersionProperties
-import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.internal.precommit.ThirdPartyAuditPrecommitPlugin
 import org.elasticsearch.gradle.internal.precommit.ThirdPartyAuditTask
 import org.elasticsearch.gradle.internal.test.rest.RestTestBasePlugin
@@ -25,10 +25,9 @@ configure(allprojects) {
         JvmVendorSpec.ORACLE :
         JvmVendorSpec.matching(VersionProperties.bundledJdkVendor)
     }
-
   project.tasks.withType(Test).configureEach { Test test ->
-        if (BuildParams.getIsRuntimeJavaHomeSet()) {
-            test.executable = "${BuildParams.runtimeJavaHome}/bin/java" +
+        if (buildParams.getIsRuntimeJavaHomeSet()) {
+            test.executable = "${buildParams.runtimeJavaHome.get()}/bin/java" +
                     (OS.current() == OS.WINDOWS ? '.exe' : '')
         } else {
             test.javaLauncher = javaToolchains.launcherFor {
@@ -41,18 +40,10 @@ configure(allprojects) {
     }
     project.plugins.withId("elasticsearch.testclusters") { testClustersPlugin ->
         project.plugins.withId("elasticsearch.internal-testclusters") { internalPlugin ->
-            if (BuildParams.getIsRuntimeJavaHomeSet() == false) {
+            if (buildParams.getIsRuntimeJavaHomeSet() == false) {
                 // If no runtime java home is set, use the bundled JDK for test clusters
                 testClustersPlugin.setRuntimeJava(launcher.map { it.metadata.installationPath.asFile })
             }
         }
-    }
-    project.plugins.withType(ThirdPartyAuditPrecommitPlugin) {
-      project.getTasks().withType(ThirdPartyAuditTask.class).configureEach {
-        if (BuildParams.getIsRuntimeJavaHomeSet() == false) {
-          javaHome.set(launcher.map { it.metadata.installationPath.asFile.path })
-          targetCompatibility.set(providers.provider(() -> JavaVersion.toVersion(launcher.map { it.metadata.javaRuntimeVersion }.get())))
-        }
-      }
     }
 }

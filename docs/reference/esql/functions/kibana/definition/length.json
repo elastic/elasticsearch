@@ -3,6 +3,7 @@
   "type" : "eval",
   "name" : "length",
   "description" : "Returns the character length of a string.",
+  "note" : "All strings are in UTF-8, so a single character can use multiple bytes.",
   "signatures" : [
     {
       "params" : [
@@ -30,6 +31,8 @@
     }
   ],
   "examples" : [
-    "FROM employees\n| KEEP first_name, last_name\n| EVAL fn_length = LENGTH(first_name)"
-  ]
+    "FROM airports\n| WHERE country == \"India\"\n| KEEP city\n| EVAL fn_length = LENGTH(city)"
+  ],
+  "preview" : false,
+  "snapshot_only" : false
 }

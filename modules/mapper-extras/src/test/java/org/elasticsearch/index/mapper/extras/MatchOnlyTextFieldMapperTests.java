@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper.extras;
@@ -63,19 +64,19 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
     }
 
     public void testExistsStandardSource() throws IOException {
-        assertExistsQuery(createMapperService(testMapping(false)));
+        assertExistsQuery(createMapperService(fieldMapping(b -> b.field("type", "match_only_text"))));
     }
 
     public void testExistsSyntheticSource() throws IOException {
-        assertExistsQuery(createMapperService(testMapping(true)));
+        assertExistsQuery(createSytheticSourceMapperService(fieldMapping(b -> b.field("type", "match_only_text"))));
     }
 
     public void testPhraseQueryStandardSource() throws IOException {
-        assertPhraseQuery(createMapperService(testMapping(false)));
+        assertPhraseQuery(createMapperService(fieldMapping(b -> b.field("type", "match_only_text"))));
     }
 
     public void testPhraseQuerySyntheticSource() throws IOException {
-        assertPhraseQuery(createMapperService(testMapping(true)));
+        assertPhraseQuery(createSytheticSourceMapperService(fieldMapping(b -> b.field("type", "match_only_text"))));
     }
 
     private void assertPhraseQuery(MapperService mapperService) throws IOException {
@@ -88,8 +89,8 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
                 SearchExecutionContext context = createSearchExecutionContext(mapperService, newSearcher(reader));
                 MatchPhraseQueryBuilder queryBuilder = new MatchPhraseQueryBuilder("field", "brown fox");
                 TopDocs docs = context.searcher().search(queryBuilder.toQuery(context), 1);
-                assertThat(docs.totalHits.value, equalTo(1L));
-                assertThat(docs.totalHits.relation, equalTo(TotalHits.Relation.EQUAL_TO));
+                assertThat(docs.totalHits.value(), equalTo(1L));
+                assertThat(docs.totalHits.relation(), equalTo(TotalHits.Relation.EQUAL_TO));
                 assertThat(docs.scoreDocs[0].doc, equalTo(0));
             }
         }
@@ -101,13 +102,6 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
             b -> { b.field("meta", Collections.singletonMap("format", "mysql.access")); },
             m -> assertEquals(Collections.singletonMap("format", "mysql.access"), m.fieldType().meta())
         );
-    }
-
-    private static XContentBuilder testMapping(boolean syntheticSource) throws IOException {
-        if (syntheticSource) {
-            return syntheticSourceMapping(b -> b.startObject("field").field("type", "match_only_text").endObject());
-        }
-        return fieldMapping(b -> b.field("type", "match_only_text"));
     }
 
     @Override
@@ -255,7 +249,7 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
     }
 
     public void testDocValuesLoadedFromSynthetic() throws IOException {
-        MapperService mapper = createMapperService(syntheticSourceFieldMapping(b -> b.field("type", "match_only_text")));
+        MapperService mapper = createSytheticSourceMapperService(fieldMapping(b -> b.field("type", "match_only_text")));
         assertScriptDocValues(mapper, "foo", equalTo(List.of("foo")));
     }
 

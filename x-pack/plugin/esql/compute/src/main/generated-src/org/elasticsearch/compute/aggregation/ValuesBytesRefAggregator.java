@@ -100,7 +100,7 @@ class ValuesBytesRefAggregator {
             }
             BytesRef scratch = new BytesRef();
             if (values.size() == 1) {
-                return blockFactory.newConstantBytesRefBlockWith(values.get(0, scratch), 1);
+                return blockFactory.newConstantBytesRefBlockWith(BytesRef.deepCopyOf(values.get(0, scratch)), 1);
             }
             try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder((int) values.size())) {
                 builder.beginPositionEntry();
@@ -130,8 +130,20 @@ class ValuesBytesRefAggregator {
         private final BytesRefHash bytes;
 
         private GroupingState(BigArrays bigArrays) {
-            values = new LongLongHash(1, bigArrays);
-            bytes = new BytesRefHash(1, bigArrays);
+            LongLongHash _values = null;
+            BytesRefHash _bytes = null;
+            try {
+                _values = new LongLongHash(1, bigArrays);
+                _bytes = new BytesRefHash(1, bigArrays);
+
+                values = _values;
+                bytes = _bytes;
+
+                _values = null;
+                _bytes = null;
+            } finally {
+                Releasables.closeExpectNoException(_values, _bytes);
+            }
         }
 
         void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {

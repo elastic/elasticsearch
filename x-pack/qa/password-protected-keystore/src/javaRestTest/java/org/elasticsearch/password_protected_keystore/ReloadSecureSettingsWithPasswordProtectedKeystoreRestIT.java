@@ -7,7 +7,9 @@
 package org.elasticsearch.password_protected_keystore;
 
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -18,6 +20,7 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.ObjectPath;
 import org.junit.ClassRule;
 
+import java.io.IOException;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.anyOf;
@@ -39,6 +42,7 @@ public class ReloadSecureSettingsWithPasswordProtectedKeystoreRestIT extends ESR
         .name("javaRestTest")
         .keystore(nodeSpec -> Map.of("xpack.security.transport.ssl.secure_key_passphrase", "transport-password"))
         .setting("xpack.security.enabled", "true")
+        .setting("xpack.ml.enabled", "false")
         .setting("xpack.security.authc.anonymous.roles", "anonymous")
         .setting("xpack.security.transport.ssl.enabled", "true")
         .setting("xpack.security.transport.ssl.certificate", "transport.crt")
@@ -50,6 +54,9 @@ public class ReloadSecureSettingsWithPasswordProtectedKeystoreRestIT extends ESR
         .configFile("ca.crt", Resource.fromClasspath("ssl/ca.crt"))
         .user("admin_user", "admin-password")
         .user("test-user", "test-user-password", "user_role", false)
+        .user("manage-user", "test-user-password", "manage_role", false)
+        .user("manage-security-user", "test-user-password", "manage_security_role", false)
+        .user("monitor-user", "test-user-password", "monitor_role", false)
         .build();
 
     @Override
@@ -72,6 +79,33 @@ public class ReloadSecureSettingsWithPasswordProtectedKeystoreRestIT extends ESR
             final Map<String, Object> node = (Map<String, Object>) entry.getValue();
             assertThat(node.get("reload_exception"), nullValue());
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testReloadSecureSettingsWithDifferentPrivileges() throws Exception {
+        final Request request = new Request("POST", "/_nodes/reload_secure_settings");
+        request.setJsonEntity("{\"secure_settings_password\":\"" + KEYSTORE_PASSWORD + "\"}");
+        final Response response = performRequestWithUser("manage-user", request);
+        final Map<String, Object> map = entityAsMap(response);
+        assertThat(ObjectPath.eval("cluster_name", map), equalTo("javaRestTest"));
+        assertThat(map.get("nodes"), instanceOf(Map.class));
+        final Map<String, Object> nodes = (Map<String, Object>) map.get("nodes");
+        assertThat(nodes.size(), equalTo(NUM_NODES));
+        for (Map.Entry<String, Object> entry : nodes.entrySet()) {
+            assertThat(entry.getValue(), instanceOf(Map.class));
+            final Map<String, Object> node = (Map<String, Object>) entry.getValue();
+            assertThat(node.get("reload_exception"), nullValue());
+        }
+        expectThrows403(() -> {
+            final Request innerRequest = new Request("POST", "/_nodes/reload_secure_settings");
+            innerRequest.setJsonEntity("{\"secure_settings_password\":\"" + KEYSTORE_PASSWORD + "\"}");
+            performRequestWithUser("manage-security-user", innerRequest);
+        });
+        expectThrows403(() -> {
+            final Request innerRequest = new Request("POST", "/_nodes/reload_secure_settings");
+            innerRequest.setJsonEntity("{\"secure_settings_password\":\"" + KEYSTORE_PASSWORD + "\"}");
+            performRequestWithUser("monitor-user", request);
+        });
     }
 
     @SuppressWarnings("unchecked")
@@ -135,5 +169,17 @@ public class ReloadSecureSettingsWithPasswordProtectedKeystoreRestIT extends ESR
     protected Settings restAdminSettings() {
         String token = basicAuthHeaderValue("admin_user", new SecureString("admin-password".toCharArray()));
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
+    }
+
+    private static void expectThrows403(ThrowingRunnable runnable) {
+        assertThat(expectThrows(ResponseException.class, runnable).getResponse().getStatusLine().getStatusCode(), equalTo(403));
+    }
+
+    private Response performRequestWithUser(final String username, final Request request) throws IOException {
+        request.setOptions(
+            RequestOptions.DEFAULT.toBuilder()
+                .addHeader("Authorization", basicAuthHeaderValue(username, new SecureString("test-user-password")))
+        );
+        return client().performRequest(request);
     }
 }

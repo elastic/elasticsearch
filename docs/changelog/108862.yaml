@@ -1,5 +1,0 @@
-pr: 108862
-summary: "Apm-data: set codec: best_compression for logs-apm.* data streams"
-area: Data streams
-type: enhancement
-issues: []

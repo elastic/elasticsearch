@@ -7,14 +7,11 @@
 
 package org.elasticsearch.compute.operator;
 
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.tasks.TaskCancelledException;
 
 import java.util.List;
-import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Run a set of drivers to completion.
@@ -35,8 +32,8 @@ public abstract class DriverRunner {
      * Run all drivers to completion asynchronously.
      */
     public void runToCompletion(List<Driver> drivers, ActionListener<Void> listener) {
-        AtomicReference<Exception> failure = new AtomicReference<>();
         var responseHeadersCollector = new ResponseHeadersCollector(threadContext);
+        var failure = new FailureCollector();
         CountDown counter = new CountDown(drivers.size());
         for (int i = 0; i < drivers.size(); i++) {
             Driver driver = drivers.get(i);
@@ -48,23 +45,7 @@ public abstract class DriverRunner {
 
                 @Override
                 public void onFailure(Exception e) {
-                    failure.getAndUpdate(first -> {
-                        if (first == null) {
-                            return e;
-                        }
-                        if (ExceptionsHelper.unwrap(e, TaskCancelledException.class) != null) {
-                            return first;
-                        } else {
-                            if (ExceptionsHelper.unwrap(first, TaskCancelledException.class) != null) {
-                                return e;
-                            } else {
-                                if (first != e) {
-                                    first.addSuppressed(e);
-                                }
-                                return first;
-                            }
-                        }
-                    });
+                    failure.unwrapAndCollect(e);
                     for (Driver d : drivers) {
                         if (driver != d) {
                             d.cancel("Driver [" + driver.sessionId() + "] was cancelled or failed");
@@ -77,7 +58,7 @@ public abstract class DriverRunner {
                     responseHeadersCollector.collect();
                     if (counter.countDown()) {
                         responseHeadersCollector.finish();
-                        Exception error = failure.get();
+                        Exception error = failure.getFailure();
                         if (error != null) {
                             listener.onFailure(error);
                         } else {

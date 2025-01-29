@@ -7,21 +7,30 @@
 
 package org.elasticsearch.xpack.esql.heap_attack;
 
+import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
+
 import org.apache.http.HttpHost;
 import org.apache.http.client.config.RequestConfig;
 import org.apache.http.util.EntityUtils;
+import org.apache.lucene.tests.util.TimeUnits;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.WarningsHandler;
+import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.test.ListMatcher;
+import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.threadpool.Scheduler;
@@ -39,6 +48,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.function.IntFunction;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -48,13 +58,16 @@ import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.hamcrest.Matchers.any;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.matchesRegex;
 
 /**
- * Tests that run ESQL queries that have, in the past, used so much memory they
- * crash Elasticsearch.
+ * Tests that run ESQL queries that use a ton of memory. We want to make
+ * sure they don't consume the entire heap and crash Elasticsearch.
  */
+@TimeoutSuite(millis = 40 * TimeUnits.MINUTE)
 public class HeapAttackIT extends ESRestTestCase {
     @ClassRule
     public static ElasticsearchCluster cluster = Clusters.buildCluster();
@@ -77,7 +90,7 @@ public class HeapAttackIT extends ESRestTestCase {
     public void testSortByManyLongsSuccess() throws IOException {
         initManyLongs();
         Response response = sortByManyLongs(500);
-        Map<?, ?> map = responseAsMap(response);
+        Map<String, Object> map = responseAsMap(response);
         ListMatcher columns = matchesList().item(matchesMap().entry("name", "a").entry("type", "long"))
             .item(matchesMap().entry("name", "b").entry("type", "long"));
         ListMatcher values = matchesList();
@@ -86,7 +99,7 @@ public class HeapAttackIT extends ESRestTestCase {
                 values = values.item(List.of(0, b));
             }
         }
-        assertMap(map, matchesMap().entry("columns", columns).entry("values", values));
+        assertResultMap(map, columns, values);
     }
 
     /**
@@ -95,6 +108,87 @@ public class HeapAttackIT extends ESRestTestCase {
     public void testSortByManyLongsTooMuchMemory() throws IOException {
         initManyLongs();
         assertCircuitBreaks(() -> sortByManyLongs(5000));
+    }
+
+    /**
+     * This should record an async response with a {@link CircuitBreakingException}.
+     */
+    public void testSortByManyLongsTooMuchMemoryAsync() throws IOException {
+        initManyLongs();
+        Request request = new Request("POST", "/_query/async");
+        request.addParameter("error_trace", "");
+        request.setJsonEntity(makeSortByManyLongs(5000).toString().replace("\n", "\\n"));
+        request.setOptions(
+            RequestOptions.DEFAULT.toBuilder()
+                .setRequestConfig(RequestConfig.custom().setSocketTimeout(Math.toIntExact(TimeValue.timeValueMinutes(6).millis())).build())
+                .setWarningsHandler(WarningsHandler.PERMISSIVE)
+        );
+        logger.info("--> test {} started async", getTestName());
+        Response response = runQuery(() -> {
+            Response r = client().performRequest(request);
+            Map<?, ?> map = responseAsMap(r);
+            assertMap(map, matchesMap().extraOk().entry("is_running", true).entry("id", any(String.class)));
+            String id = map.get("id").toString();
+            Request fetch = new Request("GET", "/_query/async/" + id);
+            long endTime = System.nanoTime() + TimeValue.timeValueMinutes(5).nanos();
+            while (System.nanoTime() < endTime) {
+                Response resp;
+                try {
+                    resp = client().performRequest(fetch);
+                } catch (ResponseException e) {
+                    if (e.getResponse().getStatusLine().getStatusCode() == 403) {
+                        /*
+                         * There's a bug when loading from the translog with security
+                         * enabled. If we retry a few times we'll load from the index
+                         * itself and should succeed.
+                         */
+                        logger.error("polled for results got 403");
+                        continue;
+                    }
+                    if (e.getResponse().getStatusLine().getStatusCode() == 404) {
+                        logger.error("polled for results got 404");
+                        continue;
+                    }
+                    if (e.getResponse().getStatusLine().getStatusCode() == 503) {
+                        logger.error("polled for results got 503");
+                        continue;
+                    }
+                    if (e.getResponse().getStatusLine().getStatusCode() == 429) {
+                        // This is what we were going to for - a CircuitBreakerException
+                        return e.getResponse();
+                    }
+                    throw e;
+                }
+                Map<?, ?> m = responseAsMap(resp);
+                logger.error("polled for results {}", m);
+                boolean isRunning = (boolean) m.get("is_running");
+                if (isRunning == false) {
+                    return resp;
+                }
+                try {
+                    Thread.sleep(100);
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+            throw new IOException("timed out");
+        });
+        assertThat(response.getStatusLine().getStatusCode(), equalTo(429));
+        Map<?, ?> map = responseAsMap(response);
+        assertMap(
+            map,
+            matchesMap().entry("status", 429)
+                .entry(
+                    "error",
+                    matchesMap().extraOk()
+                        .entry("bytes_wanted", greaterThan(1000))
+                        .entry("reason", matchesRegex("\\[request] Data too large, data for \\[.+] would be .+"))
+                        .entry("durability", "TRANSIENT")
+                        .entry("type", "circuit_breaking_exception")
+                        .entry("bytes_limit", greaterThan(1000))
+                        .entry("root_cause", matchesList().item(any(Map.class)))
+                )
+        );
     }
 
     private void assertCircuitBreaks(ThrowingRunnable r) throws IOException {
@@ -107,15 +201,36 @@ public class HeapAttackIT extends ESRestTestCase {
         );
     }
 
+    private void assertFoldCircuitBreaks(ThrowingRunnable r) throws IOException {
+        ResponseException e = expectThrows(ResponseException.class, r);
+        Map<?, ?> map = responseAsMap(e.getResponse());
+        logger.info("expected fold circuit breaking {}", map);
+        assertMap(
+            map,
+            matchesMap().entry("status", 400).entry("error", matchesMap().extraOk().entry("type", "fold_too_much_memory_exception"))
+        );
+    }
+
+    private void assertParseFailure(ThrowingRunnable r) throws IOException {
+        ResponseException e = expectThrows(ResponseException.class, r);
+        Map<?, ?> map = responseAsMap(e.getResponse());
+        logger.info("expected parse failure {}", map);
+        assertMap(map, matchesMap().entry("status", 400).entry("error", matchesMap().extraOk().entry("type", "parsing_exception")));
+    }
+
     private Response sortByManyLongs(int count) throws IOException {
         logger.info("sorting by {} longs", count);
+        return query(makeSortByManyLongs(count).toString(), null);
+    }
+
+    private StringBuilder makeSortByManyLongs(int count) {
         StringBuilder query = makeManyLongs(count);
         query.append("| SORT a, b, i0");
         for (int i = 1; i < count; i++) {
             query.append(", i").append(i);
         }
         query.append("\\n| KEEP a, b | LIMIT 10000\"}");
-        return query(query.toString(), null);
+        return query;
     }
 
     /**
@@ -124,10 +239,10 @@ public class HeapAttackIT extends ESRestTestCase {
     public void testGroupOnSomeLongs() throws IOException {
         initManyLongs();
         Response resp = groupOnManyLongs(200);
-        Map<?, ?> map = responseAsMap(resp);
+        Map<String, Object> map = responseAsMap(resp);
         ListMatcher columns = matchesList().item(matchesMap().entry("name", "MAX(a)").entry("type", "long"));
         ListMatcher values = matchesList().item(List.of(9));
-        assertMap(map, matchesMap().entry("columns", columns).entry("values", values));
+        assertResultMap(map, columns, values);
     }
 
     /**
@@ -136,10 +251,10 @@ public class HeapAttackIT extends ESRestTestCase {
     public void testGroupOnManyLongs() throws IOException {
         initManyLongs();
         Response resp = groupOnManyLongs(5000);
-        Map<?, ?> map = responseAsMap(resp);
+        Map<String, Object> map = responseAsMap(resp);
         ListMatcher columns = matchesList().item(matchesMap().entry("name", "MAX(a)").entry("type", "long"));
         ListMatcher values = matchesList().item(List.of(9));
-        assertMap(map, matchesMap().entry("columns", columns).entry("values", values));
+        assertResultMap(map, columns, values);
     }
 
     private Response groupOnManyLongs(int count) throws IOException {
@@ -165,11 +280,11 @@ public class HeapAttackIT extends ESRestTestCase {
     public void testSmallConcat() throws IOException {
         initSingleDocIndex();
         Response resp = concat(2);
-        Map<?, ?> map = responseAsMap(resp);
+        Map<String, Object> map = responseAsMap(resp);
         ListMatcher columns = matchesList().item(matchesMap().entry("name", "a").entry("type", "long"))
             .item(matchesMap().entry("name", "str").entry("type", "keyword"));
         ListMatcher values = matchesList().item(List.of(1, "1".repeat(100)));
-        assertMap(map, matchesMap().entry("columns", columns).entry("values", values));
+        assertResultMap(map, columns, values);
     }
 
     public void testHugeConcat() throws IOException {
@@ -177,9 +292,10 @@ public class HeapAttackIT extends ESRestTestCase {
         ResponseException e = expectThrows(ResponseException.class, () -> concat(10));
         Map<?, ?> map = responseAsMap(e.getResponse());
         logger.info("expected request rejected {}", map);
+        MapMatcher mapMatcher = matchesMap();
         assertMap(
             map,
-            matchesMap().entry("status", 400)
+            mapMatcher.entry("status", 400)
                 .entry("error", matchesMap().extraOk().entry("reason", "concatenating more than [1048576] bytes is not supported"))
         );
     }
@@ -200,14 +316,10 @@ public class HeapAttackIT extends ESRestTestCase {
      * Returns many moderately long strings.
      */
     public void testManyConcat() throws IOException {
+        int strings = 300;
         initManyLongs();
-        Response resp = manyConcat(300);
-        Map<?, ?> map = responseAsMap(resp);
-        ListMatcher columns = matchesList();
-        for (int s = 0; s < 300; s++) {
-            columns = columns.item(matchesMap().entry("name", "str" + s).entry("type", "keyword"));
-        }
-        assertMap(map, matchesMap().entry("columns", columns).entry("values", any(List.class)));
+        Response resp = manyConcat("FROM manylongs", strings);
+        assertManyStrings(resp, strings);
     }
 
     /**
@@ -215,15 +327,43 @@ public class HeapAttackIT extends ESRestTestCase {
      */
     public void testHugeManyConcat() throws IOException {
         initManyLongs();
-        assertCircuitBreaks(() -> manyConcat(2000));
+        assertCircuitBreaks(() -> manyConcat("FROM manylongs", 2000));
+    }
+
+    /**
+     * Returns many moderately long strings.
+     */
+    public void testManyConcatFromRow() throws IOException {
+        int strings = 2000;
+        Response resp = manyConcat("ROW a=9999, b=9999, c=9999, d=9999, e=9999", strings);
+        assertManyStrings(resp, strings);
+    }
+
+    /**
+     * Hits a circuit breaker by building many moderately long strings.
+     */
+    public void testHugeManyConcatFromRow() throws IOException {
+        assertFoldCircuitBreaks(
+            () -> manyConcat(
+                "ROW a=9999999999999, b=99999999999999999, c=99999999999999999, d=99999999999999999, e=99999999999999999",
+                5000
+            )
+        );
+    }
+
+    /**
+     * Fails to parse a huge huge query.
+     */
+    public void testHugeHugeManyConcatFromRow() throws IOException {
+        assertParseFailure(() -> manyConcat("ROW a=9999, b=9999, c=9999, d=9999, e=9999", 6000));
     }
 
     /**
      * Tests that generate many moderately long strings.
      */
-    private Response manyConcat(int strings) throws IOException {
+    private Response manyConcat(String init, int strings) throws IOException {
         StringBuilder query = startQuery();
-        query.append("FROM manylongs | EVAL str = CONCAT(");
+        query.append(init).append(" | EVAL str = CONCAT(");
         query.append(
             Arrays.stream(new String[] { "a", "b", "c", "d", "e" })
                 .map(f -> "TO_STRING(" + f + ")")
@@ -248,13 +388,84 @@ public class HeapAttackIT extends ESRestTestCase {
             query.append("str").append(s);
         }
         query.append("\"}");
-        return query(query.toString(), null);
+        return query(query.toString(), "columns");
+    }
+
+    /**
+     * Returns many moderately long strings.
+     */
+    public void testManyRepeat() throws IOException {
+        int strings = 30;
+        initManyLongs();
+        Response resp = manyRepeat("FROM manylongs", strings);
+        assertManyStrings(resp, 30);
+    }
+
+    /**
+     * Hits a circuit breaker by building many moderately long strings.
+     */
+    public void testHugeManyRepeat() throws IOException {
+        initManyLongs();
+        assertCircuitBreaks(() -> manyRepeat("FROM manylongs", 75));
+    }
+
+    /**
+     * Returns many moderately long strings.
+     */
+    public void testManyRepeatFromRow() throws IOException {
+        int strings = 300;
+        Response resp = manyRepeat("ROW a = 99", strings);
+        assertManyStrings(resp, strings);
+    }
+
+    /**
+     * Hits a circuit breaker by building many moderately long strings.
+     */
+    public void testHugeManyRepeatFromRow() throws IOException {
+        assertFoldCircuitBreaks(() -> manyRepeat("ROW a = 99", 400));
+    }
+
+    /**
+     * Fails to parse a huge, huge query.
+     */
+    public void testHugeHugeManyRepeatFromRow() throws IOException {
+        assertParseFailure(() -> manyRepeat("ROW a = 99", 100000));
+    }
+
+    /**
+     * Tests that generate many moderately long strings.
+     */
+    private Response manyRepeat(String init, int strings) throws IOException {
+        StringBuilder query = startQuery();
+        query.append(init).append(" | EVAL str = TO_STRING(a)");
+        for (int s = 0; s < strings; s++) {
+            query.append(",\nstr").append(s).append("=REPEAT(str, 10000)");
+        }
+        query.append("\n|KEEP ");
+        for (int s = 0; s < strings; s++) {
+            if (s != 0) {
+                query.append(", ");
+            }
+            query.append("str").append(s);
+        }
+        query.append("\"}");
+        return query(query.toString(), "columns");
+    }
+
+    private void assertManyStrings(Response resp, int strings) throws IOException {
+        Map<?, ?> map = responseAsMap(resp);
+        ListMatcher columns = matchesList();
+        for (int s = 0; s < strings; s++) {
+            columns = columns.item(matchesMap().entry("name", "str" + s).entry("type", "keyword"));
+        }
+        MapMatcher mapMatcher = matchesMap();
+        assertMap(map, mapMatcher.entry("columns", columns));
     }
 
     public void testManyEval() throws IOException {
         initManyLongs();
         Response resp = manyEval(1);
-        Map<?, ?> map = responseAsMap(resp);
+        Map<String, Object> map = responseAsMap(resp);
         ListMatcher columns = matchesList();
         columns = columns.item(matchesMap().entry("name", "a").entry("type", "long"));
         columns = columns.item(matchesMap().entry("name", "b").entry("type", "long"));
@@ -264,10 +475,9 @@ public class HeapAttackIT extends ESRestTestCase {
         for (int i = 0; i < 20; i++) {
             columns = columns.item(matchesMap().entry("name", "i0" + i).entry("type", "long"));
         }
-        assertMap(map, matchesMap().entry("columns", columns).entry("values", hasSize(10_000)));
+        assertResultMap(map, columns, hasSize(10_000));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-serverless/issues/1874")
     public void testTooManyEval() throws IOException {
         initManyLongs();
         assertCircuitBreaks(() -> manyEval(490));
@@ -295,12 +505,16 @@ public class HeapAttackIT extends ESRestTestCase {
         if (filterPath != null) {
             request.addParameter("filter_path", filterPath);
         }
-        request.setJsonEntity(query.toString().replace("\n", "\\n"));
+        request.setJsonEntity(query.replace("\n", "\\n"));
         request.setOptions(
             RequestOptions.DEFAULT.toBuilder()
                 .setRequestConfig(RequestConfig.custom().setSocketTimeout(Math.toIntExact(TimeValue.timeValueMinutes(6).millis())).build())
                 .setWarningsHandler(WarningsHandler.PERMISSIVE)
         );
+        return runQuery(() -> client().performRequest(request));
+    }
+
+    private Response runQuery(CheckedSupplier<Response, IOException> run) throws IOException {
         logger.info("--> test {} started querying", getTestName());
         final ThreadPool testThreadPool = new TestThreadPool(getTestName());
         final long startedTimeInNanos = System.nanoTime();
@@ -318,14 +532,10 @@ public class HeapAttackIT extends ESRestTestCase {
                     TimeValue elapsed = TimeValue.timeValueNanos(System.nanoTime() - startedTimeInNanos);
                     logger.info("--> test {} triggering OOM after {}", getTestName(), elapsed);
                     Request triggerOOM = new Request("POST", "/_trigger_out_of_memory");
-                    RequestConfig requestConfig = RequestConfig.custom()
-                        .setSocketTimeout(Math.toIntExact(TimeValue.timeValueMinutes(2).millis()))
-                        .build();
-                    request.setOptions(RequestOptions.DEFAULT.toBuilder().setRequestConfig(requestConfig));
                     client().performRequest(triggerOOM);
                 }
             }, TimeValue.timeValueMinutes(5), testThreadPool.executor(ThreadPool.Names.GENERIC));
-            Response resp = client().performRequest(request);
+            Response resp = run.get();
             logger.info("--> test {} completed querying", getTestName());
             return resp;
         } finally {
@@ -405,6 +615,7 @@ public class HeapAttackIT extends ESRestTestCase {
         assertMap(map, matchesMap().entry("columns", columns));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/106683")
     public void testFetchTooManyMvLongs() throws IOException {
         initMvLongsIndex(500, 100, 1000);
         assertCircuitBreaks(() -> fetchMvLongs());
@@ -414,6 +625,55 @@ public class HeapAttackIT extends ESRestTestCase {
         StringBuilder query = startQuery();
         query.append("FROM mv_longs\"}");
         return query(query.toString(), "columns");
+    }
+
+    public void testLookupExplosion() throws IOException {
+        int sensorDataCount = 7500;
+        int lookupEntries = 10000;
+        Map<?, ?> map = lookupExplosion(sensorDataCount, lookupEntries);
+        assertMap(map, matchesMap().extraOk().entry("values", List.of(List.of(sensorDataCount * lookupEntries))));
+    }
+
+    public void testLookupExplosionManyMatches() throws IOException {
+        assertCircuitBreaks(() -> {
+            Map<?, ?> result = lookupExplosion(8500, 10000);
+            logger.error("should have failed but got {}", result);
+        });
+    }
+
+    private Map<?, ?> lookupExplosion(int sensorDataCount, int lookupEntries) throws IOException {
+        initSensorData(sensorDataCount, 1);
+        initSensorLookup(lookupEntries, 1, i -> "73.9857 40.7484");
+        StringBuilder query = startQuery();
+        query.append("FROM sensor_data | LOOKUP JOIN sensor_lookup ON id | STATS COUNT(*)\"}");
+        return responseAsMap(query(query.toString(), null));
+    }
+
+    public void testEnrichExplosion() throws IOException {
+        int sensorDataCount = 1000;
+        int lookupEntries = 100;
+        Map<?, ?> map = enrichExplosion(sensorDataCount, lookupEntries);
+        assertMap(map, matchesMap().extraOk().entry("values", List.of(List.of(sensorDataCount))));
+    }
+
+    public void testEnrichExplosionManyMatches() throws IOException {
+        assertCircuitBreaks(() -> {
+            Map<?, ?> result = enrichExplosion(3000, 10000);
+            logger.error("should have failed but got {}", result);
+        });
+    }
+
+    private Map<?, ?> enrichExplosion(int sensorDataCount, int lookupEntries) throws IOException {
+        initSensorData(sensorDataCount, 1);
+        initSensorEnrich(lookupEntries, 1, i -> "73.9857 40.7484");
+        try {
+            StringBuilder query = startQuery();
+            query.append("FROM sensor_data | ENRICH sensor ON id | STATS COUNT(*)\"}");
+            return responseAsMap(query(query.toString(), null));
+        } finally {
+            Request delete = new Request("DELETE", "/_enrich/policy/sensor");
+            assertMap(responseAsMap(client().performRequest(delete)), matchesMap().entry("acknowledged", true));
+        }
     }
 
     private void initManyLongs() throws IOException {
@@ -439,7 +699,7 @@ public class HeapAttackIT extends ESRestTestCase {
     }
 
     private void initSingleDocIndex() throws IOException {
-        logger.info("loading many documents with a single document");
+        logger.info("loading a single document");
         initIndex("single", """
             {"create":{}}
             {"a":1}
@@ -522,16 +782,86 @@ public class HeapAttackIT extends ESRestTestCase {
         initIndex("mv_longs", bulk.toString());
     }
 
+    private void initSensorData(int docCount, int sensorCount) throws IOException {
+        logger.info("loading sensor data");
+        createIndex("sensor_data", Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.LOOKUP.getName()).build(), """
+            {
+                "properties": {
+                    "@timestamp": { "type": "date" },
+                    "id": { "type": "long" },
+                    "value": { "type": "double" }
+                }
+            }""");
+        int docsPerBulk = 1000;
+        long firstDate = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2025-01-01T00:00:00Z");
+
+        StringBuilder data = new StringBuilder();
+        for (int i = 0; i < docCount; i++) {
+            data.append(String.format(Locale.ROOT, """
+                {"create":{}}
+                {"timestamp":"%s", "id": %d, "value": %f}
+                """, DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(i * 10L + firstDate), i % sensorCount, i * 1.1));
+            if (i % docsPerBulk == docsPerBulk - 1) {
+                bulk("sensor_data", data.toString());
+                data.setLength(0);
+            }
+        }
+        initIndex("sensor_data", data.toString());
+    }
+
+    private void initSensorLookup(int lookupEntries, int sensorCount, IntFunction<String> location) throws IOException {
+        logger.info("loading sensor lookup");
+        createIndex("sensor_lookup", Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.LOOKUP.getName()).build(), """
+            {
+                "properties": {
+                    "id": { "type": "long" },
+                    "location": { "type": "geo_point" }
+                }
+            }""");
+        int docsPerBulk = 1000;
+        StringBuilder data = new StringBuilder();
+        for (int i = 0; i < lookupEntries; i++) {
+            int sensor = i % sensorCount;
+            data.append(String.format(Locale.ROOT, """
+                {"create":{}}
+                {"id": %d, "location": "POINT(%s)"}
+                """, sensor, location.apply(sensor)));
+            if (i % docsPerBulk == docsPerBulk - 1) {
+                bulk("sensor_lookup", data.toString());
+                data.setLength(0);
+            }
+        }
+        initIndex("sensor_lookup", data.toString());
+    }
+
+    private void initSensorEnrich(int lookupEntries, int sensorCount, IntFunction<String> location) throws IOException {
+        initSensorLookup(lookupEntries, sensorCount, location);
+        logger.info("loading sensor enrich");
+
+        Request create = new Request("PUT", "/_enrich/policy/sensor");
+        create.setJsonEntity("""
+            {
+              "match": {
+                "indices": "sensor_lookup",
+                "match_field": "id",
+                "enrich_fields": ["location"]
+              }
+            }
+            """);
+        assertMap(responseAsMap(client().performRequest(create)), matchesMap().entry("acknowledged", true));
+        Request execute = new Request("POST", "/_enrich/policy/sensor/_execute");
+        assertMap(responseAsMap(client().performRequest(execute)), matchesMap().entry("status", Map.of("phase", "COMPLETE")));
+    }
+
     private void bulk(String name, String bulk) throws IOException {
         Request request = new Request("POST", "/" + name + "/_bulk");
-        request.addParameter("filter_path", "errors");
         request.setJsonEntity(bulk);
         request.setOptions(
             RequestOptions.DEFAULT.toBuilder()
                 .setRequestConfig(RequestConfig.custom().setSocketTimeout(Math.toIntExact(TimeValue.timeValueMinutes(5).millis())).build())
         );
         Response response = client().performRequest(request);
-        assertThat(EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8), equalTo("{\"errors\":false}"));
+        assertThat(entityAsMap(response), matchesMap().entry("errors", false).extraOk());
     }
 
     private void initIndex(String name, String bulk) throws IOException {

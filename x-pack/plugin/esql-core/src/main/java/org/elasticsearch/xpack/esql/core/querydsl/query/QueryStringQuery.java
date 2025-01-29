@@ -14,7 +14,6 @@ import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryStringQueryBuilder;
-import org.elasticsearch.xpack.esql.core.expression.predicate.fulltext.StringQueryPredicate;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 import java.util.Collections;
@@ -24,7 +23,7 @@ import java.util.function.BiConsumer;
 
 import static java.util.Map.entry;
 
-public class QueryStringQuery extends LeafQuery {
+public class QueryStringQuery extends Query {
 
     // TODO: it'd be great if these could be constants instead of Strings, needs a core change to make the fields public first
     private static final Map<String, BiConsumer<QueryStringQueryBuilder, String>> BUILDER_APPLIERS = Map.ofEntries(
@@ -55,20 +54,13 @@ public class QueryStringQuery extends LeafQuery {
 
     private final String query;
     private final Map<String, Float> fields;
-    private StringQueryPredicate predicate;
     private final Map<String, String> options;
 
-    // dedicated constructor for QueryTranslator
-    public QueryStringQuery(Source source, String query, String fieldName) {
-        this(source, query, Collections.singletonMap(fieldName, Float.valueOf(1.0f)), null);
-    }
-
-    public QueryStringQuery(Source source, String query, Map<String, Float> fields, StringQueryPredicate predicate) {
+    public QueryStringQuery(Source source, String query, Map<String, Float> fields, Map<String, String> options) {
         super(source);
         this.query = query;
         this.fields = fields;
-        this.predicate = predicate;
-        this.options = predicate == null ? Collections.emptyMap() : predicate.optionMap();
+        this.options = options == null ? Collections.emptyMap() : options;
     }
 
     @Override
@@ -95,7 +87,7 @@ public class QueryStringQuery extends LeafQuery {
 
     @Override
     public int hashCode() {
-        return Objects.hash(query, fields, predicate);
+        return Objects.hash(query, fields);
     }
 
     @Override
@@ -109,7 +101,7 @@ public class QueryStringQuery extends LeafQuery {
         }
 
         QueryStringQuery other = (QueryStringQuery) obj;
-        return Objects.equals(query, other.query) && Objects.equals(fields, other.fields) && Objects.equals(predicate, other.predicate);
+        return Objects.equals(query, other.query) && Objects.equals(fields, other.fields) && Objects.equals(options, other.options);
     }
 
     @Override

@@ -9,6 +9,7 @@ package org.elasticsearch.protocol.xpack;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -18,8 +19,8 @@ import java.util.Map;
 
 public class XPackUsageRequest extends MasterNodeRequest<XPackUsageRequest> {
 
-    public XPackUsageRequest() {
-        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
+    public XPackUsageRequest(TimeValue masterNodeTimeout) {
+        super(masterNodeTimeout);
     }
 
     public XPackUsageRequest(StreamInput in) throws IOException {

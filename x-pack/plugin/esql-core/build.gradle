@@ -1,10 +1,11 @@
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-test-artifact'
+apply plugin: 'elasticsearch.publish'
 
 esplugin {
-  name 'x-pack-esql-core'
-  description 'Elasticsearch infrastructure plugin for ESQL'
-  classname 'org.elasticsearch.xpack.esql.core.plugin.EsqlCorePlugin'
+  name = 'x-pack-esql-core'
+  description = 'Elasticsearch infrastructure plugin for ESQL'
+  classname = 'org.elasticsearch.xpack.esql.core.plugin.EsqlCorePlugin'
   extendedPlugins = ['x-pack-core']
 }
 

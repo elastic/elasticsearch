@@ -21,18 +21,18 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.data.TestBlockBuilder;
-import org.elasticsearch.compute.data.TestBlockFactory;
-import org.elasticsearch.compute.operator.CannedSourceOperator;
 import org.elasticsearch.compute.operator.CountingCircuitBreaker;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
-import org.elasticsearch.compute.operator.OperatorTestCase;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
-import org.elasticsearch.compute.operator.SequenceLongBlockSourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.TupleBlockSourceOperator;
+import org.elasticsearch.compute.test.CannedSourceOperator;
+import org.elasticsearch.compute.test.OperatorTestCase;
+import org.elasticsearch.compute.test.SequenceLongBlockSourceOperator;
+import org.elasticsearch.compute.test.TestBlockBuilder;
+import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
@@ -59,20 +59,21 @@ import java.util.stream.LongStream;
 
 import static java.util.Comparator.naturalOrder;
 import static java.util.Comparator.reverseOrder;
-import static org.elasticsearch.compute.data.BlockTestUtils.append;
-import static org.elasticsearch.compute.data.BlockTestUtils.randomValue;
-import static org.elasticsearch.compute.data.BlockTestUtils.readInto;
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.elasticsearch.compute.data.ElementType.BOOLEAN;
 import static org.elasticsearch.compute.data.ElementType.BYTES_REF;
 import static org.elasticsearch.compute.data.ElementType.COMPOSITE;
 import static org.elasticsearch.compute.data.ElementType.DOUBLE;
+import static org.elasticsearch.compute.data.ElementType.FLOAT;
 import static org.elasticsearch.compute.data.ElementType.INT;
 import static org.elasticsearch.compute.data.ElementType.LONG;
 import static org.elasticsearch.compute.operator.topn.TopNEncoder.DEFAULT_SORTABLE;
 import static org.elasticsearch.compute.operator.topn.TopNEncoder.DEFAULT_UNSORTABLE;
 import static org.elasticsearch.compute.operator.topn.TopNEncoder.UTF8;
 import static org.elasticsearch.compute.operator.topn.TopNEncoderTests.randomPointAsWKB;
+import static org.elasticsearch.compute.test.BlockTestUtils.append;
+import static org.elasticsearch.compute.test.BlockTestUtils.randomValue;
+import static org.elasticsearch.compute.test.BlockTestUtils.readInto;
 import static org.elasticsearch.core.Tuple.tuple;
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
@@ -326,6 +327,21 @@ public class TopNOperatorTests extends OperatorTestCase {
                 blockFactory.newLongBlockBuilder(2).appendLong(0).appendLong(Long.MAX_VALUE).build()
             ),
             LONG,
+            DEFAULT_SORTABLE
+        );
+    }
+
+    public void testCompareFloats() {
+        BlockFactory blockFactory = blockFactory();
+        testCompare(
+            new Page(
+                blockFactory.newFloatBlockBuilder(2).appendFloat(-Float.MAX_VALUE).appendFloat(randomFloatBetween(-1000, -1, true)).build(),
+                blockFactory.newFloatBlockBuilder(2).appendFloat(randomFloatBetween(-1000, -1, true)).appendFloat(0.0f).build(),
+                blockFactory.newFloatBlockBuilder(2).appendFloat(0).appendFloat(randomFloatBetween(1, 1000, true)).build(),
+                blockFactory.newFloatBlockBuilder(2).appendFloat(randomLongBetween(1, 1000)).appendFloat(Float.MAX_VALUE).build(),
+                blockFactory.newFloatBlockBuilder(2).appendFloat(0.0f).appendFloat(Float.MAX_VALUE).build()
+            ),
+            FLOAT,
             DEFAULT_SORTABLE
         );
     }

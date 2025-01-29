@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -27,7 +28,7 @@ public class MapperBuilderContext {
     }
 
     public static MapperBuilderContext root(boolean isSourceSynthetic, boolean isDataStream, MergeReason mergeReason) {
-        return new MapperBuilderContext(null, isSourceSynthetic, isDataStream, false, ObjectMapper.Defaults.DYNAMIC, mergeReason);
+        return new MapperBuilderContext(null, isSourceSynthetic, isDataStream, false, ObjectMapper.Defaults.DYNAMIC, mergeReason, false);
     }
 
     private final String path;
@@ -36,10 +37,7 @@ public class MapperBuilderContext {
     private final boolean parentObjectContainsDimensions;
     private final ObjectMapper.Dynamic dynamic;
     private final MergeReason mergeReason;
-
-    MapperBuilderContext(String path) {
-        this(path, false, false, false, ObjectMapper.Defaults.DYNAMIC, MergeReason.MAPPING_UPDATE);
-    }
+    private final boolean inNestedContext;
 
     MapperBuilderContext(
         String path,
@@ -47,7 +45,8 @@ public class MapperBuilderContext {
         boolean isDataStream,
         boolean parentObjectContainsDimensions,
         ObjectMapper.Dynamic dynamic,
-        MergeReason mergeReason
+        MergeReason mergeReason,
+        boolean inNestedContext
     ) {
         Objects.requireNonNull(dynamic, "dynamic must not be null");
         this.path = path;
@@ -56,6 +55,7 @@ public class MapperBuilderContext {
         this.parentObjectContainsDimensions = parentObjectContainsDimensions;
         this.dynamic = dynamic;
         this.mergeReason = mergeReason;
+        this.inNestedContext = inNestedContext;
     }
 
     /**
@@ -88,7 +88,8 @@ public class MapperBuilderContext {
             this.isDataStream,
             parentObjectContainsDimensions,
             getDynamic(dynamic),
-            this.mergeReason
+            this.mergeReason,
+            isInNestedContext()
         );
     }
 
@@ -137,5 +138,12 @@ public class MapperBuilderContext {
      */
     public MergeReason getMergeReason() {
         return mergeReason;
+    }
+
+    /**
+     * Returns true if this context is included in a nested context, either directly or any of its ancestors.
+     */
+    public boolean isInNestedContext() {
+        return inNestedContext;
     }
 }

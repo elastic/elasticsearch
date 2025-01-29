@@ -33,6 +33,39 @@ a single response. Defaults to 65,536.
 +
 Requests that attempt to return more than this limit will return an error.
 
+[[search-settings-only-allowed-scripts]]
+`search.aggs.only_allowed_metric_scripts`::
+(<<cluster-update-settings,Dynamic>>, boolean)
+Configures whether only explicitly allowed scripts can be used in
+<<search-aggregations-metrics-scripted-metric-aggregation,scripted metrics aggregations>>.
+Defaults to `false`.
++
+Requests using scripts not contained in either
+<<search-settings-allowed-inline-scripts,`search.aggs.allowed_inline_metric_scripts`>>
+or
+<<search-settings-allowed-stored-scripts,`search.aggs.allowed_stored_metric_scripts`>>
+will return an error.
+
+[[search-settings-allowed-inline-scripts]]
+`search.aggs.allowed_inline_metric_scripts`::
+(<<cluster-update-settings,Dynamic>>, list of strings)
+List of inline scripts that can be used in scripted metrics aggregations when
+<<search-settings-only-allowed-scripts,`search.aggs.only_allowed_metric_scripts`>>
+is set to `true`.
+Defaults to an empty list.
++
+Requests using other inline scripts will return an error.
+
+[[search-settings-allowed-stored-scripts]]
+`search.aggs.allowed_stored_metric_scripts`::
+(<<cluster-update-settings,Dynamic>>, list of strings)
+List of ids of stored scripts that can be used in scripted metrics aggregations when
+<<search-settings-only-allowed-scripts,`search.aggs.only_allowed_metric_scripts`>>
+is set to `true`.
+Defaults to an empty list.
++
+Requests using other stored scripts will return an error.
+
 [[indices-query-bool-max-nested-depth]]
 `indices.query.bool.max_nested_depth`::
 (<<static-cluster-setting,Static>>, integer) Maximum nested depth of queries. Defaults to `30`.

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.upgrades;
@@ -18,6 +19,7 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpda
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsClusterStateUpdateRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.action.support.master.ShardsAcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
@@ -43,6 +45,7 @@ import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.tasks.TaskId;
 
 import java.util.LinkedList;
@@ -499,7 +502,13 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
         createRequest.waitForActiveShards(ActiveShardCount.ALL)
             .mappings(migrationInfo.getMappings())
             .settings(Objects.requireNonNullElse(settingsBuilder.build(), Settings.EMPTY));
-        metadataCreateIndexService.createIndex(createRequest, listener);
+        metadataCreateIndexService.createIndex(
+            MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT,
+            TimeValue.ZERO,
+            null,
+            createRequest,
+            listener
+        );
     }
 
     private CheckedBiConsumer<ActionListener<BulkByScrollResponse>, AcknowledgedResponse, Exception> setAliasAndRemoveOldIndex(
@@ -536,11 +545,18 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
      */
     private void setWriteBlock(Index index, boolean readOnlyValue, ActionListener<AcknowledgedResponse> listener) {
         final Settings readOnlySettings = Settings.builder().put(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey(), readOnlyValue).build();
-        UpdateSettingsClusterStateUpdateRequest updateSettingsRequest = new UpdateSettingsClusterStateUpdateRequest().indices(
-            new Index[] { index }
-        ).settings(readOnlySettings).setPreserveExisting(false).ackTimeout(TimeValue.ZERO);
 
-        metadataUpdateSettingsService.updateSettings(updateSettingsRequest, listener);
+        metadataUpdateSettingsService.updateSettings(
+            new UpdateSettingsClusterStateUpdateRequest(
+                MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT,
+                TimeValue.ZERO,
+                readOnlySettings,
+                UpdateSettingsClusterStateUpdateRequest.OnExisting.OVERWRITE,
+                UpdateSettingsClusterStateUpdateRequest.OnStaticSetting.REJECT,
+                index
+            ),
+            listener
+        );
     }
 
     private void reindex(SystemIndexMigrationInfo migrationInfo, ActionListener<BulkByScrollResponse> listener) {
@@ -548,6 +564,10 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
         reindexRequest.setSourceIndices(migrationInfo.getCurrentIndexName());
         reindexRequest.setDestIndex(migrationInfo.getNextIndexName());
         reindexRequest.setRefresh(true);
+        String migrationScript = migrationInfo.getMigrationScript();
+        if (Strings.isNullOrEmpty(migrationScript) == false) {
+            reindexRequest.setScript(Script.parse(migrationScript));
+        }
         migrationInfo.createClient(baseClient).execute(ReindexAction.INSTANCE, reindexRequest, listener);
     }
 

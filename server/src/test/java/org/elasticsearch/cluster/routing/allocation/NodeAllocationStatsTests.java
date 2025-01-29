@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing.allocation;
@@ -23,13 +24,7 @@ public class NodeAllocationStatsTests extends AbstractWireSerializingTestCase<No
 
     @Override
     protected NodeAllocationStats createTestInstance() {
-        return new NodeAllocationStats(
-            randomIntBetween(0, 10000),
-            randomIntBetween(0, 1000),
-            randomDoubleBetween(0, 8, true),
-            randomNonNegativeLong(),
-            randomNonNegativeLong()
-        );
+        return randomNodeAllocationStats();
     }
 
     @Override
@@ -72,5 +67,15 @@ public class NodeAllocationStatsTests extends AbstractWireSerializingTestCase<No
             );
             default -> throw new RuntimeException("unreachable");
         };
+    }
+
+    public static NodeAllocationStats randomNodeAllocationStats() {
+        return new NodeAllocationStats(
+            randomIntBetween(0, 10000),
+            randomIntBetween(0, 1000),
+            randomDoubleBetween(0, 8, true),
+            randomNonNegativeLong(),
+            randomNonNegativeLong()
+        );
     }
 }

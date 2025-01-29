@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.test.simulatedlatencyrepo;
@@ -23,7 +24,6 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.Iterator;
 
 class LatencySimulatingBlobStoreRepository extends FsRepository {
 
@@ -50,11 +50,6 @@ class LatencySimulatingBlobStoreRepository extends FsRepository {
             public BlobContainer blobContainer(BlobPath path) {
                 BlobContainer blobContainer = fsBlobStore.blobContainer(path);
                 return new LatencySimulatingBlobContainer(blobContainer);
-            }
-
-            @Override
-            public void deleteBlobsIgnoringIfNotExists(OperationPurpose purpose, Iterator<String> blobNames) throws IOException {
-                fsBlobStore.deleteBlobsIgnoringIfNotExists(purpose, blobNames);
             }
 
             @Override

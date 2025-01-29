@@ -7,8 +7,8 @@
 
 package org.elasticsearch.compute.operator.exchange;
 
-import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.IsBlockedResult;
 
 /**
  * Source for exchanging data
@@ -38,5 +38,5 @@ public interface ExchangeSource {
     /**
      * Allows callers to stop reading from the source when it's blocked
      */
-    SubscribableListener<Void> waitForReading();
+    IsBlockedResult waitForReading();
 }

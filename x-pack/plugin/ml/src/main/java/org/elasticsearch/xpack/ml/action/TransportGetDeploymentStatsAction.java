@@ -16,7 +16,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -220,7 +220,7 @@ public class TransportGetDeploymentStatsAction extends TransportTasksAction<
 
                 // add nodes from the failures that were not in the task responses
                 for (var nodeRoutingState : nodeToRoutingStates.entrySet()) {
-                    if (visitedNodes.contains(nodeRoutingState.getKey()) == false) {
+                    if ((visitedNodes.contains(nodeRoutingState.getKey()) == false) && nodes.nodeExists(nodeRoutingState.getKey())) {
                         updatedNodeStats.add(
                             AssignmentStats.NodeStats.forNotStartedState(
                                 nodes.get(nodeRoutingState.getKey()),
@@ -238,6 +238,7 @@ public class TransportGetDeploymentStatsAction extends TransportTasksAction<
                         stat.getModelId(),
                         stat.getThreadsPerAllocation(),
                         stat.getNumberOfAllocations(),
+                        stat.getAdaptiveAllocationsSettings(),
                         stat.getQueueCapacity(),
                         stat.getCacheSize(),
                         stat.getStartTime(),
@@ -277,6 +278,7 @@ public class TransportGetDeploymentStatsAction extends TransportTasksAction<
                         assignment.getModelId(),
                         assignment.getTaskParams().getThreadsPerAllocation(),
                         assignment.getTaskParams().getNumberOfAllocations(),
+                        assignment.getAdaptiveAllocationsSettings(),
                         assignment.getTaskParams().getQueueCapacity(),
                         assignment.getTaskParams().getCacheSize().orElse(null),
                         assignment.getStartTime(),
@@ -346,6 +348,7 @@ public class TransportGetDeploymentStatsAction extends TransportTasksAction<
                 task.getParams().getModelId(),
                 task.getParams().getThreadsPerAllocation(),
                 assignment == null ? task.getParams().getNumberOfAllocations() : assignment.getTaskParams().getNumberOfAllocations(),
+                assignment == null ? null : assignment.getAdaptiveAllocationsSettings(),
                 task.getParams().getQueueCapacity(),
                 task.getParams().getCacheSize().orElse(null),
                 TrainedModelAssignmentMetadata.fromState(clusterService.state())

@@ -25,13 +25,14 @@ final class HostMetadata implements ToXContentObject {
     final int profilingNumCores; // number of cores on the profiling host machine
 
     HostMetadata(String hostID, InstanceType instanceType, String hostArchitecture, Integer profilingNumCores) {
-        this.hostID = hostID;
-        this.instanceType = instanceType;
-        this.hostArchitecture = hostArchitecture;
+        this.hostID = hostID != null ? hostID : "";
+        this.instanceType = instanceType != null ? instanceType : new InstanceType("", "", "");
+        this.hostArchitecture = hostArchitecture != null ? hostArchitecture : "";
         this.profilingNumCores = profilingNumCores != null ? profilingNumCores : DEFAULT_PROFILING_NUM_CORES;
     }
 
-    @UpdateForV9 // remove fallback to the "profiling.host.machine" field and remove it from the component template "profiling-hosts".
+    @UpdateForV9(owner = UpdateForV9.Owner.PROFILING)
+    // remove fallback to the "profiling.host.machine" field and remove it from the component template "profiling-hosts".
     public static HostMetadata fromSource(Map<String, Object> source) {
         if (source != null) {
             String hostID = (String) source.get("host.id");

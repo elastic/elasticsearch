@@ -2,6 +2,12 @@
 [[usage-api]]
 == Usage API
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-xpack[Usage APIs].
+--
+
 Provides usage information about the installed {xpack} features.
 
 [discrete]
@@ -38,9 +44,10 @@ include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 ------------------------------------------------------------
 GET /_xpack/usage
 ------------------------------------------------------------
-// TEST[s/usage/usage?filter_path=-watcher.execution.actions.index*\,-watcher.execution.actions.logging*,-watcher.execution.actions.email*/]
+// TEST[s/usage/usage?filter_path=-watcher.execution.actions.index*\,-watcher.execution.actions.logging*,-watcher.execution.actions.email*,-esql.functions*/]
 // This response filter removes watcher logging results if they are included
 // to avoid errors in the CI builds.
+// Same for ES|QL functions, that is a long list and quickly evolving.
 
 [source,console-result]
 ------------------------------------------------------------
@@ -195,12 +202,20 @@ GET /_xpack/usage
         }
       }
     },
-    "node_count" : 1
+    "node_count" : 1,
+    "memory": {
+      anomaly_detectors_memory_bytes: 0,
+      data_frame_analytics_memory_bytes: 0,
+      pytorch_inference_memory_bytes: 0,
+      total_used_memory_bytes: 0
+    }
   },
   "inference": {
     "available" : true,
     "enabled" : true,
-    "models" : []
+    "models" : [
+      ...
+    ]
   },
   "logstash" : {
     "available" : true,
@@ -228,8 +243,7 @@ GET /_xpack/usage
       "keep" : 0,
       "enrich" : 0,
       "from" : 0,
-      "row" : 0,
-      "meta" : 0
+      "row" : 0
     },
     "queries" : {
       "rest" : {
@@ -342,11 +356,6 @@ GET /_xpack/usage
     "full_copy_indices_count" : 0,
     "shared_cache_indices_count" : 0
   },
-  "frozen_indices" : {
-    "available" : true,
-    "enabled" : true,
-    "indices_count" : 0
-  },
   "spatial" : {
     "available" : true,
     "enabled" : true
@@ -377,10 +386,19 @@ GET /_xpack/usage
     "enabled": true,
     "count": 0,
     "default_rollover_used": true,
-    "retention": {
-        "minimum_millis": 0,
-        "maximum_millis": 0,
-        "average_millis": 0.0
+    "data_retention": {
+      "configured_data_streams": 0
+    },
+    "effective_retention": {
+      "retained_data_streams": 0
+    },
+    "global_retention": {
+      "default": {
+        "defined": false
+      },
+      "max": {
+        "defined": false
+      }
     }
   },
   "data_tiers" : {
@@ -493,6 +511,15 @@ GET /_xpack/usage
   "universal_profiling" : {
     "available" : true,
     "enabled" : true
+  },
+  "logsdb": {
+    "available": true,
+    "enabled": true,
+    "indices_count": 0,
+    "indices_with_synthetic_source": 0,
+    "num_docs": 0,
+    "size_in_bytes": 0,
+    "has_custom_cutoff_date": false
   }
 }
 ------------------------------------------------------------
@@ -504,6 +531,7 @@ GET /_xpack/usage
 // TESTRESPONSE[s/"policy_stats" : \[[^\]]*\]/"policy_stats" : $body.$_path/]
 // TESTRESPONSE[s/"slm" : \{[^\}]*\},/"slm" : $body.$_path,/]
 // TESTRESPONSE[s/"health_api" : \{[^\}]*\}\s*\}/"health_api" : $body.$_path/]
+// TESTRESPONSE[s/"models" : \[[^\]]*\]/"models" : $body.$_path/]
 // TESTRESPONSE[s/"data_streams" : \{[^\}]*\},/"data_streams" : $body.$_path,/]
 // TESTRESPONSE[s/ : true/ : $body.$_path/]
 // TESTRESPONSE[s/ : false/ : $body.$_path/]
@@ -520,4 +548,5 @@ GET /_xpack/usage
 // 5. All of the numbers and strings on the right hand side of *every* field in
 //    the response are ignored. So we're really only asserting things about the
 //    the shape of this response, not the values in it.
-// 6. Ignore the contents of data streams until the failure store is tech preview.
+// 6. Ignore the contents of the `inference.models` array because the models might not yet have been initialized
+// 7. Ignore the contents of data streams until the failure store is tech preview.

@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.esql.core.querydsl.query;
 
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.search.sort.NestedSortBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.tree.Location;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -18,7 +17,7 @@ import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashC
 import static org.hamcrest.Matchers.equalTo;
 
 public class LeafQueryTests extends ESTestCase {
-    private static class DummyLeafQuery extends LeafQuery {
+    private static class DummyLeafQuery extends Query {
         private DummyLeafQuery(Source source) {
             super(source);
         }
@@ -45,26 +44,6 @@ public class LeafQueryTests extends ESTestCase {
 
     private static DummyLeafQuery mutate(DummyLeafQuery query) {
         return new DummyLeafQuery(SourceTests.mutate(query.source()));
-    }
-
-    public void testContainsNestedField() {
-        Query query = new DummyLeafQuery(SourceTests.randomSource());
-        // Leaf queries don't contain nested fields.
-        assertFalse(query.containsNestedField(randomAlphaOfLength(5), randomAlphaOfLength(5)));
-    }
-
-    public void testAddNestedField() {
-        Query query = new DummyLeafQuery(SourceTests.randomSource());
-        // Leaf queries don't contain nested fields.
-        assertSame(query, query.addNestedField(randomAlphaOfLength(5), randomAlphaOfLength(5), null, randomBoolean()));
-    }
-
-    public void testEnrichNestedSort() {
-        Query query = new DummyLeafQuery(SourceTests.randomSource());
-        // Leaf queries don't contain nested fields.
-        NestedSortBuilder sort = new NestedSortBuilder(randomAlphaOfLength(5));
-        query.enrichNestedSort(sort);
-        assertNull(sort.getFilter());
     }
 
     public void testNot() {

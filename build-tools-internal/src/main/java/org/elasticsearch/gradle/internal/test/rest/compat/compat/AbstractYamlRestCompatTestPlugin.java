@@ -1,16 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal.test.rest.compat.compat;
 
 import org.elasticsearch.gradle.Version;
-import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.internal.ElasticsearchJavaBasePlugin;
+import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
 import org.elasticsearch.gradle.internal.test.rest.CopyRestApiTask;
 import org.elasticsearch.gradle.internal.test.rest.CopyRestTestsTask;
 import org.elasticsearch.gradle.internal.test.rest.LegacyYamlRestTestPlugin;
@@ -24,6 +25,7 @@ import org.gradle.api.Task;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.Dependency;
 import org.gradle.api.file.Directory;
+import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.ProjectLayout;
 import org.gradle.api.file.RelativePath;
 import org.gradle.api.internal.file.FileOperations;
@@ -35,15 +37,18 @@ import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.Sync;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.testing.Test;
+import org.gradle.language.jvm.tasks.ProcessResources;
 
 import java.io.File;
 import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.Map;
 
 import javax.inject.Inject;
 
 import static org.elasticsearch.gradle.internal.test.rest.RestTestUtil.setupYamlRestTestDependenciesDefaults;
+import static org.elasticsearch.gradle.internal.util.ParamsUtils.loadBuildParams;
 
 /**
  * Apply this plugin to run the YAML based REST tests from a prior major version against this version's cluster.
@@ -59,8 +64,7 @@ public abstract class AbstractYamlRestCompatTestPlugin implements Plugin<Project
     private static final Path RELATIVE_REST_CORE = Path.of("rest-api-spec");
     private static final Path RELATIVE_REST_XPACK = Path.of("x-pack/plugin");
     private static final Path RELATIVE_REST_PROJECT_RESOURCES = Path.of("src/yamlRestTest/resources");
-    private static final int COMPATIBLE_VERSION = Version.fromString(VersionProperties.getVersions().get("elasticsearch")).getMajor() - 1;
-    private static final String SOURCE_SET_NAME = "yamlRestTestV" + COMPATIBLE_VERSION + "Compat";
+    private static final String SOURCE_SET_NAME = "yamlRestCompatTest";
     private ProjectLayout projectLayout;
     private FileOperations fileOperations;
 
@@ -72,8 +76,10 @@ public abstract class AbstractYamlRestCompatTestPlugin implements Plugin<Project
 
     @Override
     public void apply(Project project) {
+        project.getRootProject().getRootProject().getPlugins().apply(GlobalBuildInfoPlugin.class);
+        var buildParams = loadBuildParams(project).get();
 
-        final Path compatRestResourcesDir = Path.of("restResources").resolve("v" + COMPATIBLE_VERSION);
+        final Path compatRestResourcesDir = Path.of("restResources").resolve("compat");
         final Path compatSpecsDir = compatRestResourcesDir.resolve("yamlSpecs");
         final Path compatTestsDir = compatRestResourcesDir.resolve("yamlTests");
         project.getPluginManager().apply(getBasePlugin());
@@ -88,10 +94,19 @@ public abstract class AbstractYamlRestCompatTestPlugin implements Plugin<Project
         SourceSet yamlTestSourceSet = sourceSets.getByName(YamlRestTestPlugin.YAML_REST_TEST);
         GradleUtils.extendSourceSet(project, YamlRestTestPlugin.YAML_REST_TEST, SOURCE_SET_NAME);
 
+        // determine the previous rest compatibility version and BWC project path
+        int currentMajor = buildParams.getBwcVersions().getCurrentVersion().getMajor();
+        Version lastMinor = buildParams.getBwcVersions()
+            .getUnreleased()
+            .stream()
+            .filter(v -> v.getMajor() == currentMajor - 1)
+            .min(Comparator.reverseOrder())
+            .get();
+        String lastMinorProjectPath = buildParams.getBwcVersions().unreleasedInfo(lastMinor).gradleProjectPath();
+
         // copy compatible rest specs
         Configuration bwcMinorConfig = project.getConfigurations().create(BWC_MINOR_CONFIG_NAME);
-        Dependency bwcMinor = project.getDependencies()
-            .project(Map.of("path", ":distribution:bwc:maintenance", "configuration", "checkout"));
+        Dependency bwcMinor = project.getDependencies().project(Map.of("path", lastMinorProjectPath, "configuration", "checkout"));
         project.getDependencies().add(bwcMinorConfig.getName(), bwcMinor);
 
         String projectPath = project.getPath();
@@ -182,7 +197,7 @@ public abstract class AbstractYamlRestCompatTestPlugin implements Plugin<Project
 
         // transform the copied tests task
         TaskProvider<RestCompatTestTransformTask> transformCompatTestTask = project.getTasks()
-            .register("yamlRestTestV" + COMPATIBLE_VERSION + "CompatTransform", RestCompatTestTransformTask.class, task -> {
+            .register("yamlRestCompatTestTransform", RestCompatTestTransformTask.class, task -> {
                 task.getSourceDirectory().set(copyCompatYamlTestTask.flatMap(CopyRestTestsTask::getOutputResourceDir));
                 task.getOutputDirectory()
                     .set(project.getLayout().getBuildDirectory().dir(compatTestsDir.resolve("transformed").toString()));
@@ -213,15 +228,27 @@ public abstract class AbstractYamlRestCompatTestPlugin implements Plugin<Project
             .named(RestResourcesPlugin.COPY_YAML_TESTS_TASK)
             .flatMap(CopyRestTestsTask::getOutputResourceDir);
 
+        // ensure we include other non rest spec related test resources
+        project.getTasks()
+            .withType(ProcessResources.class)
+            .named(yamlCompatTestSourceSet.getProcessResourcesTaskName())
+            .configure(processResources -> {
+                processResources.from(
+                    sourceSets.getByName(YamlRestTestPlugin.YAML_REST_TEST).getResources(),
+                    spec -> { spec.exclude("rest-api-spec/**"); }
+                );
+            });
+
         // setup the test task
         TaskProvider<? extends Test> yamlRestCompatTestTask = registerTestTask(project, yamlCompatTestSourceSet);
         yamlRestCompatTestTask.configure(testTask -> {
             testTask.systemProperty("tests.restCompat", true);
             // Use test runner and classpath from "normal" yaml source set
+            FileCollection outputFileCollection = yamlCompatTestSourceSet.getOutput();
             testTask.setTestClassesDirs(
                 yamlTestSourceSet.getOutput().getClassesDirs().plus(yamlCompatTestSourceSet.getOutput().getClassesDirs())
             );
-            testTask.onlyIf("Compatibility tests are available", t -> yamlCompatTestSourceSet.getAllSource().isEmpty() == false);
+            testTask.onlyIf("Compatibility tests are available", t -> outputFileCollection.isEmpty() == false);
             testTask.setClasspath(
                 yamlCompatTestSourceSet.getRuntimeClasspath()
                     // remove the "normal" api and tests

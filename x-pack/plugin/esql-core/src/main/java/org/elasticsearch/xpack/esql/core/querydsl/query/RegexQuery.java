@@ -13,7 +13,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.index.query.QueryBuilders.regexpQuery;
 
-public class RegexQuery extends LeafQuery {
+public class RegexQuery extends Query {
 
     private final String field, regex;
     private final boolean caseInsensitive;

@@ -33,22 +33,10 @@ public class NodesDeprecationCheckAction extends ActionType<NodesDeprecationChec
 
     public static class NodeRequest extends TransportRequest {
 
-        // TODO don't wrap the whole top-level request, it contains heavy and irrelevant DiscoveryNode things; see #100878
-        NodesDeprecationCheckRequest request;
+        public NodeRequest() {}
 
         public NodeRequest(StreamInput in) throws IOException {
             super(in);
-            request = new NodesDeprecationCheckRequest(in);
-        }
-
-        public NodeRequest(NodesDeprecationCheckRequest request) {
-            this.request = request;
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            request.writeTo(out);
         }
     }
 

@@ -20,7 +20,7 @@ import java.io.IOException;
 
 /**
  * Block that stores BytesRef values.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-Block.java.st} instead.
  */
 public sealed interface BytesRefBlock extends Block permits BytesRefArrayBlock, BytesRefVectorBlock, ConstantNullBlock,
     OrdinalBytesRefBlock {
@@ -49,6 +49,9 @@ public sealed interface BytesRefBlock extends Block permits BytesRefArrayBlock, 
 
     @Override
     BytesRefBlock filter(int... positions);
+
+    @Override
+    BytesRefBlock keepMask(BooleanVector mask);
 
     @Override
     ReleasableIterator<? extends BytesRefBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize);
@@ -107,10 +110,10 @@ public sealed interface BytesRefBlock extends Block permits BytesRefArrayBlock, 
         if (vector != null) {
             out.writeByte(SERIALIZE_BLOCK_VECTOR);
             vector.writeTo(out);
-        } else if (version.onOrAfter(TransportVersions.ESQL_SERIALIZE_ARRAY_BLOCK) && this instanceof BytesRefArrayBlock b) {
+        } else if (version.onOrAfter(TransportVersions.V_8_14_0) && this instanceof BytesRefArrayBlock b) {
             out.writeByte(SERIALIZE_BLOCK_ARRAY);
             b.writeArrayBlock(out);
-        } else if (version.onOrAfter(TransportVersions.ESQL_ORDINAL_BLOCK) && this instanceof OrdinalBytesRefBlock b && b.isDense()) {
+        } else if (version.onOrAfter(TransportVersions.V_8_14_0) && this instanceof OrdinalBytesRefBlock b && b.isDense()) {
             out.writeByte(SERIALIZE_BLOCK_ORDINAL);
             b.writeOrdinalBlock(out);
         } else {
@@ -224,6 +227,16 @@ public sealed interface BytesRefBlock extends Block permits BytesRefArrayBlock, 
          * {@code endExclusive} into this builder.
          */
         Builder copyFrom(BytesRefBlock block, int beginInclusive, int endExclusive);
+
+        /**
+         * Copy the values in {@code block} at {@code position}. If this position
+         * has a single value, this'll copy a single value. If this positions has
+         * many values, it'll copy all of them. If this is {@code null}, then it'll
+         * copy the {@code null}.
+         * @param scratch Scratch string used to prevent allocation. Share this
+                          between many calls to this function.
+         */
+        Builder copyFrom(BytesRefBlock block, int position, BytesRef scratch);
 
         @Override
         Builder appendNull();

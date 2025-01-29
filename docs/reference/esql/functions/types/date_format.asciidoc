@@ -5,6 +5,10 @@
 [%header.monospaced.styled,format=dsv,separator=|]
 |===
 dateFormat | date | result
-keyword | datetime | keyword
-text | datetime | keyword
+date | | keyword
+date_nanos | | keyword
+keyword | date | keyword
+keyword | date_nanos | keyword
+text | date | keyword
+text | date_nanos | keyword
 |===

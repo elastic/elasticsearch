@@ -25,11 +25,11 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -106,7 +106,6 @@ public class UpdateIndexMigrationVersionAction extends ActionType<UpdateIndexMig
                 threadPool,
                 actionFilters,
                 Request::new,
-                indexNameExpressionResolver,
                 UpdateIndexMigrationVersionResponse::new,
                 threadPool.executor(ThreadPool.Names.MANAGEMENT)
             );

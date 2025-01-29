@@ -5,6 +5,12 @@
 <titleabbrev>cat {dfeeds}</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-cat[Compact and aligned text (CAT) APIs]..
+--
+
 [IMPORTANT]
 ====
 cat APIs are only intended for human consumption using the command line or {kib} 
@@ -12,7 +18,7 @@ console. They are _not_ intended for use by applications. For application
 consumption, use the <<ml-get-datafeed-stats,get datafeed statistics API>>.
 ====
 
-Returns configuration and usage information about {dfeeds}.
+Returns configuration and usage information about {ml-docs}/ml-ad-run-jobs.html#ml-ad-datafeeds[{dfeeds}].
 
 [[cat-datafeeds-request]]
 ==== {api-request-title}

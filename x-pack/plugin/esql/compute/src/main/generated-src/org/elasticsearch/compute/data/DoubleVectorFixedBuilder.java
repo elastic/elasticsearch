@@ -13,9 +13,9 @@ import org.apache.lucene.util.RamUsageEstimator;
  * Builder for {@link DoubleVector}s that never grows. Prefer this to
  * {@link DoubleVectorBuilder} if you know the precise size up front because
  * it's faster.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-VectorFixedBuilder.java.st} instead.
  */
-final class DoubleVectorFixedBuilder implements DoubleVector.FixedBuilder {
+public final class DoubleVectorFixedBuilder implements DoubleVector.FixedBuilder {
     private final BlockFactory blockFactory;
     private final double[] values;
     private final long preAdjustedBytes;
@@ -24,6 +24,8 @@ final class DoubleVectorFixedBuilder implements DoubleVector.FixedBuilder {
      * been built.
      */
     private int nextIndex;
+
+    private boolean closed;
 
     DoubleVectorFixedBuilder(int size, BlockFactory blockFactory) {
         preAdjustedBytes = ramBytesUsed(size);
@@ -35,6 +37,12 @@ final class DoubleVectorFixedBuilder implements DoubleVector.FixedBuilder {
     @Override
     public DoubleVectorFixedBuilder appendDouble(double value) {
         values[nextIndex++] = value;
+        return this;
+    }
+
+    @Override
+    public DoubleVectorFixedBuilder appendDouble(int idx, double value) {
+        values[idx] = value;
         return this;
     }
 
@@ -53,13 +61,10 @@ final class DoubleVectorFixedBuilder implements DoubleVector.FixedBuilder {
 
     @Override
     public DoubleVector build() {
-        if (nextIndex < 0) {
+        if (closed) {
             throw new IllegalStateException("already closed");
         }
-        if (nextIndex != values.length) {
-            throw new IllegalStateException("expected to write [" + values.length + "] entries but wrote [" + nextIndex + "]");
-        }
-        nextIndex = -1;
+        closed = true;
         DoubleVector vector;
         if (values.length == 1) {
             vector = blockFactory.newConstantDoubleBlockWith(values[0], 1, preAdjustedBytes).asVector();
@@ -72,14 +77,14 @@ final class DoubleVectorFixedBuilder implements DoubleVector.FixedBuilder {
 
     @Override
     public void close() {
-        if (nextIndex >= 0) {
+        if (closed == false) {
             // If nextIndex < 0 we've already built the vector
-            nextIndex = -1;
+            closed = true;
             blockFactory.adjustBreaker(-preAdjustedBytes);
         }
     }
 
-    boolean isReleased() {
-        return nextIndex < 0;
+    public boolean isReleased() {
+        return closed;
     }
 }

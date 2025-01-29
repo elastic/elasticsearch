@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.metrics;
@@ -297,18 +298,18 @@ public class MinAggregatorTests extends AggregatorTestCase {
         }, (Consumer<InternalHistogram>) histo -> {
             assertThat(histo.getBuckets().size(), equalTo(3));
 
-            assertNotNull(histo.getBuckets().get(0).getAggregations().asMap().get("min"));
-            Min min = (Min) histo.getBuckets().get(0).getAggregations().asMap().get("min");
+            assertNotNull(histo.getBuckets().get(0).getAggregations().get("min"));
+            Min min = (Min) histo.getBuckets().get(0).getAggregations().get("min");
             assertEquals(1.0, min.value(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(min));
 
-            assertNotNull(histo.getBuckets().get(1).getAggregations().asMap().get("min"));
-            min = (Min) histo.getBuckets().get(1).getAggregations().asMap().get("min");
+            assertNotNull(histo.getBuckets().get(1).getAggregations().get("min"));
+            min = (Min) histo.getBuckets().get(1).getAggregations().get("min");
             assertEquals(Double.POSITIVE_INFINITY, min.value(), 0);
             assertFalse(AggregationInspectionHelper.hasValue(min));
 
-            assertNotNull(histo.getBuckets().get(2).getAggregations().asMap().get("min"));
-            min = (Min) histo.getBuckets().get(2).getAggregations().asMap().get("min");
+            assertNotNull(histo.getBuckets().get(2).getAggregations().get("min"));
+            min = (Min) histo.getBuckets().get(2).getAggregations().get("min");
             assertEquals(3.0, min.value(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(min));
 
@@ -343,9 +344,9 @@ public class MinAggregatorTests extends AggregatorTestCase {
         }, (Consumer<InternalGlobal>) global -> {
             assertEquals(2, global.getDocCount());
             assertTrue(AggregationInspectionHelper.hasValue(global));
-            assertNotNull(global.getAggregations().asMap().get("min"));
+            assertNotNull(global.getAggregations().get("min"));
 
-            Min min = (Min) global.getAggregations().asMap().get("min");
+            Min min = (Min) global.getAggregations().get("min");
             assertEquals(1.0, min.value(), 0);
             assertThat(global.getProperty("min"), equalTo(min));
             assertThat(global.getProperty("min.value"), equalTo(1.0));

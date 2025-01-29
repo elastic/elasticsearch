@@ -34,7 +34,7 @@ message can be logged again. Defaults to one hour (`1h`).
 
 `xpack.inference.http.max_response_size`::
 (<<cluster-update-settings,Dynamic>>) Specifies the maximum size in bytes an HTTP response is allowed to have,
-defaults to `10mb`, the maximum configurable value is `50mb`.
+defaults to `50mb`, the maximum configurable value is `100mb`.
 
 `xpack.inference.http.max_total_connections`::
 (<<cluster-update-settings,Dynamic>>) Specifies the maximum number of connections the internal connection pool can

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.nativeaccess;
@@ -11,7 +12,9 @@ package org.elasticsearch.nativeaccess;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
+import java.nio.file.Path;
 import java.util.Optional;
+import java.util.OptionalLong;
 
 class NoopNativeAccess implements NativeAccess {
 
@@ -39,6 +42,27 @@ class NoopNativeAccess implements NativeAccess {
     @Override
     public boolean isMemoryLocked() {
         return false;
+    }
+
+    @Override
+    public void tryInstallExecSandbox() {
+        logger.warn("Cannot install system call filter because native access is not available");
+    }
+
+    @Override
+    public ExecSandboxState getExecSandboxState() {
+        return ExecSandboxState.NONE;
+    }
+
+    @Override
+    public OptionalLong allocatedSizeInBytes(Path path) {
+        logger.warn("Cannot get allocated size of file [" + path + "] because native access is not available");
+        return OptionalLong.empty();
+    }
+
+    @Override
+    public void tryPreallocate(Path file, long size) {
+        logger.warn("Cannot preallocate file size because native access is not available");
     }
 
     @Override

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices;
@@ -69,8 +70,9 @@ public class IndicesQueryCacheTests extends ESTestCase {
         public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
             return new ConstantScoreWeight(this, boost) {
                 @Override
-                public Scorer scorer(LeafReaderContext context) throws IOException {
-                    return new ConstantScoreScorer(this, score(), scoreMode, DocIdSetIterator.all(context.reader().maxDoc()));
+                public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
+                    Scorer scorer = new ConstantScoreScorer(score(), scoreMode, DocIdSetIterator.all(context.reader().maxDoc()));
+                    return new DefaultScorerSupplier(scorer);
                 }
 
                 @Override
@@ -348,15 +350,21 @@ public class IndicesQueryCacheTests extends ESTestCase {
         }
 
         @Override
-        public Scorer scorer(LeafReaderContext context) throws IOException {
-            scorerCalled = true;
-            return weight.scorer(context);
-        }
-
-        @Override
         public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
             scorerSupplierCalled = true;
-            return weight.scorerSupplier(context);
+            ScorerSupplier inScorerSupplier = weight.scorerSupplier(context);
+            return new ScorerSupplier() {
+                @Override
+                public Scorer get(long leadCost) throws IOException {
+                    scorerCalled = true;
+                    return inScorerSupplier.get(leadCost);
+                }
+
+                @Override
+                public long cost() {
+                    return inScorerSupplier.cost();
+                }
+            };
         }
 
         @Override

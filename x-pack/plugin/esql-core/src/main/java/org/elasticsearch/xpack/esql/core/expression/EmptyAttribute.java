@@ -7,32 +7,35 @@
 
 package org.elasticsearch.xpack.esql.core.expression;
 
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
+
+import java.io.IOException;
 
 /**
  * Marker for optional attributes. Acting as a dummy placeholder to avoid using null
  * in the tree (which is not allowed).
  */
 public class EmptyAttribute extends Attribute {
-
     public EmptyAttribute(Source source) {
-        super(source, StringUtils.EMPTY, null, null);
+        super(source, StringUtils.EMPTY, null);
     }
 
     @Override
-    protected Attribute clone(
-        Source source,
-        String name,
-        DataType type,
-        String qualifier,
-        Nullability nullability,
-        NameId id,
-        boolean synthetic
-    ) {
+    public void writeTo(StreamOutput out) throws IOException {
+        throw new UnsupportedOperationException("doesn't escape the node");
+    }
+
+    @Override
+    public String getWriteableName() {
+        throw new UnsupportedOperationException("doesn't escape the node");
+    }
+
+    @Override
+    protected Attribute clone(Source source, String name, DataType type, Nullability nullability, NameId id, boolean synthetic) {
         return this;
     }
 
@@ -48,7 +51,7 @@ public class EmptyAttribute extends Attribute {
 
     @Override
     public DataType dataType() {
-        return DataTypes.NULL;
+        return DataType.NULL;
     }
 
     @Override

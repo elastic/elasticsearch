@@ -6,14 +6,23 @@
  */
 package org.elasticsearch.xpack.spatial.index.mapper;
 
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.TotalHits;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoJson;
-import org.elasticsearch.common.geo.GeometryNormalizer;
 import org.elasticsearch.common.geo.Orientation;
+import org.elasticsearch.common.geo.ShapeRelation;
+import org.elasticsearch.common.geo.SpatialStrategy;
 import org.elasticsearch.geo.GeometryTestUtils;
+import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.MultiPoint;
+import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.utils.GeometryValidator;
 import org.elasticsearch.geometry.utils.WellKnownBinary;
 import org.elasticsearch.geometry.utils.WellKnownText;
@@ -24,28 +33,36 @@ import org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapper;
 import org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapper.AbstractShapeGeometryFieldType;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParsingException;
+import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.index.query.GeoShapeQueryBuilder;
+import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.legacygeo.mapper.LegacyGeoShapeFieldMapper;
+import org.elasticsearch.legacygeo.mapper.LegacyGeoShapeFieldMapper.GeoShapeFieldType;
 import org.elasticsearch.test.index.IndexVersionUtils;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContent.MapParams;
+import org.elasticsearch.xcontent.ToXContent.Params;
+import org.elasticsearch.xpack.spatial.index.mapper.GeometricShapeSyntheticSourceSupport.FieldType;
 import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
+import static org.elasticsearch.legacygeo.mapper.LegacyGeoShapeFieldMapper.DEPRECATED_PARAMETERS;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class GeoShapeWithDocValuesFieldMapperTests extends GeoFieldMapperTests {
 
@@ -295,6 +312,75 @@ public class GeoShapeWithDocValuesFieldMapperTests extends GeoFieldMapperTests {
         );
     }
 
+    /**
+     * Test that we can parse legacy v7 "geo_shape" parameters for BWC with read-only N-2 indices
+     */
+    public void testGeoShapeLegacyParametersParsing() throws Exception {
+        // deprecated parameters needed for bwc with read-only version 7 indices
+        assertEquals(Set.of("strategy", "tree", "tree_levels", "precision", "distance_error_pct", "points_only"), DEPRECATED_PARAMETERS);
+
+        for (String deprecatedParam : DEPRECATED_PARAMETERS) {
+            Object value = switch (deprecatedParam) {
+                case "tree" -> randomFrom("quadtree", "geohash");
+                case "tree_levels" -> 6;
+                case "distance_error_pct" -> "0.01";
+                case "points_only" -> true;
+                case "strategy" -> "recursive";
+                case "precision" -> "50m";
+                default -> throw new IllegalStateException("Unexpected value: " + deprecatedParam);
+            };
+
+            // indices created before 8 should allow parameters but issue a warning
+            IndexVersion pre8version = IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersions.V_8_0_0);
+            MapperService m = createMapperService(
+                pre8version,
+                fieldMapping(b -> b.field("type", getFieldName()).field(deprecatedParam, value))
+            );
+
+            // check mapper
+            Mapper mapper = m.mappingLookup().getMapper("field");
+            assertThat(mapper, instanceOf(LegacyGeoShapeFieldMapper.class));
+
+            // check document parsing
+            MultiPoint multiPoint = GeometryTestUtils.randomMultiPoint(false);
+            assertNotNull(m.documentMapper().parse(source(b -> {
+                b.field("field");
+                GeoJson.toXContent(multiPoint, b, null);
+            })));
+
+            // check for correct field type and that a query can be created
+            MappedFieldType fieldType = m.fieldType("field");
+            assertThat(fieldType, instanceOf(GeoShapeFieldType.class));
+            GeoShapeFieldType ft = (GeoShapeFieldType) fieldType;
+
+            SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
+            when(searchExecutionContext.allowExpensiveQueries()).thenReturn(true);
+            assertNotNull(
+                ft.geoShapeQuery(searchExecutionContext, "location", SpatialStrategy.TERM, ShapeRelation.INTERSECTS, new Point(-10, 10))
+            );
+            if (deprecatedParam.equals("strategy") == false) {
+                assertFieldWarnings(deprecatedParam, "strategy");
+            } else {
+                assertFieldWarnings(deprecatedParam);
+            }
+
+            // indices created after 8 should throw an error
+            IndexVersion post8version = IndexVersionUtils.randomCompatibleWriteVersion(random());
+            Exception ex = expectThrows(
+                MapperParsingException.class,
+                () -> createMapperService(post8version, fieldMapping(b -> b.field("type", getFieldName()).field(deprecatedParam, value)))
+            );
+            assertThat(
+                ex.getMessage(),
+                containsString(
+                    "Failed to parse mapping: using deprecated parameters ["
+                        + deprecatedParam
+                        + "] in mapper [field] of type [geo_shape] is no longer allowed"
+                )
+            );
+        }
+    }
+
     public void testGeoShapeLegacyMerge() throws Exception {
         IndexVersion version = IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersions.V_8_0_0);
         MapperService m = createMapperService(version, fieldMapping(b -> b.field("type", getFieldName())));
@@ -310,6 +396,38 @@ public class GeoShapeWithDocValuesFieldMapperTests extends GeoFieldMapperTests {
         e = expectThrows(IllegalArgumentException.class, () -> merge(lm, fieldMapping(b -> b.field("type", getFieldName()))));
         assertThat(e.getMessage(), containsString("mapper [field] of type [geo_shape] cannot change strategy from [recursive] to [BKD]"));
         assertFieldWarnings("strategy");
+    }
+
+    public void testGeoShapeLegacyCircle() throws Exception {
+        IndexVersion version = IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersions.V_8_0_0);
+        MapperService mapperService = createMapperService(version, fieldMapping(b -> {
+            b.field("type", getFieldName());
+            b.field("strategy", "recursive");
+            b.field("tree", "geohash");
+        }));
+        assertCriticalWarnings(
+            "Parameter [strategy] is deprecated and will be removed in a future version",
+            "Parameter [tree] is deprecated and will be removed in a future version"
+        );
+
+        try (Directory directory = newDirectory()) {
+            RandomIndexWriter iw = new RandomIndexWriter(random(), directory);
+            Circle circle = new Circle(30, 50, 77000);
+
+            LuceneDocument doc = mapperService.documentMapper().parse(source(b -> {
+                b.field("field");
+                GeoJson.toXContent(circle, b, null);
+            })).rootDoc();
+            iw.addDocument(doc);
+            iw.close();
+            try (DirectoryReader reader = DirectoryReader.open(directory)) {
+                SearchExecutionContext context = createSearchExecutionContext(mapperService, newSearcher(reader));
+                GeoShapeQueryBuilder queryBuilder = new GeoShapeQueryBuilder("field", new Circle(30, 50, 77000));
+                TopDocs docs = context.searcher().search(queryBuilder.toQuery(context), 1);
+                assertThat(docs.totalHits.value(), equalTo(1L));
+                assertThat(docs.totalHits.relation(), equalTo(TotalHits.Relation.EQUAL_TO));
+            }
+        }
     }
 
     private void assertFieldWarnings(String... fieldNames) {
@@ -415,7 +533,7 @@ public class GeoShapeWithDocValuesFieldMapperTests extends GeoFieldMapperTests {
 
     public String toXContentString(AbstractShapeGeometryFieldMapper<?> mapper, boolean includeDefaults) {
         if (includeDefaults) {
-            ToXContent.Params params = new ToXContent.MapParams(Collections.singletonMap("include_defaults", "true"));
+            Params params = new MapParams(Collections.singletonMap("include_defaults", "true"));
             return Strings.toString(mapper, params);
         } else {
             return Strings.toString(mapper);
@@ -434,144 +552,7 @@ public class GeoShapeWithDocValuesFieldMapperTests extends GeoFieldMapperTests {
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
-        // Almost like GeoShapeType but no circles
-        enum ShapeType {
-            POINT,
-            LINESTRING,
-            POLYGON,
-            MULTIPOINT,
-            MULTILINESTRING,
-            MULTIPOLYGON,
-            GEOMETRYCOLLECTION,
-            ENVELOPE
-        }
-
-        return new SyntheticSourceSupport() {
-            @Override
-            public boolean preservesExactSource() {
-                return true;
-            }
-
-            @Override
-            public SyntheticSourceExample example(int maxValues) throws IOException {
-                if (randomBoolean()) {
-                    Value v = generateValue();
-                    if (v.blockLoaderOutput != null) {
-                        return new SyntheticSourceExample(v.input, v.output, v.blockLoaderOutput, this::mapping);
-                    }
-                    return new SyntheticSourceExample(v.input, v.output, this::mapping);
-                }
-
-                List<Value> values = randomList(1, maxValues, this::generateValue);
-                List<Object> in = values.stream().map(Value::input).toList();
-                List<Object> out = values.stream().map(Value::output).toList();
-
-                // Block loader infrastructure will never return nulls
-                List<Object> outBlockList = values.stream()
-                    .filter(v -> v.input != null)
-                    .map(v -> v.blockLoaderOutput != null ? v.blockLoaderOutput : v.output)
-                    .toList();
-                var outBlock = outBlockList.size() == 1 ? outBlockList.get(0) : outBlockList;
-
-                return new SyntheticSourceExample(in, out, outBlock, this::mapping);
-            }
-
-            private record Value(Object input, Object output, String blockLoaderOutput) {
-                Value(Object input, Object output) {
-                    this(input, output, null);
-                }
-            }
-
-            private Value generateValue() {
-                if (ignoreMalformed && randomBoolean()) {
-                    List<Supplier<Object>> choices = List.of(
-                        () -> randomAlphaOfLength(3),
-                        ESTestCase::randomInt,
-                        ESTestCase::randomLong,
-                        ESTestCase::randomFloat,
-                        ESTestCase::randomDouble
-                    );
-                    Object v = randomFrom(choices).get();
-                    return new Value(v, v);
-                }
-                if (randomBoolean()) {
-                    return new Value(null, null);
-                }
-
-                var type = randomFrom(ShapeType.values());
-                var isGeoJson = randomBoolean();
-
-                switch (type) {
-                    case POINT -> {
-                        var point = GeometryTestUtils.randomPoint(false);
-                        return value(point, isGeoJson);
-                    }
-                    case LINESTRING -> {
-                        var line = GeometryTestUtils.randomLine(false);
-                        return value(line, isGeoJson);
-                    }
-                    case POLYGON -> {
-                        var polygon = GeometryTestUtils.randomPolygon(false);
-                        return value(polygon, isGeoJson);
-                    }
-                    case MULTIPOINT -> {
-                        var multiPoint = GeometryTestUtils.randomMultiPoint(false);
-                        return value(multiPoint, isGeoJson);
-                    }
-                    case MULTILINESTRING -> {
-                        var multiPoint = GeometryTestUtils.randomMultiLine(false);
-                        return value(multiPoint, isGeoJson);
-                    }
-                    case MULTIPOLYGON -> {
-                        var multiPolygon = GeometryTestUtils.randomMultiPolygon(false);
-                        return value(multiPolygon, isGeoJson);
-                    }
-                    case GEOMETRYCOLLECTION -> {
-                        var multiPolygon = GeometryTestUtils.randomGeometryCollectionWithoutCircle(false);
-                        return value(multiPolygon, isGeoJson);
-                    }
-                    case ENVELOPE -> {
-                        var rectangle = GeometryTestUtils.randomRectangle();
-                        var wktString = WellKnownText.toWKT(rectangle);
-
-                        return new Value(wktString, wktString);
-                    }
-                    default -> throw new UnsupportedOperationException("Unsupported shape");
-                }
-            }
-
-            private static Value value(Geometry geometry, boolean isGeoJson) {
-                var wktString = WellKnownText.toWKT(geometry);
-                var normalizedWktString = GeometryNormalizer.needsNormalize(Orientation.RIGHT, geometry)
-                    ? WellKnownText.toWKT(GeometryNormalizer.apply(Orientation.RIGHT, geometry))
-                    : wktString;
-
-                if (isGeoJson) {
-                    var map = GeoJson.toMap(geometry);
-                    return new Value(map, map, normalizedWktString);
-                }
-
-                return new Value(wktString, wktString, normalizedWktString);
-            }
-
-            private void mapping(XContentBuilder b) throws IOException {
-                b.field("type", "geo_shape");
-                if (rarely()) {
-                    b.field("index", false);
-                }
-                if (rarely()) {
-                    b.field("doc_values", false);
-                }
-                if (ignoreMalformed) {
-                    b.field("ignore_malformed", true);
-                }
-            }
-
-            @Override
-            public List<SyntheticSourceInvalidExample> invalidExample() throws IOException {
-                return List.of();
-            }
-        };
+        return new GeometricShapeSyntheticSourceSupport(FieldType.GEO_SHAPE, ignoreMalformed);
     }
 
     @Override

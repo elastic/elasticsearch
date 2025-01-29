@@ -22,7 +22,7 @@ public final class AnalyticsTestsUtils {
      * Generates an index fields for histogram fields. Used in tests of aggregations that work on histogram fields.
      */
     public static BinaryDocValuesField histogramFieldDocValues(String fieldName, double[] values) throws IOException {
-        TDigestState histogram = TDigestState.create(100.0); // default
+        TDigestState histogram = TDigestState.createWithoutCircuitBreaking(100.0); // default
         for (double value : values) {
             histogram.add(value);
         }

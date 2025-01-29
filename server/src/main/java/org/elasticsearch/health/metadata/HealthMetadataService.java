@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.health.metadata;
@@ -27,7 +28,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.gateway.GatewayService;
-import org.elasticsearch.health.HealthFeatures;
 
 import java.util.List;
 import java.util.stream.Stream;
@@ -136,7 +136,7 @@ public class HealthMetadataService {
 
     private boolean canPostClusterStateUpdates(ClusterState state) {
         // Wait until every node in the cluster supports health checks
-        return isMaster && state.clusterRecovered() && featureService.clusterHasFeature(state, HealthFeatures.SUPPORTS_HEALTH);
+        return isMaster && state.clusterRecovered();
     }
 
     private void updateOnClusterStateChange(ClusterChangedEvent event) {

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.metadata;
@@ -18,8 +19,10 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.PutRequest;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.health.node.selection.HealthNodeTaskExecutor;
@@ -75,6 +78,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
@@ -247,7 +251,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         List<Throwable> errors = putTemplateDetail(request);
         assertThat(errors, is(empty()));
 
-        final Metadata metadata = clusterAdmin().prepareState().get().getState().metadata();
+        final Metadata metadata = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().metadata();
         IndexTemplateMetadata template = metadata.templates().get(templateName);
         Map<String, AliasMetadata> aliasMap = template.getAliases();
         assertThat(aliasMap.size(), equalTo(1));
@@ -265,7 +269,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         putTemplateDetail(new PutRequest("test", "foo-1").patterns(singletonList("foo-*")).order(1));
         putTemplateDetail(new PutRequest("test", "foo-2").patterns(singletonList("foo-*")).order(2));
         putTemplateDetail(new PutRequest("test", "bar").patterns(singletonList("bar-*")).order(between(0, 100)));
-        final ClusterState state = clusterAdmin().prepareState().get().getState();
+        final ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         assertThat(
             MetadataIndexTemplateService.findV1Templates(state.metadata(), "foo-1234", randomBoolean())
                 .stream()
@@ -295,7 +299,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             new PutRequest("testFindTemplatesWithHiddenIndices", "sneaky-hidden").patterns(singletonList("sneaky*"))
                 .settings(Settings.builder().put("index.hidden", true).build())
         );
-        final ClusterState state = clusterAdmin().prepareState().get().getState();
+        final ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
 
         // hidden
         assertThat(
@@ -379,7 +383,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
     public void testFindTemplatesWithDateMathIndex() throws Exception {
         client().admin().indices().prepareDeleteTemplate("*").get(); // Delete all existing templates
         putTemplateDetail(new PutRequest("testFindTemplatesWithDateMathIndex", "foo-1").patterns(singletonList("test-*")).order(1));
-        final ClusterState state = clusterAdmin().prepareState().get().getState();
+        final ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
 
         assertThat(
             MetadataIndexTemplateService.findV1Templates(state.metadata(), "<test-{now/d}>", false)
@@ -543,14 +547,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
         List<String> patterns = new ArrayList<>(template.indexPatterns());
         patterns.add("new-pattern");
-        template = ComposableIndexTemplate.builder()
-            .indexPatterns(patterns)
-            .template(template.template())
-            .componentTemplates(template.composedOf())
-            .priority(template.priority())
-            .version(template.version())
-            .metadata(template.metadata())
-            .build();
+        template = template.toBuilder().indexPatterns(patterns).build();
         state = metadataIndexTemplateService.addIndexTemplateV2(state, false, "foo", template);
 
         assertNotNull(state.metadata().templatesV2().get("foo"));
@@ -1510,7 +1507,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         state = addComponentTemplate(service, state, ctDisabledLifecycle, DataStreamLifecycle.newBuilder().enabled(false).build());
 
         String ctNoLifecycle = "ct_no_lifecycle";
-        state = addComponentTemplate(service, state, ctNoLifecycle, null);
+        state = addComponentTemplate(service, state, ctNoLifecycle, (DataStreamLifecycle) null);
 
         // Component A: -
         // Component B: "lifecycle": {"enabled": true}
@@ -1604,13 +1601,128 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         assertLifecycleResolution(service, state, List.of(ct30d, ctDisabledLifecycle), lifecycle45d, lifecycle45d);
     }
 
+    public void testResolveFailureStore() throws Exception {
+        final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
+        ClusterState state = ClusterState.EMPTY_STATE;
+
+        String ctNoFailureStoreConfig = "no_failure_store";
+        state = addComponentTemplate(service, state, ctNoFailureStoreConfig, (DataStreamOptions.Template) null);
+
+        String ctFailureStoreEnabled = "ct_failure_store_enabled";
+        state = addComponentTemplate(service, state, ctFailureStoreEnabled, DataStreamTestHelper.createDataStreamOptionsTemplate(true));
+
+        String ctFailureStoreDisabled = "ct_failure_store_disabled";
+        state = addComponentTemplate(service, state, ctFailureStoreDisabled, DataStreamTestHelper.createDataStreamOptionsTemplate(false));
+
+        String ctFailureStoreNullified = "ct_null_failure_store";
+        DataStreamOptions.Template nullifiedFailureStore = new DataStreamOptions.Template(ResettableValue.reset());
+        state = addComponentTemplate(service, state, ctFailureStoreNullified, nullifiedFailureStore);
+
+        // Component A: -
+        // Composable Z: -
+        // Result: -
+        assertDataStreamOptionsResolution(service, state, List.of(), null, null);
+
+        // Component A: "data_stream_options": { "failure_store": { "enabled": true}}
+        // Composable Z: -
+        // Result: "data_stream_options": { "failure_store": { "enabled": true}}
+        assertDataStreamOptionsResolution(service, state, List.of(ctFailureStoreEnabled), null, DataStreamOptions.FAILURE_STORE_ENABLED);
+
+        // Component A: "data_stream_options": { "failure_store": { "enabled": false}}
+        // Composable Z: "data_stream_options": {}
+        // Result: "data_stream_options": { "failure_store": { "enabled": false}}
+        assertDataStreamOptionsResolution(
+            service,
+            state,
+            List.of(ctFailureStoreDisabled),
+            DataStreamOptions.Template.EMPTY,
+            DataStreamOptions.FAILURE_STORE_DISABLED
+        );
+
+        // Component A: "data_stream_options": { "failure_store": { "enabled": true}}
+        // Composable Z: "data_stream_options": { "failure_store": { "enabled": false}}
+        // Result: "data_stream_options": { "failure_store": { "enabled": false}}
+        assertDataStreamOptionsResolution(
+            service,
+            state,
+            List.of(ctFailureStoreEnabled),
+            DataStreamTestHelper.createDataStreamOptionsTemplate(false),
+            DataStreamOptions.FAILURE_STORE_DISABLED
+        );
+
+        // Component A: "data_stream_options": { "failure_store": null}
+        // Composable Z: "data_stream_options": { "failure_store": { "enabled": false}}
+        // Result: "data_stream_options": { "failure_store": { "enabled": false}}
+        assertDataStreamOptionsResolution(
+            service,
+            state,
+            List.of(ctFailureStoreNullified),
+            DataStreamTestHelper.createDataStreamOptionsTemplate(false),
+            DataStreamOptions.FAILURE_STORE_DISABLED
+        );
+
+        // Component A: "data_stream_options": { "failure_store": null}
+        // Composable Z: -
+        // Result: "data_stream_options": {}
+        assertDataStreamOptionsResolution(service, state, List.of(ctFailureStoreNullified), null, DataStreamOptions.EMPTY);
+
+        // Component A: "data_stream_options": { "failure_store": { "enabled": true}}
+        // Composable Z: "data_stream_options": { "failure_store": null}
+        // Result: "data_stream_options": {}
+        assertDataStreamOptionsResolution(service, state, List.of(ctFailureStoreEnabled), nullifiedFailureStore, DataStreamOptions.EMPTY);
+    }
+
+    public void testInvalidNonDataStreamTemplateWithDataStreamOptions() throws Exception {
+        MetadataIndexTemplateService metadataIndexTemplateService = getMetadataIndexTemplateService();
+        Template template = Template.builder().dataStreamOptions(DataStreamOptionsTemplateTests.randomDataStreamOptions()).build();
+        ComponentTemplate componentTemplate = new ComponentTemplate(template, 1L, new HashMap<>());
+        ComposableIndexTemplate globalIndexTemplate = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of("my-index"))
+            .componentTemplates(List.of("ct-with-data-stream-options"))
+            .build();
+        ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .metadata(Metadata.builder().componentTemplates(Map.of("ct-with-data-stream-options", componentTemplate)))
+            .build();
+        Exception exception = expectThrows(
+            Exception.class,
+            () -> metadataIndexTemplateService.validateIndexTemplateV2("name", globalIndexTemplate, clusterState)
+        );
+        assertThat(
+            exception.getMessage(),
+            containsString("specifies data stream options that can only be used in combination with a data stream")
+        );
+    }
+
     private ClusterState addComponentTemplate(
         MetadataIndexTemplateService service,
         ClusterState state,
         String name,
         DataStreamLifecycle lifecycle
     ) throws Exception {
-        ComponentTemplate ct = new ComponentTemplate(new Template(null, null, null, lifecycle), null, null);
+        return addComponentTemplate(service, state, name, null, lifecycle);
+    }
+
+    private ClusterState addComponentTemplate(
+        MetadataIndexTemplateService service,
+        ClusterState state,
+        String name,
+        DataStreamOptions.Template dataStreamOptions
+    ) throws Exception {
+        return addComponentTemplate(service, state, name, dataStreamOptions, null);
+    }
+
+    private ClusterState addComponentTemplate(
+        MetadataIndexTemplateService service,
+        ClusterState state,
+        String name,
+        DataStreamOptions.Template dataStreamOptions,
+        DataStreamLifecycle lifecycle
+    ) throws Exception {
+        ComponentTemplate ct = new ComponentTemplate(
+            Template.builder().dataStreamOptions(dataStreamOptions).lifecycle(lifecycle).build(),
+            null,
+            null
+        );
         return service.addComponentTemplate(state, true, name, ct);
     }
 
@@ -1623,7 +1735,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
     ) throws Exception {
         ComposableIndexTemplate it = ComposableIndexTemplate.builder()
             .indexPatterns(List.of(randomAlphaOfLength(10) + "*"))
-            .template(new Template(null, null, null, lifecycleZ))
+            .template(Template.builder().lifecycle(lifecycleZ))
             .componentTemplates(composeOf)
             .priority(0L)
             .version(1L)
@@ -1633,6 +1745,28 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
         DataStreamLifecycle resolvedLifecycle = MetadataIndexTemplateService.resolveLifecycle(state.metadata(), "my-template");
         assertThat(resolvedLifecycle, equalTo(expected));
+    }
+
+    private void assertDataStreamOptionsResolution(
+        MetadataIndexTemplateService service,
+        ClusterState state,
+        List<String> composeOf,
+        DataStreamOptions.Template dataStreamOptionsZ,
+        DataStreamOptions expected
+    ) throws Exception {
+        ComposableIndexTemplate it = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of(randomAlphaOfLength(10) + "*"))
+            .template(Template.builder().dataStreamOptions(dataStreamOptionsZ))
+            .componentTemplates(composeOf)
+            .priority(0L)
+            .version(1L)
+            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+            .build();
+        state = service.addIndexTemplateV2(state, true, "my-template", it);
+
+        DataStreamOptions resolvedDataStreamOptions = MetadataIndexTemplateService.resolveDataStreamOptions(state.metadata(), "my-template")
+            .mapAndGet(DataStreamOptions.Template::toDataStreamOptions);
+        assertThat(resolvedDataStreamOptions, resolvedDataStreamOptions == null ? nullValue() : equalTo(expected));
     }
 
     public void testAddInvalidTemplate() throws Exception {
@@ -1847,7 +1981,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         ClusterState state = ClusterState.EMPTY_STATE;
 
         ComponentTemplate ct = new ComponentTemplate(
-            new Template(null, null, null, DataStreamLifecycle.newBuilder().dataRetention(randomMillisUpToYear9999()).build()),
+            Template.builder().lifecycle(DataStreamLifecycle.newBuilder().dataRetention(randomMillisUpToYear9999())).build(),
             null,
             null
         );
@@ -2158,6 +2292,23 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         MetadataIndexTemplateService.innerRemoveIndexTemplateV2(stateWithTwoTemplates, "logs");
     }
 
+    public void testDataStreamsUsingMatchAllTemplate() throws Exception {
+        ClusterState state = ClusterState.EMPTY_STATE;
+        final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
+
+        ComposableIndexTemplate template = ComposableIndexTemplate.builder()
+            .indexPatterns(Collections.singletonList("*"))
+            .priority(100L)
+            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+            .build();
+        final String templateName = "all-data-streams-template";
+        state = service.addIndexTemplateV2(state, false, templateName, template);
+        // When creating a data stream, we'll look for templates. The data stream is not hidden
+        assertThat(MetadataIndexTemplateService.findV2Template(state.metadata(), "some-data-stream", false), equalTo(templateName));
+        // The write index for a data stream will be a hidden index. We need to make sure it matches the same template:
+        assertThat(MetadataIndexTemplateService.findV2Template(state.metadata(), "some-data-stream", true), equalTo(templateName));
+    }
+
     public void testRemovingHigherOrderTemplateOfDataStreamWithMultipleTemplates() throws Exception {
         ClusterState state = ClusterState.EMPTY_STATE;
         final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
@@ -2461,6 +2612,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
     private static List<Throwable> putTemplate(NamedXContentRegistry xContentRegistry, PutRequest request) {
         ThreadPool testThreadPool = mock(ThreadPool.class);
+        when(testThreadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         ClusterService clusterService = ClusterServiceUtils.createClusterService(testThreadPool);
         MetadataCreateIndexService createIndexService = new MetadataCreateIndexService(
             Settings.EMPTY,
@@ -2484,7 +2636,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             xContentRegistry,
             EmptySystemIndices.INSTANCE,
             new IndexSettingProviders(Set.of()),
-            new DataStreamGlobalRetentionResolver(DataStreamFactoryRetention.emptyFactoryRetention())
+            DataStreamGlobalRetentionSettings.create(ClusterSettings.createBuiltInClusterSettings())
         );
 
         final List<Throwable> throwables = new ArrayList<>();
@@ -2526,9 +2678,6 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
     private MetadataIndexTemplateService getMetadataIndexTemplateService() {
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         ClusterService clusterService = getInstanceFromNode(ClusterService.class);
-        DataStreamGlobalRetentionResolver dataStreamGlobalRetentionResolver = new DataStreamGlobalRetentionResolver(
-            DataStreamFactoryRetention.emptyFactoryRetention()
-        );
         MetadataCreateIndexService createIndexService = new MetadataCreateIndexService(
             Settings.EMPTY,
             clusterService,
@@ -2551,7 +2700,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             xContentRegistry(),
             EmptySystemIndices.INSTANCE,
             new IndexSettingProviders(Set.of()),
-            dataStreamGlobalRetentionResolver
+            DataStreamGlobalRetentionSettings.create(ClusterSettings.createBuiltInClusterSettings())
         );
     }
 

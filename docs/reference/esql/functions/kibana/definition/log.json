@@ -344,5 +344,7 @@
   "examples" : [
     "ROW base = 2.0, value = 8.0\n| EVAL s = LOG(base, value)",
     "row value = 100\n| EVAL s = LOG(value);"
-  ]
+  ],
+  "preview" : false,
+  "snapshot_only" : false
 }

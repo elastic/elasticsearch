@@ -10,6 +10,7 @@ package org.elasticsearch.compute.operator.exchange;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.compute.operator.Operator;
 
 import java.util.Queue;
@@ -83,7 +84,7 @@ final class ExchangeBuffer {
         }
     }
 
-    SubscribableListener<Void> waitForWriting() {
+    IsBlockedResult waitForWriting() {
         // maxBufferSize check is not water-tight as more than one sink can pass this check at the same time.
         if (queueSize.get() < maxSize || noMoreInputs) {
             return Operator.NOT_BLOCKED;
@@ -95,11 +96,11 @@ final class ExchangeBuffer {
             if (notFullFuture == null) {
                 notFullFuture = new SubscribableListener<>();
             }
-            return notFullFuture;
+            return new IsBlockedResult(notFullFuture, "exchange full");
         }
     }
 
-    SubscribableListener<Void> waitForReading() {
+    IsBlockedResult waitForReading() {
         if (size() > 0 || noMoreInputs) {
             return Operator.NOT_BLOCKED;
         }
@@ -110,7 +111,7 @@ final class ExchangeBuffer {
             if (notEmptyFuture == null) {
                 notEmptyFuture = new SubscribableListener<>();
             }
-            return notEmptyFuture;
+            return new IsBlockedResult(notEmptyFuture, "exchange empty");
         }
     }
 

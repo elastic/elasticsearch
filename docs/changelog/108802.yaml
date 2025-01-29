@@ -1,5 +1,0 @@
-pr: 108802
-summary: Fix multithreading copies in lib vec
-area: Vector Search
-type: bug
-issues: []

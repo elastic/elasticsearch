@@ -8,6 +8,12 @@ beta::[]
 <titleabbrev>Delete Analytics Collection</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-analytics[Behavioral analytics APIs].
+--
+
 ////
 [source,console]
 ----
@@ -17,7 +23,7 @@ PUT _application/analytics/my_analytics_collection
 
 ////
 
-Removes an Analytics Collection and its associated data stream.
+Removes a <<behavioral-analytics-overview,Behavioral Analytics>> Collection and its associated data stream.
 
 [[delete-analytics-collection-request]]
 ==== {api-request-title}

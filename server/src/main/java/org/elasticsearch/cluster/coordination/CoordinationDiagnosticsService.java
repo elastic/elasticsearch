@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.coordination;
@@ -29,7 +30,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -193,9 +193,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
          * system context.
          */
         if (clusterService.localNode().isMasterNode() == false) {
-            final ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
-            try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
-                threadContext.markAsSystemContext();
+            try (var ignored = transportService.getThreadPool().getThreadContext().newEmptySystemContext()) {
                 beginPollingRemoteMasterStabilityDiagnostic();
             }
         }

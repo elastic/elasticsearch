@@ -1,5 +1,0 @@
-pr: 108796
-summary: Return ingest byte stats even when 0-valued
-area: Ingest Node
-type: enhancement
-issues: []

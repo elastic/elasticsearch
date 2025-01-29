@@ -6,13 +6,15 @@
  */
 package org.elasticsearch.xpack.esql.core.expression.predicate.operator.arithmetic;
 
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.UnaryScalarFunction;
-import org.elasticsearch.xpack.esql.core.expression.gen.processor.Processor;
-import org.elasticsearch.xpack.esql.core.expression.predicate.operator.arithmetic.UnaryArithmeticProcessor.UnaryArithmeticOperation;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+
+import java.io.IOException;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNumeric;
@@ -24,6 +26,16 @@ public class Neg extends UnaryScalarFunction {
 
     public Neg(Source source, Expression field) {
         super(source, field);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public String getWriteableName() {
+        throw new UnsupportedOperationException();
     }
 
     @Override
@@ -42,17 +54,12 @@ public class Neg extends UnaryScalarFunction {
     }
 
     @Override
-    public Object fold() {
-        return Arithmetics.negate((Number) field().fold());
+    public Object fold(FoldContext ctx) {
+        return Arithmetics.negate((Number) field().fold(ctx));
     }
 
     @Override
     public DataType dataType() {
         return field().dataType();
-    }
-
-    @Override
-    protected Processor makeProcessor() {
-        return new UnaryArithmeticProcessor(UnaryArithmeticOperation.NEGATE);
     }
 }

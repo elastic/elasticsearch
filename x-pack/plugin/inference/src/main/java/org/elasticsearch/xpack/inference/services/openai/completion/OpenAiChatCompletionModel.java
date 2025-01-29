@@ -11,12 +11,15 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.openai.OpenAiActionVisitor;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiModel;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
 import java.util.Map;
+import java.util.Objects;
 
 public class OpenAiChatCompletionModel extends OpenAiModel {
 
@@ -29,19 +32,40 @@ public class OpenAiChatCompletionModel extends OpenAiModel {
         return new OpenAiChatCompletionModel(model, OpenAiChatCompletionTaskSettings.of(model.getTaskSettings(), requestTaskSettings));
     }
 
+    public static OpenAiChatCompletionModel of(OpenAiChatCompletionModel model, UnifiedCompletionRequest request) {
+        var originalModelServiceSettings = model.getServiceSettings();
+        var overriddenServiceSettings = new OpenAiChatCompletionServiceSettings(
+            Objects.requireNonNullElse(request.model(), originalModelServiceSettings.modelId()),
+            originalModelServiceSettings.uri(),
+            originalModelServiceSettings.organizationId(),
+            originalModelServiceSettings.maxInputTokens(),
+            originalModelServiceSettings.rateLimitSettings()
+        );
+
+        return new OpenAiChatCompletionModel(
+            model.getInferenceEntityId(),
+            model.getTaskType(),
+            model.getConfigurations().getService(),
+            overriddenServiceSettings,
+            model.getTaskSettings(),
+            model.getSecretSettings()
+        );
+    }
+
     public OpenAiChatCompletionModel(
         String inferenceEntityId,
         TaskType taskType,
         String service,
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
-        @Nullable Map<String, Object> secrets
+        @Nullable Map<String, Object> secrets,
+        ConfigurationParseContext context
     ) {
         this(
             inferenceEntityId,
             taskType,
             service,
-            OpenAiChatCompletionServiceSettings.fromMap(serviceSettings),
+            OpenAiChatCompletionServiceSettings.fromMap(serviceSettings, context),
             OpenAiChatCompletionTaskSettings.fromMap(taskSettings),
             DefaultSecretSettings.fromMap(secrets)
         );

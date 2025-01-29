@@ -11,7 +11,7 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
-import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.action.ILMActions;
 import org.elasticsearch.xpack.core.ilm.action.PutLifecycleRequest;
 
@@ -36,13 +36,20 @@ public class RestPutLifecycleAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
-        String lifecycleName = restRequest.param("name");
-        try (XContentParser parser = restRequest.contentParser()) {
-            PutLifecycleRequest putLifecycleRequest = PutLifecycleRequest.parseRequest(lifecycleName, parser);
-            putLifecycleRequest.ackTimeout(getAckTimeout(restRequest));
-            putLifecycleRequest.masterNodeTimeout(getMasterNodeTimeout(restRequest));
+        final PutLifecycleRequest putLifecycleRequest;
+        try (var parser = restRequest.contentParser()) {
+            putLifecycleRequest = PutLifecycleRequest.parseRequest(new PutLifecycleRequest.Factory() {
+                @Override
+                public PutLifecycleRequest create(LifecyclePolicy lifecyclePolicy) {
+                    return new PutLifecycleRequest(getMasterNodeTimeout(restRequest), getAckTimeout(restRequest), lifecyclePolicy);
+                }
 
-            return channel -> client.execute(ILMActions.PUT, putLifecycleRequest, new RestToXContentListener<>(channel));
+                @Override
+                public String getPolicyName() {
+                    return restRequest.param("name");
+                }
+            }, parser);
         }
+        return channel -> client.execute(ILMActions.PUT, putLifecycleRequest, new RestToXContentListener<>(channel));
     }
 }

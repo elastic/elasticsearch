@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.fielddata.plain;
 
@@ -82,13 +83,7 @@ public abstract class AbstractIndexOrdinalsFieldData implements IndexOrdinalsFie
         try {
             return cache.load(context, this);
         } catch (Exception e) {
-            if (e instanceof ElasticsearchException) {
-                throw (ElasticsearchException) e;
-            } else if (e instanceof ExecutionException && e.getCause() instanceof ElasticsearchException) {
-                throw (ElasticsearchException) e.getCause();
-            } else {
-                throw new ElasticsearchException(e);
-            }
+            throw handleCacheLoadException(e);
         }
     }
 
@@ -130,13 +125,7 @@ public abstract class AbstractIndexOrdinalsFieldData implements IndexOrdinalsFie
         try {
             return cache.load(indexReader, this);
         } catch (Exception e) {
-            if (e instanceof ElasticsearchException) {
-                throw (ElasticsearchException) e;
-            } else if (e instanceof ExecutionException && e.getCause() instanceof ElasticsearchException) {
-                throw (ElasticsearchException) e.getCause();
-            } else {
-                throw new ElasticsearchException(e);
-            }
+            throw handleCacheLoadException(e);
         }
     }
 
@@ -154,6 +143,16 @@ public abstract class AbstractIndexOrdinalsFieldData implements IndexOrdinalsFie
     @Override
     public boolean supportsGlobalOrdinalsMapping() {
         return false;
+    }
+
+    private static ElasticsearchException handleCacheLoadException(Exception e) {
+        if (e instanceof ElasticsearchException ese) {
+            return ese;
+        }
+        if (e instanceof ExecutionException && e.getCause() instanceof ElasticsearchException ese) {
+            throw ese;
+        }
+        throw new ElasticsearchException(e);
     }
 
     /**

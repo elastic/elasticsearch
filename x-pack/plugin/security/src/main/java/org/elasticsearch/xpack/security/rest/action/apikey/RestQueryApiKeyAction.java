@@ -113,6 +113,7 @@ public final class RestQueryApiKeyAction extends ApiKeyBaseRestHandler {
 
     @Override
     protected Set<String> responseParams() {
+        // this is a parameter that's consumed by the response formatter for aggregations
         return Set.of(RestSearchAction.TYPED_KEYS_PARAM);
     }
 

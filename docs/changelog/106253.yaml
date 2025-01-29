@@ -1,6 +1,0 @@
-pr: 106253
-summary: Fix for from parameter when using `sub_searches` and rank
-area: Ranking
-type: bug
-issues:
- - 99011

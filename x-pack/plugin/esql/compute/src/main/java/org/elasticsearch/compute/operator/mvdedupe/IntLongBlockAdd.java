@@ -9,13 +9,13 @@ package org.elasticsearch.compute.operator.mvdedupe;
 
 import org.elasticsearch.common.util.LongLongHash;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
-import org.elasticsearch.compute.aggregation.blockhash.AbstractAddBlock;
+import org.elasticsearch.compute.aggregation.blockhash.AddPage;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 
-public class IntLongBlockAdd extends AbstractAddBlock {
+public class IntLongBlockAdd extends AddPage {
     private final LongLongHash hash;
     private final MultivalueDedupeInt block1;
     private final MultivalueDedupeLong block2;
@@ -39,7 +39,7 @@ public class IntLongBlockAdd extends AbstractAddBlock {
         for (int p = 0; p < positions; p++) {
             add1(p);
         }
-        emitOrds();
+        flushRemaining();
     }
 
     private void add1(int position) {
@@ -47,8 +47,7 @@ public class IntLongBlockAdd extends AbstractAddBlock {
         int count = block1.block.getValueCount(position);
         switch (count) {
             case 0 -> {
-                ords.appendNull();
-                addedValue(position);
+                appendNullSv(position);
             }
             case 1 -> {
                 block1.w = 1;
@@ -72,8 +71,7 @@ public class IntLongBlockAdd extends AbstractAddBlock {
         int count = block2.block.getValueCount(position);
         switch (count) {
             case 0 -> {
-                ords.appendNull();
-                addedValue(position);
+                appendNullSv(position);
             }
             case 1 -> {
                 block2.w = 1;
@@ -96,12 +94,10 @@ public class IntLongBlockAdd extends AbstractAddBlock {
     private void finishAdd(int position, boolean work1IsUnique, boolean work2IsUnique) {
         if (block1.w == 1) {
             if (block2.w == 1) {
-                ords.appendInt(Math.toIntExact(BlockHash.hashOrdToGroup(hash.add(block1.work[0], block2.work[0]))));
-                addedValue(position);
+                appendOrdSv(position, Math.toIntExact(BlockHash.hashOrdToGroup(hash.add(block1.work[0], block2.work[0]))));
                 return;
             }
         }
-        ords.beginPositionEntry();
         if (work1IsUnique) {
             if (work2IsUnique) {
                 finishAddUniqueUnique(position);
@@ -115,7 +111,7 @@ public class IntLongBlockAdd extends AbstractAddBlock {
                 finishAddSortedSorted(position);
             }
         }
-        ords.endPositionEntry();
+        finishMv();
     }
 
     private void finishAddUniqueUnique(int position) {
@@ -156,22 +152,19 @@ public class IntLongBlockAdd extends AbstractAddBlock {
 
     private void finishAddUnique(int position, int v1) {
         for (int i = 0; i < block2.w; i++) {
-            ords.appendInt(Math.toIntExact(BlockHash.hashOrdToGroup(hash.add(v1, block2.work[i]))));
-            addedValueInMultivaluePosition(position);
+            appendOrdInMv(position, Math.toIntExact(BlockHash.hashOrdToGroup(hash.add(v1, block2.work[i]))));
         }
     }
 
     private void finishAddSorted(int position, int v1) {
         long prev2 = block2.work[0];
-        ords.appendInt(Math.toIntExact(BlockHash.hashOrdToGroup(hash.add(v1, prev2))));
-        addedValueInMultivaluePosition(position);
+        appendOrdInMv(position, Math.toIntExact(BlockHash.hashOrdToGroup(hash.add(v1, prev2))));
         for (int i = 1; i < block2.w; i++) {
             if (prev2 == block2.work[i]) {
                 continue;
             }
             prev2 = block2.work[i];
-            ords.appendInt(Math.toIntExact(BlockHash.hashOrdToGroup(hash.add(v1, prev2))));
-            addedValueInMultivaluePosition(position);
+            appendOrdInMv(position, Math.toIntExact(BlockHash.hashOrdToGroup(hash.add(v1, prev2))));
         }
     }
 }

@@ -9,15 +9,14 @@ package org.elasticsearch.xpack.security.support;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.VersionId;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.features.FeatureService;
-import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.ExecutorNames;
 import org.elasticsearch.indices.SystemIndexDescriptor;
@@ -36,6 +35,7 @@ import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_PROFILE_ORIGIN;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_VERSION_STRING;
+import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SecurityMainIndexMappingVersion.ADD_MANAGE_ROLES_PRIVILEGE;
 
 /**
  * Responsible for handling system indices for the Security plugin
@@ -55,10 +55,6 @@ public class SecuritySystemIndices {
 
     public static final String INTERNAL_SECURITY_PROFILE_INDEX_8 = ".security-profile-8";
     public static final String SECURITY_PROFILE_ALIAS = ".security-profile";
-    public static final Version VERSION_SECURITY_PROFILE_ORIGIN = Version.V_8_3_0;
-    public static final NodeFeature SECURITY_PROFILE_ORIGIN_FEATURE = new NodeFeature("security.security_profile_origin");
-    public static final NodeFeature SECURITY_MIGRATION_FRAMEWORK = new NodeFeature("security.migration_framework");
-    public static final NodeFeature SECURITY_ROLES_METADATA_FLATTENED = new NodeFeature("security.roles_metadata_flattened");
 
     /**
      * Security managed index mappings used to be updated based on the product version. They are now updated based on per-index mappings
@@ -140,7 +136,6 @@ public class SecuritySystemIndices {
                 .setSettings(getMainIndexSettings())
                 .setAliasName(SECURITY_MAIN_ALIAS)
                 .setIndexFormat(INTERNAL_MAIN_INDEX_FORMAT)
-                .setVersionMetaKey(SECURITY_VERSION_STRING)
                 .setOrigin(SECURITY_ORIGIN)
                 .setThreadPools(ExecutorNames.CRITICAL_SYSTEM_INDEX_THREAD_POOLS);
 
@@ -152,8 +147,8 @@ public class SecuritySystemIndices {
     private static Settings getMainIndexSettings() {
         return Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
+            .put(DataTier.TIER_PREFERENCE, "data_hot,data_content")
             .put(IndexMetadata.SETTING_PRIORITY, 1000)
             .put(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), INTERNAL_MAIN_INDEX_FORMAT)
             .put("analysis.filter.email.type", "pattern_capture")
@@ -410,6 +405,40 @@ public class SecuritySystemIndices {
                                 builder.endObject();
                             }
                             builder.endObject();
+                            if (mappingVersion.onOrAfter(ADD_MANAGE_ROLES_PRIVILEGE)) {
+                                builder.startObject("role");
+                                {
+                                    builder.field("type", "object");
+                                    builder.startObject("properties");
+                                    {
+                                        builder.startObject("manage");
+                                        {
+                                            builder.field("type", "object");
+                                            builder.startObject("properties");
+                                            {
+                                                builder.startObject("indices");
+                                                {
+                                                    builder.startObject("properties");
+                                                    {
+                                                        builder.startObject("names");
+                                                        builder.field("type", "keyword");
+                                                        builder.endObject();
+                                                        builder.startObject("privileges");
+                                                        builder.field("type", "keyword");
+                                                        builder.endObject();
+                                                    }
+                                                    builder.endObject();
+                                                }
+                                                builder.endObject();
+                                            }
+                                            builder.endObject();
+                                        }
+                                        builder.endObject();
+                                    }
+                                    builder.endObject();
+                                }
+                                builder.endObject();
+                            }
                         }
                         builder.endObject();
                     }
@@ -658,7 +687,6 @@ public class SecuritySystemIndices {
             .setSettings(getTokenIndexSettings())
             .setAliasName(SECURITY_TOKENS_ALIAS)
             .setIndexFormat(INTERNAL_TOKENS_INDEX_FORMAT)
-            .setVersionMetaKey(SECURITY_VERSION_STRING)
             .setOrigin(SECURITY_ORIGIN)
             .setThreadPools(ExecutorNames.CRITICAL_SYSTEM_INDEX_THREAD_POOLS)
             .build();
@@ -667,8 +695,8 @@ public class SecuritySystemIndices {
     private static Settings getTokenIndexSettings() {
         return Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
+            .put(DataTier.TIER_PREFERENCE, "data_hot,data_content")
             .put(IndexMetadata.SETTING_PRIORITY, 1000)
             .put(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), INTERNAL_TOKENS_INDEX_FORMAT)
             .build();
@@ -842,10 +870,8 @@ public class SecuritySystemIndices {
             .setSettings(getProfileIndexSettings(settings))
             .setAliasName(SECURITY_PROFILE_ALIAS)
             .setIndexFormat(INTERNAL_PROFILE_INDEX_FORMAT)
-            .setVersionMetaKey(SECURITY_VERSION_STRING)
             .setOrigin(SECURITY_PROFILE_ORIGIN) // new origin since 8.3
             .setThreadPools(ExecutorNames.CRITICAL_SYSTEM_INDEX_THREAD_POOLS)
-            .setMinimumNodeVersion(VERSION_SECURITY_PROFILE_ORIGIN)
             .setPriorSystemIndexDescriptors(
                 List.of(
                     SystemIndexDescriptor.builder()
@@ -856,7 +882,6 @@ public class SecuritySystemIndices {
                         .setSettings(getProfileIndexSettings(settings))
                         .setAliasName(SECURITY_PROFILE_ALIAS)
                         .setIndexFormat(INTERNAL_PROFILE_INDEX_FORMAT)
-                        .setVersionMetaKey(SECURITY_VERSION_STRING)
                         .setOrigin(SECURITY_ORIGIN)
                         .setThreadPools(ExecutorNames.CRITICAL_SYSTEM_INDEX_THREAD_POOLS)
                         .build()
@@ -868,8 +893,8 @@ public class SecuritySystemIndices {
     private static Settings getProfileIndexSettings(Settings settings) {
         final Settings.Builder settingsBuilder = Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
+            .put(DataTier.TIER_PREFERENCE, "data_hot,data_content")
             .put(IndexMetadata.SETTING_PRIORITY, 1000)
             .put(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), INTERNAL_PROFILE_INDEX_FORMAT)
             .put("analysis.filter.email.type", "pattern_capture")
@@ -1052,6 +1077,11 @@ public class SecuritySystemIndices {
          * The mapping was changed to add new text description and remote_cluster fields.
          */
         ADD_REMOTE_CLUSTER_AND_DESCRIPTION_FIELDS(2),
+
+        /**
+         * Mapping for global manage role privilege
+         */
+        ADD_MANAGE_ROLES_PRIVILEGE(3),
 
         ;
 

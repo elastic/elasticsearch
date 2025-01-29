@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.desirednodes;
@@ -19,7 +20,6 @@ import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.desirednodes.VersionConflictException;
-import org.elasticsearch.cluster.metadata.DesiredNode;
 import org.elasticsearch.cluster.metadata.DesiredNodes;
 import org.elasticsearch.cluster.metadata.DesiredNodesMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -28,9 +28,9 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.features.FeatureService;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -64,7 +64,6 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
             threadPool,
             actionFilters,
             UpdateDesiredNodesRequest::new,
-            indexNameExpressionResolver,
             UpdateDesiredNodesResponse::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
@@ -96,22 +95,6 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
                 request.masterNodeTimeout()
             )
         );
-    }
-
-    @Override
-    protected void doExecute(Task task, UpdateDesiredNodesRequest request, ActionListener<UpdateDesiredNodesResponse> listener) {
-        if (request.clusterHasRequiredFeatures(nf -> featureService.clusterHasFeature(clusterService.state(), nf)) == false) {
-            listener.onFailure(
-                new IllegalArgumentException(
-                    "Unable to use processor ranges, floating-point (with greater precision) processors "
-                        + "in mixed-clusters with nodes that do not support feature "
-                        + DesiredNode.RANGE_FLOAT_PROCESSORS_SUPPORTED.id()
-                )
-            );
-            return;
-        }
-
-        super.doExecute(task, request, listener);
     }
 
     static ClusterState replaceDesiredNodes(ClusterState clusterState, DesiredNodes newDesiredNodes) {

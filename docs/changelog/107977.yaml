@@ -1,6 +1,0 @@
-pr: 107977
-summary: Fix off by one error when handling null values in range fields
-area: Mapping
-type: bug
-issues:
- - 107282

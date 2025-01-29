@@ -37,11 +37,11 @@ public class RestGetSnapshotLifecycleAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
-        String[] lifecycleNames = Strings.splitStringByCommaToArray(request.param("name"));
-        GetSnapshotLifecycleAction.Request req = new GetSnapshotLifecycleAction.Request(lifecycleNames);
-        req.ackTimeout(getAckTimeout(request));
-        req.masterNodeTimeout(getMasterNodeTimeout(request));
-
+        final var req = new GetSnapshotLifecycleAction.Request(
+            getMasterNodeTimeout(request),
+            getAckTimeout(request),
+            Strings.splitStringByCommaToArray(request.param("name"))
+        );
         return channel -> client.execute(GetSnapshotLifecycleAction.INSTANCE, req, new RestToXContentListener<>(channel));
     }
 }

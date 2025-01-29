@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.action.support.master.info;
 
@@ -24,6 +25,8 @@ import org.elasticsearch.transport.TransportService;
 public abstract class TransportClusterInfoAction<Request extends ClusterInfoRequest<Request>, Response extends ActionResponse> extends
     TransportMasterNodeReadAction<Request, Response> {
 
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
+
     public TransportClusterInfoAction(
         String actionName,
         TransportService transportService,
@@ -41,10 +44,10 @@ public abstract class TransportClusterInfoAction<Request extends ClusterInfoRequ
             threadPool,
             actionFilters,
             request,
-            indexNameExpressionResolver,
             response,
             threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
     }
 
     @Override

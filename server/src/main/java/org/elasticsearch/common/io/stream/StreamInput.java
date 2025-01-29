@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.io.stream;
@@ -103,6 +104,10 @@ public abstract class StreamInput extends InputStream {
      * @param len    the number of bytes to read
      */
     public abstract void readBytes(byte[] b, int offset, int len) throws IOException;
+
+    // force implementing bulk reads to avoid accidentally slow implementations
+    @Override
+    public abstract int read(byte[] b, int off, int len) throws IOException;
 
     /**
      * Reads a bytes reference from this stream, copying any bytes read to a new {@code byte[]}. Use {@link #readReleasableBytesReference()}
@@ -902,7 +907,13 @@ public abstract class StreamInput extends InputStream {
 
     private ZonedDateTime readZonedDateTime() throws IOException {
         final String timeZoneId = readString();
-        return ZonedDateTime.ofInstant(Instant.ofEpochMilli(readLong()), ZoneId.of(timeZoneId));
+        final Instant instant;
+        if (getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
+            instant = Instant.ofEpochSecond(readZLong(), readInt());
+        } else {
+            instant = Instant.ofEpochMilli(readLong());
+        }
+        return ZonedDateTime.ofInstant(instant, ZoneId.of(timeZoneId));
     }
 
     private OffsetTime readOffsetTime() throws IOException {
@@ -1082,8 +1093,23 @@ public abstract class StreamInput extends InputStream {
         return readBoolean() ? readArray(reader, arraySupplier) : null;
     }
 
+    /**
+     * Reads a possibly-null value using the given {@link org.elasticsearch.common.io.stream.Writeable.Reader}.
+     *
+     * @see StreamOutput#writeOptionalWriteable
+     */
+    // just an alias for readOptional() since we don't actually care whether T extends Writeable
     @Nullable
     public <T extends Writeable> T readOptionalWriteable(Writeable.Reader<T> reader) throws IOException {
+        return readOptional(reader);
+    }
+
+    /**
+     * Reads a possibly-null value using the given {@link org.elasticsearch.common.io.stream.Writeable.Reader}.
+     *
+     * @see StreamOutput#writeOptional
+     */
+    public <T> T readOptional(Writeable.Reader<T> reader) throws IOException {
         if (readBoolean()) {
             T t = reader.read(this);
             if (t == null) {
@@ -1295,14 +1321,16 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
-     * Reads an enum with type E that was serialized based on the value of its ordinal
+     * Reads an enum with type {@code E} that was serialized based on the value of its ordinal. Enums serialized like this must have a
+     * corresponding test which uses {@code EnumSerializationTestUtils#assertEnumSerialization} to fix the wire protocol.
      */
     public <E extends Enum<E>> E readEnum(Class<E> enumClass) throws IOException {
         return readEnum(enumClass, enumClass.getEnumConstants());
     }
 
     /**
-     * Reads an optional enum with type E that was serialized based on the value of its ordinal
+     * Reads an optional enum with type {@code E} that was serialized based on the value of its ordinal. Enums serialized like this must
+     * have a corresponding test which uses {@code EnumSerializationTestUtils#assertEnumSerialization} to fix the wire protocol.
      */
     @Nullable
     public <E extends Enum<E>> E readOptionalEnum(Class<E> enumClass) throws IOException {
@@ -1322,7 +1350,8 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
-     * Reads an enum with type E that was serialized based on the value of it's ordinal
+     * Reads a set of enums with type {@code E} that were serialized based on the value of their ordinals. Enums serialized like this must
+     * have a corresponding test which uses {@code EnumSerializationTestUtils#assertEnumSerialization} to fix the wire protocol.
      */
     public <E extends Enum<E>> EnumSet<E> readEnumSet(Class<E> enumClass) throws IOException {
         int size = readVInt();

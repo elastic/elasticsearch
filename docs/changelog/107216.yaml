@@ -1,5 +1,0 @@
-pr: 107216
-summary: Add per-field KNN vector format to Index Segments API
-area: Search
-type: enhancement
-issues: []

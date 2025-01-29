@@ -111,7 +111,10 @@ public class CcrLicenseIT extends CcrSingleNodeTestCase {
 
     public void testThatPutAutoFollowPatternsIsUnavailableWithNonCompliantLicense() throws InterruptedException {
         final CountDownLatch latch = new CountDownLatch(1);
-        final PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request();
+        final PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT
+        );
         request.setName("name");
         request.setRemoteCluster("leader");
         request.setLeaderIndexPatterns(Collections.singletonList("*"));

@@ -47,7 +47,7 @@ public class GetAutoscalingCapacityAction extends ActionType<GetAutoscalingCapac
 
         public Request(final StreamInput in) throws IOException {
             super(in);
-            if (in.getTransportVersion().before(TransportVersions.GET_AUTOSCALING_CAPACITY_UNUSED_TIMEOUT)) {
+            if (in.getTransportVersion().before(TransportVersions.V_8_15_0)) {
                 in.readTimeValue(); // unused
             }
         }
@@ -55,7 +55,7 @@ public class GetAutoscalingCapacityAction extends ActionType<GetAutoscalingCapac
         @Override
         public void writeTo(final StreamOutput out) throws IOException {
             super.writeTo(out);
-            if (out.getTransportVersion().before(TransportVersions.GET_AUTOSCALING_CAPACITY_UNUSED_TIMEOUT)) {
+            if (out.getTransportVersion().before(TransportVersions.V_8_15_0)) {
                 out.writeTimeValue(AcknowledgedRequest.DEFAULT_ACK_TIMEOUT); // unused
             }
         }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.action.admin.indices.rollover;
 
@@ -12,11 +13,13 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.ResolvedExpression;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.SelectorResolver;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -40,7 +43,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  */
 public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implements IndicesRequest {
 
-    private static final ObjectParser<RolloverRequest, Boolean> PARSER = new ObjectParser<>("rollover");
+    private static final ObjectParser<RolloverRequest, Void> PARSER = new ObjectParser<>("rollover");
 
     private static final ParseField CONDITIONS = new ParseField("conditions");
 
@@ -55,28 +58,6 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
             CreateIndexRequest.SETTINGS,
             ObjectParser.ValueType.OBJECT
         );
-        PARSER.declareField((parser, request, includeTypeName) -> {
-            if (includeTypeName) {
-                // expecting one type only
-                for (Map.Entry<String, Object> mappingsEntry : parser.map().entrySet()) {
-                    @SuppressWarnings("unchecked")
-                    final Map<String, Object> value = (Map<String, Object>) mappingsEntry.getValue();
-                    request.createIndexRequest.mapping(value);
-                }
-            } else {
-                // a type is not included, add a dummy _doc type
-                Map<String, Object> mappings = parser.map();
-                if (MapperService.isMappingSourceTyped(MapperService.SINGLE_MAPPING_NAME, mappings)) {
-                    throw new IllegalArgumentException(
-                        "The mapping definition cannot be nested under a type "
-                            + "["
-                            + MapperService.SINGLE_MAPPING_NAME
-                            + "] unless include_type_name is set to true."
-                    );
-                }
-                request.createIndexRequest.mapping(mappings);
-            }
-        }, CreateIndexRequest.MAPPINGS.forRestApiVersion(RestApiVersion.equalTo(RestApiVersion.V_7)), ObjectParser.ValueType.OBJECT);
         PARSER.declareField((parser, request, context) -> {
             // a type is not included, add a dummy _doc type
             Map<String, Object> mappings = parser.map();
@@ -85,7 +66,7 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
                 throw new IllegalArgumentException("The mapping definition cannot be nested under a type");
             }
             request.createIndexRequest.mapping(mappings);
-        }, CreateIndexRequest.MAPPINGS.forRestApiVersion(RestApiVersion.onOrAfter(RestApiVersion.V_8)), ObjectParser.ValueType.OBJECT);
+        }, CreateIndexRequest.MAPPINGS, ObjectParser.ValueType.OBJECT);
 
         PARSER.declareField(
             (parser, request, context) -> request.createIndexRequest.aliases(parser.map()),
@@ -101,7 +82,7 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
     private RolloverConditions conditions = new RolloverConditions();
     // the index name "_na_" is never read back, what matters are settings, mappings and aliases
     private CreateIndexRequest createIndexRequest = new CreateIndexRequest("_na_");
-    private IndicesOptions indicesOptions = IndicesOptions.strictSingleIndexNoExpandForbidClosed();
+    private IndicesOptions indicesOptions = IndicesOptions.strictSingleIndexNoExpandForbidClosedAllowSelectors();
 
     public RolloverRequest(StreamInput in) throws IOException {
         super(in);
@@ -115,7 +96,7 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
         } else {
             lazy = false;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.FAILURE_STORE_ROLLOVER)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
             indicesOptions = IndicesOptions.readIndicesOptions(in);
         }
     }
@@ -145,12 +126,15 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
             );
         }
 
-        var failureStoreOptions = indicesOptions.failureStoreOptions();
-        if (failureStoreOptions.includeRegularIndices() && failureStoreOptions.includeFailureIndices()) {
-            validationException = addValidationError(
-                "rollover cannot be applied to both regular and failure indices at the same time",
-                validationException
-            );
+        if (rolloverTarget != null) {
+            ResolvedExpression resolvedExpression = SelectorResolver.parseExpression(rolloverTarget, indicesOptions);
+            IndexComponentSelector selector = resolvedExpression.selector();
+            if (IndexComponentSelector.ALL_APPLICABLE.equals(selector)) {
+                validationException = addValidationError(
+                    "rollover cannot be applied to both regular and failure indices at the same time",
+                    validationException
+                );
+            }
         }
 
         return validationException;
@@ -167,7 +151,7 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
             out.writeBoolean(lazy);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.FAILURE_STORE_ROLLOVER)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
             indicesOptions.writeIndicesOptions(out);
         }
     }
@@ -192,14 +176,14 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
     }
 
     /**
-     * Sets the rollover target to rollover to another index
+     * Sets the rollover target to roll over to another index
      */
     public void setRolloverTarget(String rolloverTarget) {
         this.rolloverTarget = rolloverTarget;
     }
 
     /**
-     * Sets the alias to rollover to another index
+     * Sets the alias to roll over to another index
      */
     public void setNewIndexName(String newIndexName) {
         this.newIndexName = newIndexName;
@@ -281,8 +265,8 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
     }
 
     // param isTypeIncluded decides how mappings should be parsed from XContent
-    public void fromXContent(boolean isTypeIncluded, XContentParser parser) throws IOException {
-        PARSER.parse(parser, this, isTypeIncluded);
+    public void fromXContent(XContentParser parser) throws IOException {
+        PARSER.parse(parser, this, null);
     }
 
     @Override

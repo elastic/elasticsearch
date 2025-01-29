@@ -26,7 +26,8 @@ import java.lang.annotation.Target;
  * <p>
  *     Pairwise processing is <strong>generally</strong> simpler and looks
  *     like {@code int process(int current, int next)}. Use it when the result
- *     is a primitive.</p>
+ *     is a primitive.
+ * </p>
  * <p>
  *     Accumulator processing is a bit more complex and looks like
  *     {@code void process(State state, int v)} and it useful when you need to
@@ -35,7 +36,9 @@ import java.lang.annotation.Target;
  * <p>
  *     Position at a time processing just hands the block, start index, and end index
  *     to the processor and is useful when none of the others fit. It looks like
- *     {@code long process(LongBlock block, int start, int end)}.
+ *     {@code long process(LongBlock block, int start, int end)} and is the most
+ *     flexible, but the choice where the code generation does the least work for you.
+ *     You should only use this if pairwise and state based processing aren't options.
  * </p>
  * <p>
  *     Pairwise and accumulator processing support a {@code finish = "finish_method"}

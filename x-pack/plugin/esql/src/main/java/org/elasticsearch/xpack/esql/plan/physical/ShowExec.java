@@ -7,14 +7,24 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
 public class ShowExec extends LeafExec {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+        PhysicalPlan.class,
+        "ShowExec",
+        ShowExec::new
+    );
 
     private final List<Attribute> attributes;
     private final List<List<Object>> values;
@@ -23,6 +33,27 @@ public class ShowExec extends LeafExec {
         super(source);
         this.attributes = attributes;
         this.values = values;
+    }
+
+    @SuppressWarnings("unchecked")
+    private ShowExec(StreamInput in) throws IOException {
+        this(
+            Source.readFrom((PlanStreamInput) in),
+            in.readNamedWriteableCollectionAsList(Attribute.class),
+            (List<List<Object>>) in.readGenericValue()
+        );
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        Source.EMPTY.writeTo(out);
+        out.writeNamedWriteableCollection(output());
+        out.writeGenericValue(values());
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
     }
 
     @Override

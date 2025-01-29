@@ -23,10 +23,10 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.monitor.os.OsStats;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.tasks.Task;
@@ -72,7 +72,6 @@ public class TransportMlMemoryAction extends TransportMasterNodeAction<MlMemoryA
             threadPool,
             actionFilters,
             MlMemoryAction.Request::new,
-            indexNameExpressionResolver,
             MlMemoryAction.Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
@@ -107,7 +106,8 @@ public class TransportMlMemoryAction extends TransportMasterNodeAction<MlMemoryA
                 .execute(delegate.delegateFailureAndWrap((delegate2, nodesStatsResponse) -> {
                     TrainedModelCacheInfoAction.Request trainedModelCacheInfoRequest = new TrainedModelCacheInfoAction.Request(
                         nodesStatsResponse.getNodes().stream().map(NodeStats::getNode).toArray(DiscoveryNode[]::new)
-                    ).timeout(request.ackTimeout());
+                    );
+                    trainedModelCacheInfoRequest.setTimeout(request.ackTimeout());
 
                     parentTaskClient.execute(
                         TrainedModelCacheInfoAction.INSTANCE,

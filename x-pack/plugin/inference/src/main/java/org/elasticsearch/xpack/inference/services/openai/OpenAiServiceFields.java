@@ -16,6 +16,6 @@ public class OpenAiServiceFields {
     /**
      * Taken from https://platform.openai.com/docs/api-reference/embeddings/create
      */
-    static final int EMBEDDING_MAX_BATCH_SIZE = 2048;
+    public static final int EMBEDDING_MAX_BATCH_SIZE = 2048;
 
 }

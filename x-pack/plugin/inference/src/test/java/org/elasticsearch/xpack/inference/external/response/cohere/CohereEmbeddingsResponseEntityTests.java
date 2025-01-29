@@ -10,10 +10,8 @@ package org.elasticsearch.xpack.inference.external.response.cohere;
 import org.apache.http.HttpResponse;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.inference.results.ByteEmbedding;
-import org.elasticsearch.xpack.core.inference.results.FloatEmbedding;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingByteResults;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingResults;
+import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingByteResults;
+import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.request.Request;
 import org.hamcrest.MatcherAssert;
@@ -57,10 +55,10 @@ public class CohereEmbeddingsResponseEntityTests extends ESTestCase {
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
 
-        MatcherAssert.assertThat(parsedResults, instanceOf(TextEmbeddingResults.class));
+        MatcherAssert.assertThat(parsedResults, instanceOf(InferenceTextEmbeddingFloatResults.class));
         MatcherAssert.assertThat(
-            ((TextEmbeddingResults) parsedResults).embeddings(),
-            is(List.of(FloatEmbedding.of(List.of(-0.0018434525F, 0.01777649F))))
+            ((InferenceTextEmbeddingFloatResults) parsedResults).embeddings(),
+            is(List.of(new InferenceTextEmbeddingFloatResults.InferenceFloatEmbedding(new float[] { -0.0018434525F, 0.01777649F })))
         );
     }
 
@@ -91,12 +89,15 @@ public class CohereEmbeddingsResponseEntityTests extends ESTestCase {
             }
             """;
 
-        TextEmbeddingResults parsedResults = (TextEmbeddingResults) CohereEmbeddingsResponseEntity.fromResponse(
+        InferenceTextEmbeddingFloatResults parsedResults = (InferenceTextEmbeddingFloatResults) CohereEmbeddingsResponseEntity.fromResponse(
             mock(Request.class),
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
 
-        MatcherAssert.assertThat(parsedResults.embeddings(), is(List.of(FloatEmbedding.of(List.of(-0.0018434525F, 0.01777649F)))));
+        MatcherAssert.assertThat(
+            parsedResults.embeddings(),
+            is(List.of(new InferenceTextEmbeddingFloatResults.InferenceFloatEmbedding(new float[] { -0.0018434525F, 0.01777649F })))
+        );
     }
 
     public void testFromResponse_UsesTheFirstValidEmbeddingsEntry() throws IOException {
@@ -132,12 +133,15 @@ public class CohereEmbeddingsResponseEntityTests extends ESTestCase {
             }
             """;
 
-        TextEmbeddingResults parsedResults = (TextEmbeddingResults) CohereEmbeddingsResponseEntity.fromResponse(
+        InferenceTextEmbeddingFloatResults parsedResults = (InferenceTextEmbeddingFloatResults) CohereEmbeddingsResponseEntity.fromResponse(
             mock(Request.class),
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
 
-        MatcherAssert.assertThat(parsedResults.embeddings(), is(List.of(FloatEmbedding.of(List.of(-0.0018434525F, 0.01777649F)))));
+        MatcherAssert.assertThat(
+            parsedResults.embeddings(),
+            is(List.of(new InferenceTextEmbeddingFloatResults.InferenceFloatEmbedding(new float[] { -0.0018434525F, 0.01777649F })))
+        );
     }
 
     public void testFromResponse_UsesTheFirstValidEmbeddingsEntryInt8_WithInvalidFirst() throws IOException {
@@ -173,12 +177,15 @@ public class CohereEmbeddingsResponseEntityTests extends ESTestCase {
             }
             """;
 
-        TextEmbeddingByteResults parsedResults = (TextEmbeddingByteResults) CohereEmbeddingsResponseEntity.fromResponse(
+        InferenceTextEmbeddingByteResults parsedResults = (InferenceTextEmbeddingByteResults) CohereEmbeddingsResponseEntity.fromResponse(
             mock(Request.class),
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
 
-        MatcherAssert.assertThat(parsedResults.embeddings(), is(List.of(ByteEmbedding.of(List.of((byte) -1, (byte) 0)))));
+        MatcherAssert.assertThat(
+            parsedResults.embeddings(),
+            is(List.of(new InferenceTextEmbeddingByteResults.InferenceByteEmbedding(new byte[] { (byte) -1, (byte) 0 })))
+        );
     }
 
     public void testFromResponse_ParsesBytes() throws IOException {
@@ -208,12 +215,15 @@ public class CohereEmbeddingsResponseEntityTests extends ESTestCase {
             }
             """;
 
-        TextEmbeddingByteResults parsedResults = (TextEmbeddingByteResults) CohereEmbeddingsResponseEntity.fromResponse(
+        InferenceTextEmbeddingByteResults parsedResults = (InferenceTextEmbeddingByteResults) CohereEmbeddingsResponseEntity.fromResponse(
             mock(Request.class),
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
 
-        MatcherAssert.assertThat(parsedResults.embeddings(), is(List.of(ByteEmbedding.of(List.of((byte) -1, (byte) 0)))));
+        MatcherAssert.assertThat(
+            parsedResults.embeddings(),
+            is(List.of(new InferenceTextEmbeddingByteResults.InferenceByteEmbedding(new byte[] { (byte) -1, (byte) 0 })))
+        );
     }
 
     public void testFromResponse_CreatesResultsForMultipleItems() throws IOException {
@@ -245,14 +255,19 @@ public class CohereEmbeddingsResponseEntityTests extends ESTestCase {
             }
             """;
 
-        TextEmbeddingResults parsedResults = (TextEmbeddingResults) CohereEmbeddingsResponseEntity.fromResponse(
+        InferenceTextEmbeddingFloatResults parsedResults = (InferenceTextEmbeddingFloatResults) CohereEmbeddingsResponseEntity.fromResponse(
             mock(Request.class),
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
 
         MatcherAssert.assertThat(
             parsedResults.embeddings(),
-            is(List.of(FloatEmbedding.of(List.of(-0.0018434525F, 0.01777649F)), FloatEmbedding.of(List.of(-0.123F, 0.123F))))
+            is(
+                List.of(
+                    new InferenceTextEmbeddingFloatResults.InferenceFloatEmbedding(new float[] { -0.0018434525F, 0.01777649F }),
+                    new InferenceTextEmbeddingFloatResults.InferenceFloatEmbedding(new float[] { -0.123F, 0.123F })
+                )
+            )
         );
     }
 
@@ -287,14 +302,19 @@ public class CohereEmbeddingsResponseEntityTests extends ESTestCase {
             }
             """;
 
-        TextEmbeddingResults parsedResults = (TextEmbeddingResults) CohereEmbeddingsResponseEntity.fromResponse(
+        InferenceTextEmbeddingFloatResults parsedResults = (InferenceTextEmbeddingFloatResults) CohereEmbeddingsResponseEntity.fromResponse(
             mock(Request.class),
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
 
         MatcherAssert.assertThat(
             parsedResults.embeddings(),
-            is(List.of(FloatEmbedding.of(List.of(-0.0018434525F, 0.01777649F)), FloatEmbedding.of(List.of(-0.123F, 0.123F))))
+            is(
+                List.of(
+                    new InferenceTextEmbeddingFloatResults.InferenceFloatEmbedding(new float[] { -0.0018434525F, 0.01777649F }),
+                    new InferenceTextEmbeddingFloatResults.InferenceFloatEmbedding(new float[] { -0.123F, 0.123F })
+                )
+            )
         );
     }
 

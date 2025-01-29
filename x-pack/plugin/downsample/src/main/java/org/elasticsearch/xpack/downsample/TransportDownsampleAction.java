@@ -45,7 +45,6 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -59,11 +58,13 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksService;
@@ -164,7 +165,6 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
             threadPool,
             actionFilters,
             DownsampleAction.Request::new,
-            indexNameExpressionResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.client = new OriginSettingClient(client, ClientHelper.ROLLUP_ORIGIN);
@@ -267,7 +267,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
             return;
         }
         try {
-            MetadataCreateIndexService.validateIndexName(downsampleIndexName, state);
+            MetadataCreateIndexService.validateIndexName(downsampleIndexName, state.metadata(), state.routingTable());
         } catch (ResourceAlreadyExistsException e) {
             // ignore index already exists
         }
@@ -284,7 +284,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         // At any point if there is an issue, delete the downsample index
 
         // 1. Extract source index mappings
-        final GetMappingsRequest getMappingsRequest = new GetMappingsRequest().indices(sourceIndexName);
+        final GetMappingsRequest getMappingsRequest = new GetMappingsRequest(request.masterNodeTimeout()).indices(sourceIndexName);
         getMappingsRequest.setParentTask(parentTask);
         client.admin().indices().getMappings(getMappingsRequest, listener.delegateFailureAndWrap((delegate, getMappingsResponse) -> {
             final Map<String, Object> sourceIndexMappings = getMappingsResponse.mappings()
@@ -310,7 +310,10 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                 request.getDownsampleConfig().getTimestampField()
             );
             MappingVisitor.visitMapping(sourceIndexMappings, (field, mapping) -> {
-                if (helper.isTimeSeriesDimension(field, mapping)) {
+                var flattenedDimensions = helper.extractFlattenedDimensions(field, mapping);
+                if (flattenedDimensions != null) {
+                    dimensionFields.addAll(flattenedDimensions);
+                } else if (helper.isTimeSeriesDimension(field, mapping)) {
                     dimensionFields.add(field);
                 } else if (helper.isTimeSeriesMetric(field, mapping)) {
                     metricFields.add(field);
@@ -338,10 +341,22 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                 delegate.onFailure(e);
                 return;
             }
+
+            /*
+             * When creating the downsample index, we copy the index.number_of_shards from source index,
+             * and we set the index.number_of_replicas to 0, to avoid replicating the index being built.
+             * Also, we set the index.refresh_interval to -1.
+             * We will set the correct number of replicas and refresh the index later.
+             *
+             * We should note that there is a risk of losing a node during the downsample process. In this
+             * case downsample will fail.
+             */
+            int minNumReplicas = clusterService.getSettings().getAsInt(Downsample.DOWNSAMPLE_MIN_NUMBER_OF_REPLICAS_NAME, 0);
+
             // 3. Create downsample index
             createDownsampleIndex(
-                clusterService.getSettings(),
                 downsampleIndexName,
+                minNumReplicas,
                 sourceIndexMetadata,
                 mapping,
                 request,
@@ -350,6 +365,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                         performShardDownsampling(
                             request,
                             delegate,
+                            minNumReplicas,
                             sourceIndexMetadata,
                             downsampleIndexName,
                             parentTask,
@@ -379,6 +395,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                         performShardDownsampling(
                             request,
                             delegate,
+                            minNumReplicas,
                             sourceIndexMetadata,
                             downsampleIndexName,
                             parentTask,
@@ -448,6 +465,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
     private void performShardDownsampling(
         DownsampleAction.Request request,
         ActionListener<AcknowledgedResponse> listener,
+        int minNumReplicas,
         IndexMetadata sourceIndexMetadata,
         String downsampleIndexName,
         TaskId parentTask,
@@ -506,7 +524,15 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                     logger.info("Downsampling task [" + persistentTaskId + " completed for shard " + params.shardId());
                     if (countDown.decrementAndGet() == 0) {
                         logger.info("All downsampling tasks completed [" + numberOfShards + "]");
-                        updateTargetIndexSettingStep(request, listener, sourceIndexMetadata, downsampleIndexName, parentTask, startTime);
+                        updateTargetIndexSettingStep(
+                            request,
+                            listener,
+                            minNumReplicas,
+                            sourceIndexMetadata,
+                            downsampleIndexName,
+                            parentTask,
+                            startTime
+                        );
                     }
                 }
 
@@ -523,7 +549,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                 persistentTaskId,
                 DownsampleShardTask.TASK_NAME,
                 params,
-                null,
+                TimeValue.THIRTY_SECONDS /* TODO should this be configurable? longer by default? infinite? */,
                 ActionListener.wrap(
                     startedTask -> persistentTasksService.waitForPersistentTaskCondition(
                         startedTask.getId(),
@@ -553,6 +579,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
     private void updateTargetIndexSettingStep(
         final DownsampleAction.Request request,
         final ActionListener<AcknowledgedResponse> listener,
+        int minNumReplicas,
         final IndexMetadata sourceIndexMetadata,
         final String downsampleIndexName,
         final TaskId parentTask,
@@ -561,7 +588,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         // 4. Make downsample index read-only and set the correct number of replicas
         final Settings.Builder settings = Settings.builder().put(IndexMetadata.SETTING_BLOCKS_WRITE, true);
         // Number of replicas had been previously set to 0 to speed up index population
-        if (sourceIndexMetadata.getNumberOfReplicas() > 0) {
+        if (sourceIndexMetadata.getNumberOfReplicas() > 0 && minNumReplicas == 0) {
             settings.put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, sourceIndexMetadata.getNumberOfReplicas());
         }
         // Setting index.hidden has been initially set to true. We revert this to the value of the
@@ -695,6 +722,9 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                     builder.field("type", timestampType != null ? timestampType : DateFieldMapper.CONTENT_TYPE);
                     if (mapping.get("format") != null) {
                         builder.field("format", mapping.get("format"));
+                    }
+                    if (mapping.get("ignore_malformed") != null) {
+                        builder.field("ignore_malformed", mapping.get("ignore_malformed"));
                     }
                 }
             } catch (IOException e) {
@@ -839,28 +869,18 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
     }
 
     private void createDownsampleIndex(
-        Settings settings,
         String downsampleIndexName,
+        int minNumReplicas,
         IndexMetadata sourceIndexMetadata,
         String mapping,
         DownsampleAction.Request request,
         ActionListener<AcknowledgedResponse> listener
     ) {
-        /*
-         * When creating the downsample index, we copy the index.number_of_shards from source index,
-         * and we set the index.number_of_replicas to 0, to avoid replicating the index being built.
-         * Also, we set the index.refresh_interval to -1.
-         * We will set the correct number of replicas and refresh the index later.
-         *
-         * We should note that there is a risk of losing a node during the downsample process. In this
-         * case downsample will fail.
-         */
-        int numberOfReplicas = settings.getAsInt(Downsample.DOWNSAMPLE_MIN_NUMBER_OF_REPLICAS_NAME, 0);
         var downsampleInterval = request.getDownsampleConfig().getInterval().toString();
         Settings.Builder builder = Settings.builder()
             .put(IndexMetadata.SETTING_INDEX_HIDDEN, true)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, sourceIndexMetadata.getNumberOfShards())
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, String.valueOf(numberOfReplicas))
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, minNumReplicas)
             .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "-1")
             .put(IndexMetadata.INDEX_DOWNSAMPLE_STATUS.getKey(), DownsampleTaskStatus.STARTED)
             .put(IndexMetadata.INDEX_DOWNSAMPLE_INTERVAL.getKey(), downsampleInterval)
@@ -878,6 +898,12 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
             builder.put(
                 MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(),
                 sourceIndexMetadata.getSettings().get(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey())
+            );
+        }
+        if (sourceIndexMetadata.getSettings().hasValue(FieldMapper.IGNORE_MALFORMED_SETTING.getKey())) {
+            builder.put(
+                FieldMapper.IGNORE_MALFORMED_SETTING.getKey(),
+                sourceIndexMetadata.getSettings().get(FieldMapper.IGNORE_MALFORMED_SETTING.getKey())
             );
         }
 

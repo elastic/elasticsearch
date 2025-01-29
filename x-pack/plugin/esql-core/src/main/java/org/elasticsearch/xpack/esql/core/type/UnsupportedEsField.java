@@ -6,13 +6,20 @@
  */
 package org.elasticsearch.xpack.esql.core.type;
 
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+
+import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 import java.util.TreeMap;
 
+import static org.elasticsearch.xpack.esql.core.util.PlanStreamInput.readCachedStringWithVersionCheck;
+import static org.elasticsearch.xpack.esql.core.util.PlanStreamOutput.writeCachedStringWithVersionCheck;
+
 /**
- * SQL-related information about an index field that cannot be supported by SQL.
- * All the subfields (properties) of an unsupported type should also be unsupported.
+ * Information about a field in an ES index that cannot be supported by ESQL.
+ * All the subfields (properties) of an unsupported type are also be unsupported.
  */
 public class UnsupportedEsField extends EsField {
 
@@ -24,9 +31,30 @@ public class UnsupportedEsField extends EsField {
     }
 
     public UnsupportedEsField(String name, String originalType, String inherited, Map<String, EsField> properties) {
-        super(name, DataTypes.UNSUPPORTED, properties, false);
+        super(name, DataType.UNSUPPORTED, properties, false);
         this.originalType = originalType;
         this.inherited = inherited;
+    }
+
+    public UnsupportedEsField(StreamInput in) throws IOException {
+        this(
+            readCachedStringWithVersionCheck(in),
+            readCachedStringWithVersionCheck(in),
+            in.readOptionalString(),
+            in.readImmutableMap(EsField::readFrom)
+        );
+    }
+
+    @Override
+    public void writeContent(StreamOutput out) throws IOException {
+        writeCachedStringWithVersionCheck(out, getName());
+        writeCachedStringWithVersionCheck(out, getOriginalType());
+        out.writeOptionalString(getInherited());
+        out.writeMap(getProperties(), (o, x) -> x.writeTo(out));
+    }
+
+    public String getWriteableName() {
+        return "UnsupportedEsField";
     }
 
     public String getOriginalType() {

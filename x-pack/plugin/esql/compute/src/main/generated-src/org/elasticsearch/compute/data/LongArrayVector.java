@@ -19,7 +19,7 @@ import java.util.stream.IntStream;
 
 /**
  * Vector implementation that stores an array of long values.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-ArrayVector.java.st} instead.
  */
 final class LongArrayVector extends AbstractVector implements LongVector {
 
@@ -87,6 +87,32 @@ final class LongArrayVector extends AbstractVector implements LongVector {
         try (LongVector.Builder builder = blockFactory().newLongVectorBuilder(positions.length)) {
             for (int pos : positions) {
                 builder.appendLong(values[pos]);
+            }
+            return builder.build();
+        }
+    }
+
+    @Override
+    public LongBlock keepMask(BooleanVector mask) {
+        if (getPositionCount() == 0) {
+            incRef();
+            return new LongVectorBlock(this);
+        }
+        if (mask.isConstant()) {
+            if (mask.getBoolean(0)) {
+                incRef();
+                return new LongVectorBlock(this);
+            }
+            return (LongBlock) blockFactory().newConstantNullBlock(getPositionCount());
+        }
+        try (LongBlock.Builder builder = blockFactory().newLongBlockBuilder(getPositionCount())) {
+            // TODO if X-ArrayBlock used BooleanVector for it's null mask then we could shuffle references here.
+            for (int p = 0; p < getPositionCount(); p++) {
+                if (mask.getBoolean(p)) {
+                    builder.appendLong(getLong(p));
+                } else {
+                    builder.appendNull();
+                }
             }
             return builder.build();
         }

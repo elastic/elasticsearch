@@ -67,6 +67,7 @@ import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import org.elasticsearch.test.XContentTestUtils;
+import org.elasticsearch.threadpool.DefaultBuiltInExecutorBuilders;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
@@ -137,6 +138,7 @@ import static org.mockito.Mockito.when;
 public class TokenServiceTests extends ESTestCase {
 
     private static ThreadPool threadPool;
+    private static ThreadContext.StoredContext defaultContext;
     private static final Settings settings = Settings.builder()
         .put(Node.NODE_NAME_SETTING.getKey(), "TokenServiceTests")
         .put(XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey(), true)
@@ -216,7 +218,11 @@ public class TokenServiceTests extends ESTestCase {
         // setup lifecycle service
         this.securityMainIndex = SecurityMocks.mockSecurityIndexManager();
         this.securityTokensIndex = SecurityMocks.mockSecurityIndexManager();
-        this.clusterService = ClusterServiceUtils.createClusterService(threadPool);
+
+        try (var ignored = threadPool.getThreadContext().newStoredContext()) {
+            defaultContext.restore();
+            this.clusterService = ClusterServiceUtils.createClusterService(threadPool);
+        }
 
         // License state (enabled by default)
         licenseState = mock(MockLicenseState.class);
@@ -271,6 +277,7 @@ public class TokenServiceTests extends ESTestCase {
         threadPool = new ThreadPool(
             settings,
             MeterRegistry.NOOP,
+            new DefaultBuiltInExecutorBuilders(),
             new FixedExecutorBuilder(
                 settings,
                 TokenService.THREAD_POOL_NAME,
@@ -280,6 +287,7 @@ public class TokenServiceTests extends ESTestCase {
                 EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
             )
         );
+        defaultContext = threadPool.getThreadContext().newStoredContext();
         AuthenticationTestHelper.builder()
             .user(new User("foo"))
             .realmRef(new RealmRef("realm", "type", "node"))

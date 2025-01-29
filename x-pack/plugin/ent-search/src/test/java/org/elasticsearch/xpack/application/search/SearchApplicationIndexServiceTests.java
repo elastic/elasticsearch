@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.application.search;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -22,6 +23,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.xpack.application.EnterpriseSearchModuleTestUtils;
 import org.junit.Before;
 
 import java.util.ArrayList;
@@ -131,7 +133,7 @@ public class SearchApplicationIndexServiceTests extends ESSingleNodeTestCase {
                 new String[] { "index_1", "index_2" },
                 null,
                 System.currentTimeMillis(),
-                SearchApplicationTestUtils.getRandomSearchApplicationTemplate()
+                EnterpriseSearchModuleTestUtils.getRandomSearchApplicationTemplate()
             );
             DocWriteResponse resp = awaitPutSearchApplication(searchApp, false);
             assertThat(resp.status(), equalTo(RestStatus.CREATED));
@@ -146,7 +148,7 @@ public class SearchApplicationIndexServiceTests extends ESSingleNodeTestCase {
             new String[] { "index_3", "index_4" },
             "my_search_app_analytics_collection",
             System.currentTimeMillis(),
-            SearchApplicationTestUtils.getRandomSearchApplicationTemplate()
+            EnterpriseSearchModuleTestUtils.getRandomSearchApplicationTemplate()
         );
         DocWriteResponse newResp = awaitPutSearchApplication(searchApp, false);
         assertThat(newResp.status(), equalTo(RestStatus.OK));
@@ -245,7 +247,10 @@ public class SearchApplicationIndexServiceTests extends ESSingleNodeTestCase {
         DeleteResponse resp = awaitDeleteSearchApplication("my_search_app_4");
         assertThat(resp.status(), equalTo(RestStatus.OK));
         expectThrows(ResourceNotFoundException.class, () -> awaitGetSearchApplication("my_search_app_4"));
-        GetAliasesResponse response = searchAppService.getAlias("my_search_app_4");
+        GetAliasesResponse response = client().admin()
+            .indices()
+            .getAliases(new GetAliasesRequest(TEST_REQUEST_TIMEOUT, "my_search_app_4"))
+            .actionGet();
         assertTrue(response.getAliases().isEmpty());
 
         {

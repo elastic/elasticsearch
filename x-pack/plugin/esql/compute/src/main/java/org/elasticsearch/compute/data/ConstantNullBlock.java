@@ -25,6 +25,7 @@ final class ConstantNullBlock extends AbstractNonThreadSafeRefCounted
         BooleanBlock,
         IntBlock,
         LongBlock,
+        FloatBlock,
         DoubleBlock,
         BytesRefBlock {
 
@@ -48,6 +49,11 @@ final class ConstantNullBlock extends AbstractNonThreadSafeRefCounted
     }
 
     @Override
+    public ToMask toMask() {
+        return new ToMask(blockFactory.newConstantBooleanVector(false, positionCount), false);
+    }
+
+    @Override
     public boolean isNull(int position) {
         return true;
     }
@@ -68,6 +74,11 @@ final class ConstantNullBlock extends AbstractNonThreadSafeRefCounted
     }
 
     @Override
+    public boolean doesHaveMultivaluedFields() {
+        return false;
+    }
+
+    @Override
     public ElementType elementType() {
         return ElementType.NULL;
     }
@@ -75,6 +86,11 @@ final class ConstantNullBlock extends AbstractNonThreadSafeRefCounted
     @Override
     public ConstantNullBlock filter(int... positions) {
         return (ConstantNullBlock) blockFactory().newConstantNullBlock(positions.length);
+    }
+
+    @Override
+    public ConstantNullBlock keepMask(BooleanVector mask) {
+        return (ConstantNullBlock) blockFactory().newConstantNullBlock(getPositionCount());
     }
 
     @Override
@@ -217,6 +233,12 @@ final class ConstantNullBlock extends AbstractNonThreadSafeRefCounted
 
     @Override
     public BytesRef getBytesRef(int valueIndex, BytesRef dest) {
+        assert false : "null block";
+        throw new UnsupportedOperationException("null block");
+    }
+
+    @Override
+    public float getFloat(int valueIndex) {
         assert false : "null block";
         throw new UnsupportedOperationException("null block");
     }

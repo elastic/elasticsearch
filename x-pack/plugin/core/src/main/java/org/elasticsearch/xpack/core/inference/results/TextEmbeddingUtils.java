@@ -19,7 +19,7 @@ public class TextEmbeddingUtils {
      * @return the size of the text embedding
      * @throws IllegalStateException if the list of embeddings is empty
      */
-    public static int getFirstEmbeddingSize(List<Embedding<?>> embeddings) throws IllegalStateException {
+    public static int getFirstEmbeddingSize(List<EmbeddingInt> embeddings) throws IllegalStateException {
         if (embeddings.isEmpty()) {
             throw new IllegalStateException("Embeddings list is empty");
         }
@@ -31,7 +31,7 @@ public class TextEmbeddingUtils {
      * Throws an exception if the number of elements in the input text list is different than the results in text embedding
      * response.
      */
-    static void validateInputSizeAgainstEmbeddings(List<String> inputs, int embeddingSize) {
+    public static void validateInputSizeAgainstEmbeddings(List<String> inputs, int embeddingSize) {
         if (inputs.size() != embeddingSize) {
             throw new IllegalArgumentException(
                 Strings.format("The number of inputs [%s] does not match the embeddings [%s]", inputs.size(), embeddingSize)

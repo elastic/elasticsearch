@@ -9,22 +9,37 @@ setup:
         body: >
           {
             "description": "super complex model for tests",
-            "input": {"field_names": ["cost", "product"]},
             "inference_config": {
               "learning_to_rank": {
+                "feature_extractors": [
+                  {
+                    "query_extractor": {
+                      "feature_name": "cost",
+                      "query": {"script_score": {"query": {"match_all":{}}, "script": {"source": "return doc['cost'].value;"}}}
+                    }
+                  },
+                  {
+                    "query_extractor": {
+                      "feature_name": "type_tv",
+                      "query": {"term": {"product":  "TV"}}
+                    }
+                  },
+                  {
+                    "query_extractor": {
+                      "feature_name": "type_vcr",
+                      "query": {"term": {"product":  "VCR"}}
+                    }
+                  },
+                  {
+                    "query_extractor": {
+                      "feature_name": "type_laptop",
+                      "query": {"term": {"product":  "Laptop"}}
+                    }
+                  }
+                ]
               }
             },
             "definition": {
-              "preprocessors" : [{
-                "one_hot_encoding": {
-                  "field": "product",
-                  "hot_map": {
-                    "TV": "type_tv",
-                    "VCR": "type_vcr",
-                    "Laptop": "type_laptop"
-                  }
-                }
-              }],
               "trained_model": {
                 "ensemble": {
                   "feature_names": ["cost", "type_tv", "type_vcr", "type_laptop"],
@@ -246,3 +261,65 @@ setup:
             }
           }
   - length: { hits.hits: 0 }
+---
+"Test model input validation":
+  - skip:
+      features: headers
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      catch: bad_request
+      ml.put_trained_model:
+        model_id: bad-model
+        body: >
+          {
+            "description": "a bad model",
+            "input": {
+              "field_names": ["cost"]
+            },
+            "inference_config": {
+              "learning_to_rank": { }
+            },
+            "definition": {
+              "trained_model": {
+                "ensemble": {
+                  "feature_names": ["cost"],
+                  "target_type": "regression",
+                  "trained_models": [
+                    {
+                      "tree": {
+                        "feature_names": [
+                          "cost"
+                        ],
+                        "tree_structure": [
+                          {
+                            "node_index": 0,
+                            "split_feature": 0,
+                            "split_gain": 12,
+                            "threshold": 400,
+                            "decision_type": "lte",
+                            "default_left": true,
+                            "left_child": 1,
+                            "right_child": 2
+                          },
+                          {
+                            "node_index": 1,
+                            "leaf_value": 5.0
+                          },
+                          {
+                            "node_index": 2,
+                            "leaf_value": 2.0
+                          }
+                        ],
+                        "target_type": "regression"
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+
+  - match: { status: 400 }
+  - match: { error.root_cause.0.type: "action_request_validation_exception" }
+  - match: { error.root_cause.0.reason: "Validation Failed: 1: cannot specify [input.field_names] for a model of type [learning_to_rank];" }

@@ -14,7 +14,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.index.query.QueryBuilders.wildcardQuery;
 
-public class WildcardQuery extends LeafQuery {
+public class WildcardQuery extends Query {
 
     private final String field, query;
     private final boolean caseInsensitive;

@@ -1,6 +1,0 @@
-pr: 109020
-summary: Only skip deleting a downsampled index if downsampling is in progress as
-  part of DSL retention
-area: Data streams
-type: bug
-issues: []

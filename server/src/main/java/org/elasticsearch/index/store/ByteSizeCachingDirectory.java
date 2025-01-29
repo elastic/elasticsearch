@@ -1,14 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.store;
 
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
 import org.elasticsearch.common.lucene.store.FilterIndexOutput;
@@ -18,7 +20,7 @@ import org.elasticsearch.core.TimeValue;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 
-final class ByteSizeCachingDirectory extends ByteSizeDirectory {
+public final class ByteSizeCachingDirectory extends ByteSizeDirectory {
 
     private static class SizeAndModCount {
         final long size;
@@ -173,9 +175,29 @@ final class ByteSizeCachingDirectory extends ByteSizeDirectory {
         try {
             super.deleteFile(name);
         } finally {
-            synchronized (this) {
-                modCount++;
+            markEstimatedSizeAsStale();
+        }
+    }
+
+    /**
+     * Mark the cached size as stale so that it is guaranteed to be refreshed the next time.
+     */
+    public void markEstimatedSizeAsStale() {
+        synchronized (this) {
+            modCount++;
+        }
+    }
+
+    public static ByteSizeCachingDirectory unwrapDirectory(Directory dir) {
+        while (dir != null) {
+            if (dir instanceof ByteSizeCachingDirectory) {
+                return (ByteSizeCachingDirectory) dir;
+            } else if (dir instanceof FilterDirectory) {
+                dir = ((FilterDirectory) dir).getDelegate();
+            } else {
+                dir = null;
             }
         }
+        return null;
     }
 }

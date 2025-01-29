@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.internal;
 
@@ -40,8 +41,10 @@ import org.elasticsearch.search.fetch.subphase.InnerHitsContext;
 import org.elasticsearch.search.fetch.subphase.ScriptFieldsContext;
 import org.elasticsearch.search.fetch.subphase.highlight.SearchHighlightContext;
 import org.elasticsearch.search.profile.Profilers;
+import org.elasticsearch.search.query.QueryPhase;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rank.context.QueryPhaseRankShardContext;
+import org.elasticsearch.search.rank.feature.RankFeatureResult;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
@@ -81,6 +84,21 @@ public abstract class SearchContext implements Releasable {
     private Query rewriteQuery;
 
     protected SearchContext() {}
+
+    public final List<Runnable> getCancellationChecks() {
+        final Runnable timeoutRunnable = QueryPhase.getTimeoutCheck(this);
+        if (lowLevelCancellation()) {
+            // This searching doesn't live beyond this phase, so we don't need to remove query cancellation
+            Runnable c = () -> {
+                final SearchShardTask task = getTask();
+                if (task != null) {
+                    task.ensureNotCancelled();
+                }
+            };
+            return timeoutRunnable == null ? List.of(c) : List.of(c, timeoutRunnable);
+        }
+        return timeoutRunnable == null ? List.of() : List.of(timeoutRunnable);
+    }
 
     public abstract void setTask(SearchShardTask task);
 
@@ -332,6 +350,10 @@ public abstract class SearchContext implements Releasable {
 
     public abstract float getMaxScore();
 
+    public abstract void addRankFeatureResult();
+
+    public abstract RankFeatureResult rankFeatureResult();
+
     public abstract FetchPhase fetchPhase();
 
     public abstract FetchSearchResult fetchResult();
@@ -359,7 +381,8 @@ public abstract class SearchContext implements Releasable {
      * @return true if the request contains only suggest
      */
     public final boolean hasOnlySuggest() {
-        return request().source() != null && request().source().isSuggestOnly();
+        var source = request().source();
+        return source != null && source.isSuggestOnly();
     }
 
     /**
@@ -378,7 +401,7 @@ public abstract class SearchContext implements Releasable {
         }
         if (scrollContext() != null) {
             if (scrollContext().scroll != null) {
-                result.append("scroll=[").append(scrollContext().scroll.keepAlive()).append("]");
+                result.append("scroll=[").append(scrollContext().scroll).append("]");
             } else {
                 result.append("scroll=[null]");
             }

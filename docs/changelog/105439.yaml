@@ -1,6 +1,0 @@
-pr: 105439
-summary: Support Profile Activate with JWTs with client authn
-area: Authentication
-type: enhancement
-issues:
- - 105342

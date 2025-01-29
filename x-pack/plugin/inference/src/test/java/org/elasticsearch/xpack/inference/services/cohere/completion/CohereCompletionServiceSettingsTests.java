@@ -13,6 +13,7 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettingsTests;
@@ -34,7 +35,8 @@ public class CohereCompletionServiceSettingsTests extends AbstractWireSerializin
         var model = "model";
 
         var serviceSettings = CohereCompletionServiceSettings.fromMap(
-            new HashMap<>(Map.of(ServiceFields.URL, url, ServiceFields.MODEL_ID, model))
+            new HashMap<>(Map.of(ServiceFields.URL, url, ServiceFields.MODEL_ID, model)),
+            ConfigurationParseContext.PERSISTENT
         );
 
         assertThat(serviceSettings, is(new CohereCompletionServiceSettings(url, model, null)));
@@ -55,7 +57,8 @@ public class CohereCompletionServiceSettingsTests extends AbstractWireSerializin
                     RateLimitSettings.FIELD_NAME,
                     new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, requestsPerMinute))
                 )
-            )
+            ),
+            ConfigurationParseContext.PERSISTENT
         );
 
         assertThat(serviceSettings, is(new CohereCompletionServiceSettings(url, model, new RateLimitSettings(requestsPerMinute))));
@@ -70,18 +73,6 @@ public class CohereCompletionServiceSettingsTests extends AbstractWireSerializin
 
         assertThat(xContentResult, is("""
             {"url":"url","model_id":"model","rate_limit":{"requests_per_minute":3}}"""));
-    }
-
-    public void testToXContent_WithFilteredObject_WritesAllValues_Except_RateLimit() throws IOException {
-        var serviceSettings = new CohereCompletionServiceSettings("url", "model", new RateLimitSettings(3));
-
-        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-        var filteredXContent = serviceSettings.getFilteredXContentObject();
-        filteredXContent.toXContent(builder, null);
-        String xContentResult = Strings.toString(builder);
-
-        assertThat(xContentResult, is("""
-            {"url":"url","model_id":"model"}"""));
     }
 
     @Override

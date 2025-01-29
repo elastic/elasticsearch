@@ -6,14 +6,20 @@
  */
 package org.elasticsearch.xpack.esql.core.type;
 
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+
+import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.esql.core.type.DataTypes.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.util.PlanStreamInput.readCachedStringWithVersionCheck;
+import static org.elasticsearch.xpack.esql.core.util.PlanStreamOutput.writeCachedStringWithVersionCheck;
 
 /**
- * SQL-related information about an index field with keyword type
+ * Information about a field in an ES index with the {@code keyword} type.
  */
 public class KeywordEsField extends EsField {
 
@@ -51,6 +57,32 @@ public class KeywordEsField extends EsField {
         super(name, esDataType, properties, hasDocValues, isAlias);
         this.precision = precision;
         this.normalized = normalized;
+    }
+
+    public KeywordEsField(StreamInput in) throws IOException {
+        this(
+            readCachedStringWithVersionCheck(in),
+            KEYWORD,
+            in.readImmutableMap(EsField::readFrom),
+            in.readBoolean(),
+            in.readInt(),
+            in.readBoolean(),
+            in.readBoolean()
+        );
+    }
+
+    @Override
+    public void writeContent(StreamOutput out) throws IOException {
+        writeCachedStringWithVersionCheck(out, getName());
+        out.writeMap(getProperties(), (o, x) -> x.writeTo(out));
+        out.writeBoolean(isAggregatable());
+        out.writeInt(precision);
+        out.writeBoolean(normalized);
+        out.writeBoolean(isAlias());
+    }
+
+    public String getWriteableName() {
+        return "KeywordEsField";
     }
 
     public int getPrecision() {

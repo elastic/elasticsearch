@@ -45,7 +45,6 @@ public class PutRoleRequest extends ActionRequest {
     private Map<String, Object> metadata;
     private List<RoleDescriptor.RemoteIndicesPrivileges> remoteIndicesPrivileges = new ArrayList<>();
     private RemoteClusterPermissions remoteClusterPermissions = RemoteClusterPermissions.NONE;
-    private boolean restrictRequest = false;
     private String description;
 
     public PutRoleRequest() {}
@@ -82,14 +81,6 @@ public class PutRoleRequest extends ActionRequest {
 
     public void addRemoteIndex(RoleDescriptor.RemoteIndicesPrivileges... privileges) {
         remoteIndicesPrivileges.addAll(Arrays.asList(privileges));
-    }
-
-    public void restrictRequest(boolean restrictRequest) {
-        this.restrictRequest = restrictRequest;
-    }
-
-    public boolean restrictRequest() {
-        return restrictRequest;
     }
 
     public void putRemoteCluster(RemoteClusterPermissions remoteClusterPermissions) {

@@ -14,7 +14,7 @@ public class StopILMRequestTests extends AbstractWireSerializingTestCase<StopILM
 
     @Override
     protected StopILMRequest createTestInstance() {
-        return new StopILMRequest();
+        return new StopILMRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
     }
 
     @Override

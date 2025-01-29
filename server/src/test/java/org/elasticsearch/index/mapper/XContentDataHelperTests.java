@@ -1,28 +1,37 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.util.Arrays;
 import java.util.Base64;
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -50,6 +59,7 @@ public class XContentDataHelperTests extends ESTestCase {
         parser.nextToken();
 
         var encoded = XContentDataHelper.encodeToken(parser);
+        assertThat(XContentDataHelper.isEncodedObject(encoded), equalTo(value instanceof Map));
         var decoded = XContentFactory.jsonBuilder();
         XContentDataHelper.decodeAndWrite(decoded, encoded);
 
@@ -117,6 +127,7 @@ public class XContentDataHelperTests extends ESTestCase {
             assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
             parser.nextToken();
             var encoded = XContentDataHelper.encodeToken(parser);
+            assertFalse(XContentDataHelper.isEncodedObject(encoded));
 
             var decoded = XContentFactory.jsonBuilder();
             XContentDataHelper.decodeAndWrite(decoded, encoded);
@@ -125,6 +136,7 @@ public class XContentDataHelperTests extends ESTestCase {
         }
 
         var encoded = XContentDataHelper.encodeXContentBuilder(builder);
+        assertTrue(XContentDataHelper.isEncodedObject(encoded));
 
         var decoded = XContentFactory.jsonBuilder();
         XContentDataHelper.decodeAndWrite(decoded, encoded);
@@ -140,13 +152,71 @@ public class XContentDataHelperTests extends ESTestCase {
 
         XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.humanReadable(true);
-        XContentDataHelper.decodeAndWrite(builder, XContentDataHelper.encodeToken(p));
+        var encoded = XContentDataHelper.encodeToken(p);
+        assertTrue(XContentDataHelper.isEncodedObject(encoded));
+        XContentDataHelper.decodeAndWrite(builder, encoded);
         assertEquals(object, Strings.toString(builder));
 
         XContentBuilder builder2 = XContentFactory.jsonBuilder();
         builder2.humanReadable(true);
         XContentDataHelper.decodeAndWrite(builder2, XContentDataHelper.encodeXContentBuilder(builder));
         assertEquals(object, Strings.toString(builder2));
+    }
+
+    public void testObjectWithFilter() throws IOException {
+        String object = "{\"name\":\"foo\",\"path\":{\"filter\":{\"keep\":[0],\"field\":\"value\"}}}";
+        String filterObject = "{\"name\":\"foo\",\"path\":{\"filter\":{\"keep\":[0]}}}";
+
+        XContentParser p = createParser(JsonXContent.jsonXContent, object);
+        assertThat(p.nextToken(), equalTo(XContentParser.Token.START_OBJECT));
+        XContentParserConfiguration parserConfig = XContentParserConfiguration.EMPTY.withFiltering(
+            null,
+            null,
+            Set.of("path.filter.field"),
+            true
+        );
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+        builder.humanReadable(true);
+        XContentDataHelper.decodeAndWriteXContent(parserConfig, builder, XContentType.JSON, XContentDataHelper.encodeToken(p));
+        assertEquals(filterObject, Strings.toString(builder));
+
+        XContentBuilder builder2 = XContentFactory.jsonBuilder();
+        builder2.humanReadable(true);
+        XContentDataHelper.decodeAndWriteXContent(
+            parserConfig,
+            builder2,
+            XContentType.JSON,
+            XContentDataHelper.encodeXContentBuilder(builder)
+        );
+        assertEquals(filterObject, Strings.toString(builder2));
+    }
+
+    public void testObjectWithFilterRootPath() throws IOException {
+        String object = "{\"name\":\"foo\",\"path\":{\"filter\":{\"keep\":[0],\"field\":\"value\"}}}";
+        String filterObject = "{\"path\":{\"filter\":{\"keep\":[0]}}}";
+
+        XContentParser p = createParser(JsonXContent.jsonXContent, object);
+        assertThat(p.nextToken(), equalTo(XContentParser.Token.START_OBJECT));
+        XContentParserConfiguration parserConfig = XContentParserConfiguration.EMPTY.withFiltering(
+            "root.obj.sub_obj",
+            Set.of("root.obj.sub_obj.path"),
+            Set.of("root.obj.sub_obj.path.filter.field"),
+            true
+        );
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+        builder.humanReadable(true);
+        XContentDataHelper.decodeAndWriteXContent(parserConfig, builder, XContentType.JSON, XContentDataHelper.encodeToken(p));
+        assertEquals(filterObject, Strings.toString(builder));
+
+        XContentBuilder builder2 = XContentFactory.jsonBuilder();
+        builder2.humanReadable(true);
+        XContentDataHelper.decodeAndWriteXContent(
+            parserConfig,
+            builder2,
+            XContentType.JSON,
+            XContentDataHelper.encodeXContentBuilder(builder)
+        );
+        assertEquals(filterObject, Strings.toString(builder2));
     }
 
     public void testArrayInt() throws IOException {
@@ -162,10 +232,101 @@ public class XContentDataHelperTests extends ESTestCase {
         XContentParser xContentParser = createParser(JsonXContent.jsonXContent, data);
         xContentParser.nextToken();
         TestDocumentParserContext context = new TestDocumentParserContext(xContentParser);
-        assertFalse(context.getClonedSource());
+        assertFalse(context.getRecordedSource());
         var tuple = XContentDataHelper.cloneSubContextWithParser(context);
         assertEquals(data, dataInParser(tuple.v1().parser()));
         assertEquals(data, dataInParser(tuple.v2()));
-        assertTrue(tuple.v1().getClonedSource());
+        assertTrue(tuple.v1().getRecordedSource());
+        assertFalse(context.getRecordedSource());
+    }
+
+    public void testWriteMergedWithSingleValue() throws IOException {
+        testWriteMergedWithSingleValue(randomLong());
+        testWriteMergedWithSingleValue(randomDouble());
+        testWriteMergedWithSingleValue(randomBoolean());
+        testWriteMergedWithSingleValue(randomAlphaOfLength(5));
+        testWriteMergedWithSingleValue(null);
+        testWriteMergedWithSingleValue(Map.of("object_field", randomAlphaOfLength(5)));
+        testWriteMergedWithSingleValue(Map.of("object_field", Map.of("nested_object_field", randomAlphaOfLength(5))));
+    }
+
+    private void testWriteMergedWithSingleValue(Object value) throws IOException {
+        var map = executeWriteMergedOnRepeated(value);
+        assertEquals(Arrays.asList(value, value), map.get("foo"));
+    }
+
+    public void testWriteMergedWithMultipleValues() throws IOException {
+        testWriteMergedWithMultipleValues(List.of(randomLong(), randomLong()));
+        testWriteMergedWithMultipleValues(List.of(randomDouble(), randomDouble()));
+        testWriteMergedWithMultipleValues(List.of(randomBoolean(), randomBoolean()));
+        testWriteMergedWithMultipleValues(List.of(randomAlphaOfLength(5), randomAlphaOfLength(5)));
+        testWriteMergedWithMultipleValues(Arrays.asList(null, null));
+        testWriteMergedWithMultipleValues(
+            List.of(Map.of("object_field", randomAlphaOfLength(5)), Map.of("object_field", randomAlphaOfLength(5)))
+        );
+        testWriteMergedWithMultipleValues(
+            List.of(
+                Map.of("object_field", Map.of("nested_object_field", randomAlphaOfLength(5))),
+                Map.of("object_field", Map.of("nested_object_field", randomAlphaOfLength(5)))
+            )
+        );
+    }
+
+    private void testWriteMergedWithMultipleValues(List<Object> value) throws IOException {
+        var map = executeWriteMergedOnRepeated(value);
+        var expected = Stream.of(value, value).flatMap(Collection::stream).toList();
+        assertEquals(expected, map.get("foo"));
+    }
+
+    public void testWriteMergedWithMixedValues() throws IOException {
+        testWriteMergedWithMixedValues(randomLong(), List.of(randomLong(), randomLong()));
+        testWriteMergedWithMixedValues(randomDouble(), List.of(randomDouble(), randomDouble()));
+        testWriteMergedWithMixedValues(randomBoolean(), List.of(randomBoolean(), randomBoolean()));
+        testWriteMergedWithMixedValues(randomAlphaOfLength(5), List.of(randomAlphaOfLength(5), randomAlphaOfLength(5)));
+        testWriteMergedWithMixedValues(null, Arrays.asList(null, null));
+        testWriteMergedWithMixedValues(
+            Map.of("object_field", randomAlphaOfLength(5)),
+            List.of(Map.of("object_field", randomAlphaOfLength(5)), Map.of("object_field", randomAlphaOfLength(5)))
+        );
+        testWriteMergedWithMixedValues(
+            Map.of("object_field", Map.of("nested_object_field", randomAlphaOfLength(5))),
+            List.of(
+                Map.of("object_field", Map.of("nested_object_field", randomAlphaOfLength(5))),
+                Map.of("object_field", Map.of("nested_object_field", randomAlphaOfLength(5)))
+            )
+        );
+    }
+
+    private void testWriteMergedWithMixedValues(Object value, List<Object> multipleValues) throws IOException {
+        var map = executeWriteMergedOnTwoEncodedValues(value, multipleValues);
+        var expected = Stream.concat(Stream.of(value), multipleValues.stream()).toList();
+        assertEquals(expected, map.get("foo"));
+    }
+
+    private Map<String, Object> executeWriteMergedOnRepeated(Object value) throws IOException {
+        return executeWriteMergedOnTwoEncodedValues(value, value);
+    }
+
+    private Map<String, Object> executeWriteMergedOnTwoEncodedValues(Object first, Object second) throws IOException {
+        var xContentType = randomFrom(XContentType.values());
+
+        var firstEncoded = encodeSingleValue(first, xContentType);
+        var secondEncoded = encodeSingleValue(second, xContentType);
+
+        var destination = XContentFactory.contentBuilder(xContentType);
+        destination.startObject();
+        XContentDataHelper.writeMerged(XContentParserConfiguration.EMPTY, destination, "foo", List.of(firstEncoded, secondEncoded));
+        destination.endObject();
+
+        return XContentHelper.convertToMap(BytesReference.bytes(destination), false, xContentType).v2();
+    }
+
+    private BytesRef encodeSingleValue(Object value, XContentType xContentType) throws IOException {
+        var builder = XContentFactory.contentBuilder(xContentType);
+        builder.value(value);
+
+        XContentParser parser = createParser(builder);
+        parser.nextToken();
+        return XContentDataHelper.encodeToken(parser);
     }
 }

@@ -30,7 +30,7 @@ public class RestUpdateTrainedModelDeploymentActionTests extends RestActionTestC
             assertThat(actionRequest, instanceOf(UpdateTrainedModelDeploymentAction.Request.class));
 
             var request = (UpdateTrainedModelDeploymentAction.Request) actionRequest;
-            assertEquals(request.getNumberOfAllocations(), 5);
+            assertEquals(request.getNumberOfAllocations().intValue(), 5);
 
             executeCalled.set(true);
             return mock(CreateTrainedModelAssignmentAction.Response.class);
@@ -53,7 +53,7 @@ public class RestUpdateTrainedModelDeploymentActionTests extends RestActionTestC
             assertThat(actionRequest, instanceOf(UpdateTrainedModelDeploymentAction.Request.class));
 
             var request = (UpdateTrainedModelDeploymentAction.Request) actionRequest;
-            assertEquals(request.getNumberOfAllocations(), 6);
+            assertEquals(request.getNumberOfAllocations().intValue(), 6);
 
             executeCalled.set(true);
             return mock(CreateTrainedModelAssignmentAction.Response.class);

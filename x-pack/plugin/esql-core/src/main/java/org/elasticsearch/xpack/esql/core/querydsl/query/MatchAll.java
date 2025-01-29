@@ -11,7 +11,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 
-public class MatchAll extends LeafQuery {
+public class MatchAll extends Query {
     public MatchAll(Source source) {
         super(source);
     }

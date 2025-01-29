@@ -40,13 +40,13 @@ public class CcrStatsAction extends ActionType<CcrStatsAction.Response> {
 
         public Request(StreamInput in) throws IOException {
             super(in);
-            if (in.getTransportVersion().onOrAfter(TransportVersions.CCR_STATS_API_TIMEOUT_PARAM)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
                 timeout = in.readOptionalTimeValue();
             }
         }
 
-        public Request() {
-            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
+        public Request(TimeValue masterNodeTimeout) {
+            super(masterNodeTimeout);
         }
 
         @Override
@@ -57,7 +57,7 @@ public class CcrStatsAction extends ActionType<CcrStatsAction.Response> {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.CCR_STATS_API_TIMEOUT_PARAM)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
                 out.writeOptionalTimeValue(timeout);
             }
         }

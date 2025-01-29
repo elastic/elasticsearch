@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.support.replication;
@@ -141,14 +142,15 @@ public class ClusterStateCreationUtils {
         discoBuilder.localNodeId(newNode(0).getId());
         discoBuilder.masterNodeId(newNode(1).getId()); // we need a non-local master to test shard failures
         final int primaryTerm = 1 + randomInt(200);
+        IndexLongFieldRange timeFieldRange = primaryState == ShardRoutingState.STARTED || primaryState == ShardRoutingState.RELOCATING
+            ? IndexLongFieldRange.UNKNOWN
+            : IndexLongFieldRange.NO_SHARDS;
+
         IndexMetadata indexMetadata = IndexMetadata.builder(index)
             .settings(indexSettings(IndexVersion.current(), 1, numberOfReplicas).put(SETTING_CREATION_DATE, System.currentTimeMillis()))
             .primaryTerm(0, primaryTerm)
-            .timestampRange(
-                primaryState == ShardRoutingState.STARTED || primaryState == ShardRoutingState.RELOCATING
-                    ? IndexLongFieldRange.UNKNOWN
-                    : IndexLongFieldRange.NO_SHARDS
-            )
+            .timestampRange(timeFieldRange)
+            .eventIngestedRange(timeFieldRange)
             .build();
 
         IndexShardRoutingTable.Builder indexShardRoutingBuilder = new IndexShardRoutingTable.Builder(shardId);
@@ -281,6 +283,7 @@ public class ClusterStateCreationUtils {
                 .settings(
                     indexSettings(IndexVersion.current(), numberOfPrimaries, 0).put(SETTING_CREATION_DATE, System.currentTimeMillis())
                 )
+                .eventIngestedRange(IndexLongFieldRange.UNKNOWN)
                 .build();
 
             IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(indexMetadata.getIndex());
@@ -360,7 +363,34 @@ public class ClusterStateCreationUtils {
         int numberOfShards,
         List<ShardRouting.Role> replicaRoles
     ) {
-        int numberOfDataNodes = replicaRoles.size() + 1;
+        return stateWithAssignedPrimariesAndReplicasWithState(
+            indices,
+            numberOfShards,
+            replicaRoles.stream().map(role -> Tuple.tuple(ShardRoutingState.STARTED, role)).toList()
+        );
+    }
+
+    /**
+     * Creates cluster state with several indexes, shards and replicas (with given roles and state) and all primary shards STARTED.
+     */
+    public static ClusterState stateWithAssignedPrimariesAndReplicasWithState(
+        String[] indices,
+        int numberOfShards,
+        List<Tuple<ShardRoutingState, ShardRouting.Role>> replicaRoleAndStates
+    ) {
+        return stateWithAssignedPrimariesAndReplicasWithState(indices, numberOfShards, ShardRouting.Role.DEFAULT, replicaRoleAndStates);
+    }
+
+    /**
+     * Creates cluster state with several indexes, shards and replicas (with given roles and state) and all primary shards STARTED.
+     */
+    public static ClusterState stateWithAssignedPrimariesAndReplicasWithState(
+        String[] indices,
+        int numberOfShards,
+        ShardRouting.Role primaryRole,
+        List<Tuple<ShardRoutingState, ShardRouting.Role>> replicasStateAndRoles
+    ) {
+        int numberOfDataNodes = replicasStateAndRoles.size() + 1;
         DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder();
         for (int i = 0; i < numberOfDataNodes + 1; i++) {
             final DiscoveryNode node = newNode(i);
@@ -380,12 +410,13 @@ public class ClusterStateCreationUtils {
         for (String index : indices) {
             IndexMetadata indexMetadata = IndexMetadata.builder(index)
                 .settings(
-                    indexSettings(IndexVersion.current(), numberOfShards, replicaRoles.size()).put(
+                    indexSettings(IndexVersion.current(), numberOfShards, replicasStateAndRoles.size()).put(
                         SETTING_CREATION_DATE,
                         System.currentTimeMillis()
                     )
                 )
                 .timestampRange(IndexLongFieldRange.UNKNOWN)
+                .eventIngestedRange(IndexLongFieldRange.UNKNOWN)
                 .build();
             metadataBuilder.put(indexMetadata, false).generateClusterUuidIfNeeded();
             IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(indexMetadata.getIndex());
@@ -393,14 +424,19 @@ public class ClusterStateCreationUtils {
                 final ShardId shardId = new ShardId(index, "_na_", i);
                 IndexShardRoutingTable.Builder indexShardRoutingBuilder = IndexShardRoutingTable.builder(shardId);
                 indexShardRoutingBuilder.addShard(
-                    TestShardRouting.newShardRouting(index, i, newNode(0).getId(), null, true, ShardRoutingState.STARTED)
+                    shardRoutingBuilder(index, i, newNode(0).getId(), true, ShardRoutingState.STARTED).withRole(primaryRole).build()
                 );
-                for (int replica = 0; replica < replicaRoles.size(); replica++) {
-                    indexShardRoutingBuilder.addShard(
-                        shardRoutingBuilder(index, i, newNode(replica + 1).getId(), false, ShardRoutingState.STARTED).withRole(
-                            replicaRoles.get(replica)
-                        ).build()
+                for (int replica = 0; replica < replicasStateAndRoles.size(); replica++) {
+                    var replicaStateAndRole = replicasStateAndRoles.get(replica);
+                    ShardRoutingState shardRoutingState = replicaStateAndRole.v1();
+                    String currentNodeId = shardRoutingState.equals(ShardRoutingState.UNASSIGNED) ? null : newNode(replica + 1).getId();
+                    var shardRoutingBuilder = shardRoutingBuilder(index, i, currentNodeId, false, shardRoutingState).withRole(
+                        replicaStateAndRole.v2()
                     );
+                    if (shardRoutingState.equals(ShardRoutingState.RELOCATING)) {
+                        shardRoutingBuilder.withRelocatingNodeId(DiscoveryNodeUtils.create("relocating_" + replica).getId());
+                    }
+                    indexShardRoutingBuilder.addShard(shardRoutingBuilder.build());
                 }
                 indexRoutingTableBuilder.addIndexShard(indexShardRoutingBuilder);
             }

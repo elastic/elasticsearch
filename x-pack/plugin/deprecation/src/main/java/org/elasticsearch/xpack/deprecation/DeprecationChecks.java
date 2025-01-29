@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.deprecation;
 
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
@@ -42,7 +41,6 @@ public class DeprecationChecks {
                 NodeDeprecationChecks::checkDataPathsList,
                 NodeDeprecationChecks::checkSharedDataPathSetting,
                 NodeDeprecationChecks::checkReservedPrefixedRealmNames,
-                NodeDeprecationChecks::checkSingleDataNodeWatermarkSetting,
                 NodeDeprecationChecks::checkExporterUseIngestPipelineSettings,
                 NodeDeprecationChecks::checkExporterPipelineMasterTimeoutSetting,
                 NodeDeprecationChecks::checkExporterCreateLegacyTemplateSetting,
@@ -86,17 +84,9 @@ public class DeprecationChecks {
                 NodeDeprecationChecks::checkLifecyleStepMasterTimeoutSetting,
                 NodeDeprecationChecks::checkEqlEnabledSetting,
                 NodeDeprecationChecks::checkNodeAttrData,
-                NodeDeprecationChecks::checkWatcherBulkConcurrentRequestsSetting
+                NodeDeprecationChecks::checkWatcherBulkConcurrentRequestsSetting,
+                NodeDeprecationChecks::checkTracingApmSettings
             );
-
-    static List<Function<IndexMetadata, DeprecationIssue>> INDEX_SETTINGS_CHECKS = List.of(
-        IndexDeprecationChecks::oldIndicesCheck,
-        IndexDeprecationChecks::translogRetentionSettingCheck,
-        IndexDeprecationChecks::checkIndexDataPath,
-        IndexDeprecationChecks::storeTypeSettingCheck,
-        IndexDeprecationChecks::frozenIndexSettingCheck,
-        IndexDeprecationChecks::deprecatedCamelCasePattern
-    );
 
     /**
      * helper utility function to reduce repeat of running a specific {@link List} of checks.

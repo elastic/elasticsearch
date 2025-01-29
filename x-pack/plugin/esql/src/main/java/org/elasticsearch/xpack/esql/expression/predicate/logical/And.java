@@ -20,11 +20,11 @@ public class And extends BinaryLogic implements Negatable<BinaryLogic> {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "And", And::new);
 
     public And(Source source, Expression left, Expression right) {
-        super(source, left, right, BinaryLogicOperation.AND);
+        super(source, left, right, BinaryLogicOperation.AND, BinaryScoringLogicOperation.AND);
     }
 
     private And(StreamInput in) throws IOException {
-        super(in, BinaryLogicOperation.AND);
+        super(in, BinaryLogicOperation.AND, BinaryScoringLogicOperation.AND);
     }
 
     @Override

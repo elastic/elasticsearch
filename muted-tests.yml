@@ -334,6 +334,9 @@ tests:
 - class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
   method: test {yaml=indices.get_alias/10_basic/Get aliases via /_alias/_all}
   issue: https://github.com/elastic/elasticsearch/issues/121242
+- class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
+  method: test {yaml=cluster.stats/10_basic/Sparse vector stats}
+  issue: https://github.com/elastic/elasticsearch/issues/121246
 
 # Examples:
 #

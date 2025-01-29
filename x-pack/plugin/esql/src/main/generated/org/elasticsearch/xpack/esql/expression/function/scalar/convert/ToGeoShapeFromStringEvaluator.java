@@ -18,7 +18,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link ToGeoShape}.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code ConvertEvaluatorImplementer} instead.
  */
 public final class ToGeoShapeFromStringEvaluator extends AbstractConvertFunction.AbstractEvaluator {
   public ToGeoShapeFromStringEvaluator(EvalOperator.ExpressionEvaluator field, Source source,

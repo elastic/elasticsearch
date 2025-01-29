@@ -1,8 +1,10 @@
 pr: 121049
-summary: Conditionally enable logsdb by default for data streams matching with logs-*-* pattern.
+summary: Conditionally enable logsdb by default for data streams matching with logs-*-*
+  pattern.
 area: Logs
 type: breaking
-issues: []
+issues:
+ - 106489
 breaking:
   title: Conditionally enable logsdb by default
   area: Logs

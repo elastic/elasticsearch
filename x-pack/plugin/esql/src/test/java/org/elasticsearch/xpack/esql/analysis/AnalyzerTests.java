@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.analysis;
 import org.elasticsearch.Build;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesIndexResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
+import org.elasticsearch.action.fieldcaps.IndexFieldCapabilities;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
@@ -30,8 +31,10 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
@@ -89,6 +92,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.matchesRegex;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
@@ -2602,6 +2606,128 @@ public class AnalyzerTests extends ESTestCase {
         assertEquals(DataType.DOUBLE, ee.dataType());
     }
 
+    public void testResolveInsist_fieldExists_insistIsExpunged() {
+        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+
+        LogicalPlan plan = analyze("FROM test | INSIST_🐔 emp_no");
+
+        LogicalPlan equivalentPlan = analyze("FROM test");
+
+        assertThat(plan, equalTo(equivalentPlan));
+    }
+
+    public void testResolveInsist_fieldDoesNotExist_updatesRelationWithNewField() {
+        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+
+        LogicalPlan plan = analyze("FROM test | INSIST_🐔 foo");
+
+        var limit = as(plan, Limit.class);
+        var relation = as(limit.child(), EsRelation.class);
+        assertThat(relation.output(), hasSize(analyze("FROM test").output().size() + 1));
+        assertThat(((FieldAttribute) relation.output().getLast()).field(), is(new PotentiallyUnmappedKeywordEsField("foo")));
+    }
+
+    public void testResolveInsist_multiIndexFieldPartiallyMappedWithSingleKeywordType_updatesRelationWithNewField() {
+        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+
+        IndexResolution resolution = IndexResolver.mergedMappings(
+            "foo, bar",
+            new FieldCapabilitiesResponse(
+                List.of(
+                    fieldCapabilitiesIndexResponse("foo", messageResponseMap("keyword")),
+                    fieldCapabilitiesIndexResponse("bar", Map.of())
+                ),
+                List.of()
+            )
+        );
+
+        String query = "FROM foo, bar | INSIST_🐔 message";
+        var plan = analyze(query, analyzer(resolution, TEST_VERIFIER, configuration(query)));
+        var limit = as(plan, Limit.class);
+        var relation = as(limit.child(), EsRelation.class);
+        var attribute = (FieldAttribute) EsqlTestUtils.singleValue(relation.output());
+        assertThat(attribute.name(), is("message"));
+        assertThat(attribute.field(), is(new PotentiallyUnmappedKeywordEsField("message")));
+    }
+
+    public void testResolveInsist_multiIndexFieldExistsWithSingleTypeButIsNotKeywordAndMissingCast_createsAnInvalidMappedField() {
+        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+
+        IndexResolution resolution = IndexResolver.mergedMappings(
+            "foo, bar",
+            new FieldCapabilitiesResponse(
+                List.of(fieldCapabilitiesIndexResponse("foo", messageResponseMap("long")), fieldCapabilitiesIndexResponse("bar", Map.of())),
+                List.of()
+            )
+        );
+        var plan = analyze("FROM foo, bar | INSIST_🐔 message", analyzer(resolution, TEST_VERIFIER));
+        var limit = as(plan, Limit.class);
+        var relation = as(limit.child(), EsRelation.class);
+        var attribute = (UnsupportedAttribute) EsqlTestUtils.singleValue(relation.output());
+        assertThat(attribute.name(), is("message"));
+
+        String substring = "Cannot use field [message] due to ambiguities caused by INSIST. "
+            + "Unmapped fields are treated as KEYWORD in unmapped indices, but field is mapped to another type";
+        assertThat(attribute.unresolvedMessage(), containsString(substring));
+    }
+
+    public void testResolveInsist_multiIndexFieldPartiallyExistsWithMultiTypes_createsAnInvalidMappedField() {
+        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+
+        IndexResolution resolution = IndexResolver.mergedMappings(
+            "foo, bar",
+            new FieldCapabilitiesResponse(
+                List.of(
+                    fieldCapabilitiesIndexResponse("foo", messageResponseMap("long")),
+                    fieldCapabilitiesIndexResponse("bar", messageResponseMap("date"))
+                ),
+                List.of()
+            )
+        );
+        var plan = analyze("FROM foo, bar | INSIST_🐔 message", analyzer(resolution, TEST_VERIFIER));
+        var limit = as(plan, Limit.class);
+        var relation = as(limit.child(), EsRelation.class);
+        var attr = (UnsupportedAttribute) EsqlTestUtils.singleValue(relation.output());
+
+        String substring = "Cannot use field [message] due to ambiguities caused by INSIST. "
+            + "Unmapped fields are treated as KEYWORD in unmapped indices, but field is mapped to another type";
+        assertThat(attr.unresolvedMessage(), containsString(substring));
+    }
+
+    public void testResolveInsist_multiIndexFieldPartiallyExistsWithMultiTypesWithCast_castsAreNotSupported() {
+        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+
+        IndexResolution resolution = IndexResolver.mergedMappings(
+            "foo, bar",
+            new FieldCapabilitiesResponse(
+                List.of(
+                    fieldCapabilitiesIndexResponse("foo", messageResponseMap("long")),
+                    fieldCapabilitiesIndexResponse("bar", messageResponseMap("date"))
+                ),
+                List.of()
+            )
+        );
+        VerificationException e = expectThrows(VerificationException.class, () -> analyze("""
+            FROM multi_index |
+            INSIST_🐔 message |
+            EVAL message = message :: DATETIME""", analyzer(resolution, TEST_VERIFIER)));
+        String msg = "Cannot use field [message] due to ambiguities caused by INSIST. "
+            + "Unmapped fields are treated as KEYWORD in unmapped indices, but field is mapped to another type";
+        assertThat(e.getMessage(), containsString(msg));
+    }
+
+    // TODO There's too much boilerplate involed here! We need a better way of creating FieldCapabilitiesResponses from a mapping or index.
+    private static FieldCapabilitiesIndexResponse fieldCapabilitiesIndexResponse(
+        String indexName,
+        Map<String, IndexFieldCapabilities> fields
+    ) {
+        return new FieldCapabilitiesIndexResponse(indexName, null, fields, false, IndexMode.STANDARD);
+    }
+
+    private static Map<String, IndexFieldCapabilities> messageResponseMap(String date) {
+        return Map.of("message", new IndexFieldCapabilities("message", date, false, true, true, false, null, null));
+    }
+
     private void verifyUnsupported(String query, String errorMessage) {
         verifyUnsupported(query, errorMessage, "mapping-multi-field-variation.json");
     }
@@ -2653,7 +2779,7 @@ public class AnalyzerTests extends ESTestCase {
             new FieldCapabilitiesIndexResponse("idx", "idx", Map.of(), true, IndexMode.STANDARD)
         );
         FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(idxResponses, List.of());
-        IndexResolution resolution = new IndexResolver(null).mergedMappings("test*", caps);
+        IndexResolution resolution = IndexResolver.mergedMappings("test*", caps);
         var analyzer = analyzer(resolution, TEST_VERIFIER, configuration(query));
         return analyze(query, analyzer);
     }

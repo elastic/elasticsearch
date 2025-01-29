@@ -46,12 +46,10 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
-import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
-import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FromPartial;
@@ -2966,75 +2964,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         );
     }
 
-    public void testResolveInsist_fieldExistsSingleIndex_insistIsExpunged() {
-        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
-
-        LogicalPlan plan = optimizedPlan("FROM test | INSIST_🐔 emp_no");
-
-        LogicalPlan equivalentPlan = optimizedPlan("FROM test");
-
-        assertThat(plan, equalTo(equivalentPlan));
-    }
-
     private static Attribute getAttribute(List<Attribute> attributes, String name) {
         return attributes.stream().filter(attr -> attr.name().equals(name)).findFirst().get();
-    }
-
-    public void testResolveInsist_fieldDoesNotExist_updatesRelationWithNewField() {
-        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
-
-        LogicalPlan plan = optimizedPlan("FROM test | INSIST_🐔 foo");
-
-        var limit = as(plan, Limit.class);
-        var relation = as(limit.child(), EsRelation.class);
-        assertThat(relation.output(), hasSize(optimizedPlan("FROM test").output().size() + 1));
-        assertThat(((FieldAttribute) relation.output().getLast()).field(), is(new PotentiallyUnmappedKeywordEsField("foo")));
-    }
-
-    public void testResolveInsist_multiIndexFieldExistsWithSingleKeywordType_updatesRelationWithNewField() {
-        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
-
-        var plan = planMultiIndex("FROM multi_index | INSIST_🐔 partial_type_keyword");
-        var limit = as(plan, Limit.class);
-        var relation = as(limit.child(), EsRelation.class);
-        assertThat(relation.output(), hasSize(planMultiIndex("FROM multi_index").output().size()));
-        var attribute = (FieldAttribute) getAttribute(relation.output(), "partial_type_keyword");
-        assertThat(attribute.field(), is(new PotentiallyUnmappedKeywordEsField("partial_type_keyword")));
-    }
-
-    public void testResolveInsist_multiIndexFieldExistsWithSingleTypeButIsNotKeywordAndMissingCast_createsAnInvalidMappedField() {
-        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
-
-        var plan = planMultiIndex("FROM multi_index | INSIST_🐔 partial_type_long");
-        var limit = as(plan, Limit.class);
-        var relation = as(limit.child(), EsRelation.class);
-        var attr = (UnsupportedAttribute) relation.output().stream().filter(e -> e.name().equals("partial_type_long")).findFirst().get();
-
-        String substring = "Cannot use field [partial_type_long] due to ambiguities caused by INSIST. "
-            + "Unmapped fields are treated as KEYWORD in unmapped indices, but field is mapped to another type";
-        assertThat(attr.unresolvedMessage(), containsString(substring));
-    }
-
-    public void testResolveInsist_multiIndexFieldExists_insistIsExpunged() {
-        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
-
-        var plan = planMultiIndex("FROM multi_index | INSIST_🐔 emp_no");
-        LogicalPlan equivalentPlan = planMultiIndex("FROM multi_index");
-
-        assertThat(plan, equalTo(equivalentPlan));
-    }
-
-    public void testResolveInsist_multiIndexFieldPartiallyExistsWithMultiTypes_createsTheCorrectUnsupportedField() {
-        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
-
-        var plan = planMultiIndex("FROM multi_index | INSIST_🐔 multi_type_without_keyword");
-        var limit = as(plan, Limit.class);
-        var relation = as(limit.child(), EsRelation.class);
-        var attr = (UnsupportedAttribute) getAttribute(relation.output(), "multi_type_without_keyword");
-
-        String substring = "Cannot use field [multi_type_without_keyword] due to ambiguities caused by INSIST. "
-            + "Unmapped fields are treated as KEYWORD in unmapped indices, but field is mapped to another type";
-        assertThat(attr.unresolvedMessage(), containsString(substring));
     }
 
     public void testResolveInsist_multiIndexFieldPartiallyExistsWithMultiTypesWithCast_castsAreNotSupported() {

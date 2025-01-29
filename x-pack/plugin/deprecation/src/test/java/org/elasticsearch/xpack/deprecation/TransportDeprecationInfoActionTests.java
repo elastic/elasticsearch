@@ -135,16 +135,7 @@ public class TransportDeprecationInfoActionTests extends ESTestCase {
         }
 
         if (nodeIssueFound) {
-            String details = foundIssue.getDetails() != null ? foundIssue.getDetails() + " " : "";
-            DeprecationIssue mergedFoundIssue = new DeprecationIssue(
-                foundIssue.getLevel(),
-                foundIssue.getMessage(),
-                foundIssue.getUrl(),
-                details + "(nodes impacted: [" + discoveryNode.getName() + "])",
-                foundIssue.isResolveDuringRollingUpgrade(),
-                foundIssue.getMeta()
-            );
-            assertThat(response.getNodeSettingsIssues(), IsEqual.equalTo(List.of(mergedFoundIssue)));
+            assertThat(response.getNodeSettingsIssues(), IsEqual.equalTo(List.of(foundIssue)));
         } else {
             assertTrue(response.getNodeSettingsIssues().isEmpty());
         }

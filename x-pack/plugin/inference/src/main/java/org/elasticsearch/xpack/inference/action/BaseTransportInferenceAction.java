@@ -54,6 +54,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.inference.InferencePlugin.INFERENCE_API_FEATURE;
+import static org.elasticsearch.xpack.inference.common.InferenceAPIClusterAwareRateLimitingFeature.INFERENCE_API_CLUSTER_AWARE_RATE_LIMITING_FEATURE_FLAG;
 import static org.elasticsearch.xpack.inference.telemetry.InferenceStats.modelAttributes;
 import static org.elasticsearch.xpack.inference.telemetry.InferenceStats.responseAttributes;
 
@@ -186,6 +187,10 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
     }
 
     private NodeRoutingDecision determineRouting(String serviceName, Request request, UnparsedModel unparsedModel) {
+        if(INFERENCE_API_CLUSTER_AWARE_RATE_LIMITING_FEATURE_FLAG.isEnabled() == false){
+            return NodeRoutingDecision.handleLocally();
+        }
+
         var modelTaskType = unparsedModel.taskType();
 
         // Rerouting not supported or request was already rerouted

@@ -119,28 +119,23 @@ public class AggregateMetricDoubleBlockBuilder extends AbstractBlockBuilder impl
     }
 
     @Override
-    public BlockLoader.AggregateMetricDoubleBuilder append(Double min, Double max, Double sum, Integer valueCount) {
-        if (min == null) {
-            minBuilder.appendNull();
-        } else {
-            minBuilder.appendDouble(min);
-        }
-        if (max == null) {
-            maxBuilder.appendNull();
-        } else {
-            maxBuilder.appendDouble(max);
-        }
-        if (sum == null) {
-            sumBuilder.appendNull();
-        } else {
-            sumBuilder.appendDouble(sum);
-        }
-        if (valueCount == null) {
-            countBuilder.appendNull();
-        } else {
-            countBuilder.appendInt(valueCount);
-        }
-        return this;
+    public BlockLoader.DoubleBuilder min() {
+        return minBuilder;
+    }
+
+    @Override
+    public BlockLoader.DoubleBuilder max() {
+        return maxBuilder;
+    }
+
+    @Override
+    public BlockLoader.DoubleBuilder sum() {
+        return sumBuilder;
+    }
+
+    @Override
+    public BlockLoader.IntBuilder count() {
+        return countBuilder;
     }
 
     public enum Metric {

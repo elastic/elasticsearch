@@ -216,12 +216,13 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 case CARTESIAN_SHAPE -> ((BytesRefBlock.Builder) builder).appendBytesRef(
                     CARTESIAN.asWkb(ShapeTestUtils.randomGeometry(randomBoolean()))
                 );
-                case AGGREGATE_METRIC_DOUBLE -> ((BlockLoader.AggregateMetricDoubleBuilder) builder).append(
-                    randomDouble(),
-                    randomDouble(),
-                    randomDouble(),
-                    randomInt()
-                );
+                case AGGREGATE_METRIC_DOUBLE -> {
+                    BlockLoader.AggregateMetricDoubleBuilder aggBuilder = (BlockLoader.AggregateMetricDoubleBuilder) builder;
+                    aggBuilder.min().appendDouble(randomDouble());
+                    aggBuilder.max().appendDouble(randomDouble());
+                    aggBuilder.sum().appendDouble(randomDouble());
+                    aggBuilder.count().appendInt(randomInt());
+                }
                 case NULL -> builder.appendNull();
                 case SOURCE -> {
                     try {
@@ -947,12 +948,13 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                         BytesRef wkb = stringToSpatial(value.toString());
                         ((BytesRefBlock.Builder) builder).appendBytesRef(wkb);
                     }
-                    case AGGREGATE_METRIC_DOUBLE -> ((BlockLoader.AggregateMetricDoubleBuilder) builder).append(
-                        ((Number) value).doubleValue(),
-                        ((Number) value).doubleValue(),
-                        ((Number) value).doubleValue(),
-                        ((Number) value).intValue()
-                    );
+                    case AGGREGATE_METRIC_DOUBLE -> {
+                        BlockLoader.AggregateMetricDoubleBuilder aggBuilder = (BlockLoader.AggregateMetricDoubleBuilder) builder;
+                        aggBuilder.min().appendDouble(((Number) value).doubleValue());
+                        aggBuilder.max().appendDouble(((Number) value).doubleValue());
+                        aggBuilder.sum().appendDouble(((Number) value).doubleValue());
+                        aggBuilder.count().appendInt(((Number) value).intValue());
+                    }
                 }
             }
         }

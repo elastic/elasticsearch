@@ -234,15 +234,30 @@ public final class BlockUtils {
             case DOUBLE -> blockFactory.newConstantDoubleBlockWith((double) val, size);
             case BOOLEAN -> blockFactory.newConstantBooleanBlockWith((boolean) val, size);
             case COMPOSITE -> {
-                var builder = blockFactory.newAggregateMetricDoubleBlockBuilder(size);
-                var aggregate_metric_double = (AggregateMetricDoubleLiteral) val;
-                builder.append(
-                    aggregate_metric_double.getMin(),
-                    aggregate_metric_double.getMax(),
-                    aggregate_metric_double.getSum(),
-                    aggregate_metric_double.getCount()
-                );
-                yield builder.build();
+                try (AggregateMetricDoubleBlockBuilder builder = blockFactory.newAggregateMetricDoubleBlockBuilder(size)) {
+                    var aggregate_metric_double = (AggregateMetricDoubleLiteral) val;
+                    if (aggregate_metric_double.getMin() != null) {
+                        builder.min().appendDouble(aggregate_metric_double.getMin());
+                    } else {
+                        builder.min().appendNull();
+                    }
+                    if (aggregate_metric_double.getMax() != null) {
+                        builder.max().appendDouble(aggregate_metric_double.getMax());
+                    } else {
+                        builder.max().appendNull();
+                    }
+                    if (aggregate_metric_double.getSum() != null) {
+                        builder.sum().appendDouble(aggregate_metric_double.getSum());
+                    } else {
+                        builder.sum().appendNull();
+                    }
+                    if (aggregate_metric_double.getCount() != null) {
+                        builder.count().appendInt(aggregate_metric_double.getCount());
+                    } else {
+                        builder.count().appendNull();
+                    }
+                    yield builder.build();
+                }
             }
             default -> throw new UnsupportedOperationException("unsupported element type [" + type + "]");
         };

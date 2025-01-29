@@ -560,17 +560,49 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                     @Override
                     public Block read(BlockFactory factory, Docs docs) throws IOException {
                         try (var builder = factory.aggregateMetricDoubleBuilder(docs.count())) {
-                            int lastDoc = -1;
-                            for (int i = 0; i < docs.count(); i++) {
-                                int doc = docs.get(i);
-                                if (doc < lastDoc) {
-                                    throw new IllegalStateException("docs within same block must be in order");
-                                }
-                                read(doc, builder);
+                            copyDoubleValuesToBuilder(docs, builder.min(), minValues);
+                            copyDoubleValuesToBuilder(docs, builder.max(), maxValues);
+                            copyDoubleValuesToBuilder(docs, builder.sum(), sumValues);
+                            copyIntValuesToBuilder(docs, builder.count(), valueCountValues);
+                            return builder.build();
+                        }
+                    }
+
+                    private void copyDoubleValuesToBuilder(Docs docs, BlockLoader.DoubleBuilder builder, NumericDocValues values)
+                        throws IOException {
+                        int lastDoc = -1;
+                        for (int i = 0; i < docs.count(); i++) {
+                            int doc = docs.get(i);
+                            if (doc < lastDoc) {
+                                throw new IllegalStateException("docs within same block must be in order");
+                            }
+                            if (values.advanceExact(doc)) {
+                                double value = NumericUtils.sortableLongToDouble(values.longValue());
                                 lastDoc = doc;
                                 this.docID = doc;
+                                builder.appendDouble(value);
+                            } else {
+                                builder.appendNull();
                             }
-                            return builder.build();
+                        }
+                    }
+
+                    private void copyIntValuesToBuilder(Docs docs, BlockLoader.IntBuilder builder, NumericDocValues values)
+                        throws IOException {
+                        int lastDoc = -1;
+                        for (int i = 0; i < docs.count(); i++) {
+                            int doc = docs.get(i);
+                            if (doc < lastDoc) {
+                                throw new IllegalStateException("docs within same block must be in order");
+                            }
+                            if (values.advanceExact(doc)) {
+                                int value = Math.toIntExact(values.longValue());
+                                lastDoc = doc;
+                                this.docID = doc;
+                                builder.appendInt(value);
+                            } else {
+                                builder.appendNull();
+                            }
                         }
                     }
 
@@ -583,19 +615,24 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
 
                     private void read(int docId, AggregateMetricDoubleBuilder builder) throws IOException {
                         if (minValues.advanceExact(docId)) {
-                            boolean found = maxValues.advanceExact(docId);
-                            assert found;
-                            found = sumValues.advanceExact(docId);
-                            assert found;
-                            found = valueCountValues.advanceExact(docId);
-                            assert found;
-                            double min = NumericUtils.sortableLongToDouble(minValues.longValue());
-                            double max = NumericUtils.sortableLongToDouble(maxValues.longValue());
-                            double sum = NumericUtils.sortableLongToDouble(sumValues.longValue());
-                            int count = Math.toIntExact(valueCountValues.longValue());
-                            builder.append(min, max, sum, count);
+                            builder.min().appendDouble(NumericUtils.sortableLongToDouble(minValues.longValue()));
                         } else {
-                            builder.appendNull();
+                            builder.min().appendNull();
+                        }
+                        if (maxValues.advanceExact(docId)) {
+                            builder.max().appendDouble(NumericUtils.sortableLongToDouble(maxValues.longValue()));
+                        } else {
+                            builder.max().appendNull();
+                        }
+                        if (sumValues.advanceExact(docId)) {
+                            builder.sum().appendDouble(NumericUtils.sortableLongToDouble(sumValues.longValue()));
+                        } else {
+                            builder.sum().appendNull();
+                        }
+                        if (valueCountValues.advanceExact(docId)) {
+                            builder.count().appendInt(Math.toIntExact(valueCountValues.longValue()));
+                        } else {
+                            builder.count().appendNull();
                         }
                     }
                 };

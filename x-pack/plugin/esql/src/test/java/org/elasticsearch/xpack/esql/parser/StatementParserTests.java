@@ -489,7 +489,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
             clusterAndIndexAsIndexPattern(command, "cluster:index");
             clusterAndIndexAsIndexPattern(command, "cluster:.index");
             clusterAndIndexAsIndexPattern(command, "cluster*:index*");
-            clusterAndIndexAsIndexPattern(command, "cluster*:<logstash-{now/D}>*");
+            clusterAndIndexAsIndexPattern(command, "cluster*:<logstash-{now/D}>*");// this is not a valid pattern, * should be inside <>
+            clusterAndIndexAsIndexPattern(command, "cluster*:<logstash-{now/D}*>");
             clusterAndIndexAsIndexPattern(command, "cluster*:*");
             clusterAndIndexAsIndexPattern(command, "*:index*");
             clusterAndIndexAsIndexPattern(command, "*:*");
@@ -1695,8 +1696,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     List.of(new Order(EMPTY, attribute("f.11..f.12.*"), Order.OrderDirection.ASC, Order.NullsPosition.LAST))
                 ),
                 attribute("f.*.13.f.14*"),
-                attribute("f.*.13.f.14*"),
-                null
+                attribute("f.*.13.f.14*")
             ),
             statement(
                 """

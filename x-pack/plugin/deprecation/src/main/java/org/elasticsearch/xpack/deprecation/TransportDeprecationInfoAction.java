@@ -146,7 +146,8 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
      * @param request                     The originating request containing the index expressions to evaluate
      * @param precomputedData             Data from remote requests necessary to construct the response
      * @param responseListener            The listener expecting the {@link DeprecationInfoAction.Response}
-     * @return The listener that should be executed after all the remote requests have completed and the {@link PrecomputedData} is initialised.
+     * @return The listener that should be executed after all the remote requests have completed and the {@link PrecomputedData}
+     * is initialised.
      */
     public ActionListener<Void> checkAndCreateResponse(
         ClusterState state,

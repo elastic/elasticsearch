@@ -48,7 +48,6 @@ public class TransportXPackUsageAction extends TransportMasterNodeAction<XPackUs
             threadPool,
             actionFilters,
             XPackUsageRequest::new,
-            indexNameExpressionResolver,
             XPackUsageResponse::new,
             threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );

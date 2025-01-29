@@ -31,6 +31,9 @@ dependencies {
   if (sourceSets.findByName("main21")) {
     main21CompileOnly project(path: ':libs:entitlement:bridge', configuration: 'java21')
   }
+  if (sourceSets.findByName("main22")) {
+    main22CompileOnly project(path: ':libs:entitlement:bridge', configuration: 'java22')
+  }
   if (sourceSets.findByName("main23")) {
     main23CompileOnly project(path: ':libs:entitlement:bridge', configuration: 'java23')
   }

@@ -745,7 +745,7 @@ public enum Hasher {
 
     /**
      * Returns a list of lower case String identifiers for the Hashing algorithm and parameter
-     * combinations that can be used for password hashing. The identifiers can be used to get
+     * combinations that can be used for secure token hashing. The identifiers can be used to get
      * an instance of the appropriate {@link Hasher} by using {@link #resolve(String) resolve()}
      */
     @SuppressForbidden(reason = "This is the only allowed way to get available values")

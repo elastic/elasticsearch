@@ -9,6 +9,7 @@ package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
@@ -234,30 +235,8 @@ public final class BlockUtils {
             case DOUBLE -> blockFactory.newConstantDoubleBlockWith((double) val, size);
             case BOOLEAN -> blockFactory.newConstantBooleanBlockWith((boolean) val, size);
             case COMPOSITE -> {
-                if (val instanceof AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral(Double min, Double max, Double sum, Integer count)) {
-                    try (AggregateMetricDoubleBlockBuilder builder = blockFactory.newAggregateMetricDoubleBlockBuilder(size)) {
-                        if (min != null) {
-                            builder.min().appendDouble(min);
-                        } else {
-                            builder.min().appendNull();
-                        }
-                        if (max != null) {
-                            builder.max().appendDouble(max);
-                        } else {
-                            builder.max().appendNull();
-                        }
-                        if (sum != null) {
-                            builder.sum().appendDouble(sum);
-                        } else {
-                            builder.sum().appendNull();
-                        }
-                        if (count != null) {
-                            builder.count().appendInt(count);
-                        } else {
-                            builder.count().appendNull();
-                        }
-                        yield builder.build();
-                    }
+                if (val instanceof AggregateMetricDoubleLiteral aggregateMetricDoubleLiteral) {
+                    yield blockFactory.newConstantAggregateMetricDoubleBlock(aggregateMetricDoubleLiteral, size);
                 }
                 throw new UnsupportedOperationException(
                     "Composite block but received value that wasn't AggregateMetricDoubleLiteral [" + val + "]"

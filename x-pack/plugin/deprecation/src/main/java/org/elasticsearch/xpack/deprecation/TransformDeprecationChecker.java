@@ -8,19 +8,21 @@
 package org.elasticsearch.xpack.deprecation;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
-import org.elasticsearch.xpack.core.transform.action.GetTransformAction;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 
 import java.util.ArrayList;
 import java.util.List;
 
-public class TransformDeprecationChecker implements DeprecationChecker {
+class TransformDeprecationChecker implements DeprecationChecker {
 
     public static final String TRANSFORM_DEPRECATION_KEY = "transform_settings";
+    private final List<TransformConfig> transformConfigs;
+
+    TransformDeprecationChecker(List<TransformConfig> transformConfigs) {
+        this.transformConfigs = transformConfigs;
+    }
 
     @Override
     public boolean enabled(Settings settings) {
@@ -30,43 +32,17 @@ public class TransformDeprecationChecker implements DeprecationChecker {
 
     @Override
     public void check(Components components, ActionListener<CheckResult> deprecationIssueListener) {
-
-        PageParams startPage = new PageParams(0, PageParams.DEFAULT_SIZE);
-        List<DeprecationIssue> issues = new ArrayList<>();
-        recursiveGetTransformsAndCollectDeprecations(
-            components,
-            issues,
-            startPage,
-            deprecationIssueListener.delegateFailureAndWrap((l, allIssues) -> l.onResponse(new CheckResult(getName(), allIssues)))
-        );
+        ActionListener.completeWith(deprecationIssueListener, () -> {
+            List<DeprecationIssue> allIssues = new ArrayList<>();
+            for (var config : transformConfigs) {
+                allIssues.addAll(config.checkForDeprecations(components.xContentRegistry()));
+            }
+            return new CheckResult(getName(), allIssues);
+        });
     }
 
     @Override
     public String getName() {
         return TRANSFORM_DEPRECATION_KEY;
-    }
-
-    private static void recursiveGetTransformsAndCollectDeprecations(
-        Components components,
-        List<DeprecationIssue> issues,
-        PageParams page,
-        ActionListener<List<DeprecationIssue>> listener
-    ) {
-        final GetTransformAction.Request request = new GetTransformAction.Request(Metadata.ALL);
-        request.setPageParams(page);
-        request.setAllowNoResources(true);
-
-        components.client()
-            .execute(GetTransformAction.INSTANCE, request, listener.delegateFailureAndWrap((delegate, getTransformResponse) -> {
-                for (TransformConfig config : getTransformResponse.getTransformConfigurations()) {
-                    issues.addAll(config.checkForDeprecations(components.xContentRegistry()));
-                }
-                if (getTransformResponse.getTransformConfigurationCount() >= (page.getFrom() + page.getSize())) {
-                    PageParams nextPage = new PageParams(page.getFrom() + page.getSize(), PageParams.DEFAULT_SIZE);
-                    recursiveGetTransformsAndCollectDeprecations(components, issues, nextPage, delegate);
-                } else {
-                    delegate.onResponse(issues);
-                }
-            }));
     }
 }

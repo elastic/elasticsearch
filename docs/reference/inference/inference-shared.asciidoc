@@ -48,7 +48,7 @@ tag::chunking-settings-overlap[]
 Only for `word` chunking strategy.
 Specifies the number of overlapping words for chunks.
 Defaults to `100`.
-This value cannot be higher than the half of `max_chunking_size`.
+This value cannot be higher than the half of `max_chunk_size`.
 end::chunking-settings-overlap[]
 
 tag::chunking-settings-sentence-overlap[]

@@ -1,0 +1,5 @@
+pr: 121329
+summary: Fix privileges for system index migration WRITE block
+area: Infra/Core
+type: bug
+issues: []

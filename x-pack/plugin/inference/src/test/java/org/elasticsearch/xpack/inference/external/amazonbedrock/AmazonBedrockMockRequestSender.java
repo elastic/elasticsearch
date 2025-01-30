@@ -64,6 +64,11 @@ public class AmazonBedrockMockRequestSender implements Sender {
     }
 
     @Override
+    public void updateRateLimitDivisor(int rateLimitDivisor) {
+        // do nothing
+    }
+
+    @Override
     public void send(
         RequestManager requestCreator,
         InferenceInputs inferenceInputs,

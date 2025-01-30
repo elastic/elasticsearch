@@ -1,6 +1,0 @@
-pr: 121284
-summary: "[Inference API] Remove second calculator instance as component and update\
-  \ tests"
-area: Machine Learning
-type: bug
-issues: []

@@ -52,7 +52,7 @@ public abstract class TranslogOperationAsserter {
         final ShardId shardId = engineConfig.getShardId();
         final MappingLookup mappingLookup = engineConfig.getMapperService().mappingLookup();
         final DocumentParser documentParser = engineConfig.getMapperService().documentParser();
-        try (var reader = TranslogDirectoryReader.create(shardId, op, mappingLookup, documentParser, engineConfig, () -> {})) {
+        try (var reader = TranslogDirectoryReader.create(shardId, op, mappingLookup, documentParser, engineConfig, () -> {}, true)) {
             final Engine.Searcher searcher = new Engine.Searcher(
                 "assert_translog",
                 reader,

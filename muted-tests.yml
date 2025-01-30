@@ -504,3 +504,6 @@ tests:
 - class: org.elasticsearch.xpack.security.authc.jwt.JwtRealmSingleNodeTests
   method: testGrantApiKeyForJWT
   issue: https://github.com/elastic/elasticsearch/issues/121039
+- class: org.elasticsearch.xpack.security.profile.ProfileIntegTests
+  method: testSuggestProfileWithData
+  issue: https://github.com/elastic/elasticsearch/issues/121258

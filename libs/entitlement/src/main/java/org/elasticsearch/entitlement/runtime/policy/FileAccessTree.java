@@ -10,6 +10,7 @@
 package org.elasticsearch.entitlement.runtime.policy;
 
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.entitlement.runtime.policy.entitlements.FileEntitlement;
 
 import java.io.File;
 import java.nio.file.Path;
@@ -18,13 +19,13 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
-final class FileAccessTree {
-    static final FileAccessTree EMPTY = new FileAccessTree(List.of());
+public final class FileAccessTree {
+    public static final FileAccessTree EMPTY = new FileAccessTree(List.of());
 
     private final String[] readPaths;
     private final String[] writePaths;
 
-    FileAccessTree(List<FileEntitlement> fileEntitlements) {
+    private FileAccessTree(List<FileEntitlement> fileEntitlements) {
         List<String> readPaths = new ArrayList<>();
         List<String> writePaths = new ArrayList<>();
         for (FileEntitlement fileEntitlement : fileEntitlements) {
@@ -40,6 +41,10 @@ final class FileAccessTree {
 
         this.readPaths = readPaths.toArray(new String[0]);
         this.writePaths = writePaths.toArray(new String[0]);
+    }
+
+    public static FileAccessTree of(List<FileEntitlement> fileEntitlements) {
+        return new FileAccessTree(fileEntitlements);
     }
 
     boolean canRead(Path path) {

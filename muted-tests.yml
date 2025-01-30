@@ -314,8 +314,6 @@ tests:
 - class: org.elasticsearch.xpack.security.profile.ProfileIntegTests
   method: testSetEnabled
   issue: https://github.com/elastic/elasticsearch/issues/121183
-- class: org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizerTests
-  issue: https://github.com/elastic/elasticsearch/issues/121185
 - class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
   method: test {yaml=cat.aliases/10_basic/Simple alias}
   issue: https://github.com/elastic/elasticsearch/issues/121186
@@ -341,8 +339,40 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/121253
 - class: org.elasticsearch.lucene.FullClusterRestartLuceneIndexCompatibilityIT
   issue: https://github.com/elastic/elasticsearch/issues/121257
-- class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
-  issue: https://github.com/elastic/elasticsearch/issues/121269
+- class: org.elasticsearch.upgrades.VectorSearchIT
+  method: testBBQVectorSearch {upgradedNodes=1}
+  issue: https://github.com/elastic/elasticsearch/issues/121271
+- class: org.elasticsearch.upgrades.VectorSearchIT
+  method: testBBQVectorSearch {upgradedNodes=2}
+  issue: https://github.com/elastic/elasticsearch/issues/121272
+- class: org.elasticsearch.upgrades.VectorSearchIT
+  method: testBBQVectorSearch {upgradedNodes=3}
+  issue: https://github.com/elastic/elasticsearch/issues/121273
+- class: org.elasticsearch.xpack.security.authc.ldap.ActiveDirectorySessionFactoryTests
+  issue: https://github.com/elastic/elasticsearch/issues/121285
+- class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
+  method: test {yaml=reference/snapshot-restore/apis/get-snapshot-api/line_357}
+  issue: https://github.com/elastic/elasticsearch/issues/121287
+- class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
+  method: test {p0=search.vectors/42_knn_search_int4_flat/Vector similarity with filter only}
+  issue: https://github.com/elastic/elasticsearch/issues/115475
+- class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
+  method: test {yaml=reference/index-modules/slowlog/line_102}
+  issue: https://github.com/elastic/elasticsearch/issues/121288
+- class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
+  method: test {yaml=indices.get_alias/10_basic/Get aliases via /*/_alias/}
+  issue: https://github.com/elastic/elasticsearch/issues/121290
+- class: org.elasticsearch.xpack.inference.action.TransportInferenceActionTests
+  method: testRerouting_HandlesTransportException_FromOtherNode
+  issue: https://github.com/elastic/elasticsearch/issues/121292
+- class: org.elasticsearch.xpack.inference.action.TransportInferenceActionTests
+  method: testRerouting_ToOtherNode
+  issue: https://github.com/elastic/elasticsearch/issues/121293
+- class: org.elasticsearch.xpack.inference.common.InferenceServiceNodeLocalRateLimitCalculatorTests
+  issue: https://github.com/elastic/elasticsearch/issues/121294
+- class: org.elasticsearch.entitlement.runtime.policy.PolicyManagerTests
+  method: testDuplicateFlagEntitlements
+  issue: https://github.com/elastic/elasticsearch/issues/121300
 
 # Examples:
 #

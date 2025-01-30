@@ -63,14 +63,14 @@ public class LogsIndexModeDisabledRestTestIT extends LogsIndexModeRestTestIT {
 
     private RestClient client;
 
-    public void testLogsSettingsIndexModeDisabled() throws IOException {
+    public void testLogsSettingsIndexModeEnabledByDefault() throws IOException {
         assertOK(createDataStream(client, "logs-custom-dev"));
         final String indexMode = (String) getSetting(
             client,
             getDataStreamBackingIndex(client, "logs-custom-dev", 0),
             IndexSettings.MODE.getKey()
         );
-        assertThat(indexMode, Matchers.not(equalTo(IndexMode.LOGSDB.getName())));
+        assertThat(indexMode, equalTo(IndexMode.LOGSDB.getName()));
     }
 
     public void testTogglingLogsdb() throws IOException {
@@ -81,29 +81,21 @@ public class LogsIndexModeDisabledRestTestIT extends LogsIndexModeRestTestIT {
             getDataStreamBackingIndex(client, "logs-custom-dev", 0),
             IndexSettings.MODE.getKey()
         );
-        assertThat(indexModeBefore, Matchers.not(equalTo(IndexMode.LOGSDB.getName())));
-        assertOK(putClusterSetting(client, "cluster.logsdb.enabled", "true"));
+        assertThat(indexModeBefore, equalTo(IndexMode.LOGSDB.getName()));
+        assertOK(putClusterSetting(client, "cluster.logsdb.enabled", "false"));
         final String indexModeAfter = (String) getSetting(
             client,
             getDataStreamBackingIndex(client, "logs-custom-dev", 0),
             IndexSettings.MODE.getKey()
         );
-        assertThat(indexModeAfter, Matchers.not(equalTo(IndexMode.LOGSDB.getName())));
+        assertThat(indexModeAfter, equalTo(IndexMode.LOGSDB.getName()));
         assertOK(rolloverDataStream(client, "logs-custom-dev"));
         final String indexModeLater = (String) getSetting(
             client,
             getDataStreamBackingIndex(client, "logs-custom-dev", 1),
             IndexSettings.MODE.getKey()
         );
-        assertThat(indexModeLater, equalTo(IndexMode.LOGSDB.getName()));
-        assertOK(putClusterSetting(client, "cluster.logsdb.enabled", "false"));
-        assertOK(rolloverDataStream(client, "logs-custom-dev"));
-        final String indexModeFinal = (String) getSetting(
-            client,
-            getDataStreamBackingIndex(client, "logs-custom-dev", 2),
-            IndexSettings.MODE.getKey()
-        );
-        assertThat(indexModeFinal, Matchers.not(equalTo(IndexMode.LOGSDB.getName())));
+        assertThat(indexModeLater, Matchers.not(equalTo(IndexMode.LOGSDB.getName())));
 
     }
 

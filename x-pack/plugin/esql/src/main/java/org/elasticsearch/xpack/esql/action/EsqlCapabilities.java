@@ -694,12 +694,12 @@ public class EsqlCapabilities {
         /**
          * LOOKUP JOIN
          */
-        JOIN_LOOKUP_V12(Build.current().isSnapshot()),
+        JOIN_LOOKUP_V12,
 
         /**
          * LOOKUP JOIN with TEXT fields on the right (right side of the join) (#119473)
          */
-        LOOKUP_JOIN_TEXT(Build.current().isSnapshot()),
+        LOOKUP_JOIN_TEXT(JOIN_LOOKUP_V12.isEnabled()),
 
         /**
          * LOOKUP JOIN without MV matching (https://github.com/elastic/elasticsearch/issues/118780)
@@ -710,6 +710,11 @@ public class EsqlCapabilities {
          * LOOKUP JOIN without MV matching on lookup index key (https://github.com/elastic/elasticsearch/issues/118780)
          */
         JOIN_LOOKUP_SKIP_MV_ON_LOOKUP_KEY(JOIN_LOOKUP_V12.isEnabled()),
+
+        /**
+         * Fix pushing down LIMIT past LOOKUP JOIN in case of multiple matching join keys.
+         */
+        JOIN_LOOKUP_FIX_LIMIT_PUSHDOWN(JOIN_LOOKUP_V12.isEnabled()),
 
         /**
          * Fix for https://github.com/elastic/elasticsearch/issues/117054
@@ -774,7 +779,12 @@ public class EsqlCapabilities {
         /**
          * Support match options in match function
          */
-        MATCH_FUNCTION_OPTIONS;
+        MATCH_FUNCTION_OPTIONS,
+
+        /**
+         * Support for aggregate_metric_double type
+         */
+        AGGREGATE_METRIC_DOUBLE;
 
         private final boolean enabled;
 

@@ -7,7 +7,15 @@
 
 package org.elasticsearch.xpack.esql;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.ESTestCase;
+
+import static org.elasticsearch.test.ESTestCase.randomBoolean;
+import static org.elasticsearch.test.ESTestCase.randomFrom;
+import static org.elasticsearch.test.ESTestCase.randomInt;
+import static org.elasticsearch.test.ESTestCase.randomIntBetween;
+import static org.elasticsearch.test.ESTestCase.randomList;
+import static org.elasticsearch.test.ESTestCase.randomValueOtherThan;
 
 public class IdentifierGenerator {
 
@@ -22,7 +30,7 @@ public class IdentifierGenerator {
      * Generates one or several coma separated index patterns
      */
     public static String randomIndexPatterns(Feature... features) {
-        return maybeQuote(String.join(",", ESTestCase.randomList(1, 5, () -> randomIndexPattern(features))));
+        return maybeQuote(String.join(",", randomList(1, 5, () -> randomIndexPattern(features))));
     }
 
     /**
@@ -40,24 +48,34 @@ public class IdentifierGenerator {
             index.append('.');
         }
         index.append(randomCharacterFrom(validFirstCharacters));
-        for (int i = 0; i < ESTestCase.randomIntBetween(1, 100); i++) {
+        for (int i = 0; i < randomIntBetween(1, 100); i++) {
             index.append(randomCharacterFrom(validCharacters));
         }
         if (canAdd(Features.WILDCARD_PATTERN, features)) {
-            if (ESTestCase.randomBoolean()) {
+            if (randomBoolean()) {
                 index.append('*');
             } else {
-                index.insert(ESTestCase.randomIntBetween(0, index.length() - 1), '*');
+                for (int i = 0; i < randomIntBetween(1, 3); i++) {
+                    index.insert(randomIntBetween(0, index.length()), '*');
+                }
             }
-        } else if (canAdd(Features.DATE_MATH, features)) {
+        }
+        if (canAdd(Features.DATE_MATH, features)) {
             // https://www.elastic.co/guide/en/elasticsearch/reference/8.17/api-conventions.html#api-date-math-index-names
             index.insert(0, "<");
             index.append("-{now/");
-            index.append(ESTestCase.randomFrom("d", "M", "M-1M"));
-            if (ESTestCase.randomBoolean()) {
-                index.append("{").append(ESTestCase.randomFrom("yyyy.MM", "yyyy.MM.dd")).append("}");
+            index.append(randomFrom("d", "M", "M-1M"));
+            if (randomBoolean()) {
+                index.append("{").append(switch (randomIntBetween(0, 2)) {
+                    case 0 -> "yyyy.MM";
+                    case 1 -> "yyyy.MM.dd";
+                    default -> "yyyy.MM.dd|" + Strings.format("%+03d", randomValueOtherThan(0, () -> randomIntBetween(-18, 18))) + ":00";
+                }).append("}");
             }
             index.append("}>");
+        }
+        if (canAdd(Features.EXCLUDE_PATTERN, features)) {
+            index.insert(0, "-");
         }
 
         var pattern = maybeQuote(index.toString());
@@ -65,20 +83,26 @@ public class IdentifierGenerator {
             var cluster = randomIdentifier();
             pattern = maybeQuote(cluster + ":" + pattern);
         }
+
+        if (pattern.contains("|") && pattern.contains("\"") == false) {
+            pattern = quote(pattern);
+        }
+
         return pattern;
     }
 
     private static char randomCharacterFrom(String str) {
-        return str.charAt(ESTestCase.randomInt(str.length() - 1));
+        return str.charAt(randomInt(str.length() - 1));
     }
 
     public interface Feature {}
 
     public enum Features implements Feature {
         CROSS_CLUSTER,
+        HIDDEN_INDEX,
         WILDCARD_PATTERN,
-        DATE_MATH,
-        HIDDEN_INDEX
+        EXCLUDE_PATTERN,
+        DATE_MATH
     }
 
     private record ExcludedFeature(Feature feature) implements Feature {}
@@ -96,18 +120,16 @@ public class IdentifierGenerator {
                 return false;
             }
         }
-        return ESTestCase.randomBoolean();
+        return randomBoolean();
     }
 
     public static String maybeQuote(String term) {
-        if (term.contains("\"")) {
-            return term;
-        }
-        return switch (ESTestCase.randomIntBetween(0, 5)) {
-            case 0 -> "\"" + term + "\"";
-            case 1 -> "\"\"\"" + term + "\"\"\"";
-            default -> term;// no quotes are more likely
-        };
+        return randomBoolean() && term.contains("\"") == false ? quote(term) : term;
+    }
+
+    public static String quote(String term) {
+        var quote = randomFrom("\"", "\"\"\"");
+        return quote + term + quote;
     }
 
     public static String unquoteIndexPattern(String term) {

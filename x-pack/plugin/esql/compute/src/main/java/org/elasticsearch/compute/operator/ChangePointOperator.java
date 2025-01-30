@@ -19,12 +19,13 @@ import org.elasticsearch.xpack.ml.aggs.changepoint.ChangePointDetector;
 import org.elasticsearch.xpack.ml.aggs.changepoint.ChangeType;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 public class ChangePointOperator implements Operator {
 
     // TODO: close upon failure / interrupt
+
+    public static final int INPUT_VALUE_COUNT_LIMIT = 1000;
 
     public record Factory(int inputChannel, String sourceText, int sourceLine, int sourceColumn) implements OperatorFactory {
         @Override
@@ -103,6 +104,10 @@ public class ChangePointOperator implements Operator {
         for (Page page : inputPages) {
             valuesCount += page.getPositionCount();
         }
+        boolean tooManyValues = valuesCount > INPUT_VALUE_COUNT_LIMIT;
+        if (tooManyValues) {
+            valuesCount = INPUT_VALUE_COUNT_LIMIT;
+        }
 
         // TODO: account for this memory?
         double[] values = new double[valuesCount];
@@ -110,7 +115,7 @@ public class ChangePointOperator implements Operator {
         boolean hasNulls = false;
         for (Page inputPage : inputPages) {
             Block inputBlock = inputPage.getBlock(inputChannel);
-            for (int i = 0; i < inputBlock.getPositionCount(); i++) {
+            for (int i = 0; i < inputBlock.getPositionCount() && valuesIndex < valuesCount; i++) {
                 Object value = BlockUtils.toJavaObject(inputBlock, i);
                 if (value == null) {
                     hasNulls = true;
@@ -123,13 +128,6 @@ public class ChangePointOperator implements Operator {
 
         ChangeType changeType = ChangePointDetector.getChangeType(new MlAggsHelper.DoubleBucketValues(null, values));
         int changePointIndex = changeType.changePoint();
-
-        if (changeType instanceof ChangeType.Indeterminable indeterminable) {
-            warnings(false).registerException(new IllegalArgumentException(indeterminable.getReason()));
-        }
-        if (hasNulls) {
-            warnings(true).registerException(new IllegalArgumentException("values contain nulls; treating them as zeroes"));
-        }
 
         BlockFactory blockFactory = driverContext.blockFactory();
         int pageStartIndex = 0;
@@ -164,6 +162,16 @@ public class ChangePointOperator implements Operator {
         }
 
         inputPages.clear();
+
+        if (changeType instanceof ChangeType.Indeterminable indeterminable) {
+            warnings(false).registerException(new IllegalArgumentException(indeterminable.getReason()));
+        }
+        if (tooManyValues) {
+            warnings(true).registerException(new IllegalArgumentException("too many values; keeping only first " + INPUT_VALUE_COUNT_LIMIT + " values"));
+        }
+        if (hasNulls) {
+            warnings(true).registerException(new IllegalArgumentException("values contain nulls; treating them as zeroes"));
+        }
     }
 
     @Override

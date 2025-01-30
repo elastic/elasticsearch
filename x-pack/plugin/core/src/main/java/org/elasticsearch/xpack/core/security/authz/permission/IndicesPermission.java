@@ -80,9 +80,12 @@ public final class IndicesPermission {
             FieldPermissions fieldPermissions,
             @Nullable Set<BytesReference> query,
             boolean allowRestrictedIndices,
+            boolean allowFailureStoreAccess,
             String... indices
         ) {
-            groups.add(new Group(privilege, fieldPermissions, query, allowRestrictedIndices, restrictedIndices, indices));
+            groups.add(
+                new Group(privilege, fieldPermissions, query, allowRestrictedIndices, restrictedIndices, allowFailureStoreAccess, indices)
+            );
             return this;
         }
 
@@ -412,7 +415,10 @@ public final class IndicesPermission {
             final DataStream ds = indexAbstraction == null ? null : indexAbstraction.getParentDataStream();
             if (ds != null) {
                 if (group.checkIndex(ds.getName())) {
-                    return true;
+                    // TODO move this into Group
+                    if (selector != null && selector.shouldIncludeFailures()) {
+                        return group.allowFailureStoreAccess;
+                    }
                 }
             }
             return group.checkIndex(name);
@@ -803,6 +809,7 @@ public final class IndicesPermission {
         // users. Setting this flag true eliminates the special status for the purpose of this permission - restricted indices still have
         // to be covered by the "indices"
         private final boolean allowRestrictedIndices;
+        public final boolean allowFailureStoreAccess;
 
         public Group(
             IndexPrivilege privilege,
@@ -810,6 +817,7 @@ public final class IndicesPermission {
             @Nullable Set<BytesReference> query,
             boolean allowRestrictedIndices,
             RestrictedIndices restrictedIndices,
+            boolean allowFailureStoreAccess,
             String... indices
         ) {
             assert indices.length != 0;
@@ -830,6 +838,7 @@ public final class IndicesPermission {
             }
             this.fieldPermissions = Objects.requireNonNull(fieldPermissions);
             this.query = query;
+            this.allowFailureStoreAccess = allowFailureStoreAccess;
         }
 
         public IndexPrivilege privilege() {

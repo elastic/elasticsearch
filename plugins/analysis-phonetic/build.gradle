@@ -8,8 +8,8 @@
 apply plugin: 'elasticsearch.legacy-yaml-rest-test'
 
 esplugin {
-  description 'The Phonetic Analysis plugin integrates phonetic token filter analysis with elasticsearch.'
-  classname 'org.elasticsearch.plugin.analysis.phonetic.AnalysisPhoneticPlugin'
+  description = 'The Phonetic Analysis plugin integrates phonetic token filter analysis with elasticsearch.'
+  classname ='org.elasticsearch.plugin.analysis.phonetic.AnalysisPhoneticPlugin'
 }
 
 dependencies {

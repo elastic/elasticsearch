@@ -9,8 +9,8 @@ apply plugin: 'elasticsearch.legacy-yaml-rest-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
-  description 'Adds "built in" analyzers to Elasticsearch.'
-  classname 'org.elasticsearch.analysis.common.CommonAnalysisPlugin'
+  description = 'Adds "built in" analyzers to Elasticsearch.'
+  classname = 'org.elasticsearch.analysis.common.CommonAnalysisPlugin'
   extendedPlugins = ['lang-painless']
 }
 

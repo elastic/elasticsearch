@@ -10,8 +10,8 @@ apply plugin: 'elasticsearch.validate-rest-spec'
 apply plugin: 'elasticsearch.legacy-yaml-rest-test'
 
 esplugin {
-  description 'Module for runtime fields features and extensions that have large dependencies'
-  classname 'org.elasticsearch.runtimefields.RuntimeFieldsCommonPlugin'
+  description = 'Module for runtime fields features and extensions that have large dependencies'
+  classname = 'org.elasticsearch.runtimefields.RuntimeFieldsCommonPlugin'
   extendedPlugins = ['lang-painless']
 }
 

@@ -11,6 +11,7 @@ package org.elasticsearch.entitlement.runtime.policy;
 
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.entitlement.instrumentation.InstrumentationService;
 import org.elasticsearch.entitlement.runtime.api.NotEntitledException;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -20,6 +21,7 @@ import java.lang.StackWalker.StackFrame;
 import java.lang.module.ModuleFinder;
 import java.lang.module.ModuleReference;
 import java.nio.file.Path;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -120,10 +122,41 @@ public class PolicyManager {
         this.pluginResolver = pluginResolver;
         this.agentsPackageName = agentsPackageName;
         this.entitlementsModule = entitlementsModule;
+
+        for (var e : serverEntitlements.entrySet()) {
+            validateEntitlementsPerModule("server", e.getKey(), e.getValue());
+        }
+        validateEntitlementsPerModule("agent", "unnamed", agentEntitlements);
+        for (var p : pluginsEntitlements.entrySet()) {
+            for (var m : p.getValue().entrySet()) {
+                validateEntitlementsPerModule(p.getKey(), m.getKey(), m.getValue());
+            }
+        }
     }
 
     private static Map<String, List<Entitlement>> buildScopeEntitlementsMap(Policy policy) {
         return policy.scopes().stream().collect(toUnmodifiableMap(Scope::moduleName, Scope::entitlements));
+    }
+
+    private static void validateEntitlementsPerModule(String sourceName, String moduleName, List<Entitlement> entitlements) {
+        Set<Class<? extends Entitlement>> flagEntitlements = new HashSet<>();
+        for (var e : entitlements) {
+            if (e instanceof FileEntitlement) {
+                continue;
+            }
+            if (flagEntitlements.contains(e.getClass())) {
+                throw new IllegalArgumentException(
+                    "["
+                        + sourceName
+                        + "] using module ["
+                        + moduleName
+                        + "] found duplicate flag entitlements ["
+                        + e.getClass().getName()
+                        + "]"
+                );
+            }
+            flagEntitlements.add(e.getClass());
+        }
     }
 
     public void checkStartProcess(Class<?> callerClass) {
@@ -185,7 +218,7 @@ public class PolicyManager {
             Optional<String> checkMethodName = StackWalker.getInstance()
                 .walk(
                     frames -> frames.map(StackFrame::getMethodName)
-                        .dropWhile(not(methodName -> methodName.startsWith("check$")))
+                        .dropWhile(not(methodName -> methodName.startsWith(InstrumentationService.CHECK_METHOD_PREFIX)))
                         .findFirst()
                 );
             return checkMethodName.map(this::operationDescription).orElse("change JVM global state");

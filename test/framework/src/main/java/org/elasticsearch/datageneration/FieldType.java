@@ -7,19 +7,19 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.logsdb.datageneration;
+package org.elasticsearch.datageneration;
 
-import org.elasticsearch.logsdb.datageneration.datasource.DataSource;
-import org.elasticsearch.logsdb.datageneration.fields.leaf.ByteFieldDataGenerator;
-import org.elasticsearch.logsdb.datageneration.fields.leaf.DoubleFieldDataGenerator;
-import org.elasticsearch.logsdb.datageneration.fields.leaf.FloatFieldDataGenerator;
-import org.elasticsearch.logsdb.datageneration.fields.leaf.HalfFloatFieldDataGenerator;
-import org.elasticsearch.logsdb.datageneration.fields.leaf.IntegerFieldDataGenerator;
-import org.elasticsearch.logsdb.datageneration.fields.leaf.KeywordFieldDataGenerator;
-import org.elasticsearch.logsdb.datageneration.fields.leaf.LongFieldDataGenerator;
-import org.elasticsearch.logsdb.datageneration.fields.leaf.ScaledFloatFieldDataGenerator;
-import org.elasticsearch.logsdb.datageneration.fields.leaf.ShortFieldDataGenerator;
-import org.elasticsearch.logsdb.datageneration.fields.leaf.UnsignedLongFieldDataGenerator;
+import org.elasticsearch.datageneration.datasource.DataSource;
+import org.elasticsearch.datageneration.fields.leaf.ByteFieldDataGenerator;
+import org.elasticsearch.datageneration.fields.leaf.DoubleFieldDataGenerator;
+import org.elasticsearch.datageneration.fields.leaf.FloatFieldDataGenerator;
+import org.elasticsearch.datageneration.fields.leaf.HalfFloatFieldDataGenerator;
+import org.elasticsearch.datageneration.fields.leaf.IntegerFieldDataGenerator;
+import org.elasticsearch.datageneration.fields.leaf.KeywordFieldDataGenerator;
+import org.elasticsearch.datageneration.fields.leaf.LongFieldDataGenerator;
+import org.elasticsearch.datageneration.fields.leaf.ScaledFloatFieldDataGenerator;
+import org.elasticsearch.datageneration.fields.leaf.ShortFieldDataGenerator;
+import org.elasticsearch.datageneration.fields.leaf.UnsignedLongFieldDataGenerator;
 
 /**
  * Lists all leaf field types that are supported for data generation.

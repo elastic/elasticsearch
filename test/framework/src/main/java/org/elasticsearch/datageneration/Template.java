@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.logsdb.datageneration;
+package org.elasticsearch.datageneration;
 
 import java.util.Map;
 

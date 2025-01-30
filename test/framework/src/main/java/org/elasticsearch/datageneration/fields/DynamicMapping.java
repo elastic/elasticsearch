@@ -7,13 +7,10 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.logsdb.datageneration;
+package org.elasticsearch.datageneration.fields;
 
-import java.util.Map;
-
-/**
- * Contains generated mapping and supporting data.
- * @param raw mapping represented as a possibly nested map (maps represent (sub-)objects)
- * @param lookup supporting data structure that represent mapping in a flat form (full path to field -> mapping parameters)
- */
-public record Mapping(Map<String, Object> raw, Map<String, Map<String, Object>> lookup) {}
+public enum DynamicMapping {
+    SUPPORTED,
+    FORBIDDEN,
+    FORCED
+}

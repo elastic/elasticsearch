@@ -7,11 +7,11 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.logsdb.datageneration.fields;
+package org.elasticsearch.datageneration.fields;
 
-import org.elasticsearch.logsdb.datageneration.FieldDataGenerator;
-import org.elasticsearch.logsdb.datageneration.FieldType;
-import org.elasticsearch.logsdb.datageneration.datasource.DataSource;
+import org.elasticsearch.datageneration.FieldDataGenerator;
+import org.elasticsearch.datageneration.FieldType;
+import org.elasticsearch.datageneration.datasource.DataSource;
 
 import java.util.Map;
 

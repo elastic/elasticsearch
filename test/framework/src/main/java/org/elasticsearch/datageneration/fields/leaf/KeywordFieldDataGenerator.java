@@ -7,23 +7,23 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.logsdb.datageneration.fields.leaf;
+package org.elasticsearch.datageneration.fields.leaf;
 
-import org.elasticsearch.logsdb.datageneration.FieldDataGenerator;
-import org.elasticsearch.logsdb.datageneration.datasource.DataSource;
-import org.elasticsearch.logsdb.datageneration.datasource.DataSourceRequest;
+import org.elasticsearch.datageneration.FieldDataGenerator;
+import org.elasticsearch.datageneration.datasource.DataSource;
+import org.elasticsearch.datageneration.datasource.DataSourceRequest;
 
 import java.util.function.Supplier;
 
-public class ByteFieldDataGenerator implements FieldDataGenerator {
+public class KeywordFieldDataGenerator implements FieldDataGenerator {
     private final Supplier<Object> valueGenerator;
 
-    public ByteFieldDataGenerator(String fieldName, DataSource dataSource) {
-        var bytes = dataSource.get(new DataSourceRequest.ByteGenerator());
+    public KeywordFieldDataGenerator(String fieldName, DataSource dataSource) {
+        var strings = dataSource.get(new DataSourceRequest.StringGenerator());
         var nulls = dataSource.get(new DataSourceRequest.NullWrapper());
         var arrays = dataSource.get(new DataSourceRequest.ArrayWrapper());
 
-        this.valueGenerator = arrays.wrapper().compose(nulls.wrapper()).apply(() -> bytes.generator().get());
+        this.valueGenerator = arrays.wrapper().compose(nulls.wrapper()).apply(() -> strings.generator().get());
     }
 
     @Override

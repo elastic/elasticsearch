@@ -7,23 +7,23 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.logsdb.datageneration.fields.leaf;
+package org.elasticsearch.datageneration.fields.leaf;
 
-import org.elasticsearch.logsdb.datageneration.FieldDataGenerator;
-import org.elasticsearch.logsdb.datageneration.datasource.DataSource;
-import org.elasticsearch.logsdb.datageneration.datasource.DataSourceRequest;
+import org.elasticsearch.datageneration.FieldDataGenerator;
+import org.elasticsearch.datageneration.datasource.DataSource;
+import org.elasticsearch.datageneration.datasource.DataSourceRequest;
 
 import java.util.function.Supplier;
 
-public class ScaledFloatFieldDataGenerator implements FieldDataGenerator {
+public class UnsignedLongFieldDataGenerator implements FieldDataGenerator {
     private final Supplier<Object> valueGenerator;
 
-    public ScaledFloatFieldDataGenerator(String fieldName, DataSource dataSource) {
-        var doubles = dataSource.get(new DataSourceRequest.DoubleGenerator());
+    public UnsignedLongFieldDataGenerator(String fieldName, DataSource dataSource) {
+        var unsignedLongs = dataSource.get(new DataSourceRequest.UnsignedLongGenerator());
         var nulls = dataSource.get(new DataSourceRequest.NullWrapper());
         var arrays = dataSource.get(new DataSourceRequest.ArrayWrapper());
 
-        this.valueGenerator = arrays.wrapper().compose(nulls.wrapper()).apply(() -> doubles.generator().get());
+        this.valueGenerator = arrays.wrapper().compose(nulls.wrapper()).apply(() -> unsignedLongs.generator().get());
     }
 
     @Override

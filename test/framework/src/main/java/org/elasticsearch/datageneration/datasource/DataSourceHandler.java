@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.logsdb.datageneration.datasource;
+package org.elasticsearch.datageneration.datasource;
 
 public interface DataSourceHandler {
     default DataSourceResponse.LongGenerator handle(DataSourceRequest.LongGenerator request) {

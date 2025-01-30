@@ -48,6 +48,7 @@ import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
@@ -58,7 +59,6 @@ import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.LocalExecutionPlannerContext;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.PhysicalOperation;
-import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
@@ -293,7 +293,7 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
     private Block extractBlockForSingleDoc(DocBlock docBlock, String columnName, TestBlockCopier blockCopier) {
         var indexId = docBlock.asVector().shards().getInt(0);
         var indexPage = indexPages.get(indexId);
-        if (IndexResolver.INDEX_METADATA_FIELD.contains(columnName)) {
+        if (MetadataAttribute.INDEX.equals(columnName)) {
             return docBlock.blockFactory()
                 .newConstantBytesRefBlockWith(new BytesRef(indexPage.index), blockCopier.docIndices.getPositionCount());
         }

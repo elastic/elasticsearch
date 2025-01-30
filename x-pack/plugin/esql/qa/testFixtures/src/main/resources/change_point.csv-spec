@@ -170,3 +170,39 @@ height:double | salary:double      | type:text | pvalue:double
 2.09          | 38645.0            | null      | null                
 2.1           | 0.0                | dip       | 9.590143836835097E-6  
 ;
+
+
+reuse column names
+// TODO: required_capability: change_point
+
+FROM k8s
+  | STATS count=COUNT() BY @timestamp=BUCKET(@timestamp, 1 MINUTE)
+  | EVAL count=count+CASE(@timestamp=="2024-05-10T00:08:00.000Z", 100, 0)
+  | CHANGE_POINT count ON @timestamp AS @timestamp, count
+;
+
+@timestamp:text | count:double
+null            | null
+null            | null
+null            | null
+null            | null
+null            | null
+null            | null
+null            | null
+null            | null
+spike           | 1.7502597878858522E-193
+null            | null
+null            | null
+null            | null
+null            | null
+null            | null
+null            | null
+null            | null
+null            | null
+null            | null
+null            | null
+null            | null
+null            | null
+null            | null
+null            | null
+;

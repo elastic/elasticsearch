@@ -66,8 +66,10 @@ public class ChangePointOperator implements Operator {
 
     @Override
     public void finish() {
-        finished = true;
-        createOutputPages();
+        if (finished == false) {
+            finished = true;
+            createOutputPages();
+        }
     }
 
     @Override
@@ -135,7 +137,6 @@ public class ChangePointOperator implements Operator {
                 changePvalueBlock = blockFactory.newConstantNullBlock(inputPage.getPositionCount());
             }
 
-            // TODO: what about duplicate names??
             Page outputPage = inputPage.appendBlocks(new Block[] { changeTypeBlock, changePvalueBlock });
             outputPages.add(outputPage);
             pageStartIndex += inputPage.getPositionCount();

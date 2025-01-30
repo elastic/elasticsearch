@@ -127,9 +127,11 @@ its {cloud}/ec-api-console.html[Elasticsearch API Console] to later
 with this resolution flow on {ess}, kindly reach out to
 https://support.elastic.co[Elastic Support] for assistance.
 
-== Prevent watermark errors
+[discrete]
+[[fix-watermark-errors-prevent]]
+=== Prevent watermark errors
 
-To avoid watermark errors in future, , perform one of the following actions:
+To avoid watermark errors in future, perform one of the following actions:
 
 * If you're using {ess}, {ece}, or {eck}: Enable <<xpack-autoscaling,autoscaling>>.
 

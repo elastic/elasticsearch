@@ -55,7 +55,7 @@ public class RateLimiter {
         setRate(accumulatedTokensLimit, tokensPerTimeUnit, unit);
     }
 
-    public final synchronized void setRate(double newAccumulatedTokensLimit, double newTokensPerTimeUnit, TimeUnit newUnit) {
+    public synchronized void setRate(double newAccumulatedTokensLimit, double newTokensPerTimeUnit, TimeUnit newUnit) {
         Objects.requireNonNull(newUnit);
 
         if (newAccumulatedTokensLimit < 0) {

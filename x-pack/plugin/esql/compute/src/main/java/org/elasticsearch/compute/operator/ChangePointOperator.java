@@ -19,16 +19,17 @@ import org.elasticsearch.xpack.ml.aggs.changepoint.ChangePointDetector;
 import org.elasticsearch.xpack.ml.aggs.changepoint.ChangeType;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 public class ChangePointOperator implements Operator {
 
     // TODO: close upon failure / interrupt
 
-    public record Factory(int inputChannel) implements OperatorFactory {
+    public record Factory(int inputChannel, String sourceText, int sourceLine, int sourceColumn) implements OperatorFactory {
         @Override
         public Operator get(DriverContext driverContext) {
-            return new ChangePointOperator(driverContext.blockFactory(), inputChannel);
+            return new ChangePointOperator(driverContext, inputChannel, sourceText, sourceLine, sourceColumn);
         }
 
         @Override
@@ -37,17 +38,23 @@ public class ChangePointOperator implements Operator {
         }
     }
 
-    private final BlockFactory blockFactory;
+    private final DriverContext driverContext;
     private final int inputChannel;
+    private final String sourceText;
+    private final int sourceLine;
+    private final int sourceColumn;
+
     private final List<Page> inputPages;
     private final List<Page> outputPages;
-
     private boolean finished;
     private int outputPageIndex;
 
-    public ChangePointOperator(BlockFactory blockFactory, int inputChannel) {
-        this.blockFactory = blockFactory;
+    public ChangePointOperator(DriverContext driverContext, int inputChannel, String sourceText, int sourceLine, int sourceColumn) {
+        this.driverContext = driverContext;
         this.inputChannel = inputChannel;
+        this.sourceText = sourceText;
+        this.sourceLine = sourceLine;
+        this.sourceColumn = sourceColumn;
 
         finished = false;
         inputPages = new ArrayList<>();
@@ -109,8 +116,13 @@ public class ChangePointOperator implements Operator {
         ChangeType changeType = ChangePointDetector.getChangeType(new MlAggsHelper.DoubleBucketValues(null, values));
         int changePointIndex = changeType.changePoint();
 
-        // TODO: throw error when indeterminable, due to not enough data
+        if (changeType instanceof ChangeType.Indeterminable indeterminable) {
+            Warnings.createWarnings(driverContext.warningsMode(), sourceLine, sourceColumn, sourceText)
+                .registerException(new IllegalArgumentException(indeterminable.getReason()));
+        }
 
+        // TODO: throw error when indeterminable, due to not enough data
+        BlockFactory blockFactory = driverContext.blockFactory();
         int pageStartIndex = 0;
         for (Page inputPage : inputPages) {
             Block changeTypeBlock;

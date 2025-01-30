@@ -206,3 +206,21 @@ null            | null
 null            | null
 null            | null
 ;
+
+
+not enough data
+// TODO: required_capability: change_point
+
+FROM k8s
+  | STATS count=COUNT() BY @timestamp=BUCKET(@timestamp, 10 MINUTES)
+  | CHANGE_POINT count ON @timestamp AS type, pvalue
+;
+
+warning:Line 3:3: evaluation of [CHANGE_POINT count ON @timestamp AS type, pvalue] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 3:3: java.lang.IllegalArgumentException: not enough buckets to calculate change_point. Requires at least [22]; found [3]
+
+count:long | @timestamp:datetime      | type:text | pvalue:double
+84         | 2024-05-10T00:00:00.000Z | null      | null         
+93         | 2024-05-10T00:10:00.000Z | null      | null         
+23         | 2024-05-10T00:20:00.000Z | null      | null     
+;

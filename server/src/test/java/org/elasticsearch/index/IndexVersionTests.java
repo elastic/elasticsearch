@@ -171,7 +171,7 @@ public class IndexVersionTests extends ESTestCase {
     }
 
     public void testCURRENTIsLatest() {
-        assertThat(Collections.max(IndexVersions.getAllVersions()), is(IndexVersion.current()));
+        assertThat(IndexVersions.getAllVersions().getLast(), is(IndexVersion.current()));
     }
 
     public void testToString() {

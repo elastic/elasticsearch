@@ -207,9 +207,9 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
     @Override
     public Directory wrapForMerge(MergePolicy.OneMerge merge, Directory in) {
         // Return a wrapped Directory which has rate-limited output.
-        // Note: the rate limiter is only per thread. So, if there are multiple merge threads running
-        // and throttling is required, each thread will be throttled independently.
-        // The implication of this, is that the total IO rate could be higher than the target rate.
+        // Note: the rate limiter is only per thread (per merge). So, if there are multiple merge threads running
+        // the combined IO rate per node is, roughly, 'thread_pool_size * merge_queue#targetMBPerSec', as
+        // the per-thread IO rate is updated, best effort, for all running merge threads concomitantly.
         MergeTask mergeTask = currentlyRunningMergeTasks.get(merge);
         if (mergeTask == null) {
             throw new IllegalStateException("associated merge task for executing merge not found");

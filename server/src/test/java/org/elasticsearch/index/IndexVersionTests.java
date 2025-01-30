@@ -16,7 +16,6 @@ import org.elasticsearch.test.index.IndexVersionUtils;
 import org.hamcrest.Matchers;
 
 import java.lang.reflect.Modifier;
-import java.util.Collections;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;

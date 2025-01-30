@@ -31,6 +31,8 @@ public record IbmWatsonxRerankRequestEntity(
     public IbmWatsonxRerankRequestEntity {
         Objects.requireNonNull(query);
         Objects.requireNonNull(inputs);
+        Objects.requireNonNull(modelId);
+        Objects.requireNonNull(projectId);
         Objects.requireNonNull(taskSettings);
     }
 

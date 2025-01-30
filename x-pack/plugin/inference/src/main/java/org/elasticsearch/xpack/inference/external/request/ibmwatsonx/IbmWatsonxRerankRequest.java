@@ -87,7 +87,7 @@ public class IbmWatsonxRerankRequest implements IbmWatsonxRequest {
 
     @Override
     public Request truncate() {
-        return this; // TODO?
+        return this;
     }
 
     public String getQuery() {

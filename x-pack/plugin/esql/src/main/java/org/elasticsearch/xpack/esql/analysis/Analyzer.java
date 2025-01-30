@@ -9,13 +9,13 @@ package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.Column;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.VerificationException;
-import org.elasticsearch.xpack.esql.analysis.AnalyzerRules.BaseAnalyzerRule;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerRules.ParameterizedAnalyzerRule;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
+import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.core.util.Holder;
@@ -70,6 +71,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.Insist;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -109,6 +111,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -430,9 +433,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
     }
 
-    public static class ResolveRefs extends BaseAnalyzerRule {
+    public static class ResolveRefs extends ParameterizedAnalyzerRule<LogicalPlan, AnalyzerContext> {
         @Override
-        protected LogicalPlan doRule(LogicalPlan plan) {
+        protected LogicalPlan rule(LogicalPlan plan, AnalyzerContext context) {
             if (plan.childrenResolved() == false) {
                 return plan;
             }
@@ -477,6 +480,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
             if (plan instanceof LookupJoin j) {
                 return resolveLookupJoin(j);
+            }
+
+            if (plan instanceof Insist i) {
+                return resolveInsist(i, childrenOutput, context.indexResolution());
             }
 
             return plan.transformExpressionsOnly(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, childrenOutput));
@@ -676,6 +683,47 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
             }
             return resolved;
+        }
+
+        private LogicalPlan resolveInsist(Insist insist, List<Attribute> childrenOutput, IndexResolution indexResolution) {
+            Attribute resolvedCol = maybeResolveAttribute(insist.getInsistIdentifier(), childrenOutput);
+            // Field isn't mapped anywhere.
+            if (resolvedCol instanceof UnresolvedAttribute) {
+                return pushdownInsist(insist, attrs -> attrs.add(insistKeyword(insist)));
+            }
+
+            String name = resolvedCol.name();
+            // Field is partially unmapped.
+            if (resolvedCol instanceof FieldAttribute f && indexResolution.get().partiallyUnmappedFields().contains(name)) {
+                return pushdownInsist(insist, attrs -> {
+                    var index = CollectionUtils.findFirstIndex(attrs, e -> e.name().equals(name)).getAsInt();
+                    Attribute attribute = f.field().getDataType() == KEYWORD ? insistKeyword(insist) : invalidInsistAttribute(insist, f);
+                    attrs.set(index, attribute);
+                });
+            }
+
+            // Field is mapped everywhere; we can safely ignore the INSIST command.
+            return insist.child();
+        }
+
+        private static EsRelation pushdownInsist(Insist insist, Consumer<List<Attribute>> updateAttributes) {
+            var relation = (EsRelation) insist.child();
+            List<Attribute> newOutput = new ArrayList<>(relation.output());
+            updateAttributes.accept(newOutput);
+            return relation.withAttributes(newOutput);
+        }
+
+        private static UnsupportedAttribute invalidInsistAttribute(Insist insist, FieldAttribute fa) {
+            String name = fa.name();
+            var messageFormat = "Cannot use field [%s] due to ambiguities caused by INSIST. "
+                + "Unmapped fields are treated as KEYWORD in unmapped indices, but field is mapped to another type";
+            var field = new UnsupportedEsField(name, fa.field().getDataType().typeName());
+            return new UnsupportedAttribute(insist.source(), name, field, Strings.format(messageFormat, name));
+        }
+
+        private static FieldAttribute insistKeyword(Insist insist) {
+            String name = insist.getInsistIdentifier().name();
+            return new FieldAttribute(insist.source(), name, new PotentiallyUnmappedKeywordEsField(name));
         }
 
         private Attribute maybeResolveAttribute(UnresolvedAttribute ua, List<Attribute> childrenOutput) {

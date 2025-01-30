@@ -1575,6 +1575,15 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
         );
     }
 
+    public void testInsist() {
+        assumeTrue("UNMAPPED_FIELDS available as snapshot only", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+        assertFieldNames(
+            "FROM employees | INSIST_🐔 foo | KEEP foo, emp_no, first_name",
+            Set.of("foo", "foo.*", "emp_no", "emp_no.*", "first_name", "first_name.*"),
+            Set.of()
+        );
+    }
+
     private Set<String> fieldNames(String query, Set<String> enrichPolicyMatchFields) {
         var preAnalysisResult = new EsqlSession.PreAnalysisResult(null);
         return EsqlSession.fieldNames(parser.createStatement(query), enrichPolicyMatchFields, preAnalysisResult).fieldNames();

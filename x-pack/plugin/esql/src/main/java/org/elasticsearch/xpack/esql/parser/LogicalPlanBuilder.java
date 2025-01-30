@@ -42,11 +42,13 @@ import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
+import org.elasticsearch.xpack.esql.plan.logical.Insist;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -292,6 +294,17 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             null,
             "FROM"
         );
+    }
+
+    @Override
+    public PlanFactory visitInsistCommand(EsqlBaseParser.InsistCommandContext ctx) {
+        var source = source(ctx);
+        return input -> {
+            if (input instanceof EsRelation || input instanceof UnresolvedRelation) {
+                return new Insist(source, new UnresolvedAttribute(source, visitIdentifier(ctx.identifier())), input);
+            }
+            throw new ParsingException(source, "INSIST command can only be applied on top of a FROM command.");
+        };
     }
 
     @Override

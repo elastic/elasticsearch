@@ -297,6 +297,11 @@ public class EsqlCapabilities {
         UNION_TYPES,
 
         /**
+         * Support unmapped using the INSIST keyword.
+         */
+        UNMAPPED_FIELDS(Build.current().isSnapshot()),
+
+        /**
          * Support for function {@code ST_DISTANCE}. Done in #108764.
          */
         ST_DISTANCE,
@@ -614,6 +619,11 @@ public class EsqlCapabilities {
          * <strong>is</strong> being returned.
          */
         SORT_RETURNING_SOURCE_OK,
+
+        /**
+         * _source field mapping directives: https://www.elastic.co/guide/en/elasticsearch/reference/current/mapping-source-field.html
+         */
+        SOURCE_FIELD_MAPPING,
 
         /**
          * Allow filter per individual aggregation.

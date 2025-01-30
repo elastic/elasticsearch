@@ -10,7 +10,9 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.OptionalInt;
 import java.util.Set;
+import java.util.function.Predicate;
 
 import static java.util.Collections.emptyList;
 
@@ -82,5 +84,14 @@ public abstract class CollectionUtils {
             }
         }
         return list;
+    }
+
+    public static <T> OptionalInt findFirstIndex(List<T> list, Predicate<T> predicate) {
+        for (int i = 0; i < list.size(); i++) {
+            if (predicate.test(list.get(i))) {
+                return OptionalInt.of(i);
+            }
+        }
+        return OptionalInt.empty();
     }
 }

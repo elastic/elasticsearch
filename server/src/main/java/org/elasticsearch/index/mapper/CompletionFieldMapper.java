@@ -563,7 +563,7 @@ public class CompletionFieldMapper extends FieldMapper {
         }
     }
 
-    static class CompletionInputMetadataContainer  {
+    static class CompletionInputMetadataContainer {
         private final boolean hasContexts;
         private final List<CompletionInputMetadata> list;
         private CompletionInputMetadata single;
@@ -573,7 +573,7 @@ public class CompletionFieldMapper extends FieldMapper {
             this.list = hasContexts ? new ArrayList<>() : null;
         }
 
-         void add(CompletionInputMetadata cm) {
+        void add(CompletionInputMetadata cm) {
             if (hasContexts) {
                 list.add(cm);
             } else {

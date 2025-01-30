@@ -303,7 +303,6 @@ public class CompletionFieldMapperTests extends MapperTestCase {
         );
     }
 
-
     public void testDuplicateSuggestionsWithContexts() throws IOException {
         DocumentMapper defaultMapper = createDocumentMapper(fieldMapping(b -> {
             b.field("type", "completion");
@@ -343,8 +342,12 @@ public class CompletionFieldMapperTests extends MapperTestCase {
 
         assertThat(
             indexedFields,
-            containsInAnyOrder(contextSuggestField("timmy"), contextSuggestField("timmy"),
-                contextSuggestField("starbucks"), contextSuggestField("starbucks"))
+            containsInAnyOrder(
+                contextSuggestField("timmy"),
+                contextSuggestField("timmy"),
+                contextSuggestField("starbucks"),
+                contextSuggestField("starbucks")
+            )
         );
 
     }

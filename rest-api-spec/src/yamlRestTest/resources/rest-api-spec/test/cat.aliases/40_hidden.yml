@@ -5,7 +5,7 @@
       cluster_features: ["gte_v7.7.0"]
       reason: "hidden indices and aliases were added in 7.7.0"
 
-  - transform_and_set: { login_credentials: "#base64Encode(get_alias_test_user:x-pack-test-password)" }
+  - transform_and_set: { login_credentials: "#base64EncodeInput(get_alias_test_user:x-pack-test-password)" }
 
   - do:
       headers:
@@ -73,7 +73,7 @@
       cluster_features: ["gte_v7.7.0"]
       reason: "hidden indices and aliases were added in 7.7.0"
 
-  - transform_and_set: { login_credentials: "#base64Encode(get_alias_test_user:x-pack-test-password)" }
+  - transform_and_set: { login_credentials: "#base64EncodeInput(get_alias_test_user:x-pack-test-password)" }
 
   - do:
       headers:
@@ -129,7 +129,7 @@
       cluster_features: ["gte_v7.7.0"]
       reason: "hidden indices and aliases were added in 7.7.0"
 
-  - transform_and_set: { login_credentials: "#base64Encode(get_alias_test_user:x-pack-test-password)" }
+  - transform_and_set: { login_credentials: "#base64EncodeInput(get_alias_test_user:x-pack-test-password)" }
 
   - do:
       headers:

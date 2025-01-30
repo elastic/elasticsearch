@@ -5,7 +5,7 @@
       reason: "data streams aliases are available from 7.14.0"
       test_runner_features: [allowed_warnings,headers]
 
-  - transform_and_set: { login_credentials: "#base64Encode(data_stream_test_user:x-pack-test-password)" }
+  - transform_and_set: { login_credentials: "#base64EncodeInput(data_stream_test_user:x-pack-test-password)" }
 
   - do:
       headers:
@@ -99,7 +99,7 @@
       reason: "data stream alias filter supported was added in 7.15.0"
       test_runner_features: [allowed_warnings,headers]
 
-  - transform_and_set: { login_credentials: "#base64Encode(data_stream_test_user:x-pack-test-password)" }
+  - transform_and_set: { login_credentials: "#base64EncodeInput(data_stream_test_user:x-pack-test-password)" }
 
   - do:
       headers:
@@ -199,7 +199,7 @@
       reason: "bugfix fixed from 7.14.1 and later"
       test_runner_features: [allowed_warnings,headers]
 
-  - transform_and_set: { login_credentials: "#base64Encode(data_stream_test_user:x-pack-test-password)" }
+  - transform_and_set: { login_credentials: "#base64EncodeInput(data_stream_test_user:x-pack-test-password)" }
 
   - do:
       headers:
@@ -253,7 +253,7 @@
       reason: "Fix available from 7.16.0"
       test_runner_features: [allowed_warnings,headers]
 
-  - transform_and_set: { login_credentials: "#base64Encode(data_stream_test_user:x-pack-test-password)" }
+  - transform_and_set: { login_credentials: "#base64EncodeInput(data_stream_test_user:x-pack-test-password)" }
 
   - do:
       headers:
@@ -339,7 +339,7 @@
       reason: "bugfix fixed from 8.12.1 and later"
       test_runner_features: [allowed_warnings,headers]
 
-  - transform_and_set: { login_credentials: "#base64Encode(data_stream_test_user:x-pack-test-password)" }
+  - transform_and_set: { login_credentials: "#base64EncodeInput(data_stream_test_user:x-pack-test-password)" }
 
   - do:
       headers:
@@ -400,7 +400,7 @@
       reason: "alias action results do not work until 8.14"
       test_runner_features: ["allowed_warnings", "headers"]
 
-  - transform_and_set: { login_credentials: "#base64Encode(data_stream_test_user:x-pack-test-password)" }
+  - transform_and_set: { login_credentials: "#base64EncodeInput(data_stream_test_user:x-pack-test-password)" }
 
   - do:
       headers:
@@ -449,7 +449,7 @@
       reason: "alias action results do not work until 8.14"
       test_runner_features: [ "allowed_warnings", "headers" ]
 
-  - transform_and_set: { login_credentials: "#base64Encode(data_stream_test_user:x-pack-test-password)" }
+  - transform_and_set: { login_credentials: "#base64EncodeInput(data_stream_test_user:x-pack-test-password)" }
 
   - do:
       headers:

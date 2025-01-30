@@ -78,7 +78,7 @@ public class TransformAndSetSection implements ExecutableSection {
         for (Map.Entry<String, String> entry : transformStash.entrySet()) {
             String key = entry.getKey();
             String value = entry.getValue();
-            if (isBase64EncodeCredentials(value)) {
+            if (isBase64EncodeCredentialsFunction(value)) {
                 String[] params = value.substring("#base64EncodeCredentials(".length(), value.lastIndexOf(')')).split(",");
                 if (params.length != 2) {
                     throw new IllegalArgumentException("base64EncodeCredentials requires a username/id and a password parameters");
@@ -86,8 +86,8 @@ public class TransformAndSetSection implements ExecutableSection {
                 String credentials = executionContext.response(params[0].trim()) + ":" + executionContext.response(params[1].trim());
                 executionContext.stash().stashValue(key, base64Encode(credentials));
 
-            } else if (isBase64Encode(value)) {
-                String param = value.substring("#base64Encode(".length(), value.lastIndexOf(')'));
+            } else if (isBase64EncodeInputFunction(value)) {
+                String param = value.substring("#base64EncodeInput(".length(), value.lastIndexOf(')'));
                 executionContext.stash().stashValue(key, base64Encode(param));
 
             } else {
@@ -100,18 +100,18 @@ public class TransformAndSetSection implements ExecutableSection {
     /**
      * The {@code #base64EncodeCredentials()} function is used to encode the credentials in the format of e.g. {@code username:password}.
      * It accepts two parameters, whose values are looked up from the response, encoded and then stashed in the current execution context.
-     * @return true if the transform value is of the form {@code #base64EncodeCredentials(param1, param2)}
+     * @return true if the transform function is {@code #base64EncodeCredentials(param1, param2)}
      */
-    private static boolean isBase64EncodeCredentials(String value) {
+    private static boolean isBase64EncodeCredentialsFunction(String value) {
         return value.startsWith("#base64EncodeCredentials(") && value.endsWith(")");
     }
 
     /**
      * The {@code #base64Encode} function is used to encode the given string value as is.
-     * @return true if the transform value is of the form {@code #base64Encode()}
+     * @return true if the transform function is {@code #base64EncodeInput(()}
      */
-    private static boolean isBase64Encode(String value) {
-        return value.startsWith("#base64Encode(") && value.endsWith(")");
+    private static boolean isBase64EncodeInputFunction(String value) {
+        return value.startsWith("#base64EncodeInput(") && value.endsWith(")");
     }
 
     private static String base64Encode(String value) {

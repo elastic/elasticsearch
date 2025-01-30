@@ -36,18 +36,19 @@ public class BWCLucene86Codec extends BWCCodec {
     private final CompoundFormat compoundFormat = new Lucene50CompoundFormat();
     private final PointsFormat pointsFormat = new Lucene86MetadataOnlyPointsFormat();
     private final PostingsFormat defaultFormat;
+    private final DocValuesFormat defaultDVFormat;
 
     private final PostingsFormat postingsFormat = new PerFieldPostingsFormat() {
         @Override
         public PostingsFormat getPostingsFormatForField(String field) {
-            return BWCLucene86Codec.this.getPostingsFormatForField(field);
+            return defaultFormat;
         }
     };
 
     private final DocValuesFormat docValuesFormat = new PerFieldDocValuesFormat() {
         @Override
         public DocValuesFormat getDocValuesFormatForField(String field) {
-            return BWCLucene86Codec.this.getDocValuesFormatForField(field);
+            return defaultDVFormat;
         }
     };
 
@@ -64,6 +65,7 @@ public class BWCLucene86Codec extends BWCCodec {
         super(name);
         this.storedFieldsFormat = new Lucene50StoredFieldsFormat(Lucene50StoredFieldsFormat.Mode.BEST_SPEED);
         this.defaultFormat = new Lucene84PostingsFormat();
+        this.defaultDVFormat = new Lucene80DocValuesFormat();
     }
 
     @Override
@@ -101,36 +103,8 @@ public class BWCLucene86Codec extends BWCCodec {
         return pointsFormat;
     }
 
-    /**
-     * Returns the postings format that should be used for writing new segments of <code>field</code>.
-     *
-     * <p>The default implementation always returns "Lucene84".
-     *
-     * <p><b>WARNING:</b> if you subclass, you are responsible for index backwards compatibility:
-     * future version of Lucene are only guaranteed to be able to read the default implementation.
-     */
-    public PostingsFormat getPostingsFormatForField(String field) {
-        return defaultFormat;
-    }
-
-    /**
-     * Returns the docvalues format that should be used for writing new segments of <code>field</code>
-     * .
-     *
-     * <p>The default implementation always returns "Lucene80".
-     *
-     * <p><b>WARNING:</b> if you subclass, you are responsible for index backwards compatibility:
-     * future version of Lucene are only guaranteed to be able to read the default implementation.
-     */
-    public DocValuesFormat getDocValuesFormatForField(String field) {
-        return defaultDVFormat;
-    }
-
     @Override
     public final DocValuesFormat docValuesFormat() {
         return docValuesFormat;
     }
-
-    private final DocValuesFormat defaultDVFormat = new Lucene80DocValuesFormat();
-
 }

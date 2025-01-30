@@ -17,6 +17,10 @@ logs.
 
 * The master may appear busy due to frequent cluster state updates.
 
+****
+If you're using Elastic Cloud Hosted, then you can use AutoOps to monitor your cluster. AutoOps significantly simplifies cluster management with performance recommendations, resource utilization visibility, real-time issue detection and resolution paths. For more information, refer to https://www.elastic.co/guide/en/cloud/current/ec-autoops.html[Monitor with AutoOps].
+****
+
 To troubleshoot a cluster in this state, first ensure the cluster has a
 <<discovery-troubleshooting,stable master>>. Next, focus on the nodes
 unexpectedly leaving the cluster ahead of all other issues. It will not be

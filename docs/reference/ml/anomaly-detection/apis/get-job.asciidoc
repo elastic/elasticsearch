@@ -5,6 +5,12 @@
 <titleabbrev>Get jobs</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-ml-anomaly[{ml-cap}  {anomaly-detect} APIs].
+--
+
 Retrieves configuration information for {anomaly-jobs}.
 
 [[ml-get-job-request]]

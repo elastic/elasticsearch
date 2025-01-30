@@ -55,18 +55,8 @@ tasks.register('follow-cluster', RestIntegTestTask) {
   useCluster leaderCluster
   systemProperty 'tests.target_cluster', 'follow'
 
-  Provider<TestClustersRegistry> serviceProvider = GradleUtils.getBuildService(
-    project.gradle.sharedServices,
-    TestClustersPlugin.REGISTRY_SERVICE_NAME
-  )
-  def leaderUri = project.getProviders().of(TestClusterValueSource.class) {
-    it.parameters.path.set(clusterPath)
-    it.parameters.clusterName.set("leader-cluster")
-    it.parameters.service = serviceProvider
-  }.map { it.allHttpSocketURI.get(0) }
-
-  nonInputProperties.systemProperty 'tests.leader_host',
-          "${-> leaderUri.get() }"
+  def leaderUri = getClusterInfo("leader-cluster").map { it.allHttpSocketURI.get(0) }
+  nonInputProperties.systemProperty 'tests.leader_host', leaderUri
 }
 
 tasks.register("followClusterRestartTest", StandaloneRestIntegTestTask) {
@@ -76,27 +66,13 @@ tasks.register("followClusterRestartTest", StandaloneRestIntegTestTask) {
 
   systemProperty 'tests.rest.load_packaged', 'false'
   systemProperty 'tests.target_cluster', 'follow-restart'
-  Provider<TestClustersRegistry> serviceProvider = GradleUtils.getBuildService(
-    project.gradle.sharedServices,
-    TestClustersPlugin.REGISTRY_SERVICE_NAME
-  )
-  def leaderUri = project.getProviders().of(TestClusterValueSource.class) {
-    it.parameters.path.set(clusterPath)
-    it.parameters.clusterName.set("leader-cluster")
-    it.parameters.service = serviceProvider
-  }.map { it.allHttpSocketURI.get(0) }
-
-  def followUris = project.getProviders().of(TestClusterValueSource.class) {
-    it.parameters.path.set(clusterPath)
-    it.parameters.clusterName.set("follow-cluster")
-    it.parameters.service = serviceProvider
-  }.map { it.allHttpSocketURI.join(",") }
-
+  def leaderUri = getClusterInfo('leader-cluster').map { it.allHttpSocketURI.get(0) }
+  def followUris = getClusterInfo('follow-cluster').map { it.allHttpSocketURI.join(",") }
   nonInputProperties.systemProperty 'tests.leader_host', leaderUri
   nonInputProperties.systemProperty 'tests.rest.cluster', followUris
 
   doFirst {
-    serviceProvider.get().restart(clusterPath, "follow-cluster")
+    getRegistry().get().restart(clusterPath, "follow-cluster")
   }
 }
 

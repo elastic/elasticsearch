@@ -1,7 +1,7 @@
 [[eql-apis]]
 == EQL APIs
 
-..New API reference
+.New API reference
 [sidebar]
 --
 For the most up-to-date API details, refer to {api-es}/group/endpoint-eql[EQL APIs].

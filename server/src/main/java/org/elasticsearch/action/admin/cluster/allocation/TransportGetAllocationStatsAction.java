@@ -30,7 +30,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -49,7 +48,6 @@ public class TransportGetAllocationStatsAction extends TransportMasterNodeReadAc
 
     private final AllocationStatsService allocationStatsService;
     private final DiskThresholdSettings diskThresholdSettings;
-    private final FeatureService featureService;
 
     @Inject
     public TransportGetAllocationStatsAction(
@@ -58,8 +56,7 @@ public class TransportGetAllocationStatsAction extends TransportMasterNodeReadAc
         ThreadPool threadPool,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        AllocationStatsService allocationStatsService,
-        FeatureService featureService
+        AllocationStatsService allocationStatsService
     ) {
         super(
             TYPE.name(),
@@ -68,13 +65,11 @@ public class TransportGetAllocationStatsAction extends TransportMasterNodeReadAc
             threadPool,
             actionFilters,
             TransportGetAllocationStatsAction.Request::new,
-            indexNameExpressionResolver,
             TransportGetAllocationStatsAction.Response::new,
             threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
         this.allocationStatsService = allocationStatsService;
         this.diskThresholdSettings = new DiskThresholdSettings(clusterService.getSettings(), clusterService.getClusterSettings());
-        this.featureService = featureService;
     }
 
     @Override
@@ -92,10 +87,7 @@ public class TransportGetAllocationStatsAction extends TransportMasterNodeReadAc
         listener.onResponse(
             new Response(
                 request.metrics().contains(Metric.ALLOCATIONS) ? allocationStatsService.stats() : Map.of(),
-                request.metrics().contains(Metric.FS)
-                    && featureService.clusterHasFeature(clusterService.state(), AllocationStatsFeatures.INCLUDE_DISK_THRESHOLD_SETTINGS)
-                        ? diskThresholdSettings
-                        : null
+                request.metrics().contains(Metric.FS) ? diskThresholdSettings : null
             )
         );
     }

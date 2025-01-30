@@ -13,27 +13,25 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.translog.Translog;
 
 import java.io.IOException;
-
-import static org.elasticsearch.index.mapper.SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING;
 
 public class LuceneSyntheticSourceChangesSnapshotTests extends SearchBasedChangesSnapshotTests {
     @Override
     protected Settings indexSettings() {
         return Settings.builder()
             .put(super.indexSettings())
-            .put(INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.SYNTHETIC.name())
+            .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.SYNTHETIC.name())
             .put(IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(), true)
             .build();
     }
 
     @Override
     protected Translog.Snapshot newRandomSnapshot(
-        MappingLookup mappingLookup,
+        MapperService mapperService,
         Engine.Searcher engineSearcher,
         int searchBatchSize,
         long fromSeqNo,
@@ -44,7 +42,7 @@ public class LuceneSyntheticSourceChangesSnapshotTests extends SearchBasedChange
         IndexVersion indexVersionCreated
     ) throws IOException {
         return new LuceneSyntheticSourceChangesSnapshot(
-            mappingLookup,
+            mapperService,
             engineSearcher,
             searchBatchSize,
             randomLongBetween(0, ByteSizeValue.ofBytes(Integer.MAX_VALUE).getBytes()),

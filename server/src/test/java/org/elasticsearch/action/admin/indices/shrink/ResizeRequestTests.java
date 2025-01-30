@@ -67,7 +67,7 @@ public class ResizeRequestTests extends AbstractWireSerializingTestCase<ResizeRe
         }
         {
             ResizeRequest request = new ResizeRequest("target", "source");
-            request.setMaxPrimaryShardSize(new ByteSizeValue(100, ByteSizeUnit.MB));
+            request.setMaxPrimaryShardSize(ByteSizeValue.of(100, ByteSizeUnit.MB));
             String actualRequestBody = Strings.toString(request);
             assertEquals("""
                 {"settings":{},"aliases":{},"max_primary_shard_size":"100mb"}""", actualRequestBody);

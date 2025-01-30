@@ -6,7 +6,7 @@
 
 beta::["The task management API is new and should still be considered a beta feature. The API may change in ways that are not backwards compatible.",{es-issue}51628]
 
-..New API reference
+.New API reference
 [sidebar]
 --
 For the most up-to-date API details, refer to {api-es}/group/endpoint-tasks[task management APIs].

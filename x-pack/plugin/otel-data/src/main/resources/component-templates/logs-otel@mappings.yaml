@@ -9,6 +9,7 @@ template:
       mode: logsdb
       sort:
         field: [ "resource.attributes.host.name", "@timestamp" ]
+        order: [ "asc", "desc" ]
   mappings:
     properties:
       attributes:
@@ -39,25 +40,18 @@ template:
       log.level:
         type: alias
         path: severity_text
+      event_name:
+        type: keyword
       body:
         type: object
         properties:
           text:
             type: match_only_text
-          flattened:
-            # this is used for complex bodies of regular log records
+          structured:
+            # this is used for complex bodies of log records (including events)
             # using the flattened field type avoids mapping issues which can be caused by logs containing arbitrary JSON objects
             # the tradeoff is that the flattened field type is currently not supported well by Kibana and has other limitations
             type: flattened
-          structured:
-            # this is used for events
-            # events are also represented as log records
-            # the event.name attribute uniquely identifies event structure / type of the payload (body)
-            # see also https://github.com/open-telemetry/semantic-conventions/blob/main/docs/general/events.md
-            # this makes them less prone to mapping issues, which is why we're enabling dynamic mappings
-            type: passthrough
-            dynamic: true
-            priority: 10
       message:
         type: alias
         path: body.text

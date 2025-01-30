@@ -4,6 +4,12 @@
 <titleabbrev>Create snapshot</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-snapshot[Snapshot and restore APIs].
+--
+
 <<snapshots-take-snapshot,Takes a snapshot>> of a cluster or specified data
 streams and indices.
 

@@ -12,8 +12,11 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.http.MockWebServer;
-import org.elasticsearch.upgrades.AbstractRollingUpgradeTestCase;
+import org.elasticsearch.upgrades.ParameterizedRollingUpgradeTestCase;
+import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.util.LinkedList;
@@ -22,12 +25,26 @@ import java.util.Map;
 
 import static org.elasticsearch.core.Strings.format;
 
-public class InferenceUpgradeTestCase extends AbstractRollingUpgradeTestCase {
+public class InferenceUpgradeTestCase extends ParameterizedRollingUpgradeTestCase {
 
     static final String MODELS_RENAMED_TO_ENDPOINTS = "8.15.0";
 
     public InferenceUpgradeTestCase(@Name("upgradedNodes") int upgradedNodes) {
         super(upgradedNodes);
+    }
+
+    @ClassRule
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
+        .distribution(DistributionType.DEFAULT)
+        .version(getOldClusterTestVersion())
+        .nodes(NODE_NUM)
+        .setting("xpack.security.enabled", "false")
+        .setting("xpack.license.self_generated.type", "trial")
+        .build();
+
+    @Override
+    protected ElasticsearchCluster getUpgradeCluster() {
+        return cluster;
     }
 
     protected static String getUrl(MockWebServer webServer) {

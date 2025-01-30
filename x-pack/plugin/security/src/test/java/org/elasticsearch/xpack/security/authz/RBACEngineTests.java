@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -1971,17 +1972,16 @@ public class RBACEngineTests extends ESTestCase {
         final RequestInfo requestInfo = createRequestInfo(searchRequest, action, parentAuthorization);
         final AsyncSupplier<ResolvedIndices> indicesAsyncSupplier = s -> s.onResponse(resolvedIndices);
 
-        final Map<String, IndexAbstraction> aliasOrIndexLookup = Stream.of(indices)
-            .collect(
-                Collectors.toMap(
-                    i -> i,
-                    v -> new IndexAbstraction.ConcreteIndex(
-                        IndexMetadata.builder(v).settings(indexSettings(IndexVersion.current(), 1, 0)).build()
-                    )
+        Metadata.Builder metadata = Metadata.builder();
+        Stream.of(indices)
+            .forEach(
+                indexName -> metadata.put(
+                    IndexMetadata.builder(indexName).settings(indexSettings(IndexVersion.current(), 1, 0)).build(),
+                    false
                 )
             );
 
-        engine.authorizeIndexAction(requestInfo, authzInfo, indicesAsyncSupplier, aliasOrIndexLookup, listener);
+        engine.authorizeIndexAction(requestInfo, authzInfo, indicesAsyncSupplier, metadata.build(), listener);
     }
 
     private static RequestInfo createRequestInfo(TransportRequest request, String action, ParentActionAuthorization parentAuthorization) {

@@ -49,6 +49,7 @@ public class NotEquals extends EsqlBinaryComparison implements Negatable<EsqlBin
     );
 
     @FunctionInfo(
+        operator = "!=",
         returnType = { "boolean" },
         description = "Check if two fields are unequal. "
             + "If either field is <<esql-multivalued-fields,multivalued>> then the result is `null`.",

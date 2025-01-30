@@ -4,6 +4,12 @@
 <titleabbrev>Point in time</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-search[Search APIs].
+--
+
 A search request by default executes against the most recent visible data of
 the target indices, which is called point in time. Elasticsearch pit (point in time)
 is a lightweight view into the state of the data as it existed when initiated.

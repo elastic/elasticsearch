@@ -97,7 +97,7 @@ public class ClusterRerouteResponse extends ActionResponse implements IsAcknowle
         return Iterators.concat(
             Iterators.single((builder, params) -> builder.startObject().field(ACKNOWLEDGED_KEY, isAcknowledged())),
             emitState(outerParams)
-                ? ChunkedToXContentHelper.wrapWithObject("state", state.toXContentChunked(outerParams))
+                ? ChunkedToXContentHelper.object("state", state.toXContentChunked(outerParams))
                 : Collections.emptyIterator(),
             Iterators.single((builder, params) -> {
                 if (params.paramAsBoolean("explain", false)) {

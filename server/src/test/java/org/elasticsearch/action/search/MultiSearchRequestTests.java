@@ -20,7 +20,6 @@ import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.search.RestMultiSearchAction;
-import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
@@ -578,7 +577,7 @@ public class MultiSearchRequestTests extends ESTestCase {
             }
 
             // scroll is not supported in the current msearch api, so unset it:
-            searchRequest.scroll((Scroll) null);
+            searchRequest.scroll(null);
 
             // only expand_wildcards, ignore_unavailable and allow_no_indices can be specified from msearch api, so unset other options:
             IndicesOptions randomlyGenerated = searchRequest.indicesOptions();

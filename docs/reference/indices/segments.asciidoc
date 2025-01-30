@@ -4,7 +4,7 @@
 <titleabbrev>Index segments</titleabbrev>
 ++++
 
-..New API reference
+.New API reference
 [sidebar]
 --
 For the most up-to-date API details, refer to {api-es}/group/endpoint-indices[Index APIs].

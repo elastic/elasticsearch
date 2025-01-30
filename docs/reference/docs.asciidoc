@@ -7,9 +7,7 @@
 For the most up-to-date API details, refer to {api-es}/group/endpoint-document[Document APIs].
 --
 
-This section starts with a short introduction to {es}'s <<docs-replication,data
-replication model>>, followed by a detailed description of the following CRUD
-APIs:
+This section describes the following CRUD APIs:
 
 .Single document APIs
 * <<docs-index_>>
@@ -23,8 +21,6 @@ APIs:
 * <<docs-delete-by-query>>
 * <<docs-update-by-query>>
 * <<docs-reindex>>
-
-include::docs/data-replication.asciidoc[]
 
 include::docs/index_.asciidoc[]
 

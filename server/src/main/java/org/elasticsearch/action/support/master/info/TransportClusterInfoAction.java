@@ -25,6 +25,8 @@ import org.elasticsearch.transport.TransportService;
 public abstract class TransportClusterInfoAction<Request extends ClusterInfoRequest<Request>, Response extends ActionResponse> extends
     TransportMasterNodeReadAction<Request, Response> {
 
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
+
     public TransportClusterInfoAction(
         String actionName,
         TransportService transportService,
@@ -42,10 +44,10 @@ public abstract class TransportClusterInfoAction<Request extends ClusterInfoRequ
             threadPool,
             actionFilters,
             request,
-            indexNameExpressionResolver,
             response,
             threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
     }
 
     @Override

@@ -20,6 +20,8 @@ import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAc
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataMappingService;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -40,6 +42,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.SortedMap;
 
 /**
  * Put mapping action.
@@ -50,6 +53,7 @@ public class TransportPutMappingAction extends AcknowledgedTransportMasterNodeAc
     private static final Logger logger = LogManager.getLogger(TransportPutMappingAction.class);
 
     private final MetadataMappingService metadataMappingService;
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final RequestValidators<PutMappingRequest> requestValidators;
     private final SystemIndices systemIndices;
 
@@ -71,10 +75,10 @@ public class TransportPutMappingAction extends AcknowledgedTransportMasterNodeAc
             threadPool,
             actionFilters,
             PutMappingRequest::new,
-            indexNameExpressionResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.metadataMappingService = metadataMappingService;
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.requestValidators = Objects.requireNonNull(requestValidators);
         this.systemIndices = systemIndices;
     }
@@ -106,7 +110,14 @@ public class TransportPutMappingAction extends AcknowledgedTransportMasterNodeAc
                 return;
             }
 
-            final String message = checkForSystemIndexViolations(systemIndices, concreteIndices, request);
+            String message = checkForFailureStoreViolations(clusterService.state(), concreteIndices, request);
+            if (message != null) {
+                logger.warn(message);
+                listener.onFailure(new IllegalStateException(message));
+                return;
+            }
+
+            message = checkForSystemIndexViolations(systemIndices, concreteIndices, request);
             if (message != null) {
                 logger.warn(message);
                 listener.onFailure(new IllegalStateException(message));
@@ -170,6 +181,33 @@ public class TransportPutMappingAction extends AcknowledgedTransportMasterNodeAc
         }
 
         metadataMappingService.putMapping(updateRequest, wrappedListener);
+    }
+
+    static String checkForFailureStoreViolations(ClusterState clusterState, Index[] concreteIndices, PutMappingRequest request) {
+        // Requests that a cluster generates itself are permitted to make changes to mappings
+        // so that rolling upgrade scenarios still work. We check this via the request's origin.
+        if (Strings.isNullOrEmpty(request.origin()) == false) {
+            return null;
+        }
+
+        List<String> violations = new ArrayList<>();
+        SortedMap<String, IndexAbstraction> indicesLookup = clusterState.metadata().getIndicesLookup();
+        for (Index index : concreteIndices) {
+            IndexAbstraction indexAbstraction = indicesLookup.get(index.getName());
+            if (indexAbstraction != null) {
+                DataStream maybeDataStream = indexAbstraction.getParentDataStream();
+                if (maybeDataStream != null && maybeDataStream.isFailureStoreIndex(index.getName())) {
+                    violations.add(index.getName());
+                }
+            }
+        }
+
+        if (violations.isEmpty() == false) {
+            return "Cannot update mappings in "
+                + violations
+                + ": mappings for indices contained in data stream failure stores cannot be updated";
+        }
+        return null;
     }
 
     static String checkForSystemIndexViolations(SystemIndices systemIndices, Index[] concreteIndices, PutMappingRequest request) {

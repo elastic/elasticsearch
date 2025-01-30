@@ -561,13 +561,12 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
     }
 
     /**
-     * Set to a non-negative value which represents the max offset used to analyze
-     * the field thus avoiding exceptions if the field exceeds this limit.
+     * "maxAnalyzedOffset" might be non-negative int, null (unknown), or a negative int (defaulting to index analyzed offset).
      */
     @SuppressWarnings("unchecked")
     public HB maxAnalyzedOffset(Integer maxAnalyzedOffset) {
-        if (maxAnalyzedOffset != null && maxAnalyzedOffset <= 0) {
-            throw new IllegalArgumentException("[" + MAX_ANALYZED_OFFSET_FIELD + "] must be a positive integer");
+        if (maxAnalyzedOffset != null && (maxAnalyzedOffset < -1 || maxAnalyzedOffset == 0)) {
+            throw new IllegalArgumentException("[" + MAX_ANALYZED_OFFSET_FIELD + "] must be a positive integer, or -1");
         }
         this.maxAnalyzedOffset = maxAnalyzedOffset;
         return (HB) this;

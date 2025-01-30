@@ -488,7 +488,7 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
             clusterStateRequest.indices(followerIndex);
             MappingMetadata mappingMetadata = followerClient().admin()
                 .indices()
-                .prepareGetMappings("index2")
+                .prepareGetMappings(TEST_REQUEST_TIMEOUT, "index2")
                 .get()
                 .getMappings()
                 .get("index2");

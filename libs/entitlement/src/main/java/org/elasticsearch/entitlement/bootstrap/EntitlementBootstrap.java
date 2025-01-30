@@ -31,8 +31,13 @@ import static java.util.Objects.requireNonNull;
 
 public class EntitlementBootstrap {
 
-    public record BootstrapArgs(Map<String, Policy> pluginPolicies, Function<Class<?>, String> pluginResolver,
-                                Path[] dataDirs, Path configDir, Path tempDir) {
+    public record BootstrapArgs(
+        Map<String, Policy> pluginPolicies,
+        Function<Class<?>, String> pluginResolver,
+        Path[] dataDirs,
+        Path configDir,
+        Path tempDir
+    ) {
         public BootstrapArgs {
             requireNonNull(pluginPolicies);
             requireNonNull(pluginResolver);
@@ -61,8 +66,13 @@ public class EntitlementBootstrap {
      * @param configDir the config directory for Elasticsearch
      * @param tempDir the temp directory for Elasticsearch
      */
-    public static void bootstrap(Map<String, Policy> pluginPolicies, Function<Class<?>, String> pluginResolver,
-                                 Path[] dataDirs, Path configDir, Path tempDir) {
+    public static void bootstrap(
+        Map<String, Policy> pluginPolicies,
+        Function<Class<?>, String> pluginResolver,
+        Path[] dataDirs,
+        Path configDir,
+        Path tempDir
+    ) {
         logger.debug("Loading entitlement agent");
         if (EntitlementBootstrap.bootstrapArgs != null) {
             throw new IllegalStateException("plugin data is already set");

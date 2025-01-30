@@ -242,8 +242,13 @@ class Elasticsearch {
             pluginsLoader = PluginsLoader.createPluginsLoader(modulesBundles, pluginsBundles, findPluginsWithNativeAccess(pluginPolicies));
 
             var pluginsResolver = PluginsResolver.create(pluginsLoader);
-            EntitlementBootstrap.bootstrap(pluginPolicies, pluginsResolver::resolveClassToPluginName,
-                nodeEnv.dataFiles(), nodeEnv.configFile(), nodeEnv.tmpFile());
+            EntitlementBootstrap.bootstrap(
+                pluginPolicies,
+                pluginsResolver::resolveClassToPluginName,
+                nodeEnv.dataFiles(),
+                nodeEnv.configFile(),
+                nodeEnv.tmpFile()
+            );
         } else if (RuntimeVersionFeature.isSecurityManagerAvailable()) {
             // no need to explicitly enable native access for legacy code
             pluginsLoader = PluginsLoader.createPluginsLoader(modulesBundles, pluginsBundles, Map.of());

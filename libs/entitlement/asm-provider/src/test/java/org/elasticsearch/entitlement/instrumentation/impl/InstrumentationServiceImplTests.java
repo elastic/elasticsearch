@@ -61,6 +61,8 @@ public class InstrumentationServiceImplTests extends ESTestCase {
         void check$org_example_TestTargetClass$differentInstanceMethod(Class<?> clazz, TestTargetClass that);
     }
 
+    interface TestCheckerDerived2 extends TestCheckerDerived, TestChecker {}
+
     interface TestCheckerOverloads {
         void check$org_example_TestTargetClass$$staticMethodWithOverload(Class<?> clazz, int x, int y);
 
@@ -167,7 +169,7 @@ public class InstrumentationServiceImplTests extends ESTestCase {
     }
 
     public void testInstrumentationTargetLookupWithDerivedClass() throws IOException {
-        Map<MethodKey, CheckMethod> checkMethods = instrumentationService.lookupMethods(TestCheckerDerived.class);
+        Map<MethodKey, CheckMethod> checkMethods = instrumentationService.lookupMethods(TestCheckerDerived2.class);
 
         assertThat(checkMethods, aMapWithSize(4));
         assertThat(

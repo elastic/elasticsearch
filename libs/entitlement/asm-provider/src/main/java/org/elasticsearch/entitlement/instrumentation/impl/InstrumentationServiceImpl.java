@@ -27,9 +27,11 @@ import java.util.ArrayDeque;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -46,9 +48,14 @@ public class InstrumentationServiceImpl implements InstrumentationService {
     public Map<MethodKey, CheckMethod> lookupMethods(Class<?> checkerClass) throws IOException {
         Map<MethodKey, CheckMethod> methodsToInstrument = new HashMap<>();
 
+        Set<Class<?>> visitedClasses = new HashSet<>();
         ArrayDeque<Class<?>> classesToVisit = new ArrayDeque<>(Collections.singleton(checkerClass));
         while (classesToVisit.isEmpty() == false) {
             var currentClass = classesToVisit.remove();
+            if (visitedClasses.contains(currentClass)) {
+                continue;
+            }
+            visitedClasses.add(currentClass);
 
             var classFileInfo = InstrumenterImpl.getClassFileInfo(currentClass);
             ClassReader reader = new ClassReader(classFileInfo.bytecodes());
@@ -59,12 +66,10 @@ public class InstrumentationServiceImpl implements InstrumentationService {
                     super.visit(version, access, name, signature, superName, interfaces);
                     try {
                         if (OBJECT_INTERNAL_NAME.equals(superName) == false) {
-                            var className = Type.getObjectType(superName).getClassName();
-                            classesToVisit.add(Class.forName(className));
+                            classesToVisit.add(Class.forName(Type.getObjectType(superName).getClassName()));
                         }
                         for (var interfaceName : interfaces) {
-                            var className = Type.getObjectType(interfaceName).getClassName();
-                            classesToVisit.add(Class.forName(className));
+                            classesToVisit.add(Class.forName(Type.getObjectType(interfaceName).getClassName()));
                         }
                     } catch (ClassNotFoundException e) {
                         throw new IllegalArgumentException("Cannot inspect checker class " + checkerClass.getName(), e);

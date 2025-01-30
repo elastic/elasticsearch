@@ -66,10 +66,9 @@ public class EntitlementInitialization {
     public static void initialize(Instrumentation inst) throws Exception {
         manager = initChecker();
 
-        var latestCheckerInterface = getVersionSpecificCheckerClass("org.elasticsearch.entitlement.bridge", "EntitlementChecker");
+        var latestCheckerInterface = getVersionSpecificCheckerClass(EntitlementChecker.class);
 
         Map<MethodKey, CheckMethod> checkMethods = new HashMap<>(INSTRUMENTATION_SERVICE.lookupMethods(latestCheckerInterface));
-
         var fileSystemProviderClass = FileSystems.getDefault().provider().getClass();
         Stream.of(
             INSTRUMENTATION_SERVICE.lookupImplementationMethod(
@@ -132,12 +131,23 @@ public class EntitlementInitialization {
         return new PolicyManager(serverPolicy, agentEntitlements, pluginPolicies, resolver, AGENTS_PACKAGE_NAME, ENTITLEMENTS_MODULE);
     }
 
-    private static Class<?> getVersionSpecificCheckerClass(String packageName, String baseClassName) {
+    /**
+     * Returns the "most recent" checker class compatible with the current runtime Java version.
+     * For checkers, we have (optionally) version specific classes, each with a prefix (e.g. Java23).
+     * The mapping cannot be automatic, as it depends on the actual presence of these classes in the final Jar (see
+     * the various mainXX source sets).
+     */
+    private static Class<?> getVersionSpecificCheckerClass(Class<?> baseClass) {
+        String packageName = baseClass.getPackageName();
+        String baseClassName = baseClass.getSimpleName();
         int javaVersion = Runtime.version().feature();
+
         final String classNamePrefix;
         if (javaVersion >= 23) {
+            // All Java version from 23 onwards will be able to use che checks in the Java23EntitlementChecker interface and implementation
             classNamePrefix = "Java23";
         } else {
+            // For any other Java version, the basic EntitlementChecker interface and implementation contains all the supported checks
             classNamePrefix = "";
         }
         final String className = packageName + "." + classNamePrefix + baseClassName;
@@ -153,10 +163,7 @@ public class EntitlementInitialization {
     private static ElasticsearchEntitlementChecker initChecker() {
         final PolicyManager policyManager = createPolicyManager();
 
-        final Class<?> clazz = getVersionSpecificCheckerClass(
-            "org.elasticsearch.entitlement.runtime.api",
-            "ElasticsearchEntitlementChecker"
-        );
+        final Class<?> clazz = getVersionSpecificCheckerClass(ElasticsearchEntitlementChecker.class);
 
         Constructor<?> constructor;
         try {

@@ -7,13 +7,14 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.entitlement.runtime.policy;
+package org.elasticsearch.entitlement.runtime.policy.entitlements;
+
+import org.elasticsearch.entitlement.runtime.policy.ExternalEntitlement;
 
 /**
- * Marker interface to ensure that only {@link Entitlement} are
- * part of a {@link Policy}. All entitlement classes should implement
- * this.
+ * Describes an entitlement for inbound network actions (listen/accept/receive)
  */
-public interface Entitlement {
-
+public record InboundNetworkEntitlement() implements Entitlement {
+    @ExternalEntitlement
+    public InboundNetworkEntitlement {}
 }

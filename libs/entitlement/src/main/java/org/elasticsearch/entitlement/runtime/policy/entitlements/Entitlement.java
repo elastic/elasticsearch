@@ -7,18 +7,15 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.entitlement.runtime.policy;
+package org.elasticsearch.entitlement.runtime.policy.entitlements;
 
-import java.util.List;
-import java.util.Set;
+import org.elasticsearch.entitlement.runtime.policy.Policy;
 
 /**
- * An Entitlement to allow writing properties such as system properties.
+ * Marker interface to ensure that only {@link Entitlement} are
+ * part of a {@link Policy}. All entitlement classes should implement
+ * this.
  */
-public record WriteSystemPropertiesEntitlement(Set<String> properties) implements Entitlement {
+public interface Entitlement {
 
-    @ExternalEntitlement(parameterNames = { "properties" }, esModulesOnly = false)
-    public WriteSystemPropertiesEntitlement(List<String> properties) {
-        this(Set.copyOf(properties));
-    }
 }

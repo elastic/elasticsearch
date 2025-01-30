@@ -59,6 +59,17 @@ setup:
   - do:
       indices.refresh: {}
 
+  # For added test reliability, pending the resolution of https://github.com/elastic/elasticsearch/issues/109416.
+  - do:
+      indices.forcemerge:
+        max_num_segments: 1
+        index: int4_flat
+  - do:
+      indices.refresh: {}
+  - do:
+      indices.forcemerge:
+        max_num_segments: 1
+        index: int4_flat
 ---
 "kNN search only":
   - do:

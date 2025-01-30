@@ -61,6 +61,7 @@ import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
+import org.elasticsearch.xpack.esql.plan.logical.Rrf;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.StubRelation;
@@ -685,5 +686,10 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         PlanFactory lowerPlan = ParserUtils.typedParsing(this, ctx.forkSubQueryCommand(), PlanFactory.class);
         PlanFactory makePlan = typedParsing(this, ctx.forkSubQueryProcessingCommand(), PlanFactory.class);
         return input -> makePlan.apply(lowerPlan.apply(input));
+    }
+
+    @Override
+    public PlanFactory visitRrfCommand(EsqlBaseParser.RrfCommandContext ctx) {
+        return input -> new Rrf(source(ctx), input);
     }
 }

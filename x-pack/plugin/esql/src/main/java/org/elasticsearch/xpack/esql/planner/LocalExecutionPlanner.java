@@ -33,6 +33,7 @@ import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.Operator.OperatorFactory;
 import org.elasticsearch.compute.operator.OutputOperator.OutputOperatorFactory;
 import org.elasticsearch.compute.operator.RowInTableLookupOperator;
+import org.elasticsearch.compute.operator.RrfScoreEvalOperator;
 import org.elasticsearch.compute.operator.ShowOperator;
 import org.elasticsearch.compute.operator.SinkOperator;
 import org.elasticsearch.compute.operator.SinkOperator.SinkOperatorFactory;
@@ -95,6 +96,7 @@ import org.elasticsearch.xpack.esql.plan.physical.MvExpandExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
+import org.elasticsearch.xpack.esql.plan.physical.RrfScoreEvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.ShardContext;
@@ -255,9 +257,31 @@ public class LocalExecutionPlanner {
             return planExchangeSink(exchangeSink, context);
         } else if (node instanceof MergeExec mergeExec) {
             return planMerge(mergeExec, context);
+        } else if (node instanceof RrfScoreEvalExec rrf) {
+            return planRrfScoreEvalExec(rrf, context);
         }
 
         throw new EsqlIllegalArgumentException("unknown physical plan node [" + node.nodeName() + "]");
+    }
+
+    private PhysicalOperation planRrfScoreEvalExec(RrfScoreEvalExec rrf, LocalExecutionPlannerContext context) {
+        PhysicalOperation source = plan(rrf.child(), context);
+
+        int scorePosition = -1;
+        int forkPosition = -1;
+        int pos = 0;
+        for (Attribute attr : rrf.child().output()) {
+            if (attr.name().equals("_fork")) {
+                forkPosition = pos;
+            }
+            if (attr.name().equals("_score")) {
+                scorePosition = pos;
+            }
+
+            pos += 1;
+        }
+
+        return source.with(new RrfScoreEvalOperator.Factory(forkPosition, scorePosition), source.layout);
     }
 
     private PhysicalOperation planAggregation(AggregateExec aggregate, LocalExecutionPlannerContext context) {

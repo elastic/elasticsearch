@@ -94,6 +94,7 @@ tasks.named("dependencyLicenses").configure {
 }
 
 tasks.named('thirdPartyAudit').configure {
+  // This tool can't cope with newer classfiles in Jackson 2.15.4 onward
   enabled = false
 }
 

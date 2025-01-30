@@ -111,9 +111,9 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
      */
     protected void afterMerge(OnGoingMerge merge) {}
 
-    protected void enableMergeTaskThrottling(int numRunningMerges, int numQueuedMerges, int configuredMaxMergeCount) {}
+    protected void enableIndexingThrottling(int numRunningMerges, int numQueuedMerges, int configuredMaxMergeCount) {}
 
-    protected void disableMergeTaskThrottling(int numRunningMerges, int numQueuedMerges, int configuredMaxMergeCount) {}
+    protected void disableIndexingThrottling(int numRunningMerges, int numQueuedMerges, int configuredMaxMergeCount) {}
 
     @Override
     public MergeScheduler clone() {
@@ -142,10 +142,10 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
         int activeMerges = (int) (submittedMergesCount - doneMergesCount);
         // maybe enable merge task throttling
         if (activeMerges > configuredMaxMergeCount && shouldThrottleIncomingMerges.getAndSet(true) == false) {
-            enableMergeTaskThrottling(executingMergesCount, activeMerges - executingMergesCount, configuredMaxMergeCount);
+            enableIndexingThrottling(executingMergesCount, activeMerges - executingMergesCount, configuredMaxMergeCount);
         } else if (activeMerges <= configuredMaxMergeCount && shouldThrottleIncomingMerges.getAndSet(false)) {
             // maybe disable merge task throttling
-            disableMergeTaskThrottling(executingMergesCount, activeMerges - executingMergesCount, configuredMaxMergeCount);
+            disableIndexingThrottling(executingMergesCount, activeMerges - executingMergesCount, configuredMaxMergeCount);
         }
     }
 

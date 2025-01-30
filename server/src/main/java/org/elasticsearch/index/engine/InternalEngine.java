@@ -2877,7 +2877,7 @@ public class InternalEngine extends Engine {
         }
 
         @Override
-        protected synchronized void enableMergeTaskThrottling(
+        protected synchronized void enableIndexingThrottling(
                 int numRunningMerges,
                 int numQueuedMerges,
                 int configuredMaxMergeCount
@@ -2892,7 +2892,7 @@ public class InternalEngine extends Engine {
         }
 
         @Override
-        protected synchronized void disableMergeTaskThrottling(
+        protected synchronized void disableIndexingThrottling(
                 int numRunningMerges,
                 int numQueuedMerges,
                 int configuredMaxMergeCount

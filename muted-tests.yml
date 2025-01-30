@@ -314,8 +314,6 @@ tests:
 - class: org.elasticsearch.xpack.security.profile.ProfileIntegTests
   method: testSetEnabled
   issue: https://github.com/elastic/elasticsearch/issues/121183
-- class: org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizerTests
-  issue: https://github.com/elastic/elasticsearch/issues/121185
 - class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
   method: test {yaml=cat.aliases/10_basic/Simple alias}
   issue: https://github.com/elastic/elasticsearch/issues/121186

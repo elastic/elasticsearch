@@ -334,6 +334,8 @@ tests:
 - class: org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityEsqlIT
   method: testCrossClusterAsyncQueryStop
   issue: https://github.com/elastic/elasticsearch/issues/121249
+- class: org.elasticsearch.xpack.test.rest.XPackRestIT
+  issue: https://github.com/elastic/elasticsearch/issues/120816
 
 # Examples:
 #

@@ -23,6 +23,8 @@ import java.util.List;
 
 public class ChangePointOperator implements Operator {
 
+    // TODO: close upon failure / interrupt
+
     public record Factory(int inputChannel) implements OperatorFactory {
         @Override
         public Operator get(DriverContext driverContext) {
@@ -70,7 +72,7 @@ public class ChangePointOperator implements Operator {
 
     @Override
     public boolean isFinished() {
-        return finished && outputPageIndex == inputPages.size();
+        return finished && outputPages.isEmpty();
     }
 
     @Override
@@ -78,7 +80,8 @@ public class ChangePointOperator implements Operator {
         if (finished == false) {
             return null;
         }
-        if (outputPageIndex == inputPages.size()) {
+        if (outputPageIndex == outputPages.size()) {
+            outputPages.clear();
             return null;
         }
         return outputPages.get(outputPageIndex++);
@@ -90,6 +93,7 @@ public class ChangePointOperator implements Operator {
             valuesCount += page.getPositionCount();
         }
 
+        // TODO: account for this memory?
         double[] values = new double[valuesCount];
         int valuesIndex = 0;
         for (Page inputPage : inputPages) {
@@ -131,11 +135,13 @@ public class ChangePointOperator implements Operator {
                 changePvalueBlock = blockFactory.newConstantNullBlock(inputPage.getPositionCount());
             }
 
+            // TODO: what about duplicate names??
             Page outputPage = inputPage.appendBlocks(new Block[] { changeTypeBlock, changePvalueBlock });
             outputPages.add(outputPage);
-
             pageStartIndex += inputPage.getPositionCount();
         }
+
+        inputPages.clear();
     }
 
     @Override

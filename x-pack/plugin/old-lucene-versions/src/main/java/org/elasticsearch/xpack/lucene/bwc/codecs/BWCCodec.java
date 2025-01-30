@@ -43,13 +43,41 @@ import java.util.List;
  */
 public abstract class BWCCodec extends Codec {
 
-    protected FieldInfosFormat fieldInfosFormat;
-    protected SegmentInfoFormat segmentInfosFormat;
+    private final FieldInfosFormat fieldInfosFormat;
+    private final SegmentInfoFormat segmentInfosFormat;
 
     protected BWCCodec(String name) {
         super(name);
-        this.fieldInfosFormat = wrappedFieldInfosFormat();
-        this.segmentInfosFormat = wrappedSegmentInfoFormat();
+
+        this.fieldInfosFormat =  new FieldInfosFormat() {
+            final FieldInfosFormat wrappedFormat = originalFieldInfosFormat();
+
+            @Override
+            public FieldInfos read(Directory directory, SegmentInfo segmentInfo, String segmentSuffix, IOContext iocontext)
+                throws IOException {
+                return filterFields(wrappedFormat.read(directory, segmentInfo, segmentSuffix, iocontext));
+            }
+
+            @Override
+            public void write(Directory directory, SegmentInfo segmentInfo, String segmentSuffix, FieldInfos infos, IOContext context)
+                throws IOException {
+                wrappedFormat.write(directory, segmentInfo, segmentSuffix, infos, context);
+            }
+        };
+
+        this.segmentInfosFormat = new SegmentInfoFormat() {
+            final SegmentInfoFormat wrappedFormat = originalSegmentInfoFormat();
+
+            @Override
+            public SegmentInfo read(Directory directory, String segmentName, byte[] segmentID, IOContext context) throws IOException {
+                return wrap(wrappedFormat.read(directory, segmentName, segmentID, context));
+            }
+
+            @Override
+            public void write(Directory dir, SegmentInfo info, IOContext ioContext) throws IOException {
+                wrappedFormat.write(dir, info, ioContext);
+            }
+        };
     }
 
     protected final PostingsFormat postingsFormat = new PerFieldPostingsFormat() {
@@ -58,6 +86,16 @@ public abstract class BWCCodec extends Codec {
             throw new UnsupportedOperationException("Old codecs can't be used for writing");
         }
     };
+
+    @Override
+    public final FieldInfosFormat fieldInfosFormat() {
+        return fieldInfosFormat;
+    }
+
+    @Override
+    public SegmentInfoFormat segmentInfoFormat() {
+        return segmentInfosFormat;
+    }
 
     @Override
     public final NormsFormat normsFormat() {
@@ -74,43 +112,9 @@ public abstract class BWCCodec extends Codec {
         throw new UnsupportedOperationException();
     }
 
-    protected abstract SegmentInfoFormat setSegmentInfoFormat();
+    protected abstract SegmentInfoFormat originalSegmentInfoFormat();
 
-    protected final SegmentInfoFormat wrappedSegmentInfoFormat() {
-        return new SegmentInfoFormat() {
-            final SegmentInfoFormat wrappedFormat = setSegmentInfoFormat();
-
-            @Override
-            public SegmentInfo read(Directory directory, String segmentName, byte[] segmentID, IOContext context) throws IOException {
-                return wrap(wrappedFormat.read(directory, segmentName, segmentID, context));
-            }
-
-            @Override
-            public void write(Directory dir, SegmentInfo info, IOContext ioContext) throws IOException {
-                wrappedFormat.write(dir, info, ioContext);
-            }
-        };
-    }
-
-    protected abstract FieldInfosFormat setFieldInfosFormat();
-
-    protected final FieldInfosFormat wrappedFieldInfosFormat() {
-        return new FieldInfosFormat() {
-            final FieldInfosFormat wrappedFormat = setFieldInfosFormat();
-
-            @Override
-            public FieldInfos read(Directory directory, SegmentInfo segmentInfo, String segmentSuffix, IOContext iocontext)
-                throws IOException {
-                return filterFields(wrappedFormat.read(directory, segmentInfo, segmentSuffix, iocontext));
-            }
-
-            @Override
-            public void write(Directory directory, SegmentInfo segmentInfo, String segmentSuffix, FieldInfos infos, IOContext context)
-                throws IOException {
-                wrappedFormat.write(directory, segmentInfo, segmentSuffix, infos, context);
-            }
-        };
-    }
+    protected abstract FieldInfosFormat originalFieldInfosFormat();
 
     // mark all fields as no term vectors, no norms, no payloads, and no vectors.
     private static FieldInfos filterFields(FieldInfos fieldInfos) {

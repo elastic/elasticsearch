@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.inference.InferenceService;
@@ -50,6 +51,7 @@ import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignme
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
+import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalModel;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalServiceSettings;
 
@@ -255,7 +257,7 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
         ActionListener<Boolean> listener
     ) throws IOException {
         // The model we are trying to update must have a trained model associated with it if it is an in-cluster deployment
-        var deploymentId = getDeploymentIdForInClusterEndpoint(request.getInferenceEntityId(), existingParsedModel);
+        var deploymentId = getDeploymentIdForInClusterEndpoint(existingParsedModel);
         throwIfTrainedModelDoesntExist(request.getInferenceEntityId(), deploymentId);
 
         Map<String, Object> serviceSettings = request.getContentAsSettings().serviceSettings();
@@ -293,15 +295,18 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
         return List.of(ElasticsearchInternalService.NAME, ElasticsearchInternalService.OLD_ELSER_SERVICE_NAME).contains(name);
     }
 
-    private String getDeploymentIdForInClusterEndpoint(String inferenceEntityId, Model model) {
-        var serviceSettings = model.getConfigurations().getServiceSettings();
-        if (serviceSettings instanceof ElasticsearchInternalServiceSettings) {
-            var deploymentId = ((ElasticsearchInternalServiceSettings) serviceSettings).getDeploymentId();
-            if (deploymentId != null) {
-                return deploymentId;
-            }
+    private String getDeploymentIdForInClusterEndpoint(Model model) {
+        if (model instanceof ElasticsearchInternalModel esModel) {
+            return esModel.mlNodeDeploymentId();
+        } else {
+            throw new IllegalStateException(
+                Strings.format(
+                    "Cannot update inference endpoint [%s]. Class [%s] is not an Elasticsearch internal model",
+                    model.getInferenceEntityId(),
+                    model.getClass().getSimpleName()
+                )
+            );
         }
-        return inferenceEntityId;
     }
 
     private void throwIfTrainedModelDoesntExist(String inferenceEntityId, String deploymentId) throws ElasticsearchStatusException {

@@ -78,7 +78,7 @@ class GoogleCloudStorageBlobContainer extends AbstractBlobContainer {
     @Override
     public void writeBlob(OperationPurpose purpose, String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists)
         throws IOException {
-        withSpan(purpose, ()-> blobStore.writeBlob(buildKey(blobName), inputStream, blobSize, failIfAlreadyExists));
+        withSpan(purpose, () -> blobStore.writeBlob(buildKey(blobName), inputStream, blobSize, failIfAlreadyExists));
     }
 
     @Override
@@ -120,7 +120,6 @@ class GoogleCloudStorageBlobContainer extends AbstractBlobContainer {
     interface IOThrowing {
         void run() throws IOException;
     }
-
 
     @Override
     public void writeBlobAtomic(OperationPurpose purpose, String blobName, BytesReference bytes, boolean failIfAlreadyExists)

@@ -31,11 +31,17 @@ import org.elasticsearch.entitlement.runtime.policy.Scope;
 import java.lang.instrument.Instrumentation;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
+import java.nio.file.FileSystems;
+import java.nio.file.OpenOption;
+import java.nio.file.Path;
+import java.nio.file.spi.FileSystemProvider;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Called by the agent during {@code agentmain} to configure the entitlement system,
@@ -60,11 +66,24 @@ public class EntitlementInitialization {
     public static void initialize(Instrumentation inst) throws Exception {
         manager = initChecker();
 
-        Map<MethodKey, CheckMethod> checkMethods = INSTRUMENTER_FACTORY.lookupMethods(EntitlementChecker.class);
+        Map<MethodKey, CheckMethod> checkMethods = new HashMap<>(INSTRUMENTATION_SERVICE.lookupMethods(EntitlementChecker.class));
+
+        var fileSystemProviderClass = FileSystems.getDefault().provider().getClass();
+        Stream.of(
+            INSTRUMENTATION_SERVICE.lookupImplementationMethod(
+                FileSystemProvider.class,
+                "newInputStream",
+                fileSystemProviderClass,
+                EntitlementChecker.class,
+                "checkNewInputStream",
+                Path.class,
+                OpenOption[].class
+            )
+        ).forEach(instrumentation -> checkMethods.put(instrumentation.targetMethod(), instrumentation.checkMethod()));
 
         var classesToTransform = checkMethods.keySet().stream().map(MethodKey::className).collect(Collectors.toSet());
 
-        Instrumenter instrumenter = INSTRUMENTER_FACTORY.newInstrumenter(EntitlementChecker.class, checkMethods);
+        Instrumenter instrumenter = INSTRUMENTATION_SERVICE.newInstrumenter(EntitlementChecker.class, checkMethods);
         inst.addTransformer(new Transformer(instrumenter, classesToTransform), true);
         inst.retransformClasses(findClassesToRetransform(inst.getAllLoadedClasses(), classesToTransform));
     }
@@ -141,7 +160,7 @@ public class EntitlementInitialization {
         }
     }
 
-    private static final InstrumentationService INSTRUMENTER_FACTORY = new ProviderLocator<>(
+    private static final InstrumentationService INSTRUMENTATION_SERVICE = new ProviderLocator<>(
         "entitlement",
         InstrumentationService.class,
         "org.elasticsearch.entitlement.instrumentation",

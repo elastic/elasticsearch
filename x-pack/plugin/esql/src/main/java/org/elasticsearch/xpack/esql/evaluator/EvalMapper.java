@@ -181,7 +181,6 @@ public final class EvalMapper {
                 @Override
                 public DoubleBlock score(Page page, BlockFactory blockFactory) {
                     try (DoubleBlock lhs = leftEval.score(page, blockFactory); DoubleBlock rhs = rightEval.score(page, blockFactory)) {
-
                         int positionCount = lhs.getPositionCount();
                         // TODO We could optimize for constant vectors
                         try (var result = lhs.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {

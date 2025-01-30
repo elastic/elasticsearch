@@ -85,9 +85,7 @@ public class LuceneQueryExpressionEvaluator implements EvalOperator.ExpressionEv
 
     @Override
     public DoubleBlock score(Page page, BlockFactory blockFactory) {
-        if (scoreVector == null) {
-            Releasables.closeExpectNoException(eval(page));
-        }
+        assert scoreVector != null : "eval() should be invoked before calling score()";
         return scoreVector.asBlock();
     }
 
@@ -184,7 +182,6 @@ public class LuceneQueryExpressionEvaluator implements EvalOperator.ExpressionEv
 
     @Override
     public void close() {
-        Releasables.closeExpectNoException(scoreVector);
     }
 
     private ShardState shardState(int shard) throws IOException {
@@ -285,9 +282,9 @@ public class LuceneQueryExpressionEvaluator implements EvalOperator.ExpressionEv
 
             final DenseCollector collector;
             if (usesScoring) {
-                collector = new DenseCollector(blockFactory, min, max);
-            } else {
                 collector = new ScoringDenseCollector(blockFactory, min, max);
+            } else {
+                collector = new DenseCollector(blockFactory, min, max);
             }
             try (collector) {
                 bulkScorer.score(collector, ctx.reader().getLiveDocs(), min, max + 1);

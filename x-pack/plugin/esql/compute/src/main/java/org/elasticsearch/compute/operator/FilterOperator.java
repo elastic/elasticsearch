@@ -74,14 +74,13 @@ public class FilterOperator extends AbstractPageMappingOperator {
                 page.releaseBlocks();
                 return null;
             }
-            final DoubleBlock scoreBlock;
+            DoubleBlock scoreBlock = null;
             if (usesScoring) {
                 scoreBlock = evaluator.score(page, blockFactory);
-            } else {
-                scoreBlock = null;
+                assert scoreBlock != null : "score block is when using scoring";
             }
 
-            if (rowCount == page.getPositionCount() && (usesScoring == false || scoreBlock.asVector().isConstant())) {
+            if (rowCount == page.getPositionCount() && usesScoring == false) {
                 return page;
             }
             positions = Arrays.copyOf(positions, rowCount);
@@ -98,8 +97,8 @@ public class FilterOperator extends AbstractPageMappingOperator {
                 }
                 success = true;
             } finally {
-                Releasables.closeExpectNoException(scoreBlock);
                 page.releaseBlocks();
+                Releasables.closeExpectNoException(scoreBlock);
                 if (success == false) {
                     Releasables.closeExpectNoException(filteredBlocks);
                 }
@@ -114,7 +113,7 @@ public class FilterOperator extends AbstractPageMappingOperator {
         for (int j = 0; j < rowCount; j++) {
             updatedScoresBuilder.appendDouble(originalScoreBlock.getDouble(positions[j]) + newScoreBlock.getDouble(positions[j]));
         }
-        return updatedScoresBuilder.build().asBlock().filter(positions);
+        return updatedScoresBuilder.build().asBlock();
     }
 
     @Override

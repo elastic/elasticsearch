@@ -19,7 +19,11 @@ import org.junit.Before;
 import java.util.List;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.hamcrest.CoreMatchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.lessThan;
 
 //@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE", reason = "debug")
 public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
@@ -260,20 +264,124 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
         assertThat(error.getMessage(), containsString("[MATCH] function is only supported in WHERE commands"));
     }
 
+    public void testDisjunctionScoring() {
+        var query = """
+            FROM test METADATA _score
+            | WHERE match(content, "fox") OR length(content) < 20
+            | KEEP id, _score
+            | SORT _score DESC, id ASC
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "_score"));
+            assertColumnTypes(resp.columns(), List.of("integer", "double"));
+            List<List<Object>> values = getValuesList(resp);
+            assertThat(values.size(), equalTo(3));
+
+            assertThat(values.get(0).get(0), equalTo(1));
+            assertThat(values.get(1).get(0), equalTo(6));
+            assertThat(values.get(2).get(0), equalTo(2));
+
+            // Matches full text query and non pushable query
+            assertThat((Double) values.get(0).get(1), greaterThan(1.0));
+            // Matches just non pushable query
+            assertThat((Double) values.get(1).get(1), greaterThan(1.0));
+            // Matches just full text query
+            assertThat((Double) values.get(2).get(1), equalTo(0.0));
+        }
+    }
+
+    public void testDisjunctionScoringMultipleNonPushableFunctions() {
+        var query = """
+            FROM test METADATA _score
+            | WHERE match(content, "fox") OR length(content) < 20 AND id > 2
+            | KEEP id, _score
+            | SORT _score DESC
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "_score"));
+            assertColumnTypes(resp.columns(), List.of("integer", "double"));
+            List<List<Object>> values = getValuesList(resp);
+            assertThat(values.size(), equalTo(2));
+
+            assertThat(values.get(0).get(0), equalTo(1));
+            assertThat(values.get(1).get(0), equalTo(6));
+
+            // Matches the full text query and a non pushable query
+            assertThat((Double) values.get(0).get(1), greaterThan(1.0));
+            assertThat((Double) values.get(0).get(1), lessThan(2.0));
+            // Matches just the match function
+            assertThat((Double) values.get(1).get(1), lessThan(1.0));
+            assertThat((Double) values.get(1).get(1), greaterThan(0.0));
+        }
+    }
+
+    public void testDisjunctionScoringWithNot() {
+        var query = """
+            FROM test METADATA _score
+            | WHERE NOT(match(content, "dog")) OR length(content) > 50
+            | KEEP id, _score
+            | SORT _score DESC, id ASC
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "_score"));
+            assertColumnTypes(resp.columns(), List.of("integer", "double"));
+            List<List<Object>> values = getValuesList(resp);
+            assertThat(values.size(), equalTo(3));
+
+            assertThat(values.get(0).get(0), equalTo(1));
+            assertThat(values.get(1).get(0), equalTo(4));
+            assertThat(values.get(2).get(0), equalTo(5));
+
+            // Matches NOT and non pushable query gets score of 0.0
+            assertThat((Double) values.get(0).get(1), equalTo(0.0));
+            assertThat((Double) values.get(1).get(1), equalTo(0.0));
+            assertThat((Double) values.get(2).get(1), equalTo(0.0));
+        }
+    }
+
+    public void testScoringWithNoFullTextFunction() {
+        var query = """
+            FROM test METADATA _score
+            | WHERE length(content) > 50
+            | KEEP id, _score
+            | SORT _score DESC, id ASC
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "_score"));
+            assertColumnTypes(resp.columns(), List.of("integer", "double"));
+            List<List<Object>> values = getValuesList(resp);
+            assertThat(values.size(), equalTo(1));
+
+            assertThat(values.get(0).get(0), equalTo(4));
+
+            // Non pushable query gets score of 0.0, summed with 1.0 coming from Lucene
+            assertThat((Double) values.get(0).get(1), equalTo(1.0));
+        }
+    }
+
     private void createAndPopulateIndex() {
         var indexName = "test";
         var client = client().admin().indices();
         var CreateRequest = client.prepareCreate(indexName)
             .setSettings(Settings.builder().put("index.number_of_shards", 1))
-            .setMapping("id", "type=integer", "content", "type=text");
+            .setMapping("id", "type=integer", "content", "type=text", "length", "type=integer");
         assertAcked(CreateRequest);
         client().prepareBulk()
-            .add(new IndexRequest(indexName).id("1").source("id", 1, "content", "This is a brown fox"))
-            .add(new IndexRequest(indexName).id("2").source("id", 2, "content", "This is a brown dog"))
-            .add(new IndexRequest(indexName).id("3").source("id", 3, "content", "This dog is really brown"))
-            .add(new IndexRequest(indexName).id("4").source("id", 4, "content", "The dog is brown but this document is very very long"))
-            .add(new IndexRequest(indexName).id("5").source("id", 5, "content", "There is also a white cat"))
-            .add(new IndexRequest(indexName).id("6").source("id", 6, "content", "The quick brown fox jumps over the lazy dog"))
+            .add(new IndexRequest(indexName).id("1").source("id", 1, "content", "This is a brown fox", "length", 19))
+            .add(new IndexRequest(indexName).id("2").source("id", 2, "content", "This is a brown dog", "length", 19))
+            .add(new IndexRequest(indexName).id("3").source("id", 3, "content", "This dog is really brown", "length", 25))
+            .add(
+                new IndexRequest(indexName).id("4")
+                    .source("id", 4, "content", "The dog is brown but this document is very very long", "length", 52)
+            )
+            .add(new IndexRequest(indexName).id("5").source("id", 5, "content", "There is also a white cat", "length", 25))
+            .add(
+                new IndexRequest(indexName).id("6").source("id", 6, "content", "The quick brown fox jumps over the lazy dog", "length", 43)
+            )
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
         ensureYellow(indexName);

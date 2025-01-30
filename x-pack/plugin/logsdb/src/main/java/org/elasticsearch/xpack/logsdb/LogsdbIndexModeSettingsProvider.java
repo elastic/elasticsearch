@@ -46,7 +46,7 @@ import static org.elasticsearch.xpack.logsdb.LogsDBPlugin.CLUSTER_LOGSDB_ENABLED
 
 final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
     private static final Logger LOGGER = LogManager.getLogger(LogsdbIndexModeSettingsProvider.class);
-    private static final String LOGS_PATTERN = "logs-*-*";
+    static final String LOGS_PATTERN = "logs-*-*";
     private static final Set<String> MAPPING_INCLUDES = Set.of("_doc._source.*", "_doc.properties.host**", "_doc.subobjects");
 
     private final SyntheticSourceLicenseService syntheticSourceLicenseService;

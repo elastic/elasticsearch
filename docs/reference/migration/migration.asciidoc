@@ -14,6 +14,14 @@ include::apis/shared-migration-apis-tip.asciidoc[]
 
 * <<migration-api-deprecation>>
 * <<feature-migration-api>>
+* <<data-stream-reindex-api>>
+* <<data-stream-reindex-status-api>>
+* <<data-stream-reindex-cancel-api>>
+* <<indices-create-index-from-source>>
 
 include::apis/deprecation.asciidoc[]
 include::apis/feature-migration.asciidoc[]
+include::apis/data-stream-reindex.asciidoc[]
+include::apis/data-stream-reindex-status.asciidoc[]
+include::apis/data-stream-reindex-cancel.asciidoc[]
+include::apis/create-index-from-source.asciidoc[]

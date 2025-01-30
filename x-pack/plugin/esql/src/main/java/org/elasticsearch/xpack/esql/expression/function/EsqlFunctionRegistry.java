@@ -70,7 +70,6 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.Now;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.CIDRMatch;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.IpPrefix;
-import org.elasticsearch.xpack.esql.expression.function.scalar.map.LogWithBaseInMap;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Abs;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Acos;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Asin;
@@ -225,6 +224,7 @@ public class EsqlFunctionRegistry {
     // it has with the alias name associated to the FunctionDefinition instance
     private final Map<String, FunctionDefinition> defs = new LinkedHashMap<>();
     private final Map<String, String> aliases = new HashMap<>();
+    private final Map<Class<? extends Function>, String> names = new HashMap<>();
 
     private SnapshotFunctionRegistry snapshotRegistry = null;
 
@@ -257,6 +257,12 @@ public class EsqlFunctionRegistry {
 
     public boolean functionExists(String functionName) {
         return defs.containsKey(functionName);
+    }
+
+    public String functionName(Class<? extends Function> clazz) {
+        String name = names.get(clazz);
+        Check.notNull(name, "Cannot find function by class {}", clazz);
+        return name;
     }
 
     public Collection<FunctionDefinition> listFunctions() {
@@ -427,7 +433,7 @@ public class EsqlFunctionRegistry {
             // fulltext functions
             new FunctionDefinition[] {
                 def(Kql.class, uni(Kql::new), "kql"),
-                def(Match.class, bi(Match::new), "match"),
+                def(Match.class, tri(Match::new), "match"),
                 def(QueryString.class, uni(QueryString::new), "qstr") } };
 
     }
@@ -438,9 +444,6 @@ public class EsqlFunctionRegistry {
                 // The delay() function is for debug/snapshot environments only and should never be enabled in a non-snapshot build.
                 // This is an experimental function and can be removed without notice.
                 def(Delay.class, Delay::new, "delay"),
-                // log_with_base_in_map is for debug/snapshot environments only
-                // and should never be enabled in a non-snapshot build. They are for the purpose of testing MapExpression only.
-                def(LogWithBaseInMap.class, LogWithBaseInMap::new, "log_with_base_in_map"),
                 def(Rate.class, Rate::withUnresolvedTimestamp, "rate"),
                 def(Term.class, bi(Term::new), "term") } };
     }
@@ -539,8 +542,8 @@ public class EsqlFunctionRegistry {
     public static class MapArgSignature extends ArgSignature {
         private final Map<String, MapEntryArgSignature> mapParams;
 
-        public MapArgSignature(String description, boolean optional, Map<String, MapEntryArgSignature> mapParams) {
-            super("map", new String[] { "map" }, description, optional);
+        public MapArgSignature(String name, String description, boolean optional, Map<String, MapEntryArgSignature> mapParams) {
+            super(name, new String[] { "map" }, description, optional);
             this.mapParams = mapParams;
         }
 
@@ -666,7 +669,7 @@ public class EsqlFunctionRegistry {
             MapEntryArgSignature mapArg = new MapEntryArgSignature(param.name(), valueHint, type, param.description());
             params.put(param.name(), mapArg);
         }
-        return new EsqlFunctionRegistry.MapArgSignature(desc, mapParam.optional(), params);
+        return new EsqlFunctionRegistry.MapArgSignature(mapParam.name(), desc, mapParam.optional(), params);
     }
 
     public static ArgSignature paramWithoutAnnotation(String name) {
@@ -762,6 +765,14 @@ public class EsqlFunctionRegistry {
                 }
                 aliases.put(alias, f.name());
             }
+            Check.isTrue(
+                names.containsKey(f.clazz()) == false,
+                "function type [{}} is registered twice with names [{}] and [{}]",
+                f.clazz(),
+                names.get(f.clazz()),
+                f.name()
+            );
+            names.put(f.clazz(), f.name());
         }
         // sort the temporary map by key name and add it to the global map of functions
         defs.putAll(

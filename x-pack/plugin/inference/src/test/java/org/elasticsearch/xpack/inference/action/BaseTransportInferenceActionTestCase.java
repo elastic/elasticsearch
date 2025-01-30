@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.action;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceRegistry;
@@ -21,11 +22,13 @@ import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.action.task.StreamingTaskManager;
+import org.elasticsearch.xpack.inference.common.InferenceServiceNodeLocalRateLimitCalculator;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.telemetry.InferenceStats;
 import org.junit.Before;
@@ -61,6 +64,9 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
     protected static final String inferenceId = "inferenceEntityId";
     protected InferenceServiceRegistry serviceRegistry;
     protected InferenceStats inferenceStats;
+    protected InferenceServiceNodeLocalRateLimitCalculator inferenceServiceNodeLocalRateLimitCalculator;
+    protected TransportService transportService;
+    protected NodeClient nodeClient;
 
     public BaseTransportInferenceActionTestCase(TaskType taskType) {
         this.taskType = taskType;
@@ -69,13 +75,17 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        TransportService transportService = mock();
         ActionFilters actionFilters = mock();
+        ThreadPool threadPool = mock();
+        nodeClient = mock();
+        transportService = mock();
+        inferenceServiceNodeLocalRateLimitCalculator = mock();
         licenseState = mock();
         modelRegistry = mock();
         serviceRegistry = mock();
         inferenceStats = new InferenceStats(mock(), mock());
         streamingTaskManager = mock();
+
         action = createAction(
             transportService,
             actionFilters,
@@ -83,7 +93,10 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
             modelRegistry,
             serviceRegistry,
             inferenceStats,
-            streamingTaskManager
+            streamingTaskManager,
+            inferenceServiceNodeLocalRateLimitCalculator,
+            nodeClient,
+            threadPool
         );
 
         mockValidLicenseState();
@@ -96,7 +109,10 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
         ModelRegistry modelRegistry,
         InferenceServiceRegistry serviceRegistry,
         InferenceStats inferenceStats,
-        StreamingTaskManager streamingTaskManager
+        StreamingTaskManager streamingTaskManager,
+        InferenceServiceNodeLocalRateLimitCalculator inferenceServiceNodeLocalRateLimitCalculator,
+        NodeClient nodeClient,
+        ThreadPool threadPool
     );
 
     protected abstract Request createRequest();

@@ -11,6 +11,11 @@ package org.elasticsearch.entitlement.qa.entitled;
 
 import org.elasticsearch.core.SuppressForbidden;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.attribute.UserPrincipal;
+
 public final class EntitledActions {
     private EntitledActions() {}
 
@@ -19,4 +24,7 @@ public final class EntitledActions {
         System.clearProperty(key);
     }
 
+    public static UserPrincipal getFileOwner(Path path) throws IOException {
+        return Files.getOwner(path);
+    }
 }

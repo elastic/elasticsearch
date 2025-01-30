@@ -8,24 +8,19 @@
 package org.elasticsearch.xpack.esql.telemetry;
 
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
-import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
+import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
-
-import static org.elasticsearch.common.Strings.format;
 
 /**
  * This class is responsible for collecting metrics related to ES|QL planning.
  */
 public class PlanTelemetry {
     private final EsqlFunctionRegistry functionRegistry;
-    private final Set<TelemetryAware> telemetryAwares = new HashSet<>();
     private final Map<String, Integer> commands = new HashMap<>();
     private final Map<String, Integer> functions = new HashMap<>();
 
@@ -38,12 +33,8 @@ public class PlanTelemetry {
     }
 
     public void command(TelemetryAware command) {
-        if (telemetryAwares.add(command)) {
-            if (command.telemetryLabel() == null) {
-                throw new QlIllegalArgumentException(format("TelemetryAware [{}] has no metric name", command));
-            }
-            add(commands, command.telemetryLabel());
-        }
+        Check.notNull(command.telemetryLabel(), "TelemetryAware [{}] has no telemetry label", command);
+        add(commands, command.telemetryLabel());
     }
 
     public void function(String name) {

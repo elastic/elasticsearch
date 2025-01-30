@@ -153,6 +153,10 @@ if (providers.systemProperty('idea.active').getOrNull() == 'true') {
     doLast {
       enablePreview('.idea/modules/libs/native/elasticsearch.libs.native.main.iml', 'JDK_21_PREVIEW')
       enablePreview('.idea/modules/libs/native/elasticsearch.libs.native.test.iml', 'JDK_21_PREVIEW')
+      enablePreview('.idea/modules/libs/entitlement/elasticsearch.libs.entitlement.main.iml', 'JDK_21_PREVIEW')
+      enablePreview('.idea/modules/libs/entitlement/elasticsearch.libs.entitlement.test.iml', 'JDK_21_PREVIEW')
+      enablePreview('.idea/modules/libs/entitlement/bridge/elasticsearch.libs.entitlement.bridge.main.iml', 'JDK_21_PREVIEW')
+      enablePreview('.idea/modules/libs/entitlement/bridge/elasticsearch.libs.entitlement.bridge.test.iml', 'JDK_21_PREVIEW')
     }
   }
 

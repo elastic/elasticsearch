@@ -19,6 +19,7 @@ dependencies {
   testImplementation project(path: ':modules:legacy-geo')
   testImplementation project(xpackModule('spatial'))
   testImplementation(testArtifact(project(xpackModule('monitoring'))))
+  internalClusterTestImplementation project(':modules:rest-root')
 }
 
 addQaCheckDependencies(project)

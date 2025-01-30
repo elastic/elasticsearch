@@ -8,16 +8,32 @@
 package org.elasticsearch.xpack.inference.action;
 
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.license.MockLicenseState;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.inference.action.task.StreamingTaskManager;
+import org.elasticsearch.xpack.inference.common.InferenceServiceNodeLocalRateLimitCalculator;
+import org.elasticsearch.xpack.inference.common.RateLimitAssignment;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.telemetry.InferenceStats;
 
+import java.util.List;
+
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.same;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class TransportInferenceActionTests extends BaseTransportInferenceActionTestCase<InferenceAction.Request> {
 
@@ -33,7 +49,10 @@ public class TransportInferenceActionTests extends BaseTransportInferenceActionT
         ModelRegistry modelRegistry,
         InferenceServiceRegistry serviceRegistry,
         InferenceStats inferenceStats,
-        StreamingTaskManager streamingTaskManager
+        StreamingTaskManager streamingTaskManager,
+        InferenceServiceNodeLocalRateLimitCalculator inferenceServiceNodeLocalRateLimitCalculator,
+        NodeClient nodeClient,
+        ThreadPool threadPool
     ) {
         return new TransportInferenceAction(
             transportService,
@@ -42,12 +61,119 @@ public class TransportInferenceActionTests extends BaseTransportInferenceActionT
             modelRegistry,
             serviceRegistry,
             inferenceStats,
-            streamingTaskManager
+            streamingTaskManager,
+            inferenceServiceNodeLocalRateLimitCalculator,
+            nodeClient,
+            threadPool
         );
     }
 
     @Override
     protected InferenceAction.Request createRequest() {
         return mock();
+    }
+
+    public void testNoRerouting_WhenTaskTypeNotSupported() {
+        TaskType unsupportedTaskType = TaskType.COMPLETION;
+        mockService(listener -> listener.onResponse(mock()));
+
+        when(inferenceServiceNodeLocalRateLimitCalculator.isTaskTypeReroutingSupported(serviceId, unsupportedTaskType)).thenReturn(false);
+
+        var listener = doExecute(unsupportedTaskType);
+
+        verify(listener).onResponse(any());
+        // Verify request was handled locally (not rerouted using TransportService)
+        verify(transportService, never()).sendRequest(any(), any(), any(), any());
+    }
+
+    public void testNoRerouting_WhenNoGroupingCalculatedYet() {
+        mockService(listener -> listener.onResponse(mock()));
+
+        when(inferenceServiceNodeLocalRateLimitCalculator.isTaskTypeReroutingSupported(serviceId, taskType)).thenReturn(true);
+        when(inferenceServiceNodeLocalRateLimitCalculator.getRateLimitAssignment(serviceId, taskType)).thenReturn(null);
+
+        var listener = doExecute(taskType);
+
+        verify(listener).onResponse(any());
+        // Verify request was handled locally (not rerouted using TransportService)
+        verify(transportService, never()).sendRequest(any(), any(), any(), any());
+    }
+
+    public void testNoRerouting_WhenEmptyNodeList() {
+        mockService(listener -> listener.onResponse(mock()));
+
+        when(inferenceServiceNodeLocalRateLimitCalculator.isTaskTypeReroutingSupported(serviceId, taskType)).thenReturn(true);
+        when(inferenceServiceNodeLocalRateLimitCalculator.getRateLimitAssignment(serviceId, taskType)).thenReturn(
+            new RateLimitAssignment(List.of())
+        );
+
+        var listener = doExecute(taskType);
+
+        verify(listener).onResponse(any());
+        // Verify request was handled locally (not rerouted using TransportService)
+        verify(transportService, never()).sendRequest(any(), any(), any(), any());
+    }
+
+    public void testRerouting_ToOtherNode() {
+        DiscoveryNode otherNode = mock(DiscoveryNode.class);
+        when(otherNode.getId()).thenReturn("other-node");
+
+        // The local node is different to the "other-node" responsible for serviceId
+        when(nodeClient.getLocalNodeId()).thenReturn("local-node");
+        when(inferenceServiceNodeLocalRateLimitCalculator.isTaskTypeReroutingSupported(serviceId, taskType)).thenReturn(true);
+        // Requests for serviceId are always routed to "other-node"
+        var assignment = new RateLimitAssignment(List.of(otherNode));
+        when(inferenceServiceNodeLocalRateLimitCalculator.getRateLimitAssignment(serviceId, taskType)).thenReturn(assignment);
+
+        mockService(listener -> listener.onResponse(mock()));
+        var listener = doExecute(taskType);
+
+        // Verify request was rerouted
+        verify(transportService).sendRequest(same(otherNode), eq(InferenceAction.NAME), any(), any());
+        // Verify local execution didn't happen
+        verify(listener, never()).onResponse(any());
+    }
+
+    public void testRerouting_ToLocalNode_WithoutGoingThroughTransportLayerAgain() {
+        DiscoveryNode localNode = mock(DiscoveryNode.class);
+        String localNodeId = "local-node";
+        when(localNode.getId()).thenReturn(localNodeId);
+
+        // The local node is the only one responsible for serviceId
+        when(nodeClient.getLocalNodeId()).thenReturn(localNodeId);
+        when(inferenceServiceNodeLocalRateLimitCalculator.isTaskTypeReroutingSupported(serviceId, taskType)).thenReturn(true);
+        var assignment = new RateLimitAssignment(List.of(localNode));
+        when(inferenceServiceNodeLocalRateLimitCalculator.getRateLimitAssignment(serviceId, taskType)).thenReturn(assignment);
+
+        mockService(listener -> listener.onResponse(mock()));
+        var listener = doExecute(taskType);
+
+        verify(listener).onResponse(any());
+        // Verify request was handled locally (not rerouted using TransportService)
+        verify(transportService, never()).sendRequest(any(), any(), any(), any());
+    }
+
+    public void testRerouting_HandlesTransportException_FromOtherNode() {
+        DiscoveryNode otherNode = mock(DiscoveryNode.class);
+        when(otherNode.getId()).thenReturn("other-node");
+
+        when(nodeClient.getLocalNodeId()).thenReturn("local-node");
+        when(inferenceServiceNodeLocalRateLimitCalculator.isTaskTypeReroutingSupported(serviceId, taskType)).thenReturn(true);
+        var assignment = new RateLimitAssignment(List.of(otherNode));
+        when(inferenceServiceNodeLocalRateLimitCalculator.getRateLimitAssignment(serviceId, taskType)).thenReturn(assignment);
+
+        mockService(listener -> listener.onResponse(mock()));
+
+        TransportException expectedException = new TransportException("Failed to route");
+        doAnswer(invocation -> {
+            TransportResponseHandler<?> handler = invocation.getArgument(3);
+            handler.handleException(expectedException);
+            return null;
+        }).when(transportService).sendRequest(any(), any(), any(), any());
+
+        var listener = doExecute(taskType);
+
+        // Verify exception was propagated from "other-node" to "local-node"
+        verify(listener).onFailure(same(expectedException));
     }
 }

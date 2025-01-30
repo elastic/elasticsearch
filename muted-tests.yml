@@ -267,9 +267,6 @@ tests:
 - class: org.elasticsearch.datastreams.DataStreamsClientYamlTestSuiteIT
   method: test {p0=data_stream/140_data_stream_aliases/Create data stream alias with filter}
   issue: https://github.com/elastic/elasticsearch/issues/121014
-- class: org.elasticsearch.xpack.esql.parser.StatementParserTests
-  method: testNamedFunctionArgumentInMap
-  issue: https://github.com/elastic/elasticsearch/issues/121020
 - class: org.elasticsearch.xpack.security.profile.ProfileIntegTests
   method: testSuggestProfilesWithName
   issue: https://github.com/elastic/elasticsearch/issues/121022
@@ -370,6 +367,9 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/121293
 - class: org.elasticsearch.xpack.inference.common.InferenceServiceNodeLocalRateLimitCalculatorTests
   issue: https://github.com/elastic/elasticsearch/issues/121294
+- class: org.elasticsearch.env.NodeEnvironmentTests
+  method: testGetBestDowngradeVersion
+  issue: https://github.com/elastic/elasticsearch/issues/121316
 
 # Examples:
 #

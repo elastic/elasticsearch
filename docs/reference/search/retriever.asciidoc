@@ -28,6 +28,9 @@ A <<standard-retriever, retriever>> that replaces the functionality of a traditi
 `knn`::
 A <<knn-retriever, retriever>> that replaces the functionality of a <<search-api-knn, knn search>>.
 
+`linear`::
+A <<linear-retriever, retriever>> that linearly combines the scores of other retrievers for the top documents.
+
 `rescorer`::
 A <<rescorer-retriever, retriever>> that replaces the functionality of the <<rescore, query rescorer>>.
 
@@ -45,6 +48,8 @@ A <<rule-retriever, retriever>> that applies contextual <<query-rules>> to pin o
 
 A standard retriever returns top documents from a traditional <<query-dsl, query>>.
 
+[discrete]
+[[standard-retriever-parameters]]
 ===== Parameters:
 
 `query`::
@@ -195,6 +200,8 @@ Documents matching these conditions will have increased relevancy scores.
 
 A kNN retriever returns top documents from a <<knn-search, k-nearest neighbor search (kNN)>>.
 
+[discrete]
+[[knn-retriever-parameters]]
 ===== Parameters
 
 `field`::
@@ -265,21 +272,37 @@ GET /restaurants/_search
 This value must be fewer than or equal to `num_candidates`.
 <5> The size of the initial candidate set from which the final `k` nearest neighbors are selected.
 
+[[linear-retriever]]
+==== Linear Retriever
+A retriever that normalizes and linearly combines the scores of other retrievers.
+
+[discrete]
+[[linear-retriever-parameters]]
+===== Parameters
+
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=linear-retriever-components]
+
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=compound-retriever-rank-window-size]
+
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=compound-retriever-filter]
+
 [[rrf-retriever]]
 ==== RRF Retriever
 
 An <<rrf, RRF>> retriever returns top documents based on the RRF formula, equally weighting two or more child retrievers.
 Reciprocal rank fusion (RRF) is a method for combining multiple result sets with different relevance indicators into a single result set.
 
+[discrete]
+[[rrf-retriever-parameters]]
 ===== Parameters
 
 include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=rrf-retrievers]
 
 include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=rrf-rank-constant]
 
-include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=rrf-rank-window-size]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=compound-retriever-rank-window-size]
 
-include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=rrf-filter]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=compound-retriever-filter]
 
 [discrete]
 [[rrf-retriever-example-hybrid]]
@@ -433,10 +456,13 @@ GET movies/_search
   "retriever": {
     "rescorer": { <2>
       "rescore": {
-        "query": { <3>
-          "window_size": 50, <4>
+        "window_size": 50, <3>
+        "query": { <4>
           "rescore_query": {
             "script_score": {
+              "query": {
+                "match_all": {}
+              },
               "script": {
                 "source": "cosineSimilarity(params.queryVector, 'product-vector_final_stage') + 1.0",
                 "params": {
@@ -493,8 +519,8 @@ GET movies/_search
 // TEST[skip:uses ELSER]
 <1> Specifies the number of top documents to return in the final response.
 <2> A `rescorer` retriever applied as the final step.
-<3> The definition of the `query` rescorer.
-<4> Defines the number of documents to rescore from the child retriever.
+<3> Defines the number of documents to rescore from the child retriever.
+<4> The definition of the `query` rescorer.
 <5> Specifies the child retriever definition.
 <6> Defines the number of documents returned by the `rrf` retriever, which limits the available documents to
 
@@ -523,6 +549,25 @@ You have the following options:
 ** Then set up an <<inference-example-eland,{es} service inference endpoint>> with the `rerank` task type.
 ** Refer to the <<text-similarity-reranker-retriever-example-eland,example>> on this page for a step-by-step guide.
 
+[IMPORTANT]
+====
+Scores from the re-ranking process are normalized using the following formula before returned to the user,
+to avoid having negative scores.
+[source,text]
+----
+score = max(score, 0) + min(exp(score), 1)
+----
+Using the above, any initially negative scores are projected to (0, 1) and positive scores to [1, infinity).
+To revert back if needed, one can use:
+[source, text]
+----
+score = score - 1, if score >= 0
+score = ln(score), if score < 0
+----
+====
+
+[discrete]
+[[text-similarity-reranker-retriever-parameters]]
 ===== Parameters
 
 `retriever`::

@@ -411,6 +411,7 @@ public interface EntitlementChecker {
     //
     // Load native libraries
     //
+    // Using the list of restricted methods from https://download.java.net/java/early_access/jdk24/docs/api/restricted-list.html
     void check$java_lang_Runtime$load(Class<?> callerClass, Runtime that, String filename);
 
     void check$java_lang_Runtime$loadLibrary(Class<?> callerClass, Runtime that, String libname);
@@ -418,4 +419,6 @@ public interface EntitlementChecker {
     void check$java_lang_System$$load(Class<?> callerClass, String filename);
 
     void check$java_lang_System$$loadLibrary(Class<?> callerClass, String libname);
+
+    void check$java_lang_ModuleLayer$Controller$enableNativeAccess(Class<?> callerClass, ModuleLayer.Controller that, Module target);
 }

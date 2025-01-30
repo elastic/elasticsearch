@@ -32,8 +32,8 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
 
         return new DataSourceResponse.LeafMappingParametersGenerator(switch (request.fieldType()) {
             case KEYWORD -> keywordMapping(request, map);
-            case LONG, INTEGER, SHORT, BYTE, UNSIGNED_LONG -> plain(map);
-
+            case LONG, INTEGER, SHORT, BYTE, DOUBLE, FLOAT, HALF_FLOAT, UNSIGNED_LONG -> plain(map);
+            case SCALED_FLOAT -> scaledFloatMapping(map);
         });
     }
 
@@ -61,9 +61,12 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
                     .collect(Collectors.toSet());
 
                 if (options.isEmpty() == false) {
-                    // TODO: re-enable once #120831 is resolved
-                    // injected.put("copy_to", ESTestCase.randomFrom(options));
+                    injected.put("copy_to", ESTestCase.randomFrom(options));
                 }
+            }
+
+            if (ESTestCase.randomDouble() <= 0.2) {
+                injected.put("ignore_above", ESTestCase.randomIntBetween(1, 100));
             }
 
             return injected;

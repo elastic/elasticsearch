@@ -38,6 +38,7 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.cluster.metadata.MetadataIndexStateService.isIndexVerifiedBeforeClosed;
 import static org.elasticsearch.core.Strings.format;
 
 /**
@@ -163,7 +164,7 @@ public class IndexMetadataVerifier {
     ) {
         if (isReadOnlyCompatible(indexMetadata, minimumCompatible, minimumReadOnlyCompatible)) {
             assert isFullySupportedVersion(indexMetadata, minimumCompatible) == false : indexMetadata;
-            final boolean isReadOnly = hasIndexWritesBlock(indexMetadata);
+            final boolean isReadOnly = hasReadOnlyBlocks(indexMetadata) || isIndexVerifiedBeforeClosed(indexMetadata);
             if (isReadOnly == false) {
                 throw new IllegalStateException(
                     "The index "
@@ -206,7 +207,7 @@ public class IndexMetadataVerifier {
         return false;
     }
 
-    private static boolean hasIndexWritesBlock(IndexMetadata indexMetadata) {
+    static boolean hasReadOnlyBlocks(IndexMetadata indexMetadata) {
         var indexSettings = indexMetadata.getSettings();
         if (IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.get(indexSettings) || IndexMetadata.INDEX_READ_ONLY_SETTING.get(indexSettings)) {
             return indexMetadata.isSearchableSnapshot()

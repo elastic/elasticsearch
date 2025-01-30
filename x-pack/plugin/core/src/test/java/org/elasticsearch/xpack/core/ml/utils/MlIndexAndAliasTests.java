@@ -186,7 +186,8 @@ public class MlIndexAndAliasTests extends ESTestCase {
                 NotificationsIndex.NOTIFICATIONS_INDEX,
                 createComposableIndexTemplateMetaData(
                     NotificationsIndex.NOTIFICATIONS_INDEX,
-                    Collections.singletonList(NotificationsIndex.NOTIFICATIONS_INDEX)
+                    Collections.singletonList(NotificationsIndex.NOTIFICATIONS_INDEX),
+                    TEST_TEMPLATE_VERSION
                 )
             )
         );
@@ -428,8 +429,8 @@ public class MlIndexAndAliasTests extends ESTestCase {
         return IndexTemplateMetadata.builder(templateName).patterns(patterns).build();
     }
 
-    private static ComposableIndexTemplate createComposableIndexTemplateMetaData(String templateName, List<String> patterns) {
-        return ComposableIndexTemplate.builder().indexPatterns(patterns).build();
+    private static ComposableIndexTemplate createComposableIndexTemplateMetaData(String templateName, List<String> patterns, long version) {
+        return ComposableIndexTemplate.builder().indexPatterns(patterns).version(version).build();
     }
 
     private static IndexMetadata createIndexMetadata(String indexName, boolean withAlias) {

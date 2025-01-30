@@ -123,7 +123,7 @@ public abstract class FullTextFunction extends Function
 
     @Override
     public MappingPreProcessor mappingPreProcessor() {
-        return FullTextFunctionMapperPreprocessor.INSTANCE;
+        return FullTextFunctionMappingPreprocessor.INSTANCE;
     }
 
     /**

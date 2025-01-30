@@ -73,7 +73,7 @@ import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
-import org.elasticsearch.xpack.esql.planner.mapper.preprocessor.MapperPreprocessorExecutor;
+import org.elasticsearch.xpack.esql.planner.mapper.preprocessor.MappingPreprocessorExecutor;
 import org.elasticsearch.xpack.esql.plugin.TransportActionServices;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 
@@ -116,7 +116,7 @@ public class EsqlSession {
     private final PhysicalPlanOptimizer physicalPlanOptimizer;
     private final PlanTelemetry planTelemetry;
     private final IndicesExpressionGrouper indicesExpressionGrouper;
-    private final MapperPreprocessorExecutor mapperPreprocessorExecutor;
+    private final MappingPreprocessorExecutor mappingPreprocessorExecutor;
 
     public EsqlSession(
         String sessionId,
@@ -144,7 +144,7 @@ public class EsqlSession {
         this.physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(configuration));
         this.planTelemetry = planTelemetry;
         this.indicesExpressionGrouper = indicesExpressionGrouper;
-        this.mapperPreprocessorExecutor = new MapperPreprocessorExecutor(services);
+        this.mappingPreprocessorExecutor = new MappingPreprocessorExecutor(services);
     }
 
     public String sessionId() {
@@ -177,7 +177,7 @@ public class EsqlSession {
         LogicalPlan optimizedPlan,
         ActionListener<Result> listener
     ) {
-        mapperPreprocessorExecutor.execute(optimizedPlan, listener.delegateFailureAndWrap((l, p) -> {
+        mappingPreprocessorExecutor.execute(optimizedPlan, listener.delegateFailureAndWrap((l, p) -> {
             p.setOptimized(); // might have been updated by the preprocessor
             executeOptimizedPlan(request, executionInfo, planRunner, p, listener);
         }));

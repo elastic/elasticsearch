@@ -30,8 +30,6 @@ public class Match extends AbstractMatchFullTextFunction {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Match", Match::readFrom);
 
-    private transient Boolean isOperator;
-
     @FunctionInfo(
         returnType = "boolean",
         preview = true,

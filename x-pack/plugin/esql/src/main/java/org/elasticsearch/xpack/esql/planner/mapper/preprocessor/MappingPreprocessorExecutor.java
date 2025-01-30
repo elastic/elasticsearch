@@ -15,11 +15,11 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-public class MapperPreprocessorExecutor {
+public class MappingPreprocessorExecutor {
 
     private final TransportActionServices services;
 
-    public MapperPreprocessorExecutor(TransportActionServices services) {
+    public MappingPreprocessorExecutor(TransportActionServices services) {
         this.services = services;
     }
 

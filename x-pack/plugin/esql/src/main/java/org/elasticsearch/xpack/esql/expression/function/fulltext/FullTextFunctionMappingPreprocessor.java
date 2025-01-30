@@ -27,12 +27,14 @@ import java.util.Set;
 /**
  * Some {@link FullTextFunction} implementations such as {@link org.elasticsearch.xpack.esql.expression.function.fulltext.Match}
  * will be translated to a {@link QueryBuilder} that require a rewrite phase on the coordinator.
- * {@link FullTextFunctionMapperPreprocessor#preprocess(LogicalPlan, TransportActionServices, ActionListener)} will rewrite the plan by
+ * {@link FullTextFunctionMappingPreprocessor#preprocess(LogicalPlan, TransportActionServices, ActionListener)} will rewrite the plan by
  * replacing {@link FullTextFunction} expression with new ones that hold rewritten {@link QueryBuilder}s.
  */
-public final class FullTextFunctionMapperPreprocessor implements MappingPreProcessor {
+public final class FullTextFunctionMappingPreprocessor implements MappingPreProcessor {
 
-    public static final FullTextFunctionMapperPreprocessor INSTANCE = new FullTextFunctionMapperPreprocessor();
+    public static final FullTextFunctionMappingPreprocessor INSTANCE = new FullTextFunctionMappingPreprocessor();
+
+    private FullTextFunctionMappingPreprocessor() {}
 
     @Override
     public void preprocess(LogicalPlan plan, TransportActionServices services, ActionListener<LogicalPlan> listener) {
@@ -64,7 +66,7 @@ public final class FullTextFunctionMapperPreprocessor implements MappingPreProce
 
     private record FullTextFunctionsRewritable(LogicalPlan plan)
         implements
-            Rewriteable<FullTextFunctionMapperPreprocessor.FullTextFunctionsRewritable> {
+            Rewriteable<FullTextFunctionMappingPreprocessor.FullTextFunctionsRewritable> {
         @Override
         public FullTextFunctionsRewritable rewrite(QueryRewriteContext ctx) throws IOException {
             Holder<IOException> exceptionHolder = new Holder<>();
@@ -77,9 +79,9 @@ public final class FullTextFunctionMapperPreprocessor implements MappingPreProce
                 } catch (IOException e) {
                     exceptionHolder.trySet(e);
                 }
-                var rewrite = builder != initial;
-                updated.set(updated.get() || rewrite);
-                return rewrite ? f.replaceQueryBuilder(builder) : f;
+                var rewritten = builder != initial;
+                updated.set(updated.get() || rewritten);
+                return rewritten ? f.replaceQueryBuilder(builder) : f;
             });
             if (exceptionHolder.get() != null) {
                 throw exceptionHolder.get();

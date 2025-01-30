@@ -3,7 +3,7 @@
   - requires:
       cluster_features: ["gte_v7.14.0"]
       reason: "data streams aliases are available from 7.14.0"
-      test_runner_features: [allowed_warnings,headers], headers
+      test_runner_features: [allowed_warnings,headers]
 
   - transform_and_set: { login_credentials: "#base64Encode(data_stream_test_user:x-pack-test-password)" }
 

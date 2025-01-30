@@ -29,7 +29,7 @@ public class DataStreamsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase 
 
     private static final String ROLES = """
         data_stream_alias_test_role:
-          cluster: [ ]
+          cluster: ["manage_index_templates"]
           indices:
             - names: ["test*", "events*", "log-*", "app*", "my*"]
               allow_restricted_indices: false

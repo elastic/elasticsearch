@@ -156,7 +156,7 @@ public abstract class FallbackSyntheticSourceBlockLoader implements BlockLoader 
                         )
                 ) {
                     parser.nextToken();
-                    reader.parse(parser, blockValues);
+                    parseWithReader(parser, blockValues);
                 }
             }
         }
@@ -202,9 +202,27 @@ public abstract class FallbackSyntheticSourceBlockLoader implements BlockLoader 
                     }
                     parser.nextToken();
                 }
-
-                reader.parse(parser, blockValues);
+                parseWithReader(parser, blockValues);
             }
+        }
+
+        private void parseWithReader(XContentParser parser, List<T> blockValues) throws IOException {
+            if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
+                return;
+            }
+
+            if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
+                while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+                    if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
+                        continue;
+                    }
+
+                    reader.parse(parser, blockValues);
+                }
+                return;
+            }
+
+            reader.parse(parser, blockValues);
         }
 
         @Override

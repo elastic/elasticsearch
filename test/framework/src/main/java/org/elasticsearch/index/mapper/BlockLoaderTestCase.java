@@ -75,10 +75,25 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
     }
 
     public void testBlockLoaderForFieldInObject() throws IOException {
-        var template = new Template(
-            Map.of("object", new Template.Object("object", false, Map.of(fieldName, new Template.Leaf(fieldName, fieldType))))
-        );
-        runTest(template, "object." + fieldName);
+        int depth = randomIntBetween(0, 3);
+
+        Map<String, Template.Entry> currentLevel = new HashMap<>();
+        Map<String, Template.Entry> top = Map.of("top", new Template.Object("top", false, currentLevel));
+
+        var fullFieldName = new StringBuilder("top");
+        int currentDepth = 0;
+        while (currentDepth++ < depth) {
+            fullFieldName.append('.').append("level").append(currentDepth);
+
+            Map<String, Template.Entry> nextLevel = new HashMap<>();
+            currentLevel.put("level" + currentDepth, new Template.Object("level" + currentDepth, false, nextLevel));
+            currentLevel = nextLevel;
+        }
+
+        fullFieldName.append('.').append(fieldName);
+        currentLevel.put(fieldName, new Template.Leaf(fieldName, fieldType));
+        var template = new Template(top);
+        runTest(template, fullFieldName.toString());
     }
 
     private void runTest(Template template, String fieldName) throws IOException {
@@ -99,31 +114,42 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
     protected abstract Object expected(Map<String, Object> fieldMapping, Object value, boolean syntheticSource);
 
     private Object getFieldValue(Map<String, Object> document, String fieldName) {
-        if (fieldName.contains(".") == false) {
-            return document.get(fieldName);
+        var results = new ArrayList<>();
+        processLevel(document, fieldName, results);
+
+        if (results.isEmpty()) {
+            return null;
+        }
+        if (results.size() == 1) {
+            return results.get(0);
         }
 
-        var parent = document.get(fieldName.split("\\.")[0]);
-        var childName = fieldName.split("\\.")[1];
-        if (parent instanceof Map<?, ?> m) {
-            return m.get(childName);
-        }
-        if (parent instanceof List<?> l) {
-            var results = new ArrayList<>();
+        return results;
+    }
 
-            for (var object : l) {
-                var childValue = ((Map<?, ?>) object).get(childName);
-                if (childValue instanceof List<?> cl) {
-                    results.addAll(cl);
-                } else {
-                    results.add(childValue);
-                }
+    @SuppressWarnings("unchecked")
+    private void processLevel(Map<String, Object> level, String field, ArrayList<Object> values) {
+        if (field.contains(".") == false) {
+            var value = level.get(field);
+            if (value instanceof List<?> l) {
+                values.addAll(l);
+            } else {
+                values.add(value);
             }
 
-            return results;
+            return;
         }
 
-        throw new IllegalStateException("Unexpected structure of document");
+        var nameInLevel = field.split("\\.")[0];
+        var entry = level.get(nameInLevel);
+        if (entry instanceof Map<?, ?> m) {
+            processLevel((Map<String, Object>) m, field.substring(field.indexOf('.') + 1), values);
+        }
+        if (entry instanceof List<?> l) {
+            for (var object : l) {
+                processLevel((Map<String, Object>) object, field.substring(field.indexOf('.') + 1), values);
+            }
+        }
     }
 
     private Object setupAndInvokeBlockLoader(MapperService mapperService, XContentBuilder document, String fieldName) throws IOException {

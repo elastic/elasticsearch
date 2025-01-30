@@ -745,8 +745,6 @@ public final class KeywordFieldMapper extends FieldMapper {
                 var reader = new FallbackSyntheticSourceBlockLoader.Reader<BytesRef>() {
                     @Override
                     public void convertValue(Object value, List<BytesRef> accumulator) {
-                        assert value instanceof BytesRef;
-
                         String stringValue = ((BytesRef) value).utf8ToString();
                         String adjusted = applyIgnoreAboveAndNormalizer(stringValue);
                         if (adjusted != null) {
@@ -757,27 +755,8 @@ public final class KeywordFieldMapper extends FieldMapper {
 
                     @Override
                     public void parse(XContentParser parser, List<BytesRef> accumulator) throws IOException {
-                        if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
-                            return;
-                        }
-
-                        if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
-                            while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-                                if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
-                                    continue;
-                                }
-
-                                assert parser.currentToken() == XContentParser.Token.VALUE_STRING;
-
-                                var value = applyIgnoreAboveAndNormalizer(parser.text());
-                                if (value != null) {
-                                    accumulator.add(new BytesRef(value));
-                                }
-                            }
-                            return;
-                        }
-
                         assert parser.currentToken() == XContentParser.Token.VALUE_STRING : "Unexpected token " + parser.currentToken();
+
                         var value = applyIgnoreAboveAndNormalizer(parser.text());
                         if (value != null) {
                             accumulator.add(new BytesRef(value));

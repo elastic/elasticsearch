@@ -119,11 +119,15 @@ public class EsqlCapabilities {
          * Cast string literals to a desired data type for IN predicate and more types for BinaryComparison.
          */
         STRING_LITERAL_AUTO_CASTING_EXTENDED,
-
         /**
          * Support for metadata fields.
          */
         METADATA_FIELDS,
+
+        /**
+         * Support specifically for *just* the _index METADATA field.
+         */
+        INDEX_METADATA_FIELD,
 
         /**
          * Support for timespan units abbreviations

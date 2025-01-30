@@ -58,6 +58,7 @@ import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.LocalExecutionPlannerContext;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.PhysicalOperation;
+import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
@@ -292,6 +293,10 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
     private Block extractBlockForSingleDoc(DocBlock docBlock, String columnName, TestBlockCopier blockCopier) {
         var indexId = docBlock.asVector().shards().getInt(0);
         var indexPage = indexPages.get(indexId);
+        if (IndexResolver.INDEX_METADATA_FIELD.contains(columnName)) {
+            return docBlock.blockFactory()
+                .newConstantBytesRefBlockWith(new BytesRef(indexPage.index), blockCopier.docIndices.getPositionCount());
+        }
         int columnIndex = indexPage.columnIndex(columnName)
             .orElseThrow(() -> new EsqlIllegalArgumentException("Cannot find column named [{}] in {}", columnName, indexPage.columnNames));
         var originalData = indexPage.page.getBlock(columnIndex);
@@ -410,8 +415,9 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
         ) {
             foreachIndexDoc(docBlock, indexDoc -> {
                 TestBlockCopier blockCopier = blockCopier(dataType, extractPreference, indexDoc.asVector().docs());
-                Block blockForIndex = extractBlock.apply(indexDoc, blockCopier);
-                blockBuilder.copyFrom(blockForIndex, 0, blockForIndex.getPositionCount());
+                try (Block blockForIndex = extractBlock.apply(indexDoc, blockCopier)) {
+                    blockBuilder.copyFrom(blockForIndex, 0, blockForIndex.getPositionCount());
+                }
             });
             var result = blockBuilder.build();
             assert result.getPositionCount() == docBlock.getPositionCount()

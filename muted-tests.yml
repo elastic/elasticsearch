@@ -370,6 +370,15 @@ tests:
 - class: org.elasticsearch.env.NodeEnvironmentTests
   method: testGetBestDowngradeVersion
   issue: https://github.com/elastic/elasticsearch/issues/121316
+- class: org.elasticsearch.index.engine.ShuffleForcedMergePolicyTests
+  method: testDiagnostics
+  issue: https://github.com/elastic/elasticsearch/issues/121336
+- class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
+  method: test {yaml=reference/rest-api/security/invalidate-tokens/line_194}
+  issue: https://github.com/elastic/elasticsearch/issues/121337
+- class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
+  method: test {yaml=reference/rest-api/common-options/line_125}
+  issue: https://github.com/elastic/elasticsearch/issues/121338
 
 # Examples:
 #

@@ -73,6 +73,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.inference.results.MlTextEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 import org.elasticsearch.xpack.core.ml.search.SparseVectorQueryBuilder;
+import org.elasticsearch.xpack.inference.highlight.SemanticTextHighlighter;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -578,6 +579,11 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         @Override
         public String familyTypeName() {
             return TextFieldMapper.CONTENT_TYPE;
+        }
+
+        @Override
+        public String getDefaultHighlighter() {
+            return SemanticTextHighlighter.NAME;
         }
 
         public String getInferenceId() {

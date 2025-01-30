@@ -363,6 +363,25 @@ steps:
             - signal_reason: agent_stop
               limit: 3
 
+      - label: 8.19.0 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v8.19.0#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+          preemptible: true
+        env:
+          BWC_VERSION: 8.19.0
+        retry:
+          automatic:
+            - exit_status: "-1"
+              limit: 3
+              signal_reason: none
+            - signal_reason: agent_stop
+              limit: 3
+
       - label: 9.0.0 / bwc
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v9.0.0#bwcTest
         timeout_in_minutes: 300

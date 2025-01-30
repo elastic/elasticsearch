@@ -990,20 +990,20 @@ public class WildcardFieldMapper extends FieldMapper {
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport() {
-        var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>();
-        layers.add(new WildcardSyntheticFieldLoader());
-        if (ignoreAbove != Integer.MAX_VALUE) {
-            layers.add(new CompositeSyntheticFieldLoader.StoredFieldLayer(originalName()) {
-                @Override
-                protected void writeValue(Object value, XContentBuilder b) throws IOException {
-                    BytesRef r = (BytesRef) value;
-                    b.utf8Value(r.bytes, r.offset, r.length);
-                }
-            });
-        }
-
-        var loader = new CompositeSyntheticFieldLoader(leafName(), fullPath(), layers);
-        return new SyntheticSourceSupport.Native(loader);
+        return new SyntheticSourceSupport.Native(() -> {
+            var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>();
+            layers.add(new WildcardSyntheticFieldLoader());
+            if (ignoreAbove != Integer.MAX_VALUE) {
+                layers.add(new CompositeSyntheticFieldLoader.StoredFieldLayer(originalName()) {
+                    @Override
+                    protected void writeValue(Object value, XContentBuilder b) throws IOException {
+                        BytesRef r = (BytesRef) value;
+                        b.utf8Value(r.bytes, r.offset, r.length);
+                    }
+                });
+            }
+            return new CompositeSyntheticFieldLoader(leafName(), fullPath(), layers);
+        });
     }
 
     private class WildcardSyntheticFieldLoader implements CompositeSyntheticFieldLoader.DocValuesLayer {

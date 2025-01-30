@@ -84,6 +84,10 @@ public final class EnrichStore {
         }
 
         updateClusterState(clusterService, projectId, handler, project -> {
+            final Map<String, EnrichPolicy> originalPolicies = getPolicies(project);
+            if (originalPolicies.containsKey(name)) {
+                throw new ResourceAlreadyExistsException("policy [{}] already exists", name);
+            }
             for (String indexExpression : policy.getIndices()) {
                 // indices field in policy can contain wildcards, aliases etc.
                 String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(
@@ -104,12 +108,9 @@ public final class EnrichStore {
                 }
             }
 
-            final Map<String, EnrichPolicy> policies = getPolicies(project);
-            EnrichPolicy existing = policies.putIfAbsent(name, policy);
-            if (existing != null) {
-                throw new ResourceAlreadyExistsException("policy [{}] already exists", name);
-            }
-            return policies;
+            final Map<String, EnrichPolicy> updatedPolicies = new HashMap<>(originalPolicies);
+            updatedPolicies.put(name, policy);
+            return updatedPolicies;
         });
     }
 
@@ -129,13 +130,14 @@ public final class EnrichStore {
         }
 
         updateClusterState(clusterService, projectId, handler, project -> {
-            final Map<String, EnrichPolicy> policies = getPolicies(project);
-            if (policies.containsKey(name) == false) {
+            final Map<String, EnrichPolicy> originalPolicies = getPolicies(project);
+            if (originalPolicies.containsKey(name) == false) {
                 throw new ResourceNotFoundException("policy [{}] not found", name);
             }
 
-            policies.remove(name);
-            return policies;
+            final Map<String, EnrichPolicy> updatedPolicies = new HashMap<>(originalPolicies);
+            updatedPolicies.remove(name);
+            return updatedPolicies;
         });
     }
 
@@ -157,18 +159,11 @@ public final class EnrichStore {
      * Gets all policies in the cluster.
      *
      * @param project the project metadata
-     * @return a Map of <code>policyName, EnrichPolicy</code> of the policies
+     * @return a read-only Map of <code>policyName, EnrichPolicy</code> of the policies
      */
     public static Map<String, EnrichPolicy> getPolicies(ProjectMetadata project) {
-        final Map<String, EnrichPolicy> policies;
-        final EnrichMetadata enrichMetadata = project.custom(EnrichMetadata.TYPE);
-        if (enrichMetadata != null) {
-            // Make a copy, because policies map inside custom metadata is read only:
-            policies = new HashMap<>(enrichMetadata.getPolicies());
-        } else {
-            policies = new HashMap<>();
-        }
-        return policies;
+        final EnrichMetadata metadata = project.custom(EnrichMetadata.TYPE, EnrichMetadata.EMPTY);
+        return metadata.getPolicies();
     }
 
     private static void updateClusterState(

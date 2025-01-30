@@ -36,12 +36,12 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
-import org.elasticsearch.xpack.esql.expression.function.scalar.map.LogWithBaseInMap;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchOperator;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
-import org.elasticsearch.xpack.esql.plan.TableIdentifier;
+import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -98,7 +98,7 @@ public class AnalyzerTests extends ESTestCase {
 
     private static final UnresolvedRelation UNRESOLVED_RELATION = new UnresolvedRelation(
         EMPTY,
-        new TableIdentifier(EMPTY, null, "idx"),
+        new IndexPattern(EMPTY, "idx"),
         false,
         List.of(),
         IndexMode.STANDARD,
@@ -1961,7 +1961,7 @@ public class AnalyzerTests extends ESTestCase {
              found value [x] type [unsigned_long]
             line 2:96: first argument of [percentile(x, 10)] must be [numeric except unsigned_long],\
              found value [x] type [unsigned_long]
-            line 2:115: argument of [sum(x)] must be [numeric except unsigned_long or counter types],\
+            line 2:115: argument of [sum(x)] must be [aggregate_metric_double or numeric except unsigned_long or counter types],\
              found value [x] type [unsigned_long]""");
 
         verifyUnsupported("""
@@ -1976,7 +1976,8 @@ public class AnalyzerTests extends ESTestCase {
             line 2:29: argument of [median_absolute_deviation(x)] must be [numeric except unsigned_long or counter types],\
              found value [x] type [version]
             line 2:59: first argument of [percentile(x, 10)] must be [numeric except unsigned_long], found value [x] type [version]
-            line 2:78: argument of [sum(x)] must be [numeric except unsigned_long or counter types], found value [x] type [version]""");
+            line 2:78: argument of [sum(x)] must be [aggregate_metric_double or numeric except unsigned_long or counter types],\
+             found value [x] type [version]""");
     }
 
     public void testInOnText() {
@@ -2143,7 +2144,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testLookupJoinUnknownIndex() {
-        assumeTrue("requires LOOKUP JOIN capability", EsqlCapabilities.Cap.JOIN_LOOKUP_V11.isEnabled());
+        assumeTrue("requires LOOKUP JOIN capability", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
 
         String errorMessage = "Unknown index [foobar]";
         IndexResolution missingLookupIndex = IndexResolution.invalid(errorMessage);
@@ -2172,7 +2173,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testLookupJoinUnknownField() {
-        assumeTrue("requires LOOKUP JOIN capability", EsqlCapabilities.Cap.JOIN_LOOKUP_V11.isEnabled());
+        assumeTrue("requires LOOKUP JOIN capability", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
 
         String query = "FROM test | LOOKUP JOIN languages_lookup ON last_name";
         String errorMessage = "1:45: Unknown column [last_name] in right side of join";
@@ -2195,7 +2196,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testMultipleLookupJoinsGiveDifferentAttributes() {
-        assumeTrue("requires LOOKUP JOIN capability", EsqlCapabilities.Cap.JOIN_LOOKUP_V11.isEnabled());
+        assumeTrue("requires LOOKUP JOIN capability", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
 
         // The field attributes that get contributed by different LOOKUP JOIN commands must have different name ids,
         // even if they have the same names. Otherwise, things like dependency analysis - like in PruneColumns - cannot work based on
@@ -2225,7 +2226,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testLookupJoinIndexMode() {
-        assumeTrue("requires LOOKUP JOIN capability", EsqlCapabilities.Cap.JOIN_LOOKUP_V11.isEnabled());
+        assumeTrue("requires LOOKUP JOIN capability", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
 
         var indexResolution = AnalyzerTestUtils.expandedDefaultIndexResolution();
         var lookupResolution = AnalyzerTestUtils.defaultLookupResolution();
@@ -2577,7 +2578,7 @@ public class AnalyzerTests extends ESTestCase {
             """, "mapping-default.json");
         var limit = as(plan, Limit.class);
         var filter = as(limit.child(), Filter.class);
-        var match = as(filter.condition(), Match.class);
+        var match = as(filter.condition(), MatchOperator.class);
         var enrich = as(filter.child(), Enrich.class);
         assertEquals(enrich.mode(), Enrich.Mode.ANY);
         assertEquals(enrich.policy().getMatchField(), "language_code");
@@ -2586,50 +2587,20 @@ public class AnalyzerTests extends ESTestCase {
         assertEquals(esRelation.indexPattern(), "test");
     }
 
-    public void testMapExpressionAsFunctionArgument() {
-        assumeTrue("MapExpression require snapshot build", EsqlCapabilities.Cap.OPTIONAL_NAMED_ARGUMENT_MAP_FOR_FUNCTION.isEnabled());
+    public void testFunctionNamedParamsAsFunctionArgument() {
         LogicalPlan plan = analyze("""
             from test
-            | EVAL l = log_with_base_in_map(languages, {"base":2.0})
-            | KEEP l
-            """, "mapping-default.json");
+            | WHERE MATCH(first_name, "Anna Smith", {"minimum_should_match": 2.0})
+            """);
         Limit limit = as(plan, Limit.class);
-        EsqlProject proj = as(limit.child(), EsqlProject.class);
-        List<? extends NamedExpression> fields = proj.projections();
-        assertEquals(1, fields.size());
-        ReferenceAttribute ra = as(fields.get(0), ReferenceAttribute.class);
-        assertEquals("l", ra.name());
-        assertEquals(DataType.DOUBLE, ra.dataType());
-        Eval eval = as(proj.child(), Eval.class);
-        assertEquals(1, eval.fields().size());
-        Alias a = as(eval.fields().get(0), Alias.class);
-        LogWithBaseInMap l = as(a.child(), LogWithBaseInMap.class);
-        MapExpression me = as(l.base(), MapExpression.class);
+        Filter filter = as(limit.child(), Filter.class);
+        Match match = as(filter.condition(), Match.class);
+        MapExpression me = as(match.options(), MapExpression.class);
         assertEquals(1, me.entryExpressions().size());
         EntryExpression ee = as(me.entryExpressions().get(0), EntryExpression.class);
-        assertEquals(new Literal(EMPTY, "base", DataType.KEYWORD), ee.key());
+        assertEquals(new Literal(EMPTY, "minimum_should_match", DataType.KEYWORD), ee.key());
         assertEquals(new Literal(EMPTY, 2.0, DataType.DOUBLE), ee.value());
         assertEquals(DataType.DOUBLE, ee.dataType());
-        EsRelation esRelation = as(eval.child(), EsRelation.class);
-        assertEquals(esRelation.indexPattern(), "test");
-    }
-
-    private void verifyMapExpression(MapExpression me) {
-        Literal option1 = new Literal(EMPTY, "option1", DataType.KEYWORD);
-        Literal value1 = new Literal(EMPTY, "value1", DataType.KEYWORD);
-        Literal option2 = new Literal(EMPTY, "option2", DataType.KEYWORD);
-        Literal value2 = new Literal(EMPTY, List.of(1, 2, 3), DataType.INTEGER);
-
-        assertEquals(2, me.entryExpressions().size());
-        EntryExpression ee = as(me.entryExpressions().get(0), EntryExpression.class);
-        assertEquals(option1, ee.key());
-        assertEquals(value1, ee.value());
-        assertEquals(value1.dataType(), ee.dataType());
-
-        ee = as(me.entryExpressions().get(1), EntryExpression.class);
-        assertEquals(option2, ee.key());
-        assertEquals(value2, ee.value());
-        assertEquals(value2.dataType(), ee.dataType());
     }
 
     private void verifyUnsupported(String query, String errorMessage) {

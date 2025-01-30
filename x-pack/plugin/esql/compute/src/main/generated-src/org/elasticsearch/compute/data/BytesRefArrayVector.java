@@ -21,7 +21,7 @@ import java.io.IOException;
 /**
  * Vector implementation that stores an array of BytesRef values.
  * Does not take ownership of the given {@link BytesRefArray} and does not adjust circuit breakers to account for it.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-ArrayVector.java.st} instead.
  */
 final class BytesRefArrayVector extends AbstractVector implements BytesRefVector {
 

@@ -66,6 +66,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.THREE;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TWO;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.asLimit;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getFieldAttribute;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.greaterThanOf;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
@@ -75,7 +76,6 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizer
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.hamcrest.Matchers.contains;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
@@ -196,10 +196,11 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
 
     /**
      * Expects
-     * EsqlProject[[first_name{f}#9, last_name{r}#18]]
-     * \_MvExpand[last_name{f}#12,last_name{r}#18,1000]
-     *   \_Limit[1000[INTEGER]]
-     *     \_EsRelation[test][_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, ge..]
+     * EsqlProject[[first_name{f}#7, last_name{r}#17]]
+     * \_Limit[1000[INTEGER],true]
+     *   \_MvExpand[last_name{f}#10,last_name{r}#17]
+     *     \_Limit[1000[INTEGER],false]
+     *       \_EsRelation[test][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]
      */
     public void testMissingFieldInMvExpand() {
         var plan = plan("""
@@ -215,9 +216,9 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         var projections = project.projections();
         assertThat(Expressions.names(projections), contains("first_name", "last_name"));
 
-        var mvExpand = as(project.child(), MvExpand.class);
-        assertThat(mvExpand.limit(), equalTo(1000));
-        var limit2 = as(mvExpand.child(), Limit.class);
+        var limit1 = asLimit(project.child(), 1000, true);
+        var mvExpand = as(limit1.child(), MvExpand.class);
+        var limit2 = asLimit(mvExpand.child(), 1000, false);
         as(limit2.child(), EsRelation.class);
     }
 
@@ -249,11 +250,6 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         }
 
         @Override
-        public String commandName() {
-            return "MOCK";
-        }
-
-        @Override
         public boolean expressionsResolved() {
             return true;
         }
@@ -269,7 +265,6 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/110150")
     public void testMissingFieldInNewCommand() {
         var testStats = statsForMissingField("last_name");
         localPlan(

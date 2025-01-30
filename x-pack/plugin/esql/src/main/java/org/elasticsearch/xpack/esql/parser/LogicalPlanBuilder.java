@@ -18,6 +18,7 @@ import org.elasticsearch.dissect.DissectParser;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -94,15 +95,15 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
      */
     public static final int MAX_QUERY_DEPTH = 500;
 
-    public LogicalPlanBuilder(QueryParams params) {
-        super(params);
+    public LogicalPlanBuilder(ParsingContext context) {
+        super(context);
     }
 
     private int queryDepth = 0;
 
     protected LogicalPlan plan(ParseTree ctx) {
         LogicalPlan p = ParserUtils.typedParsing(this, ctx, LogicalPlan.class);
-        var errors = this.params.parsingErrors();
+        var errors = this.context.params().parsingErrors();
         if (errors.hasNext() == false) {
             return p;
         } else {
@@ -134,7 +135,9 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     @Override
     public LogicalPlan visitSingleStatement(EsqlBaseParser.SingleStatementContext ctx) {
-        return plan(ctx.query());
+        var plan = plan(ctx.query());
+        telemetryAccounting(plan);
+        return plan;
     }
 
     @Override
@@ -149,11 +152,19 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         }
         try {
             LogicalPlan input = plan(ctx.query());
+            telemetryAccounting(input);
             PlanFactory makePlan = typedParsing(this, ctx.processingCommand(), PlanFactory.class);
             return makePlan.apply(input);
         } finally {
             queryDepth--;
         }
+    }
+
+    private LogicalPlan telemetryAccounting(LogicalPlan node) {
+        if (node instanceof TelemetryAware ma) {
+            this.context.telemetry().command(ma);
+        }
+        return node;
     }
 
     @Override
@@ -490,8 +501,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             false,
             List.of(new MetadataAttribute(source, MetadataAttribute.TSID_FIELD, DataType.KEYWORD, false)),
             IndexMode.TIME_SERIES,
-            null,
-            "FROM TS"
+            null
         );
         return new Aggregate(source, relation, Aggregate.AggregateType.METRICS, stats.groupings, stats.aggregates);
     }
@@ -551,8 +561,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             false,
             emptyList(),
             IndexMode.LOOKUP,
-            null,
-            "???"
+            null
         );
 
         var condition = ctx.joinCondition();

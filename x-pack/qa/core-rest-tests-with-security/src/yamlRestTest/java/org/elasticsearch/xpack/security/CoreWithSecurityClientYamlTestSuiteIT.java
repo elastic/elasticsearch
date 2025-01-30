@@ -17,6 +17,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.FeatureFlag;
+import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 import org.junit.ClassRule;
@@ -28,6 +29,14 @@ public class CoreWithSecurityClientYamlTestSuiteIT extends ESClientYamlSuiteTest
     private static final String USER = Objects.requireNonNull(System.getProperty("tests.rest.cluster.username", "test_admin"));
     private static final String PASS = Objects.requireNonNull(System.getProperty("tests.rest.cluster.password", "x-pack-test-password"));
 
+    private static final String ROLES = """
+        get_alias_test_role:
+          cluster: [ ]
+          indices:
+            - names: ["test*", "myindex", "non-existent", "another-non-existent", "foo"]
+              allow_restricted_indices: false
+              privileges: [ "ALL" ]
+        """;
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .module("constant-keyword")
@@ -47,8 +56,10 @@ public class CoreWithSecurityClientYamlTestSuiteIT extends ESClientYamlSuiteTest
         .setting("xpack.license.self_generated.type", "trial")
         .setting("xpack.security.autoconfiguration.enabled", "false")
         .user(USER, PASS)
+        .user("get_alias_test_user", "x-pack-test-password", "get_alias_test_role", false)
         .feature(FeatureFlag.TIME_SERIES_MODE)
         .feature(FeatureFlag.SUB_OBJECTS_AUTO_ENABLED)
+        .rolesFile(Resource.fromString(ROLES))
         .build();
 
     public CoreWithSecurityClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {

@@ -19,33 +19,9 @@ setup:
             test_alias: {}
             test_blias: {}
 
-  - do:
-      security.put_role:
-        name: "get_alias_test_role"
-        body: >
-          {
-            "cluster": [],
-            "indices": [
-              {
-                "names": ["test*", "myindex", "non-existent", "another-non-existent", "foo"],
-                "privileges": ["all"]
-              }
-            ]
-          }
-
-  - do:
-      security.put_user:
-        username: "test_user"
-        body: >
-          {
-            "password" : "x-pack-test-password",
-            "roles" : [ "get_alias_test_role" ],
-            "full_name" : "Get Alias Test User"
-          }
-
 ---
 "Get all aliases via /_alias":
-  - transform_and_set: { login_credentials: "#base64Encode(test_user:x-pack-test-password)" }
+  - transform_and_set: { login_credentials: "#base64Encode(get_alias_test_user:x-pack-test-password)" }
 
   - do:
       headers:
@@ -66,7 +42,7 @@ setup:
 
 ---
 "Get aliases via /_alias/_all":
-  - transform_and_set: { login_credentials: "#base64Encode(test_user:x-pack-test-password)" }
+  - transform_and_set: { login_credentials: "#base64Encode(get_alias_test_user:x-pack-test-password)" }
 
   - do:
       headers:
@@ -88,7 +64,7 @@ setup:
 
 ---
 "Get aliases via /_alias/*":
-  - transform_and_set: { login_credentials: "#base64Encode(test_user:x-pack-test-password)" }
+  - transform_and_set: { login_credentials: "#base64Encode(get_alias_test_user:x-pack-test-password)" }
 
   - do:
       headers:
@@ -110,7 +86,7 @@ setup:
 
 ---
 "Get all aliases via /{index}/_alias/":
-  - transform_and_set: { login_credentials: "#base64Encode(test_user:x-pack-test-password)" }
+  - transform_and_set: { login_credentials: "#base64Encode(get_alias_test_user:x-pack-test-password)" }
 
   - do:
       headers:
@@ -124,7 +100,7 @@ setup:
 
 ---
 "Get aliases via /_all/_alias/":
-  - transform_and_set: { login_credentials: "#base64Encode(test_user:x-pack-test-password)" }
+  - transform_and_set: { login_credentials: "#base64Encode(get_alias_test_user:x-pack-test-password)" }
 
   - do:
       headers:
@@ -146,7 +122,7 @@ setup:
 
 ---
 "Get aliases via /*/_alias/":
-  - transform_and_set: { login_credentials: "#base64Encode(test_user:x-pack-test-password)" }
+  - transform_and_set: { login_credentials: "#base64Encode(get_alias_test_user:x-pack-test-password)" }
 
   - do:
       headers:
@@ -168,7 +144,7 @@ setup:
 
 ---
 "Get and index with no aliases via /{index}/_alias/":
-  - transform_and_set: { login_credentials: "#base64Encode(test_user:x-pack-test-password)" }
+  - transform_and_set: { login_credentials: "#base64Encode(get_alias_test_user:x-pack-test-password)" }
 
   - do:
       headers:
@@ -186,7 +162,7 @@ setup:
 
 ---
 "Get specific alias via /{index}/_alias/{name}":
-  - transform_and_set: { login_credentials: "#base64Encode(test_user:x-pack-test-password)" }
+  - transform_and_set: { login_credentials: "#base64Encode(get_alias_test_user:x-pack-test-password)" }
 
   - do:
       headers:
@@ -201,7 +177,7 @@ setup:
 
 ---
 "Get aliases via /{index}/_alias/_all":
-  - transform_and_set: { login_credentials: "#base64Encode(test_user:x-pack-test-password)" }
+  - transform_and_set: { login_credentials: "#base64Encode(get_alias_test_user:x-pack-test-password)" }
 
   - do:
       headers:
@@ -216,7 +192,7 @@ setup:
 
 ---
 "Get aliases via /{index}/_alias/*":
-  - transform_and_set: { login_credentials: "#base64Encode(test_user:x-pack-test-password)" }
+  - transform_and_set: { login_credentials: "#base64Encode(get_alias_test_user:x-pack-test-password)" }
 
   - do:
       headers:
@@ -231,7 +207,7 @@ setup:
 
 ---
 "Get aliases via /{index}/_alias/prefix*":
-  - transform_and_set: { login_credentials: "#base64Encode(test_user:x-pack-test-password)" }
+  - transform_and_set: { login_credentials: "#base64Encode(get_alias_test_user:x-pack-test-password)" }
 
   - do:
       headers:
@@ -246,7 +222,7 @@ setup:
 
 ---
 "Get aliases via /{index}/_alias/name,name":
-  - transform_and_set: { login_credentials: "#base64Encode(test_user:x-pack-test-password)" }
+  - transform_and_set: { login_credentials: "#base64Encode(get_alias_test_user:x-pack-test-password)" }
 
   - do:
       headers:
@@ -261,7 +237,7 @@ setup:
 
 ---
 "Get aliases via /_alias/{name}":
-  - transform_and_set: { login_credentials: "#base64Encode(test_user:x-pack-test-password)" }
+  - transform_and_set: { login_credentials: "#base64Encode(get_alias_test_user:x-pack-test-password)" }
 
   - do:
       headers:
@@ -276,7 +252,7 @@ setup:
 
 ---
 "Get aliases via /_all/_alias/{name}":
-  - transform_and_set: { login_credentials: "#base64Encode(test_user:x-pack-test-password)" }
+  - transform_and_set: { login_credentials: "#base64Encode(get_alias_test_user:x-pack-test-password)" }
 
   - do:
       headers:
@@ -292,7 +268,7 @@ setup:
 
 ---
 "Get aliases via /*/_alias/{name}":
-  - transform_and_set: { login_credentials: "#base64Encode(test_user:x-pack-test-password)" }
+  - transform_and_set: { login_credentials: "#base64Encode(get_alias_test_user:x-pack-test-password)" }
 
   - do:
       headers:
@@ -308,7 +284,7 @@ setup:
 
 ---
 "Get aliases via /*suf/_alias/{name}":
-  - transform_and_set: { login_credentials: "#base64Encode(test_user:x-pack-test-password)" }
+  - transform_and_set: { login_credentials: "#base64Encode(get_alias_test_user:x-pack-test-password)" }
 
   - do:
       headers:
@@ -324,7 +300,7 @@ setup:
 
 ---
 "Get aliases via /name,name/_alias/{name}":
-  - transform_and_set: { login_credentials: "#base64Encode(test_user:x-pack-test-password)" }
+  - transform_and_set: { login_credentials: "#base64Encode(get_alias_test_user:x-pack-test-password)" }
 
   - do:
       headers:
@@ -341,7 +317,7 @@ setup:
 
 ---
 "Non-existent alias on an existing index returns 404":
-  - transform_and_set: { login_credentials: "#base64Encode(test_user:x-pack-test-password)" }
+  - transform_and_set: { login_credentials: "#base64Encode(get_alias_test_user:x-pack-test-password)" }
 
   - do:
       headers:
@@ -356,7 +332,7 @@ setup:
 
 ---
 "Existent and non-existent alias returns 404 and the existing alias":
-  - transform_and_set: { login_credentials: "#base64Encode(test_user:x-pack-test-password)" }
+  - transform_and_set: { login_credentials: "#base64Encode(get_alias_test_user:x-pack-test-password)" }
 
   - do:
       headers:
@@ -372,7 +348,7 @@ setup:
 
 ---
 "Existent and non-existent aliases returns 404 and the existing alias":
-  - transform_and_set: { login_credentials: "#base64Encode(test_user:x-pack-test-password)" }
+  - transform_and_set: { login_credentials: "#base64Encode(get_alias_test_user:x-pack-test-password)" }
 
   - do:
       headers:
@@ -388,7 +364,7 @@ setup:
 
 ---
 "Getting alias on an non-existent index should return 404":
-  - transform_and_set: { login_credentials: "#base64Encode(test_user:x-pack-test-password)" }
+  - transform_and_set: { login_credentials: "#base64Encode(get_alias_test_user:x-pack-test-password)" }
 
   - do:
       headers:
@@ -403,7 +379,7 @@ setup:
   - skip:
       features: ["allowed_warnings"]
 
-  - transform_and_set: { login_credentials: "#base64Encode(test_user:x-pack-test-password)" }
+  - transform_and_set: { login_credentials: "#base64Encode(get_alias_test_user:x-pack-test-password)" }
 
   - do:
       headers:

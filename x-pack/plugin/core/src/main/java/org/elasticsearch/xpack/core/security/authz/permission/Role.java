@@ -433,6 +433,19 @@ public interface Role {
         );
 
         for (RoleDescriptor.IndicesPrivileges indexPrivilege : roleDescriptor.getIndicesPrivileges()) {
+            if (Arrays.asList(indexPrivilege.getIndices()).contains("*")) {
+                builder.add(
+                    fieldPermissionsCache.getFieldPermissions(
+                        new FieldPermissionsDefinition(indexPrivilege.getGrantedFields(), indexPrivilege.getDeniedFields())
+                    ),
+                    indexPrivilege.getQuery() == null ? null : Collections.singleton(indexPrivilege.getQuery()),
+                    IndexPrivilege.get(Sets.newHashSet(indexPrivilege.getPrivileges())),
+                    indexPrivilege.allowRestrictedIndices(),
+                    // TODO properly handle this
+                    true,
+                    indexPrivilege.getIndices()
+                );
+            }
             builder.add(
                 fieldPermissionsCache.getFieldPermissions(
                     new FieldPermissionsDefinition(indexPrivilege.getGrantedFields(), indexPrivilege.getDeniedFields())
@@ -441,7 +454,7 @@ public interface Role {
                 IndexPrivilege.get(Sets.newHashSet(indexPrivilege.getPrivileges())),
                 indexPrivilege.allowRestrictedIndices(),
                 // TODO properly handle this
-                Arrays.asList(indexPrivilege.getIndices()).contains("*"),
+                false,
                 indexPrivilege.getIndices()
             );
         }

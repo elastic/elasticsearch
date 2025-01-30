@@ -372,6 +372,8 @@ tests:
 - class: org.elasticsearch.xpack.inference.action.TransportInferenceActionTests
   method: testRerouting_ToOtherNode
   issue: https://github.com/elastic/elasticsearch/issues/121293
+- class: org.elasticsearch.xpack.inference.common.InferenceServiceNodeLocalRateLimitCalculatorTests
+  issue: https://github.com/elastic/elasticsearch/issues/121294
 
 # Examples:
 #

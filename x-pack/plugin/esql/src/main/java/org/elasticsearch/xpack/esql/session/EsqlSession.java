@@ -48,7 +48,6 @@ import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
-import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryBuilderResolver;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.index.MappingException;
@@ -74,6 +73,7 @@ import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
+import org.elasticsearch.xpack.esql.planner.premapper.PreMapper;
 import org.elasticsearch.xpack.esql.plugin.TransportActionServices;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 
@@ -111,12 +111,12 @@ public class EsqlSession {
     private final Verifier verifier;
     private final EsqlFunctionRegistry functionRegistry;
     private final LogicalPlanOptimizer logicalPlanOptimizer;
+    private final PreMapper preMapper;
 
     private final Mapper mapper;
     private final PhysicalPlanOptimizer physicalPlanOptimizer;
     private final PlanTelemetry planTelemetry;
     private final IndicesExpressionGrouper indicesExpressionGrouper;
-    private final TransportActionServices services;
 
     public EsqlSession(
         String sessionId,
@@ -144,7 +144,7 @@ public class EsqlSession {
         this.physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(configuration));
         this.planTelemetry = planTelemetry;
         this.indicesExpressionGrouper = indicesExpressionGrouper;
-        this.services = services;
+        this.preMapper = new PreMapper(services);
     }
 
     public String sessionId() {
@@ -164,23 +164,13 @@ public class EsqlSession {
             new EsqlSessionCCSUtils.CssPartialErrorsActionListener(executionInfo, listener) {
                 @Override
                 public void onResponse(LogicalPlan analyzedPlan) {
-                    preMapping(request, executionInfo, planRunner, optimizedPlan(analyzedPlan), listener);
+                    preMapper.preMapper(analyzedPlan, listener.delegateFailureAndWrap((l, p) -> {
+                        p.setOptimized(); // might have been updated by the preprocessor
+                        executeOptimizedPlan(request, executionInfo, planRunner, optimizedPlan(p), l);
+                    }));
                 }
             }
         );
-    }
-
-    public void preMapping(
-        EsqlQueryRequest request,
-        EsqlExecutionInfo executionInfo,
-        PlanRunner planRunner,
-        LogicalPlan optimizedPlan,
-        ActionListener<Result> listener
-    ) {
-        QueryBuilderResolver.INSTANCE.preprocess(optimizedPlan, services, listener.delegateFailureAndWrap((l, p) -> {
-            p.setOptimized(); // might have been updated by the preprocessor
-            executeOptimizedPlan(request, executionInfo, planRunner, p, listener);
-        }));
     }
 
     /**

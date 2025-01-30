@@ -26,7 +26,7 @@ import java.util.Set;
 /**
  * Some {@link FullTextFunction} implementations such as {@link org.elasticsearch.xpack.esql.expression.function.fulltext.Match}
  * will be translated to a {@link QueryBuilder} that require a rewrite phase on the coordinator.
- * {@link QueryBuilderResolver#preprocess(LogicalPlan, TransportActionServices, ActionListener)} will rewrite the plan by
+ * {@link QueryBuilderResolver#resolveQueryBuilders(LogicalPlan, TransportActionServices, ActionListener)} will rewrite the plan by
  * replacing {@link FullTextFunction} expression with new ones that hold rewritten {@link QueryBuilder}s.
  */
 public final class QueryBuilderResolver {
@@ -35,7 +35,7 @@ public final class QueryBuilderResolver {
 
     private QueryBuilderResolver() {}
 
-    public void preprocess(LogicalPlan plan, TransportActionServices services, ActionListener<LogicalPlan> listener) {
+    public void resolveQueryBuilders(LogicalPlan plan, TransportActionServices services, ActionListener<LogicalPlan> listener) {
         var hasFullTextFunctions = plan.anyMatch(p -> {
             Holder<Boolean> hasFullTextFunction = new Holder<>(false);
             p.forEachExpression(FullTextFunction.class, unused -> hasFullTextFunction.set(true));

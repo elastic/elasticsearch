@@ -415,11 +415,29 @@ public final class IndicesPermission {
             final DataStream ds = indexAbstraction == null ? null : indexAbstraction.getParentDataStream();
             if (ds != null) {
                 if (group.checkIndex(ds.getName())) {
-                    // TODO move this into Group
-                    if (selector != null && selector.shouldIncludeFailures()) {
-                        return group.allowFailureStoreAccess;
+                    // no selector implicitly means include data (?)
+                    if (selector == null || selector.shouldIncludeData()) {
+                        if (ds.isFailureStoreIndex(name)) {
+                            return group.failureStoreOnly;
+                        }
+                        return false == group.failureStoreOnly;
+                    } else {
+                        // TODO this is a simplification:
+                        return group.failureStoreOnly;
                     }
                 }
+            }
+            if (indexAbstraction != null && indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM) {
+                if (group.checkIndex(name)) {
+                    // no selector implicitly means include data (?)
+                    if (selector == null || selector.shouldIncludeData()) {
+                        return false == group.failureStoreOnly;
+                    } else {
+                        // TODO this is a simplification:
+                        return group.failureStoreOnly;
+                    }
+                }
+                return false;
             }
             return group.checkIndex(name);
         }
@@ -809,7 +827,7 @@ public final class IndicesPermission {
         // users. Setting this flag true eliminates the special status for the purpose of this permission - restricted indices still have
         // to be covered by the "indices"
         private final boolean allowRestrictedIndices;
-        public final boolean allowFailureStoreAccess;
+        public final boolean failureStoreOnly;
 
         public Group(
             IndexPrivilege privilege,
@@ -817,7 +835,7 @@ public final class IndicesPermission {
             @Nullable Set<BytesReference> query,
             boolean allowRestrictedIndices,
             RestrictedIndices restrictedIndices,
-            boolean allowFailureStoreAccess,
+            boolean failureStoreOnly,
             String... indices
         ) {
             assert indices.length != 0;
@@ -838,7 +856,7 @@ public final class IndicesPermission {
             }
             this.fieldPermissions = Objects.requireNonNull(fieldPermissions);
             this.query = query;
-            this.allowFailureStoreAccess = allowFailureStoreAccess;
+            this.failureStoreOnly = failureStoreOnly;
         }
 
         public IndexPrivilege privilege() {

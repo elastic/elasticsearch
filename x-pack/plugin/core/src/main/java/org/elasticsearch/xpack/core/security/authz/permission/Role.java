@@ -429,8 +429,8 @@ public interface Role {
                 indexPrivilege.getQuery() == null ? null : Collections.singleton(indexPrivilege.getQuery()),
                 IndexPrivilege.get(Sets.newHashSet(indexPrivilege.getPrivileges())),
                 indexPrivilege.allowRestrictedIndices(),
-                // TODO handle internal roles
-                false,
+                // TODO properly handle this
+                Arrays.asList(indexPrivilege.getIndices()).contains("*"),
                 indexPrivilege.getIndices()
             );
         }

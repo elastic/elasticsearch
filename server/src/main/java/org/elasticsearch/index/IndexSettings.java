@@ -24,6 +24,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
@@ -40,6 +41,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
@@ -722,17 +724,24 @@ public final class IndexSettings {
         Setting.Property.IndexScope
     );
 
+    public static final FeatureFlag RECOVERY_USE_SYNTHETIC_SOURCE = new FeatureFlag("index_recovery_use_synthetic_source");
     public static final Setting<Boolean> RECOVERY_USE_SYNTHETIC_SOURCE_SETTING = Setting.boolSetting(
         "index.recovery.use_synthetic_source",
         settings -> {
-            if (IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings)
-                .onOrAfter(IndexVersions.USE_SYNTHETIC_SOURCE_FOR_RECOVERY_BY_DEFAULT)
-                || SETTING_INDEX_VERSION_CREATED.get(settings)
-                    .between(IndexVersions.USE_SYNTHETIC_SOURCE_FOR_RECOVERY_BY_DEFAULT_BACKPORT, IndexVersions.UPGRADE_TO_LUCENE_10_0_0)) {
-                final SourceFieldMapper.Mode sourceMode = INDEX_MAPPER_SOURCE_MODE_SETTING.get(settings);
-                return String.valueOf(sourceMode == SourceFieldMapper.Mode.SYNTHETIC);
-            }
-            return String.valueOf(false);
+            boolean isSyntheticSourceRecoveryFeatureFlagEnabled = RECOVERY_USE_SYNTHETIC_SOURCE.isEnabled();
+            boolean isNewIndexVersion = SETTING_INDEX_VERSION_CREATED.get(settings)
+                .onOrAfter(IndexVersions.USE_SYNTHETIC_SOURCE_FOR_RECOVERY_BY_DEFAULT);
+            boolean isIndexVersionInBackportRange = SETTING_INDEX_VERSION_CREATED.get(settings)
+                .between(IndexVersions.USE_SYNTHETIC_SOURCE_FOR_RECOVERY_BY_DEFAULT_BACKPORT, IndexVersions.UPGRADE_TO_LUCENE_10_0_0);
+
+            boolean useSyntheticRecoverySource = isSyntheticSourceRecoveryFeatureFlagEnabled
+                && (isNewIndexVersion || isIndexVersionInBackportRange);
+
+            return String.valueOf(
+                useSyntheticRecoverySource
+                    && Objects.equals(INDEX_MAPPER_SOURCE_MODE_SETTING.get(settings), SourceFieldMapper.Mode.SYNTHETIC)
+            );
+
         },
         new Setting.Validator<>() {
             @Override

@@ -62,6 +62,7 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME;
 import static org.elasticsearch.xpack.esql.session.EsqlSessionCCSUtils.markClusterWithFinalStateAndNoShards;
+import static org.elasticsearch.xpack.esql.session.EsqlSessionCCSUtils.shouldIgnoreRuntimeError;
 
 /**
  * Computes the result of a {@link PhysicalPlan}.
@@ -284,7 +285,7 @@ public class ComputeService {
                             updateExecutionInfo(execInfo, clusterAlias, r);
                             remoteListener.onResponse(r.getProfiles());
                         }, e -> {
-                            if (shouldIgnoreRemoteError(clusterAlias, e)) {
+                            if (shouldIgnoreRuntimeError(execInfo, clusterAlias, e)) {
                                 markClusterWithFinalStateAndNoShards(execInfo, clusterAlias, EsqlExecutionInfo.Cluster.Status.SKIPPED, e);
                                 remoteListener.onResponse(Collections.emptyList());
                             } else {
@@ -295,10 +296,6 @@ public class ComputeService {
                 }
             }
         }
-    }
-
-    private boolean shouldIgnoreRemoteError(String clusterAlias, Exception e) {
-        return true;
     }
 
     private void updateExecutionInfo(EsqlExecutionInfo executionInfo, String clusterAlias, ComputeResponse resp) {

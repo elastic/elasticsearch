@@ -39,6 +39,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.esql.session.EsqlSessionCCSUtils.markClusterWithFinalStateAndNoShards;
+import static org.elasticsearch.xpack.esql.session.EsqlSessionCCSUtils.shouldIgnoreRuntimeError;
 
 /**
  * Manages computes across multiple clusters by sending {@link ClusterComputeRequest} to remote clusters and executing the computes.
@@ -131,7 +132,7 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                         new ActionListenerResponseHandler<>(clusterListener, ComputeResponse::new, esqlExecutor)
                     );
                 }, e -> {
-                    if (executionInfo.isSkipUnavailable(clusterAlias)) {
+                    if (shouldIgnoreRuntimeError(executionInfo, clusterAlias, e)) {
                         markClusterWithFinalStateAndNoShards(executionInfo, clusterAlias, EsqlExecutionInfo.Cluster.Status.SKIPPED, e);
                         openExchangeListener.onResponse(null);
                     } else {

@@ -357,4 +357,11 @@ public class EsqlSessionCCSUtils {
             return builder.build();
         });
     }
+
+    public static boolean shouldIgnoreRuntimeError(EsqlExecutionInfo executionInfo, String clusterAlias, Exception e) {
+        if (executionInfo.isSkipUnavailable(clusterAlias) == false) {
+            return false;
+        }
+        return ExceptionsHelper.isRemoteUnavailableException(e);
+    }
 }

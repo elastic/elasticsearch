@@ -534,7 +534,7 @@ public class EsqlSessionCCSUtilsTests extends ESTestCase {
 
     private void assertClusterStatusAndShardCounts(EsqlExecutionInfo.Cluster cluster, EsqlExecutionInfo.Cluster.Status status) {
         assertThat(cluster.getStatus(), equalTo(status));
-        assertNull(cluster.getTook());
+        assertThat(cluster.getTook().millis(), greaterThanOrEqualTo(0L));
         if (status == EsqlExecutionInfo.Cluster.Status.RUNNING) {
             assertNull(cluster.getTotalShards());
             assertNull(cluster.getSuccessfulShards());

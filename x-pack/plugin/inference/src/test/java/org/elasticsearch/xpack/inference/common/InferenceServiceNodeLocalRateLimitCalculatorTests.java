@@ -64,7 +64,7 @@ public class InferenceServiceNodeLocalRateLimitCalculatorTests extends ESIntegTe
         var nodeNames = internalCluster().startNodes(numNodes);
         ensureStableCluster(numNodes);
 
-        var nodeLeftInCluster = nodeNames.getFirst();
+        var nodeLeftInCluster = nodeNames.get(0);
         var currentNumberOfNodes = numNodes;
 
         // Stop all nodes except one
@@ -99,7 +99,7 @@ public class InferenceServiceNodeLocalRateLimitCalculatorTests extends ESIntegTe
         var nodeNames = internalCluster().startNodes(numNodes);
         ensureStableCluster(numNodes);
 
-        var calculator = internalCluster().getInstance(InferenceServiceNodeLocalRateLimitCalculator.class, nodeNames.getFirst());
+        var calculator = internalCluster().getInstance(InferenceServiceNodeLocalRateLimitCalculator.class, nodeNames.get(0));
 
         Set<String> supportedServices = SERVICE_NODE_LOCAL_RATE_LIMIT_CONFIGS.keySet();
 
@@ -117,7 +117,7 @@ public class InferenceServiceNodeLocalRateLimitCalculatorTests extends ESIntegTe
         var nodeNames = internalCluster().startNodes(numNodes);
         ensureStableCluster(numNodes);
 
-        var calculator = internalCluster().getInstance(InferenceServiceNodeLocalRateLimitCalculator.class, nodeNames.getFirst());
+        var calculator = internalCluster().getInstance(InferenceServiceNodeLocalRateLimitCalculator.class, nodeNames.get(0));
 
         Set<String> supportedServices = SERVICE_NODE_LOCAL_RATE_LIMIT_CONFIGS.keySet();
 
@@ -147,7 +147,7 @@ public class InferenceServiceNodeLocalRateLimitCalculatorTests extends ESIntegTe
         var nodeNames = internalCluster().startNodes(initialNodes);
         ensureStableCluster(initialNodes);
 
-        var calculator = internalCluster().getInstance(InferenceServiceNodeLocalRateLimitCalculator.class, nodeNames.getFirst());
+        var calculator = internalCluster().getInstance(InferenceServiceNodeLocalRateLimitCalculator.class, nodeNames.get(0));
 
         for (var serviceName : SERVICE_NODE_LOCAL_RATE_LIMIT_CONFIGS.keySet()) {
             var configs = SERVICE_NODE_LOCAL_RATE_LIMIT_CONFIGS.get(serviceName);
@@ -175,7 +175,7 @@ public class InferenceServiceNodeLocalRateLimitCalculatorTests extends ESIntegTe
         var nodeNames = internalCluster().startNodes(numNodes);
         ensureStableCluster(numNodes);
 
-        var calculator = internalCluster().getInstance(InferenceServiceNodeLocalRateLimitCalculator.class, nodeNames.getFirst());
+        var calculator = internalCluster().getInstance(InferenceServiceNodeLocalRateLimitCalculator.class, nodeNames.get(0));
 
         for (var serviceName : SERVICE_NODE_LOCAL_RATE_LIMIT_CONFIGS.keySet()) {
             var configs = SERVICE_NODE_LOCAL_RATE_LIMIT_CONFIGS.get(serviceName);

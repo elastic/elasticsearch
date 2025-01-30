@@ -170,3 +170,14 @@ setup:
   - is_false: (local).error # should not be present
   - exists: (local).version.number
 
+---
+"Resolve cluster with no index expression":
+  - requires:
+      cluster_features: ["gte_v8.18.0"]
+      reason: "resolve cluster with no index expression introduced in 8.18"
+
+  - do:
+      indices.resolve_cluster:
+        timeout: 400s
+
+  - is_false: (local).error # should not be present - body should be empty since no remotes configured

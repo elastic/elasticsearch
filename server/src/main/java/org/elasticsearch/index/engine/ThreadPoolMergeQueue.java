@@ -46,7 +46,7 @@ public class ThreadPoolMergeQueue {
     private final ExecutorService executorService;
     private final int maxConcurrentMerges;
 
-    public static @Nullable ThreadPoolMergeQueue getNewThreadPoolMergeQueue(ThreadPool threadPool, Settings settings) {
+    public static @Nullable ThreadPoolMergeQueue maybeCreateThreadPoolMergeQueue(ThreadPool threadPool, Settings settings) {
         if (ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.get(settings)) {
             return new ThreadPoolMergeQueue(threadPool);
         } else {

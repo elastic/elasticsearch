@@ -242,7 +242,7 @@ public abstract class EngineTestCase extends ESTestCase {
         }
         defaultSettings = IndexSettingsModule.newIndexSettings("index", indexSettings());
         threadPool = new TestThreadPool(getClass().getName());
-        threadPoolMergeQueue = ThreadPoolMergeQueue.getNewThreadPoolMergeQueue(threadPool, defaultSettings.getNodeSettings());
+        threadPoolMergeQueue = ThreadPoolMergeQueue.maybeCreateThreadPoolMergeQueue(threadPool, defaultSettings.getNodeSettings());
 
         store = createStore();
         storeReplica = createStore();

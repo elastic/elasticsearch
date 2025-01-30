@@ -100,7 +100,7 @@ public class RefreshListenersTests extends ESTestCase {
         // Now setup the InternalEngine which is much more complicated because we aren't mocking anything
         threadPool = new TestThreadPool(getTestName());
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("index", Settings.EMPTY);
-        threadPoolMergeQueue = ThreadPoolMergeQueue.getNewThreadPoolMergeQueue(threadPool, indexSettings.getNodeSettings());
+        threadPoolMergeQueue = ThreadPoolMergeQueue.maybeCreateThreadPoolMergeQueue(threadPool, indexSettings.getNodeSettings());
         listeners = new RefreshListeners(
             () -> maxListeners,
             () -> engine.refresh("too-many-listeners"),

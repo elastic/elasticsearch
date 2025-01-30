@@ -2828,13 +2828,43 @@ public class InternalEngine extends Engine {
         return indexWriter.getConfig();
     }
 
+    private void maybeFlushAfterMerge(OnGoingMerge merge) {
+        if (indexWriter.hasPendingMerges() == false
+                && System.nanoTime() - lastWriteNanos >= engineConfig.getFlushMergesAfter().nanos()) {
+            // NEVER do this on a merge thread since we acquire some locks blocking here and if we concurrently rollback the
+            // writer
+            // we deadlock on engine#close for instance.
+            engineConfig.getThreadPool().executor(ThreadPool.Names.FLUSH).execute(new AbstractRunnable() {
+                @Override
+                public void onFailure(Exception e) {
+                    if (isClosed.get() == false) {
+                        logger.warn("failed to flush after merge has finished", e);
+                    } else {
+                        logger.info("failed to flush after merge has finished during shard close");
+                    }
+                }
+
+                @Override
+                protected void doRun() {
+                    // if we have no pending merges and we are supposed to flush once merges have finished to
+                    // free up transient disk usage of the (presumably biggish) segments that were just merged
+                    flush();
+                }
+            });
+        } else if (merge.getTotalBytesSize() >= engineConfig.getIndexSettings().getFlushAfterMergeThresholdSize().getBytes()) {
+            // we hit a significant merge which would allow us to free up memory if we'd commit it hence on the next change
+            // we should execute a flush on the next operation if that's a flush after inactive or indexing a document.
+            // we could fork a thread and do it right away but we try to minimize forking and piggyback on outside events.
+            shouldPeriodicallyFlushAfterBigMerge.set(true);
+        }
+    }
+
     protected ElasticsearchMergeScheduler createMergeScheduler(
         ShardId shardId,
         IndexSettings indexSettings,
         @Nullable ThreadPoolMergeQueue threadPoolMergeQueue
     ) {
-        if (ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.get(indexSettings.getNodeSettings())) {
-            assert threadPoolMergeQueue != null;
+        if (threadPoolMergeQueue != null) {
             return new ThreadPoolMergeScheduler(shardId, indexSettings, threadPoolMergeQueue) {
 
                 @Override
@@ -2869,34 +2899,7 @@ public class InternalEngine extends Engine {
 
                 @Override
                 public synchronized void afterMerge(OnGoingMerge merge) {
-                    if (indexWriter.hasPendingMerges() == false
-                        && System.nanoTime() - lastWriteNanos >= engineConfig.getFlushMergesAfter().nanos()) {
-                        // NEVER do this on a merge thread since we acquire some locks blocking here and if we concurrently rollback the
-                        // writer
-                        // we deadlock on engine#close for instance.
-                        engineConfig.getThreadPool().executor(ThreadPool.Names.FLUSH).execute(new AbstractRunnable() {
-                            @Override
-                            public void onFailure(Exception e) {
-                                if (isClosed.get() == false) {
-                                    logger.warn("failed to flush after merge has finished", e);
-                                } else {
-                                    logger.info("failed to flush after merge has finished during shard close");
-                                }
-                            }
-
-                            @Override
-                            protected void doRun() {
-                                // if we have no pending merges and we are supposed to flush once merges have finished to
-                                // free up transient disk usage of the (presumably biggish) segments that were just merged
-                                flush();
-                            }
-                        });
-                    } else if (merge.getTotalBytesSize() >= engineConfig.getIndexSettings().getFlushAfterMergeThresholdSize().getBytes()) {
-                        // we hit a significant merge which would allow us to free up memory if we'd commit it hence on the next change
-                        // we should execute a flush on the next operation if that's a flush after inactive or indexing a document.
-                        // we could fork a thread and do it right away but we try to minimize forking and piggyback on outside events.
-                        shouldPeriodicallyFlushAfterBigMerge.set(true);
-                    }
+                    maybeFlushAfterMerge(merge);
                 }
 
                 @Override
@@ -2937,33 +2940,7 @@ public class InternalEngine extends Engine {
                     deactivateThrottling();
                 }
             }
-            if (indexWriter.hasPendingMerges() == false
-                && System.nanoTime() - lastWriteNanos >= engineConfig.getFlushMergesAfter().nanos()) {
-                // NEVER do this on a merge thread since we acquire some locks blocking here and if we concurrently rollback the writer
-                // we deadlock on engine#close for instance.
-                engineConfig.getThreadPool().executor(ThreadPool.Names.FLUSH).execute(new AbstractRunnable() {
-                    @Override
-                    public void onFailure(Exception e) {
-                        if (isClosed.get() == false) {
-                            logger.warn("failed to flush after merge has finished", e);
-                        } else {
-                            logger.info("failed to flush after merge has finished during shard close");
-                        }
-                    }
-
-                    @Override
-                    protected void doRun() {
-                        // if we have no pending merges and we are supposed to flush once merges have finished to
-                        // free up transient disk usage of the (presumably biggish) segments that were just merged
-                        flush();
-                    }
-                });
-            } else if (merge.getTotalBytesSize() >= engineConfig.getIndexSettings().getFlushAfterMergeThresholdSize().getBytes()) {
-                // we hit a significant merge which would allow us to free up memory if we'd commit it hence on the next change
-                // we should execute a flush on the next operation if that's a flush after inactive or indexing a document.
-                // we could fork a thread and do it right away but we try to minimize forking and piggyback on outside events.
-                shouldPeriodicallyFlushAfterBigMerge.set(true);
-            }
+            maybeFlushAfterMerge(merge);
         }
 
         @Override

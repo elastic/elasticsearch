@@ -65,7 +65,6 @@ public class BWCLucene70Codec extends BWCCodec {
         return new Lucene70SegmentInfoFormat();
     }
 
-
     @Override
     public StoredFieldsFormat storedFieldsFormat() {
         return storedFieldsFormat;

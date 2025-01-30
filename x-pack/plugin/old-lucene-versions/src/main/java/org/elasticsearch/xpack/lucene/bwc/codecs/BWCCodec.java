@@ -49,7 +49,7 @@ public abstract class BWCCodec extends Codec {
     protected BWCCodec(String name) {
         super(name);
 
-        this.fieldInfosFormat =  new FieldInfosFormat() {
+        this.fieldInfosFormat = new FieldInfosFormat() {
             final FieldInfosFormat wrappedFormat = originalFieldInfosFormat();
 
             @Override

@@ -379,6 +379,9 @@ tests:
 - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
   method: test {yaml=reference/rest-api/common-options/line_125}
   issue: https://github.com/elastic/elasticsearch/issues/121338
+- class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
+  method: test {yaml=reference/snapshot-restore/apis/get-snapshot-api/line_751}
+  issue: https://github.com/elastic/elasticsearch/issues/121345
 
 # Examples:
 #

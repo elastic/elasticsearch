@@ -28,7 +28,6 @@ public class IbmWatsonxActionCreator implements IbmWatsonxActionVisitor {
     private final ServiceComponents serviceComponents;
 
     public IbmWatsonxActionCreator(Sender sender, ServiceComponents serviceComponents) {
-        // TODO Batching - accept a class that can handle batching
         this.sender = Objects.requireNonNull(sender);
         this.serviceComponents = Objects.requireNonNull(serviceComponents);
     }

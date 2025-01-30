@@ -17,16 +17,8 @@ import org.elasticsearch.xpack.inference.external.response.ibmwatsonx.IbmWatsonx
 import static org.elasticsearch.core.Strings.format;
 
 public class IbmWatsonxResponseHandler extends BaseResponseHandler {
-
-    private final boolean canHandleStreamingResponse;
-
-    public IbmWatsonxResponseHandler(String requestType, ResponseParser parseFunction, boolean canHandleStreamingResponse) {
+    public IbmWatsonxResponseHandler(String requestType, ResponseParser parseFunction) {
         super(requestType, parseFunction, IbmWatsonxErrorResponseEntity::fromResponse);
-        this.canHandleStreamingResponse = canHandleStreamingResponse;
-    }
-
-    public boolean canHandleStreamingResponses() {
-        return canHandleStreamingResponse;
     }
 
     /**

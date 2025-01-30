@@ -33,7 +33,7 @@ public class IbmWatsonxEmbeddingsRequestManager extends IbmWatsonxRequestManager
     private static final ResponseHandler HANDLER = createEmbeddingsHandler();
 
     private static ResponseHandler createEmbeddingsHandler() {
-        return new IbmWatsonxResponseHandler("ibm watsonx embeddings", IbmWatsonxEmbeddingsResponseEntity::fromResponse, false);
+        return new IbmWatsonxResponseHandler("ibm watsonx embeddings", IbmWatsonxEmbeddingsResponseEntity::fromResponse);
     }
 
     private final IbmWatsonxEmbeddingsModel model;

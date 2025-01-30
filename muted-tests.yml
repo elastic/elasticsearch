@@ -374,6 +374,8 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/121294
 - class: org.elasticsearch.xpack.esql.qa.single_node.EsqlClientYamlIT
   issue: https://github.com/elastic/elasticsearch/issues/121352
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlClientYamlAsyncSubmitAndFetchIT
+  issue: https://github.com/elastic/elasticsearch/issues/121353
 
 # Examples:
 #

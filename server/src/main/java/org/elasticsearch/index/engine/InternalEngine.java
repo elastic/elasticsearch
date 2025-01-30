@@ -2865,58 +2865,63 @@ public class InternalEngine extends Engine {
         @Nullable ThreadPoolMergeQueue threadPoolMergeQueue
     ) {
         if (threadPoolMergeQueue != null) {
-            return new ThreadPoolMergeScheduler(shardId, indexSettings, threadPoolMergeQueue) {
-
-                @Override
-                protected synchronized void enableMergeTaskThrottling(
-                    int numRunningMerges,
-                    int numQueuedMerges,
-                    int configuredMaxMergeCount
-                ) {
-                    logger.info(
-                        "now throttling indexing: numRunningMerges={}, numQueuedMerges={}, maxNumMergesConfigured={}",
-                        numRunningMerges,
-                        numQueuedMerges,
-                        configuredMaxMergeCount
-                    );
-                    InternalEngine.this.activateThrottling();
-                }
-
-                @Override
-                protected synchronized void disableMergeTaskThrottling(
-                    int numRunningMerges,
-                    int numQueuedMerges,
-                    int configuredMaxMergeCount
-                ) {
-                    logger.info(
-                        "stop throttling indexing: numRunningMerges={}, numQueuedMerges={}, maxNumMergesConfigured={}",
-                        numRunningMerges,
-                        numQueuedMerges,
-                        configuredMaxMergeCount
-                    );
-                    InternalEngine.this.deactivateThrottling();
-                }
-
-                @Override
-                public synchronized void afterMerge(OnGoingMerge merge) {
-                    maybeFlushAfterMerge(merge);
-                }
-
-                @Override
-                protected void handleMergeException(final Throwable exc) {
-                    mergeException(exc);
-                }
-            };
+            return new EngineThreadPoolMergeScheduler(shardId, indexSettings, threadPoolMergeQueue);
         } else {
-            return new EngineMergeScheduler(shardId, indexSettings);
+            return new EngineConcurrentMergeScheduler(shardId, indexSettings);
         }
     }
 
-    private final class EngineMergeScheduler extends ElasticsearchConcurrentMergeScheduler {
+    private final class EngineThreadPoolMergeScheduler extends ThreadPoolMergeScheduler {
+        EngineThreadPoolMergeScheduler(ShardId shardId, IndexSettings indexSettings, ThreadPoolMergeQueue threadPoolMergeQueue) {
+            super(shardId, indexSettings, threadPoolMergeQueue);
+        }
+
+        @Override
+        protected synchronized void enableMergeTaskThrottling(
+                int numRunningMerges,
+                int numQueuedMerges,
+                int configuredMaxMergeCount
+        ) {
+            logger.info(
+                    "now throttling indexing: numRunningMerges={}, numQueuedMerges={}, maxNumMergesConfigured={}",
+                    numRunningMerges,
+                    numQueuedMerges,
+                    configuredMaxMergeCount
+            );
+            InternalEngine.this.activateThrottling();
+        }
+
+        @Override
+        protected synchronized void disableMergeTaskThrottling(
+                int numRunningMerges,
+                int numQueuedMerges,
+                int configuredMaxMergeCount
+        ) {
+            logger.info(
+                    "stop throttling indexing: numRunningMerges={}, numQueuedMerges={}, maxNumMergesConfigured={}",
+                    numRunningMerges,
+                    numQueuedMerges,
+                    configuredMaxMergeCount
+            );
+            InternalEngine.this.deactivateThrottling();
+        }
+
+        @Override
+        public synchronized void afterMerge(OnGoingMerge merge) {
+            maybeFlushAfterMerge(merge);
+        }
+
+        @Override
+        protected void handleMergeException(final Throwable exc) {
+            mergeException(exc);
+        }
+    }
+
+    private final class EngineConcurrentMergeScheduler extends ElasticsearchConcurrentMergeScheduler {
         private final AtomicInteger numMergesInFlight = new AtomicInteger(0);
         private final AtomicBoolean isThrottling = new AtomicBoolean();
 
-        EngineMergeScheduler(ShardId shardId, IndexSettings indexSettings) {
+        EngineConcurrentMergeScheduler(ShardId shardId, IndexSettings indexSettings) {
             super(shardId, indexSettings);
         }
 

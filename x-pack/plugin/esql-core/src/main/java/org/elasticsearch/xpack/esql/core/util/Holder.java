@@ -29,14 +29,11 @@ public class Holder<T> {
     /**
      * Sets a value in the holder, but only if none has already been set.
      * @param value the new value to set.
-     * @return the previously held value, if any was set.
      */
-    public T trySet(T value) {
-        T old = this.value;
-        if (old == null) {
+    public void setIfAbsent(T value) {
+        if (this.value == null) {
             this.value = value;
         }
-        return old;
     }
 
     public T get() {

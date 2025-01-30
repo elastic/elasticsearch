@@ -31,11 +31,9 @@ import java.util.Set;
  */
 public final class QueryBuilderResolver {
 
-    public static final QueryBuilderResolver INSTANCE = new QueryBuilderResolver();
-
     private QueryBuilderResolver() {}
 
-    public void resolveQueryBuilders(LogicalPlan plan, TransportActionServices services, ActionListener<LogicalPlan> listener) {
+    public static void resolveQueryBuilders(LogicalPlan plan, TransportActionServices services, ActionListener<LogicalPlan> listener) {
         var hasFullTextFunctions = plan.anyMatch(p -> {
             Holder<Boolean> hasFullTextFunction = new Holder<>(false);
             p.forEachExpression(FullTextFunction.class, unused -> hasFullTextFunction.set(true));
@@ -65,7 +63,7 @@ public final class QueryBuilderResolver {
         return services.searchService().getRewriteContext(System::currentTimeMillis, resolvedIndices, null);
     }
 
-    public Set<String> indexNames(LogicalPlan plan) {
+    private static Set<String> indexNames(LogicalPlan plan) {
         Set<String> indexNames = new HashSet<>();
         plan.forEachDown(EsRelation.class, esRelation -> indexNames.addAll(esRelation.concreteIndices()));
         return indexNames;
@@ -82,7 +80,7 @@ public final class QueryBuilderResolver {
                 try {
                     builder = builder.rewrite(ctx);
                 } catch (IOException e) {
-                    exceptionHolder.trySet(e);
+                    exceptionHolder.setIfAbsent(e);
                 }
                 var rewritten = builder != initial;
                 updated.set(updated.get() || rewritten);

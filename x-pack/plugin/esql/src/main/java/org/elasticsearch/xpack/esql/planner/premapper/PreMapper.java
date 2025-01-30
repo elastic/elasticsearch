@@ -28,10 +28,13 @@ public class PreMapper {
      * Invokes any premapping steps that need to be applied to the logical plan, before this is being mapped to a physical one.
      */
     public void preMapper(LogicalPlan plan, ActionListener<LogicalPlan> listener) {
-        queryRewrite(plan, listener);
+        queryRewrite(plan, listener.delegateFailureAndWrap((l, p) -> {
+            p.setOptimized();
+            l.onResponse(p);
+        }));
     }
 
     private void queryRewrite(LogicalPlan plan, ActionListener<LogicalPlan> listener) {
-        QueryBuilderResolver.INSTANCE.resolveQueryBuilders(plan, services, listener);
+        QueryBuilderResolver.resolveQueryBuilders(plan, services, listener);
     }
 }

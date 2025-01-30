@@ -302,11 +302,9 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
             } catch (Throwable t) {
                 if (t instanceof MergePolicy.MergeAbortedException) {
                     // OK to ignore. This is what Lucene's ConcurrentMergeScheduler does
-                } else if (t instanceof Exception == false) {
-                    // onFailure and onAfter should better be called for Errors too
-                    throw new ExceptionWrappingError(t);
                 } else {
-                    throw t;
+                    abortOnGoingMerge();
+                    handleMergeException(t);
                 }
             }
         }
@@ -346,14 +344,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
 
         @Override
         public void onFailure(Exception e) {
-            if (isRunning() == false) {
-                throw new IllegalStateException("onFailure must only be invoked after doRun");
-            }
-            // most commonly the merge should've already be aborted by now,
-            // plus the engine is probably going to be failed when any merge fails,
-            // but keep this in case something believes calling `MergeTask#onFailure` is a sane way to abort a merge
-            abortOnGoingMerge();
-            handleMergeException(ExceptionWrappingError.maybeUnwrapCause(e));
+            // no-op, should not be called
         }
 
         @Override
@@ -420,19 +411,6 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
             return "unlimited";
         } else {
             return String.format(Locale.ROOT, "%.1f MB/sec", mbPerSec);
-        }
-    }
-
-    private static class ExceptionWrappingError extends RuntimeException {
-        private static Throwable maybeUnwrapCause(Exception e) {
-            if (e instanceof ExceptionWrappingError exceptionWrappingError) {
-                return exceptionWrappingError.getCause();
-            }
-            return e;
-        }
-
-        private ExceptionWrappingError(Throwable errorCause) {
-            super(errorCause);
         }
     }
 }

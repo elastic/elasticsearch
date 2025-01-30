@@ -272,7 +272,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
 
         @Override
         public void doRun() throws Exception {
-            if (!mergeStartTimeNS.compareAndSet(0L, System.nanoTime())) {
+            if (mergeStartTimeNS.compareAndSet(0L, System.nanoTime()) == false) {
                 throw new IllegalStateException("Cannot run the same merge task multiple times");
             }
             try {

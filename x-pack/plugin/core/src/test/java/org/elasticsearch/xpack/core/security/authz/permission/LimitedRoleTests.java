@@ -761,7 +761,7 @@ public class LimitedRoleTests extends ESTestCase {
         }
         {
             fromRole = Role.builder(EMPTY_RESTRICTED_INDICES, "a-role")
-                .add(FieldPermissions.DEFAULT, Collections.emptySet(), IndexPrivilege.READ, true, "ind-1*", ".security")
+                .add(FieldPermissions.DEFAULT, Collections.emptySet(), IndexPrivilege.READ, true, false, "ind-1*", ".security")
                 .build();
 
             verifyResourcesPrivileges(

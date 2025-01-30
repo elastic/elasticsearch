@@ -9,6 +9,8 @@
 
 package org.elasticsearch.repositories.gcs;
 
+import io.opencensus.trace.Tracing;
+
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -76,12 +78,21 @@ class GoogleCloudStorageBlobContainer extends AbstractBlobContainer {
     @Override
     public void writeBlob(OperationPurpose purpose, String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists)
         throws IOException {
-        blobStore.writeBlob(buildKey(blobName), inputStream, blobSize, failIfAlreadyExists);
+        withSpan(purpose, ()-> blobStore.writeBlob(buildKey(blobName), inputStream, blobSize, failIfAlreadyExists));
     }
 
     @Override
     public void writeBlob(OperationPurpose purpose, String blobName, BytesReference bytes, boolean failIfAlreadyExists) throws IOException {
-        blobStore.writeBlob(buildKey(blobName), bytes, failIfAlreadyExists);
+        withSpan(purpose, () -> blobStore.writeBlob(buildKey(blobName), bytes, failIfAlreadyExists));
+    }
+
+    private void withSpan(OperationPurpose purpose, IOThrowing runnable) throws IOException {
+        var span = Tracing.getTracer().spanBuilder(purpose.name()).startSpan();
+        try (var ignored = Tracing.getTracer().withSpan(span)) {
+            runnable.run();
+        } finally {
+            span.end();
+        }
     }
 
     @Override
@@ -105,6 +116,11 @@ class GoogleCloudStorageBlobContainer extends AbstractBlobContainer {
     ) throws IOException {
         writeBlob(purpose, blobName, inputStream, blobSize, failIfAlreadyExists);
     }
+
+    interface IOThrowing {
+        void run() throws IOException;
+    }
+
 
     @Override
     public void writeBlobAtomic(OperationPurpose purpose, String blobName, BytesReference bytes, boolean failIfAlreadyExists)

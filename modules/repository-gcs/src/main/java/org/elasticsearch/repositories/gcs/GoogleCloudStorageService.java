@@ -14,6 +14,7 @@ import com.google.api.client.http.HttpRequestInitializer;
 import com.google.api.client.http.HttpTransport;
 import com.google.api.client.http.javanet.NetHttpTransport;
 import com.google.api.client.util.SecurityUtils;
+import com.google.api.gax.tracing.OpencensusTracer;
 import com.google.auth.oauth2.GoogleCredentials;
 import com.google.auth.oauth2.ServiceAccountCredentials;
 import com.google.cloud.ServiceOptions;
@@ -21,6 +22,9 @@ import com.google.cloud.http.HttpTransportOptions;
 import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.StorageOptions;
 import com.google.cloud.storage.StorageRetryStrategy;
+
+import io.opencensus.contrib.http.util.HttpViews;
+import io.opencensus.trace.Tracer;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -46,6 +50,10 @@ import static java.util.Collections.emptyMap;
 import static org.elasticsearch.core.Strings.format;
 
 public class GoogleCloudStorageService {
+
+    public GoogleCloudStorageService() {
+        GcpTracer.createAndRegister();
+    }
 
     private static final Logger logger = LogManager.getLogger(GoogleCloudStorageService.class);
 
@@ -85,6 +93,7 @@ public class GoogleCloudStorageService {
      */
     public Storage client(final String clientName, final String repositoryName, final GoogleCloudStorageOperationsStats stats)
         throws IOException {
+
         {
             final Storage storage = clientCache.get(repositoryName);
             if (storage != null) {

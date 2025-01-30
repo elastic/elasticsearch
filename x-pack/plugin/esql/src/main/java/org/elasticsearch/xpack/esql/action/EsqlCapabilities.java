@@ -782,6 +782,11 @@ public class EsqlCapabilities {
         MATCH_FUNCTION_OPTIONS,
 
         /**
+         * Support for aggregate_metric_double type
+         */
+        AGGREGATE_METRIC_DOUBLE,
+
+        /**
          * Fix for https://github.com/elastic/elasticsearch/issues/120817
          * and https://github.com/elastic/elasticsearch/issues/120803
          * Support for queries that have multiple SORTs that cannot become TopN

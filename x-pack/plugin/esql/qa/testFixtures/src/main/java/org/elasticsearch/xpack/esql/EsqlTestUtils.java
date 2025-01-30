@@ -74,8 +74,8 @@ import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.QueryBuilderResolver;
-import org.elasticsearch.xpack.esql.stats.Metrics;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
+import org.elasticsearch.xpack.esql.telemetry.Metrics;
 import org.elasticsearch.xpack.versionfield.Version;
 import org.junit.Assert;
 
@@ -782,9 +782,8 @@ public final class EsqlTestUtils {
                     throw new UncheckedIOException(e);
                 }
             }
-            case UNSUPPORTED, OBJECT, DOC_DATA_TYPE, TSID_DATA_TYPE, PARTIAL_AGG -> throw new IllegalArgumentException(
-                "can't make random values for [" + type.typeName() + "]"
-            );
+            case UNSUPPORTED, OBJECT, DOC_DATA_TYPE, TSID_DATA_TYPE, PARTIAL_AGG, AGGREGATE_METRIC_DOUBLE ->
+                throw new IllegalArgumentException("can't make random values for [" + type.typeName() + "]");
         }, type);
     }
 

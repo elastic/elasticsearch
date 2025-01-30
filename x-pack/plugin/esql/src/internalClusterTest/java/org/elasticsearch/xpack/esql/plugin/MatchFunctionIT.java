@@ -342,6 +342,27 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testScoringWithNoFullTextFunction() {
+        var query = """
+            FROM test METADATA _score
+            | WHERE length(content) > 50
+            | KEEP id, _score
+            | SORT _score DESC, id ASC
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "_score"));
+            assertColumnTypes(resp.columns(), List.of("integer", "double"));
+            List<List<Object>> values = getValuesList(resp);
+            assertThat(values.size(), equalTo(1));
+
+            assertThat(values.get(0).get(0), equalTo(4));
+
+            // Non pushable query gets score of 0.0
+            assertThat((Double) values.get(0).get(1), equalTo(0.0));
+        }
+    }
+
     private void createAndPopulateIndex() {
         var indexName = "test";
         var client = client().admin().indices();

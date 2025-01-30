@@ -70,6 +70,7 @@ import org.elasticsearch.xpack.esql.enrich.LookupFromIndexOperator;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.evaluator.command.GrokEvaluatorExtracter;
+import org.elasticsearch.xpack.esql.evaluator.mapper.BooleanToScoringExpressionEvaluator;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
@@ -686,7 +687,9 @@ public class LocalExecutionPlanner {
             shardContexts,
             usesScore
         );
-
+        if (usesScore) {
+            evaluatorFactory = new BooleanToScoringExpressionEvaluator.Factory(evaluatorFactory);
+        }
         return source.with(new FilterOperatorFactory(evaluatorFactory, PlannerUtils.usesScoring(filter)), source.layout);
     }
 

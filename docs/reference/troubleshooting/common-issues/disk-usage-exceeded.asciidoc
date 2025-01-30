@@ -129,7 +129,7 @@ https://support.elastic.co[Elastic Support] for assistance.
 
 [discrete]
 [[fix-watermark-errors-resolve]]
-=== watermark errors
+=== Prevent watermark errors
 
 To avoid watermark errors in future, perform one of the following actions:
 

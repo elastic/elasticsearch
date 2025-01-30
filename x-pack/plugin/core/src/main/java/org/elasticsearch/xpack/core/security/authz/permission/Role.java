@@ -256,6 +256,17 @@ public interface Role {
             return this;
         }
 
+        // TODO remove me
+        public Builder add(
+            FieldPermissions fieldPermissions,
+            Set<BytesReference> query,
+            IndexPrivilege privilege,
+            boolean allowRestrictedIndices,
+            String... indices
+        ) {
+            return add(fieldPermissions, query, privilege, allowRestrictedIndices, false, indices);
+        }
+
         public Builder add(
             FieldPermissions fieldPermissions,
             Set<BytesReference> query,

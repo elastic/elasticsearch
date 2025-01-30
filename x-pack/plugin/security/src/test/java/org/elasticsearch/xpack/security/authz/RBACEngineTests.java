@@ -781,7 +781,7 @@ public class RBACEngineTests extends ESTestCase {
             randomIntBetween(2, XPackPlugin.ASYNC_RESULTS_INDEX.length() - 2)
         );
         Role role = Role.builder(RESTRICTED_INDICES, "role")
-            .add(FieldPermissions.DEFAULT, null, IndexPrivilege.INDEX, false, patternPrefix + "*")
+            .add(FieldPermissions.DEFAULT, null, IndexPrivilege.INDEX, false, false, patternPrefix + "*")
             .build();
         RBACAuthorizationInfo authzInfo = new RBACAuthorizationInfo(role, null);
 
@@ -892,7 +892,7 @@ public class RBACEngineTests extends ESTestCase {
         );
 
         role = Role.builder(RESTRICTED_INDICES, "role")
-            .add(FieldPermissions.DEFAULT, null, IndexPrivilege.INDEX, true, patternPrefix + "*")
+            .add(FieldPermissions.DEFAULT, null, IndexPrivilege.INDEX, true, false, patternPrefix + "*")
             .build();
         authzInfo = new RBACAuthorizationInfo(role, null);
         response = hasPrivileges(
@@ -917,8 +917,8 @@ public class RBACEngineTests extends ESTestCase {
         final boolean restrictedIndexPermission = randomBoolean();
         final boolean restrictedMonitorPermission = randomBoolean();
         Role role = Role.builder(RESTRICTED_INDICES, "role")
-            .add(FieldPermissions.DEFAULT, null, IndexPrivilege.INDEX, restrictedIndexPermission, ".sec*")
-            .add(FieldPermissions.DEFAULT, null, IndexPrivilege.MONITOR, restrictedMonitorPermission, ".security*")
+            .add(FieldPermissions.DEFAULT, null, IndexPrivilege.INDEX, restrictedIndexPermission, false, ".sec*")
+            .add(FieldPermissions.DEFAULT, null, IndexPrivilege.MONITOR, restrictedMonitorPermission, false, ".security*")
             .build();
         RBACAuthorizationInfo authzInfo = new RBACAuthorizationInfo(role, null);
 
@@ -975,8 +975,8 @@ public class RBACEngineTests extends ESTestCase {
 
     public void testCheckRestrictedIndexWildcardPermissions() throws Exception {
         Role role = Role.builder(RESTRICTED_INDICES, "role")
-            .add(FieldPermissions.DEFAULT, null, IndexPrivilege.INDEX, false, ".sec*")
-            .add(FieldPermissions.DEFAULT, null, IndexPrivilege.MONITOR, true, ".security*")
+            .add(FieldPermissions.DEFAULT, null, IndexPrivilege.INDEX, false, false, ".sec*")
+            .add(FieldPermissions.DEFAULT, null, IndexPrivilege.MONITOR, true, false, ".security*")
             .build();
         RBACAuthorizationInfo authzInfo = new RBACAuthorizationInfo(role, null);
 
@@ -1013,8 +1013,8 @@ public class RBACEngineTests extends ESTestCase {
         );
 
         role = Role.builder(RESTRICTED_INDICES, "role")
-            .add(FieldPermissions.DEFAULT, null, IndexPrivilege.INDEX, true, ".sec*")
-            .add(FieldPermissions.DEFAULT, null, IndexPrivilege.MONITOR, false, ".security*")
+            .add(FieldPermissions.DEFAULT, null, IndexPrivilege.INDEX, true, false, ".sec*")
+            .add(FieldPermissions.DEFAULT, null, IndexPrivilege.MONITOR, false, false, ".security*")
             .build();
         authzInfo = new RBACAuthorizationInfo(role, null);
 
@@ -1297,6 +1297,7 @@ public class RBACEngineTests extends ESTestCase {
                 Collections.singleton(query),
                 IndexPrivilege.READ,
                 randomBoolean(),
+                false,
                 "index-4",
                 "index-5"
             )
@@ -1912,6 +1913,7 @@ public class RBACEngineTests extends ESTestCase {
                     Set.of(query),
                     IndexPrivilege.READ,
                     randomBoolean(),
+                    false,
                     indices
                 )
                 .build()

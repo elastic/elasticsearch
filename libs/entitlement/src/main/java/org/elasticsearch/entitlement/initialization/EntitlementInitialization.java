@@ -19,14 +19,18 @@ import org.elasticsearch.entitlement.instrumentation.MethodKey;
 import org.elasticsearch.entitlement.instrumentation.Transformer;
 import org.elasticsearch.entitlement.runtime.api.ElasticsearchEntitlementChecker;
 import org.elasticsearch.entitlement.runtime.policy.CreateClassLoaderEntitlement;
+import org.elasticsearch.entitlement.runtime.policy.CreateThreadEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.Entitlement;
 import org.elasticsearch.entitlement.runtime.policy.ExitVMEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.InboundNetworkEntitlement;
+import org.elasticsearch.entitlement.runtime.policy.InterruptThreadEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.LoadNativeLibrariesEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.OutboundNetworkEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.Policy;
 import org.elasticsearch.entitlement.runtime.policy.PolicyManager;
 import org.elasticsearch.entitlement.runtime.policy.Scope;
+import org.elasticsearch.entitlement.runtime.policy.SetThreadContextClassLoaderEntitlement;
+import org.elasticsearch.entitlement.runtime.policy.SetThreadPropertyEntitlement;
 
 import java.lang.instrument.Instrumentation;
 import java.lang.reflect.Constructor;
@@ -95,7 +99,11 @@ public class EntitlementInitialization {
                         new CreateClassLoaderEntitlement(),
                         new InboundNetworkEntitlement(),
                         new OutboundNetworkEntitlement(),
-                        new LoadNativeLibrariesEntitlement()
+                        new LoadNativeLibrariesEntitlement(),
+                        new CreateThreadEntitlement(),
+                        new InterruptThreadEntitlement(),
+                        new SetThreadContextClassLoaderEntitlement(),
+                        new SetThreadPropertyEntitlement()
                     )
                 ),
                 new Scope("org.apache.httpcomponents.httpclient", List.of(new OutboundNetworkEntitlement())),

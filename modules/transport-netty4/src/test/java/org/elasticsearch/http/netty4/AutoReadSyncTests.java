@@ -14,19 +14,17 @@ import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.channel.embedded.EmbeddedChannel;
-
 import io.netty.handler.codec.http.DefaultHttpContent;
 import io.netty.handler.codec.http.DefaultHttpRequest;
 import io.netty.handler.codec.http.DefaultLastHttpContent;
 import io.netty.handler.codec.http.HttpContent;
 import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpRequest;
-
 import io.netty.handler.codec.http.HttpVersion;
-
 import io.netty.handler.codec.http.LastHttpContent;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.network.ThreadWatchdog;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.http.HttpBody;
@@ -42,6 +40,7 @@ import java.util.stream.IntStream;
 
 public class AutoReadSyncTests extends ESTestCase {
 
+    static final int BUF_SIZE = 1024;
     Channel chan;
 
     @Override
@@ -119,8 +118,6 @@ public class AutoReadSyncTests extends ESTestCase {
         assertTrue(chan.config().isAutoRead());
     }
 
-    static final int BUF_SIZE = 1024;
-
     /**
      * Ensure that HttpStream does not set auto-read true when there is request waiting for auth.
      * This test emulates reception of a large TCP packet that contains 2 HTTP requests and using HTTP pipelining.
@@ -182,7 +179,11 @@ public class AutoReadSyncTests extends ESTestCase {
         @Override
         public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
             if (msg instanceof HttpRequest) {
-                var stream = new Netty4HttpRequestBodyStream(ctx.channel(), new ThreadContext(Settings.EMPTY));
+                var stream = new Netty4HttpRequestBodyStream(
+                    ctx.channel(),
+                    new ThreadContext(Settings.EMPTY),
+                    new ThreadWatchdog.ActivityTracker()
+                );
                 streams.add(stream);
                 stream.setHandler(discardChunk);
             } else {

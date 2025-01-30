@@ -68,6 +68,7 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.inference.results.ResultUtils.createInvalidChunkedResultException;
 import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
@@ -159,10 +160,7 @@ public class ElasticInferenceService extends SenderService {
 
     private void getAuthorization() {
         try {
-            ActionListener<ElasticInferenceServiceAuthorization> listener = ActionListener.wrap(result -> {
-                setAuthorizedContent(result);
-                authorizationCompletedLatch.countDown();
-            }, e -> {
+            ActionListener<ElasticInferenceServiceAuthorization> listener = ActionListener.wrap(this::setAuthorizedContent, e -> {
                 // we don't need to do anything if there was a failure, everything is disabled by default
                 authorizationCompletedLatch.countDown();
             });
@@ -240,21 +238,34 @@ public class ElasticInferenceService extends SenderService {
         var unauthorizedDefaultModelIds = new HashSet<>(defaultModelsConfigs.keySet());
         unauthorizedDefaultModelIds.removeAll(authorizedDefaultModelIds);
 
+        // get all the default inference endpoint ids for the unauthorized model ids
+        var unauthorizedDefaultInferenceEndpointIds = unauthorizedDefaultModelIds.stream()
+            .map(defaultModelsConfigs::get) // get all the model configs
+            .filter(Objects::nonNull) // limit to only non-null
+            .map(modelConfig -> modelConfig.model.getInferenceEntityId()) // get the inference ids
+            .collect(Collectors.toSet());
+
         var deleteInferenceEndpointsListener = ActionListener.<Boolean>wrap(result -> {
             logger.trace(Strings.format("Successfully revoked access to default inference endpoint IDs: %s", unauthorizedDefaultModelIds));
+            authorizationCompletedLatch.countDown();
         }, e -> {
             logger.warn(
                 Strings.format("Failed to revoke access to default inference endpoint IDs: %s, error: %s", unauthorizedDefaultModelIds, e)
             );
+            authorizationCompletedLatch.countDown();
         });
 
         getServiceComponents().threadPool()
             .executor(UTILITY_THREAD_POOL_NAME)
-            .execute(() -> modelRegistry.removeDefaultConfigs(unauthorizedDefaultModelIds, deleteInferenceEndpointsListener));
+            .execute(() -> modelRegistry.removeDefaultConfigs(unauthorizedDefaultInferenceEndpointIds, deleteInferenceEndpointsListener));
     }
 
-    // Default for testing
-    void waitForAuthorizationToComplete(TimeValue waitTime) {
+    /**
+     * Waits the specified amount of time for the authorization call to complete. This is mainly to make testing easier.
+     * @param waitTime the max time to wait
+     * @throws IllegalStateException if the wait time is exceeded or the call receives an {@link InterruptedException}
+     */
+    public void waitForAuthorizationToComplete(TimeValue waitTime) {
         try {
             if (authorizationCompletedLatch.await(waitTime.getSeconds(), TimeUnit.SECONDS) == false) {
                 throw new IllegalStateException("The wait time has expired for authorization to complete.");

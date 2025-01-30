@@ -623,10 +623,11 @@ public class EsqlSession {
             // for example "from test | eval x = salary | stats max = max(x) by gender"
             // remove the UnresolvedAttribute "x", since that is an Alias defined in "eval"
             AttributeSet planRefs = p.references();
+            Set<String> fieldNames = planRefs.names();
             p.forEachExpressionDown(Alias.class, alias -> {
                 // do not remove the UnresolvedAttribute that has the same name as its alias, ie "rename id = id"
                 // or the UnresolvedAttributes that are used in Functions that have aliases "STATS id = MAX(id)"
-                if (planRefs.names().contains(alias.name())) {
+                if (fieldNames.contains(alias.name())) {
                     return;
                 }
                 references.removeIf(attr -> matchByName(attr, alias.name(), keepCommandReferences.contains(attr)));

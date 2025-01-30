@@ -12,24 +12,31 @@ package org.elasticsearch.cluster.action.shard;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionTestUtils;
+import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.action.shard.ShardStateAction.StartedShardEntry;
 import org.elasticsearch.cluster.action.shard.ShardStateAction.StartedShardUpdateTask;
+import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.routing.AllocationId;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterStateTaskExecutorUtils;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
 
 import java.util.List;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
@@ -37,9 +44,11 @@ import static org.elasticsearch.action.support.replication.ClusterStateCreationU
 import static org.elasticsearch.action.support.replication.ClusterStateCreationUtils.stateWithActivePrimary;
 import static org.elasticsearch.action.support.replication.ClusterStateCreationUtils.stateWithAssignedPrimariesAndReplicas;
 import static org.elasticsearch.action.support.replication.ClusterStateCreationUtils.stateWithNoShard;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_REFRESH_BLOCK;
 import static org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class ShardStartedClusterStateTaskExecutorTests extends ESAllocationTestCase {
@@ -477,6 +486,114 @@ public class ShardStartedClusterStateTaskExecutorTests extends ESAllocationTestC
         final IndexMetadata latestIndexMetadata = resultingState.metadata().index(indexName);
         assertThat(latestIndexMetadata.getTimestampRange(), sameInstance(IndexLongFieldRange.UNKNOWN));
         assertThat(latestIndexMetadata.getEventIngestedRange(), sameInstance(IndexLongFieldRange.UNKNOWN));
+    }
+
+    public void testIndexRefreshBlockIsClearedOnceTheIndexIsReadyToBeSearched() throws Exception {
+        final var indexName = "test";
+        final var numberOfShards = randomIntBetween(1, 4);
+        final var numberOfReplicas = randomIntBetween(1, 4);
+        var clusterState = ClusterStateCreationUtils.stateWithAssignedPrimariesAndReplicasWithState(
+            new String[] { indexName },
+            numberOfShards,
+            ShardRouting.Role.INDEX_ONLY,
+            IntStream.range(0, numberOfReplicas)
+                .mapToObj(unused -> Tuple.tuple(ShardRoutingState.UNASSIGNED, ShardRouting.Role.SEARCH_ONLY))
+                .toList()
+        );
+
+        clusterState = ClusterState.builder(clusterState)
+            .metadata(Metadata.builder(clusterState.metadata()).put(withActiveShardsInSyncAllocationIds(clusterState, indexName)))
+            .blocks(ClusterBlocks.builder(clusterState.blocks()).addIndexBlock(indexName, INDEX_REFRESH_BLOCK))
+            .build();
+
+        while (clusterState.blocks().hasIndexBlock(indexName, INDEX_REFRESH_BLOCK)) {
+            clusterState = maybeInitializeUnassignedReplicaShard(clusterState);
+
+            final IndexMetadata indexMetadata = clusterState.metadata().index(indexName);
+
+            final var initializingReplicaShardOpt = clusterState.routingTable()
+                .allShards()
+                .filter(shardRouting -> shardRouting.isPromotableToPrimary() == false)
+                .filter(shardRouting -> shardRouting.state().equals(ShardRoutingState.INITIALIZING))
+                .findFirst();
+
+            assertThat(clusterState.routingTable().allShards().toList().toString(), initializingReplicaShardOpt.isPresent(), is(true));
+
+            var initializingReplicaShard = initializingReplicaShardOpt.get();
+
+            final var shardId = initializingReplicaShard.shardId();
+            final var primaryTerm = indexMetadata.primaryTerm(shardId.id());
+            final var replicaAllocationId = initializingReplicaShard.allocationId().getId();
+            final var task = new StartedShardUpdateTask(
+                new StartedShardEntry(
+                    shardId,
+                    replicaAllocationId,
+                    primaryTerm,
+                    "test",
+                    ShardLongFieldRange.UNKNOWN,
+                    ShardLongFieldRange.UNKNOWN
+                ),
+                createTestListener()
+            );
+
+            final var resultingState = executeTasks(clusterState, List.of(task));
+            assertNotSame(clusterState, resultingState);
+
+            clusterState = resultingState;
+        }
+
+        var indexRoutingTable = clusterState.routingTable().index(indexName);
+        assertThat(indexRoutingTable.readyForSearch(), is(true));
+        for (int i = 0; i < numberOfShards; i++) {
+            var shardRoutingTable = indexRoutingTable.shard(i);
+            assertThat(shardRoutingTable, is(notNullValue()));
+            // Ensure that at least one unpromotable shard is either STARTED or RELOCATING
+            assertThat(shardRoutingTable.unpromotableShards().isEmpty(), is(false));
+        }
+        assertThat(clusterState.blocks().hasIndexBlock(indexName, INDEX_REFRESH_BLOCK), is(false));
+    }
+
+    private static ClusterState maybeInitializeUnassignedReplicaShard(ClusterState clusterState) {
+        var unassignedShardRoutingOpt = clusterState.routingTable()
+            .allShards()
+            .filter(shardRouting -> shardRouting.state().equals(ShardRoutingState.UNASSIGNED))
+            .findFirst();
+
+        if (unassignedShardRoutingOpt.isEmpty()) {
+            return clusterState;
+        }
+
+        var unassignedShardRouting = unassignedShardRoutingOpt.get();
+        var initializedShard = unassignedShardRouting.initialize(randomUUID(), null, 1);
+
+        RoutingTable routingTable = clusterState.routingTable();
+        IndexRoutingTable indexRoutingTable = routingTable.index(unassignedShardRouting.getIndexName());
+        IndexRoutingTable.Builder newIndexRoutingTable = IndexRoutingTable.builder(indexRoutingTable.getIndex());
+        for (int shardId = 0; shardId < indexRoutingTable.size(); shardId++) {
+            IndexShardRoutingTable shardRoutingTable = indexRoutingTable.shard(shardId);
+            for (int copy = 0; copy < shardRoutingTable.size(); copy++) {
+                ShardRouting shardRouting = shardRoutingTable.shard(copy);
+                newIndexRoutingTable.addShard(shardRouting == unassignedShardRouting ? initializedShard : shardRouting);
+            }
+        }
+        routingTable = RoutingTable.builder(routingTable).add(newIndexRoutingTable).build();
+        return ClusterState.builder(clusterState).routingTable(routingTable).build();
+    }
+
+    private static IndexMetadata.Builder withActiveShardsInSyncAllocationIds(ClusterState clusterState, String indexName) {
+        IndexMetadata.Builder indexMetadataBuilder = new IndexMetadata.Builder(clusterState.metadata().index(indexName));
+        var indexRoutingTable = clusterState.routingTable().index(indexName);
+        for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable.allShards().toList()) {
+            indexMetadataBuilder.putInSyncAllocationIds(
+                indexShardRoutingTable.shardId().getId(),
+                indexShardRoutingTable.activeShards()
+                    .stream()
+                    .map(ShardRouting::allocationId)
+                    .map(AllocationId::getId)
+                    .collect(Collectors.toSet())
+            );
+        }
+        return indexMetadataBuilder;
     }
 
     private ClusterState executeTasks(final ClusterState state, final List<StartedShardUpdateTask> tasks) throws Exception {

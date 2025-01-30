@@ -9,13 +9,11 @@ package org.elasticsearch.xpack.inference.external.request.ibmwatsonx;
 
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
-import org.apache.http.client.utils.URIBuilder;
 import org.apache.http.entity.ByteArrayEntity;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.Request;
-import org.elasticsearch.xpack.inference.external.request.cohere.CohereUtils;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.rerank.IbmWatsonxRerankModel;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.rerank.IbmWatsonxRerankTaskSettings;
 
@@ -31,7 +29,6 @@ public class IbmWatsonxRerankRequest implements IbmWatsonxRequest {
     private final List<String> input;
     private final IbmWatsonxRerankTaskSettings taskSettings;
     private final IbmWatsonxRerankModel model;
-    private final String inferenceEntityId;
 
     public IbmWatsonxRerankRequest(String query, List<String> input, IbmWatsonxRerankModel model) {
         Objects.requireNonNull(model);
@@ -40,7 +37,6 @@ public class IbmWatsonxRerankRequest implements IbmWatsonxRequest {
         this.query = Objects.requireNonNull(query);
         taskSettings = model.getTaskSettings();
         this.model = model;
-        inferenceEntityId = model.getInferenceEntityId();
     }
 
     @Override
@@ -81,7 +77,7 @@ public class IbmWatsonxRerankRequest implements IbmWatsonxRequest {
 
     @Override
     public String getInferenceEntityId() {
-        return inferenceEntityId;
+        return model.getInferenceEntityId();
     }
 
     @Override
@@ -111,10 +107,4 @@ public class IbmWatsonxRerankRequest implements IbmWatsonxRequest {
         return null;
     }
 
-    public static URI buildDefaultUri() throws URISyntaxException {
-        return new URIBuilder().setScheme("https")
-            .setHost(CohereUtils.HOST)
-            .setPathSegments(CohereUtils.VERSION_1, CohereUtils.RERANK_PATH)
-            .build();
-    }
 }

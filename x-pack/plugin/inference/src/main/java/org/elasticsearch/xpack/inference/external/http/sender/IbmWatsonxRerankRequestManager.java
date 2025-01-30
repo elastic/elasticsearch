@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.inference.external.request.ibmwatsonx.IbmWatsonxR
 import org.elasticsearch.xpack.inference.external.response.ibmwatsonx.IbmWatsonxRankedResponseEntity;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.rerank.IbmWatsonxRerankModel;
 
+import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
 
@@ -40,7 +41,7 @@ public class IbmWatsonxRerankRequestManager extends IbmWatsonxRequestManager {
 
     private final IbmWatsonxRerankModel model;
 
-    private IbmWatsonxRerankRequestManager(IbmWatsonxRerankModel model, ThreadPool threadPool) {
+    public IbmWatsonxRerankRequestManager(IbmWatsonxRerankModel model, ThreadPool threadPool) {
         super(threadPool, model);
         this.model = model;
     }
@@ -54,8 +55,19 @@ public class IbmWatsonxRerankRequestManager extends IbmWatsonxRequestManager {
     ) {
         var rerankInput = QueryAndDocsInputs.of(inferenceInputs);
 
-        IbmWatsonxRerankRequest request = new IbmWatsonxRerankRequest(rerankInput.getQuery(), rerankInput.getChunks(), model);
+        execute(new ExecutableInferenceRequest(requestSender,
+            logger,
+            getRerankRequest(rerankInput.getQuery(), rerankInput.getChunks(), model),
+            HANDLER,
+            hasRequestCompletedFunction,
+            listener));
+    }
 
-        execute(new ExecutableInferenceRequest(requestSender, logger, request, HANDLER, hasRequestCompletedFunction, listener));
+    protected IbmWatsonxRerankRequest getRerankRequest(
+       String query,
+       List<String> chunks,
+       IbmWatsonxRerankModel model
+    ) {
+        return new IbmWatsonxRerankRequest(query, chunks, model);
     }
 }

@@ -40,13 +40,17 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractSim
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeAsType;
 import static org.elasticsearch.xpack.inference.services.ibmwatsonx.IbmWatsonxServiceFields.API_VERSION;
 import static org.elasticsearch.xpack.inference.services.ibmwatsonx.IbmWatsonxServiceFields.PROJECT_ID;
-import static org.elasticsearch.xpack.inference.services.ibmwatsonx.IbmWatsonxServiceSettings.DEFAULT_RATE_LIMIT_SETTINGS;
-import static org.elasticsearch.xpack.inference.services.ibmwatsonx.IbmWatsonxServiceSettings.MODEL_ID;
+import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 
 public class IbmWatsonxRerankServiceSettings extends FilteredXContentObject implements ServiceSettings, IbmWatsonxRateLimitServiceSettings {
     public static final String NAME = "ibm_watsonx_rerank_service_settings";
 
-    private static final Logger logger = LogManager.getLogger(IbmWatsonxRerankServiceSettings.class);
+    /**
+     * Rate limits are defined at
+     * <a href="https://www.ibm.com/docs/en/watsonx/saas?topic=learning-watson-machine-plans">Watson Machine Learning plans</a>.
+     * For Lite plan, you've 120 requests per minute.
+     */
+    private static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(120);
 
     public static IbmWatsonxRerankServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         ValidationException validationException = new ValidationException();
@@ -177,7 +181,7 @@ public class IbmWatsonxRerankServiceSettings extends FilteredXContentObject impl
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_14_0;
+        return TransportVersions.ML_INFERENCE_IBM_WATSONX_RERANK_ADDED;
     }
 
     @Override
@@ -189,9 +193,7 @@ public class IbmWatsonxRerankServiceSettings extends FilteredXContentObject impl
         out.writeOptionalString(modelId);
         out.writeOptionalString(projectId);
 
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            rateLimitSettings.writeTo(out);
-        }
+        rateLimitSettings.writeTo(out);
     }
 
     @Override

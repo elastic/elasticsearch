@@ -50,11 +50,13 @@ public class InferenceRevokeDefaultEndpointsIT extends ESSingleNodeTestCase {
     private ModelRegistry modelRegistry;
     private final MockWebServer webServer = new MockWebServer();
     private ThreadPool threadPool;
+    private String gatewayUrl;
 
     @Before
     public void createComponents() throws Exception {
         threadPool = createThreadPool(inferenceUtilityPool());
         webServer.start();
+        gatewayUrl = getUrl(webServer);
         modelRegistry = new ModelRegistry(client());
     }
 
@@ -65,15 +67,16 @@ public class InferenceRevokeDefaultEndpointsIT extends ESSingleNodeTestCase {
     }
 
     @Override
+    protected boolean resetNodeAfterTest() {
+        return true;
+    }
+
+    @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return pluginList(ReindexPlugin.class);
     }
 
     public void testDefaultConfigs_Returns_DefaultChatCompletion_V1_WhenTaskTypeIsCorrect() throws Exception {
-        var clientManager = HttpClientManager.create(Settings.EMPTY, threadPool, mockClusterServiceEmpty(), mock(ThrottlerManager.class));
-        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-        var gatewayUrl = getUrl(webServer);
-
         String responseJson = """
             {
                 "models": [
@@ -87,15 +90,7 @@ public class InferenceRevokeDefaultEndpointsIT extends ESSingleNodeTestCase {
 
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-        try (
-            var service = new ElasticInferenceService(
-                senderFactory,
-                createWithEmptySettings(threadPool),
-                new ElasticInferenceServiceComponents(gatewayUrl),
-                modelRegistry,
-                new ElasticInferenceServiceAuthorizationHandler(gatewayUrl, threadPool)
-            )
-        ) {
+        try (var service = createElasticInferenceService()) {
             service.waitForAuthorizationToComplete(TIMEOUT);
             assertThat(service.supportedStreamingTasks(), is(EnumSet.of(TaskType.CHAT_COMPLETION, TaskType.ANY)));
             assertThat(
@@ -115,17 +110,7 @@ public class InferenceRevokeDefaultEndpointsIT extends ESSingleNodeTestCase {
     }
 
     public void testRemoves_DefaultChatCompletion_V1_WhenAuthorizationReturnsEmpty() throws Exception {
-        var gatewayUrl = getUrl(webServer);
-
         {
-            var clientManager = HttpClientManager.create(
-                Settings.EMPTY,
-                threadPool,
-                mockClusterServiceEmpty(),
-                mock(ThrottlerManager.class)
-            );
-            var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-
             String responseJson = """
                 {
                     "models": [
@@ -139,15 +124,7 @@ public class InferenceRevokeDefaultEndpointsIT extends ESSingleNodeTestCase {
 
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-            try (
-                var service = new ElasticInferenceService(
-                    senderFactory,
-                    createWithEmptySettings(threadPool),
-                    new ElasticInferenceServiceComponents(gatewayUrl),
-                    modelRegistry,
-                    new ElasticInferenceServiceAuthorizationHandler(gatewayUrl, threadPool)
-                )
-            ) {
+            try (var service = createElasticInferenceService()) {
                 service.waitForAuthorizationToComplete(TIMEOUT);
                 assertThat(service.supportedStreamingTasks(), is(EnumSet.of(TaskType.CHAT_COMPLETION, TaskType.ANY)));
                 assertThat(
@@ -186,18 +163,7 @@ public class InferenceRevokeDefaultEndpointsIT extends ESSingleNodeTestCase {
 
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(noAuthorizationResponseJson));
 
-            var httpManager = HttpClientManager.create(Settings.EMPTY, threadPool, mockClusterServiceEmpty(), mock(ThrottlerManager.class));
-            var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, httpManager);
-
-            try (
-                var service = new ElasticInferenceService(
-                    senderFactory,
-                    createWithEmptySettings(threadPool),
-                    new ElasticInferenceServiceComponents(gatewayUrl),
-                    modelRegistry,
-                    new ElasticInferenceServiceAuthorizationHandler(gatewayUrl, threadPool)
-                )
-            ) {
+            try (var service = createElasticInferenceService()) {
                 service.waitForAuthorizationToComplete(TIMEOUT);
                 assertThat(service.supportedStreamingTasks(), is(EnumSet.noneOf(TaskType.class)));
                 assertTrue(service.defaultConfigIds().isEmpty());
@@ -210,5 +176,96 @@ public class InferenceRevokeDefaultEndpointsIT extends ESSingleNodeTestCase {
                 assertThat(exception.getMessage(), is("Inference endpoint not found [.rainbow-sprinkles-elastic]"));
             }
         }
+    }
+
+    public void testRemoves_DefaultChatCompletion_V1_WhenAuthorizationDoesNotReturnAuthForIt() throws Exception {
+        {
+            String responseJson = """
+                {
+                    "models": [
+                        {
+                          "model_name": "rainbow-sprinkles",
+                          "task_types": ["chat"]
+                        },
+                        {
+                          "model_name": "elser-v2",
+                          "task_types": ["embed/text/sparse"]
+                        }
+                    ]
+                }
+                """;
+
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+
+            try (var service = createElasticInferenceService()) {
+                service.waitForAuthorizationToComplete(TIMEOUT);
+                assertThat(service.supportedStreamingTasks(), is(EnumSet.of(TaskType.CHAT_COMPLETION, TaskType.ANY)));
+                assertThat(
+                    service.defaultConfigIds(),
+                    is(
+                        List.of(
+                            new InferenceService.DefaultConfigId(
+                                ".rainbow-sprinkles-elastic",
+                                MinimalServiceSettings.chatCompletion(),
+                                service
+                            )
+                        )
+                    )
+                );
+                assertThat(service.supportedTaskTypes(), is(EnumSet.of(TaskType.CHAT_COMPLETION, TaskType.SPARSE_EMBEDDING)));
+
+                PlainActionFuture<List<Model>> listener = new PlainActionFuture<>();
+                service.defaultConfigs(listener);
+                assertThat(listener.actionGet(TIMEOUT).get(0).getConfigurations().getInferenceEntityId(), is(".rainbow-sprinkles-elastic"));
+
+                var getModelListener = new PlainActionFuture<UnparsedModel>();
+                // persists the default endpoints
+                modelRegistry.getModel(".rainbow-sprinkles-elastic", getModelListener);
+
+                var inferenceEntity = getModelListener.actionGet(TIMEOUT);
+                assertThat(inferenceEntity.inferenceEntityId(), is(".rainbow-sprinkles-elastic"));
+                assertThat(inferenceEntity.taskType(), is(TaskType.CHAT_COMPLETION));
+            }
+        }
+        {
+            String noAuthorizationResponseJson = """
+                {
+                    "models": [
+                        {
+                          "model_name": "elser-v2",
+                          "task_types": ["embed/text/sparse"]
+                        }
+                    ]
+                }
+                """;
+
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(noAuthorizationResponseJson));
+
+            try (var service = createElasticInferenceService()) {
+                service.waitForAuthorizationToComplete(TIMEOUT);
+                assertThat(service.supportedStreamingTasks(), is(EnumSet.noneOf(TaskType.class)));
+                assertTrue(service.defaultConfigIds().isEmpty());
+                assertThat(service.supportedTaskTypes(), is(EnumSet.of(TaskType.SPARSE_EMBEDDING)));
+
+                var getModelListener = new PlainActionFuture<UnparsedModel>();
+                modelRegistry.getModel(".rainbow-sprinkles-elastic", getModelListener);
+
+                var exception = expectThrows(ResourceNotFoundException.class, () -> getModelListener.actionGet(TIMEOUT));
+                assertThat(exception.getMessage(), is("Inference endpoint not found [.rainbow-sprinkles-elastic]"));
+            }
+        }
+    }
+
+    private ElasticInferenceService createElasticInferenceService() {
+        var httpManager = HttpClientManager.create(Settings.EMPTY, threadPool, mockClusterServiceEmpty(), mock(ThrottlerManager.class));
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, httpManager);
+
+        return new ElasticInferenceService(
+            senderFactory,
+            createWithEmptySettings(threadPool),
+            new ElasticInferenceServiceComponents(gatewayUrl),
+            modelRegistry,
+            new ElasticInferenceServiceAuthorizationHandler(gatewayUrl, threadPool)
+        );
     }
 }

@@ -55,7 +55,6 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.inference.InferencePlugin.INFERENCE_API_FEATURE;
-import static org.elasticsearch.xpack.inference.common.InferenceAPIClusterAwareRateLimitingFeature.INFERENCE_API_CLUSTER_AWARE_RATE_LIMITING_FEATURE_FLAG;
 import static org.elasticsearch.xpack.inference.telemetry.InferenceStats.modelAttributes;
 import static org.elasticsearch.xpack.inference.telemetry.InferenceStats.responseAttributes;
 

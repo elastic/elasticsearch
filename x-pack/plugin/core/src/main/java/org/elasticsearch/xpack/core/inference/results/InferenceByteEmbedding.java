@@ -70,7 +70,7 @@ public record InferenceByteEmbedding(byte[] values) implements Writeable, ToXCon
     double[] toDoubleArray() {
         double[] doubleArray = new double[values.length];
         for (int i = 0; i < values.length; i++) {
-            doubleArray[i] = ((Byte) values[i]).floatValue();
+            doubleArray[i] = ((Byte) values[i]).doubleValue();
         }
         return doubleArray;
     }

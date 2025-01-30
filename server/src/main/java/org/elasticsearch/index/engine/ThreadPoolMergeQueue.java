@@ -61,7 +61,7 @@ public class ThreadPoolMergeQueue {
 
     void submitMergeTask(MergeTask mergeTask) {
         enqueueMergeTask(mergeTask);
-        executeNextMergeTask();
+        executeSmallestMergeTask();
     }
 
     void enqueueMergeTask(MergeTask mergeTask) {
@@ -72,25 +72,31 @@ public class ThreadPoolMergeQueue {
         }
     }
 
-    private void executeNextMergeTask() {
-        executorService.execute(() -> {
-            // one such task always executes a SINGLE merge task; this is important for merge queue statistics
-            while (true) {
-                MergeTask smallestMergeTask;
-                try {
-                    // will block if there are backlogged merges until they're enqueued again
-                    smallestMergeTask = queuedMergeTasks.take();
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    return;
+    private void executeSmallestMergeTask() {
+        final AtomicReference<MergeTask> smallestMergeTask = new AtomicReference<>();
+        try {
+            executorService.execute(() -> {
+                // one such task always executes a SINGLE merge task; this is important for merge queue statistics
+                while (true) {
+                    try {
+                        // will block if there are backlogged merges until they're enqueued again
+                        smallestMergeTask.set(queuedMergeTasks.take());
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        return;
+                    }
+                    if (smallestMergeTask.get().runNowOrBacklog()) {
+                        runMergeTask(smallestMergeTask.get());
+                        // one runnable one merge task
+                        return;
+                    }
                 }
-                if (smallestMergeTask.runNowOrBacklog()) {
-                    runMergeTask(smallestMergeTask);
-                    // one runnable one merge task
-                    return;
-                }
+            });
+        } catch (Exception e) {
+            if (smallestMergeTask.get() != null) {
+                smallestMergeTask.get().onRejection(e);
             }
-        });
+        }
     }
 
     private void runMergeTask(MergeTask mergeTask) {

@@ -21,7 +21,6 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.RateLimitedIndexOutput;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MergeSchedulerConfig;
@@ -228,7 +227,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
         };
     }
 
-    final class MergeTask extends AbstractRunnable implements Comparable<MergeTask> {
+    final class MergeTask implements Runnable, Comparable<MergeTask> {
         private final String name;
         private final AtomicLong mergeStartTimeNS;
         private final MergeSource mergeSource;
@@ -271,7 +270,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
         }
 
         @Override
-        public void doRun() throws Exception {
+        public void run() {
             if (mergeStartTimeNS.compareAndSet(0L, System.nanoTime()) == false) {
                 throw new IllegalStateException("Cannot run the same merge task multiple times");
             }
@@ -306,57 +305,41 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
                     abortOnGoingMerge();
                     handleMergeException(t);
                 }
-            }
-        }
-
-        @Override
-        public void onAfter() {
-            if (isRunning() == false) {
-                throw new IllegalStateException("onAfter must only be invoked after doRun");
-            }
-            try {
-                if (verbose()) {
-                    message(String.format(Locale.ROOT, "merge task %s end", this));
-                }
-                afterMerge(onGoingMerge);
             } finally {
-                long tookMS = TimeValue.nsecToMSec(System.nanoTime() - mergeStartTimeNS.get());
                 try {
-                    mergeTracking.mergeFinished(onGoingMerge.getMerge(), onGoingMerge, tookMS);
-                } finally {
-                    mergeDone(this);
-                    // kick-off next merge, if any
-                    MergePolicy.OneMerge nextMerge = null;
-                    try {
-                        nextMerge = mergeSource.getNextMerge();
-                    } catch (IllegalStateException e) {
-                        if (verbose()) {
-                            message("merge task poll failed, likely that index writer is failed");
-                        }
-                        // ignore exception, we expect the IW failure to be logged elsewhere
+                    if (verbose()) {
+                        message(String.format(Locale.ROOT, "merge task %s end", this));
                     }
-                    if (nextMerge != null) {
-                        submitNewMergeTask(mergeSource, nextMerge, MergeTrigger.MERGE_FINISHED);
+                    afterMerge(onGoingMerge);
+                } finally {
+                    long tookMS = TimeValue.nsecToMSec(System.nanoTime() - mergeStartTimeNS.get());
+                    try {
+                        mergeTracking.mergeFinished(onGoingMerge.getMerge(), onGoingMerge, tookMS);
+                    } finally {
+                        mergeDone(this);
+                        // kick-off next merge, if any
+                        MergePolicy.OneMerge nextMerge = null;
+                        try {
+                            nextMerge = mergeSource.getNextMerge();
+                        } catch (IllegalStateException e) {
+                            if (verbose()) {
+                                message("merge task poll failed, likely that index writer is failed");
+                            }
+                            // ignore exception, we expect the IW failure to be logged elsewhere
+                        }
+                        if (nextMerge != null) {
+                            submitNewMergeTask(mergeSource, nextMerge, MergeTrigger.MERGE_FINISHED);
+                        }
                     }
                 }
             }
         }
 
-        @Override
-        public void onFailure(Exception e) {
-            // no-op, should not be called
-        }
-
-        @Override
         public void onRejection(Exception e) {
-            if (isRunning()) {
-                throw new IllegalStateException("A running merge cannot be rejected for running");
-            }
             if (verbose()) {
                 message(String.format(Locale.ROOT, "merge task [%s] rejected by thread pool, aborting", onGoingMerge.getId()));
             }
             abortOnGoingMerge();
-            mergeDone(this);
         }
 
         private void abortOnGoingMerge() {

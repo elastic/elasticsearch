@@ -22,6 +22,7 @@ import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -91,5 +92,10 @@ public class GoogleCloudStoragePlugin extends Plugin implements RepositoryPlugin
         // instance.
         final Map<String, GoogleCloudStorageClientSettings> clientsSettings = GoogleCloudStorageClientSettings.load(settings);
         this.storageService.refreshAndClearCache(clientsSettings);
+    }
+
+    @Override
+    public void close() throws IOException {
+        this.storageService.shutdown();
     }
 }

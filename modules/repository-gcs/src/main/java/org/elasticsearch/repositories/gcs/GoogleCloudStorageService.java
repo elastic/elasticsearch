@@ -14,7 +14,6 @@ import com.google.api.client.http.HttpRequestInitializer;
 import com.google.api.client.http.HttpTransport;
 import com.google.api.client.http.javanet.NetHttpTransport;
 import com.google.api.client.util.SecurityUtils;
-import com.google.api.gax.tracing.OpencensusTracer;
 import com.google.auth.oauth2.GoogleCredentials;
 import com.google.auth.oauth2.ServiceAccountCredentials;
 import com.google.cloud.ServiceOptions;
@@ -22,9 +21,6 @@ import com.google.cloud.http.HttpTransportOptions;
 import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.StorageOptions;
 import com.google.cloud.storage.StorageRetryStrategy;
-
-import io.opencensus.contrib.http.util.HttpViews;
-import io.opencensus.trace.Tracer;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -289,4 +285,8 @@ public class GoogleCloudStorageService {
 
     // used for unit testing
     void notifyProxyIsSet(Proxy proxy) {}
+
+    public void shutdown() {
+        GcpTracer.shutdown();
+    }
 }

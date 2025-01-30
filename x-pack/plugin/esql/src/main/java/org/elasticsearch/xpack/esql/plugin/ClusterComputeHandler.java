@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.session.Configuration;
+import org.elasticsearch.xpack.esql.session.EsqlSessionCCSUtils;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -37,9 +38,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
-
-import static org.elasticsearch.xpack.esql.session.EsqlSessionCCSUtils.markClusterWithFinalStateAndNoShards;
-import static org.elasticsearch.xpack.esql.session.EsqlSessionCCSUtils.shouldIgnoreRuntimeError;
 
 /**
  * Manages computes across multiple clusters by sending {@link ClusterComputeRequest} to remote clusters and executing the computes.
@@ -132,8 +130,13 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                         new ActionListenerResponseHandler<>(clusterListener, ComputeResponse::new, esqlExecutor)
                     );
                 }, e -> {
-                    if (shouldIgnoreRuntimeError(executionInfo, clusterAlias, e)) {
-                        markClusterWithFinalStateAndNoShards(executionInfo, clusterAlias, EsqlExecutionInfo.Cluster.Status.SKIPPED, e);
+                    if (EsqlSessionCCSUtils.shouldIgnoreRuntimeError(executionInfo, clusterAlias, e)) {
+                        EsqlSessionCCSUtils.markClusterWithFinalStateAndNoShards(
+                            executionInfo,
+                            clusterAlias,
+                            EsqlExecutionInfo.Cluster.Status.SKIPPED,
+                            e
+                        );
                         openExchangeListener.onResponse(null);
                     } else {
                         openExchangeListener.onFailure(e);

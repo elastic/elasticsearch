@@ -19,6 +19,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.transport.RemoteClusterAware;
@@ -37,6 +38,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 public class EsqlSessionCCSUtils {
@@ -347,10 +349,10 @@ public class EsqlSessionCCSUtils {
         executionInfo.swapCluster(clusterAlias, (k, v) -> {
             Cluster.Builder builder = new Cluster.Builder(v).setStatus(status)
                 .setTook(executionInfo.tookSoFar())
-                .setTotalShards(0)
-                .setSuccessfulShards(0)
-                .setSkippedShards(0)
-                .setFailedShards(0);
+                .setTotalShards(Objects.requireNonNullElse(v.getTotalShards(), 0))
+                .setSuccessfulShards(Objects.requireNonNullElse(v.getTotalShards(), 0))
+                .setSkippedShards(Objects.requireNonNullElse(v.getTotalShards(), 0))
+                .setFailedShards(Objects.requireNonNullElse(v.getTotalShards(), 0));
             if (ex != null) {
                 builder.setFailures(List.of(new ShardSearchFailure(ex)));
             }
@@ -362,6 +364,8 @@ public class EsqlSessionCCSUtils {
         if (executionInfo.isSkipUnavailable(clusterAlias) == false) {
             return false;
         }
-        return ExceptionsHelper.isRemoteUnavailableException(e);
+
+        return ExceptionsHelper.isRemoteUnavailableException(e)
+            || (e instanceof RemoteTransportException && e.getCause() instanceof TaskCancelledException);
     }
 }

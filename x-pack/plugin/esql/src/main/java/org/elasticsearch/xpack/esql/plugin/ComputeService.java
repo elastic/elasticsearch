@@ -48,6 +48,7 @@ import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.session.Configuration;
+import org.elasticsearch.xpack.esql.session.EsqlSessionCCSUtils;
 import org.elasticsearch.xpack.esql.session.Result;
 
 import java.util.ArrayList;
@@ -61,8 +62,6 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME;
-import static org.elasticsearch.xpack.esql.session.EsqlSessionCCSUtils.markClusterWithFinalStateAndNoShards;
-import static org.elasticsearch.xpack.esql.session.EsqlSessionCCSUtils.shouldIgnoreRuntimeError;
 
 /**
  * Computes the result of a {@link PhysicalPlan}.
@@ -270,8 +269,6 @@ public class ComputeService {
                 // starts computes on remote clusters
                 final var remoteClusters = clusterComputeHandler.getRemoteClusters(clusterToConcreteIndices, clusterToOriginalIndices);
                 for (ClusterComputeHandler.RemoteCluster cluster : remoteClusters) {
-                    var remoteListener = computeListener.acquireCompute();
-                    String clusterAlias = cluster.clusterAlias();
                     clusterComputeHandler.startComputeOnRemoteCluster(
                         sessionId,
                         rootTask,
@@ -281,16 +278,9 @@ public class ComputeService {
                         cluster,
                         cancelQueryOnFailure,
                         execInfo,
-                        ActionListener.wrap((ComputeResponse r) -> {
-                            updateExecutionInfo(execInfo, clusterAlias, r);
-                            remoteListener.onResponse(r.getProfiles());
-                        }, e -> {
-                            if (shouldIgnoreRuntimeError(execInfo, clusterAlias, e)) {
-                                markClusterWithFinalStateAndNoShards(execInfo, clusterAlias, EsqlExecutionInfo.Cluster.Status.SKIPPED, e);
-                                remoteListener.onResponse(Collections.emptyList());
-                            } else {
-                                remoteListener.onFailure(e);
-                            }
+                        computeListener.acquireCompute().map(r -> {
+                            updateExecutionInfo(execInfo, cluster.clusterAlias(), r);
+                            return r.getProfiles();
                         })
                     );
                 }

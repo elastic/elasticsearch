@@ -17,12 +17,11 @@ import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
+import org.elasticsearch.xpack.esql.session.EsqlSessionCCSUtils;
 
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
-
-import static org.elasticsearch.xpack.esql.session.EsqlSessionCCSUtils.markClusterWithFinalStateAndNoShards;
 
 // Create group task for this cluster. This group task ensures that two branches of the computation:
 // the exchange sink and the cluster request, belong to the same group and each of them can cancel the other.
@@ -73,18 +72,19 @@ class RemoteListenerGroup {
     private <T> ActionListener<T> createCancellingListener(String reason, ActionListener<T> delegate, Runnable finishGroup) {
         return ActionListener.runAfter(delegate.delegateResponse((inner, e) -> {
             taskManager.cancelTaskAndDescendants(groupTask, reason, true, ActionListener.running(() -> {
-                if (shouldIgnoreRemoteError(clusterAlias, e)) {
-                    markClusterWithFinalStateAndNoShards(executionInfo, clusterAlias, EsqlExecutionInfo.Cluster.Status.PARTIAL, e);
+                if (EsqlSessionCCSUtils.shouldIgnoreRuntimeError(executionInfo, clusterAlias, e)) {
+                    EsqlSessionCCSUtils.markClusterWithFinalStateAndNoShards(
+                        executionInfo,
+                        clusterAlias,
+                        EsqlExecutionInfo.Cluster.Status.PARTIAL,
+                        e
+                    );
                     delegate.onResponse(null);
                 } else {
                     delegate.onFailure(e);
                 }
             }));
         }), finishGroup);
-    }
-
-    private boolean shouldIgnoreRemoteError(String clusterAlias, Exception e) {
-        return executionInfo.isSkipUnavailable(clusterAlias);
     }
 
     public CancellableTask getGroupTask() {

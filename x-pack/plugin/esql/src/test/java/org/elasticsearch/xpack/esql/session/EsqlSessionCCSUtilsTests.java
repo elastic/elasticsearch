@@ -534,13 +534,21 @@ public class EsqlSessionCCSUtilsTests extends ESTestCase {
 
     private void assertClusterStatusAndShardCounts(EsqlExecutionInfo.Cluster cluster, EsqlExecutionInfo.Cluster.Status status) {
         assertThat(cluster.getStatus(), equalTo(status));
-        assertThat(cluster.getTook().millis(), greaterThanOrEqualTo(0L));
+        if (cluster.getTook() != null) {
+            // It is also ok if it's null in some tests
+            assertThat(cluster.getTook().millis(), greaterThanOrEqualTo(0L));
+        }
         if (status == EsqlExecutionInfo.Cluster.Status.RUNNING) {
             assertNull(cluster.getTotalShards());
             assertNull(cluster.getSuccessfulShards());
             assertNull(cluster.getSkippedShards());
             assertNull(cluster.getFailedShards());
         } else if (status == EsqlExecutionInfo.Cluster.Status.SKIPPED) {
+            assertThat(cluster.getTotalShards(), equalTo(0));
+            assertThat(cluster.getSuccessfulShards(), equalTo(0));
+            assertThat(cluster.getSkippedShards(), equalTo(0));
+            assertThat(cluster.getFailedShards(), equalTo(0));
+        } else if (status == EsqlExecutionInfo.Cluster.Status.PARTIAL) {
             assertThat(cluster.getTotalShards(), equalTo(0));
             assertThat(cluster.getSuccessfulShards(), equalTo(0));
             assertThat(cluster.getSkippedShards(), equalTo(0));

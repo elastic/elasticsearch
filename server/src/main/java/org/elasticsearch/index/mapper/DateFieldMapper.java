@@ -384,12 +384,15 @@ public final class DateFieldMapper extends FieldMapper {
 
         @Override
         public DateFieldMapper build(MapperBuilderContext context) {
+            final String fullFieldName = context.buildFullName(leafName());
             boolean hasDocValuesSparseIndex = FieldMapper.DOC_VALUES_SPARSE_INDEX.isEnabled()
                 && indexCreatedVersion.onOrAfter(IndexVersions.TIMESTAMP_DOC_VALUES_SPARSE_INDEX)
-                && hasDocValuesSparseIndex(context.buildFullName(leafName()));
+                && hasDocValuesSparseIndex(fullFieldName);
+            boolean hasInvertedIndex = (index.isSet() && index.getValue()) && indexCreatedVersion.isLegacyIndexVersion() == false || hasDocValuesSparseIndex == false;
+            System.out.println("### field: " + fullFieldName + " sparse index: " + hasDocValuesSparseIndex + ", inverted index: " + hasInvertedIndex);
             DateFieldType ft = new DateFieldType(
-                context.buildFullName(leafName()),
-                index.getValue() && indexCreatedVersion.isLegacyIndexVersion() == false && hasDocValuesSparseIndex == false,
+                fullFieldName,
+                hasInvertedIndex,
                 index.getValue(),
                 store.getValue(),
                 docValues.getValue(),
@@ -423,12 +426,20 @@ public final class DateFieldMapper extends FieldMapper {
         }
 
         private boolean hasDocValuesSparseIndex(final String fullFieldName) {
-            return index.isConfigured() == false
-                && docValues.getValue()
-                && IndexMode.LOGSDB.equals(indexMode)
-                && DataStreamTimestampFieldMapper.DEFAULT_PATH.equals(fullFieldName)
-                && (indexSortConfig != null && indexSortConfig.hasPrimarySortOnField(DataStreamTimestampFieldMapper.DEFAULT_PATH));
+            if (index.isSet() && index.getValue()) {
+                return false;
+            }
+
+            boolean indexNotConfigured = index.isConfigured() == false;
+            boolean isLogsDBMode = IndexMode.LOGSDB.equals(indexMode);
+            boolean isTimestampField = DataStreamTimestampFieldMapper.DEFAULT_PATH.equals(fullFieldName);
+            boolean hasPrimarySort = indexSortConfig != null && indexSortConfig.hasPrimarySortOnField(
+                DataStreamTimestampFieldMapper.DEFAULT_PATH
+            );
+
+            return indexNotConfigured && isLogsDBMode && isTimestampField && hasPrimarySort;
         }
+
     }
 
     public static final TypeParser MILLIS_PARSER = createTypeParserWithLegacySupport((n, c) -> {

@@ -8,6 +8,7 @@
  */
 package org.elasticsearch.datastreams.mapper;
 
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
@@ -20,6 +21,7 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MetadataMapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -116,16 +118,6 @@ public class DataStreamTimestampFieldMapperTests extends MetadataMapperTestCase 
             e.getMessage(),
             equalTo("data stream timestamp field [@timestamp] is of type [keyword], but [date,date_nanos] is expected")
         );
-    }
-
-    public void testValidateNotIndexed() {
-        Exception e = expectThrows(IllegalArgumentException.class, () -> createMapperService(timestampMapping(true, b -> {
-            b.startObject("@timestamp");
-            b.field("type", "date");
-            b.field("index", false);
-            b.endObject();
-        })));
-        assertThat(e.getMessage(), equalTo("data stream timestamp field [@timestamp] is not indexed"));
     }
 
     public void testValidateNotDocValues() {
@@ -256,7 +248,92 @@ public class DataStreamTimestampFieldMapperTests extends MetadataMapperTestCase 
         assertTrue(timestampMapper.hasDocValuesSparseIndex());
     }
 
-    public void testFieldTypeWithSkipDocValues_WithoutSorting() throws IOException {
+    public void testFieldTypeWithSkipDocValues_ExplicitIndexAndDocValues() throws IOException {
+        final MapperService mapperService = createMapperService(
+            Settings.builder()
+                .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.name())
+                .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), DataStreamTimestampFieldMapper.DEFAULT_PATH)
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .build(),
+            timestampMapping(true, b -> {
+                b.startObject(DataStreamTimestampFieldMapper.DEFAULT_PATH);
+                b.field("type", "date");
+                b.field("index", true);
+                b.field("doc_values", true);
+                b.endObject();
+            })
+        );
+
+        final DateFieldMapper timestampMapper = (DateFieldMapper) mapperService.documentMapper()
+            .mappers()
+            .getMapper(DataStreamTimestampFieldMapper.DEFAULT_PATH);
+        assertTrue(timestampMapper.fieldType().hasDocValues());
+        assertTrue(timestampMapper.fieldType().isIndexed());
+        assertFalse(timestampMapper.hasDocValuesSparseIndex());
+    }
+
+    public void testFieldTypeWithSkipDocValues_IndexFalseWithoutDefaultMapping() throws IOException {
+        final Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.name())
+            .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), DataStreamTimestampFieldMapper.DEFAULT_PATH)
+            .build();
+        final IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> withMapping(
+            new TestMapperServiceBuilder().settings(settings).applyDefaultMapping(false).build(),
+            timestampMapping(true, b -> {
+                b.startObject(DataStreamTimestampFieldMapper.DEFAULT_PATH);
+                b.field("type", "date");
+                b.field("index", false);
+                b.endObject();
+            }))
+        );
+
+        assertEquals("data stream timestamp field [@timestamp] has disallowed attributes: [index]", ex.getMessage());
+    }
+
+    public void testFieldTypeWithSkipDocValues_IndexFalseWithDefaultMapping() throws IOException {
+        final Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.name())
+            .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), DataStreamTimestampFieldMapper.DEFAULT_PATH)
+            .build();
+        final IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> createMapperService(
+            settings,
+            timestampMapping(true, b -> {
+                b.startObject(DataStreamTimestampFieldMapper.DEFAULT_PATH);
+                b.field("type", "date");
+                b.field("index", false);
+                b.endObject();
+            }))
+        );
+
+        // A data stream always has a mapped @timestamp field with `index: true`
+        assertTrue(ex.getMessage().contains("Cannot update parameter [index] from [true] to [false]"));
+    }
+
+    public void testFieldTypeWithSkipDocValues_DocValuesFalse() {
+        final Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.name())
+            .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), DataStreamTimestampFieldMapper.DEFAULT_PATH)
+            .build();
+        final IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> withMapping(
+                new TestMapperServiceBuilder().settings(settings).applyDefaultMapping(false).build(),
+                timestampMapping(true, b -> {
+                    b.startObject(DataStreamTimestampFieldMapper.DEFAULT_PATH);
+                    b.field("type", "date");
+                    b.field("doc_values", false);
+                    b.endObject();
+                })
+            )
+        );
+        assertEquals(
+            ex.getMessage(),
+            "data stream timestamp field [" + DataStreamTimestampFieldMapper.DEFAULT_PATH + "] doesn't have doc values"
+        );
+    }
+
+    public void testFieldTypeWithSkipDocValues_WithoutTimestampSorting() throws IOException {
         final MapperService mapperService = createMapperService(
             Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.name()).build(),
             timestampMapping(true, b -> {
@@ -270,8 +347,8 @@ public class DataStreamTimestampFieldMapperTests extends MetadataMapperTestCase 
             .mappers()
             .getMapper(DataStreamTimestampFieldMapper.DEFAULT_PATH);
         assertTrue(timestampMapper.fieldType().hasDocValues());
-        assertFalse(timestampMapper.fieldType().isIndexed());
-        assertTrue(timestampMapper.hasDocValuesSparseIndex());
+        assertTrue(timestampMapper.fieldType().isIndexed());
+        assertFalse(timestampMapper.hasDocValuesSparseIndex());
     }
 
     public void testFieldTypeWithSkipDocValues_StandardMode() throws IOException {

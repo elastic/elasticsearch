@@ -7279,7 +7279,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
      *   |     \_EsRelation[test][_meta_field{f}#17, emp_no{f}#11, first_name{f}#12, ..]
      *   \_EsRelation[languages_lookup][LOOKUP][language_code{f}#22, language_name{f}#23]
      */
-    public void testRedundantSortOnJoin() throws Exception {
+    public void testRedundantSortOnJoin() {
         assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
 
         var plan = optimizedPlan("""
@@ -7307,7 +7307,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
      *     \_Eval[[[62 61 72][KEYWORD] AS foo]]
      *       \_EsRelation[test][_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, g..]
      */
-    public void testRedundantSortOnMvExpand() throws Exception {
+    public void testRedundantSortOnMvExpand() {
         var plan = optimizedPlan("""
               FROM test
             | SORT languages
@@ -7333,7 +7333,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
      *   |     \_EsRelation[test][_meta_field{f}#17, emp_no{f}#11, first_name{f}#12, ..]
      *   \_EsRelation[languages_lookup][LOOKUP][language_code{f}#22, language_name{f}#23]
      */
-    public void testRedundantSortOnMvExpandAndJoin() throws Exception {
+    public void testRedundantSortOnMvExpandAndJoin() {
         var plan = optimizedPlan("""
               FROM test
             | SORT languages
@@ -7361,7 +7361,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
      *   |     \_EsRelation[test][_meta_field{f}#18, emp_no{f}#12, first_name{f}#13, ..]
      *   \_EsRelation[languages_lookup][LOOKUP][language_code{f}#23, language_name{f}#24]
      */
-    public void testMultlipleRedundantSortOnMvExpandAndJoin() throws Exception {
+    public void testMultlipleRedundantSortOnMvExpandAndJoin() {
         var plan = optimizedPlan("""
               FROM test
             | SORT first_name
@@ -7393,7 +7393,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
      *           \_Eval[[TOSTRING(languages{f}#19) AS foo]]
      *             \_EsRelation[test][_meta_field{f}#22, emp_no{f}#16, first_name{f}#17, ..]
      */
-    public void testRedundantSortOnMvExpandEnrichGrokDissect() throws Exception {
+    public void testRedundantSortOnMvExpandEnrichGrokDissect() {
         var plan = optimizedPlan("""
               FROM test
             | SORT languages
@@ -7430,7 +7430,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
      *             | \_EsRelation[test][_meta_field{f}#26, emp_no{f}#20, first_name{f}#21, ..]
      *             \_EsRelation[languages_lookup][LOOKUP][language_code{f}#31]
      */
-    public void testRedundantSortOnMvExpandJoinEnrichGrokDissect() throws Exception {
+    public void testRedundantSortOnMvExpandJoinEnrichGrokDissect() {
         var plan = optimizedPlan("""
               FROM test
             | SORT languages
@@ -7453,5 +7453,22 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var join = as(enrich.child(), Join.class);
         var eval = as(join.left(), Eval.class);
         as(eval.child(), EsRelation.class);
+    }
+
+    public void testUnboundedSort() throws Exception {
+        String query = """
+              FROM test
+            | EVAL language_code = 1
+            | LOOKUP JOIN languages_lookup ON language_code
+            | SORT language_name
+            | MV_EXPAND language_name
+            | EVAL foo = concat(language_name, "foo")
+            | MV_EXPAND foo
+            | WHERE emp_no > 1
+            | SORT emp_no
+            """;
+
+        var e = expectThrows(VerificationException.class, () -> plan(query));
+        assertThat(e.getMessage(), is("Found 1 problem\nline 4:3: The query cannot be executed because it would require unbounded sort"));
     }
 }

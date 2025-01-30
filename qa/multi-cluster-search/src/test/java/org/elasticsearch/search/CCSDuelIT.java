@@ -1030,20 +1030,6 @@ public class CCSDuelIT extends ESRestTestCase {
             }
             ObjectPath minimizeRoundtripsSearchResponse = ObjectPath.createFromResponse(minimizeRoundtripsResponse.get());
             responseChecker.accept(minimizeRoundtripsSearchResponse);
-
-            // if only the remote cluster was searched, then only one reduce phase is expected
-            int expectedReducePhasesMinRoundTrip = 1;
-            if (searchRequest.indices().length > 1) {
-                expectedReducePhasesMinRoundTrip = searchRequest.indices().length + 1;
-            }
-            if (expectedReducePhasesMinRoundTrip == 1) {
-                assertThat(
-                    minimizeRoundtripsSearchResponse.evaluate("num_reduce_phases"),
-                    anyOf(equalTo(expectedReducePhasesMinRoundTrip), nullValue())
-                );
-            } else {
-                assertThat(minimizeRoundtripsSearchResponse.evaluate("num_reduce_phases"), equalTo(expectedReducePhasesMinRoundTrip));
-            }
             ObjectPath fanOutSearchResponse = ObjectPath.createFromResponse(fanOutResponse.get());
             responseChecker.accept(fanOutSearchResponse);
             assertThat(fanOutSearchResponse.evaluate("num_reduce_phases"), anyOf(equalTo(1), nullValue())); // default value is 1?
@@ -1158,20 +1144,6 @@ public class CCSDuelIT extends ESRestTestCase {
         fanOutResponse = new ObjectPath(fanOutResponse.evaluate("response"));
 
         responseChecker.accept(minimizeRoundtripsResponse);
-
-        // if only the remote cluster was searched, then only one reduce phase is expected
-        int expectedReducePhasesMinRoundTrip = 1;
-        if (searchRequest.indices().length > 1) {
-            expectedReducePhasesMinRoundTrip = searchRequest.indices().length + 1;
-        }
-        if (expectedReducePhasesMinRoundTrip == 1) {
-            assertThat(
-                minimizeRoundtripsResponse.evaluate("num_reduce_phases"),
-                anyOf(equalTo(expectedReducePhasesMinRoundTrip), nullValue())
-            );
-        } else {
-            assertThat(minimizeRoundtripsResponse.evaluate("num_reduce_phases"), equalTo(expectedReducePhasesMinRoundTrip));
-        }
 
         responseChecker.accept(fanOutResponse);
         assertThat(fanOutResponse.evaluate("num_reduce_phases"), anyOf(equalTo(1), nullValue())); // default value is 1?

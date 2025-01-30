@@ -34,11 +34,11 @@ final class ExpandSearchPhase extends SearchPhase {
 
     static final String NAME = "expand";
 
-    private final AbstractSearchAsyncAction<?> context;
+    private final AsyncSearchContext<?> context;
     private final SearchHits searchHits;
     private final Supplier<SearchPhase> nextPhase;
 
-    ExpandSearchPhase(AbstractSearchAsyncAction<?> context, SearchHits searchHits, Supplier<SearchPhase> nextPhase) {
+    ExpandSearchPhase(AsyncSearchContext<?> context, SearchHits searchHits, Supplier<SearchPhase> nextPhase) {
         super(NAME);
         this.context = context;
         this.searchHits = searchHits;

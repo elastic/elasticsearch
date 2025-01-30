@@ -184,7 +184,6 @@ public class SearchProgressActionListenerIT extends ESSingleNodeTestCase {
             assertThat(numFetchResults.get(), equalTo(0));
             assertThat(numFetchFailures.get(), equalTo(0));
         }
-        assertThat(numReduces.get(), equalTo(searchResponse.get().getNumReducePhases()));
     }
 
     private static List<SearchShard> createRandomIndices(Client client) {

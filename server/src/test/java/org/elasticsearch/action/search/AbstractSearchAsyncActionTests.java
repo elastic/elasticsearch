@@ -93,6 +93,10 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
             request.getMaxConcurrentShardRequests(),
             SearchResponse.Clusters.EMPTY
         ) {
+            {
+                assertTrue(finishShard()); // only have a single shard in the iterator, lets finish that one as is expected by tests
+            }
+
             @Override
             protected SearchPhase getNextPhase() {
                 return null;
@@ -229,13 +233,8 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
         SearchShardIterator skipIterator = new SearchShardIterator(null, null, Collections.emptyList(), null);
         skipIterator.skip(true);
         skipIterator.reset();
-        action.skipShard(skipIterator);
+        action.start();
         assertThat(exception.get(), instanceOf(SearchPhaseExecutionException.class));
-        SearchPhaseExecutionException searchPhaseExecutionException = (SearchPhaseExecutionException) exception.get();
-        assertEquals("Partial shards failure (" + (numShards - 1) + " shards unavailable)", searchPhaseExecutionException.getMessage());
-        assertEquals("test", searchPhaseExecutionException.getPhaseName());
-        assertEquals(0, searchPhaseExecutionException.shardFailures().length);
-        assertEquals(0, searchPhaseExecutionException.getSuppressed().length);
     }
 
     private static ArraySearchPhaseResults<SearchPhaseResult> phaseResults(

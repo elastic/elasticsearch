@@ -16,6 +16,7 @@ import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.TransportGetTaskAction;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -45,6 +46,7 @@ import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.query.ScrollQuerySearchResult;
 import org.elasticsearch.search.rank.feature.RankFeatureResult;
 import org.elasticsearch.search.rank.feature.RankFeatureShardRequest;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterService;
@@ -174,6 +176,10 @@ public class SearchTransportService {
             task,
             new ConnectionCountingHandler<>(listener, DfsSearchResult::new, connection)
         );
+    }
+
+    public TransportService transportService() {
+        return transportService;
     }
 
     public void sendExecuteQuery(
@@ -379,16 +385,19 @@ public class SearchTransportService {
         }
     }
 
-    public static void registerRequestHandler(TransportService transportService, SearchService searchService) {
+    public static void registerRequestHandler(SearchTransportService searchTransportService, SearchService searchService) {
         final TransportRequestHandler<ScrollFreeContextRequest> freeContextHandler = (request, channel, task) -> {
             logger.trace("releasing search context [{}]", request.id());
             boolean freed = searchService.freeReaderContext(request.id());
             channel.sendResponse(SearchFreeContextResponse.of(freed));
         };
+        var transportService = searchTransportService.transportService;
         final Executor freeContextExecutor = buildFreeContextExecutor(transportService);
         transportService.registerRequestHandler(
             FREE_CONTEXT_SCROLL_ACTION_NAME,
             freeContextExecutor,
+            false,
+            false,
             ScrollFreeContextRequest::new,
             freeContextHandler
         );
@@ -400,7 +409,7 @@ public class SearchTransportService {
         );
 
         // TODO: remove this handler once the lowest compatible version stops using it
-        transportService.registerRequestHandler(FREE_CONTEXT_ACTION_NAME, freeContextExecutor, in -> {
+        transportService.registerRequestHandler(FREE_CONTEXT_ACTION_NAME, freeContextExecutor, false, false, in -> {
             var res = new ScrollFreeContextRequest(in);
             // this handler exists for BwC purposes only, we don't need the original indices to free the context
             OriginalIndices.readOriginalIndices(in);
@@ -428,7 +437,7 @@ public class SearchTransportService {
             DFS_ACTION_NAME,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             ShardSearchRequest::new,
-            (request, channel, task) -> searchService.executeDfsPhase(request, (SearchShardTask) task, new ChannelActionListener<>(channel))
+            (request, channel, task) -> searchService.executeDfsPhase(request, (CancellableTask) task, new ChannelActionListener<>(channel))
         );
         TransportActionProxy.registerProxyAction(transportService, DFS_ACTION_NAME, true, DfsSearchResult::new);
 
@@ -438,7 +447,7 @@ public class SearchTransportService {
             ShardSearchRequest::new,
             (request, channel, task) -> searchService.executeQueryPhase(
                 request,
-                (SearchShardTask) task,
+                (CancellableTask) task,
                 new ChannelActionListener<>(channel)
             )
         );
@@ -455,7 +464,7 @@ public class SearchTransportService {
             QuerySearchRequest::new,
             (request, channel, task) -> searchService.executeQueryPhase(
                 request,
-                (SearchShardTask) task,
+                (CancellableTask) task,
                 new ChannelActionListener<>(channel),
                 channel.getVersion()
             )
@@ -468,7 +477,7 @@ public class SearchTransportService {
             InternalScrollSearchRequest::new,
             (request, channel, task) -> searchService.executeQueryPhase(
                 request,
-                (SearchShardTask) task,
+                (CancellableTask) task,
                 new ChannelActionListener<>(channel),
                 channel.getVersion()
             )
@@ -481,14 +490,14 @@ public class SearchTransportService {
             InternalScrollSearchRequest::new,
             (request, channel, task) -> searchService.executeFetchPhase(
                 request,
-                (SearchShardTask) task,
+                (CancellableTask) task,
                 new ChannelActionListener<>(channel)
             )
         );
         TransportActionProxy.registerProxyAction(transportService, QUERY_FETCH_SCROLL_ACTION_NAME, true, ScrollQueryFetchSearchResult::new);
 
         final TransportRequestHandler<RankFeatureShardRequest> rankShardFeatureRequest = (request, channel, task) -> searchService
-            .executeRankFeaturePhase(request, (SearchShardTask) task, new ChannelActionListener<>(channel));
+            .executeRankFeaturePhase(request, (CancellableTask) task, new ChannelActionListener<>(channel));
         transportService.registerRequestHandler(
             RANK_FEATURE_SHARD_ACTION_NAME,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
@@ -498,7 +507,7 @@ public class SearchTransportService {
         TransportActionProxy.registerProxyAction(transportService, RANK_FEATURE_SHARD_ACTION_NAME, true, RankFeatureResult::new);
 
         final TransportRequestHandler<ShardFetchRequest> shardFetchRequestHandler = (request, channel, task) -> searchService
-            .executeFetchPhase(request, (SearchShardTask) task, new ChannelActionListener<>(channel));
+            .executeFetchPhase(request, (CancellableTask) task, new ChannelActionListener<>(channel));
         transportService.registerRequestHandler(
             FETCH_ID_SCROLL_ACTION_NAME,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
@@ -611,10 +620,20 @@ public class SearchTransportService {
         }
     }
 
-    public void cancelSearchTask(SearchTask task, String reason) {
-        CancelTasksRequest req = new CancelTasksRequest().setTargetTaskId(new TaskId(client.getLocalNodeId(), task.getId()))
+    public void cancelSearchTask(long taskId, String reason) {
+        CancelTasksRequest req = new CancelTasksRequest().setTargetTaskId(new TaskId(client.getLocalNodeId(), taskId))
             .setReason("Fatal failure during search: " + reason);
         // force the origin to execute the cancellation as a system user
-        new OriginSettingClient(client, TransportGetTaskAction.TASKS_ORIGIN).admin().cluster().cancelTasks(req, ActionListener.noop());
+        new OriginSettingClient(client, TransportGetTaskAction.TASKS_ORIGIN).admin().cluster().cancelTasks(req, new ActionListener<>() {
+            @Override
+            public void onResponse(ListTasksResponse listTasksResponse) {
+
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                logger.warn("unexpected failure cancelling [" + taskId + "] because of [" + reason + "]", e);
+            }
+        });
     }
 }

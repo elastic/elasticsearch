@@ -8,18 +8,21 @@
  */
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.cluster.routing.GroupShardsIterator;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.transport.Transport;
 
 import java.util.Objects;
-import java.util.function.Function;
 
 /**
  * Base class for all individual search phases like collecting distributed frequencies, fetching documents, querying shards.
  */
 abstract class SearchPhase {
+    private static final Logger logger = LogManager.getLogger(SearchPhase.class);
+
     private final String name;
 
     protected SearchPhase(String name) {
@@ -35,71 +38,27 @@ abstract class SearchPhase {
         return name;
     }
 
-    protected String missingShardsErrorMessage(StringBuilder missingShards) {
-        return makeMissingShardsError(missingShards);
-    }
-
-    protected static String makeMissingShardsError(StringBuilder missingShards) {
-        return "Search rejected due to missing shards ["
-            + missingShards
-            + "]. Consider using `allow_partial_search_results` setting to bypass this error.";
-    }
-
-    protected void doCheckNoMissingShards(String phaseName, SearchRequest request, GroupShardsIterator<SearchShardIterator> shardsIts) {
-        doCheckNoMissingShards(phaseName, request, shardsIts, this::missingShardsErrorMessage);
-    }
-
-    protected static void doCheckNoMissingShards(
-        String phaseName,
-        SearchRequest request,
-        GroupShardsIterator<SearchShardIterator> shardsIts,
-        Function<StringBuilder, String> makeErrorMessage
-    ) {
-        assert request.allowPartialSearchResults() != null : "SearchRequest missing setting for allowPartialSearchResults";
-        if (request.allowPartialSearchResults() == false) {
-            final StringBuilder missingShards = new StringBuilder();
-            // Fail-fast verification of all shards being available
-            for (int index = 0; index < shardsIts.size(); index++) {
-                final SearchShardIterator shardRoutings = shardsIts.get(index);
-                if (shardRoutings.size() == 0) {
-                    if (missingShards.isEmpty() == false) {
-                        missingShards.append(", ");
-                    }
-                    missingShards.append(shardRoutings.shardId());
-                }
-            }
-            if (missingShards.isEmpty() == false) {
-                // Status red - shard is missing all copies and would produce partial results for an index search
-                final String msg = makeErrorMessage.apply(missingShards);
-                throw new SearchPhaseExecutionException(phaseName, msg, null, ShardSearchFailure.EMPTY_ARRAY);
-            }
-        }
-    }
-
     /**
      * Releases shard targets that are not used in the docsIdsToLoad.
      */
-    protected static void releaseIrrelevantSearchContext(SearchPhaseResult searchPhaseResult, AbstractSearchAsyncAction<?> context) {
+    protected static void releaseIrrelevantSearchContext(SearchPhaseResult searchPhaseResult, AsyncSearchContext<?> context) {
         // we only release search context that we did not fetch from, if we are not scrolling
         // or using a PIT and if it has at least one hit that didn't make it to the global topDocs
-        if (searchPhaseResult == null) {
-            return;
-        }
         // phaseResult.getContextId() is the same for query & rank feature results
         SearchPhaseResult phaseResult = searchPhaseResult.queryResult() != null
             ? searchPhaseResult.queryResult()
             : searchPhaseResult.rankFeatureResult();
         if (phaseResult != null
-            && phaseResult.hasSearchContext()
+            && (phaseResult.hasSearchContext() || (phaseResult instanceof QuerySearchResult q && q.isReduced() && q.getContextId() != null))
             && context.getRequest().scroll() == null
-            && (context.isPartOfPointInTime(phaseResult.getContextId()) == false)) {
+            && (AsyncSearchContext.isPartOfPIT(null, context.getRequest(), phaseResult.getContextId()) == false)) {
             try {
-                context.getLogger().trace("trying to release search context [{}]", phaseResult.getContextId());
+                logger.trace("trying to release search context [{}]", phaseResult.getContextId());
                 SearchShardTarget shardTarget = phaseResult.getSearchShardTarget();
                 Transport.Connection connection = context.getConnection(shardTarget.getClusterAlias(), shardTarget.getNodeId());
                 context.sendReleaseSearchContext(phaseResult.getContextId(), connection);
             } catch (Exception e) {
-                context.getLogger().trace("failed to release context", e);
+                logger.trace("failed to release context", e);
             }
         }
     }

@@ -190,7 +190,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         this.searchPhaseController = searchPhaseController;
         this.searchTransportService = searchTransportService;
         this.remoteClusterService = searchTransportService.getRemoteClusterService();
-        SearchTransportService.registerRequestHandler(transportService, searchService);
+        SearchTransportService.registerRequestHandler(searchTransportService, searchService);
+        SearchQueryThenFetchAsyncAction.registerNodeSearchAction(searchTransportService, searchService);
         this.clusterService = clusterService;
         this.transportService = transportService;
         this.searchService = searchService;
@@ -1475,7 +1476,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             if (preFilter) {
                 // only for aggs we need to contact shards even if there are no matches
                 boolean requireAtLeastOneMatch = searchRequest.source() != null && searchRequest.source().aggregations() != null;
-                new CanMatchPreFilterSearchPhase(
+                CanMatchPreFilterSearchPhase.execute(
                     logger,
                     searchTransportService,
                     connectionLookup,
@@ -1488,8 +1489,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     task,
                     requireAtLeastOneMatch,
                     searchService.getCoordinatorRewriteContextProvider(timeProvider::absoluteStartMillis),
-                    listener.delegateFailureAndWrap((l, iters) -> {
-                        runNewSearchPhase(
+                    listener.delegateFailureAndWrap(
+                        (l, iters) -> runNewSearchPhase(
                             task,
                             searchRequest,
                             executor,
@@ -1502,9 +1503,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                             false,
                             threadPool,
                             clusters
-                        );
-                    })
-                ).start();
+                        )
+                    )
+                );
                 return;
             }
             // for synchronous CCS minimize_roundtrips=false, use the CCSSingleCoordinatorSearchProgressListener
@@ -1522,13 +1523,12 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 task.getProgressListener(),
                 searchRequest,
                 shardIterators.size(),
-                exc -> searchTransportService.cancelSearchTask(task, "failed to merge result [" + exc.getMessage() + "]")
+                exc -> searchTransportService.cancelSearchTask(task.getId(), "failed to merge result [" + exc.getMessage() + "]")
             );
             boolean success = false;
             try {
-                final AbstractSearchAsyncAction<?> searchPhase;
                 if (searchRequest.searchType() == DFS_QUERY_THEN_FETCH) {
-                    searchPhase = new SearchDfsQueryThenFetchAsyncAction(
+                    var searchPhase = new SearchDfsQueryThenFetchAsyncAction(
                         logger,
                         namedWriteableRegistry,
                         searchTransportService,
@@ -1546,10 +1546,11 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         clusters,
                         client
                     );
+                    success = true;
+                    searchPhase.start();
                 } else {
                     assert searchRequest.searchType() == QUERY_THEN_FETCH : searchRequest.searchType();
-                    searchPhase = new SearchQueryThenFetchAsyncAction(
-                        logger,
+                    var searchPhase = new SearchQueryThenFetchAsyncAction<>(
                         namedWriteableRegistry,
                         searchTransportService,
                         connectionLookup,
@@ -1566,9 +1567,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         clusters,
                         client
                     );
+                    success = true;
+                    searchPhase.start();
                 }
-                success = true;
-                searchPhase.start();
             } finally {
                 if (success == false) {
                     queryResultConsumer.close();

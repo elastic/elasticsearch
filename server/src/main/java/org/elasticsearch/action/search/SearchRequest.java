@@ -64,7 +64,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
 
     private final String localClusterAlias;
     private final long absoluteStartMillis;
-    private final boolean finalReduce;
+    public boolean finalReduce;
 
     private SearchType searchType = SearchType.DEFAULT;
 

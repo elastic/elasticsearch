@@ -36,14 +36,14 @@ final class FetchLookupFieldsPhase extends SearchPhase {
 
     static final String NAME = "fetch_lookup_fields";
 
-    private final AbstractSearchAsyncAction<?> context;
+    private final AsyncSearchContext<?> context;
     private final SearchResponseSections searchResponse;
-    private final AtomicArray<SearchPhaseResult> queryResults;
+    private final AtomicArray<? extends SearchPhaseResult> queryResults;
 
     FetchLookupFieldsPhase(
-        AbstractSearchAsyncAction<?> context,
+        AsyncSearchContext<?> context,
         SearchResponseSections searchResponse,
-        AtomicArray<SearchPhaseResult> queryResults
+        AtomicArray<? extends SearchPhaseResult> queryResults
     ) {
         super(NAME);
         this.context = context;
@@ -132,7 +132,7 @@ final class FetchLookupFieldsPhase extends SearchPhase {
                     }
                 }
                 if (failure != null) {
-                    context.onPhaseFailure(NAME, "failed to fetch lookup fields", failure);
+                    failPhase(failure);
                 } else {
                     context.sendSearchResponse(searchResponse, queryResults);
                 }
@@ -140,8 +140,12 @@ final class FetchLookupFieldsPhase extends SearchPhase {
 
             @Override
             public void onFailure(Exception e) {
-                context.onPhaseFailure(NAME, "failed to fetch lookup fields", e);
+                failPhase(e);
             }
         });
+    }
+
+    private void failPhase(Exception e) {
+        context.onPhaseFailure(NAME, "failed to fetch lookup fields", e);
     }
 }

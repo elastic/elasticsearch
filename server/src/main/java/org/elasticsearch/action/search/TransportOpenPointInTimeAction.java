@@ -164,7 +164,7 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
             // that is signaled to the local can match through the SearchShardIterator#prefiltered flag. Local shards do need to go
             // through the local can match phase.
             if (SearchService.canRewriteToMatchNone(searchRequest.source())) {
-                new CanMatchPreFilterSearchPhase(
+                CanMatchPreFilterSearchPhase.execute(
                     logger,
                     searchTransportService,
                     connectionLookup,
@@ -191,7 +191,7 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
                             clusters
                         )
                     )
-                ).start();
+                );
             } else {
                 runOpenPointInTimePhase(
                     task,
@@ -268,7 +268,7 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
 
                 @Override
                 protected SearchPhase getNextPhase() {
-                    return new SearchPhase(getName()) {
+                    return new SearchPhase(name) {
                         @Override
                         protected void run() {
                             sendSearchResponse(SearchResponseSections.EMPTY_WITH_TOTAL_HITS, results.getAtomicArray());

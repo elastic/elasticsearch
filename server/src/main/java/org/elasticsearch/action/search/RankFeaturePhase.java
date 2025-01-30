@@ -40,34 +40,26 @@ public class RankFeaturePhase extends SearchPhase {
     static final String NAME = "rank-feature";
 
     private static final Logger logger = LogManager.getLogger(RankFeaturePhase.class);
-    private final AbstractSearchAsyncAction<?> context;
-    final SearchPhaseResults<SearchPhaseResult> queryPhaseResults;
+    private final AsyncSearchContext<?> context;
+    final SearchPhaseResults<? extends SearchPhaseResult> queryPhaseResults;
     final SearchPhaseResults<SearchPhaseResult> rankPhaseResults;
     private final AggregatedDfs aggregatedDfs;
     private final SearchProgressListener progressListener;
     private final RankFeaturePhaseRankCoordinatorContext rankFeaturePhaseRankCoordinatorContext;
 
     RankFeaturePhase(
-        SearchPhaseResults<SearchPhaseResult> queryPhaseResults,
+        SearchPhaseResults<? extends SearchPhaseResult> queryPhaseResults,
         AggregatedDfs aggregatedDfs,
-        AbstractSearchAsyncAction<?> context,
+        AsyncSearchContext<?> context,
         RankFeaturePhaseRankCoordinatorContext rankFeaturePhaseRankCoordinatorContext
     ) {
         super(NAME);
         assert rankFeaturePhaseRankCoordinatorContext != null;
         this.rankFeaturePhaseRankCoordinatorContext = rankFeaturePhaseRankCoordinatorContext;
-        if (context.getNumShards() != queryPhaseResults.getNumShards()) {
-            throw new IllegalStateException(
-                "number of shards must match the length of the query results but doesn't:"
-                    + context.getNumShards()
-                    + "!="
-                    + queryPhaseResults.getNumShards()
-            );
-        }
         this.context = context;
         this.queryPhaseResults = queryPhaseResults;
         this.aggregatedDfs = aggregatedDfs;
-        this.rankPhaseResults = new ArraySearchPhaseResults<>(context.getNumShards());
+        this.rankPhaseResults = new ArraySearchPhaseResults<>(queryPhaseResults.getNumShards());
         context.addReleasable(rankPhaseResults);
         this.progressListener = context.getTask().getProgressListener();
     }
@@ -86,9 +78,13 @@ public class RankFeaturePhase extends SearchPhase {
 
             @Override
             public void onFailure(Exception e) {
-                context.onPhaseFailure(NAME, "", e);
+                failPhase("", e);
             }
         });
+    }
+
+    private void failPhase(String msg, Exception e) {
+        context.onPhaseFailure(NAME, msg, e);
     }
 
     void innerRun(RankFeaturePhaseRankCoordinatorContext rankFeaturePhaseRankCoordinatorContext) throws Exception {
@@ -96,10 +92,10 @@ public class RankFeaturePhase extends SearchPhase {
         // to operate on the first `rank_window_size * num_shards` results and merge them appropriately.
         SearchPhaseController.ReducedQueryPhase reducedQueryPhase = queryPhaseResults.reduce();
         ScoreDoc[] queryScoreDocs = reducedQueryPhase.sortedTopDocs().scoreDocs(); // rank_window_size
-        final List<Integer>[] docIdsToLoad = SearchPhaseController.fillDocIdsToLoad(context.getNumShards(), queryScoreDocs);
+        final List<Integer>[] docIdsToLoad = SearchPhaseController.fillDocIdsToLoad(queryPhaseResults.getNumShards(), queryScoreDocs);
         final CountedCollector<SearchPhaseResult> rankRequestCounter = new CountedCollector<>(
             rankPhaseResults,
-            context.getNumShards(),
+            queryPhaseResults.getNumShards(),
             () -> onPhaseDone(rankFeaturePhaseRankCoordinatorContext, reducedQueryPhase),
             context
         );
@@ -141,7 +137,7 @@ public class RankFeaturePhase extends SearchPhase {
                     progressListener.notifyRankFeatureResult(shardIndex);
                     rankRequestCounter.onResult(response);
                 } catch (Exception e) {
-                    context.onPhaseFailure(NAME, "", e);
+                    failPhase("", e);
                 }
             }
 
@@ -196,7 +192,7 @@ public class RankFeaturePhase extends SearchPhase {
 
                 @Override
                 public void onFailure(Exception e) {
-                    context.onPhaseFailure(NAME, "Computing updated ranks for results failed", e);
+                    failPhase("Computing updated ranks for results failed", e);
                 }
             }
         );

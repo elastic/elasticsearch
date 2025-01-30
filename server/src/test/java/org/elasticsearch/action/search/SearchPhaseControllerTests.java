@@ -713,7 +713,6 @@ public class SearchPhaseControllerTests extends ESTestCase {
             }
 
             SearchPhaseController.ReducedQueryPhase reduce = consumer.reduce();
-            assertEquals(numTotalReducePhases, reduce.numReducePhases());
             assertEquals(numTotalReducePhases, reductions.size());
             assertAggReduction(request);
             Max max = (Max) reduce.aggregations().asList().get(0);

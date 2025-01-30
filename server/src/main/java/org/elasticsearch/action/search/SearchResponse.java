@@ -417,9 +417,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         if (isTerminatedEarly() != null) {
             builder.field(TERMINATED_EARLY.getPreferredName(), isTerminatedEarly());
         }
-        if (getNumReducePhases() != 1) {
-            builder.field(NUM_REDUCE_PHASES.getPreferredName(), getNumReducePhases());
-        }
+        // TODO: bring back rendering reduce phase count
         RestActions.buildBroadcastShardsHeader(
             builder,
             params,

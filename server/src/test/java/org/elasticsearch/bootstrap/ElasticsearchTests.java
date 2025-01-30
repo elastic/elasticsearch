@@ -9,11 +9,11 @@
 
 package org.elasticsearch.bootstrap;
 
-import org.elasticsearch.entitlement.runtime.policy.InboundNetworkEntitlement;
-import org.elasticsearch.entitlement.runtime.policy.LoadNativeLibrariesEntitlement;
-import org.elasticsearch.entitlement.runtime.policy.OutboundNetworkEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.Policy;
 import org.elasticsearch.entitlement.runtime.policy.Scope;
+import org.elasticsearch.entitlement.runtime.policy.entitlements.InboundNetworkEntitlement;
+import org.elasticsearch.entitlement.runtime.policy.entitlements.LoadNativeLibrariesEntitlement;
+import org.elasticsearch.entitlement.runtime.policy.entitlements.OutboundNetworkEntitlement;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;

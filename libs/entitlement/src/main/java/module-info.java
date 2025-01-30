@@ -19,6 +19,7 @@ module org.elasticsearch.entitlement {
 
     exports org.elasticsearch.entitlement.runtime.api;
     exports org.elasticsearch.entitlement.runtime.policy;
+    exports org.elasticsearch.entitlement.runtime.policy.entitlements to org.elasticsearch.server;
     exports org.elasticsearch.entitlement.instrumentation;
     exports org.elasticsearch.entitlement.bootstrap to org.elasticsearch.server;
     exports org.elasticsearch.entitlement.initialization to java.base;

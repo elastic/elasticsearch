@@ -7,18 +7,14 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.entitlement.runtime.policy;
+package org.elasticsearch.entitlement.runtime.policy.entitlements;
 
-import java.util.List;
-import java.util.Set;
+import org.elasticsearch.entitlement.runtime.policy.ExternalEntitlement;
 
 /**
- * An Entitlement to allow writing properties such as system properties.
+ * An Entitlement to allow setting properties to a single Https connection after this has been created
  */
-public record WriteSystemPropertiesEntitlement(Set<String> properties) implements Entitlement {
-
-    @ExternalEntitlement(parameterNames = { "properties" }, esModulesOnly = false)
-    public WriteSystemPropertiesEntitlement(List<String> properties) {
-        this(Set.copyOf(properties));
-    }
+public record SetHttpsConnectionPropertiesEntitlement() implements Entitlement {
+    @ExternalEntitlement(esModulesOnly = false)
+    public SetHttpsConnectionPropertiesEntitlement {}
 }

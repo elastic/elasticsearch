@@ -7,7 +7,10 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.entitlement.runtime.policy;
+package org.elasticsearch.entitlement.runtime.policy.entitlements;
+
+import org.elasticsearch.entitlement.runtime.policy.ExternalEntitlement;
+import org.elasticsearch.entitlement.runtime.policy.PolicyValidationException;
 
 import java.nio.file.Paths;
 

@@ -7,9 +7,14 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.entitlement.runtime.policy;
+package org.elasticsearch.entitlement.runtime.policy.entitlements;
 
-public record CreateClassLoaderEntitlement() implements Entitlement {
+import org.elasticsearch.entitlement.runtime.policy.ExternalEntitlement;
+
+/**
+ * Describes an entitlement for inbound network actions (listen/accept/receive)
+ */
+public record InboundNetworkEntitlement() implements Entitlement {
     @ExternalEntitlement
-    public CreateClassLoaderEntitlement {}
+    public InboundNetworkEntitlement {}
 }

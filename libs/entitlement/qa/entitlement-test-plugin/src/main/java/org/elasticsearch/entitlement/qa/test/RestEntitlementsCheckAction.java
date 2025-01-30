@@ -200,7 +200,6 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
         entry("runtime_load_library", forPlugins(LoadNativeLibrariesCheckActions::runtimeLoadLibrary)),
         entry("system_load", forPlugins(LoadNativeLibrariesCheckActions::systemLoad)),
         entry("system_load_library", forPlugins(LoadNativeLibrariesCheckActions::systemLoadLibrary)),
-
         entry("enable_native_access", new CheckAction(VersionSpecificNativeChecks::enableNativeAccess, false, 22)),
         entry("address_target_layout", new CheckAction(VersionSpecificNativeChecks::addressLayoutWithTargetLayout, false, 22)),
         entry("donwncall_handle", new CheckAction(VersionSpecificNativeChecks::linkerDowncallHandle, false, 22)),
@@ -213,7 +212,16 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
             new CheckAction(VersionSpecificNativeChecks::memorySegmentReinterpretWithSizeAndCleanup, false, 22)
         ),
         entry("symbol_lookup_name", new CheckAction(VersionSpecificNativeChecks::symbolLookupWithName, false, 22)),
-        entry("symbol_lookup_path", new CheckAction(VersionSpecificNativeChecks::symbolLookupWithPath, false, 22))
+        entry("symbol_lookup_path", new CheckAction(VersionSpecificNativeChecks::symbolLookupWithPath, false, 22)),
+        entry("create_scanner", forPlugins(FileCheckActions::createScannerFile)),
+        entry("create_scanner_with_charset", forPlugins(FileCheckActions::createScannerFileWithCharset)),
+        entry("create_scanner_with_charset_name", forPlugins(FileCheckActions::createScannerFileWithCharsetName)),
+        entry("create_file_output_stream_string", forPlugins(FileCheckActions::createFileOutputStreamString)),
+        entry("create_file_output_stream_string_with_append", forPlugins(FileCheckActions::createFileOutputStreamStringWithAppend)),
+        entry("create_file_output_stream_file", forPlugins(FileCheckActions::createFileOutputStreamFile)),
+        entry("create_file_output_stream_file_with_append", forPlugins(FileCheckActions::createFileOutputStreamFileWithAppend)),
+        entry("files_probe_content_type", forPlugins(FileCheckActions::filesProbeContentType)),
+        entry("files_set_owner", forPlugins(FileCheckActions::filesSetOwner))
     )
         .filter(entry -> entry.getValue().fromJavaVersion() == null || Runtime.version().feature() >= entry.getValue().fromJavaVersion())
         .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));

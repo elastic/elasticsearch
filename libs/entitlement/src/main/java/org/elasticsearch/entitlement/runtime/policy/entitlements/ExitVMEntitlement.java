@@ -7,12 +7,9 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.entitlement.runtime.policy;
+package org.elasticsearch.entitlement.runtime.policy.entitlements;
 
 /**
- * Describes an entitlement for outbound network actions (connect/send)
+ * Internal policy type (not-parseable -- not available to plugins).
  */
-public record OutboundNetworkEntitlement() implements Entitlement {
-    @ExternalEntitlement(esModulesOnly = false)
-    public OutboundNetworkEntitlement {}
-}
+public record ExitVMEntitlement() implements Entitlement {}

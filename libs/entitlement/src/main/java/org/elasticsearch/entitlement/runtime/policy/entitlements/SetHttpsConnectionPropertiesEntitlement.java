@@ -7,12 +7,14 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.entitlement.runtime.policy;
+package org.elasticsearch.entitlement.runtime.policy.entitlements;
+
+import org.elasticsearch.entitlement.runtime.policy.ExternalEntitlement;
 
 /**
- * An Entitlement to allow loading native libraries
+ * An Entitlement to allow setting properties to a single Https connection after this has been created
  */
-public record LoadNativeLibrariesEntitlement() implements Entitlement {
+public record SetHttpsConnectionPropertiesEntitlement() implements Entitlement {
     @ExternalEntitlement(esModulesOnly = false)
-    public LoadNativeLibrariesEntitlement {}
+    public SetHttpsConnectionPropertiesEntitlement {}
 }

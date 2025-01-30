@@ -7,12 +7,4 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.entitlement.runtime.policy;
-
-/**
- * Describes an entitlement for inbound network actions (listen/accept/receive)
- */
-public record InboundNetworkEntitlement() implements Entitlement {
-    @ExternalEntitlement
-    public InboundNetworkEntitlement {}
-}
+// This project is used only for overriding bwc distributions. See InternalDistributionDownloadPlugin for details.

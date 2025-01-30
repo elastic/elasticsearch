@@ -694,7 +694,7 @@ public class EsqlCapabilities {
         /**
          * LOOKUP JOIN
          */
-        JOIN_LOOKUP_V12(Build.current().isSnapshot()),
+        JOIN_LOOKUP_V12,
 
         /**
          * LOOKUP JOIN with TEXT fields on the right (right side of the join) (#119473)
@@ -779,7 +779,12 @@ public class EsqlCapabilities {
         /**
          * Support match options in match function
          */
-        MATCH_FUNCTION_OPTIONS;
+        MATCH_FUNCTION_OPTIONS,
+
+        /**
+         * Support for aggregate_metric_double type
+         */
+        AGGREGATE_METRIC_DOUBLE;
 
         private final boolean enabled;
 

@@ -27,6 +27,8 @@ public interface Sender extends Closeable {
         ActionListener<InferenceServiceResults> listener
     );
 
+    void updateRateLimitDivisor(int rateLimitDivisor);
+
     void sendWithoutQueuing(
         Logger logger,
         Request request,

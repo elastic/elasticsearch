@@ -32,7 +32,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
-import org.elasticsearch.xpack.esql.planner.mapper.preprocessor.MappingPreProcessor;
 import org.elasticsearch.xpack.esql.querydsl.query.TranslationAwareExpressionQuery;
 
 import java.util.List;
@@ -51,11 +50,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isStr
  * These functions needs to be pushed down to Lucene queries to be executed - there's no Evaluator for them, but depend on
  * {@link org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizer} to rewrite them into Lucene queries.
  */
-public abstract class FullTextFunction extends Function
-    implements
-        TranslationAware,
-        PostAnalysisPlanVerificationAware,
-        MappingPreProcessor.MappingPreProcessorSupplier {
+public abstract class FullTextFunction extends Function implements TranslationAware, PostAnalysisPlanVerificationAware {
 
     private final Expression query;
     private final QueryBuilder queryBuilder;
@@ -119,11 +114,6 @@ public abstract class FullTextFunction extends Function
     public Object queryAsObject() {
         Object queryAsObject = query().fold(FoldContext.small() /* TODO remove me */);
         return BytesRefs.toString(queryAsObject);
-    }
-
-    @Override
-    public MappingPreProcessor mappingPreProcessor() {
-        return FullTextFunctionMapperPreprocessor.INSTANCE;
     }
 
     /**

@@ -16,7 +16,6 @@ import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
-import org.elasticsearch.xpack.esql.planner.mapper.preprocessor.MappingPreProcessor;
 import org.elasticsearch.xpack.esql.plugin.TransportActionServices;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 
@@ -27,20 +26,30 @@ import java.util.Set;
 /**
  * Some {@link FullTextFunction} implementations such as {@link org.elasticsearch.xpack.esql.expression.function.fulltext.Match}
  * will be translated to a {@link QueryBuilder} that require a rewrite phase on the coordinator.
- * {@link FullTextFunctionMapperPreprocessor#preprocess(LogicalPlan, TransportActionServices, ActionListener)} will rewrite the plan by
+ * {@link QueryBuilderResolver#preprocess(LogicalPlan, TransportActionServices, ActionListener)} will rewrite the plan by
  * replacing {@link FullTextFunction} expression with new ones that hold rewritten {@link QueryBuilder}s.
  */
-public final class FullTextFunctionMapperPreprocessor implements MappingPreProcessor {
+public final class QueryBuilderResolver {
 
-    public static final FullTextFunctionMapperPreprocessor INSTANCE = new FullTextFunctionMapperPreprocessor();
+    public static final QueryBuilderResolver INSTANCE = new QueryBuilderResolver();
 
-    @Override
+    private QueryBuilderResolver() {}
+
     public void preprocess(LogicalPlan plan, TransportActionServices services, ActionListener<LogicalPlan> listener) {
-        Rewriteable.rewriteAndFetch(
-            new FullTextFunctionsRewritable(plan),
-            queryRewriteContext(services, indexNames(plan)),
-            listener.delegateFailureAndWrap((l, r) -> l.onResponse(r.plan))
-        );
+        var hasFullTextFunctions = plan.anyMatch(p -> {
+            Holder<Boolean> hasFullTextFunction = new Holder<>(false);
+            p.forEachExpression(FullTextFunction.class, unused -> hasFullTextFunction.set(true));
+            return hasFullTextFunction.get();
+        });
+        if (hasFullTextFunctions) {
+            Rewriteable.rewriteAndFetch(
+                new FullTextFunctionsRewritable(plan),
+                queryRewriteContext(services, indexNames(plan)),
+                listener.delegateFailureAndWrap((l, r) -> l.onResponse(r.plan))
+            );
+        } else {
+            listener.onResponse(plan);
+        }
     }
 
     private static QueryRewriteContext queryRewriteContext(TransportActionServices services, Set<String> indexNames) {
@@ -62,9 +71,7 @@ public final class FullTextFunctionMapperPreprocessor implements MappingPreProce
         return indexNames;
     }
 
-    private record FullTextFunctionsRewritable(LogicalPlan plan)
-        implements
-            Rewriteable<FullTextFunctionMapperPreprocessor.FullTextFunctionsRewritable> {
+    private record FullTextFunctionsRewritable(LogicalPlan plan) implements Rewriteable<QueryBuilderResolver.FullTextFunctionsRewritable> {
         @Override
         public FullTextFunctionsRewritable rewrite(QueryRewriteContext ctx) throws IOException {
             Holder<IOException> exceptionHolder = new Holder<>();
@@ -77,9 +84,9 @@ public final class FullTextFunctionMapperPreprocessor implements MappingPreProce
                 } catch (IOException e) {
                     exceptionHolder.trySet(e);
                 }
-                var rewrite = builder != initial;
-                updated.set(updated.get() || rewrite);
-                return rewrite ? f.replaceQueryBuilder(builder) : f;
+                var rewritten = builder != initial;
+                updated.set(updated.get() || rewritten);
+                return rewritten ? f.replaceQueryBuilder(builder) : f;
             });
             if (exceptionHolder.get() != null) {
                 throw exceptionHolder.get();

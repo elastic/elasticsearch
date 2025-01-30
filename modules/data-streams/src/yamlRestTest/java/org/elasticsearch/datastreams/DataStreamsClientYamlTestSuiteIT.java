@@ -31,7 +31,7 @@ public class DataStreamsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase 
         data_stream_alias_test_role:
           cluster: ["manage_index_templates"]
           indices:
-            - names: ["test*", "events*", "log-*", "app*", "my*"]
+            - names: ["test*", "events*", "log-*", "app*", "my*", "ds*"]
               allow_restricted_indices: false
               privileges: [ "ALL" ]
         """;

@@ -20,11 +20,8 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
-import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -61,6 +58,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.application.connector.ConnectorTemplateRegistry.ACCESS_CONTROL_INDEX_PREFIX;
+import static org.elasticsearch.xpack.application.connector.ConnectorTestUtils.registerSimplifiedConnectorIndexTemplates;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -88,12 +86,14 @@ public class ConnectorSyncJobIndexServiceTests extends ESSingleNodeTestCase {
         List<Class<? extends Plugin>> plugins = new ArrayList<>(super.getPlugins());
         // Reindex plugin is required for testDeleteAllSyncJobsByConnectorId (supports delete_by_query)
         plugins.add(ReindexPlugin.class);
-        plugins.add(TestPlugin.class);
         return plugins;
     }
 
     @Before
     public void setup() throws Exception {
+
+        registerSimplifiedConnectorIndexTemplates(indicesAdmin());
+
         connectorOneId = createConnector(ConnectorTestUtils.getRandomConnector());
         connectorTwoId = createConnector(ConnectorTestUtils.getRandomConnector());
         connectorThreeId = createConnector(ConnectorTestUtils.getRandomConnectorWithDetachedIndex());
@@ -805,18 +805,18 @@ public class ConnectorSyncJobIndexServiceTests extends ESSingleNodeTestCase {
         Instant requestLastSeen = request.getLastSeen();
         Map<String, Object> metadata = request.getMetadata();
 
-        Long deletedDocumentCountAfterUpdate = ((Number) syncJobSourceAfterUpdate.get(
+        Long deletedDocumentCountAfterUpdate = (Long) syncJobSourceAfterUpdate.get(
             ConnectorSyncJob.DELETED_DOCUMENT_COUNT_FIELD.getPreferredName()
-        )).longValue();
-        Long indexedDocumentCountAfterUpdate = ((Number) syncJobSourceAfterUpdate.get(
+        );
+        Long indexedDocumentCountAfterUpdate = (Long) syncJobSourceAfterUpdate.get(
             ConnectorSyncJob.INDEXED_DOCUMENT_COUNT_FIELD.getPreferredName()
-        )).longValue();
-        Long indexedDocumentVolumeAfterUpdate = ((Number) syncJobSourceAfterUpdate.get(
+        );
+        Long indexedDocumentVolumeAfterUpdate = (Long) syncJobSourceAfterUpdate.get(
             ConnectorSyncJob.INDEXED_DOCUMENT_VOLUME_FIELD.getPreferredName()
-        )).longValue();
-        Long totalDocumentCountAfterUpdate = ((Number) syncJobSourceAfterUpdate.get(
+        );
+        Long totalDocumentCountAfterUpdate = (Long) syncJobSourceAfterUpdate.get(
             ConnectorSyncJob.TOTAL_DOCUMENT_COUNT_FIELD.getPreferredName()
-        )).longValue();
+        );
         Instant lastSeenAfterUpdate = Instant.parse(
             (String) syncJobSourceAfterUpdate.get(ConnectorSyncJob.LAST_SEEN_FIELD.getPreferredName())
         );
@@ -1410,25 +1410,5 @@ public class ConnectorSyncJobIndexServiceTests extends ESSingleNodeTestCase {
 
         // wait 10 seconds for connector creation
         return index.get(TIMEOUT_SECONDS, TimeUnit.SECONDS).getId();
-    }
-
-    /**
-     * Test plugin to register the {@link ConnectorSyncJobIndexService} system index descriptor.
-     */
-    public static class TestPlugin extends Plugin implements SystemIndexPlugin {
-        @Override
-        public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
-            return List.of(ConnectorSyncJobIndexService.getSystemIndexDescriptor());
-        }
-
-        @Override
-        public String getFeatureName() {
-            return this.getClass().getSimpleName();
-        }
-
-        @Override
-        public String getFeatureDescription() {
-            return this.getClass().getCanonicalName();
-        }
     }
 }

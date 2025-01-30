@@ -205,7 +205,7 @@ public class TestSparseInferenceServiceExtension implements InferenceServiceExte
 
                     configurationMap.put(
                         "model",
-                        new SettingsConfiguration.Builder().setDescription("")
+                        new SettingsConfiguration.Builder(EnumSet.of(TaskType.SPARSE_EMBEDDING)).setDescription("")
                             .setLabel("Model")
                             .setRequired(true)
                             .setSensitive(false)
@@ -215,7 +215,7 @@ public class TestSparseInferenceServiceExtension implements InferenceServiceExte
 
                     configurationMap.put(
                         "hidden_field",
-                        new SettingsConfiguration.Builder().setDescription("")
+                        new SettingsConfiguration.Builder(EnumSet.of(TaskType.SPARSE_EMBEDDING)).setDescription("")
                             .setLabel("Hidden Field")
                             .setRequired(true)
                             .setSensitive(false)

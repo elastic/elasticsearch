@@ -10,8 +10,9 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.util;
 import org.elasticsearch.Build;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.compute.ann.Evaluator;
-import org.elasticsearch.compute.ann.Fixed;
+import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -102,21 +103,42 @@ public class Delay extends UnaryScalarFunction {
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(EvaluatorMapper.ToEvaluator toEvaluator) {
-        return new DelayEvaluator.Factory(source(), msValue(toEvaluator.foldCtx()));
+        return context -> new DelayEvaluator(context, msValue(toEvaluator.foldCtx()));
     }
 
-    @Evaluator
-    static boolean process(@Fixed long ms) {
-        // Only activate in snapshot builds
-        if (Build.current().isSnapshot()) {
+    static final class DelayEvaluator implements ExpressionEvaluator {
+        private final DriverContext driverContext;
+        private final long ms;
+
+        DelayEvaluator(DriverContext driverContext, long ms) {
+            if (Build.current().isSnapshot() == false) {
+                throw new IllegalArgumentException("Delay function is only available in snapshot builds");
+            }
+            this.driverContext = driverContext;
+            this.ms = ms;
+        }
+
+        @Override
+        public Block eval(Page page) {
+            int positionCount = page.getPositionCount();
+            for (int p = 0; p < positionCount; p++) {
+                delay(ms);
+            }
+            return driverContext.blockFactory().newConstantBooleanBlockWith(true, positionCount);
+        }
+
+        private void delay(long ms) {
             try {
+                driverContext.checkForEarlyTermination();
                 Thread.sleep(ms);
             } catch (InterruptedException e) {
-                return true;
+                Thread.currentThread().interrupt();
             }
-        } else {
-            throw new IllegalArgumentException("Delay function is only available in snapshot builds");
         }
-        return true;
+
+        @Override
+        public void close() {
+
+        }
     }
 }

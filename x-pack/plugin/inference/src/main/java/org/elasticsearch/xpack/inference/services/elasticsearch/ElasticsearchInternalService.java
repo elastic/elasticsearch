@@ -25,6 +25,7 @@ import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
+import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.SettingsConfiguration;
@@ -828,9 +829,9 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
 
     public List<DefaultConfigId> defaultConfigIds() {
         return List.of(
-            new DefaultConfigId(DEFAULT_ELSER_ID, TaskType.SPARSE_EMBEDDING, this),
-            new DefaultConfigId(DEFAULT_E5_ID, TaskType.TEXT_EMBEDDING, this),
-            new DefaultConfigId(DEFAULT_RERANK_ID, TaskType.RERANK, this)
+            new DefaultConfigId(DEFAULT_ELSER_ID, ElserInternalServiceSettings.minimalServiceSettings(), this),
+            new DefaultConfigId(DEFAULT_E5_ID, MultilingualE5SmallInternalServiceSettings.minimalServiceSettings(), this),
+            new DefaultConfigId(DEFAULT_RERANK_ID, MinimalServiceSettings.rerank(), this)
         );
     }
 
@@ -1147,8 +1148,9 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
 
                 configurationMap.put(
                     MODEL_ID,
-                    new SettingsConfiguration.Builder().setDefaultValue(MULTILINGUAL_E5_SMALL_MODEL_ID)
-                        .setDescription("The name of the model to use for the inference task.")
+                    new SettingsConfiguration.Builder(supportedTaskTypes).setDescription(
+                        "The name of the model to use for the inference task."
+                    )
                         .setLabel("Model ID")
                         .setRequired(true)
                         .setSensitive(false)
@@ -1159,7 +1161,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
 
                 configurationMap.put(
                     NUM_ALLOCATIONS,
-                    new SettingsConfiguration.Builder().setDefaultValue(1)
+                    new SettingsConfiguration.Builder(supportedTaskTypes).setDefaultValue(1)
                         .setDescription("The total number of allocations this model is assigned across machine learning nodes.")
                         .setLabel("Number Allocations")
                         .setRequired(true)
@@ -1171,7 +1173,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
 
                 configurationMap.put(
                     NUM_THREADS,
-                    new SettingsConfiguration.Builder().setDefaultValue(2)
+                    new SettingsConfiguration.Builder(supportedTaskTypes).setDefaultValue(2)
                         .setDescription("Sets the number of threads used by each model allocation during inference.")
                         .setLabel("Number Threads")
                         .setRequired(true)

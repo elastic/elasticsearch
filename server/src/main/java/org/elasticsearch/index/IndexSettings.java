@@ -26,7 +26,6 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
@@ -356,7 +355,7 @@ public final class IndexSettings {
          * Prevent the translog from growing over 10GB or 20% of the recommended shard size of 50GB. This helps bound the maximum disk usage
          * overhead of translogs.
          */
-        new ByteSizeValue(10, ByteSizeUnit.GB),
+        ByteSizeValue.of(10, ByteSizeUnit.GB),
         /*
          * An empty translog occupies 55 bytes on disk. If the flush threshold is below this, the flush thread
          * can get stuck in an infinite loop as the shouldPeriodicallyFlush can still be true after flushing.
@@ -388,7 +387,7 @@ public final class IndexSettings {
      */
     public static final Setting<ByteSizeValue> INDEX_FLUSH_AFTER_MERGE_THRESHOLD_SIZE_SETTING = Setting.byteSizeSetting(
         "index.flush_after_merge",
-        new ByteSizeValue(512, ByteSizeUnit.MB),
+        ByteSizeValue.of(512, ByteSizeUnit.MB),
         ByteSizeValue.ZERO, // always flush after merge
         ByteSizeValue.ofBytes(Long.MAX_VALUE), // never flush after merge
         Property.Dynamic,
@@ -401,7 +400,7 @@ public final class IndexSettings {
      */
     public static final Setting<ByteSizeValue> INDEX_TRANSLOG_GENERATION_THRESHOLD_SIZE_SETTING = Setting.byteSizeSetting(
         "index.translog.generation_threshold_size",
-        new ByteSizeValue(64, ByteSizeUnit.MB),
+        ByteSizeValue.of(64, ByteSizeUnit.MB),
         /*
          * An empty translog occupies 55 bytes on disk. If the generation threshold is
          * below this, the flush thread can get stuck in an infinite loop repeatedly
@@ -721,7 +720,8 @@ public final class IndexSettings {
         "index.mapping.source.mode",
         value -> {},
         Setting.Property.Final,
-        Setting.Property.IndexScope
+        Setting.Property.IndexScope,
+        Setting.Property.ServerlessPublic
     );
 
     public static final FeatureFlag RECOVERY_USE_SYNTHETIC_SOURCE = new FeatureFlag("index_recovery_use_synthetic_source");
@@ -834,8 +834,6 @@ public final class IndexSettings {
             return String.valueOf(Integer.MAX_VALUE);
         }
     }
-
-    public static final NodeFeature IGNORE_ABOVE_INDEX_LEVEL_SETTING = new NodeFeature("mapper.ignore_above_index_level_setting", true);
 
     private final Index index;
     private final IndexVersion version;
@@ -1453,7 +1451,7 @@ public final class IndexSettings {
         }
         assert onePercentOfTotalDiskSpace > Translog.DEFAULT_HEADER_SIZE_IN_BYTES;
         if (onePercentOfTotalDiskSpace < flushThresholdSize.getBytes()) {
-            return new ByteSizeValue(onePercentOfTotalDiskSpace, ByteSizeUnit.BYTES);
+            return ByteSizeValue.of(onePercentOfTotalDiskSpace, ByteSizeUnit.BYTES);
         } else {
             return flushThresholdSize;
         }

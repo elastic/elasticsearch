@@ -180,10 +180,8 @@ final class AggregateMapper {
             types = List.of("GeoPoint", "CartesianPoint");
             extraConfigs = SPATIAL_EXTRA_CONFIGS;
         } else if (clazz == SpatialExtent.class) {
-            return Stream.concat(
-                combine(clazz, List.of("GeoPoint", "CartesianPoint"), SPATIAL_EXTRA_CONFIGS),
-                combine(clazz, List.of("GeoShape", "CartesianShape"), List.of(""))
-            );
+            types = List.of("GeoPoint", "CartesianPoint", "GeoShape", "CartesianShape");
+            extraConfigs = SPATIAL_EXTRA_CONFIGS;
         } else if (Values.class.isAssignableFrom(clazz)) {
             // TODO can't we figure this out from the function itself?
             types = List.of("Int", "Long", "Double", "Boolean", "BytesRef");
@@ -214,6 +212,9 @@ final class AggregateMapper {
         if (tuple.v1().isAssignableFrom(Rate.class)) {
             // rate doesn't support non-grouping aggregations
             return Stream.of(new AggDef(tuple.v1(), tuple.v2().v1(), tuple.v2().v2(), true));
+        } else if (tuple.v2().v1().equals("AggregateMetricDouble")) {
+            // TODO: support grouping aggregations for aggregate metric double
+            return Stream.of(new AggDef(tuple.v1(), tuple.v2().v1(), tuple.v2().v2(), false));
         } else {
             return Stream.of(
                 new AggDef(tuple.v1(), tuple.v2().v1(), tuple.v2().v2(), true),
@@ -333,6 +334,7 @@ final class AggregateMapper {
             case CARTESIAN_POINT -> "CartesianPoint";
             case GEO_SHAPE -> "GeoShape";
             case CARTESIAN_SHAPE -> "CartesianShape";
+            case AGGREGATE_METRIC_DOUBLE -> "AggregateMetricDouble";
             case UNSUPPORTED, NULL, UNSIGNED_LONG, SHORT, BYTE, FLOAT, HALF_FLOAT, SCALED_FLOAT, OBJECT, SOURCE, DATE_PERIOD, TIME_DURATION,
                 DOC_DATA_TYPE, TSID_DATA_TYPE, PARTIAL_AGG -> throw new EsqlIllegalArgumentException(
                     "illegal agg type: " + type.typeName()

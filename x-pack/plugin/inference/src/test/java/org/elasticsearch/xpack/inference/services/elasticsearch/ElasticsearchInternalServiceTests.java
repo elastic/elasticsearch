@@ -1564,7 +1564,8 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
                                "required": true,
                                "sensitive": false,
                                "updatable": true,
-                               "type": "int"
+                               "type": "int",
+                               "supported_task_types": ["text_embedding", "sparse_embedding", "rerank"]
                            },
                            "num_threads": {
                                "default_value": 2,
@@ -1573,16 +1574,17 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
                                "required": true,
                                "sensitive": false,
                                "updatable": false,
-                               "type": "int"
+                               "type": "int",
+                               "supported_task_types": ["text_embedding", "sparse_embedding", "rerank"]
                            },
                            "model_id": {
-                               "default_value": ".multilingual-e5-small",
                                "description": "The name of the model to use for the inference task.",
                                "label": "Model ID",
                                "required": true,
                                "sensitive": false,
                                "updatable": false,
-                               "type": "str"
+                               "type": "str",
+                               "supported_task_types": ["text_embedding", "sparse_embedding", "rerank"]
                            }
                        }
                    }

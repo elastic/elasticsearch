@@ -7,10 +7,8 @@
 
 package org.elasticsearch.xpack.rank.rrf;
 
-import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
@@ -28,18 +26,6 @@ import java.util.List;
 
 /** Tests for the rrf retriever. */
 public class RRFRetrieverBuilderTests extends ESTestCase {
-
-    /** Tests the rrf retriever validates on its own {@link NodeFeature} */
-    public void testRetrieverVersions() throws IOException {
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"retriever\":{\"rrf\":{}}}")) {
-            SearchSourceBuilder ssb = new SearchSourceBuilder();
-            ParsingException iae = expectThrows(
-                ParsingException.class,
-                () -> ssb.parseXContent(parser, true, nf -> nf == RetrieverBuilder.RETRIEVERS_SUPPORTED)
-            );
-            assertEquals("unknown retriever [rrf]", iae.getMessage());
-        }
-    }
 
     /** Tests extraction errors related to compound retrievers. These tests require a compound retriever which is why they are here. */
     public void testRetrieverExtractionErrors() throws IOException {

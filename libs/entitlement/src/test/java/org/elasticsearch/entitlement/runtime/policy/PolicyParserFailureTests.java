@@ -55,7 +55,7 @@ public class PolicyParserFailureTests extends ESTestCase {
             """.getBytes(StandardCharsets.UTF_8)), "test-failure-policy.yaml", false).parsePolicy());
         assertEquals(
             "[4:1] policy parsing error for [test-failure-policy.yaml] in scope [entitlement-module-name] "
-                + "for entitlement type [file]: missing entitlement parameter [actions]",
+                + "for entitlement type [file]: missing entitlement parameter [mode]",
             ppe.getMessage()
         );
     }
@@ -65,12 +65,11 @@ public class PolicyParserFailureTests extends ESTestCase {
             entitlement-module-name:
               - file:
                   path: test-path
-                  actions:
-                    - read
+                  mode: read
                   extra: test
             """.getBytes(StandardCharsets.UTF_8)), "test-failure-policy.yaml", false).parsePolicy());
         assertEquals(
-            "[7:1] policy parsing error for [test-failure-policy.yaml] in scope [entitlement-module-name] "
+            "[6:1] policy parsing error for [test-failure-policy.yaml] in scope [entitlement-module-name] "
                 + "for entitlement type [file]: extraneous entitlement parameter(s) {extra=test}",
             ppe.getMessage()
         );

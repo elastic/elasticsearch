@@ -96,7 +96,6 @@ import static org.elasticsearch.xpack.security.support.SecurityIndexManager.Avai
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.Availability.SEARCH_SHARDS;
 import static org.elasticsearch.xpack.security.support.SecurityMigrations.ROLE_METADATA_FLATTENED_MIGRATION_VERSION;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
-import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_ROLES_METADATA_FLATTENED;
 
 /**
  * NativeRolesStore is a {@code RolesStore} that, instead of reading from a
@@ -652,9 +651,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
         XContentBuilder builder = jsonBuilder().startObject();
         role.innerToXContent(builder, ToXContent.EMPTY_PARAMS, true);
 
-        if (featureService.clusterHasFeature(clusterService.state(), SECURITY_ROLES_METADATA_FLATTENED)) {
-            builder.field(RoleDescriptor.Fields.METADATA_FLATTENED.getPreferredName(), role.getMetadata());
-        }
+        builder.field(RoleDescriptor.Fields.METADATA_FLATTENED.getPreferredName(), role.getMetadata());
 
         // When role descriptor XContent is generated for the security index all empty fields need to have default values to make sure
         // existing values are overwritten if not present since the request to update could be an UpdateRequest

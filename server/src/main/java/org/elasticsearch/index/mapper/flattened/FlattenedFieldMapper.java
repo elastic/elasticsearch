@@ -38,7 +38,6 @@ import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -111,12 +110,6 @@ import static org.elasticsearch.index.IndexSettings.IGNORE_ABOVE_SETTING;
  *  character (see {@link FlattenedFieldParser#SEPARATOR}).
  */
 public final class FlattenedFieldMapper extends FieldMapper {
-
-    public static final NodeFeature IGNORE_ABOVE_SUPPORT = new NodeFeature("flattened.ignore_above_support", true);
-    public static final NodeFeature IGNORE_ABOVE_WITH_ARRAYS_SUPPORT = new NodeFeature(
-        "mapper.flattened.ignore_above_with_arrays_support",
-        true
-    );
 
     public static final String CONTENT_TYPE = "flattened";
     public static final String KEYED_FIELD_SUFFIX = "._keyed";
@@ -918,14 +911,14 @@ public final class FlattenedFieldMapper extends FieldMapper {
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport() {
         if (fieldType().hasDocValues()) {
-            var loader = new FlattenedSortedSetDocValuesSyntheticFieldLoader(
-                fullPath(),
-                fullPath() + KEYED_FIELD_SUFFIX,
-                ignoreAbove() < Integer.MAX_VALUE ? fullPath() + KEYED_IGNORED_VALUES_FIELD_SUFFIX : null,
-                leafName()
+            return new SyntheticSourceSupport.Native(
+                () -> new FlattenedSortedSetDocValuesSyntheticFieldLoader(
+                    fullPath(),
+                    fullPath() + KEYED_FIELD_SUFFIX,
+                    ignoreAbove() < Integer.MAX_VALUE ? fullPath() + KEYED_IGNORED_VALUES_FIELD_SUFFIX : null,
+                    leafName()
+                )
             );
-
-            return new SyntheticSourceSupport.Native(loader);
         }
 
         return super.syntheticSourceSupport();

@@ -253,4 +253,19 @@ public final class TypeResolutions {
             return acceptedTypes[0];
         }
     }
+
+    public static TypeResolution isMapExpression(Expression e, String operationName, ParamOrdinal paramOrd) {
+        if (e instanceof MapExpression == false) {
+            return new TypeResolution(
+                format(
+                    null,
+                    "{}argument of [{}] must be a map expression, received [{}]",
+                    paramOrd == null || paramOrd == DEFAULT ? "" : paramOrd.name().toLowerCase(Locale.ROOT) + " ",
+                    operationName,
+                    Expressions.name(e)
+                )
+            );
+        }
+        return TypeResolution.TYPE_RESOLVED;
+    }
 }

@@ -649,7 +649,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
     static int getMaxSnapshotThreadPoolSize(int allocatedProcessors, final ByteSizeValue maxHeapSize) {
         // While on larger data nodes, larger snapshot threadpool size improves snapshotting on high latency blob stores,
         // smaller instances can run into OOM issues and need a smaller snapshot threadpool size.
-        if (maxHeapSize.compareTo(new ByteSizeValue(750, ByteSizeUnit.MB)) < 0) {
+        if (maxHeapSize.compareTo(ByteSizeValue.of(750, ByteSizeUnit.MB)) < 0) {
             return halfAllocatedProcessorsMaxFive(allocatedProcessors);
         }
         return 10;

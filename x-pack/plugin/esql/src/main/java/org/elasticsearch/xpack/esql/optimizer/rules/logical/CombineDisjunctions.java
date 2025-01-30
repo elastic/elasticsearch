@@ -10,10 +10,10 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.CIDRMatch;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
@@ -27,8 +27,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.esql.core.expression.predicate.Predicates.combineOr;
-import static org.elasticsearch.xpack.esql.core.expression.predicate.Predicates.splitOr;
+import static org.elasticsearch.xpack.esql.expression.predicate.Predicates.combineOr;
+import static org.elasticsearch.xpack.esql.expression.predicate.Predicates.splitOr;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.ipToString;
 
 /**

@@ -59,7 +59,7 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
             DataType.NULL
         ).collect(Collectors.toList());
         if (Build.current().isSnapshot()) {
-            t.addAll(DataType.UNDER_CONSTRUCTION.keySet());
+            t.addAll(DataType.UNDER_CONSTRUCTION.keySet().stream().filter(type -> type != DataType.AGGREGATE_METRIC_DOUBLE).toList());
         }
         TYPES = unmodifiableList(t);
     }
@@ -770,10 +770,6 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
     }
 
     public void testFancyFolding() {
-        if (testCase.getExpectedTypeError() != null) {
-            // Nothing to do
-            return;
-        }
         Expression e = buildFieldExpression(testCase);
         if (extra().foldable == false) {
             assertThat(e.foldable(), equalTo(false));
@@ -794,7 +790,7 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
     }
 
     public void testPartialFold() {
-        if (testCase.getExpectedTypeError() != null || extra().foldable()) {
+        if (extra().foldable()) {
             // Nothing to do
             return;
         }

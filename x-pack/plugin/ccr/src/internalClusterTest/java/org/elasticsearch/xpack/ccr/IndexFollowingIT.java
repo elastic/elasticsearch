@@ -150,7 +150,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
             .setMasterNodeTimeout(TimeValue.MAX_VALUE)
             .setPersistentSettings(
                 Settings.builder()
-                    .put(CcrSettings.RECOVERY_CHUNK_SIZE.getKey(), new ByteSizeValue(randomIntBetween(1, 1000), ByteSizeUnit.KB))
+                    .put(CcrSettings.RECOVERY_CHUNK_SIZE.getKey(), ByteSizeValue.of(randomIntBetween(1, 1000), ByteSizeUnit.KB))
             )
             .get();
 
@@ -331,7 +331,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         assertFalse(response.isIndexFollowingStarted());
 
         // Check that the index exists, would throw index not found exception if the index is missing
-        followerClient().admin().indices().prepareGetIndex().addIndices("index2").get();
+        followerClient().admin().indices().prepareGetIndex(TEST_REQUEST_TIMEOUT).addIndices("index2").get();
         ensureFollowerGreen(true, "index2");
 
         final Map<ShardId, Long> firstBatchNumDocsPerShard = new HashMap<>();
@@ -667,7 +667,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         }
 
         PutFollowAction.Request followRequest = putFollow("index1", "index2");
-        followRequest.getParameters().setMaxReadRequestSize(new ByteSizeValue(randomIntBetween(1, 1024), ByteSizeUnit.BYTES));
+        followRequest.getParameters().setMaxReadRequestSize(ByteSizeValue.of(randomIntBetween(1, 1024), ByteSizeUnit.BYTES));
         followerClient().execute(PutFollowAction.INSTANCE, followRequest).get();
 
         final Map<ShardId, Long> firstBatchNumDocsPerShard = new HashMap<>();

@@ -59,7 +59,9 @@ public class FieldFilterMapperPluginTests extends ESSingleNodeTestCase {
     }
 
     public void testGetIndex() {
-        GetIndexResponse getIndexResponse = indicesAdmin().prepareGetIndex().setFeatures(GetIndexRequest.Feature.MAPPINGS).get();
+        GetIndexResponse getIndexResponse = indicesAdmin().prepareGetIndex(TEST_REQUEST_TIMEOUT)
+            .setFeatures(GetIndexRequest.Feature.MAPPINGS)
+            .get();
         assertExpectedMappings(getIndexResponse.mappings());
     }
 

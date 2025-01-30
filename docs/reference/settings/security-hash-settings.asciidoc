@@ -124,4 +124,68 @@ following:
                              initial input with SHA512 first.
 |=======================
 
+Furthermore, {es} supports authentication via securely-generated high entropy tokens,
+for instance <<security-api-create-api-key,API keys>>.
+Analogous to passwords, only the tokens' hashes are stored. Since the tokens are guaranteed
+to have sufficiently high entropy to resist offline attacks, secure salted hash functions are supported
+in addition to the password-hashing algorithms mentioned above.
 
+You can configure the algorithm for API key stored credential hashing
+by setting the <<static-cluster-setting,static>>
+`xpack.security.authc.api_key.hashing.algorithm` setting to one of the
+following
+
+[[secure-token-hashing-algorithms]]
+.Secure token hashing algorithms
+|=======================
+| Algorithm               | | | Description
+
+| `ssha256`               | | | Uses a salted `sha-256` algorithm. (default)
+| `bcrypt`                | | | Uses `bcrypt` algorithm with salt generated in 1024 rounds.
+| `bcrypt4`               | | | Uses `bcrypt` algorithm with salt generated in 16 rounds.
+| `bcrypt5`               | | | Uses `bcrypt` algorithm with salt generated in 32 rounds.
+| `bcrypt6`               | | | Uses `bcrypt` algorithm with salt generated in 64 rounds.
+| `bcrypt7`               | | | Uses `bcrypt` algorithm with salt generated in 128 rounds.
+| `bcrypt8`               | | | Uses `bcrypt` algorithm with salt generated in 256 rounds.
+| `bcrypt9`               | | | Uses `bcrypt` algorithm with salt generated in 512 rounds.
+| `bcrypt10`              | | | Uses `bcrypt` algorithm with salt generated in 1024 rounds.
+| `bcrypt11`              | | | Uses `bcrypt` algorithm with salt generated in 2048 rounds.
+| `bcrypt12`              | | | Uses `bcrypt` algorithm with salt generated in 4096 rounds.
+| `bcrypt13`              | | | Uses `bcrypt` algorithm with salt generated in 8192 rounds.
+| `bcrypt14`              | | | Uses `bcrypt` algorithm with salt generated in 16384 rounds.
+| `pbkdf2`                | | | Uses `PBKDF2` key derivation function with `HMAC-SHA512` as a
+                             pseudorandom function using 10000 iterations.
+| `pbkdf2_1000`           | | | Uses `PBKDF2` key derivation function with `HMAC-SHA512` as a
+                             pseudorandom function using 1000 iterations.
+| `pbkdf2_10000`          | | | Uses `PBKDF2` key derivation function with `HMAC-SHA512` as a
+                             pseudorandom function using 10000 iterations.
+| `pbkdf2_50000`          | | | Uses `PBKDF2` key derivation function with `HMAC-SHA512` as a
+                             pseudorandom function using 50000 iterations.
+| `pbkdf2_100000`         | | | Uses `PBKDF2` key derivation function with `HMAC-SHA512` as a
+                             pseudorandom function using 100000 iterations.
+| `pbkdf2_500000`         | | | Uses `PBKDF2` key derivation function with `HMAC-SHA512` as a
+                              pseudorandom function using 500000 iterations.
+| `pbkdf2_1000000`        | | | Uses `PBKDF2` key derivation function with `HMAC-SHA512` as a
+                             pseudorandom function using 1000000 iterations.
+| `pbkdf2_stretch`        | | | Uses `PBKDF2` key derivation function with `HMAC-SHA512` as a
+                             pseudorandom function using 10000 iterations, after hashing the
+                             initial input with SHA512 first.
+| `pbkdf2_stretch_1000`   | | | Uses `PBKDF2` key derivation function with `HMAC-SHA512` as a
+                             pseudorandom function using 1000 iterations, after hashing the
+                             initial input with SHA512 first.
+| `pbkdf2_stretch_10000`  | | | Uses `PBKDF2` key derivation function with `HMAC-SHA512` as a
+                             pseudorandom function using 10000 iterations, after hashing the
+                             initial input with SHA512 first.
+| `pbkdf2_stretch_50000`  | | | Uses `PBKDF2` key derivation function with `HMAC-SHA512` as a
+                             pseudorandom function using 50000 iterations, after hashing the
+                             initial input with SHA512 first.
+| `pbkdf2_stretch_100000` | | | Uses `PBKDF2` key derivation function with `HMAC-SHA512` as a
+                             pseudorandom function using 100000 iterations, after hashing the
+                             initial input with SHA512 first.
+| `pbkdf2_stretch_500000` | | | Uses `PBKDF2` key derivation function with `HMAC-SHA512` as a
+                             pseudorandom function using 500000 iterations, after hashing the
+                             initial input with SHA512 first.
+| `pbkdf2_stretch_1000000`| | | Uses `PBKDF2` key derivation function with `HMAC-SHA512` as a
+                             pseudorandom function using 1000000 iterations, after hashing the
+                             initial input with SHA512 first.
+|=======================

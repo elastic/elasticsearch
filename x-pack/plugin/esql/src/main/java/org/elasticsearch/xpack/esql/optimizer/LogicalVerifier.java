@@ -29,7 +29,7 @@ public final class LogicalVerifier {
             if (failures.hasFailures() == false) {
                 p.forEachExpression(ex -> {
                     if (ex instanceof PostOptimizationVerificationAware va) {
-                        va.postLogicalOptimizationVerification(failures);
+                        va.postOptimizationVerification(failures);
                     }
                 });
             }

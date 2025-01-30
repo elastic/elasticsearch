@@ -13,11 +13,13 @@ import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.util.BigArrays;
@@ -35,6 +37,7 @@ import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
+import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.StringFieldType;
 import org.elasticsearch.index.mapper.TextSearchInfo;
@@ -46,6 +49,7 @@ import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -72,7 +76,7 @@ import static org.elasticsearch.common.lucene.Lucene.KEYWORD_ANALYZER;
  * 2 for each key (one per document), a <code>counted_terms</code> aggregation on a <code>counted_keyword</code> field will consider
  * the actual count and report a count of 3 for each key.</p>
  *
- * <p>Only regular source is supported; synthetic source won't work.</p>
+ * <p>Synthetic source is fully supported.</p>
  */
 public class CountedKeywordFieldMapper extends FieldMapper {
     public static final String CONTENT_TYPE = "counted_keyword";
@@ -269,9 +273,11 @@ public class CountedKeywordFieldMapper extends FieldMapper {
     public static class Builder extends FieldMapper.Builder {
         private final Parameter<Boolean> indexed = Parameter.indexParam(m -> toType(m).mappedFieldType.isIndexed(), true);
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
+        private final SourceKeepMode indexSourceKeepMode;
 
-        protected Builder(String name) {
+        protected Builder(String name, SourceKeepMode indexSourceKeepMode) {
             super(name);
+            this.indexSourceKeepMode = indexSourceKeepMode;
         }
 
         @Override
@@ -301,26 +307,107 @@ public class CountedKeywordFieldMapper extends FieldMapper {
                     countFieldMapper.fieldType()
                 ),
                 builderParams(this, context),
-                countFieldMapper
+                countFieldMapper,
+                indexSourceKeepMode
             );
         }
     }
 
-    public static TypeParser PARSER = new TypeParser((n, c) -> new CountedKeywordFieldMapper.Builder(n));
+    private static class CountedKeywordFieldSyntheticSourceLoader extends SourceLoader.DocValuesBasedSyntheticFieldLoader {
+        private final String keywordsFieldName;
+        private final String countsFieldName;
+        private final String leafName;
+
+        private SortedSetDocValues keywordsReader;
+        private BinaryDocValues countsReader;
+        private boolean hasValue;
+
+        CountedKeywordFieldSyntheticSourceLoader(String keywordsFieldName, String countsFieldName, String leafName) {
+            this.keywordsFieldName = keywordsFieldName;
+            this.countsFieldName = countsFieldName;
+            this.leafName = leafName;
+        }
+
+        @Override
+        public DocValuesLoader docValuesLoader(LeafReader leafReader, int[] docIdsInLeaf) throws IOException {
+            keywordsReader = leafReader.getSortedSetDocValues(keywordsFieldName);
+            countsReader = leafReader.getBinaryDocValues(countsFieldName);
+
+            if (keywordsReader == null || countsReader == null) {
+                return null;
+            }
+
+            return docId -> {
+                hasValue = keywordsReader.advanceExact(docId);
+                if (hasValue == false) {
+                    return false;
+                }
+
+                boolean countsHasValue = countsReader.advanceExact(docId);
+                assert countsHasValue;
+
+                return true;
+            };
+        }
+
+        @Override
+        public boolean hasValue() {
+            return hasValue;
+        }
+
+        @Override
+        public void write(XContentBuilder b) throws IOException {
+            if (hasValue == false) {
+                return;
+            }
+
+            int[] counts = new BytesArray(countsReader.binaryValue()).streamInput().readVIntArray();
+            boolean singleValue = counts.length == 1 && counts[0] == 1;
+
+            if (singleValue) {
+                b.field(leafName);
+            } else {
+                b.startArray(leafName);
+            }
+
+            for (int i = 0; i < keywordsReader.docValueCount(); i++) {
+                BytesRef currKeyword = keywordsReader.lookupOrd(keywordsReader.nextOrd());
+                for (int j = 0; j < counts[i]; j++) {
+                    b.utf8Value(currKeyword.bytes, currKeyword.offset, currKeyword.length);
+                }
+            }
+
+            if (singleValue == false) {
+                b.endArray();
+            }
+        }
+
+        @Override
+        public String fieldName() {
+            return keywordsFieldName;
+        }
+    }
+
+    public static TypeParser PARSER = new TypeParser(
+        (n, c) -> new CountedKeywordFieldMapper.Builder(n, c.getIndexSettings().sourceKeepMode())
+    );
 
     private final FieldType fieldType;
     private final BinaryFieldMapper countFieldMapper;
+    private final SourceKeepMode indexSourceKeepMode;
 
     protected CountedKeywordFieldMapper(
         String simpleName,
         FieldType fieldType,
         MappedFieldType mappedFieldType,
         BuilderParams builderParams,
-        BinaryFieldMapper countFieldMapper
+        BinaryFieldMapper countFieldMapper,
+        SourceKeepMode indexSourceKeepMode
     ) {
         super(simpleName, mappedFieldType, builderParams);
         this.fieldType = fieldType;
         this.countFieldMapper = countFieldMapper;
+        this.indexSourceKeepMode = indexSourceKeepMode;
     }
 
     @Override
@@ -342,6 +429,11 @@ public class CountedKeywordFieldMapper extends FieldMapper {
         } else {
             throw new IllegalArgumentException("Encountered unexpected token [" + parser.currentToken() + "].");
         }
+
+        if (values.isEmpty()) {
+            return;
+        }
+
         int i = 0;
         int[] counts = new int[values.size()];
         for (Map.Entry<String, Integer> value : values.entrySet()) {
@@ -355,13 +447,18 @@ public class CountedKeywordFieldMapper extends FieldMapper {
 
     private void parseArray(DocumentParserContext context, SortedMap<String, Integer> values) throws IOException {
         XContentParser parser = context.parser();
+        int arrDepth = 1;
         while (true) {
             XContentParser.Token token = parser.nextToken();
             if (token == XContentParser.Token.END_ARRAY) {
-                return;
-            }
-            if (token == XContentParser.Token.VALUE_STRING) {
+                arrDepth -= 1;
+                if (arrDepth <= 0) {
+                    return;
+                }
+            } else if (token == XContentParser.Token.VALUE_STRING) {
                 parseValue(parser, values);
+            } else if (token == XContentParser.Token.START_ARRAY) {
+                arrDepth += 1;
             } else if (token == XContentParser.Token.VALUE_NULL) {
                 // ignore null values
             } else {
@@ -392,11 +489,24 @@ public class CountedKeywordFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName()).init(this);
+        return new Builder(leafName(), indexSourceKeepMode).init(this);
     }
 
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
     }
+
+    @Override
+    protected SyntheticSourceSupport syntheticSourceSupport() {
+        var keepMode = sourceKeepMode().orElse(indexSourceKeepMode);
+        if (keepMode != SourceKeepMode.NONE) {
+            return super.syntheticSourceSupport();
+        }
+
+        return new SyntheticSourceSupport.Native(
+            () -> new CountedKeywordFieldSyntheticSourceLoader(fullPath(), countFieldMapper.fullPath(), leafName())
+        );
+    }
+
 }

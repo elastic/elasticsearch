@@ -409,7 +409,7 @@ public class Bucket extends GroupingFunction implements PostOptimizationVerifica
     }
 
     @Override
-    public void postLogicalOptimizationVerification(Failures failures) {
+    public void postOptimizationVerification(Failures failures) {
         String operation = sourceText();
 
         failures.add(isFoldable(buckets, operation, SECOND))

@@ -10,6 +10,7 @@
 package org.elasticsearch.test.fixtures.minio;
 
 import org.elasticsearch.test.fixtures.testcontainers.DockerEnvironmentAwareTestContainer;
+import org.testcontainers.containers.wait.strategy.Wait;
 import org.testcontainers.images.builder.ImageFromDockerfile;
 
 public final class MinioTestContainer extends DockerEnvironmentAwareTestContainer {
@@ -31,6 +32,10 @@ public final class MinioTestContainer extends DockerEnvironmentAwareTestContaine
         );
         if (enabled) {
             addExposedPort(servicePort);
+            // The following waits for a specific log message as the readiness signal. When the minio docker image
+            // gets upgraded in future, we must ensure the log message still exists or update it here accordingly.
+            // Otherwise the tests using the minio fixture will fail with timeout on waiting the container to be ready.
+            setWaitStrategy(Wait.forLogMessage("API: .*:9000.*", 1));
         }
         this.enabled = enabled;
     }

@@ -10,13 +10,17 @@
 package org.elasticsearch.entitlement.runtime.policy;
 
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.entitlement.runtime.api.NotEntitledException;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
+import java.io.File;
 import java.lang.StackWalker.StackFrame;
 import java.lang.module.ModuleFinder;
 import java.lang.module.ModuleReference;
+import java.nio.file.Path;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -36,15 +40,22 @@ import static java.util.stream.Collectors.toUnmodifiableMap;
 public class PolicyManager {
     private static final Logger logger = LogManager.getLogger(PolicyManager.class);
 
-    record ModuleEntitlements(Map<Class<? extends Entitlement>, List<Entitlement>> entitlementsByType) {
-        public static final ModuleEntitlements NONE = new ModuleEntitlements(Map.of());
+    record ModuleEntitlements(Map<Class<? extends Entitlement>, List<Entitlement>> entitlementsByType, FileAccessTree fileAccess) {
+        public static final ModuleEntitlements NONE = new ModuleEntitlements(Map.of(), FileAccessTree.EMPTY);
 
         ModuleEntitlements {
             entitlementsByType = Map.copyOf(entitlementsByType);
         }
 
         public static ModuleEntitlements from(List<Entitlement> entitlements) {
-            return new ModuleEntitlements(entitlements.stream().collect(groupingBy(Entitlement::getClass)));
+            var fileEntitlements = entitlements.stream()
+                .filter(e -> e.getClass().equals(FileEntitlement.class))
+                .map(e -> (FileEntitlement) e)
+                .toList();
+            return new ModuleEntitlements(
+                entitlements.stream().collect(groupingBy(Entitlement::getClass)),
+                new FileAccessTree(fileEntitlements)
+            );
         }
 
         public boolean hasEntitlement(Class<? extends Entitlement> entitlementClass) {
@@ -85,6 +96,11 @@ public class PolicyManager {
     }
 
     /**
+     * The package name containing agent classes.
+     */
+    private final String agentsPackageName;
+
+    /**
      * Frames originating from this module are ignored in the permission logic.
      */
     private final Module entitlementsModule;
@@ -94,6 +110,7 @@ public class PolicyManager {
         List<Entitlement> agentEntitlements,
         Map<String, Policy> pluginPolicies,
         Function<Class<?>, String> pluginResolver,
+        String agentsPackageName,
         Module entitlementsModule
     ) {
         this.serverEntitlements = buildScopeEntitlementsMap(requireNonNull(serverPolicy));
@@ -102,11 +119,43 @@ public class PolicyManager {
             .stream()
             .collect(toUnmodifiableMap(Map.Entry::getKey, e -> buildScopeEntitlementsMap(e.getValue())));
         this.pluginResolver = pluginResolver;
+        this.agentsPackageName = agentsPackageName;
         this.entitlementsModule = entitlementsModule;
+
+        for (var e : serverEntitlements.entrySet()) {
+            validateEntitlementsPerModule("server", e.getKey(), e.getValue());
+        }
+        validateEntitlementsPerModule("agent", "unnamed", agentEntitlements);
+        for (var p : pluginsEntitlements.entrySet()) {
+            for (var m : p.getValue().entrySet()) {
+                validateEntitlementsPerModule(p.getKey(), m.getKey(), m.getValue());
+            }
+        }
     }
 
     private static Map<String, List<Entitlement>> buildScopeEntitlementsMap(Policy policy) {
         return policy.scopes().stream().collect(toUnmodifiableMap(Scope::moduleName, Scope::entitlements));
+    }
+
+    private static void validateEntitlementsPerModule(String sourceName, String moduleName, List<Entitlement> entitlements) {
+        Set<Class<? extends Entitlement>> flagEntitlements = new HashSet<>();
+        for (var e : entitlements) {
+            if (e instanceof FileEntitlement) {
+                continue;
+            }
+            if (flagEntitlements.contains(e.getClass())) {
+                throw new IllegalArgumentException(
+                    "["
+                        + sourceName
+                        + "] using module ["
+                        + moduleName
+                        + "] found duplicate flag entitlements ["
+                        + e.getClass().getName()
+                        + "]"
+                );
+            }
+            flagEntitlements.add(e.getClass());
+        }
     }
 
     public void checkStartProcess(Class<?> callerClass) {
@@ -114,8 +163,8 @@ public class PolicyManager {
     }
 
     private void neverEntitled(Class<?> callerClass, String operationDescription) {
-        var requestingModule = requestingClass(callerClass);
-        if (isTriviallyAllowed(requestingModule)) {
+        var requestingClass = requestingClass(callerClass);
+        if (isTriviallyAllowed(requestingClass)) {
             return;
         }
 
@@ -123,7 +172,7 @@ public class PolicyManager {
             Strings.format(
                 "Not entitled: caller [%s], module [%s], operation [%s]",
                 callerClass,
-                requestingModule.getName(),
+                requestingClass.getModule() == null ? "<none>" : requestingClass.getModule().getName(),
                 operationDescription
             )
         );
@@ -134,8 +183,8 @@ public class PolicyManager {
      *                            therefore, its performance is not a major concern.
      */
     private void neverEntitled(Class<?> callerClass, Supplier<String> operationDescription) {
-        var requestingModule = requestingClass(callerClass);
-        if (isTriviallyAllowed(requestingModule)) {
+        var requestingClass = requestingClass(callerClass);
+        if (isTriviallyAllowed(requestingClass)) {
             return;
         }
 
@@ -143,7 +192,7 @@ public class PolicyManager {
             Strings.format(
                 "Not entitled: caller [%s], module [%s], operation [%s]",
                 callerClass,
-                requestingModule.getName(),
+                requestingClass.getModule() == null ? "<none>" : requestingClass.getModule().getName(),
                 operationDescription.get()
             )
         );
@@ -189,35 +238,163 @@ public class PolicyManager {
         neverEntitled(callerClass, "access sensitive network information");
     }
 
-    private String operationDescription(String methodName) {
-        // TODO: Use a more human-readable description. Perhaps share code with InstrumentationServiceImpl.parseCheckerMethodName
-        return methodName.substring(methodName.indexOf('$'));
-    }
-
-    public void checkNetworkAccess(Class<?> callerClass, int actions) {
+    @SuppressForbidden(reason = "Explicitly checking File apis")
+    public void checkFileRead(Class<?> callerClass, File file) {
         var requestingClass = requestingClass(callerClass);
         if (isTriviallyAllowed(requestingClass)) {
             return;
         }
 
         ModuleEntitlements entitlements = getEntitlements(requestingClass);
-        if (entitlements.getEntitlements(NetworkEntitlement.class).anyMatch(n -> n.matchActions(actions))) {
+        if (entitlements.fileAccess().canRead(file) == false) {
+            throw new NotEntitledException(
+                Strings.format(
+                    "Not entitled: caller [%s], module [%s], entitlement [file], operation [read], path [%s]",
+                    callerClass,
+                    requestingClass.getModule(),
+                    file
+                )
+            );
+        }
+    }
+
+    public void checkFileRead(Class<?> callerClass, Path path) {
+        var requestingClass = requestingClass(callerClass);
+        if (isTriviallyAllowed(requestingClass)) {
+            return;
+        }
+
+        ModuleEntitlements entitlements = getEntitlements(requestingClass);
+        if (entitlements.fileAccess().canRead(path) == false) {
+            throw new NotEntitledException(
+                Strings.format(
+                    "Not entitled: caller [%s], module [%s], entitlement [file], operation [read], path [%s]",
+                    callerClass,
+                    requestingClass.getModule(),
+                    path
+                )
+            );
+        }
+    }
+
+    @SuppressForbidden(reason = "Explicitly checking File apis")
+    public void checkFileWrite(Class<?> callerClass, File file) {
+        var requestingClass = requestingClass(callerClass);
+        if (isTriviallyAllowed(requestingClass)) {
+            return;
+        }
+
+        ModuleEntitlements entitlements = getEntitlements(requestingClass);
+        if (entitlements.fileAccess().canWrite(file) == false) {
+            throw new NotEntitledException(
+                Strings.format(
+                    "Not entitled: caller [%s], module [%s], entitlement [file], operation [write], path [%s]",
+                    callerClass,
+                    requestingClass.getModule(),
+                    file
+                )
+            );
+        }
+    }
+
+    public void checkFileWrite(Class<?> callerClass, Path path) {
+        var requestingClass = requestingClass(callerClass);
+        if (isTriviallyAllowed(requestingClass)) {
+            return;
+        }
+
+        ModuleEntitlements entitlements = getEntitlements(requestingClass);
+        if (entitlements.fileAccess().canWrite(path) == false) {
+            throw new NotEntitledException(
+                Strings.format(
+                    "Not entitled: caller [%s], module [%s], entitlement [file], operation [write], path [%s]",
+                    callerClass,
+                    requestingClass.getModule(),
+                    path
+                )
+            );
+        }
+    }
+
+    /**
+     * Check for operations that can access sensitive network information, e.g. secrets, tokens or SSL sessions
+     */
+    public void checkLoadingNativeLibraries(Class<?> callerClass) {
+        checkEntitlementPresent(callerClass, LoadNativeLibrariesEntitlement.class);
+    }
+
+    private String operationDescription(String methodName) {
+        // TODO: Use a more human-readable description. Perhaps share code with InstrumentationServiceImpl.parseCheckerMethodName
+        return methodName.substring(methodName.indexOf('$'));
+    }
+
+    public void checkInboundNetworkAccess(Class<?> callerClass) {
+        checkEntitlementPresent(callerClass, InboundNetworkEntitlement.class);
+    }
+
+    public void checkOutboundNetworkAccess(Class<?> callerClass) {
+        checkEntitlementPresent(callerClass, OutboundNetworkEntitlement.class);
+    }
+
+    public void checkAllNetworkAccess(Class<?> callerClass) {
+        var requestingClass = requestingClass(callerClass);
+        if (isTriviallyAllowed(requestingClass)) {
+            return;
+        }
+
+        var classEntitlements = getEntitlements(requestingClass);
+        if (classEntitlements.hasEntitlement(InboundNetworkEntitlement.class) == false) {
+            throw new NotEntitledException(
+                Strings.format(
+                    "Missing entitlement: class [%s], module [%s], entitlement [inbound_network]",
+                    requestingClass,
+                    requestingClass.getModule().getName()
+                )
+            );
+        }
+
+        if (classEntitlements.hasEntitlement(OutboundNetworkEntitlement.class) == false) {
+            throw new NotEntitledException(
+                Strings.format(
+                    "Missing entitlement: class [%s], module [%s], entitlement [outbound_network]",
+                    requestingClass,
+                    requestingClass.getModule().getName()
+                )
+            );
+        }
+        logger.debug(
+            () -> Strings.format(
+                "Entitled: class [%s], module [%s], entitlements [inbound_network, outbound_network]",
+                requestingClass,
+                requestingClass.getModule().getName()
+            )
+        );
+    }
+
+    public void checkWriteProperty(Class<?> callerClass, String property) {
+        var requestingClass = requestingClass(callerClass);
+        if (isTriviallyAllowed(requestingClass)) {
+            return;
+        }
+
+        ModuleEntitlements entitlements = getEntitlements(requestingClass);
+        if (entitlements.getEntitlements(WriteSystemPropertiesEntitlement.class).anyMatch(e -> e.properties().contains(property))) {
             logger.debug(
                 () -> Strings.format(
-                    "Entitled: class [%s], module [%s], entitlement [Network], actions [Ox%X]",
+                    "Entitled: class [%s], module [%s], entitlement [write_system_properties], property [%s]",
                     requestingClass,
                     requestingClass.getModule().getName(),
-                    actions
+                    property
                 )
             );
             return;
         }
         throw new NotEntitledException(
             Strings.format(
-                "Missing entitlement: class [%s], module [%s], entitlement [Network], actions [%s]",
+                "Missing entitlement: class [%s], module [%s], entitlement [write_system_properties], property [%s]",
                 requestingClass,
                 requestingClass.getModule().getName(),
-                NetworkEntitlement.printActions(actions)
+                property
             )
         );
     }
@@ -235,7 +412,7 @@ public class PolicyManager {
                     "Entitled: class [%s], module [%s], entitlement [%s]",
                     requestingClass,
                     requestingClass.getModule().getName(),
-                    entitlementClass.getSimpleName()
+                    PolicyParser.getEntitlementTypeName(entitlementClass)
                 )
             );
             return;
@@ -245,7 +422,7 @@ public class PolicyManager {
                 "Missing entitlement: class [%s], module [%s], entitlement [%s]",
                 requestingClass,
                 requestingClass.getModule().getName(),
-                entitlementClass.getSimpleName()
+                PolicyParser.getEntitlementTypeName(entitlementClass)
             )
         );
     }
@@ -257,7 +434,7 @@ public class PolicyManager {
     private ModuleEntitlements computeEntitlements(Class<?> requestingClass) {
         Module requestingModule = requestingClass.getModule();
         if (isServerModule(requestingModule)) {
-            return getModuleScopeEntitlements(requestingClass, serverEntitlements, requestingModule.getName());
+            return getModuleScopeEntitlements(requestingClass, serverEntitlements, requestingModule.getName(), "server");
         }
 
         // plugins
@@ -271,12 +448,12 @@ public class PolicyManager {
                 } else {
                     scopeName = requestingModule.getName();
                 }
-                return getModuleScopeEntitlements(requestingClass, pluginEntitlements, scopeName);
+                return getModuleScopeEntitlements(requestingClass, pluginEntitlements, scopeName, pluginName);
             }
         }
 
-        if (requestingModule.isNamed() == false) {
-            // agents are the only thing running non-modular
+        if (requestingModule.isNamed() == false && requestingClass.getPackageName().startsWith(agentsPackageName)) {
+            // agents are the only thing running non-modular in the system classloader
             return ModuleEntitlements.from(agentEntitlements);
         }
 
@@ -287,11 +464,12 @@ public class PolicyManager {
     private ModuleEntitlements getModuleScopeEntitlements(
         Class<?> callerClass,
         Map<String, List<Entitlement>> scopeEntitlements,
-        String moduleName
+        String moduleName,
+        String component
     ) {
         var entitlements = scopeEntitlements.get(moduleName);
         if (entitlements == null) {
-            logger.warn("No applicable entitlement policy for module [{}], class [{}]", moduleName, callerClass);
+            logger.warn("No applicable entitlement policy for [{}], module [{}], class [{}]", component, moduleName, callerClass);
             return ModuleEntitlements.NONE;
         }
         return ModuleEntitlements.from(entitlements);

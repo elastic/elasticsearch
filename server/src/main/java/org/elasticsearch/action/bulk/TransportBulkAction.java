@@ -44,7 +44,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.indices.SystemIndices;
@@ -80,7 +79,6 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
     private static final Logger logger = LogManager.getLogger(TransportBulkAction.class);
     public static final String LAZY_ROLLOVER_ORIGIN = "lazy_rollover";
 
-    private final FeatureService featureService;
     private final NodeClient client;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final OriginSettingClient rolloverClient;
@@ -93,7 +91,6 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         TransportService transportService,
         ClusterService clusterService,
         IngestService ingestService,
-        FeatureService featureService,
         NodeClient client,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
@@ -107,7 +104,6 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
             transportService,
             clusterService,
             ingestService,
-            featureService,
             client,
             actionFilters,
             indexNameExpressionResolver,
@@ -124,7 +120,6 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         TransportService transportService,
         ClusterService clusterService,
         IngestService ingestService,
-        FeatureService featureService,
         NodeClient client,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
@@ -141,7 +136,6 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
             transportService,
             clusterService,
             ingestService,
-            featureService,
             client,
             actionFilters,
             indexNameExpressionResolver,
@@ -160,7 +154,6 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         TransportService transportService,
         ClusterService clusterService,
         IngestService ingestService,
-        FeatureService featureService,
         NodeClient client,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
@@ -184,7 +177,6 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         );
         this.dataStreamFailureStoreSettings = dataStreamFailureStoreSettings;
         Objects.requireNonNull(relativeTimeProvider);
-        this.featureService = featureService;
         this.client = client;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.rolloverClient = new OriginSettingClient(client, LAZY_ROLLOVER_ORIGIN);
@@ -283,7 +275,6 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         // A map for memorizing which indices exist.
         Map<String, Boolean> indexExistence = new HashMap<>();
         Function<String, Boolean> indexExistenceComputation = (index) -> indexNameExpressionResolver.hasIndexAbstraction(index, state);
-        boolean lazyRolloverFeature = featureService.clusterHasFeature(state, LazyRolloverAction.DATA_STREAM_LAZY_ROLLOVER);
         boolean lazyRolloverFailureStoreFeature = DataStream.isFailureStoreFeatureFlagEnabled();
         Set<String> indicesThatRequireAlias = new HashSet<>();
 
@@ -328,18 +319,15 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
                 }
             }
             // Determine which data streams and failure stores need to be rolled over.
-            if (lazyRolloverFeature) {
-                DataStream dataStream = state.metadata().dataStreams().get(request.index());
-                if (dataStream != null) {
-                    if (writeToFailureStore == false && dataStream.getBackingIndices().isRolloverOnWrite()) {
-                        dataStreamsToBeRolledOver.add(request.index());
-                    } else if (lazyRolloverFailureStoreFeature
-                        && writeToFailureStore
-                        && dataStream.getFailureIndices().isRolloverOnWrite()) {
-                            failureStoresToBeRolledOver.add(request.index());
-                        }
+            DataStream dataStream = state.metadata().dataStreams().get(request.index());
+            if (dataStream != null) {
+                if (writeToFailureStore == false && dataStream.getDataComponent().isRolloverOnWrite()) {
+                    dataStreamsToBeRolledOver.add(request.index());
+                } else if (lazyRolloverFailureStoreFeature && writeToFailureStore && dataStream.getFailureComponent().isRolloverOnWrite()) {
+                    failureStoresToBeRolledOver.add(request.index());
                 }
             }
+
         }
     }
 

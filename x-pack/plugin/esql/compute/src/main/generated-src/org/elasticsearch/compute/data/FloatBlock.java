@@ -19,7 +19,7 @@ import java.io.IOException;
 
 /**
  * Block that stores float values.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-Block.java.st} instead.
  */
 public sealed interface FloatBlock extends Block permits FloatArrayBlock, FloatVectorBlock, ConstantNullBlock, FloatBigArrayBlock {
 
@@ -215,6 +215,14 @@ public sealed interface FloatBlock extends Block permits FloatArrayBlock, FloatV
          * {@code endExclusive} into this builder.
          */
         Builder copyFrom(FloatBlock block, int beginInclusive, int endExclusive);
+
+        /**
+         * Copy the values in {@code block} at {@code position}. If this position
+         * has a single value, this'll copy a single value. If this positions has
+         * many values, it'll copy all of them. If this is {@code null}, then it'll
+         * copy the {@code null}.
+         */
+        Builder copyFrom(FloatBlock block, int position);
 
         @Override
         Builder appendNull();

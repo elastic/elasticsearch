@@ -7,9 +7,12 @@
 
 package org.elasticsearch.xpack.esql.heap_attack;
 
+import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
+
 import org.apache.http.HttpHost;
 import org.apache.http.client.config.RequestConfig;
 import org.apache.http.util.EntityUtils;
+import org.apache.lucene.tests.util.TimeUnits;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -64,6 +67,7 @@ import static org.hamcrest.Matchers.matchesRegex;
  * Tests that run ESQL queries that use a ton of memory. We want to make
  * sure they don't consume the entire heap and crash Elasticsearch.
  */
+@TimeoutSuite(millis = 40 * TimeUnits.MINUTE)
 public class HeapAttackIT extends ESRestTestCase {
     @ClassRule
     public static ElasticsearchCluster cluster = Clusters.buildCluster();
@@ -86,7 +90,7 @@ public class HeapAttackIT extends ESRestTestCase {
     public void testSortByManyLongsSuccess() throws IOException {
         initManyLongs();
         Response response = sortByManyLongs(500);
-        Map<?, ?> map = responseAsMap(response);
+        Map<String, Object> map = responseAsMap(response);
         ListMatcher columns = matchesList().item(matchesMap().entry("name", "a").entry("type", "long"))
             .item(matchesMap().entry("name", "b").entry("type", "long"));
         ListMatcher values = matchesList();
@@ -95,8 +99,7 @@ public class HeapAttackIT extends ESRestTestCase {
                 values = values.item(List.of(0, b));
             }
         }
-        MapMatcher mapMatcher = matchesMap();
-        assertMap(map, mapMatcher.entry("columns", columns).entry("values", values).entry("took", greaterThanOrEqualTo(0)));
+        assertResultMap(map, columns, values);
     }
 
     /**
@@ -236,11 +239,10 @@ public class HeapAttackIT extends ESRestTestCase {
     public void testGroupOnSomeLongs() throws IOException {
         initManyLongs();
         Response resp = groupOnManyLongs(200);
-        Map<?, ?> map = responseAsMap(resp);
+        Map<String, Object> map = responseAsMap(resp);
         ListMatcher columns = matchesList().item(matchesMap().entry("name", "MAX(a)").entry("type", "long"));
         ListMatcher values = matchesList().item(List.of(9));
-        MapMatcher mapMatcher = matchesMap();
-        assertMap(map, mapMatcher.entry("columns", columns).entry("values", values).entry("took", greaterThanOrEqualTo(0)));
+        assertResultMap(map, columns, values);
     }
 
     /**
@@ -249,11 +251,10 @@ public class HeapAttackIT extends ESRestTestCase {
     public void testGroupOnManyLongs() throws IOException {
         initManyLongs();
         Response resp = groupOnManyLongs(5000);
-        Map<?, ?> map = responseAsMap(resp);
+        Map<String, Object> map = responseAsMap(resp);
         ListMatcher columns = matchesList().item(matchesMap().entry("name", "MAX(a)").entry("type", "long"));
         ListMatcher values = matchesList().item(List.of(9));
-        MapMatcher mapMatcher = matchesMap();
-        assertMap(map, mapMatcher.entry("columns", columns).entry("values", values).entry("took", greaterThanOrEqualTo(0)));
+        assertResultMap(map, columns, values);
     }
 
     private Response groupOnManyLongs(int count) throws IOException {
@@ -279,12 +280,11 @@ public class HeapAttackIT extends ESRestTestCase {
     public void testSmallConcat() throws IOException {
         initSingleDocIndex();
         Response resp = concat(2);
-        Map<?, ?> map = responseAsMap(resp);
+        Map<String, Object> map = responseAsMap(resp);
         ListMatcher columns = matchesList().item(matchesMap().entry("name", "a").entry("type", "long"))
             .item(matchesMap().entry("name", "str").entry("type", "keyword"));
         ListMatcher values = matchesList().item(List.of(1, "1".repeat(100)));
-        MapMatcher mapMatcher = matchesMap();
-        assertMap(map, mapMatcher.entry("columns", columns).entry("values", values).entry("took", greaterThanOrEqualTo(0)));
+        assertResultMap(map, columns, values);
     }
 
     public void testHugeConcat() throws IOException {
@@ -465,7 +465,7 @@ public class HeapAttackIT extends ESRestTestCase {
     public void testManyEval() throws IOException {
         initManyLongs();
         Response resp = manyEval(1);
-        Map<?, ?> map = responseAsMap(resp);
+        Map<String, Object> map = responseAsMap(resp);
         ListMatcher columns = matchesList();
         columns = columns.item(matchesMap().entry("name", "a").entry("type", "long"));
         columns = columns.item(matchesMap().entry("name", "b").entry("type", "long"));
@@ -475,8 +475,7 @@ public class HeapAttackIT extends ESRestTestCase {
         for (int i = 0; i < 20; i++) {
             columns = columns.item(matchesMap().entry("name", "i0" + i).entry("type", "long"));
         }
-        MapMatcher mapMatcher = matchesMap();
-        assertMap(map, mapMatcher.entry("columns", columns).entry("values", hasSize(10_000)).entry("took", greaterThanOrEqualTo(0)));
+        assertResultMap(map, columns, hasSize(10_000));
     }
 
     public void testTooManyEval() throws IOException {

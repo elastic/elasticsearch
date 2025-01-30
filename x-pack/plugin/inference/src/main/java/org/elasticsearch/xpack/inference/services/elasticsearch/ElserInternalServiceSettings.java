@@ -11,6 +11,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
 
 import java.io.IOException;
@@ -20,6 +21,10 @@ import java.util.Map;
 public class ElserInternalServiceSettings extends ElasticsearchInternalServiceSettings {
 
     public static final String NAME = "elser_mlnode_service_settings";
+
+    public static MinimalServiceSettings minimalServiceSettings() {
+        return MinimalServiceSettings.sparseEmbedding();
+    }
 
     public static Builder fromRequestMap(Map<String, Object> map) {
         ValidationException validationException = new ValidationException();

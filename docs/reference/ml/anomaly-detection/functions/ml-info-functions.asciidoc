@@ -1,4 +1,4 @@
-["appendix",role="exclude",id="ml-info-functions"]
+[[ml-info-functions]]
 = Information content functions
 
 The information content functions detect anomalies in the amount of information

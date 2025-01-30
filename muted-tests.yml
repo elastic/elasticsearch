@@ -340,6 +340,9 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/121293
 - class: org.elasticsearch.xpack.inference.common.InferenceServiceNodeLocalRateLimitCalculatorTests
   issue: https://github.com/elastic/elasticsearch/issues/121294
+- class: org.elasticsearch.env.NodeEnvironmentTests
+  method: testGetBestDowngradeVersion
+  issue: https://github.com/elastic/elasticsearch/issues/121316
 
 # Examples:
 #

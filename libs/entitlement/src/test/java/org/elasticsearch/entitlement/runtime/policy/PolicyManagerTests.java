@@ -286,6 +286,78 @@ public class PolicyManagerTests extends ESTestCase {
         }
     }
 
+    public void testDuplicateFlagEntitlements() {
+        IllegalArgumentException iae = expectThrows(
+            IllegalArgumentException.class,
+            () -> new PolicyManager(
+                new Policy(
+                    "server",
+                    List.of(new Scope("test", List.of(new CreateClassLoaderEntitlement(), new CreateClassLoaderEntitlement())))
+                ),
+                List.of(),
+                Map.of(),
+                c -> "test",
+                TEST_AGENTS_PACKAGE_NAME,
+                NO_ENTITLEMENTS_MODULE
+            )
+        );
+        assertEquals(
+            "[server] using module [test] found duplicate flag entitlements "
+                + "[org.elasticsearch.entitlement.runtime.policy.CreateClassLoaderEntitlement]",
+            iae.getMessage()
+        );
+
+        iae = expectThrows(
+            IllegalArgumentException.class,
+            () -> new PolicyManager(
+                createEmptyTestServerPolicy(),
+                List.of(new CreateClassLoaderEntitlement(), new CreateClassLoaderEntitlement()),
+                Map.of(),
+                c -> "test",
+                TEST_AGENTS_PACKAGE_NAME,
+                NO_ENTITLEMENTS_MODULE
+            )
+        );
+        assertEquals(
+            "[agent] using module [unnamed] found duplicate flag entitlements "
+                + "[org.elasticsearch.entitlement.runtime.policy.CreateClassLoaderEntitlement]",
+            iae.getMessage()
+        );
+
+        iae = expectThrows(
+            IllegalArgumentException.class,
+            () -> new PolicyManager(
+                createEmptyTestServerPolicy(),
+                List.of(),
+                Map.of(
+                    "plugin1",
+                    new Policy(
+                        "test",
+                        List.of(
+                            new Scope(
+                                "test",
+                                List.of(
+                                    new FileEntitlement("/test/path", FileEntitlement.Mode.READ),
+                                    new CreateClassLoaderEntitlement(),
+                                    new FileEntitlement("/test/test", FileEntitlement.Mode.READ),
+                                    new CreateClassLoaderEntitlement()
+                                )
+                            )
+                        )
+                    )
+                ),
+                c -> "plugin1",
+                TEST_AGENTS_PACKAGE_NAME,
+                NO_ENTITLEMENTS_MODULE
+            )
+        );
+        assertEquals(
+            "[plugin1] using module [test] found duplicate flag entitlements "
+                + "[org.elasticsearch.entitlement.runtime.policy.CreateClassLoaderEntitlement]",
+            iae.getMessage()
+        );
+    }
+
     private static Class<?> makeClassInItsOwnModule() throws IOException, ClassNotFoundException {
         final Path home = createTempDir();
         Path jar = createMockPluginJar(home);

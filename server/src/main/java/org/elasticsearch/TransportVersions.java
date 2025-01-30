@@ -170,6 +170,7 @@ public class TransportVersions {
     public static final TransportVersion RESOURCE_DEPRECATION_CHECKS = def(8_836_00_0);
     public static final TransportVersion LINEAR_RETRIEVER_SUPPORT = def(8_837_00_0);
     public static final TransportVersion TIMEOUT_GET_PARAM_FOR_RESOLVE_CLUSTER = def(8_838_00_0);
+    public static final TransportVersion INFERENCE_REQUEST_ADAPTIVE_RATE_LIMITING = def(8_839_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

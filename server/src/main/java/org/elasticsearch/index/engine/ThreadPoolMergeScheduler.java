@@ -19,7 +19,6 @@ import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.RateLimitedIndexOutput;
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -231,7 +230,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
 
     final class MergeTask extends AbstractRunnable implements Comparable<MergeTask> {
         private final String name;
-        private final SetOnce<Long> mergeStartTimeNS;
+        private final AtomicLong mergeStartTimeNS;
         private final MergeSource mergeSource;
         private final OnGoingMerge onGoingMerge;
         private final MergeRateLimiter rateLimiter;
@@ -239,7 +238,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
 
         MergeTask(MergeSource mergeSource, MergePolicy.OneMerge merge, boolean supportsIOThrottling, String name) {
             this.name = name;
-            this.mergeStartTimeNS = new SetOnce<>();
+            this.mergeStartTimeNS = new AtomicLong();
             this.mergeSource = mergeSource;
             this.onGoingMerge = new OnGoingMerge(merge);
             this.rateLimiter = new MergeRateLimiter(merge.getMergeProgress());
@@ -268,15 +267,14 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
         }
 
         public boolean isRunning() {
-            return mergeStartTimeNS.get() != null;
+            return mergeStartTimeNS.get() > 0L;
         }
 
         @Override
         public void doRun() throws Exception {
-            if (isRunning()) {
+            if (!mergeStartTimeNS.compareAndSet(0L, System.nanoTime())) {
                 throw new IllegalStateException("Cannot run the same merge task multiple times");
             }
-            mergeStartTimeNS.set(System.nanoTime());
             try {
                 beforeMerge(onGoingMerge);
                 mergeTracking.mergeStarted(onGoingMerge);
@@ -351,7 +349,6 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
             if (isRunning() == false) {
                 throw new IllegalStateException("onFailure must only be invoked after doRun");
             }
-            assert this.mergeStartTimeNS.get() != null : "onFailure should always be invoked after doRun";
             // most commonly the merge should've already be aborted by now,
             // plus the engine is probably going to be failed when any merge fails,
             // but keep this in case something believes calling `MergeTask#onFailure` is a sane way to abort a merge

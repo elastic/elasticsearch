@@ -352,6 +352,8 @@ tests:
 - class: org.elasticsearch.upgrades.VectorSearchIT
   method: testBBQVectorSearch {upgradedNodes=3}
   issue: https://github.com/elastic/elasticsearch/issues/121273
+- class: org.elasticsearch.xpack.security.authc.ldap.ActiveDirectorySessionFactoryTests
+  issue: https://github.com/elastic/elasticsearch/issues/121285
 
 # Examples:
 #

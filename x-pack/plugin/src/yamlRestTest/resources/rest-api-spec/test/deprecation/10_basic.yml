@@ -6,6 +6,13 @@ setup:
 
 ---
 "Test Deprecations":
+  - requires:
+      capabilities:
+        - method: GET
+          path: /_migration/deprecations
+          capabilities: [ data_streams, ilm_policies, templates ]
+      test_runner_features: capabilities
+      reason: "Support for data streams, ILM policies and templates"
   - do:
       migration.deprecations:
         index: "*"
@@ -13,6 +20,9 @@ setup:
   - length: { node_settings: 0 }
   - length: { index_settings: 0 }
   - length: { ml_settings: 0 }
+  - length: { data_streams: 0 }
+  - length: { templates: 0 }
+  - length: { ilm_policies: 0 }
 
 ---
 "Test ml":

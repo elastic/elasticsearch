@@ -28,7 +28,7 @@ import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FilteredExpression;
-import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchOperator;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.RLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.WildcardLike;
@@ -42,7 +42,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Gre
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
-import org.elasticsearch.xpack.esql.plan.TableIdentifier;
+import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
@@ -62,6 +62,8 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
+import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -76,6 +78,12 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsConstant;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsIdentifier;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsPattern;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
+import static org.elasticsearch.xpack.esql.IdentifierGenerator.Features.CROSS_CLUSTER;
+import static org.elasticsearch.xpack.esql.IdentifierGenerator.Features.WILDCARD_PATTERN;
+import static org.elasticsearch.xpack.esql.IdentifierGenerator.randomIndexPattern;
+import static org.elasticsearch.xpack.esql.IdentifierGenerator.randomIndexPatterns;
+import static org.elasticsearch.xpack.esql.IdentifierGenerator.unquoteIndexPattern;
+import static org.elasticsearch.xpack.esql.IdentifierGenerator.without;
 import static org.elasticsearch.xpack.esql.core.expression.Literal.FALSE;
 import static org.elasticsearch.xpack.esql.core.expression.Literal.TRUE;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
@@ -481,7 +489,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
             clusterAndIndexAsIndexPattern(command, "cluster:index");
             clusterAndIndexAsIndexPattern(command, "cluster:.index");
             clusterAndIndexAsIndexPattern(command, "cluster*:index*");
-            clusterAndIndexAsIndexPattern(command, "cluster*:<logstash-{now/D}>*");
+            clusterAndIndexAsIndexPattern(command, "cluster*:<logstash-{now/D}>*");// this is not a valid pattern, * should be inside <>
+            clusterAndIndexAsIndexPattern(command, "cluster*:<logstash-{now/D}*>");
             clusterAndIndexAsIndexPattern(command, "cluster*:*");
             clusterAndIndexAsIndexPattern(command, "*:index*");
             clusterAndIndexAsIndexPattern(command, "*:*");
@@ -613,60 +622,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
             unresolvedRelation(indexString1 + ", " + indexString2),
             statement(command, "\"" + indexString1 + ", " + indexString2 + "\"")
         );
-    }
-
-    public void testValidFromIndexPattern() {
-        var patterns = randomList(1, 5, () -> {
-            String pattern = randomIndexIdentifier();// index or alias
-            if (randomBoolean()) {// pattern
-                pattern += "*";
-            }
-            if (randomBoolean()) {// quoted
-                pattern = "\"" + pattern + "\"";
-            }
-            if (randomBoolean()) {// remote cluster
-                var cluster = randomIdentifier();
-                if (randomBoolean()) {// quoted
-                    cluster = "\"" + cluster + "\"";
-                }
-                pattern = cluster + ":" + pattern;
-            }
-            if (pattern.contains(":") && pattern.contains("\"") == false) {// quote entire "cluster:index"
-                pattern = "\"" + pattern + "\"";
-            }
-            return pattern;
-        });
-
-        var plan = statement("FROM " + String.join(",", patterns));
-        var expected = String.join(",", patterns).replace("\"", "");
-
-        assertThat(plan, instanceOf(UnresolvedRelation.class));
-        assertThat(((UnresolvedRelation) plan).table().index(), equalTo(expected));
-    }
-
-    private static String randomIndexIdentifier() {
-        // https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-create-index.html#indices-create-api-path-params
-        var validFirstCharacters = "abcdefghijklmnopqrstuvwxyz0123456789!'$^&";
-        var validCharacters = validFirstCharacters + "+-_.";
-
-        var index = new StringBuilder();
-        if (randomInt(9) == 0) {// hidden index
-            index.append('.');
-        }
-        index.append(randomCharacterFrom(validFirstCharacters));
-        for (int i = 0; i < randomIntBetween(1, 100); i++) {
-            index.append(randomCharacterFrom(validCharacters));
-        }
-        return index.toString();
-    }
-
-    private static char randomCharacterFrom(String str) {
-        return str.charAt(randomInt(str.length() - 1));
-    }
-
-    public void testInvalidFromIndexPattern() {
-        expectError("FROM \"remote:\":index", "line 1:6: cluster string [remote:] must not contain ':'");
-        expectError("FROM \"remote:invalid\":index", "line 1:6: cluster string [remote:invalid] must not contain ':'");
     }
 
     public void testInvalidQuotingAsFromIndexPattern() {
@@ -1741,8 +1696,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     List.of(new Order(EMPTY, attribute("f.11..f.12.*"), Order.OrderDirection.ASC, Order.NullsPosition.LAST))
                 ),
                 attribute("f.*.13.f.14*"),
-                attribute("f.*.13.f.14*"),
-                null
+                attribute("f.*.13.f.14*")
             ),
             statement(
                 """
@@ -2099,7 +2053,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         LogicalPlan from = statement(statement);
         assertThat(from, instanceOf(UnresolvedRelation.class));
         UnresolvedRelation table = (UnresolvedRelation) from;
-        assertThat(table.table().index(), is(string));
+        assertThat(table.indexPattern().indexPattern(), is(string));
     }
 
     private void assertStringAsLookupIndexPattern(String string, String statement) {
@@ -2134,7 +2088,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(breakIntoFragments(string), contains("this", "`is`", "a", "`mix`", "of", "`ids`"));
     }
 
-    public void testIdPatternQuotedTrailing() {
+    public void testIdPatternQuotedTraling() {
         var string = "`foo`*";
         assertThat(breakIntoFragments(string), contains("`foo`", "*"));
     }
@@ -2330,20 +2284,12 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     private LogicalPlan unresolvedRelation(String index) {
-        return new UnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, index), false, List.of(), IndexMode.STANDARD, null, "FROM");
+        return new UnresolvedRelation(EMPTY, new IndexPattern(EMPTY, index), false, List.of(), IndexMode.STANDARD, null, "FROM");
     }
 
     private LogicalPlan unresolvedTSRelation(String index) {
         List<Attribute> metadata = List.of(new MetadataAttribute(EMPTY, MetadataAttribute.TSID_FIELD, DataType.KEYWORD, false));
-        return new UnresolvedRelation(
-            EMPTY,
-            new TableIdentifier(EMPTY, null, index),
-            false,
-            metadata,
-            IndexMode.TIME_SERIES,
-            null,
-            "FROM TS"
-        );
+        return new UnresolvedRelation(EMPTY, new IndexPattern(EMPTY, index), false, metadata, IndexMode.TIME_SERIES, null, "FROM TS");
     }
 
     public void testMetricWithGroupKeyAsAgg() {
@@ -2357,7 +2303,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testMatchOperatorConstantQueryString() {
         var plan = statement("FROM test | WHERE field:\"value\"");
         var filter = as(plan, Filter.class);
-        var match = (Match) filter.condition();
+        var match = (MatchOperator) filter.condition();
         var matchField = (UnresolvedAttribute) match.field();
         assertThat(matchField.name(), equalTo("field"));
         assertThat(match.query().fold(FoldContext.small()), equalTo("value"));
@@ -2401,7 +2347,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testMatchOperatorFieldCasting() {
         var plan = statement("FROM test | WHERE field::int : \"value\"");
         var filter = as(plan, Filter.class);
-        var match = (Match) filter.condition();
+        var match = (MatchOperator) filter.condition();
         var toInteger = (ToInteger) match.field();
         var matchField = (UnresolvedAttribute) toInteger.field();
         assertThat(matchField.name(), equalTo("field"));
@@ -2416,10 +2362,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testNamedFunctionArgumentInMap() {
-        assumeTrue(
-            "named function arguments require snapshot build",
-            EsqlCapabilities.Cap.OPTIONAL_NAMED_ARGUMENT_MAP_FOR_FUNCTION.isEnabled()
-        );
         // functions can be scalar, grouping and aggregation
         // functions can be in eval/where/stats/sort/dissect/grok commands, commands in snapshot are not covered
         // positive
@@ -2657,10 +2599,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testNamedFunctionArgumentWithCaseSensitiveKeys() {
-        assumeTrue(
-            "named function arguments require snapshot build",
-            EsqlCapabilities.Cap.OPTIONAL_NAMED_ARGUMENT_MAP_FOR_FUNCTION.isEnabled()
-        );
         LinkedHashMap<String, Object> expectedMap1 = new LinkedHashMap<>(3);
         expectedMap1.put("option", "string");
         expectedMap1.put("Option", 1);
@@ -2702,10 +2640,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testMultipleNamedFunctionArgumentsNotAllowed() {
-        assumeTrue(
-            "named function arguments require snapshot build",
-            EsqlCapabilities.Cap.OPTIONAL_NAMED_ARGUMENT_MAP_FOR_FUNCTION.isEnabled()
-        );
         Map<String, String> commands = Map.ofEntries(
             Map.entry("eval x = {}", "41"),
             Map.entry("where {}", "38"),
@@ -2730,10 +2664,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testNamedFunctionArgumentNotInMap() {
-        assumeTrue(
-            "named function arguments require snapshot build",
-            EsqlCapabilities.Cap.OPTIONAL_NAMED_ARGUMENT_MAP_FOR_FUNCTION.isEnabled()
-        );
         Map<String, String> commands = Map.ofEntries(
             Map.entry("eval x = {}", "38"),
             Map.entry("where {}", "35"),
@@ -2758,10 +2688,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testNamedFunctionArgumentNotConstant() {
-        assumeTrue(
-            "named function arguments require snapshot build",
-            EsqlCapabilities.Cap.OPTIONAL_NAMED_ARGUMENT_MAP_FOR_FUNCTION.isEnabled()
-        );
         Map<String, String[]> commands = Map.ofEntries(
             Map.entry("eval x = {}", new String[] { "31", "35" }),
             Map.entry("where {}", new String[] { "28", "32" }),
@@ -2794,10 +2720,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testNamedFunctionArgumentEmptyMap() {
-        assumeTrue(
-            "named function arguments require snapshot build",
-            EsqlCapabilities.Cap.OPTIONAL_NAMED_ARGUMENT_MAP_FOR_FUNCTION.isEnabled()
-        );
         Map<String, String> commands = Map.ofEntries(
             Map.entry("eval x = {}", "30"),
             Map.entry("where {}", "27"),
@@ -2822,10 +2744,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testNamedFunctionArgumentMapWithNULL() {
-        assumeTrue(
-            "named function arguments require snapshot build",
-            EsqlCapabilities.Cap.OPTIONAL_NAMED_ARGUMENT_MAP_FOR_FUNCTION.isEnabled()
-        );
         Map<String, String> commands = Map.ofEntries(
             Map.entry("eval x = {}", "29"),
             Map.entry("where {}", "26"),
@@ -2852,10 +2770,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testNamedFunctionArgumentMapWithEmptyKey() {
-        assumeTrue(
-            "named function arguments require snapshot build",
-            EsqlCapabilities.Cap.OPTIONAL_NAMED_ARGUMENT_MAP_FOR_FUNCTION.isEnabled()
-        );
         Map<String, String> commands = Map.ofEntries(
             Map.entry("eval x = {}", "29"),
             Map.entry("where {}", "26"),
@@ -2891,10 +2805,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testNamedFunctionArgumentMapWithDuplicatedKey() {
-        assumeTrue(
-            "named function arguments require snapshot build",
-            EsqlCapabilities.Cap.OPTIONAL_NAMED_ARGUMENT_MAP_FOR_FUNCTION.isEnabled()
-        );
         Map<String, String> commands = Map.ofEntries(
             Map.entry("eval x = {}", "29"),
             Map.entry("where {}", "26"),
@@ -2921,10 +2831,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testNamedFunctionArgumentInInvalidPositions() {
-        assumeTrue(
-            "named function arguments require snapshot build",
-            EsqlCapabilities.Cap.OPTIONAL_NAMED_ARGUMENT_MAP_FOR_FUNCTION.isEnabled()
-        );
         // negative, named arguments are not supported outside of a functionExpression where booleanExpression or indexPattern is supported
         String map = "{\"option1\":\"string\", \"option2\":1}";
 
@@ -2954,10 +2860,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testNamedFunctionArgumentWithUnsupportedNamedParameterTypes() {
-        assumeTrue(
-            "named function arguments require snapshot build",
-            EsqlCapabilities.Cap.OPTIONAL_NAMED_ARGUMENT_MAP_FOR_FUNCTION.isEnabled()
-        );
         Map<String, String> commands = Map.ofEntries(
             Map.entry("eval x = {}", "29"),
             Map.entry("where {}", "26"),
@@ -2990,6 +2892,64 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     error,
                     "Invalid named function argument [\"option1\":?n1], only constant value is supported"
                 )
+            );
+        }
+    }
+
+    public void testValidFromPattern() {
+        var basePattern = randomIndexPatterns();
+
+        var plan = statement("FROM " + basePattern);
+
+        assertThat(as(plan, UnresolvedRelation.class).indexPattern().indexPattern(), equalTo(unquoteIndexPattern(basePattern)));
+    }
+
+    public void testValidJoinPattern() {
+        assumeTrue("LOOKUP JOIN requires corresponding capability", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
+
+        var basePattern = randomIndexPatterns(without(CROSS_CLUSTER));
+        var joinPattern = randomIndexPattern(without(WILDCARD_PATTERN), without(CROSS_CLUSTER));
+        var onField = randomIdentifier();
+
+        var plan = statement("FROM " + basePattern + " | LOOKUP JOIN " + joinPattern + " ON " + onField);
+
+        var join = as(plan, LookupJoin.class);
+        assertThat(as(join.left(), UnresolvedRelation.class).indexPattern().indexPattern(), equalTo(unquoteIndexPattern(basePattern)));
+        assertThat(as(join.right(), UnresolvedRelation.class).indexPattern().indexPattern(), equalTo(unquoteIndexPattern(joinPattern)));
+
+        var joinType = as(join.config().type(), JoinTypes.UsingJoinType.class);
+        assertThat(joinType.columns(), hasSize(1));
+        assertThat(as(joinType.columns().getFirst(), UnresolvedAttribute.class).name(), equalTo(onField));
+        assertThat(joinType.coreJoin().joinName(), equalTo("LEFT OUTER"));
+    }
+
+    public void testInvalidJoinPatterns() {
+        assumeTrue("LOOKUP JOIN requires corresponding capability", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
+
+        {
+            // wildcard
+            var joinPattern = randomIndexPattern(WILDCARD_PATTERN, without(CROSS_CLUSTER));
+            expectError(
+                "FROM " + randomIndexPatterns() + " | LOOKUP JOIN " + joinPattern + " ON " + randomIdentifier(),
+                "invalid index pattern [" + unquoteIndexPattern(joinPattern) + "], * is not allowed in LOOKUP JOIN"
+            );
+        }
+        {
+            // remote cluster on the right
+            var fromPatterns = randomIndexPatterns(without(CROSS_CLUSTER));
+            var joinPattern = randomIndexPattern(CROSS_CLUSTER, without(WILDCARD_PATTERN));
+            expectError(
+                "FROM " + fromPatterns + " | LOOKUP JOIN " + joinPattern + " ON " + randomIdentifier(),
+                "invalid index pattern [" + unquoteIndexPattern(joinPattern) + "], remote clusters are not supported in LOOKUP JOIN"
+            );
+        }
+        {
+            // remote cluster on the left
+            var fromPatterns = randomIndexPatterns(CROSS_CLUSTER);
+            var joinPattern = randomIndexPattern(without(CROSS_CLUSTER), without(WILDCARD_PATTERN));
+            expectError(
+                "FROM " + fromPatterns + " | LOOKUP JOIN " + joinPattern + " ON " + randomIdentifier(),
+                "invalid index pattern [" + unquoteIndexPattern(fromPatterns) + "], remote clusters are not supported in LOOKUP JOIN"
             );
         }
     }

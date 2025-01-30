@@ -12,8 +12,12 @@ package org.elasticsearch.lucene;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.InputStreamEntity;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MapperService;
@@ -24,6 +28,7 @@ import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.Version;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentType;
+import org.hamcrest.Matcher;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.ClassRule;
@@ -32,7 +37,9 @@ import org.junit.rules.TemporaryFolder;
 import org.junit.rules.TestRule;
 
 import java.io.IOException;
+import java.util.Comparator;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.stream.IntStream;
@@ -41,6 +48,7 @@ import static org.elasticsearch.test.cluster.util.Version.CURRENT;
 import static org.elasticsearch.test.cluster.util.Version.fromString;
 import static org.elasticsearch.test.rest.ObjectPath.createFromResponse;
 import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
@@ -259,13 +267,63 @@ public abstract class AbstractIndexCompatibilityTestCase extends ESRestTestCase 
         return IndexMetadata.State.fromString((String) state) == IndexMetadata.State.CLOSE;
     }
 
-    protected static void addIndexWriteBlock(String indexName) throws Exception {
-        assertAcknowledged(client().performRequest(new Request("PUT", Strings.format("/%s/_block/write", indexName))));
-    }
-
     protected static void forceMerge(String indexName, int maxNumSegments) throws Exception {
         var request = new Request("POST", '/' + indexName + "/_forcemerge");
         request.addParameter("max_num_segments", String.valueOf(maxNumSegments));
         assertOK(client().performRequest(request));
+    }
+
+    protected void addIndexBlock(String indexName, IndexMetadata.APIBlock apiBlock) throws Exception {
+        logger.debug("--> adding index block [{}] to [{}]", apiBlock, indexName);
+        var request = new Request("PUT", Strings.format("/%s/_block/%s", indexName, apiBlock.name().toLowerCase(Locale.ROOT)));
+        assertAcknowledged(client().performRequest(request));
+    }
+
+    private static ClusterBlock toIndexBlock(String blockId) {
+        int block = Integer.parseInt(blockId);
+        for (var indexBlock : List.of(
+            IndexMetadata.INDEX_READ_ONLY_BLOCK,
+            IndexMetadata.INDEX_READ_BLOCK,
+            IndexMetadata.INDEX_WRITE_BLOCK,
+            IndexMetadata.INDEX_METADATA_BLOCK,
+            IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK,
+            IndexMetadata.INDEX_REFRESH_BLOCK,
+            MetadataIndexStateService.INDEX_CLOSED_BLOCK
+        )) {
+            if (block == indexBlock.id()) {
+                return indexBlock;
+            }
+        }
+        throw new AssertionError("No index block found with id [" + blockId + ']');
+    }
+
+    @SuppressWarnings("unchecked")
+    protected static List<ClusterBlock> indexBlocks(String indexName) throws Exception {
+        var responseBody = createFromResponse(client().performRequest(new Request("GET", "_cluster/state/blocks/" + indexName)));
+        var blocks = (Map<String, ?>) responseBody.evaluate("blocks.indices." + indexName);
+        if (blocks == null || blocks.isEmpty()) {
+            return List.of();
+        }
+        return blocks.keySet()
+            .stream()
+            .map(AbstractIndexCompatibilityTestCase::toIndexBlock)
+            .sorted(Comparator.comparing(ClusterBlock::id))
+            .toList();
+    }
+
+    @SuppressWarnings("unchecked")
+    protected static void assertIndexSetting(String indexName, Setting<?> setting, Matcher<Boolean> matcher) throws Exception {
+        var indexSettings = getIndexSettingsAsMap(indexName);
+        assertThat(Boolean.parseBoolean((String) indexSettings.get(setting.getKey())), matcher);
+    }
+
+    protected static ResponseException expectUpdateIndexSettingsThrows(String indexName, Settings.Builder settings) {
+        var exception = expectThrows(ResponseException.class, () -> updateIndexSettings(indexName, settings));
+        assertThat(exception.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        return exception;
+    }
+
+    protected static Matcher<String> containsStringCannotRemoveBlockOnReadOnlyIndex(String indexName) {
+        return allOf(containsString("Can't remove the write block on read-only compatible index"), containsString(indexName));
     }
 }

@@ -19,15 +19,6 @@ import java.util.Set;
  */
 public class MapperFeatures implements FeatureSpecification {
 
-    // Used to avoid noise in mixed cluster and rest compatibility tests. Must not be backported to 8.x branch.
-    // This label gets added to tests with such failures before merging with main, then removed when backported to 8.x.
-    public static final NodeFeature BWC_WORKAROUND_9_0 = new NodeFeature("mapper.bwc_workaround_9_0", true);
-
-    @Override
-    public Set<NodeFeature> getFeatures() {
-        return Set.of(BWC_WORKAROUND_9_0);
-    }
-
     public static final NodeFeature CONSTANT_KEYWORD_SYNTHETIC_SOURCE_WRITE_FIX = new NodeFeature(
         "mapper.constant_keyword.synthetic_source_write_fix"
     );
@@ -38,6 +29,7 @@ public class MapperFeatures implements FeatureSpecification {
 
     public static final NodeFeature META_FETCH_FIELDS_ERROR_CODE_CHANGED = new NodeFeature("meta_fetch_fields_error_code_changed");
     public static final NodeFeature SPARSE_VECTOR_STORE_SUPPORT = new NodeFeature("mapper.sparse_vector.store_support");
+    public static final NodeFeature SORT_FIELDS_CHECK_FOR_NESTED_OBJECT_FIX = new NodeFeature("mapper.nested.sorting_fields_check_fix");
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
@@ -53,8 +45,10 @@ public class MapperFeatures implements FeatureSpecification {
             CONSTANT_KEYWORD_SYNTHETIC_SOURCE_WRITE_FIX,
             META_FETCH_FIELDS_ERROR_CODE_CHANGED,
             SPARSE_VECTOR_STORE_SUPPORT,
+            SORT_FIELDS_CHECK_FOR_NESTED_OBJECT_FIX,
             COUNTED_KEYWORD_SYNTHETIC_SOURCE_NATIVE_SUPPORT,
-            SourceFieldMapper.SYNTHETIC_RECOVERY_SOURCE
+            SourceFieldMapper.SYNTHETIC_RECOVERY_SOURCE,
+            ObjectMapper.SUBOBJECTS_FALSE_MAPPING_UPDATE_FIX
         );
     }
 }

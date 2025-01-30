@@ -47,7 +47,6 @@ public class TransportRestoreSnapshotAction extends TransportMasterNodeAction<Re
             threadPool,
             actionFilters,
             RestoreSnapshotRequest::new,
-            indexNameExpressionResolver,
             RestoreSnapshotResponse::new,
             threadPool.executor(ThreadPool.Names.SNAPSHOT_META)
         );

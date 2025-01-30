@@ -87,10 +87,7 @@ public class RequestTaskTests extends ESTestCase {
         );
 
         var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
-        assertThat(
-            thrownException.getMessage(),
-            is(format("Request timed out waiting to be sent after [%s]", TimeValue.timeValueMillis(1)))
-        );
+        assertThat(thrownException.getMessage(), is(format("Request timed out after [%s]", TimeValue.timeValueMillis(1))));
         assertTrue(requestTask.hasCompleted());
         assertTrue(requestTask.getRequestCompletedFunction().get());
         assertThat(thrownException.status().getStatus(), is(408));
@@ -117,10 +114,7 @@ public class RequestTaskTests extends ESTestCase {
 
         ArgumentCaptor<Exception> argument = ArgumentCaptor.forClass(Exception.class);
         verify(listener, times(1)).onFailure(argument.capture());
-        assertThat(
-            argument.getValue().getMessage(),
-            is(format("Request timed out waiting to be sent after [%s]", TimeValue.timeValueMillis(1)))
-        );
+        assertThat(argument.getValue().getMessage(), is(format("Request timed out after [%s]", TimeValue.timeValueMillis(1))));
         assertTrue(requestTask.hasCompleted());
         assertTrue(requestTask.getRequestCompletedFunction().get());
 
@@ -149,10 +143,7 @@ public class RequestTaskTests extends ESTestCase {
 
         ArgumentCaptor<Exception> argument = ArgumentCaptor.forClass(Exception.class);
         verify(listener, times(1)).onFailure(argument.capture());
-        assertThat(
-            argument.getValue().getMessage(),
-            is(format("Request timed out waiting to be sent after [%s]", TimeValue.timeValueMillis(1)))
-        );
+        assertThat(argument.getValue().getMessage(), is(format("Request timed out after [%s]", TimeValue.timeValueMillis(1))));
         assertTrue(requestTask.hasCompleted());
         assertTrue(requestTask.getRequestCompletedFunction().get());
 

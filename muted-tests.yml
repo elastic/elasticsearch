@@ -498,3 +498,15 @@ tests:
 - class: org.elasticsearch.xpack.transform.integration.TransformAuditorIT
   method: testAuditorWritesAudits
   issue: https://github.com/elastic/elasticsearch/issues/121241
+- class: org.elasticsearch.ingest.geoip.FullClusterRestartIT
+  method: testGeoIpSystemFeaturesMigration {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/121115
+- class: org.elasticsearch.xpack.security.authc.jwt.JwtRealmSingleNodeTests
+  method: testGrantApiKeyForJWT
+  issue: https://github.com/elastic/elasticsearch/issues/121039
+- class: org.elasticsearch.xpack.security.profile.ProfileIntegTests
+  method: testSuggestProfileWithData
+  issue: https://github.com/elastic/elasticsearch/issues/121258
+- class: org.elasticsearch.xpack.security.profile.ProfileIntegTests
+  method: testSuggestProfilesWithName
+  issue: https://github.com/elastic/elasticsearch/issues/121022

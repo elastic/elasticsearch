@@ -13,15 +13,14 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 
 import java.lang.reflect.Modifier;
-import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
@@ -69,13 +68,11 @@ public class TransportVersionTests extends ESTestCase {
     public void testStaticTransportVersionChecks() {
         assertThat(
             TransportVersions.collectAllVersionIdsDefinedInClass(CorrectFakeVersion.class),
-            equalTo(
-                List.of(
-                    CorrectFakeVersion.V_0_000_002,
-                    CorrectFakeVersion.V_0_000_003,
-                    CorrectFakeVersion.V_0_000_004,
-                    CorrectFakeVersion.V_0_00_01
-                )
+            contains(
+                CorrectFakeVersion.V_0_000_002,
+                CorrectFakeVersion.V_0_000_003,
+                CorrectFakeVersion.V_0_000_004,
+                CorrectFakeVersion.V_0_00_01
             )
         );
         AssertionError e = expectThrows(

@@ -310,6 +310,20 @@ public class ModelRegistryTests extends ESTestCase {
         assertFalse(matched.isPresent());
     }
 
+    public void testContainsDefaultConfigId() {
+        var client = mockClient();
+        var registry = new ModelRegistry(client);
+
+        registry.addDefaultIds(
+            new InferenceService.DefaultConfigId("foo", MinimalServiceSettings.sparseEmbedding(), mock(InferenceService.class))
+        );
+        registry.addDefaultIds(
+            new InferenceService.DefaultConfigId("bar", MinimalServiceSettings.sparseEmbedding(), mock(InferenceService.class))
+        );
+        assertTrue(registry.containsDefaultConfigId("foo"));
+        assertFalse(registry.containsDefaultConfigId("baz"));
+    }
+
     public void testTaskTypeMatchedDefaults() {
         var defaultConfigIds = new ArrayList<InferenceService.DefaultConfigId>();
         defaultConfigIds.add(

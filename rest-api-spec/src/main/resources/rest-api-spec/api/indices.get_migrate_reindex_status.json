@@ -1,7 +1,7 @@
 {
   "indices.get_migrate_reindex_status":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/data-stream-reindex.html",
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/data-stream-reindex-status-api.html",
       "description":"This API returns the status of a migration reindex attempt for a data stream or index"
     },
     "stability":"experimental",

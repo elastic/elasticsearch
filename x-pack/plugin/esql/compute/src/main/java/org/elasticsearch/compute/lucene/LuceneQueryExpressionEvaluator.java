@@ -181,8 +181,7 @@ public class LuceneQueryExpressionEvaluator implements EvalOperator.ExpressionEv
     }
 
     @Override
-    public void close() {
-    }
+    public void close() {}
 
     private ShardState shardState(int shard) throws IOException {
         if (shard >= perShardState.length) {

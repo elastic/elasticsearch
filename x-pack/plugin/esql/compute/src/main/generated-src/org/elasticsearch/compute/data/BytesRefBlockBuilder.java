@@ -15,7 +15,7 @@ import org.elasticsearch.core.Releasables;
 
 /**
  * Block build of BytesRefBlocks.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-BlockBuilder.java.st} instead.
  */
 final class BytesRefBlockBuilder extends AbstractBlockBuilder implements BytesRefBlock.Builder {
 

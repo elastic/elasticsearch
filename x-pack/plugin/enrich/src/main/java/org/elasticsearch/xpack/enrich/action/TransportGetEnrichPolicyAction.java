@@ -8,16 +8,17 @@ package org.elasticsearch.xpack.enrich.action;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
+import org.elasticsearch.action.support.ChannelActionListener;
+import org.elasticsearch.action.support.local.TransportLocalClusterStateAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.core.enrich.action.GetEnrichPolicyAction;
@@ -26,32 +27,38 @@ import org.elasticsearch.xpack.enrich.EnrichStore;
 import java.util.HashMap;
 import java.util.Map;
 
-public class TransportGetEnrichPolicyAction extends TransportMasterNodeReadAction<
+public class TransportGetEnrichPolicyAction extends TransportLocalClusterStateAction<
     GetEnrichPolicyAction.Request,
     GetEnrichPolicyAction.Response> {
 
+    /**
+     * NB prior to 9.0 this was a TransportMasterNodeReadAction so for BwC it must be registered with the TransportService until
+     * we no longer need to support calling this action remotely.
+     */
+    @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
+    @SuppressWarnings("this-escape")
     @Inject
-    public TransportGetEnrichPolicyAction(
-        TransportService transportService,
-        ClusterService clusterService,
-        ThreadPool threadPool,
-        ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
-    ) {
+    public TransportGetEnrichPolicyAction(TransportService transportService, ClusterService clusterService, ActionFilters actionFilters) {
         super(
             GetEnrichPolicyAction.NAME,
-            transportService,
-            clusterService,
-            threadPool,
             actionFilters,
-            GetEnrichPolicyAction.Request::new,
-            GetEnrichPolicyAction.Response::new,
+            transportService.getTaskManager(),
+            clusterService,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
+
+        transportService.registerRequestHandler(
+            actionName,
+            executor,
+            false,
+            true,
+            GetEnrichPolicyAction.Request::new,
+            (request, channel, task) -> executeDirect(task, request, new ChannelActionListener<>(channel))
         );
     }
 
     @Override
-    protected void masterOperation(
+    protected void localClusterStateOperation(
         Task task,
         GetEnrichPolicyAction.Request request,
         ClusterState state,
@@ -71,6 +78,7 @@ public class TransportGetEnrichPolicyAction extends TransportMasterNodeReadActio
                 }
             }
         }
+        ((CancellableTask) task).ensureNotCancelled();
         listener.onResponse(new GetEnrichPolicyAction.Response(policies));
     }
 

@@ -128,7 +128,7 @@ with this resolution flow on {ess}, kindly reach out to
 https://support.elastic.co[Elastic Support] for assistance.
 
 [discrete]
-[[fix-watermark-errors-resolve]]
+[[fix-watermark-errors-prevent]]
 === Prevent watermark errors
 
 To avoid watermark errors in future, perform one of the following actions:

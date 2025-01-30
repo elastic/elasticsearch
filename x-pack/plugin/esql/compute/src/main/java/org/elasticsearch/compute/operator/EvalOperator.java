@@ -9,6 +9,7 @@ package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.ConstantNullVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -81,6 +82,14 @@ public class EvalOperator extends AbstractPageMappingOperator {
          * @return the returned Block has its own reference and the caller is responsible for releasing it.
          */
         Block eval(Page page);
+
+        /**
+         * Retrieves the score for the expression
+         * Only expressions that can be scored, or that can combine scores, should override this method
+         */
+        default Block score(Page page, BlockFactory blockFactory) {
+            return blockFactory.newConstantDoubleBlockWith(0.0, page.getPositionCount());
+        }
     }
 
     public static final ExpressionEvaluator.Factory CONSTANT_NULL_FACTORY = new ExpressionEvaluator.Factory() {

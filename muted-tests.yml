@@ -228,9 +228,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/120810
 - class: org.elasticsearch.indices.mapping.UpdateMappingIntegrationIT
   issue: https://github.com/elastic/elasticsearch/issues/116126
-- class: org.elasticsearch.datastreams.DataStreamsClientYamlTestSuiteIT
-  method: test {p0=data_stream/140_data_stream_aliases/Create data stream aliases using wildcard expression}
-  issue: https://github.com/elastic/elasticsearch/issues/120890
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=ml/inference_crud/*}
   issue: https://github.com/elastic/elasticsearch/issues/120816
@@ -243,9 +240,6 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test140CgroupOsStatsAreAvailable
   issue: https://github.com/elastic/elasticsearch/issues/120914
-- class: org.elasticsearch.datastreams.DataStreamsClientYamlTestSuiteIT
-  method: test {p0=data_stream/140_data_stream_aliases/Create data stream alias}
-  issue: https://github.com/elastic/elasticsearch/issues/120920
 - class: org.elasticsearch.xpack.security.FileSettingsRoleMappingsRestartIT
   method: testReservedStatePersistsOnRestart
   issue: https://github.com/elastic/elasticsearch/issues/120923
@@ -261,12 +255,6 @@ tests:
 - class: org.elasticsearch.action.search.SearchProgressActionListenerIT
   method: testSearchProgressWithQuery
   issue: https://github.com/elastic/elasticsearch/issues/120994
-- class: org.elasticsearch.datastreams.DataStreamsClientYamlTestSuiteIT
-  method: test {p0=data_stream/80_resolve_index_data_streams/Resolve index with hidden and closed indices}
-  issue: https://github.com/elastic/elasticsearch/issues/120965
-- class: org.elasticsearch.datastreams.DataStreamsClientYamlTestSuiteIT
-  method: test {p0=data_stream/140_data_stream_aliases/Create data stream alias with filter}
-  issue: https://github.com/elastic/elasticsearch/issues/121014
 - class: org.elasticsearch.xpack.esql.parser.StatementParserTests
   method: testNamedFunctionArgumentInMap
   issue: https://github.com/elastic/elasticsearch/issues/121020

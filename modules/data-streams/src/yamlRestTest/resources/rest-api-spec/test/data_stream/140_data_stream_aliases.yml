@@ -3,9 +3,13 @@
   - requires:
       cluster_features: ["gte_v7.14.0"]
       reason: "data streams aliases are available from 7.14.0"
-      test_runner_features: allowed_warnings
+      test_runner_features: [allowed_warnings,headers], headers
+
+  - transform_and_set: { login_credentials: "#base64Encode(data_stream_test_user:x-pack-test-password)" }
 
   - do:
+      headers:
+        Authorization: Basic ${login_credentials}
       allowed_warnings:
         - "index template [my-template] has index patterns [events-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template] will take precedence during new index creation"
       indices.put_index_template:
@@ -18,11 +22,15 @@
           data_stream: {}
 
   - do:
+      headers:
+        Authorization: Basic ${login_credentials}
       indices.create_data_stream:
         name: events-app1
   - is_true: acknowledged
 
   - do:
+      headers:
+        Authorization: Basic ${login_credentials}
       index:
         index:  events-app1
         refresh: true
@@ -31,11 +39,15 @@
           foo: bar
 
   - do:
+      headers:
+        Authorization: Basic ${login_credentials}
       indices.create_data_stream:
         name: events-app2
   - is_true: acknowledged
 
   - do:
+      headers:
+        Authorization: Basic ${login_credentials}
       index:
         index:  events-app2
         refresh: true
@@ -44,6 +56,8 @@
           foo: bar
 
   - do:
+      headers:
+        Authorization: Basic ${login_credentials}
       indices.update_aliases:
         body:
           actions:
@@ -55,18 +69,24 @@
                 alias: events
 
   - do:
+      headers:
+        Authorization: Basic ${login_credentials}
       indices.get_data_stream:
         name: "*"
   - match: { data_streams.0.name: events-app1 }
   - match: { data_streams.1.name: events-app2 }
 
   - do:
+      headers:
+        Authorization: Basic ${login_credentials}
       indices.get_alias: {}
 
   - match: {events-app1.aliases.events: {}}
   - match: {events-app2.aliases.events: {}}
 
   - do:
+      headers:
+        Authorization: Basic ${login_credentials}
       search:
         index: events
         body: { query: { match_all: {} } }
@@ -77,9 +97,13 @@
   - requires:
       cluster_features: ["gte_v7.15.0"]
       reason: "data stream alias filter supported was added in 7.15.0"
-      test_runner_features: allowed_warnings
+      test_runner_features: [allowed_warnings,headers]
+
+  - transform_and_set: { login_credentials: "#base64Encode(data_stream_test_user:x-pack-test-password)" }
 
   - do:
+      headers:
+        Authorization: Basic ${login_credentials}
       allowed_warnings:
         - "index template [my-template] has index patterns [log-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template] will take precedence during new index creation"
       indices.put_index_template:
@@ -92,6 +116,8 @@
           data_stream: { }
 
   - do:
+      headers:
+        Authorization: Basic ${login_credentials}
       index:
         index: log-app1
         refresh: true
@@ -100,6 +126,8 @@
           zone: 'a'
 
   - do:
+      headers:
+        Authorization: Basic ${login_credentials}
       index:
         index: log-app1
         refresh: true
@@ -108,6 +136,8 @@
           zone: 'b'
 
   - do:
+      headers:
+        Authorization: Basic ${login_credentials}
       indices.update_aliases:
         body:
           actions:
@@ -128,26 +158,36 @@
                 alias: app1
 
   - do:
+      headers:
+        Authorization: Basic ${login_credentials}
       indices.get_data_stream:
         name: "*"
   - match: { data_streams.0.name: log-app1 }
 
   - do:
+      headers:
+        Authorization: Basic ${login_credentials}
       indices.get_alias: {}
   - match: {log-app1.aliases.app1: {}}
   - match: {log-app1.aliases.app1-zone-a.filter.term.zone: 'a'}
   - match: {log-app1.aliases.app1-zone-b.filter.term.zone: 'b'}
 
   - do:
+      headers:
+        Authorization: Basic ${login_credentials}
       search:
         index: app1
   - length:   { hits.hits: 2  }
 
   - do:
+      headers:
+        Authorization: Basic ${login_credentials}
       search:
         index: app1-zone-a
   - length:   { hits.hits: 1  }
   - do:
+      headers:
+        Authorization: Basic ${login_credentials}
       search:
         index: app1-zone-b
   - length:   { hits.hits: 1  }
@@ -157,9 +197,13 @@
   - requires:
       cluster_features: ["gte_v7.14.1"]
       reason: "bugfix fixed from 7.14.1 and later"
-      test_runner_features: allowed_warnings
+      test_runner_features: [allowed_warnings,headers]
+
+  - transform_and_set: { login_credentials: "#base64Encode(data_stream_test_user:x-pack-test-password)" }
 
   - do:
+      headers:
+        Authorization: Basic ${login_credentials}
       allowed_warnings:
         - "index template [my-template] has index patterns [log-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template] will take precedence during new index creation"
       indices.put_index_template:
@@ -172,11 +216,15 @@
           data_stream: { }
 
   - do:
+      headers:
+        Authorization: Basic ${login_credentials}
       indices.create_data_stream:
         name: log-foobar
   - is_true: acknowledged
 
   - do:
+      headers:
+        Authorization: Basic ${login_credentials}
       indices.update_aliases:
         body:
           actions:
@@ -186,11 +234,15 @@
   - is_true: acknowledged
 
   - do:
+      headers:
+        Authorization: Basic ${login_credentials}
       indices.get_data_stream:
         name: "*"
   - match: { data_streams.0.name: log-foobar }
 
   - do:
+      headers:
+        Authorization: Basic ${login_credentials}
       indices.get_alias: {}
   - match: {log-foobar.aliases.my-alias: {}}
 
@@ -199,9 +251,13 @@
   - requires:
       cluster_features: ["gte_v7.16.0"]
       reason: "Fix available from 7.16.0"
-      test_runner_features: allowed_warnings
+      test_runner_features: [allowed_warnings,headers]
+
+  - transform_and_set: { login_credentials: "#base64Encode(data_stream_test_user:x-pack-test-password)" }
 
   - do:
+      headers:
+        Authorization: Basic ${login_credentials}
       allowed_warnings:
         - "index template [my-template] has index patterns [log-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template] will take precedence during new index creation"
       indices.put_index_template:
@@ -214,11 +270,15 @@
           data_stream: { }
 
   - do:
+      headers:
+        Authorization: Basic ${login_credentials}
       indices.create_data_stream:
         name: log-foobar
   - is_true: acknowledged
 
   - do:
+      headers:
+        Authorization: Basic ${login_credentials}
       indices.create:
         index: test1
         body:
@@ -226,6 +286,8 @@
             test: {}
 
   - do:
+      headers:
+        Authorization: Basic ${login_credentials}
       indices.create:
         index: test2
         body:
@@ -233,6 +295,8 @@
             test: {}
 
   - do:
+      headers:
+        Authorization: Basic ${login_credentials}
       indices.create:
         index: test3
         body:
@@ -240,6 +304,8 @@
             test: {}
 
   - do:
+      headers:
+        Authorization: Basic ${login_credentials}
       indices.get_alias:
         index: test*
   - match: { test1.aliases.test: { } }
@@ -247,6 +313,8 @@
   - match: { test3.aliases.test: { } }
 
   - do:
+      headers:
+        Authorization: Basic ${login_credentials}
       indices.update_aliases:
         body:
           actions:
@@ -256,6 +324,8 @@
   - is_true: acknowledged
 
   - do:
+      headers:
+        Authorization: Basic ${login_credentials}
       indices.get_alias:
         index: test*
   - match: {test1.aliases: {}}
@@ -267,9 +337,13 @@
   - requires:
       cluster_features: ["gte_v8.12.2"]
       reason: "bugfix fixed from 8.12.1 and later"
-      test_runner_features: allowed_warnings
+      test_runner_features: [allowed_warnings,headers]
+
+  - transform_and_set: { login_credentials: "#base64Encode(data_stream_test_user:x-pack-test-password)" }
 
   - do:
+      headers:
+        Authorization: Basic ${login_credentials}
       allowed_warnings:
         - "index template [my-template] has index patterns [ds-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template] will take precedence during new index creation"
       indices.put_index_template:
@@ -282,16 +356,22 @@
           data_stream: { }
 
   - do:
+      headers:
+        Authorization: Basic ${login_credentials}
       indices.create_data_stream:
         name: ds-first
   - is_true: acknowledged
 
   - do:
+      headers:
+        Authorization: Basic ${login_credentials}
       indices.create_data_stream:
         name: ds-second
   - is_true: acknowledged
 
   - do:
+      headers:
+        Authorization: Basic ${login_credentials}
       indices.update_aliases:
         body:
           actions:
@@ -301,11 +381,15 @@
   - is_true: acknowledged
 
   - do:
+      headers:
+        Authorization: Basic ${login_credentials}
       indices.get_alias:
         name: my-al*
   - match: {ds-first.aliases.my-alias: {}}
 
   - do:
+      headers:
+        Authorization: Basic ${login_credentials}
       indices.get_alias:
         name: this-does-not-exist*
   - is_false: ds-first.aliases.my-alias
@@ -314,8 +398,13 @@
   - requires:
       cluster_features: ["gte_v8.14.0"]
       reason: "alias action results do not work until 8.14"
-      test_runner_features: ["allowed_warnings"]
+      test_runner_features: ["allowed_warnings", "headers"]
+
+  - transform_and_set: { login_credentials: "#base64Encode(data_stream_test_user:x-pack-test-password)" }
+
   - do:
+      headers:
+        Authorization: Basic ${login_credentials}
       allowed_warnings:
         - "index template [my-template] has index patterns [log-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template] will take precedence during new index creation"
       indices.put_index_template:
@@ -327,10 +416,14 @@
               index.number_of_replicas: 0
           data_stream: { }
   - do:
+      headers:
+        Authorization: Basic ${login_credentials}
       indices.create_data_stream:
         name: log-foobar
   - is_true: acknowledged
   - do:
+      headers:
+        Authorization: Basic ${login_credentials}
       indices.update_aliases:
         body:
           actions:
@@ -354,8 +447,13 @@
   - requires:
       cluster_features: [ "gte_v8.14.0" ]
       reason: "alias action results do not work until 8.14"
-      test_runner_features: [ "allowed_warnings" ]
+      test_runner_features: [ "allowed_warnings", "headers" ]
+
+  - transform_and_set: { login_credentials: "#base64Encode(data_stream_test_user:x-pack-test-password)" }
+
   - do:
+      headers:
+        Authorization: Basic ${login_credentials}
       allowed_warnings:
         - "index template [my-template] has index patterns [log-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template] will take precedence during new index creation"
       indices.put_index_template:
@@ -367,13 +465,19 @@
               index.number_of_replicas: 0
           data_stream: { }
   - do:
+      headers:
+        Authorization: Basic ${login_credentials}
       indices.create_data_stream:
         name: log-test-1
   - do:
+      headers:
+        Authorization: Basic ${login_credentials}
       indices.create_data_stream:
         name: log-test-2
   - is_true: acknowledged
   - do:
+      headers:
+        Authorization: Basic ${login_credentials}
       indices.update_aliases:
         body:
           actions:

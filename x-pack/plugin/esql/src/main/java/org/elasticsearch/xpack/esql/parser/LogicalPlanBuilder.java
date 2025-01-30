@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -56,6 +57,7 @@ import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
@@ -600,6 +602,20 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             visitStringOrParameter(ctx.inferenceId).fold(FoldContext.small() /* TODO remove me */).toString(),
             visitStringOrParameter(ctx.queryText).fold(FoldContext.small() /* TODO remove me */).toString(),
             expression(ctx.input)
+        );
+    }
+
+
+
+    @Override
+    public PlanFactory visitCompletionCommand(EsqlBaseParser.CompletionCommandContext ctx) {
+        Source source = source(ctx);
+        return p -> new Completion(
+            source,
+            p,
+            visitStringOrParameter(ctx.inferenceId).fold(FoldContext.small() /* TODO remove me */).toString(),
+            expression(ctx.prompt),
+            new ReferenceAttribute(source(ctx.target), ctx.target.getText(), DataType.TEXT)
         );
     }
 }

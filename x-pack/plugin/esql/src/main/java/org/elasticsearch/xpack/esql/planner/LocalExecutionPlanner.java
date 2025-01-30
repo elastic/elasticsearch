@@ -71,6 +71,7 @@ import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.evaluator.command.GrokEvaluatorExtracter;
 import org.elasticsearch.xpack.esql.expression.Order;
+import org.elasticsearch.xpack.esql.inference.CompletionOperator;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.inference.RerankOperator;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
@@ -95,6 +96,7 @@ import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
+import org.elasticsearch.xpack.esql.plan.physical.inference.CompletionExec;
 import org.elasticsearch.xpack.esql.plan.physical.inference.RerankExec;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -225,6 +227,8 @@ public class LocalExecutionPlanner {
             return planMvExpand(mvExpand, context);
         } else if (node instanceof RerankExec rerank) {
             return planRerank(rerank, context);
+        } else if (node instanceof CompletionExec completion) {
+            return planCompletion(completion, context);
         }
         // source nodes
         else if (node instanceof EsQueryExec esQuery) {
@@ -713,6 +717,18 @@ public class LocalExecutionPlanner {
             new RerankOperator.Factory(inferenceService, inferenceId, queryText, inputEvaluatorSupplier, scoreChannel, 10),
             source.layout
         );
+    }
+
+    private PhysicalOperation planCompletion(CompletionExec completion, LocalExecutionPlannerContext context) {
+        PhysicalOperation source = plan(completion.child(), context);
+        var promptEvaluatorSupplier = EvalMapper.toEvaluator(context.foldCtx(), completion.prompt(), source.layout);
+
+        Layout.Builder layout = source.layout.builder();
+        layout.append(completion.target());
+
+        String inferenceId = completion.inferenceId();
+
+        return source.with(new CompletionOperator.Factory(inferenceService, promptEvaluatorSupplier, inferenceId), layout.build());
     }
 
     private PhysicalOperation planMvExpand(MvExpandExec mvExpandExec, LocalExecutionPlannerContext context) {

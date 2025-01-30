@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
@@ -37,6 +38,7 @@ import org.elasticsearch.xpack.esql.plan.physical.OrderExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
+import org.elasticsearch.xpack.esql.plan.physical.inference.CompletionExec;
 import org.elasticsearch.xpack.esql.plan.physical.inference.RerankExec;
 
 import java.util.List;
@@ -178,6 +180,11 @@ public class Mapper {
             return new RerankExec(rerank.source(), mappedChild, rerank.inferenceId(), rerank.queryText(), rerank.input());
         }
 
+        if (unary instanceof Completion completion) {
+            mappedChild = addExchangeForFragment(completion, mappedChild);
+            return new CompletionExec(completion.source(), mappedChild, completion.inferenceId(), completion.prompt(), completion.target());
+        }
+
         //
         // Pipeline operators
         //
@@ -222,7 +229,7 @@ public class Mapper {
     }
 
     public static boolean isPipelineBreaker(LogicalPlan p) {
-        return p instanceof Aggregate || p instanceof TopN || p instanceof Limit || p instanceof OrderBy || p instanceof Rerank;
+        return p instanceof Aggregate || p instanceof TopN || p instanceof Limit || p instanceof OrderBy || p instanceof Rerank || p instanceof Completion;
     }
 
     private PhysicalPlan addExchangeForFragment(LogicalPlan logical, PhysicalPlan child) {

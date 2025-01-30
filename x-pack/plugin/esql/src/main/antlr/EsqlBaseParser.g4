@@ -52,6 +52,7 @@ processingCommand
     | enrichCommand
     | mvExpandCommand
     // in development
+    | {this.isDevVersion()}? completionCommand
     | {this.isDevVersion()}? inlinestatsCommand
     | {this.isDevVersion()}? lookupCommand
     | {this.isDevVersion()}? joinCommand
@@ -330,9 +331,12 @@ inlinestatsCommand
     ;
 
 rerankCommand
-    : DEV_RERANK queryText=stringOrParameter ON input=primaryExpression WITH inferenceId=stringOrParameter
+    : DEV_RERANK queryText=stringOrParameter ON fields WITH inferenceId=stringOrParameter
     ;
 
+completionCommand
+    : DEV_COMPLETION prompt=primaryExpression WITH inferenceId=stringOrParameter (AS target=qualifiedName)?
+    ;
 
 joinCommand
     : type=(DEV_JOIN_LOOKUP | DEV_JOIN_LEFT | DEV_JOIN_RIGHT)? DEV_JOIN joinTarget joinCondition

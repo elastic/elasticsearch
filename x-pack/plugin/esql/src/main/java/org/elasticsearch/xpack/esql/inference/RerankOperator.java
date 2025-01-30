@@ -110,13 +110,6 @@ public class RerankOperator extends AsyncOperator<Page> {
 
     }
 
-    private void performInference(Page inputPage, ActionListener<Page> listener) {
-        // Moved to the InferenceOperator?
-        inferenceService.infer(buildInferenceRequest(inputPage), ActionListener.wrap((inferenceResponse) -> {
-            listener.onResponse(buildOutput(inputPage, inferenceResponse));
-        }, listener::onFailure));
-    }
-
     private Page buildOutput(Page inputPage, InferenceAction.Response inferenceResponse) {
         logger.warn("Result {}", inferenceResponse.getResults().asMap().get("rerank"));
         logger.warn("Inference response [{}]", inferenceResponse);

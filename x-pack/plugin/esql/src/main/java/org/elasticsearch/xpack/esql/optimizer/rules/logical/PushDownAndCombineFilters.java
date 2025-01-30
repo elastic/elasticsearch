@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 
@@ -74,6 +75,10 @@ public final class PushDownAndCombineFilters extends OptimizerRules.OptimizerRul
             // Push down filters that do not rely on attributes created by Enrich
             var attributes = new AttributeSet(Expressions.asAttributes(enrich.enrichFields()));
             plan = maybePushDownPastUnary(filter, enrich, attributes::contains, NO_OP);
+        } else if (child instanceof Completion completion) {
+            // Push down filters that do not rely on attributes created by Completion
+            var attributes = new AttributeSet(Expressions.asAttributes(completion.generatedAttributes()));
+            plan = maybePushDownPastUnary(filter, completion, attributes::contains, NO_OP);
         } else if (child instanceof Project) {
             return PushDownUtils.pushDownPastProject(filter);
         } else if (child instanceof OrderBy orderBy) {

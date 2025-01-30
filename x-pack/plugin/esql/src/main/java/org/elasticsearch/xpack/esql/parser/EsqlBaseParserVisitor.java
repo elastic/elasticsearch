@@ -580,6 +580,12 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitRerankCommand(EsqlBaseParser.RerankCommandContext ctx);
   /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#completionCommand}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitCompletionCommand(EsqlBaseParser.CompletionCommandContext ctx);
+  /**
    * Visit a parse tree produced by {@link EsqlBaseParser#joinCommand}.
    * @param ctx the parse tree
    * @return the visitor result

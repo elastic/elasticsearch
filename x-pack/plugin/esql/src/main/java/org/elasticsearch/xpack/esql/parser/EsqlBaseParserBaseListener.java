@@ -1081,6 +1081,18 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
+  @Override public void enterCompletionCommand(EsqlBaseParser.CompletionCommandContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitCompletionCommand(EsqlBaseParser.CompletionCommandContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
   @Override public void enterJoinCommand(EsqlBaseParser.JoinCommandContext ctx) { }
   /**
    * {@inheritDoc}

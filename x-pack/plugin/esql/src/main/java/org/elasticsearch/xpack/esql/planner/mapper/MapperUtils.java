@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
@@ -41,6 +42,7 @@ import org.elasticsearch.xpack.esql.plan.physical.MvExpandExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
+import org.elasticsearch.xpack.esql.plan.physical.inference.CompletionExec;
 import org.elasticsearch.xpack.esql.plan.physical.inference.RerankExec;
 import org.elasticsearch.xpack.esql.planner.AbstractPhysicalOperationProviders;
 
@@ -88,6 +90,10 @@ class MapperUtils {
 
         if (p instanceof Rerank rerank) {
             return new RerankExec(rerank.source(), child, rerank.inferenceId(), rerank.queryText(), rerank.input());
+        }
+
+        if (p instanceof Completion completion) {
+            return new CompletionExec(completion.source(), child, completion.inferenceId(), completion.prompt(), completion.target());
         }
 
         if (p instanceof Enrich enrich) {

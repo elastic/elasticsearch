@@ -78,6 +78,7 @@ import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinType;
@@ -479,6 +480,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return resolveLookupJoin(j);
             }
 
+            if (plan instanceof Completion c) {
+                return resolveCompletion(c, childrenOutput);
+            }
+
             return plan.transformExpressionsOnly(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, childrenOutput));
         }
 
@@ -657,6 +662,22 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return join.withConfig(new JoinConfig(type, singletonList(errorAttribute), emptyList(), emptyList()));
             }
             return join;
+        }
+
+        private LogicalPlan resolveCompletion(Completion p, List<Attribute> childrenOutput) {
+            Holder<Boolean> changed = new Holder<>(false);
+
+            Expression resolvedPrompt = p.prompt().transformUp(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, childrenOutput));
+            if (resolvedPrompt != p.prompt()) {
+                changed.set(true);
+            }
+
+
+            if (changed.get() == false) {
+                return p;
+            }
+
+            return new Completion(p.source(), p.child(), p.inferenceId(), resolvedPrompt, p.target());
         }
 
         private List<Attribute> resolveUsingColumns(List<Attribute> cols, List<Attribute> output, String side) {

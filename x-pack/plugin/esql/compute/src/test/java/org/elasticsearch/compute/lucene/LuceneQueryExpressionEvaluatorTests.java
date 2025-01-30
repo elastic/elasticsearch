@@ -184,7 +184,9 @@ public class LuceneQueryExpressionEvaluatorTests extends ComputeTestCase {
             );
             LuceneQueryExpressionEvaluator luceneQueryEvaluator = new LuceneQueryExpressionEvaluator(
                 blockFactory,
-                new LuceneQueryExpressionEvaluator.ShardConfig[] { shard }, false);
+                new LuceneQueryExpressionEvaluator.ShardConfig[] { shard },
+                false
+            );
 
             List<Operator> operators = new ArrayList<>();
             if (shuffleDocs) {

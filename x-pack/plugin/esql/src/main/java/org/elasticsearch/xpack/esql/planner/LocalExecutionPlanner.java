@@ -676,8 +676,12 @@ public class LocalExecutionPlanner {
     private PhysicalOperation planFilter(FilterExec filter, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(filter.child(), context);
         // TODO: should this be extracted into a separate eval block?
+        boolean usesScore = PlannerUtils.usesScoring(filter);
         return source.with(
-            new FilterOperatorFactory(EvalMapper.toEvaluator(context.foldCtx(), filter.condition(), source.layout, shardContexts)),
+            new FilterOperatorFactory(
+                EvalMapper.toEvaluator(context.foldCtx(), filter.condition(), source.layout, shardContexts, usesScore),
+                usesScore
+            ),
             source.layout
         );
     }

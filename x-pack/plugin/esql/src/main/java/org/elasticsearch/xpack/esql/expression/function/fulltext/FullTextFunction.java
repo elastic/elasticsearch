@@ -367,6 +367,6 @@ public abstract class FullTextFunction extends Function implements TranslationAw
         for (EsPhysicalOperationProviders.ShardContext shardContext : shardContexts) {
             shardConfigs[i++] = new ShardConfig(shardContext.toQuery(queryBuilder()), shardContext.searcher());
         }
-        return new LuceneQueryExpressionEvaluator.Factory(shardConfigs);
+        return new LuceneQueryExpressionEvaluator.Factory(shardConfigs, toEvaluator.usesScoring());
     }
 }

@@ -13,6 +13,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
+import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.Vector;
@@ -52,7 +53,7 @@ public final class EvalMapper {
     private EvalMapper() {}
 
     public static ExpressionEvaluator.Factory toEvaluator(FoldContext foldCtx, Expression exp, Layout layout) {
-        return toEvaluator(foldCtx, exp, layout, List.of());
+        return toEvaluator(foldCtx, exp, layout, List.of(), false);
     }
 
     @SuppressWarnings({ "rawtypes", "unchecked" })
@@ -68,13 +69,14 @@ public final class EvalMapper {
         FoldContext foldCtx,
         Expression exp,
         Layout layout,
-        List<ShardContext> shardContexts
+        List<ShardContext> shardContexts,
+        boolean usesScoring
     ) {
         if (exp instanceof EvaluatorMapper m) {
             return m.toEvaluator(new EvaluatorMapper.ToEvaluator() {
                 @Override
                 public ExpressionEvaluator.Factory apply(Expression expression) {
-                    return toEvaluator(foldCtx, expression, layout, shardContexts);
+                    return toEvaluator(foldCtx, expression, layout, shardContexts, usesScoring);
                 }
 
                 @Override
@@ -86,11 +88,16 @@ public final class EvalMapper {
                 public List<ShardContext> shardContexts() {
                     return shardContexts;
                 }
+
+                @Override
+                public boolean usesScoring() {
+                    return usesScoring;
+                }
             });
         }
         for (ExpressionMapper em : MAPPERS) {
             if (em.typeToken.isInstance(exp)) {
-                return em.map(foldCtx, exp, layout, shardContexts);
+                return em.map(foldCtx, exp, layout, shardContexts, usesScoring);
             }
         }
         throw new QlIllegalArgumentException("Unsupported expression [{}]", exp);
@@ -98,9 +105,15 @@ public final class EvalMapper {
 
     static class BooleanLogic extends ExpressionMapper<BinaryLogic> {
         @Override
-        public ExpressionEvaluator.Factory map(FoldContext foldCtx, BinaryLogic bc, Layout layout, List<ShardContext> shardContexts) {
-            var leftEval = toEvaluator(foldCtx, bc.left(), layout, shardContexts);
-            var rightEval = toEvaluator(foldCtx, bc.right(), layout, shardContexts);
+        public ExpressionEvaluator.Factory map(
+            FoldContext foldCtx,
+            BinaryLogic bc,
+            Layout layout,
+            List<ShardContext> shardContexts,
+            boolean usesScoring
+        ) {
+            var leftEval = toEvaluator(foldCtx, bc.left(), layout, shardContexts, usesScoring);
+            var rightEval = toEvaluator(foldCtx, bc.right(), layout, shardContexts, usesScoring);
             /**
              * Evaluator for the <href a="https://en.wikipedia.org/wiki/Three-valued_logic">three-valued boolean expressions</href>.
              * We can't generate these with the {@link Evaluator} annotation because that
@@ -166,6 +179,21 @@ public final class EvalMapper {
                 }
 
                 @Override
+                public DoubleBlock score(Page page, BlockFactory blockFactory) {
+                    try (DoubleBlock lhs = leftEval.score(page, blockFactory); DoubleBlock rhs = rightEval.score(page, blockFactory)) {
+
+                        int positionCount = lhs.getPositionCount();
+                        // TODO We could optimize for constant vectors
+                        try (var result = lhs.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
+                            for (int p = 0; p < positionCount; p++) {
+                                result.appendDouble(p, lhs.getDouble(p) + rhs.getDouble(p));
+                            }
+                            return result.build().asBlock();
+                        }
+                    }
+                }
+
+                @Override
                 public void close() {
                     Releasables.closeExpectNoException(leftEval, rightEval);
                 }
@@ -176,8 +204,14 @@ public final class EvalMapper {
 
     static class Nots extends ExpressionMapper<Not> {
         @Override
-        public ExpressionEvaluator.Factory map(FoldContext foldCtx, Not not, Layout layout, List<ShardContext> shardContexts) {
-            var expEval = toEvaluator(foldCtx, not.field(), layout);
+        public ExpressionEvaluator.Factory map(
+            FoldContext foldCtx,
+            Not not,
+            Layout layout,
+            List<ShardContext> shardContexts,
+            boolean usesScoring
+        ) {
+            var expEval = toEvaluator(foldCtx, not.field(), layout, shardContexts, usesScoring);
             return dvrCtx -> new org.elasticsearch.xpack.esql.evaluator.predicate.operator.logical.NotEvaluator(
                 not.source(),
                 expEval.get(dvrCtx),
@@ -188,7 +222,13 @@ public final class EvalMapper {
 
     static class Attributes extends ExpressionMapper<Attribute> {
         @Override
-        public ExpressionEvaluator.Factory map(FoldContext foldCtx, Attribute attr, Layout layout, List<ShardContext> shardContexts) {
+        public ExpressionEvaluator.Factory map(
+            FoldContext foldCtx,
+            Attribute attr,
+            Layout layout,
+            List<ShardContext> shardContexts,
+            boolean usesScoring
+        ) {
             record Attribute(int channel) implements ExpressionEvaluator {
                 @Override
                 public Block eval(Page page) {
@@ -223,7 +263,13 @@ public final class EvalMapper {
     static class Literals extends ExpressionMapper<Literal> {
 
         @Override
-        public ExpressionEvaluator.Factory map(FoldContext foldCtx, Literal lit, Layout layout, List<ShardContext> shardContexts) {
+        public ExpressionEvaluator.Factory map(
+            FoldContext foldCtx,
+            Literal lit,
+            Layout layout,
+            List<ShardContext> shardContexts,
+            boolean usesScoring
+        ) {
             record LiteralsEvaluator(DriverContext context, Literal lit) implements ExpressionEvaluator {
                 @Override
                 public Block eval(Page page) {
@@ -280,8 +326,14 @@ public final class EvalMapper {
     static class IsNulls extends ExpressionMapper<IsNull> {
 
         @Override
-        public ExpressionEvaluator.Factory map(FoldContext foldCtx, IsNull isNull, Layout layout, List<ShardContext> shardContexts) {
-            var field = toEvaluator(foldCtx, isNull.field(), layout);
+        public ExpressionEvaluator.Factory map(
+            FoldContext foldCtx,
+            IsNull isNull,
+            Layout layout,
+            List<ShardContext> shardContexts,
+            boolean usesScoring
+        ) {
+            var field = toEvaluator(foldCtx, isNull.field(), layout, shardContexts, usesScoring);
             return new IsNullEvaluatorFactory(field);
         }
 
@@ -328,8 +380,14 @@ public final class EvalMapper {
     static class IsNotNulls extends ExpressionMapper<IsNotNull> {
 
         @Override
-        public ExpressionEvaluator.Factory map(FoldContext foldCtx, IsNotNull isNotNull, Layout layout, List<ShardContext> shardContexts) {
-            return new IsNotNullEvaluatorFactory(toEvaluator(foldCtx, isNotNull.field(), layout));
+        public ExpressionEvaluator.Factory map(
+            FoldContext foldCtx,
+            IsNotNull isNotNull,
+            Layout layout,
+            List<ShardContext> shardContexts,
+            boolean usesScoring
+        ) {
+            return new IsNotNullEvaluatorFactory(toEvaluator(foldCtx, isNotNull.field(), layout, shardContexts, usesScoring));
         }
 
         record IsNotNullEvaluatorFactory(EvalOperator.ExpressionEvaluator.Factory field) implements ExpressionEvaluator.Factory {

@@ -23,6 +23,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DocVector;
+import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
@@ -83,7 +84,7 @@ public class LuceneQueryExpressionEvaluator implements EvalOperator.ExpressionEv
     }
 
     @Override
-    public Block score(Page page, BlockFactory blockFactory) {
+    public DoubleBlock score(Page page, BlockFactory blockFactory) {
         if (scoreVector == null) {
             Releasables.closeExpectNoException(eval(page));
         }
@@ -152,8 +153,10 @@ public class LuceneQueryExpressionEvaluator implements EvalOperator.ExpressionEv
         int prevShard = -1;
         int prevSegment = -1;
         SegmentState segmentState = null;
-        try (BooleanVector.Builder builder = blockFactory.newBooleanVectorFixedBuilder(docs.getPositionCount());
-             DoubleVector.Builder scoreBuilder = blockFactory.newDoubleVectorFixedBuilder(docs.getPositionCount())) {
+        try (
+            BooleanVector.Builder builder = blockFactory.newBooleanVectorFixedBuilder(docs.getPositionCount());
+            DoubleVector.Builder scoreBuilder = blockFactory.newDoubleVectorFixedBuilder(docs.getPositionCount())
+        ) {
             for (int i = 0; i < docs.getPositionCount(); i++) {
                 int shard = docs.shards().getInt(docs.shards().getInt(map[i]));
                 int segment = docs.segments().getInt(map[i]);
@@ -170,7 +173,7 @@ public class LuceneQueryExpressionEvaluator implements EvalOperator.ExpressionEv
                     segmentState.scoreSingleDocWithScorer(builder, scoreBuilder, docs.docs().getInt(map[i]));
                 }
             }
-            try (BooleanVector outOfOrder = builder.build();DoubleVector outOfOrderScores = scoreBuilder.build()) {
+            try (BooleanVector outOfOrder = builder.build(); DoubleVector outOfOrderScores = scoreBuilder.build()) {
                 return Tuple.tuple(
                     outOfOrder.filter(docs.shardSegmentDocMapBackwards()),
                     outOfOrderScores.filter(docs.shardSegmentDocMapBackwards())
@@ -261,8 +264,10 @@ public class LuceneQueryExpressionEvaluator implements EvalOperator.ExpressionEv
         Tuple<BooleanVector, DoubleVector> scoreDense(int min, int max) throws IOException {
             int length = max - min + 1;
             if (noMatch) {
-                return Tuple.tuple(blockFactory.newConstantBooleanVector(false, length),
-                    blockFactory.newConstantDoubleVector(NO_MATCH_SCORE, length));
+                return Tuple.tuple(
+                    blockFactory.newConstantBooleanVector(false, length),
+                    blockFactory.newConstantDoubleVector(NO_MATCH_SCORE, length)
+                );
             }
             if (bulkScorer == null ||  // The bulkScorer wasn't initialized
                 Thread.currentThread() != bulkScorerThread // The bulkScorer was initialized on a different thread
@@ -271,8 +276,10 @@ public class LuceneQueryExpressionEvaluator implements EvalOperator.ExpressionEv
                 bulkScorer = weight.bulkScorer(ctx);
                 if (bulkScorer == null) {
                     noMatch = true;
-                    return Tuple.tuple(blockFactory.newConstantBooleanVector(false, length),
-                        blockFactory.newConstantDoubleVector(NO_MATCH_SCORE, length));
+                    return Tuple.tuple(
+                        blockFactory.newConstantBooleanVector(false, length),
+                        blockFactory.newConstantDoubleVector(NO_MATCH_SCORE, length)
+                    );
                 }
             }
 
@@ -300,8 +307,10 @@ public class LuceneQueryExpressionEvaluator implements EvalOperator.ExpressionEv
                     blockFactory.newConstantDoubleVector(NO_MATCH_SCORE, docs.getPositionCount())
                 );
             }
-            try (BooleanVector.Builder builder = blockFactory.newBooleanVectorFixedBuilder(docs.getPositionCount());
-                DoubleVector.Builder scoreBuilder = blockFactory.newDoubleVectorFixedBuilder(docs.getPositionCount())) {
+            try (
+                BooleanVector.Builder builder = blockFactory.newBooleanVectorFixedBuilder(docs.getPositionCount());
+                DoubleVector.Builder scoreBuilder = blockFactory.newDoubleVectorFixedBuilder(docs.getPositionCount())
+            ) {
                 for (int i = 0; i < docs.getPositionCount(); i++) {
                     scoreSingleDocWithScorer(builder, scoreBuilder, docs.getInt(i));
                 }

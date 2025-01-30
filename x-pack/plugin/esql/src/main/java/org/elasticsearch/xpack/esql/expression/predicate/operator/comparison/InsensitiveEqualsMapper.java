@@ -35,13 +35,14 @@ public class InsensitiveEqualsMapper extends ExpressionMapper<InsensitiveEquals>
         FoldContext foldCtx,
         InsensitiveEquals bc,
         Layout layout,
-        List<ShardContext> shardContexts
+        List<ShardContext> shardContexts,
+        boolean usesScoring
     ) {
         DataType leftType = bc.left().dataType();
         DataType rightType = bc.right().dataType();
 
-        var leftEval = toEvaluator(foldCtx, bc.left(), layout, shardContexts);
-        var rightEval = toEvaluator(foldCtx, bc.right(), layout, shardContexts);
+        var leftEval = toEvaluator(foldCtx, bc.left(), layout, shardContexts, usesScoring);
+        var rightEval = toEvaluator(foldCtx, bc.right(), layout, shardContexts, usesScoring);
         if (DataType.isString(leftType)) {
             if (bc.right().foldable() && DataType.isString(rightType)) {
                 BytesRef rightVal = BytesRefs.toBytesRef(bc.right().fold(FoldContext.small() /* TODO remove me */));

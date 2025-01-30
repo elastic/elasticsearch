@@ -1,0 +1,14 @@
+pr: 121297
+summary: "[8.x] ESQL: Enable LOOKUP JOIN in non-snapshot builds"
+area: ES|QL
+type: enhancement
+issues: []
+highlight:
+  title: "[8.x] ESQL: Enable LOOKUP JOIN in non-snapshot builds"
+  body: |-
+    # Backport
+
+    This will backport the following commits from `main` to `8.x`:  - [ESQL:
+    Enable LOOKUP JOIN in non-snapshot builds
+    (#121193)](https://github.com/elastic/elasticsearch/pull/121193)
+  notable: true

@@ -10,8 +10,14 @@
 For the most up-to-date API details, refer to {api-es}/group/endpoint-indices[Index APIs].
 --
 
-Adds new fields to an existing data stream or index. You can also use this
-API to change the search settings of existing fields.
+You can use this API to:
+
+* Add new fields to an existing index
+* Change the search settings of existing fields
+
+NOTE: Elasticsearch does not allow in-place field type changes. If you need to change a field’s type, you must create a new index with the updated mapping and <<docs-reindex,reindex>> the data. 
+
+
 
 For data streams, these changes are applied to all backing indices by default.
 

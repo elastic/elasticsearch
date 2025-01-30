@@ -31,10 +31,17 @@ import static java.util.Objects.requireNonNull;
 
 public class EntitlementBootstrap {
 
-    public record BootstrapArgs(Map<String, Policy> pluginPolicies, Function<Class<?>, String> pluginResolver) {
+    public record BootstrapArgs(Map<String, Policy> pluginPolicies, Function<Class<?>, String> pluginResolver,
+                                Path[] dataDirs, Path configDir, Path tempDir) {
         public BootstrapArgs {
             requireNonNull(pluginPolicies);
             requireNonNull(pluginResolver);
+            requireNonNull(dataDirs);
+            if (dataDirs.length == 0) {
+                throw new IllegalArgumentException("must provide at least one data directory");
+            }
+            requireNonNull(configDir);
+            requireNonNull(tempDir);
         }
     }
 
@@ -50,13 +57,17 @@ public class EntitlementBootstrap {
      *
      * @param pluginPolicies a map holding policies for plugins (and modules), by plugin (or module) name.
      * @param pluginResolver a functor to map a Java Class to the plugin it belongs to (the plugin name).
+     * @param dataDirs data directories for Elasticsearch
+     * @param configDir the config directory for Elasticsearch
+     * @param tempDir the temp directory for Elasticsearch
      */
-    public static void bootstrap(Map<String, Policy> pluginPolicies, Function<Class<?>, String> pluginResolver) {
+    public static void bootstrap(Map<String, Policy> pluginPolicies, Function<Class<?>, String> pluginResolver,
+                                 Path[] dataDirs, Path configDir, Path tempDir) {
         logger.debug("Loading entitlement agent");
         if (EntitlementBootstrap.bootstrapArgs != null) {
             throw new IllegalStateException("plugin data is already set");
         }
-        EntitlementBootstrap.bootstrapArgs = new BootstrapArgs(pluginPolicies, pluginResolver);
+        EntitlementBootstrap.bootstrapArgs = new BootstrapArgs(pluginPolicies, pluginResolver, dataDirs, configDir, tempDir);
         exportInitializationToAgent();
         loadAgent(findAgentJar());
         selfTest();

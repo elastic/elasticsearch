@@ -319,12 +319,6 @@ tests:
 - class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
   method: test {yaml=cat.aliases/10_basic/Simple alias}
   issue: https://github.com/elastic/elasticsearch/issues/121186
-- class: org.elasticsearch.index.mapper.KeywordFieldMapperTests
-  method: testFieldTypeWithSkipDocValues_LogsDbMode
-  issue: https://github.com/elastic/elasticsearch/issues/121232
-- class: org.elasticsearch.index.mapper.KeywordFieldMapperTests
-  method: testFieldTypeDefault_ConfiguredDocValues
-  issue: https://github.com/elastic/elasticsearch/issues/121233
 - class: org.elasticsearch.xpack.ml.integration.ClassificationIT
   method: testWithDatastreams
   issue: https://github.com/elastic/elasticsearch/issues/121236

@@ -112,4 +112,12 @@ tasks.named("yamlRestCompatTestTransform").configure ({ task ->
   task.skipTest("tsdb/90_unsupported_operations/regular update", "Skip until versioning between 8.x and 9.x is restored")
   task.skipTest("tsdb/25_id_generation/delete over _bulk", "Skip until versioning between 8.x and 9.x is restored")
   task.skipTest("tsdb/20_mapping/exact match object type", "Skip until versioning between 8.x and 9.x is restored")
+  task.skipTest(
+    "cluster.desired_nodes/10_basic/Test delete desired nodes with node_version generates a warning",
+    "node_version warning is removed in 9.0"
+  )
+  task.skipTest(
+    "cluster.desired_nodes/10_basic/Test update desired nodes with node_version generates a warning",
+    "node_version warning is removed in 9.0"
+  )
 })

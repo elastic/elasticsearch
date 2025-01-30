@@ -44,13 +44,12 @@ public record DesiredNodeWithStatus(DesiredNode desiredNode, Status status)
                 (Processors) args[1],
                 (DesiredNode.ProcessorsRange) args[2],
                 (ByteSizeValue) args[3],
-                (ByteSizeValue) args[4],
-                (String) args[5]
+                (ByteSizeValue) args[4]
             ),
             // An unknown status is expected during upgrades to versions >= STATUS_TRACKING_SUPPORT_VERSION
             // the desired node status would be populated when a node in the newer version is elected as
             // master, the desired nodes status update happens in NodeJoinExecutor.
-            args[6] == null ? Status.PENDING : (Status) args[6]
+            args[5] == null ? Status.PENDING : (Status) args[5]
         )
     );
 

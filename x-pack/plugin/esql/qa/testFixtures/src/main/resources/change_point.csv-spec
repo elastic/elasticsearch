@@ -1,5 +1,5 @@
 detect nothing (long)
-// TODO: required_capability: change_point
+required_capability: change_point
 
 FROM k8s
   | STATS count=COUNT() BY @timestamp=BUCKET(@timestamp, 1 MINUTE)
@@ -34,7 +34,7 @@ count:long | @timestamp:datetime      | type:text | pvalue:double
 
 
 detect spike (long)
-// TODO: required_capability: change_point
+required_capability: change_point
 
 FROM k8s
   | STATS count=COUNT() BY @timestamp=BUCKET(@timestamp, 1 MINUTE)
@@ -70,7 +70,7 @@ FROM k8s
 
 
 detect step change (long)
-// TODO: required_capability: change_point
+required_capability: change_point
 
 FROM k8s
   | STATS count=COUNT() BY @timestamp=BUCKET(@timestamp, 1 MINUTE)
@@ -106,7 +106,7 @@ FROM k8s
 
 
 detect dip (double)
-// TODO: required_capability: change_point
+required_capability: change_point
 
 FROM employees
   | STATS salary=AVG(salary) BY height
@@ -173,7 +173,7 @@ height:double | salary:double      | type:text | pvalue:double
 
 
 reuse column names
-// TODO: required_capability: change_point
+required_capability: change_point
 
 FROM k8s
   | STATS count=COUNT() BY @timestamp=BUCKET(@timestamp, 1 MINUTE)
@@ -209,7 +209,7 @@ null            | null
 
 
 not enough data
-// TODO: required_capability: change_point
+required_capability: change_point
 
 FROM k8s
   | STATS count=COUNT() BY @timestamp=BUCKET(@timestamp, 10 MINUTES)

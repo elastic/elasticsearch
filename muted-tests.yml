@@ -378,6 +378,8 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/121353
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlClientYamlIT
   issue: https://github.com/elastic/elasticsearch/issues/121352
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlClientYamlAsyncIT
+  issue: https://github.com/elastic/elasticsearch/issues/121354
 
 # Examples:
 #

@@ -370,6 +370,9 @@ tests:
 - class: org.elasticsearch.env.NodeEnvironmentTests
   method: testGetBestDowngradeVersion
   issue: https://github.com/elastic/elasticsearch/issues/121316
+- class: org.elasticsearch.index.engine.ShuffleForcedMergePolicyTests
+  method: testDiagnostics
+  issue: https://github.com/elastic/elasticsearch/issues/121336
 
 # Examples:
 #

@@ -48,7 +48,6 @@ import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.session.Configuration;
-import org.elasticsearch.xpack.esql.session.EsqlSessionCCSUtils;
 import org.elasticsearch.xpack.esql.session.Result;
 
 import java.util.ArrayList;

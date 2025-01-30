@@ -29,7 +29,7 @@ POST /_security/api_key
           "privileges": [
             "all"
           ],
-          "allow_restricted_indices": true
+          "allow_restricted_indices": false
         }
       ]
     }

@@ -48,6 +48,7 @@ public class ChangePointOperator implements Operator {
     private final List<Page> outputPages;
     private boolean finished;
     private int outputPageIndex;
+    private Warnings warnings;
 
     public ChangePointOperator(DriverContext driverContext, int inputChannel, String sourceText, int sourceLine, int sourceColumn) {
         this.driverContext = driverContext;
@@ -59,6 +60,7 @@ public class ChangePointOperator implements Operator {
         finished = false;
         inputPages = new ArrayList<>();
         outputPages = new ArrayList<>();
+        warnings = null;
     }
 
     @Override
@@ -105,11 +107,17 @@ public class ChangePointOperator implements Operator {
         // TODO: account for this memory?
         double[] values = new double[valuesCount];
         int valuesIndex = 0;
+        boolean hasNulls = false;
         for (Page inputPage : inputPages) {
             Block inputBlock = inputPage.getBlock(inputChannel);
             for (int i = 0; i < inputBlock.getPositionCount(); i++) {
-                // TODO: nulls
-                values[valuesIndex++] = ((Number) BlockUtils.toJavaObject(inputBlock, i)).doubleValue();
+                Object value = BlockUtils.toJavaObject(inputBlock, i);
+                if (value == null) {
+                    hasNulls = true;
+                    values[valuesIndex++] = 0;
+                } else {
+                    values[valuesIndex++] = ((Number) value).doubleValue();
+                }
             }
         }
 
@@ -117,11 +125,12 @@ public class ChangePointOperator implements Operator {
         int changePointIndex = changeType.changePoint();
 
         if (changeType instanceof ChangeType.Indeterminable indeterminable) {
-            Warnings.createWarnings(driverContext.warningsMode(), sourceLine, sourceColumn, sourceText)
-                .registerException(new IllegalArgumentException(indeterminable.getReason()));
+            warnings(false).registerException(new IllegalArgumentException(indeterminable.getReason()));
+        }
+        if (hasNulls) {
+            warnings(true).registerException(new IllegalArgumentException("values contain nulls; treating them as zeroes"));
         }
 
-        // TODO: throw error when indeterminable, due to not enough data
         BlockFactory blockFactory = driverContext.blockFactory();
         int pageStartIndex = 0;
         for (Page inputPage : inputPages) {
@@ -159,4 +168,15 @@ public class ChangePointOperator implements Operator {
 
     @Override
     public void close() {}
+
+    private Warnings warnings(boolean onlyWarnings) {
+        if (warnings == null) {
+            if (onlyWarnings) {
+                this.warnings = Warnings.createOnlyWarnings(driverContext.warningsMode(), sourceLine, sourceColumn, sourceText);
+            } else {
+                this.warnings = Warnings.createWarnings(driverContext.warningsMode(), sourceLine, sourceColumn, sourceText);
+            }
+        }
+        return warnings;
+    }
 }

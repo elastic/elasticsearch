@@ -54,19 +54,19 @@ public class IbmWatsonxRerankRequestManager extends IbmWatsonxRequestManager {
     ) {
         var rerankInput = QueryAndDocsInputs.of(inferenceInputs);
 
-        execute(new ExecutableInferenceRequest(requestSender,
-            logger,
-            getRerankRequest(rerankInput.getQuery(), rerankInput.getChunks(), model),
-            HANDLER,
-            hasRequestCompletedFunction,
-            listener));
+        execute(
+            new ExecutableInferenceRequest(
+                requestSender,
+                logger,
+                getRerankRequest(rerankInput.getQuery(), rerankInput.getChunks(), model),
+                HANDLER,
+                hasRequestCompletedFunction,
+                listener
+            )
+        );
     }
 
-    protected IbmWatsonxRerankRequest getRerankRequest(
-       String query,
-       List<String> chunks,
-       IbmWatsonxRerankModel model
-    ) {
+    protected IbmWatsonxRerankRequest getRerankRequest(String query, List<String> chunks, IbmWatsonxRerankModel model) {
         return new IbmWatsonxRerankRequest(query, chunks, model);
     }
 }

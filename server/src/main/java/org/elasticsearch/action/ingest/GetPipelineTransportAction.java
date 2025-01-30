@@ -63,10 +63,10 @@ public class GetPipelineTransportAction extends TransportLocalProjectMetadataAct
     protected void localClusterStateOperation(
         Task task,
         GetPipelineRequest request,
-        ProjectState project,
+        ProjectState state,
         ActionListener<GetPipelineResponse> listener
     ) throws Exception {
-        listener.onResponse(new GetPipelineResponse(IngestService.getPipelines(project, request.getIds()), request.isSummary()));
+        listener.onResponse(new GetPipelineResponse(IngestService.getPipelines(state.metadata(), request.getIds()), request.isSummary()));
     }
 
     @Override

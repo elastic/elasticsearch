@@ -33,7 +33,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
-import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -473,8 +472,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
      */
     // Returning PipelineConfiguration instead of Pipeline, because Pipeline and Processor interface don't
     // know how to serialize themselves.
-    public static List<PipelineConfiguration> getPipelines(ProjectState state, String... ids) {
-        IngestMetadata ingestMetadata = state.metadata().custom(IngestMetadata.TYPE);
+    public static List<PipelineConfiguration> getPipelines(ProjectMetadata project, String... ids) {
+        IngestMetadata ingestMetadata = project.custom(IngestMetadata.TYPE);
         return innerGetPipelines(ingestMetadata, ids);
     }
 

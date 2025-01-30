@@ -18,7 +18,6 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.compute.data.BasicBlockTests;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
@@ -27,6 +26,9 @@ import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceOperator;
+import org.elasticsearch.compute.test.CannedSourceOperator;
+import org.elasticsearch.compute.test.RandomBlock;
+import org.elasticsearch.compute.test.TestResultPageSinkOperator;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
@@ -295,7 +297,7 @@ public class DriverTests extends ESTestCase {
             final int maxAllowedRows = between(1, 100);
             final AtomicInteger processedRows = new AtomicInteger(0);
             var sinkHandler = new ExchangeSinkHandler(driverContext.blockFactory(), positions, System::currentTimeMillis);
-            var sinkOperator = new ExchangeSinkOperator(sinkHandler.createExchangeSink(), Function.identity());
+            var sinkOperator = new ExchangeSinkOperator(sinkHandler.createExchangeSink(() -> {}), Function.identity());
             final var delayOperator = new EvalOperator(driverContext.blockFactory(), new EvalOperator.ExpressionEvaluator() {
                 @Override
                 public Block eval(Page page) {
@@ -333,7 +335,7 @@ public class DriverTests extends ESTestCase {
             var sourceHandler = new ExchangeSourceHandler(between(1, 5), threadPool.executor("esql"), sourceFuture);
             var sinkHandler = new ExchangeSinkHandler(driverContext.blockFactory(), between(1, 5), System::currentTimeMillis);
             var sourceOperator = new ExchangeSourceOperator(sourceHandler.createExchangeSource());
-            var sinkOperator = new ExchangeSinkOperator(sinkHandler.createExchangeSink(), Function.identity());
+            var sinkOperator = new ExchangeSinkOperator(sinkHandler.createExchangeSink(() -> {}), Function.identity());
             Driver driver = new Driver(driverContext, sourceOperator, List.of(), sinkOperator, () -> {});
             PlainActionFuture<Void> future = new PlainActionFuture<>();
             Driver.start(threadPool.getThreadContext(), threadPool.executor("esql"), driver, between(1, 1000), future);
@@ -358,7 +360,7 @@ public class DriverTests extends ESTestCase {
     }
 
     private static Page randomPage() {
-        BasicBlockTests.RandomBlock block = BasicBlockTests.randomBlock(
+        RandomBlock block = RandomBlock.randomBlock(
             randomFrom(ElementType.BOOLEAN, ElementType.INT, ElementType.BYTES_REF),
             between(1, 10),
             randomBoolean(),

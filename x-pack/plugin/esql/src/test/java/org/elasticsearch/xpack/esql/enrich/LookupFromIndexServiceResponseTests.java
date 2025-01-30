@@ -16,13 +16,14 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.IntBlock;
-import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.compute.data.BlockWritables;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.test.RandomBlock;
+import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xpack.esql.TestBlockFactory;
 import org.junit.After;
 
 import java.io.IOException;
@@ -37,23 +38,34 @@ public class LookupFromIndexServiceResponseTests extends AbstractWireSerializing
     private final List<CircuitBreaker> breakers = new ArrayList<>();
 
     LookupFromIndexService.LookupResponse createTestInstance(BlockFactory blockFactory) {
-        return new LookupFromIndexService.LookupResponse(randomList(0, 10, () -> testPage(blockFactory)), blockFactory);
+        return new LookupFromIndexService.LookupResponse(randomList(0, 10, () -> randomPage(blockFactory)), blockFactory);
     }
 
     /**
-     * Build a {@link Page} to test serialization. If we had nice random
-     * {@linkplain Page} generation we'd use that happily, but it's off
-     * in the tests for compute, and we're in ESQL. And we don't
-     * <strong>really</strong> need a fully random one to verify serialization
-     * here.
+     * Build a random {@link Page} to test serialization.
      */
-    Page testPage(BlockFactory blockFactory) {
-        try (IntVector.Builder builder = blockFactory.newIntVectorFixedBuilder(3)) {
-            builder.appendInt(1);
-            builder.appendInt(2);
-            builder.appendInt(3);
-            return new Page(builder.build().asBlock());
+    Page randomPage(BlockFactory blockFactory) {
+        Block[] blocks = new Block[between(1, 20)];
+        int positionCount = between(1, 100);
+        try {
+            for (int i = 0; i < blocks.length; i++) {
+                blocks[i] = RandomBlock.randomBlock(
+                    blockFactory,
+                    RandomBlock.randomElementType(),
+                    positionCount,
+                    randomBoolean(),
+                    1,
+                    1,
+                    0,
+                    0
+                ).block();
+            }
+        } finally {
+            if (blocks[blocks.length - 1] == null) {
+                Releasables.close(blocks);
+            }
         }
+        return new Page(blocks);
     }
 
     @Override
@@ -72,13 +84,13 @@ public class LookupFromIndexServiceResponseTests extends AbstractWireSerializing
         assertThat(instance.blockFactory, sameInstance(TestBlockFactory.getNonBreakingInstance()));
         List<Page> pages = new ArrayList<>(instance.pages().size());
         pages.addAll(instance.pages());
-        pages.add(testPage(TestBlockFactory.getNonBreakingInstance()));
+        pages.add(randomPage(TestBlockFactory.getNonBreakingInstance()));
         return new LookupFromIndexService.LookupResponse(pages, instance.blockFactory);
     }
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        return new NamedWriteableRegistry(List.of(IntBlock.ENTRY));
+        return new NamedWriteableRegistry(BlockWritables.getNamedWriteables());
     }
 
     public void testWithBreaker() throws IOException {

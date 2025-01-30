@@ -70,6 +70,12 @@ interface LocalSpecBuilder<T extends LocalSpecBuilder<?>> {
     T module(String moduleName);
 
     /**
+     * Ensure module is installed into the distribution when using the {@link DistributionType#INTEG_TEST} distribution. This is ignored
+     * when the {@link DistributionType#DEFAULT} is being used.
+     */
+    T module(String moduleName, Consumer<? super PluginInstallSpec> config);
+
+    /**
      * Ensure plugin is installed into the distribution.
      */
     T plugin(String pluginName);

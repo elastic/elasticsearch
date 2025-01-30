@@ -16,6 +16,7 @@ import org.elasticsearch.compute.aggregation.MinDoubleAggregatorFunctionSupplier
 import org.elasticsearch.compute.aggregation.MinIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MinIpAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MinLongAggregatorFunctionSupplier;
+import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -27,6 +28,7 @@ import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.FromAggregateMetricDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMin;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
@@ -73,7 +75,19 @@ public class Min extends AggregateFunction implements ToAggregator, SurrogateExp
         Source source,
         @Param(
             name = "field",
-            type = { "boolean", "double", "integer", "long", "date", "date_nanos", "ip", "keyword", "text", "long", "version" }
+            type = {
+                "aggregate_metric_double",
+                "boolean",
+                "double",
+                "integer",
+                "long",
+                "date",
+                "date_nanos",
+                "ip",
+                "keyword",
+                "text",
+                "long",
+                "version" }
         ) Expression field
     ) {
         this(source, field, Literal.TRUE);
@@ -111,7 +125,7 @@ public class Min extends AggregateFunction implements ToAggregator, SurrogateExp
     protected TypeResolution resolveType() {
         return TypeResolutions.isType(
             field(),
-            SUPPLIERS::containsKey,
+            dt -> SUPPLIERS.containsKey(dt) || dt == DataType.AGGREGATE_METRIC_DOUBLE,
             sourceText(),
             DEFAULT,
             "representable except unsigned_long and spatial types"
@@ -120,6 +134,9 @@ public class Min extends AggregateFunction implements ToAggregator, SurrogateExp
 
     @Override
     public DataType dataType() {
+        if (field().dataType() == DataType.AGGREGATE_METRIC_DOUBLE) {
+            return DataType.DOUBLE;
+        }
         return field().dataType().noText();
     }
 
@@ -135,6 +152,9 @@ public class Min extends AggregateFunction implements ToAggregator, SurrogateExp
 
     @Override
     public Expression surrogate() {
+        if (field().dataType() == DataType.AGGREGATE_METRIC_DOUBLE) {
+            return new Min(source(), FromAggregateMetricDouble.withMetric(source(), field(), AggregateMetricDoubleBlockBuilder.Metric.MIN));
+        }
         return field().foldable() ? new MvMin(source(), field()) : null;
     }
 }

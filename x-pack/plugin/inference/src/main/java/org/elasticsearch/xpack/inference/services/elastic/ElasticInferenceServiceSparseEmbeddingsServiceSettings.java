@@ -17,7 +17,6 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-import org.elasticsearch.xpack.inference.services.elasticsearch.ElserModels;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -60,10 +59,6 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettings extends Filt
             ElasticInferenceService.NAME,
             context
         );
-
-        if (modelId != null && ElserModels.isValidEisModel(modelId) == false) {
-            validationException.addValidationError("unknown ELSER model id [" + modelId + "]");
-        }
 
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;

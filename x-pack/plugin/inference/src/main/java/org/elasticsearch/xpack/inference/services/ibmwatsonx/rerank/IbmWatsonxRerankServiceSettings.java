@@ -92,10 +92,6 @@ public class IbmWatsonxRerankServiceSettings extends FilteredXContentObject impl
 
     private final RateLimitSettings rateLimitSettings;
 
-    public Integer maxInputTokens() {
-        return 10;
-    }
-
     public IbmWatsonxRerankServiceSettings(
         @Nullable URI uri,
         String apiVersion,
@@ -115,12 +111,8 @@ public class IbmWatsonxRerankServiceSettings extends FilteredXContentObject impl
         this.apiVersion = in.readString();
         this.modelId = in.readOptionalString();
         this.projectId = in.readOptionalString();
+        this.rateLimitSettings = new RateLimitSettings(in);
 
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            this.rateLimitSettings = new RateLimitSettings(in);
-        } else {
-            this.rateLimitSettings = DEFAULT_RATE_LIMIT_SETTINGS;
-        }
     }
 
     public URI uri() {

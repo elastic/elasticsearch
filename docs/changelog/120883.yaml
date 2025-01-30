@@ -1,0 +1,5 @@
+pr: 120883
+summary: Add `?master_timeout` to `POST /_ilm/migrate_to_data_tiers`
+area: Indices APIs
+type: bug
+issues: []

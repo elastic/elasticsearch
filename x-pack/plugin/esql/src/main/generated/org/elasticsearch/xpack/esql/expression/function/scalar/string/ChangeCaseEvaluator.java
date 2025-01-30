@@ -21,7 +21,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link ChangeCase}.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
 public final class ChangeCaseEvaluator implements EvalOperator.ExpressionEvaluator {
   private final Source source;

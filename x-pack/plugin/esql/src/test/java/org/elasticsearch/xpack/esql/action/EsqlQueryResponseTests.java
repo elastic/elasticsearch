@@ -39,6 +39,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geo.ShapeTestUtils;
+import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.transport.RemoteClusterAware;
@@ -175,7 +176,8 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
             t -> false == DataType.isPrimitiveAndSupported(t)
                 || t == DataType.DATE_PERIOD
                 || t == DataType.TIME_DURATION
-                || t == DataType.PARTIAL_AGG,
+                || t == DataType.PARTIAL_AGG
+                || t == DataType.AGGREGATE_METRIC_DOUBLE,
             () -> randomFrom(DataType.types())
         ).widenSmallNumeric();
         return new ColumnInfoImpl(randomAlphaOfLength(10), type.esType());
@@ -214,6 +216,13 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 case CARTESIAN_SHAPE -> ((BytesRefBlock.Builder) builder).appendBytesRef(
                     CARTESIAN.asWkb(ShapeTestUtils.randomGeometry(randomBoolean()))
                 );
+                case AGGREGATE_METRIC_DOUBLE -> {
+                    BlockLoader.AggregateMetricDoubleBuilder aggBuilder = (BlockLoader.AggregateMetricDoubleBuilder) builder;
+                    aggBuilder.min().appendDouble(randomDouble());
+                    aggBuilder.max().appendDouble(randomDouble());
+                    aggBuilder.sum().appendDouble(randomDouble());
+                    aggBuilder.count().appendInt(randomInt());
+                }
                 case NULL -> builder.appendNull();
                 case SOURCE -> {
                     try {
@@ -553,7 +562,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
             }
          }
          */
-        return numClusters * 4 + 6;
+        return numClusters * 4 + 1;
     }
 
     public void testChunkResponseSizeColumnar() {
@@ -938,6 +947,13 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                         // This just converts WKT to WKB, so does not need CRS knowledge, we could merge GEO and CARTESIAN here
                         BytesRef wkb = stringToSpatial(value.toString());
                         ((BytesRefBlock.Builder) builder).appendBytesRef(wkb);
+                    }
+                    case AGGREGATE_METRIC_DOUBLE -> {
+                        BlockLoader.AggregateMetricDoubleBuilder aggBuilder = (BlockLoader.AggregateMetricDoubleBuilder) builder;
+                        aggBuilder.min().appendDouble(((Number) value).doubleValue());
+                        aggBuilder.max().appendDouble(((Number) value).doubleValue());
+                        aggBuilder.sum().appendDouble(((Number) value).doubleValue());
+                        aggBuilder.count().appendInt(((Number) value).intValue());
                     }
                 }
             }

@@ -366,6 +366,9 @@ tests:
 - class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
   method: test {yaml=indices.get_alias/10_basic/Get aliases via /*/_alias/}
   issue: https://github.com/elastic/elasticsearch/issues/121290
+- class: org.elasticsearch.xpack.inference.action.TransportInferenceActionTests
+  method: testRerouting_HandlesTransportException_FromOtherNode
+  issue: https://github.com/elastic/elasticsearch/issues/121292
 
 # Examples:
 #

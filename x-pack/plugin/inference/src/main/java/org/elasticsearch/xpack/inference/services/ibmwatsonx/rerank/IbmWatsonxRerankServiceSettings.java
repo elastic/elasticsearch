@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.ibmwatsonx.rerank;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
@@ -33,8 +31,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSION
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT_TOKENS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.convertToUri;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.createOptionalUri;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUri;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractSimilarity;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeAsType;
@@ -55,7 +52,8 @@ public class IbmWatsonxRerankServiceSettings extends FilteredXContentObject impl
     public static IbmWatsonxRerankServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         ValidationException validationException = new ValidationException();
 
-        String url = extractOptionalString(map, URL, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        String url = extractRequiredString(map, URL, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        URI uri = convertToUri(url, URL, ModelConfigurations.SERVICE_SETTINGS, validationException);
         String apiVersion = extractRequiredString(map, API_VERSION, ModelConfigurations.SERVICE_SETTINGS, validationException);
 
         // We need to extract/remove those fields to avoid unknown service settings errors
@@ -63,8 +61,7 @@ public class IbmWatsonxRerankServiceSettings extends FilteredXContentObject impl
         removeAsType(map, DIMENSIONS, Integer.class);
         removeAsType(map, MAX_INPUT_TOKENS, Integer.class);
 
-        URI uri = convertToUri(url, URL, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        String modelId = extractOptionalString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        String modelId = extractRequiredString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
         String projectId = extractRequiredString(map, PROJECT_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
 
         RateLimitSettings rateLimitSettings = RateLimitSettings.of(
@@ -93,9 +90,9 @@ public class IbmWatsonxRerankServiceSettings extends FilteredXContentObject impl
     private final RateLimitSettings rateLimitSettings;
 
     public IbmWatsonxRerankServiceSettings(
-        @Nullable URI uri,
+        URI uri,
         String apiVersion,
-        @Nullable String modelId,
+        String modelId,
         String projectId,
         @Nullable RateLimitSettings rateLimitSettings
     ) {
@@ -107,10 +104,10 @@ public class IbmWatsonxRerankServiceSettings extends FilteredXContentObject impl
     }
 
     public IbmWatsonxRerankServiceSettings(StreamInput in) throws IOException {
-        this.uri = createOptionalUri(in.readOptionalString());
+        this.uri = createUri(in.readString());
         this.apiVersion = in.readString();
-        this.modelId = in.readOptionalString();
-        this.projectId = in.readOptionalString();
+        this.modelId = in.readString();
+        this.projectId = in.readString();
         this.rateLimitSettings = new RateLimitSettings(in);
 
     }
@@ -154,15 +151,11 @@ public class IbmWatsonxRerankServiceSettings extends FilteredXContentObject impl
 
     @Override
     protected XContentBuilder toXContentFragmentOfExposedFields(XContentBuilder builder, Params params) throws IOException {
-        if (uri != null) {
-            builder.field(URL, uri.toString());
-        }
+        builder.field(URL, uri.toString());
 
         builder.field(API_VERSION, apiVersion);
 
-        if (modelId != null) {
-            builder.field(MODEL_ID, modelId);
-        }
+        builder.field(MODEL_ID, modelId);
 
         builder.field(PROJECT_ID, projectId);
 
@@ -178,12 +171,11 @@ public class IbmWatsonxRerankServiceSettings extends FilteredXContentObject impl
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        var uriToWrite = uri != null ? uri.toString() : null;
-        out.writeOptionalString(uriToWrite);
+        out.writeString(uri.toString());
         out.writeString(apiVersion);
 
-        out.writeOptionalString(modelId);
-        out.writeOptionalString(projectId);
+        out.writeString(modelId);
+        out.writeString(projectId);
 
         rateLimitSettings.writeTo(out);
     }

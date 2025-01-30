@@ -1,5 +1,8 @@
 ---
 setup:
+  - skip:
+      features: headers
+
   - do:
       indices.create:
         index: test_index
@@ -16,15 +19,44 @@ setup:
             test_alias: {}
             test_blias: {}
 
----
-"Get all aliases via /_alias":
+  - do:
+      security.put_role:
+        name: "get_alias_test_role"
+        body: >
+          {
+            "cluster": [],
+            "indices": [
+              {
+                "names": ["test*", "myindex", "non-existent", "another-non-existent", "foo"],
+                "privileges": ["all"]
+              }
+            ]
+          }
 
   - do:
+      security.put_user:
+        username: "test_user"
+        body: >
+          {
+            "password" : "x-pack-test-password",
+            "roles" : [ "get_alias_test_role" ],
+            "full_name" : "Get Alias Test User"
+          }
+
+---
+"Get all aliases via /_alias":
+  - transform_and_set: { login_credentials: "#base64Encode(test_user:x-pack-test-password)" }
+
+  - do:
+      headers:
+        Authorization: Basic ${login_credentials}
       indices.create:
         index: test_index_3
 
   - do:
-      indices.get_alias: {}
+      headers:
+        Authorization: Basic ${login_credentials}
+      indices.get_alias: { }
 
   - match: {test_index.aliases.test_alias: {}}
   - match: {test_index.aliases.test_blias: {}}
@@ -34,12 +66,17 @@ setup:
 
 ---
 "Get aliases via /_alias/_all":
+  - transform_and_set: { login_credentials: "#base64Encode(test_user:x-pack-test-password)" }
 
   - do:
+      headers:
+        Authorization: Basic ${login_credentials}
       indices.create:
         index: test_index_3
 
   - do:
+      headers:
+        Authorization: Basic ${login_credentials}
       indices.get_alias:
         name: _all
 
@@ -51,12 +88,17 @@ setup:
 
 ---
 "Get aliases via /_alias/*":
+  - transform_and_set: { login_credentials: "#base64Encode(test_user:x-pack-test-password)" }
 
   - do:
+      headers:
+        Authorization: Basic ${login_credentials}
       indices.create:
         index: test_index_3
 
   - do:
+      headers:
+        Authorization: Basic ${login_credentials}
       indices.get_alias:
         name: '*'
 
@@ -68,8 +110,11 @@ setup:
 
 ---
 "Get all aliases via /{index}/_alias/":
+  - transform_and_set: { login_credentials: "#base64Encode(test_user:x-pack-test-password)" }
 
   - do:
+      headers:
+        Authorization: Basic ${login_credentials}
       indices.get_alias:
         index: test_index
 
@@ -79,11 +124,17 @@ setup:
 
 ---
 "Get aliases via /_all/_alias/":
+  - transform_and_set: { login_credentials: "#base64Encode(test_user:x-pack-test-password)" }
+
   - do:
+      headers:
+        Authorization: Basic ${login_credentials}
       indices.create:
         index: myindex
 
   - do:
+      headers:
+        Authorization: Basic ${login_credentials}
       indices.get_alias:
         index: _all
 
@@ -95,11 +146,17 @@ setup:
 
 ---
 "Get aliases via /*/_alias/":
+  - transform_and_set: { login_credentials: "#base64Encode(test_user:x-pack-test-password)" }
+
   - do:
+      headers:
+        Authorization: Basic ${login_credentials}
       indices.create:
         index: myindex
 
   - do:
+      headers:
+        Authorization: Basic ${login_credentials}
       indices.get_alias:
         index: "*"
 
@@ -111,11 +168,17 @@ setup:
 
 ---
 "Get and index with no aliases via /{index}/_alias/":
+  - transform_and_set: { login_credentials: "#base64Encode(test_user:x-pack-test-password)" }
+
   - do:
+      headers:
+        Authorization: Basic ${login_credentials}
       indices.create:
         index: myindex
 
   - do:
+      headers:
+        Authorization: Basic ${login_credentials}
       indices.get_alias:
         index: myindex
 
@@ -123,8 +186,11 @@ setup:
 
 ---
 "Get specific alias via /{index}/_alias/{name}":
+  - transform_and_set: { login_credentials: "#base64Encode(test_user:x-pack-test-password)" }
 
   - do:
+      headers:
+        Authorization: Basic ${login_credentials}
       indices.get_alias:
         index: test_index
         name:  test_alias
@@ -135,8 +201,11 @@ setup:
 
 ---
 "Get aliases via /{index}/_alias/_all":
+  - transform_and_set: { login_credentials: "#base64Encode(test_user:x-pack-test-password)" }
 
   - do:
+      headers:
+        Authorization: Basic ${login_credentials}
       indices.get_alias:
         index: test_index
         name: _all
@@ -147,8 +216,11 @@ setup:
 
 ---
 "Get aliases via /{index}/_alias/*":
+  - transform_and_set: { login_credentials: "#base64Encode(test_user:x-pack-test-password)" }
 
   - do:
+      headers:
+        Authorization: Basic ${login_credentials}
       indices.get_alias:
         index: test_index
         name: '*'
@@ -159,7 +231,11 @@ setup:
 
 ---
 "Get aliases via /{index}/_alias/prefix*":
+  - transform_and_set: { login_credentials: "#base64Encode(test_user:x-pack-test-password)" }
+
   - do:
+      headers:
+        Authorization: Basic ${login_credentials}
       indices.get_alias:
         index: test_index
         name: 'test_a*'
@@ -170,8 +246,11 @@ setup:
 
 ---
 "Get aliases via /{index}/_alias/name,name":
+  - transform_and_set: { login_credentials: "#base64Encode(test_user:x-pack-test-password)" }
 
   - do:
+      headers:
+        Authorization: Basic ${login_credentials}
       indices.get_alias:
         index: test_index
         name: 'test_alias,test_blias'
@@ -182,8 +261,11 @@ setup:
 
 ---
 "Get aliases via /_alias/{name}":
+  - transform_and_set: { login_credentials: "#base64Encode(test_user:x-pack-test-password)" }
 
   - do:
+      headers:
+        Authorization: Basic ${login_credentials}
       indices.get_alias:
         name: test_alias
 
@@ -194,8 +276,11 @@ setup:
 
 ---
 "Get aliases via /_all/_alias/{name}":
+  - transform_and_set: { login_credentials: "#base64Encode(test_user:x-pack-test-password)" }
 
   - do:
+      headers:
+        Authorization: Basic ${login_credentials}
       indices.get_alias:
         index: _all
         name: test_alias
@@ -207,8 +292,11 @@ setup:
 
 ---
 "Get aliases via /*/_alias/{name}":
+  - transform_and_set: { login_credentials: "#base64Encode(test_user:x-pack-test-password)" }
 
   - do:
+      headers:
+        Authorization: Basic ${login_credentials}
       indices.get_alias:
         index: '*'
         name: test_alias
@@ -220,8 +308,11 @@ setup:
 
 ---
 "Get aliases via /*suf/_alias/{name}":
+  - transform_and_set: { login_credentials: "#base64Encode(test_user:x-pack-test-password)" }
 
   - do:
+      headers:
+        Authorization: Basic ${login_credentials}
       indices.get_alias:
         index: '*2'
         name: test_alias
@@ -233,8 +324,11 @@ setup:
 
 ---
 "Get aliases via /name,name/_alias/{name}":
+  - transform_and_set: { login_credentials: "#base64Encode(test_user:x-pack-test-password)" }
 
   - do:
+      headers:
+        Authorization: Basic ${login_credentials}
       indices.get_alias:
         index: test_index,test_index_2
         name: test_alias
@@ -247,7 +341,11 @@ setup:
 
 ---
 "Non-existent alias on an existing index returns 404":
+  - transform_and_set: { login_credentials: "#base64Encode(test_user:x-pack-test-password)" }
+
   - do:
+      headers:
+        Authorization: Basic ${login_credentials}
       catch: missing
       indices.get_alias:
         index: test_index
@@ -258,7 +356,11 @@ setup:
 
 ---
 "Existent and non-existent alias returns 404 and the existing alias":
+  - transform_and_set: { login_credentials: "#base64Encode(test_user:x-pack-test-password)" }
+
   - do:
+      headers:
+        Authorization: Basic ${login_credentials}
       catch: missing
       indices.get_alias:
         index: test_index
@@ -270,7 +372,11 @@ setup:
 
 ---
 "Existent and non-existent aliases returns 404 and the existing alias":
+  - transform_and_set: { login_credentials: "#base64Encode(test_user:x-pack-test-password)" }
+
   - do:
+      headers:
+        Authorization: Basic ${login_credentials}
       catch: missing
       indices.get_alias:
         index: test_index
@@ -282,8 +388,11 @@ setup:
 
 ---
 "Getting alias on an non-existent index should return 404":
+  - transform_and_set: { login_credentials: "#base64Encode(test_user:x-pack-test-password)" }
 
   - do:
+      headers:
+        Authorization: Basic ${login_credentials}
       catch: missing
       indices.get_alias:
         index: non-existent
@@ -294,11 +403,17 @@ setup:
   - skip:
       features: ["allowed_warnings"]
 
+  - transform_and_set: { login_credentials: "#base64Encode(test_user:x-pack-test-password)" }
+
   - do:
+      headers:
+        Authorization: Basic ${login_credentials}
       indices.close:
         index: test_index_2
 
   - do:
+      headers:
+        Authorization: Basic ${login_credentials}
       indices.get_alias:
         name: test_alias
 
@@ -306,6 +421,8 @@ setup:
   - is_true: test_index_2
 
   - do:
+      headers:
+        Authorization: Basic ${login_credentials}
       indices.get_alias:
         name: test_alias
         expand_wildcards: open

@@ -78,20 +78,43 @@ public class TransformAndSetSection implements ExecutableSection {
         for (Map.Entry<String, String> entry : transformStash.entrySet()) {
             String key = entry.getKey();
             String value = entry.getValue();
-            if (value.startsWith("#base64EncodeCredentials(") && value.endsWith(")")) {
-                value = entry.getValue().substring("#base64EncodeCredentials(".length(), entry.getValue().lastIndexOf(')'));
-                String[] idAndPassword = value.split(",");
-                if (idAndPassword.length == 2) {
-                    String credentials = executionContext.response(idAndPassword[0].trim())
-                        + ":"
-                        + executionContext.response(idAndPassword[1].trim());
-                    value = Base64.getEncoder().encodeToString(credentials.getBytes(StandardCharsets.UTF_8));
-                } else {
+            if (isBase64EncodeCredentials(value)) {
+                String[] params = value.substring("#base64EncodeCredentials(".length(), value.lastIndexOf(')')).split(",");
+                if (params.length != 2) {
                     throw new IllegalArgumentException("base64EncodeCredentials requires a username/id and a password parameters");
                 }
+                String credentials = executionContext.response(params[0].trim()) + ":" + executionContext.response(params[1].trim());
+                executionContext.stash().stashValue(key, base64Encode(credentials));
+
+            } else if (isBase64Encode(value)) {
+                String param = value.substring("#base64Encode(".length(), value.lastIndexOf(')'));
+                executionContext.stash().stashValue(key, base64Encode(param));
+
+            } else {
+                // behaves like a normal set if the value does not contain a #base64EncodeCredentials or #base64Encode
+                executionContext.stash().stashValue(key, value);
             }
-            executionContext.stash().stashValue(key, value);
         }
     }
 
+    /**
+     * The {@code #base64EncodeCredentials()} function is used to encode the credentials in the format of e.g. {@code username:password}.
+     * It accepts two parameters, whose values are looked up from the response, encoded and then stashed in the current execution context.
+     * @return true if the transform value is of the form {@code #base64EncodeCredentials(param1, param2)}
+     */
+    private static boolean isBase64EncodeCredentials(String value) {
+        return value.startsWith("#base64EncodeCredentials(") && value.endsWith(")");
+    }
+
+    /**
+     * The {@code #base64Encode} function is used to encode the given string value as is.
+     * @return true if the transform value is of the form {@code #base64Encode()}
+     */
+    private static boolean isBase64Encode(String value) {
+        return value.startsWith("#base64Encode(") && value.endsWith(")");
+    }
+
+    private static String base64Encode(String value) {
+        return Base64.getEncoder().encodeToString(value.getBytes(StandardCharsets.UTF_8));
+    }
 }

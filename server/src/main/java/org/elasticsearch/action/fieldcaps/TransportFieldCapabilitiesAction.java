@@ -490,10 +490,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                 } else {
                     diff = null;
                 }
-                return new FieldCapabilitiesBuilder(field, "unmapped").isSearchable(false)
-                    .isAggregatable(false)
-                    .nonSearchableIndices(diff)
-                    .build();
+                return new FieldCapabilities(field, "unmapped", false, false, false, false, null, diff, null, null, null, null, Map.of());
             };
         }
         return null;

@@ -430,7 +430,11 @@ public final class IndicesPermission {
         public boolean checkIndex(Group group) {
             final DataStream ds = indexAbstraction == null ? null : indexAbstraction.getParentDataStream();
             if (ds != null) {
-                if (group.checkIndex(ds.getName())) {
+                boolean isFailureStoreIndex = ds.isFailureStoreIndex(indexAbstraction.getName());
+                if (isFailureStoreIndex
+                    && group.checkIndex(IndexNameExpressionResolver.combineSelector(ds.getName(), IndexComponentSelector.FAILURES))) {
+                    return true;
+                } else if (isFailureStoreIndex == false && group.checkIndex(ds.getName())) {
                     return true;
                 }
             }
@@ -907,12 +911,9 @@ public final class IndicesPermission {
             assert indexPattern != "*" : "* is a special case and should never exclude failures";
             assert indexPattern.endsWith("*") || Automatons.isLuceneRegex(indexPattern)
                 : "Only patterns with a trailing wildcard " + "or regular expressions should explicitly exclude failures";
-            // TODO: [Jake] also properly convert `?` and properly escape any characters such as `.` that is valid in index names but have
-            // special meaning in the regular expression
             StringBuilder sb = new StringBuilder();
             if (indexPattern.endsWith("*")) {
-                // using Strings.replace instead of String.replaceAll to avoid regex compilation
-                String inny = Strings.replace(indexPattern, "*", ".*");
+                String inny = globToRegex(indexPattern);
                 return sb.append("/(").append(inny).append(")&~(").append(inny).append("::failures)/").toString();
             } else if (Automatons.isLuceneRegex(indexPattern)) {
                 String inny = indexPattern.substring(1, indexPattern.length() - 1);
@@ -920,6 +921,43 @@ public final class IndicesPermission {
             } else {
                 throw new IllegalArgumentException("Unexpected index pattern: " + indexPattern); // should never happen
             }
+        }
+
+        private static String globToRegex(String glob) {
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < glob.length(); i++) {
+                char c = glob.charAt(i);
+                switch (c) {
+                    case '*':
+                        sb.append(".*");
+                        break;
+                    case '?':
+                        sb.append('.');
+                        break;
+                    case '.':
+                    case '(':
+                    case ')':
+                    case '[':
+                    case ']':
+                    case '{':
+                    case '}':
+                    case '\\':
+                    case '\"':
+                    case '|':
+                    case '+':
+                    case '#':
+                    case '@':
+                    case '<':
+                    case '>':
+                    case '~':
+                        sb.append('\\').append(c);
+                        break;
+                    default:
+                        sb.append(c);
+                        break;
+                }
+            }
+            return sb.toString();
         }
 
         public IndexPrivilege privilege() {

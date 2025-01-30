@@ -875,14 +875,22 @@ public class RBACEngine implements AuthorizationEngine {
             // TODO: can this be done smarter? I think there are usually more indices/aliases in the cluster then indices defined a roles?
             if (includeDataStreams) {
                 for (IndexAbstraction indexAbstraction : lookup.values()) {
-                    if (predicate.test(indexAbstraction)) {
+                    // the index abstraction here is from cluster state which will never have the ::failure data selector
+                    // the first check is to see if the index/alias/data stream with no selector is authorized
+                    // the second check is to see if the data stream with the ::failures appended to the name is authorized
+                    boolean authorizedForDataAccess = predicate.test(indexAbstraction);
+                    boolean authorizedForFailureAccess = indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM
+                        && predicate.testDataStreamForFailureAccess(indexAbstraction);
+                    if (authorizedForDataAccess || authorizedForFailureAccess) {
                         indicesAndAliases.add(indexAbstraction.getName());
+                        // add data stream and its backing indices for any authorized data streams
                         if (indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM) {
-                            // add data stream and its backing indices for any authorized data streams
-                            for (Index index : indexAbstraction.getIndices()) {
-                                indicesAndAliases.add(index.getName());
+                            if (authorizedForDataAccess) {
+                                for (Index index : indexAbstraction.getIndices()) {
+                                    indicesAndAliases.add(index.getName());
+                                }
                             }
-                            if (predicate.testDataStreamForFailureAccess(indexAbstraction)) {
+                            if (authorizedForFailureAccess) {
                                 for (Index index : ((DataStream) indexAbstraction).getFailureIndices()) {
                                     indicesAndAliases.add(index.getName());
                                 }

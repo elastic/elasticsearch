@@ -142,9 +142,9 @@
         body:
           index_patterns: test-*
           template:
+            settings:
+              index.mapping.source.mode: synthetic
             mappings:
-              _source:
-                mode: synthetic
               dynamic_templates:
                 - no_subobjects:
                     match: metrics
@@ -212,9 +212,9 @@
         body:
           index_patterns: test-*
           template:
+            settings:
+              index.mapping.source.mode: synthetic
             mappings:
-              _source:
-                mode: synthetic
               subobjects: false
               properties:
                 host.name:

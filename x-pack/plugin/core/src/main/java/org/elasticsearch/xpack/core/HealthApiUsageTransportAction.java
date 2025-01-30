@@ -39,14 +39,7 @@ public class HealthApiUsageTransportAction extends XPackUsageFeatureTransportAct
         IndexNameExpressionResolver indexNameExpressionResolver,
         Client client
     ) {
-        super(
-            XPackUsageFeatureAction.HEALTH.name(),
-            transportService,
-            clusterService,
-            threadPool,
-            actionFilters,
-            indexNameExpressionResolver
-        );
+        super(XPackUsageFeatureAction.HEALTH.name(), transportService, clusterService, threadPool, actionFilters);
         this.client = client;
     }
 

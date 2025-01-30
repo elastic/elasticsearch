@@ -149,14 +149,7 @@ public class XPackUsageRestCancellationIT extends ESIntegTestCase {
             ActionFilters actionFilters,
             IndexNameExpressionResolver indexNameExpressionResolver
         ) {
-            super(
-                BlockingUsageActionXPackPlugin.BLOCKING_XPACK_USAGE.name(),
-                transportService,
-                clusterService,
-                threadPool,
-                actionFilters,
-                indexNameExpressionResolver
-            );
+            super(BlockingUsageActionXPackPlugin.BLOCKING_XPACK_USAGE.name(), transportService, clusterService, threadPool, actionFilters);
         }
 
         @Override
@@ -191,8 +184,7 @@ public class XPackUsageRestCancellationIT extends ESIntegTestCase {
                 transportService,
                 clusterService,
                 threadPool,
-                actionFilters,
-                indexNameExpressionResolver
+                actionFilters
             );
         }
 

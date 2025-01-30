@@ -198,10 +198,8 @@ The API returns the following response:
 // TESTRESPONSE[s/"attributes": \{[^}]*\}/"attributes": $body.$_path/]
 // TESTRESPONSE[s/"roles": \[[^]]*\]/"roles": $body.$_path/]
 // TESTRESPONSE[s/"8.10.0"/\$node_version/]
-// TESTRESPONSE[s/"min_index_version": 7000099/"min_index_version": $body.$_path/]
-// TESTRESPONSE[s/"max_index_version": 8100099/"max_index_version": $body.$_path/]
-
-
+// TESTRESPONSE[s/"min_index_version": [0-9]+/"min_index_version": $body.$_path/]
+// TESTRESPONSE[s/"max_index_version": [0-9]+/"max_index_version": $body.$_path/]
 
 <1> The key is the corresponding shard id for the store information
 <2> A list of store information for all copies of the shard

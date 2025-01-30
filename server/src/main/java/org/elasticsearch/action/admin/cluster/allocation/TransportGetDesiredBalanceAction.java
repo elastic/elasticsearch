@@ -68,7 +68,6 @@ public class TransportGetDesiredBalanceAction extends TransportMasterNodeReadAct
             threadPool,
             actionFilters,
             DesiredBalanceRequest::new,
-            indexNameExpressionResolver,
             DesiredBalanceResponse::from,
             threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );

@@ -9,9 +9,17 @@
 
 package org.elasticsearch.entitlement.bridge;
 
+import java.io.File;
 import java.io.InputStream;
 import java.io.PrintStream;
 import java.io.PrintWriter;
+import java.lang.foreign.AddressLayout;
+import java.lang.foreign.Arena;
+import java.lang.foreign.FunctionDescriptor;
+import java.lang.foreign.Linker;
+import java.lang.foreign.MemoryLayout;
+import java.lang.foreign.MemorySegment;
+import java.lang.invoke.MethodHandle;
 import java.net.ContentHandlerFactory;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
@@ -40,8 +48,17 @@ import java.nio.channels.CompletionHandler;
 import java.nio.channels.DatagramChannel;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
+import java.nio.charset.Charset;
+import java.nio.file.OpenOption;
+import java.nio.file.Path;
+import java.nio.file.attribute.UserPrincipal;
+import java.nio.file.spi.FileSystemProvider;
 import java.security.cert.CertStoreParameters;
 import java.util.List;
+import java.util.Locale;
+import java.util.Properties;
+import java.util.TimeZone;
+import java.util.function.Consumer;
 
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.HttpsURLConnection;
@@ -51,7 +68,7 @@ import javax.net.ssl.SSLSocketFactory;
 @SuppressWarnings("unused") // Called from instrumentation code inserted by the Entitlements agent
 public interface EntitlementChecker {
 
-    ////////////////////
+    /// /////////////////
     //
     // Exit the JVM process
     //
@@ -62,7 +79,7 @@ public interface EntitlementChecker {
 
     void check$java_lang_System$$exit(Class<?> callerClass, int status);
 
-    ////////////////////
+    /// /////////////////
     //
     // ClassLoader ctor
     //
@@ -73,7 +90,7 @@ public interface EntitlementChecker {
 
     void check$java_lang_ClassLoader$(Class<?> callerClass, String name, ClassLoader parent);
 
-    ////////////////////
+    /// /////////////////
     //
     // SecureClassLoader ctor
     //
@@ -84,7 +101,7 @@ public interface EntitlementChecker {
 
     void check$java_security_SecureClassLoader$(Class<?> callerClass, String name, ClassLoader parent);
 
-    ////////////////////
+    /// /////////////////
     //
     // URLClassLoader constructors
     //
@@ -99,7 +116,7 @@ public interface EntitlementChecker {
 
     void check$java_net_URLClassLoader$(Class<?> callerClass, String name, URL[] urls, ClassLoader parent, URLStreamHandlerFactory factory);
 
-    ////////////////////
+    /// /////////////////
     //
     // "setFactory" methods
     //
@@ -112,7 +129,7 @@ public interface EntitlementChecker {
 
     void check$javax_net_ssl_SSLContext$$setDefault(Class<?> callerClass, SSLContext context);
 
-    ////////////////////
+    /// /////////////////
     //
     // Process creation
     //
@@ -121,7 +138,16 @@ public interface EntitlementChecker {
 
     void check$java_lang_ProcessBuilder$$startPipeline(Class<?> callerClass, List<ProcessBuilder> builders);
 
-    ////////////////////
+    /// /////////////////
+    //
+    // System Properties and similar
+    //
+
+    void check$java_lang_System$$setProperty(Class<?> callerClass, String key, String value);
+
+    void check$java_lang_System$$clearProperty(Class<?> callerClass, String key);
+
+    /// /////////////////
     //
     // JVM-wide state changes
     //
@@ -131,6 +157,8 @@ public interface EntitlementChecker {
     void check$java_lang_System$$setOut(Class<?> callerClass, PrintStream out);
 
     void check$java_lang_System$$setErr(Class<?> callerClass, PrintStream err);
+
+    void check$java_lang_System$$setProperties(Class<?> callerClass, Properties props);
 
     void check$java_lang_Runtime$addShutdownHook(Class<?> callerClass, Runtime runtime, Thread hook);
 
@@ -176,6 +204,12 @@ public interface EntitlementChecker {
 
     void check$java_util_logging_LogManager$(Class<?> callerClass);
 
+    void check$java_util_Locale$$setDefault(Class<?> callerClass, Locale locale);
+
+    void check$java_util_Locale$$setDefault(Class<?> callerClass, Locale.Category category, Locale locale);
+
+    void check$java_util_TimeZone$$setDefault(Class<?> callerClass, TimeZone zone);
+
     void check$java_net_DatagramSocket$$setDatagramSocketImplFactory(Class<?> callerClass, DatagramSocketImplFactory fac);
 
     void check$java_net_HttpURLConnection$$setFollowRedirects(Class<?> callerClass, boolean set);
@@ -190,7 +224,7 @@ public interface EntitlementChecker {
 
     void check$java_net_URLConnection$$setContentHandlerFactory(Class<?> callerClass, ContentHandlerFactory fac);
 
-    ////////////////////
+    /// /////////////////
     //
     // Network access
     //
@@ -269,10 +303,7 @@ public interface EntitlementChecker {
     // Network miscellanea
     void check$java_net_URL$openConnection(Class<?> callerClass, java.net.URL that, Proxy proxy);
 
-    // HttpClient.Builder is an interface, so we instrument its only (internal) implementation
-    void check$jdk_internal_net_http_HttpClientBuilderImpl$build(Class<?> callerClass, HttpClient.Builder that);
-
-    // HttpClient#send and sendAsync are abstract, so we instrument their internal implementation
+    // HttpClient#send and sendAsync are abstract, so we instrument their internal implementations
     void check$jdk_internal_net_http_HttpClientImpl$send(
         Class<?> callerClass,
         HttpClient that,
@@ -288,6 +319,28 @@ public interface EntitlementChecker {
     );
 
     void check$jdk_internal_net_http_HttpClientImpl$sendAsync(
+        Class<?> callerClass,
+        HttpClient that,
+        HttpRequest userRequest,
+        HttpResponse.BodyHandler<?> responseHandler,
+        HttpResponse.PushPromiseHandler<?> pushPromiseHandler
+    );
+
+    void check$jdk_internal_net_http_HttpClientFacade$send(
+        Class<?> callerClass,
+        HttpClient that,
+        HttpRequest request,
+        HttpResponse.BodyHandler<?> responseBodyHandler
+    );
+
+    void check$jdk_internal_net_http_HttpClientFacade$sendAsync(
+        Class<?> callerClass,
+        HttpClient that,
+        HttpRequest userRequest,
+        HttpResponse.BodyHandler<?> responseHandler
+    );
+
+    void check$jdk_internal_net_http_HttpClientFacade$sendAsync(
         Class<?> callerClass,
         HttpClient that,
         HttpRequest userRequest,
@@ -367,4 +420,99 @@ public interface EntitlementChecker {
     void check$sun_nio_ch_DatagramChannelImpl$send(Class<?> callerClass, DatagramChannel that, ByteBuffer src, SocketAddress target);
 
     void check$sun_nio_ch_DatagramChannelImpl$receive(Class<?> callerClass, DatagramChannel that, ByteBuffer dst);
+
+    /// /////////////////
+    //
+    // Load native libraries
+    //
+    // Using the list of restricted methods from https://download.java.net/java/early_access/jdk24/docs/api/restricted-list.html
+    void check$java_lang_Runtime$load(Class<?> callerClass, Runtime that, String filename);
+
+    void check$java_lang_Runtime$loadLibrary(Class<?> callerClass, Runtime that, String libname);
+
+    void check$java_lang_System$$load(Class<?> callerClass, String filename);
+
+    void check$java_lang_System$$loadLibrary(Class<?> callerClass, String libname);
+
+    // Sealed implementation of java.lang.foreign.AddressLayout
+    void check$jdk_internal_foreign_layout_ValueLayouts$OfAddressImpl$withTargetLayout(
+        Class<?> callerClass,
+        AddressLayout that,
+        MemoryLayout memoryLayout
+    );
+
+    // Sealed implementation of java.lang.foreign.Linker
+    void check$jdk_internal_foreign_abi_AbstractLinker$downcallHandle(
+        Class<?> callerClass,
+        Linker that,
+        FunctionDescriptor function,
+        Linker.Option... options
+    );
+
+    void check$jdk_internal_foreign_abi_AbstractLinker$downcallHandle(
+        Class<?> callerClass,
+        Linker that,
+        MemorySegment address,
+        FunctionDescriptor function,
+        Linker.Option... options
+    );
+
+    void check$jdk_internal_foreign_abi_AbstractLinker$upcallStub(
+        Class<?> callerClass,
+        Linker that,
+        MethodHandle target,
+        FunctionDescriptor function,
+        Arena arena,
+        Linker.Option... options
+    );
+
+    // Sealed implementation for java.lang.foreign.MemorySegment.reinterpret(long)
+    void check$jdk_internal_foreign_AbstractMemorySegmentImpl$reinterpret(Class<?> callerClass, MemorySegment that, long newSize);
+
+    void check$jdk_internal_foreign_AbstractMemorySegmentImpl$reinterpret(
+        Class<?> callerClass,
+        MemorySegment that,
+        long newSize,
+        Arena arena,
+        Consumer<MemorySegment> cleanup
+    );
+
+    void check$jdk_internal_foreign_AbstractMemorySegmentImpl$reinterpret(
+        Class<?> callerClass,
+        MemorySegment that,
+        Arena arena,
+        Consumer<MemorySegment> cleanup
+    );
+
+    void check$java_lang_foreign_SymbolLookup$$libraryLookup(Class<?> callerClass, String name, Arena arena);
+
+    void check$java_lang_foreign_SymbolLookup$$libraryLookup(Class<?> callerClass, Path path, Arena arena);
+
+    void check$java_lang_ModuleLayer$Controller$enableNativeAccess(Class<?> callerClass, ModuleLayer.Controller that, Module target);
+
+    /// /////////////////
+    //
+    // File access
+    //
+
+    void check$java_util_Scanner$(Class<?> callerClass, File source);
+
+    void check$java_util_Scanner$(Class<?> callerClass, File source, String charsetName);
+
+    void check$java_util_Scanner$(Class<?> callerClass, File source, Charset charset);
+
+    void check$java_io_FileOutputStream$(Class<?> callerClass, String name);
+
+    void check$java_io_FileOutputStream$(Class<?> callerClass, String name, boolean append);
+
+    void check$java_io_FileOutputStream$(Class<?> callerClass, File file);
+
+    void check$java_io_FileOutputStream$(Class<?> callerClass, File file, boolean append);
+
+    void check$java_nio_file_Files$$probeContentType(Class<?> callerClass, Path path);
+
+    void check$java_nio_file_Files$$setOwner(Class<?> callerClass, Path path, UserPrincipal principal);
+
+    // hand-wired methods
+    void checkNewInputStream(Class<?> callerClass, FileSystemProvider that, Path path, OpenOption... options);
 }

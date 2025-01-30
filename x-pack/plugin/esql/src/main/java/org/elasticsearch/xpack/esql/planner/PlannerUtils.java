@@ -110,7 +110,7 @@ public class PlannerUtils {
             return Set.of();
         }
         var indices = new LinkedHashSet<String>();
-        forEachFromRelation(plan, relation -> indices.addAll(relation.index().concreteIndices()));
+        forEachFromRelation(plan, relation -> indices.addAll(relation.concreteIndices()));
         return indices;
     }
 
@@ -122,7 +122,7 @@ public class PlannerUtils {
             return Strings.EMPTY_ARRAY;
         }
         var indices = new LinkedHashSet<String>();
-        forEachFromRelation(plan, relation -> indices.addAll(asList(Strings.commaDelimitedListToStringArray(relation.index().name()))));
+        forEachFromRelation(plan, relation -> indices.addAll(asList(Strings.commaDelimitedListToStringArray(relation.indexPattern()))));
         return indices.toArray(String[]::new);
     }
 
@@ -146,7 +146,7 @@ public class PlannerUtils {
     }
 
     /**
-     * Similar to {@link Node#forEachUp(Consumer)}, but with a custom callback to get the node children.
+     * Similar to {@link Node#forEachUp(Class, Consumer)}, but with a custom callback to get the node children.
      */
     private static <T extends Node<T>, E extends T> void forEachUpWithChildren(
         T node,
@@ -192,7 +192,14 @@ public class PlannerUtils {
             if (filter != null) {
                 physicalFragment = physicalFragment.transformUp(
                     EsSourceExec.class,
-                    query -> new EsSourceExec(Source.EMPTY, query.index(), query.output(), filter, query.indexMode())
+                    query -> new EsSourceExec(
+                        Source.EMPTY,
+                        query.indexPattern(),
+                        query.indexMode(),
+                        query.indexNameWithModes(),
+                        query.output(),
+                        filter
+                    )
                 );
             }
             var localOptimized = physicalOptimizer.localOptimize(physicalFragment);
@@ -285,7 +292,7 @@ public class PlannerUtils {
             case TSID_DATA_TYPE -> ElementType.BYTES_REF;
             case GEO_POINT, CARTESIAN_POINT -> fieldExtractPreference == DOC_VALUES ? ElementType.LONG : ElementType.BYTES_REF;
             case GEO_SHAPE, CARTESIAN_SHAPE -> fieldExtractPreference == EXTRACT_SPATIAL_BOUNDS ? ElementType.INT : ElementType.BYTES_REF;
-            case PARTIAL_AGG -> ElementType.COMPOSITE;
+            case PARTIAL_AGG, AGGREGATE_METRIC_DOUBLE -> ElementType.COMPOSITE;
             case SHORT, BYTE, DATE_PERIOD, TIME_DURATION, OBJECT, FLOAT, HALF_FLOAT, SCALED_FLOAT -> throw EsqlIllegalArgumentException
                 .illegalDataType(dataType);
         };

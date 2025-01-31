@@ -15,13 +15,16 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceExtension;
+import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.SecretSettings;
 import org.elasticsearch.inference.ServiceSettings;
+import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnparsedModel;
@@ -34,6 +37,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
 import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsTests;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
+import org.elasticsearch.xpack.inference.registry.ModelRegistryTests;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalModel;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElserInternalServiceSettingsTests;
@@ -305,9 +309,9 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         var defaultIds = new ArrayList<InferenceService.DefaultConfigId>();
         for (int i = 0; i < defaultModelCount; i++) {
             var id = "default-" + i;
-            var taskType = randomFrom(TaskType.values());
-            defaultConfigs.add(createModel(id, taskType, serviceName));
-            defaultIds.add(new InferenceService.DefaultConfigId(id, taskType, service));
+            var modelSettings = ModelRegistryTests.randomMinimalServiceSettings();
+            defaultConfigs.add(createModel(id, modelSettings.taskType(), serviceName));
+            defaultIds.add(new InferenceService.DefaultConfigId(id, modelSettings, service));
         }
 
         doAnswer(invocation -> {
@@ -371,9 +375,9 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         var defaultIds = new ArrayList<InferenceService.DefaultConfigId>();
         for (int i = 0; i < defaultModelCount; i++) {
             var id = "default-" + i;
-            var taskType = randomFrom(TaskType.values());
-            defaultConfigs.add(createModel(id, taskType, serviceName));
-            defaultIds.add(new InferenceService.DefaultConfigId(id, taskType, service));
+            var modelSettings = ModelRegistryTests.randomMinimalServiceSettings();
+            defaultConfigs.add(createModel(id, modelSettings.taskType(), serviceName));
+            defaultIds.add(new InferenceService.DefaultConfigId(id, modelSettings, service));
         }
 
         doAnswer(invocation -> {
@@ -414,9 +418,9 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         var defaultIds = new ArrayList<InferenceService.DefaultConfigId>();
         for (int i = 0; i < defaultModelCount; i++) {
             var id = "default-" + i;
-            var taskType = randomFrom(TaskType.values());
-            defaultConfigs.add(createModel(id, taskType, serviceName));
-            defaultIds.add(new InferenceService.DefaultConfigId(id, taskType, service));
+            var modelSettings = ModelRegistryTests.randomMinimalServiceSettings();
+            defaultConfigs.add(createModel(id, modelSettings.taskType(), serviceName));
+            defaultIds.add(new InferenceService.DefaultConfigId(id, modelSettings, service));
         }
 
         doAnswer(invocation -> {
@@ -455,8 +459,14 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
 
         defaultConfigs.add(createModel("default-sparse", TaskType.SPARSE_EMBEDDING, serviceName));
         defaultConfigs.add(createModel("default-text", TaskType.TEXT_EMBEDDING, serviceName));
-        defaultIds.add(new InferenceService.DefaultConfigId("default-sparse", TaskType.SPARSE_EMBEDDING, service));
-        defaultIds.add(new InferenceService.DefaultConfigId("default-text", TaskType.TEXT_EMBEDDING, service));
+        defaultIds.add(new InferenceService.DefaultConfigId("default-sparse", MinimalServiceSettings.sparseEmbedding(), service));
+        defaultIds.add(
+            new InferenceService.DefaultConfigId(
+                "default-text",
+                MinimalServiceSettings.textEmbedding(384, SimilarityMeasure.COSINE, DenseVectorFieldMapper.ElementType.FLOAT),
+                service
+            )
+        );
 
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
@@ -502,9 +512,15 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
 
         var service = mock(InferenceService.class);
         var defaultIds = new ArrayList<InferenceService.DefaultConfigId>();
-        defaultIds.add(new InferenceService.DefaultConfigId("default-sparse", TaskType.SPARSE_EMBEDDING, service));
-        defaultIds.add(new InferenceService.DefaultConfigId("default-text", TaskType.TEXT_EMBEDDING, service));
-        defaultIds.add(new InferenceService.DefaultConfigId("default-chat", TaskType.COMPLETION, service));
+        defaultIds.add(new InferenceService.DefaultConfigId("default-sparse", MinimalServiceSettings.sparseEmbedding(), service));
+        defaultIds.add(
+            new InferenceService.DefaultConfigId(
+                "default-text",
+                MinimalServiceSettings.textEmbedding(384, SimilarityMeasure.COSINE, DenseVectorFieldMapper.ElementType.FLOAT),
+                service
+            )
+        );
+        defaultIds.add(new InferenceService.DefaultConfigId("default-chat", MinimalServiceSettings.completion(), service));
 
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")

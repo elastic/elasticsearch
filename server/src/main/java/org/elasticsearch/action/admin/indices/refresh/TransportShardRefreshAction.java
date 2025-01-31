@@ -74,7 +74,14 @@ public class TransportShardRefreshAction extends TransportReplicationAction<
             ReplicaActionExecution.SubjectToCircuitBreaker
         );
         // registers the unpromotable version of shard refresh action
-        new TransportUnpromotableShardRefreshAction(clusterService, transportService, shardStateAction, actionFilters, indicesService);
+        new TransportUnpromotableShardRefreshAction(
+            clusterService,
+            transportService,
+            shardStateAction,
+            actionFilters,
+            indicesService,
+            threadPool
+        );
         this.refreshExecutor = transportService.getThreadPool().executor(ThreadPool.Names.REFRESH);
     }
 

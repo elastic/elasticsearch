@@ -7,9 +7,12 @@
 
 package org.elasticsearch.xpack.esql.heap_attack;
 
+import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
+
 import org.apache.http.HttpHost;
 import org.apache.http.client.config.RequestConfig;
 import org.apache.http.util.EntityUtils;
+import org.apache.lucene.tests.util.TimeUnits;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -64,6 +67,7 @@ import static org.hamcrest.Matchers.matchesRegex;
  * Tests that run ESQL queries that use a ton of memory. We want to make
  * sure they don't consume the entire heap and crash Elasticsearch.
  */
+@TimeoutSuite(millis = 40 * TimeUnits.MINUTE)
 public class HeapAttackIT extends ESRestTestCase {
     @ClassRule
     public static ElasticsearchCluster cluster = Clusters.buildCluster();

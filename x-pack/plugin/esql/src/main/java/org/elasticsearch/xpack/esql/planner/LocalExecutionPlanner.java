@@ -36,9 +36,9 @@ import org.elasticsearch.compute.operator.SinkOperator.SinkOperatorFactory;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator.SourceOperatorFactory;
 import org.elasticsearch.compute.operator.StringExtractOperator;
-import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
+import org.elasticsearch.compute.operator.exchange.ExchangeSink;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator.ExchangeSinkOperatorFactory;
-import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
+import org.elasticsearch.compute.operator.exchange.ExchangeSource;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceOperator.ExchangeSourceOperatorFactory;
 import org.elasticsearch.compute.operator.topn.TopNEncoder;
 import org.elasticsearch.compute.operator.topn.TopNOperator;
@@ -92,6 +92,7 @@ import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
+import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.ShardContext;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
@@ -103,6 +104,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
@@ -126,11 +128,12 @@ public class LocalExecutionPlanner {
     private final BlockFactory blockFactory;
     private final Settings settings;
     private final Configuration configuration;
-    private final ExchangeSourceHandler exchangeSourceHandler;
-    private final ExchangeSinkHandler exchangeSinkHandler;
+    private final Supplier<ExchangeSource> exchangeSourceSupplier;
+    private final Supplier<ExchangeSink> exchangeSinkSupplier;
     private final EnrichLookupService enrichLookupService;
     private final LookupFromIndexService lookupFromIndexService;
     private final PhysicalOperationProviders physicalOperationProviders;
+    private final List<ShardContext> shardContexts;
 
     public LocalExecutionPlanner(
         String sessionId,
@@ -140,24 +143,27 @@ public class LocalExecutionPlanner {
         BlockFactory blockFactory,
         Settings settings,
         Configuration configuration,
-        ExchangeSourceHandler exchangeSourceHandler,
-        ExchangeSinkHandler exchangeSinkHandler,
+        Supplier<ExchangeSource> exchangeSourceSupplier,
+        Supplier<ExchangeSink> exchangeSinkSupplier,
         EnrichLookupService enrichLookupService,
         LookupFromIndexService lookupFromIndexService,
-        PhysicalOperationProviders physicalOperationProviders
+        PhysicalOperationProviders physicalOperationProviders,
+        List<ShardContext> shardContexts
     ) {
+
         this.sessionId = sessionId;
         this.clusterAlias = clusterAlias;
         this.parentTask = parentTask;
         this.bigArrays = bigArrays;
         this.blockFactory = blockFactory;
         this.settings = settings;
-        this.exchangeSourceHandler = exchangeSourceHandler;
-        this.exchangeSinkHandler = exchangeSinkHandler;
+        this.exchangeSourceSupplier = exchangeSourceSupplier;
+        this.exchangeSinkSupplier = exchangeSinkSupplier;
         this.enrichLookupService = enrichLookupService;
         this.lookupFromIndexService = lookupFromIndexService;
         this.physicalOperationProviders = physicalOperationProviders;
         this.configuration = configuration;
+        this.shardContexts = shardContexts;
     }
 
     /**
@@ -303,7 +309,7 @@ public class LocalExecutionPlanner {
     }
 
     private PhysicalOperation planExchangeSink(ExchangeSinkExec exchangeSink, LocalExecutionPlannerContext context) {
-        Objects.requireNonNull(exchangeSinkHandler, "ExchangeSinkHandler wasn't provided");
+        Objects.requireNonNull(exchangeSinkSupplier, "ExchangeSinkHandler wasn't provided");
         var child = exchangeSink.child();
 
         PhysicalOperation source = plan(child, context);
@@ -312,11 +318,11 @@ public class LocalExecutionPlanner {
             ? Function.identity()
             : alignPageToAttributes(exchangeSink.output(), source.layout);
 
-        return source.withSink(new ExchangeSinkOperatorFactory(exchangeSinkHandler::createExchangeSink, transformer), source.layout);
+        return source.withSink(new ExchangeSinkOperatorFactory(exchangeSinkSupplier, transformer), source.layout);
     }
 
     private PhysicalOperation planExchangeSource(ExchangeSourceExec exchangeSource, LocalExecutionPlannerContext context) {
-        Objects.requireNonNull(exchangeSourceHandler, "ExchangeSourceHandler wasn't provided");
+        Objects.requireNonNull(exchangeSourceSupplier, "ExchangeSourceHandler wasn't provided");
 
         var builder = new Layout.Builder();
         builder.append(exchangeSource.output());
@@ -324,7 +330,7 @@ public class LocalExecutionPlanner {
         var l = builder.build();
         var layout = exchangeSource.isIntermediateAgg() ? new ExchangeLayout(l) : l;
 
-        return PhysicalOperation.fromSource(new ExchangeSourceOperatorFactory(exchangeSourceHandler::createExchangeSource), layout);
+        return PhysicalOperation.fromSource(new ExchangeSourceOperatorFactory(exchangeSourceSupplier), layout);
     }
 
     private PhysicalOperation planTopN(TopNExec topNExec, LocalExecutionPlannerContext context) {
@@ -346,7 +352,7 @@ public class LocalExecutionPlanner {
                 case GEO_POINT, CARTESIAN_POINT, GEO_SHAPE, CARTESIAN_SHAPE, COUNTER_LONG, COUNTER_INTEGER, COUNTER_DOUBLE, SOURCE ->
                     TopNEncoder.DEFAULT_UNSORTABLE;
                 // unsupported fields are encoded as BytesRef, we'll use the same encoder; all values should be null at this point
-                case PARTIAL_AGG, UNSUPPORTED -> TopNEncoder.UNSUPPORTED;
+                case PARTIAL_AGG, UNSUPPORTED, AGGREGATE_METRIC_DOUBLE -> TopNEncoder.UNSUPPORTED;
             };
         }
         List<TopNOperator.SortOrder> orders = topNExec.order().stream().map(order -> {
@@ -651,7 +657,7 @@ public class LocalExecutionPlanner {
         PhysicalOperation source = plan(filter.child(), context);
         // TODO: should this be extracted into a separate eval block?
         return source.with(
-            new FilterOperatorFactory(EvalMapper.toEvaluator(context.foldCtx(), filter.condition(), source.layout)),
+            new FilterOperatorFactory(EvalMapper.toEvaluator(context.foldCtx(), filter.condition(), source.layout, shardContexts)),
             source.layout
         );
     }

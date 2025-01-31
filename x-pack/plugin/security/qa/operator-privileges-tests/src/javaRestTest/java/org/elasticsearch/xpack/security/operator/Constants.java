@@ -518,7 +518,6 @@ public class Constants {
         "indices:admin/flush",
         "indices:admin/flush[s]",
         "indices:admin/forcemerge",
-        "indices:admin/freeze",
         "indices:admin/get",
         "indices:admin/analyze_disk_usage",
         "indices:admin/ilm/explain",

@@ -17,16 +17,18 @@ import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
-import org.elasticsearch.xpack.esql.session.EsqlSessionCCSUtils;
+import org.elasticsearch.xpack.esql.session.EsqlCCSUtils;
 
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
-// Create group task for this cluster. This group task ensures that two branches of the computation:
-// the exchange sink and the cluster request, belong to the same group and each of them can cancel the other.
-// runAfter listeners below ensure that the group is finalized when both branches are done.
-// The group task is the child of the root task, so if the root task is cancelled, the group task is cancelled too.
+/**
+ * Create group task for this cluster. This group task ensures that two branches of the computation:
+ * the exchange sink and the cluster request, belong to the same group and each of them can cancel the other.
+ * runAfter listeners below ensure that the group is finalized when both branches are done.
+ * The group task is the child of the root task, so if the root task is cancelled, the group task is cancelled too.
+ */
 class RemoteListenerGroup {
     private final CancellableTask groupTask;
     private final ActionListener<Void> exchangeRequestListener;
@@ -72,8 +74,8 @@ class RemoteListenerGroup {
     private <T> ActionListener<T> createCancellingListener(String reason, ActionListener<T> delegate, Runnable finishGroup) {
         return ActionListener.runAfter(delegate.delegateResponse((inner, e) -> {
             taskManager.cancelTaskAndDescendants(groupTask, reason, true, ActionListener.running(() -> {
-                if (EsqlSessionCCSUtils.shouldIgnoreRuntimeError(executionInfo, clusterAlias, e)) {
-                    EsqlSessionCCSUtils.markClusterWithFinalStateAndNoShards(
+                if (EsqlCCSUtils.shouldIgnoreRuntimeError(executionInfo, clusterAlias, e)) {
+                    EsqlCCSUtils.markClusterWithFinalStateAndNoShards(
                         executionInfo,
                         clusterAlias,
                         EsqlExecutionInfo.Cluster.Status.PARTIAL,

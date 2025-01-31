@@ -41,9 +41,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-public class EsqlSessionCCSUtils {
+public class EsqlCCSUtils {
 
-    private EsqlSessionCCSUtils() {}
+    private EsqlCCSUtils() {}
 
     static Map<String, FieldCapabilitiesFailure> determineUnavailableRemoteClusters(List<FieldCapabilitiesFailure> failures) {
         Map<String, FieldCapabilitiesFailure> unavailableRemotes = new HashMap<>();
@@ -335,9 +335,9 @@ public class EsqlSessionCCSUtils {
     }
 
     /**
-     * Mark cluster with a default cluster state with the given status and potentially failure from exception.
-     * Most metrics are set to 0 except for "took" which is set to the total time taken so far.
-     * The status must be the final state of the cluster, not RUNNING.
+     * Mark cluster with a final status (success or failure).
+     * Most metrics are set to 0 if not set yet, except for "took" which is set to the total time taken so far.
+     * The status must be the final status of the cluster, not RUNNING.
      */
     public static void markClusterWithFinalStateAndNoShards(
         EsqlExecutionInfo executionInfo,
@@ -366,6 +366,6 @@ public class EsqlSessionCCSUtils {
         }
 
         return ExceptionsHelper.isRemoteUnavailableException(e)
-            || (e instanceof RemoteTransportException && e.getCause() instanceof TaskCancelledException);
+            || (e instanceof RemoteTransportException && ExceptionsHelper.unwrap(e, TaskCancelledException.class) != null);
     }
 }

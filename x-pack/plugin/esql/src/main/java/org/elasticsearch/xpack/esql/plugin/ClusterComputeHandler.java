@@ -29,7 +29,7 @@ import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.session.Configuration;
-import org.elasticsearch.xpack.esql.session.EsqlSessionCCSUtils;
+import org.elasticsearch.xpack.esql.session.EsqlCCSUtils;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -130,8 +130,8 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                         new ActionListenerResponseHandler<>(clusterListener, ComputeResponse::new, esqlExecutor)
                     );
                 }, e -> {
-                    if (EsqlSessionCCSUtils.shouldIgnoreRuntimeError(executionInfo, clusterAlias, e)) {
-                        EsqlSessionCCSUtils.markClusterWithFinalStateAndNoShards(
+                    if (EsqlCCSUtils.shouldIgnoreRuntimeError(executionInfo, clusterAlias, e)) {
+                        EsqlCCSUtils.markClusterWithFinalStateAndNoShards(
                             executionInfo,
                             clusterAlias,
                             EsqlExecutionInfo.Cluster.Status.SKIPPED,

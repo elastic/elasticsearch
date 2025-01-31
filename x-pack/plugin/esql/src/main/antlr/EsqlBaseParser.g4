@@ -340,7 +340,6 @@ joinPredicate
     : valueExpression
     ;
 
-// TODO: make ON/AS optional
 changePointCommand
-    : DEV_CHANGE_POINT value=qualifiedName ON key=qualifiedName AS targetType=qualifiedName COMMA targetPvalue=qualifiedName
+    : DEV_CHANGE_POINT value=qualifiedName (ON key=qualifiedName)? (AS targetType=qualifiedName COMMA targetPvalue=qualifiedName)?
     ;

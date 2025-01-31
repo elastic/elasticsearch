@@ -33,13 +33,13 @@ count:long | @timestamp:datetime      | type:keyword | pvalue:double
 ;
 
 
-detect spike (long)
+detect spike (long; default output columns)
 required_capability: change_point
 
 FROM k8s
   | STATS count=COUNT() BY @timestamp=BUCKET(@timestamp, 1 MINUTE)
   | EVAL count=count+CASE(@timestamp=="2024-05-10T00:08:00.000Z", 100, 0)
-  | CHANGE_POINT count ON @timestamp AS type, pvalue
+  | CHANGE_POINT count ON @timestamp
 ;
 
 @timestamp:datetime      | count:long | type:keyword | pvalue:double
@@ -69,13 +69,13 @@ FROM k8s
 ;
 
 
-detect step change (long)
+detect step change (long; default timestamp)
 required_capability: change_point
 
 FROM k8s
   | STATS count=COUNT() BY @timestamp=BUCKET(@timestamp, 1 MINUTE)
   | EVAL count=count+CASE(@timestamp>="2024-05-10T00:11:00.000Z", 100, 0)
-  | CHANGE_POINT count ON @timestamp AS type, pvalue
+  | CHANGE_POINT count AS type, pvalue
 ;
 
 @timestamp:datetime      | count:long | type:keyword | pvalue:double

@@ -455,9 +455,9 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     public PlanFactory visitChangePointCommand(EsqlBaseParser.ChangePointCommandContext ctx) {
         Source src = source(ctx);
         NamedExpression value = visitQualifiedName(ctx.value);
-        NamedExpression key = visitQualifiedName(ctx.key);
-        Attribute targetType = new ReferenceAttribute(src, visitQualifiedName(ctx.targetType).name(), DataType.KEYWORD);
-        Attribute targetPvalue = new ReferenceAttribute(src, visitQualifiedName(ctx.targetPvalue).name(), DataType.DOUBLE);
+        NamedExpression key = ctx.key == null ? new UnresolvedAttribute(src, "@timestamp") : visitQualifiedName(ctx.key);
+        Attribute targetType = new ReferenceAttribute(src, ctx.targetType == null ? "type" : visitQualifiedName(ctx.targetType).name(), DataType.KEYWORD);
+        Attribute targetPvalue = new ReferenceAttribute(src, ctx.targetPvalue == null ? "pvalue" : visitQualifiedName(ctx.targetPvalue).name(), DataType.DOUBLE);
         return child -> {
             // ChangePoint should always run on the coordinating node after the data is collected
             // in sorted order. This is enforced by adding OrderBy here.

@@ -193,10 +193,7 @@ public class SystemIndexMetadataUpgradeService implements ClusterStateListener {
             List<DataStream> updatedDataStreams = new ArrayList<>();
             for (DataStream dataStream : currentState.getMetadata().dataStreams().values()) {
                 if (dataStream.isSystem() == false && systemIndices.isSystemDataStream(dataStream.getName())) {
-                    DataStream updatedDataStream = dataStream.copy()
-                        .setSystem(true)
-                        .setHidden(true)
-                        .build();
+                    DataStream updatedDataStream = dataStream.copy().setSystem(true).setHidden(true).build();
 
                     updatedDataStreams.add(updatedDataStream);
                 }

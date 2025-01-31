@@ -55,8 +55,12 @@ public class SystemIndexMetadataUpgradeServiceTests extends ESTestCase {
     private static final String SYSTEM_DATA_STREAM_NAME = ".my-ds";
     private static final String SYSTEM_DATA_STREAM_INDEX_NAME = DataStream.BACKING_INDEX_PREFIX + SYSTEM_DATA_STREAM_NAME + "-1";
     private static final SystemDataStreamDescriptor SYSTEM_DATA_STREAM_DESCRIPTOR = new SystemDataStreamDescriptor(
-        SYSTEM_DATA_STREAM_NAME, "System datastream for test", SystemDataStreamDescriptor.Type.INTERNAL,
-        ComposableIndexTemplate.builder().build(), Collections.emptyMap(), Collections.singletonList("FAKE_ORIGIN"),
+        SYSTEM_DATA_STREAM_NAME,
+        "System datastream for test",
+        SystemDataStreamDescriptor.Type.INTERNAL,
+        ComposableIndexTemplate.builder().build(),
+        Collections.emptyMap(),
+        Collections.singletonList("FAKE_ORIGIN"),
         ExecutorNames.DEFAULT_SYSTEM_DATA_STREAM_THREAD_POOLS
     );
 
@@ -66,11 +70,17 @@ public class SystemIndexMetadataUpgradeServiceTests extends ESTestCase {
     public void setUpTest() {
         // set up a system index upgrade service
         this.service = new SystemIndexMetadataUpgradeService(
-            new SystemIndices(List.of(
-                new SystemIndices.Feature("foo", "a test feature", List.of(DESCRIPTOR)),
-                new SystemIndices.Feature("sds", "system data stream feature",
-                    Collections.emptyList(), Collections.singletonList(SYSTEM_DATA_STREAM_DESCRIPTOR))
-            )),
+            new SystemIndices(
+                List.of(
+                    new SystemIndices.Feature("foo", "a test feature", List.of(DESCRIPTOR)),
+                    new SystemIndices.Feature(
+                        "sds",
+                        "system data stream feature",
+                        Collections.emptyList(),
+                        Collections.singletonList(SYSTEM_DATA_STREAM_DESCRIPTOR)
+                    )
+                )
+            ),
             mock(ClusterService.class)
         );
     }

@@ -47,6 +47,10 @@ public class MetadataOnlyBKDReader extends PointValues {
     final int docCount;
     final int version;
 
+    final int numIndexBytes;
+    final long minLeafBlockFP;
+    private final long indexStartPointer;
+
     public MetadataOnlyBKDReader(IndexInput metaIn) throws IOException {
         version = CodecUtil.checkHeader(metaIn, "BKD", VERSION_START, VERSION_CURRENT);
         final int numDims = metaIn.readVInt();
@@ -85,6 +89,11 @@ public class MetadataOnlyBKDReader extends PointValues {
 
         pointCount = metaIn.readVLong();
         docCount = metaIn.readVInt();
+
+        // This code has been introduced to process IndexInput created with Lucene86Codec+
+        numIndexBytes = metaIn.readVInt();
+        minLeafBlockFP = metaIn.readLong();
+        indexStartPointer = metaIn.readLong();
     }
 
     @Override

@@ -95,6 +95,17 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
         final String schedule,
         final String repository,
         @Nullable final Map<String, Object> configuration,
+        @Nullable final SnapshotRetentionConfiguration retentionPolicy
+    ) {
+        this(id, name, schedule, repository, configuration, retentionPolicy, null);
+    }
+
+    public SnapshotLifecyclePolicy(
+        final String id,
+        final String name,
+        final String schedule,
+        final String repository,
+        @Nullable final Map<String, Object> configuration,
         @Nullable final SnapshotRetentionConfiguration retentionPolicy,
         @Nullable final TimeValue timeAllowedSinceLastSnapshot
     ) {
@@ -115,9 +126,8 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
         this.repository = in.readString();
         this.configuration = in.readGenericMap();
         this.retentionPolicy = in.readOptionalWriteable(SnapshotRetentionConfiguration::new);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.SLM_TIME_ALLOWED_SINCE_LAST_SNAPSHOT)) {
-            this.timeAllowedSinceLastSnapshot = in.readOptionalTimeValue();
-        }
+        this.timeAllowedSinceLastSnapshot = in.getTransportVersion().onOrAfter(TransportVersions.SLM_TIME_ALLOWED_SINCE_LAST_SNAPSHOT) ?
+            in.readOptionalTimeValue() : null;
         this.isCronSchedule = isCronSchedule(schedule);
     }
 

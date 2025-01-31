@@ -224,15 +224,6 @@ public final class SlmHealthIndicatorService implements HealthIndicatorService {
                                 SnapshotLifecyclePolicyMetadata::getId,
                                 SnapshotLifecyclePolicyMetadata::getInvocationsSinceLastSuccess
                             )
-                        ),
-                    "last_successful_snapshot_timestamp",
-                    unhealthyPolicies.stream()
-                        .collect(
-                            Collectors.toMap(
-                                SnapshotLifecyclePolicyMetadata::getId,
-                                policy -> (policy.getLastSuccess() != null && policy.getLastSuccess().getSnapshotStartTimestamp() != null)
-                                    ? FORMATTER.formatMillis(policy.getLastSuccess().getSnapshotStartTimestamp()) : "N/A"
-                            )
                         )
                 )
             );

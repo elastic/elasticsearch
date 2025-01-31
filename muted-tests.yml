@@ -396,6 +396,9 @@ tests:
 - class: org.elasticsearch.env.NodeEnvironmentTests
   method: testGetBestDowngradeVersion
   issue: https://github.com/elastic/elasticsearch/issues/121316
+- class: org.elasticsearch.ingest.geoip.FullClusterRestartIT
+  method: testGeoIpSystemFeaturesMigration {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/121115
 
 # Examples:
 #

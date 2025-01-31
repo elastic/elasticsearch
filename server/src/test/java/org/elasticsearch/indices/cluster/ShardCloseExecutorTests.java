@@ -33,7 +33,7 @@ public class ShardCloseExecutorTests extends ESTestCase {
         if (1 < defaultProcessors) {
             final var fewProcessors = between(1, Math.min(10, defaultProcessors - 1));
             ensureThrottling(fewProcessors, Settings.builder().put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), fewProcessors).build());
-        } // else we cannot run this check, the machine running the tests has a fraction of a single CPU (e.g. it's running in a container)
+        } // else we cannot run this check, the machine running the tests has less than 2 whole CPUs (and we already tested the 1 case)
 
         // but in any case we can override the throttle regardless of its default value
         final var override = between(1, defaultProcessors * 2);

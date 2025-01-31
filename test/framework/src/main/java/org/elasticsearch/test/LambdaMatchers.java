@@ -23,7 +23,7 @@ import java.util.function.Predicate;
 
 public class LambdaMatchers {
 
-    private static class TransformMatcher<T, U> extends BaseMatcher<T> {
+    private static class TransformMatcher<T, U> extends TypeSafeMatcher<T> {
         private final Matcher<U> matcher;
         private final Function<T, U> transform;
 
@@ -33,24 +33,21 @@ public class LambdaMatchers {
         }
 
         @Override
-        @SuppressWarnings("unchecked")
-        public boolean matches(Object actual) {
+        protected boolean matchesSafely(T item) {
             U u;
             try {
-                u = transform.apply((T) actual);
+                u = transform.apply(item);
             } catch (ClassCastException e) {
                 throw new AssertionError(e);
             }
-
             return matcher.matches(u);
         }
 
         @Override
-        @SuppressWarnings("unchecked")
-        public void describeMismatch(Object item, Description description) {
+        protected void describeMismatchSafely(T item, Description description) {
             U u;
             try {
-                u = transform.apply((T) item);
+                u = transform.apply(item);
             } catch (ClassCastException e) {
                 description.appendValue(item).appendText(" is not of the correct type (").appendText(e.getMessage()).appendText(")");
                 return;

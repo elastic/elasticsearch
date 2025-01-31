@@ -129,14 +129,28 @@ public class SystemIndexMetadataUpgradeService implements ClusterStateListener {
     }
 
     // visible for testing
-    SystemIndexMetadataUpdateTask getTask() {
-        return new SystemIndexMetadataUpdateTask();
+    ClusterState executeMetadataUpdateTask(ClusterState clusterState) {
+        return new SystemIndexMetadataUpdateTask().execute(clusterState);
     }
 
-    public class SystemIndexMetadataUpdateTask extends ClusterStateUpdateTask {
+    private class SystemIndexMetadataUpdateTask extends ClusterStateUpdateTask {
 
         @Override
-        public ClusterState execute(ClusterState currentState) throws Exception {
+        public ClusterState execute(ClusterState currentState) {
+            List<IndexMetadata> updatedMetadata = updateIndices(currentState);
+            List<DataStream> updatedDataStreams = updateDataStreams(currentState);
+
+            if (updatedMetadata.isEmpty() == false || updatedDataStreams.isEmpty() == false) {
+                Metadata.Builder builder = Metadata.builder(currentState.metadata());
+                updatedMetadata.forEach(idxMeta -> builder.put(idxMeta, true));
+                updatedDataStreams.forEach(builder::put);
+
+                return ClusterState.builder(currentState).metadata(builder).build();
+            }
+            return currentState;
+        }
+
+        private List<IndexMetadata> updateIndices(ClusterState currentState) {
             final Map<String, IndexMetadata> indexMetadataMap = currentState.metadata().indices();
             final List<IndexMetadata> updatedMetadata = new ArrayList<>();
             for (Map.Entry<String, IndexMetadata> entry : indexMetadataMap.entrySet()) {
@@ -172,13 +186,22 @@ public class SystemIndexMetadataUpgradeService implements ClusterStateListener {
                     updatedMetadata.add(builder.build());
                 }
             }
+            return updatedMetadata;
+        }
 
-            if (updatedMetadata.isEmpty() == false) {
-                final Metadata.Builder builder = Metadata.builder(currentState.metadata());
-                updatedMetadata.forEach(idxMeta -> builder.put(idxMeta, true));
-                return ClusterState.builder(currentState).metadata(builder).build();
+        private List<DataStream> updateDataStreams(ClusterState currentState) {
+            List<DataStream> updatedDataStreams = new ArrayList<>();
+            for (DataStream dataStream : currentState.getMetadata().dataStreams().values()) {
+                if (dataStream.isSystem() == false && systemIndices.isSystemDataStream(dataStream.getName())) {
+                    DataStream updatedDataStream = dataStream.copy()
+                        .setSystem(true)
+                        .setHidden(true)
+                        .build();
+
+                    updatedDataStreams.add(updatedDataStream);
+                }
             }
-            return currentState;
+            return updatedDataStreams;
         }
 
         @Override

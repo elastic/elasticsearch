@@ -516,3 +516,6 @@ tests:
 - class: org.elasticsearch.upgrades.VectorSearchIT
   method: testBBQVectorSearch {upgradedNodes=0}
   issue: https://github.com/elastic/elasticsearch/issues/121253
+- class: org.elasticsearch.xpack.security.profile.ProfileIntegTests
+  method: testSetEnabled
+  issue: https://github.com/elastic/elasticsearch/issues/121183

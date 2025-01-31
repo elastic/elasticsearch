@@ -571,7 +571,7 @@ public class RedactProcessorTests extends ESTestCase {
         }
     }
 
-    private IngestDocument createIngestDoc(Map<String, Object> source) {
-        return new IngestDocument("index", "id", 0L, "routing", VersionType.INTERNAL, source);
+    private static IngestDocument createIngestDoc(Map<String, Object> source) {
+        return new IngestDocument("index", "id", 0L, "routing", VersionType.INTERNAL, new HashMap<>(source));
     }
 }

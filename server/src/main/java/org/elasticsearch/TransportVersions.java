@@ -165,7 +165,14 @@ public class TransportVersions {
     public static final TransportVersion ADD_INCLUDE_FAILURE_INDICES_OPTION = def(8_831_00_0);
     public static final TransportVersion ESQL_RESPONSE_PARTIAL = def(8_832_00_0);
     public static final TransportVersion RANK_DOC_OPTIONAL_METADATA_FOR_EXPLAIN = def(8_833_00_0);
-    public static final TransportVersion SLM_TIME_ALLOWED_SINCE_LAST_SNAPSHOT = def(8_999_00_0);  // SX TODO: update version
+    public static final TransportVersion ILM_ADD_SEARCHABLE_SNAPSHOT_ADD_REPLICATE_FOR = def(8_834_00_0);
+    public static final TransportVersion INGEST_REQUEST_INCLUDE_SOURCE_ON_ERROR = def(8_835_00_0);
+    public static final TransportVersion RESOURCE_DEPRECATION_CHECKS = def(8_836_00_0);
+    public static final TransportVersion LINEAR_RETRIEVER_SUPPORT = def(8_837_00_0);
+    public static final TransportVersion TIMEOUT_GET_PARAM_FOR_RESOLVE_CLUSTER = def(8_838_00_0);
+    public static final TransportVersion INFERENCE_REQUEST_ADAPTIVE_RATE_LIMITING = def(8_839_00_0);
+    public static final TransportVersion ML_INFERENCE_IBM_WATSONX_RERANK_ADDED = def(8_840_00_0);
+    public static final TransportVersion SLM_TIME_ALLOWED_SINCE_LAST_SNAPSHOT = def(8_841_00_0);  // SX TODO: update version
 
     /*
      * STOP! READ THIS FIRST! No, really,

@@ -61,12 +61,12 @@ public class NodeDeprecationChecker {
     }
 
     /**
-     * This method rolls up DeprecationIssues that are identical but on different nodes. It also roles up DeprecationIssues that are
+     * This method rolls up DeprecationIssues that are identical but on different nodes. It also rolls up DeprecationIssues that are
      * identical (and on different nodes) except that they differ in the removable settings listed in their meta object. We roll these up
      * by taking the intersection of all removable settings in otherwise identical DeprecationIssues. That way we don't claim that a
      * setting can be automatically removed if any node has it in its elasticsearch.yml.
-     * @param response
-     * @return
+     * @param response the response that contains the deprecation issues of single nodes
+     * @return a list of deprecation issues grouped accordingly.
      */
     static List<DeprecationIssue> reduceToDeprecationIssues(NodesDeprecationCheckResponse response) {
         // A collection whose values are lists of DeprecationIssues that differ only by meta values (if that):

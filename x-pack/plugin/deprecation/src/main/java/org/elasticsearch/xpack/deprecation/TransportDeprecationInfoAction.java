@@ -100,6 +100,10 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
             .addSettingsUpdateConsumer(DeprecationChecks.SKIP_DEPRECATIONS_SETTING, this::setSkipDeprecations);
     }
 
+    private <T> void setSkipDeprecations(List<String> skipDeprecations) {
+        this.skipTheseDeprecations = Collections.unmodifiableList(skipDeprecations);
+    }
+
     @Override
     protected ClusterBlockException checkBlock(DeprecationInfoAction.Request request, ClusterState state) {
         // Cluster is not affected but we look up repositories in metadata
@@ -218,10 +222,6 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
             resourceDeprecationIssues,
             precomputedData.pluginIssues()
         );
-    }
-
-    private <T> void setSkipDeprecations(List<String> skipDeprecations) {
-        this.skipTheseDeprecations = Collections.unmodifiableList(skipDeprecations);
     }
 
     /**

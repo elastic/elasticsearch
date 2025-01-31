@@ -32,24 +32,34 @@ import static org.elasticsearch.xpack.deprecation.LegacyTiersDetection.DEPRECATI
 public class TemplateDeprecationChecker implements ResourceDeprecationChecker {
 
     public static final String NAME = "templates";
-    private static final List<Function<ComposableIndexTemplate, DeprecationIssue>> INDEX_TEMPLATE_CHECKS = List.of(
-        TemplateDeprecationChecker::checkLegacyTiersInIndexTemplate
+    private final List<Function<ComposableIndexTemplate, DeprecationIssue>> indexTemplateChecks = List.of(
+        this::checkLegacyTiersInIndexTemplate
     );
-    private static final List<Function<ComponentTemplate, DeprecationIssue>> COMPONENT_TEMPLATE_CHECKS = List.of(
-        TemplateDeprecationChecker::checkSourceModeInComponentTemplates,
-        TemplateDeprecationChecker::checkLegacyTiersInComponentTemplates
+    private final List<Function<ComponentTemplate, DeprecationIssue>> componentTemplateChecks = List.of(
+        this::checkSourceModeInComponentTemplates,
+        this::checkLegacyTiersInComponentTemplates
     );
 
     /**
      * @param clusterState The cluster state provided for the checker
+     * @param request not used yet in these checks
+     * @param precomputedData not used yet in these checks
      * @return the name of the data streams that have violated the checks with their respective warnings.
      */
     @Override
     public Map<String, List<DeprecationIssue>> check(
         ClusterState clusterState,
         DeprecationInfoAction.Request request,
-        TransportDeprecationInfoAction.PrecomputedData ignored
+        TransportDeprecationInfoAction.PrecomputedData precomputedData
     ) {
+        return check(clusterState);
+    }
+
+    /**
+     * @param clusterState The cluster state provided for the checker
+     * @return the name of the data streams that have violated the checks with their respective warnings.
+     */
+    Map<String, List<DeprecationIssue>> check(ClusterState clusterState) {
         var indexTemplates = clusterState.metadata().templatesV2().entrySet();
         var componentTemplates = clusterState.metadata().componentTemplates().entrySet();
         if (indexTemplates.isEmpty() && componentTemplates.isEmpty()) {
@@ -60,24 +70,24 @@ public class TemplateDeprecationChecker implements ResourceDeprecationChecker {
             String name = entry.getKey();
             ComposableIndexTemplate template = entry.getValue();
 
-            List<DeprecationIssue> issuesForSingleIndexTemplate = filterChecks(INDEX_TEMPLATE_CHECKS, c -> c.apply(template));
+            List<DeprecationIssue> issuesForSingleIndexTemplate = filterChecks(indexTemplateChecks, c -> c.apply(template));
             if (issuesForSingleIndexTemplate.isEmpty() == false) {
-                issues.computeIfAbsent(name, ignore -> new ArrayList<>()).addAll(issuesForSingleIndexTemplate);
+                issues.computeIfAbsent(name, ignored -> new ArrayList<>()).addAll(issuesForSingleIndexTemplate);
             }
         }
         for (Map.Entry<String, ComponentTemplate> entry : componentTemplates) {
             String name = entry.getKey();
             ComponentTemplate template = entry.getValue();
 
-            List<DeprecationIssue> issuesForSingleIndexTemplate = filterChecks(COMPONENT_TEMPLATE_CHECKS, c -> c.apply(template));
+            List<DeprecationIssue> issuesForSingleIndexTemplate = filterChecks(componentTemplateChecks, c -> c.apply(template));
             if (issuesForSingleIndexTemplate.isEmpty() == false) {
-                issues.computeIfAbsent(name, ignore -> new ArrayList<>()).addAll(issuesForSingleIndexTemplate);
+                issues.computeIfAbsent(name, ignored -> new ArrayList<>()).addAll(issuesForSingleIndexTemplate);
             }
         }
         return issues.isEmpty() ? Map.of() : issues;
     }
 
-    static DeprecationIssue checkLegacyTiersInIndexTemplate(ComposableIndexTemplate composableIndexTemplate) {
+    private DeprecationIssue checkLegacyTiersInIndexTemplate(ComposableIndexTemplate composableIndexTemplate) {
         Template template = composableIndexTemplate.template();
         if (template != null) {
             List<String> deprecatedSettings = LegacyTiersDetection.getDeprecatedFilteredAllocationSettings(template.settings());
@@ -97,7 +107,7 @@ public class TemplateDeprecationChecker implements ResourceDeprecationChecker {
         return null;
     }
 
-    static DeprecationIssue checkSourceModeInComponentTemplates(ComponentTemplate template) {
+    private DeprecationIssue checkSourceModeInComponentTemplates(ComponentTemplate template) {
         if (template.template().mappings() != null) {
             var sourceAsMap = (Map<?, ?>) XContentHelper.convertToMap(template.template().mappings().uncompressed(), true).v2().get("_doc");
             if (sourceAsMap != null) {
@@ -119,7 +129,7 @@ public class TemplateDeprecationChecker implements ResourceDeprecationChecker {
         return null;
     }
 
-    static DeprecationIssue checkLegacyTiersInComponentTemplates(ComponentTemplate componentTemplate) {
+    private DeprecationIssue checkLegacyTiersInComponentTemplates(ComponentTemplate componentTemplate) {
         Template template = componentTemplate.template();
         List<String> deprecatedSettings = LegacyTiersDetection.getDeprecatedFilteredAllocationSettings(template.settings());
         if (deprecatedSettings.isEmpty()) {

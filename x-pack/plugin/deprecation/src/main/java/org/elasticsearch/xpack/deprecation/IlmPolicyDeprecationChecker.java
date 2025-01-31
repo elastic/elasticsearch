@@ -40,14 +40,24 @@ public class IlmPolicyDeprecationChecker implements ResourceDeprecationChecker {
 
     /**
      * @param clusterState The cluster state provided for the checker
+     * @param request not used yet in these checks
+     * @param precomputedData not used yet in these checks
      * @return the name of the data streams that have violated the checks with their respective warnings.
      */
     @Override
     public Map<String, List<DeprecationIssue>> check(
         ClusterState clusterState,
         DeprecationInfoAction.Request request,
-        TransportDeprecationInfoAction.PrecomputedData ignored
+        TransportDeprecationInfoAction.PrecomputedData precomputedData
     ) {
+        return check(clusterState);
+    }
+
+    /**
+     * @param clusterState The cluster state provided for the checker
+     * @return the name of the data streams that have violated the checks with their respective warnings.
+     */
+    Map<String, List<DeprecationIssue>> check(ClusterState clusterState) {
         IndexLifecycleMetadata lifecycleMetadata = clusterState.metadata().custom(IndexLifecycleMetadata.TYPE);
         if (lifecycleMetadata == null || lifecycleMetadata.getPolicyMetadatas().isEmpty()) {
             return Map.of();

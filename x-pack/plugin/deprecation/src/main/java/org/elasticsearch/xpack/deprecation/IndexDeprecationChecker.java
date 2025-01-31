@@ -42,6 +42,15 @@ public class IndexDeprecationChecker implements ResourceDeprecationChecker {
     public static final String NAME = "index_settings";
 
     private final IndexNameExpressionResolver indexNameExpressionResolver;
+    private final List<TriFunction<IndexMetadata, ClusterState, Map<String, List<String>>, DeprecationIssue>> checks = List.of(
+        this::oldIndicesCheck,
+        this::ignoredOldIndicesCheck,
+        this::translogRetentionSettingCheck,
+        this::checkIndexDataPath,
+        this::storeTypeSettingCheck,
+        this::deprecatedCamelCasePattern,
+        this::legacyRoutingSettingCheck
+    );
 
     public IndexDeprecationChecker(IndexNameExpressionResolver indexNameExpressionResolver) {
         this.indexNameExpressionResolver = indexNameExpressionResolver;
@@ -58,10 +67,7 @@ public class IndexDeprecationChecker implements ResourceDeprecationChecker {
         Map<String, List<String>> indexToTransformIds = indexToTransformIds(precomputedData.transformConfigs());
         for (String concreteIndex : concreteIndexNames) {
             IndexMetadata indexMetadata = clusterState.getMetadata().index(concreteIndex);
-            List<DeprecationIssue> singleIndexIssues = filterChecks(
-                indexSettingsChecks(),
-                c -> c.apply(indexMetadata, clusterState, indexToTransformIds)
-            );
+            List<DeprecationIssue> singleIndexIssues = filterChecks(checks, c -> c.apply(indexMetadata, clusterState, indexToTransformIds));
             if (singleIndexIssues.isEmpty() == false) {
                 indexSettingsIssues.put(concreteIndex, singleIndexIssues);
             }
@@ -72,24 +78,12 @@ public class IndexDeprecationChecker implements ResourceDeprecationChecker {
         return indexSettingsIssues;
     }
 
-    private List<TriFunction<IndexMetadata, ClusterState, Map<String, List<String>>, DeprecationIssue>> indexSettingsChecks() {
-        return List.of(
-            IndexDeprecationChecker::oldIndicesCheck,
-            IndexDeprecationChecker::ignoredOldIndicesCheck,
-            IndexDeprecationChecker::translogRetentionSettingCheck,
-            IndexDeprecationChecker::checkIndexDataPath,
-            IndexDeprecationChecker::storeTypeSettingCheck,
-            IndexDeprecationChecker::deprecatedCamelCasePattern,
-            IndexDeprecationChecker::legacyRoutingSettingCheck
-        );
-    }
-
     @Override
     public String getName() {
         return NAME;
     }
 
-    private static DeprecationIssue oldIndicesCheck(
+    private DeprecationIssue oldIndicesCheck(
         IndexMetadata indexMetadata,
         ClusterState clusterState,
         Map<String, List<String>> indexToTransformIds
@@ -110,7 +104,7 @@ public class IndexDeprecationChecker implements ResourceDeprecationChecker {
         return null;
     }
 
-    private static Map<String, Object> meta(IndexMetadata indexMetadata, Map<String, List<String>> indexToTransformIds) {
+    private Map<String, Object> meta(IndexMetadata indexMetadata, Map<String, List<String>> indexToTransformIds) {
         var transforms = indexToTransformIds.getOrDefault(indexMetadata.getIndex().getName(), List.of());
         if (transforms.isEmpty()) {
             return Map.of("reindex_required", true);
@@ -119,7 +113,7 @@ public class IndexDeprecationChecker implements ResourceDeprecationChecker {
         }
     }
 
-    private static DeprecationIssue ignoredOldIndicesCheck(
+    private DeprecationIssue ignoredOldIndicesCheck(
         IndexMetadata indexMetadata,
         ClusterState clusterState,
         Map<String, List<String>> indexToTransformIds
@@ -141,11 +135,11 @@ public class IndexDeprecationChecker implements ResourceDeprecationChecker {
         return null;
     }
 
-    private static boolean isNotDataStreamIndex(IndexMetadata indexMetadata, ClusterState clusterState) {
+    private boolean isNotDataStreamIndex(IndexMetadata indexMetadata, ClusterState clusterState) {
         return clusterState.metadata().findDataStreams(indexMetadata.getIndex().getName()).isEmpty();
     }
 
-    private static DeprecationIssue translogRetentionSettingCheck(
+    private DeprecationIssue translogRetentionSettingCheck(
         IndexMetadata indexMetadata,
         ClusterState clusterState,
         Map<String, List<String>> ignored
@@ -176,11 +170,7 @@ public class IndexDeprecationChecker implements ResourceDeprecationChecker {
         return null;
     }
 
-    private static DeprecationIssue checkIndexDataPath(
-        IndexMetadata indexMetadata,
-        ClusterState clusterState,
-        Map<String, List<String>> ignored
-    ) {
+    private DeprecationIssue checkIndexDataPath(IndexMetadata indexMetadata, ClusterState clusterState, Map<String, List<String>> ignored) {
         if (IndexMetadata.INDEX_DATA_PATH_SETTING.exists(indexMetadata.getSettings())) {
             final String message = String.format(
                 Locale.ROOT,
@@ -195,7 +185,7 @@ public class IndexDeprecationChecker implements ResourceDeprecationChecker {
         return null;
     }
 
-    private static DeprecationIssue storeTypeSettingCheck(
+    private DeprecationIssue storeTypeSettingCheck(
         IndexMetadata indexMetadata,
         ClusterState clusterState,
         Map<String, List<String>> ignored
@@ -216,7 +206,7 @@ public class IndexDeprecationChecker implements ResourceDeprecationChecker {
         return null;
     }
 
-    private static DeprecationIssue legacyRoutingSettingCheck(
+    private DeprecationIssue legacyRoutingSettingCheck(
         IndexMetadata indexMetadata,
         ClusterState clusterState,
         Map<String, List<String>> ignored
@@ -236,7 +226,7 @@ public class IndexDeprecationChecker implements ResourceDeprecationChecker {
         );
     }
 
-    private static void fieldLevelMappingIssue(IndexMetadata indexMetadata, BiConsumer<MappingMetadata, Map<String, Object>> checker) {
+    private void fieldLevelMappingIssue(IndexMetadata indexMetadata, BiConsumer<MappingMetadata, Map<String, Object>> checker) {
         if (indexMetadata.mapping() != null) {
             Map<String, Object> sourceAsMap = indexMetadata.mapping().sourceAsMap();
             checker.accept(indexMetadata.mapping(), sourceAsMap);
@@ -254,7 +244,7 @@ public class IndexDeprecationChecker implements ResourceDeprecationChecker {
      * @return a list of issues found in fields
      */
     @SuppressWarnings("unchecked")
-    private static List<String> findInPropertiesRecursively(
+    private List<String> findInPropertiesRecursively(
         String type,
         Map<String, Object> parentMap,
         Function<Map<?, ?>, Boolean> predicate,
@@ -308,7 +298,7 @@ public class IndexDeprecationChecker implements ResourceDeprecationChecker {
         return issues;
     }
 
-    private static DeprecationIssue deprecatedCamelCasePattern(
+    private DeprecationIssue deprecatedCamelCasePattern(
         IndexMetadata indexMetadata,
         ClusterState clusterState,
         Map<String, List<String>> ignored
@@ -320,8 +310,8 @@ public class IndexDeprecationChecker implements ResourceDeprecationChecker {
                 findInPropertiesRecursively(
                     mappingMetadata.type(),
                     sourceAsMap,
-                    IndexDeprecationChecker::isDateFieldWithCamelCasePattern,
-                    IndexDeprecationChecker::changeFormatToSnakeCase,
+                    this::isDateFieldWithCamelCasePattern,
+                    this::changeFormatToSnakeCase,
                     "",
                     ""
                 )
@@ -342,7 +332,7 @@ public class IndexDeprecationChecker implements ResourceDeprecationChecker {
         return null;
     }
 
-    private static boolean isDateFieldWithCamelCasePattern(Map<?, ?> property) {
+    private boolean isDateFieldWithCamelCasePattern(Map<?, ?> property) {
         if ("date".equals(property.get("type")) && property.containsKey("format")) {
             String[] patterns = DateFormatter.splitCombinedPatterns((String) property.get("format"));
             for (String pattern : patterns) {
@@ -353,7 +343,7 @@ public class IndexDeprecationChecker implements ResourceDeprecationChecker {
         return false;
     }
 
-    private static String changeFormatToSnakeCase(String type, Map.Entry<?, ?> entry) {
+    private String changeFormatToSnakeCase(String type, Map.Entry<?, ?> entry) {
         Map<?, ?> value = (Map<?, ?>) entry.getValue();
         final String formatFieldValue = (String) value.get("format");
         String[] patterns = DateFormatter.splitCombinedPatterns(formatFieldValue);

@@ -12,7 +12,6 @@ package org.elasticsearch.logsdb.datageneration.fields.leaf;
 import org.elasticsearch.logsdb.datageneration.FieldDataGenerator;
 import org.elasticsearch.logsdb.datageneration.datasource.DataSource;
 import org.elasticsearch.logsdb.datageneration.datasource.DataSourceRequest;
-import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashSet;
 import java.util.Set;
@@ -26,16 +25,9 @@ public class CountedKeywordFieldDataGenerator implements FieldDataGenerator {
         var strings = dataSource.get(new DataSourceRequest.StringGenerator());
         var nulls = dataSource.get(new DataSourceRequest.NullWrapper());
         var arrays = dataSource.get(new DataSourceRequest.ArrayWrapper());
+        var repeats = dataSource.get(new DataSourceRequest.RepeatingWrapper());
 
-        this.valueGenerator = arrays.wrapper().compose(nulls.wrapper()).apply(() -> {
-            if (previousStrings.size() > 0 && ESTestCase.randomBoolean()) {
-                return ESTestCase.randomFrom(previousStrings);
-            } else {
-                String value = strings.generator().get();
-                previousStrings.add(value);
-                return value;
-            }
-        });
+        this.valueGenerator = arrays.wrapper().compose(nulls.wrapper().compose(repeats.wrapper())).apply(() -> strings.generator().get());
     }
 
     @Override

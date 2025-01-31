@@ -103,7 +103,6 @@ public class IndexAbstractionResolver {
                 resolveSelectorsAndCombine(indexAbstraction, selectorString, indicesOptions, resolvedIndices, metadata);
                 if (minus) {
                     finalIndices.removeAll(resolvedIndices);
-                    // TODO if selector is *, we need to run two authz checks, one for data and one for failures
                 } else if (indicesOptions.ignoreUnavailable() == false || isAuthorized.test(indexAbstraction, selectorString)) {
                     // Unauthorized names are considered unavailable, so if `ignoreUnavailable` is `true` they should be silently
                     // discarded from the `finalIndices` list. Other "ways of unavailable" must be handled by the action

@@ -539,6 +539,7 @@ public class CompositeRolesStore {
         final Role.Builder builder = Role.builder(restrictedIndices, roleNames.toArray(Strings.EMPTY_ARRAY))
             .cluster(clusterPrivileges, configurableClusterPrivileges)
             .runAs(runAsPrivilege);
+        // TODO need to handle wildcard to grant access to both failure and non-failure indices
         indicesPrivilegesMap.forEach((key, privilege) -> {
             // TODO double-check if this is always the case
             assert privilege.indices.isEmpty() == false : "indices must not be empty";

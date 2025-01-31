@@ -569,15 +569,33 @@ public class CompositeRolesStore {
             }
         });
         restrictedIndicesPrivilegesMap.forEach((key, privilege) -> {
-            // TODO handle failure indices
-            builder.add(
-                fieldPermissionsCache.getFieldPermissions(privilege.fieldPermissionsDefinition),
-                privilege.query,
-                IndexPrivilege.get(privilege.privileges),
-                true,
-                false,
-                privilege.indices.toArray(Strings.EMPTY_ARRAY)
-            );
+            // TODO double-check if this is always the case
+            assert privilege.indices.isEmpty() == false : "indices must not be empty";
+
+            // For a privilege with both failure and non-failure indices, we need to split them into two separate groups
+            if (privilege.failureIndices.isEmpty() == false) {
+                var failureIndices = newHashSet(privilege.failureIndices);
+                builder.add(
+                    fieldPermissionsCache.getFieldPermissions(privilege.fieldPermissionsDefinition),
+                    privilege.query,
+                    IndexPrivilege.get(privilege.privileges),
+                    true,
+                    true,
+                    failureIndices.stream().map(CompositeRolesStore::stripFailuresSuffix).toList().toArray(Strings.EMPTY_ARRAY)
+                );
+                privilege.removeFailureIndices();
+            }
+            // If we still have privileges left, add a group for them
+            if (privilege.indices.isEmpty() == false) {
+                builder.add(
+                    fieldPermissionsCache.getFieldPermissions(privilege.fieldPermissionsDefinition),
+                    privilege.query,
+                    IndexPrivilege.get(privilege.privileges),
+                    true,
+                    false,
+                    privilege.indices.toArray(Strings.EMPTY_ARRAY)
+                );
+            }
         });
 
         remoteIndicesPrivilegesByCluster.forEach((clusterAliasKey, remoteIndicesPrivilegesForCluster) -> {
@@ -635,6 +653,7 @@ public class CompositeRolesStore {
         if (input.endsWith(literalSuffix)) {
             return input.substring(0, input.length() - literalSuffix.length());
         } else if (input.endsWith(regexSuffix)) {
+            // TODO need to add back "/" since otherwise we break the regex
             return input.substring(0, input.length() - regexSuffix.length());
         }
         assert false : "unexpected failure index name: " + input;

@@ -147,14 +147,21 @@ public final class IndicesPermission {
     private IsResourceAuthorizedPredicate buildIndexMatcherPredicateForAction(String action) {
         final Set<String> dataAccessOrdinaryIndices = new HashSet<>();
         final Set<String> failureAccessOrdinaryIndices = new HashSet<>();
-        final Set<String> restrictedIndices = new HashSet<>();
+        final Set<String> dataAccessRestrictedIndices = new HashSet<>();
+        final Set<String> failureAccessRestrictedIndices = new HashSet<>();
+
+        // TODO do we need to worry about failure access here?
         final Set<String> grantMappingUpdatesOnIndices = new HashSet<>();
         final Set<String> grantMappingUpdatesOnRestrictedIndices = new HashSet<>();
         final boolean isMappingUpdateAction = isMappingUpdateAction(action);
         for (final Group group : groups) {
             if (group.actionMatcher.test(action)) {
                 if (group.allowRestrictedIndices) {
-                    restrictedIndices.addAll(Arrays.asList(group.indices()));
+                    if (group.failureStoreOnly) {
+                        failureAccessRestrictedIndices.addAll(Arrays.asList(group.indices()));
+                    } else {
+                        dataAccessRestrictedIndices.addAll(Arrays.asList(group.indices()));
+                    }
                 } else {
                     if (group.failureStoreOnly) {
                         failureAccessOrdinaryIndices.addAll(Arrays.asList(group.indices()));
@@ -172,9 +179,8 @@ public final class IndicesPermission {
                 }
             }
         }
-        final StringMatcher dataAccessNameMatcher = indexMatcher(dataAccessOrdinaryIndices, restrictedIndices);
-        // TODO handle restricted indices for failure access
-        final StringMatcher failureAccessNameMatcher = indexMatcher(failureAccessOrdinaryIndices, Set.of());
+        final StringMatcher dataAccessNameMatcher = indexMatcher(dataAccessOrdinaryIndices, dataAccessRestrictedIndices);
+        final StringMatcher failureAccessNameMatcher = indexMatcher(failureAccessOrdinaryIndices, failureAccessRestrictedIndices);
         final StringMatcher bwcSpecialCaseMatcher = indexMatcher(grantMappingUpdatesOnIndices, grantMappingUpdatesOnRestrictedIndices);
         return new IsResourceAuthorizedPredicate(dataAccessNameMatcher, failureAccessNameMatcher, bwcSpecialCaseMatcher);
     }

@@ -329,12 +329,6 @@ tests:
 - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
   method: test {yaml=reference/index-modules/slowlog/line_102}
   issue: https://github.com/elastic/elasticsearch/issues/121288
-- class: org.elasticsearch.xpack.inference.action.TransportInferenceActionTests
-  method: testRerouting_HandlesTransportException_FromOtherNode
-  issue: https://github.com/elastic/elasticsearch/issues/121292
-- class: org.elasticsearch.xpack.inference.action.TransportInferenceActionTests
-  method: testRerouting_ToOtherNode
-  issue: https://github.com/elastic/elasticsearch/issues/121293
 - class: org.elasticsearch.xpack.inference.common.InferenceServiceNodeLocalRateLimitCalculatorTests
   issue: https://github.com/elastic/elasticsearch/issues/121294
 - class: org.elasticsearch.env.NodeEnvironmentTests

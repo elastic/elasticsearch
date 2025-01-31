@@ -383,6 +383,9 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/121115
 - class: org.elasticsearch.lucene.RollingUpgradeLuceneIndexCompatibilityTestCase
   issue: https://github.com/elastic/elasticsearch/issues/121423
+- class: org.elasticsearch.index.engine.ShuffleForcedMergePolicyTests
+  method: testDiagnostics
+  issue: https://github.com/elastic/elasticsearch/issues/121336
 
 # Examples:
 #

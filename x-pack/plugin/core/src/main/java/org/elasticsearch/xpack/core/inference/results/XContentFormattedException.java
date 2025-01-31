@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.core.inference.results;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchWrapperException;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;

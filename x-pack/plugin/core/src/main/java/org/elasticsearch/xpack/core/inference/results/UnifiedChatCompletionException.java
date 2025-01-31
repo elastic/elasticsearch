@@ -39,13 +39,7 @@ public class UnifiedChatCompletionException extends XContentFormattedException {
         this(status, message, type, code, null);
     }
 
-    public UnifiedChatCompletionException(
-        RestStatus status,
-        String message,
-        String type,
-        @Nullable String code,
-        @Nullable String param
-    ) {
+    public UnifiedChatCompletionException(RestStatus status, String message, String type, @Nullable String code, @Nullable String param) {
         super(message, status);
         this.message = message;
         this.type = type;

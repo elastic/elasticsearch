@@ -369,6 +369,61 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
         }
     }
 
+    public void testUpdateEndpointWithWrongTaskTypeInURL() throws IOException {
+        putModel("sparse_embedding_model", mockSparseServiceModelConfig(), TaskType.SPARSE_EMBEDDING);
+        var e = expectThrows(
+            ResponseException.class,
+            () -> updateEndpoint(
+                "sparse_embedding_model",
+                updateConfig(null, randomAlphaOfLength(10), randomIntBetween(1, 10)),
+                TaskType.TEXT_EMBEDDING
+            )
+        );
+        assertThat(e.getMessage(), containsString("Task type must match the task type of the existing endpoint"));
+    }
+
+    public void testUpdateEndpointWithWrongTaskTypeInBody() throws IOException {
+        putModel("sparse_embedding_model", mockSparseServiceModelConfig(), TaskType.SPARSE_EMBEDDING);
+        var e = expectThrows(
+            ResponseException.class,
+            () -> updateEndpoint(
+                "sparse_embedding_model",
+                updateConfig(TaskType.TEXT_EMBEDDING, randomAlphaOfLength(10), randomIntBetween(1, 10))
+            )
+        );
+        assertThat(e.getMessage(), containsString("Task type must match the task type of the existing endpoint"));
+    }
+
+    public void testUpdateEndpointWithTaskTypeInURL() throws IOException {
+        testUpdateEndpoint(false, true);
+    }
+
+    public void testUpdateEndpointWithTaskTypeInBody() throws IOException {
+        testUpdateEndpoint(true, false);
+    }
+
+    public void testUpdateEndpointWithTaskTypeInBodyAndURL() throws IOException {
+        testUpdateEndpoint(true, true);
+    }
+
+    @SuppressWarnings("unchecked")
+    private void testUpdateEndpoint(boolean taskTypeInBody, boolean taskTypeInURL) throws IOException {
+        String endpointId = "sparse_embedding_model";
+        putModel(endpointId, mockSparseServiceModelConfig(), TaskType.SPARSE_EMBEDDING);
+
+        int temperature = randomIntBetween(1, 10);
+        var expectedConfig = updateConfig(taskTypeInBody ? TaskType.SPARSE_EMBEDDING : null, randomAlphaOfLength(1), temperature);
+        Map<String, Object> updatedEndpoint;
+        if (taskTypeInURL) {
+            updatedEndpoint = updateEndpoint(endpointId, expectedConfig, TaskType.SPARSE_EMBEDDING);
+        } else {
+            updatedEndpoint = updateEndpoint(endpointId, expectedConfig);
+        }
+
+        Map<String, Objects> updatedTaskSettings = (Map<String, Objects>) updatedEndpoint.get("task_settings");
+        assertEquals(temperature, updatedTaskSettings.get("temperature"));
+    }
+
     private static Iterator<String> expectedResultsIterator(List<String> input) {
         // The Locale needs to be ROOT to match what the test service is going to respond with
         return Stream.concat(input.stream().map(s -> s.toUpperCase(Locale.ROOT)).map(InferenceCrudIT::expectedResult), Stream.of("[DONE]"))

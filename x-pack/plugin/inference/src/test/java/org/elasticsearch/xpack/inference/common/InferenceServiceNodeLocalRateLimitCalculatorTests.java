@@ -230,7 +230,7 @@ public class InferenceServiceNodeLocalRateLimitCalculatorTests extends ESIntegTe
         );
         return (InferenceServiceNodeLocalRateLimitCalculator) calculatorInstance;
     }
-  
+
     private void waitForRateLimitingAssignments(InferenceServiceNodeLocalRateLimitCalculator calculator) throws Exception {
         assertBusy(() -> {
             var assignment = calculator.getRateLimitAssignment(ElasticInferenceService.NAME, TaskType.SPARSE_EMBEDDING);

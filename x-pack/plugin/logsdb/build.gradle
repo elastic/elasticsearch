@@ -42,3 +42,9 @@ tasks.named("javaRestTest").configure {
 tasks.named('yamlRestTest') {
   usesDefaultDistribution()
 }
+
+tasks.named("yamlRestCompatTestTransform").configure ({ task ->
+  task.skipTest("/60_synthetic_source_recovery/synthetic recovery for time_series index", "synthetic source recovery behind a feature flag and not enabled in release builds")
+  task.skipTest("/60_synthetic_source_recovery/synthetic recovery for synthetic source mode index", "synthetic source recovery behind a feature flag and not enabled in release builds")
+  task.skipTest("/60_synthetic_source_recovery/synthetic recovery for logsdb index", "synthetic source recovery behind a feature flag and not enabled in release builds")
+})

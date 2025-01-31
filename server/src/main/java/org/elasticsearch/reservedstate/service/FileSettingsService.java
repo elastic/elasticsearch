@@ -238,6 +238,11 @@ public class FileSettingsService extends MasterNodeFileWatchingService implement
             )
         );
 
+        /**
+         * We want a length limit so we don't blow past the indexing limit in the case of a long description string.
+         * This is an {@code OperatorDynamic} setting so that if the truncation hampers troubleshooting efforts,
+         * the operator could override it and retry the operation without necessarily restarting the cluster.
+         */
         public static final String DESCRIPTION_LENGTH_LIMIT_KEY = "fileSettings.descriptionLengthLimit";
         static final Setting<Integer> DESCRIPTION_LENGTH_LIMIT = Setting.intSetting(
             DESCRIPTION_LENGTH_LIMIT_KEY,

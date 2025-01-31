@@ -17,8 +17,8 @@
   - is_true:   timed_out
   - gte:       { number_of_nodes:           1 }
   - gte:       { number_of_data_nodes:      1 }
-  - match:     { active_primary_shards:     0 }
-  - match:     { active_shards:             0 }
+  - gte:       { active_primary_shards:     0 }
+  - gte:       { active_shards:             0 }
   - match:     { relocating_shards:         0 }
   - match:     { initializing_shards:       0 }
   - match:     { unassigned_shards:         0 }
@@ -44,8 +44,8 @@
   - is_true:   timed_out
   - gte:       { number_of_nodes:           1 }
   - gte:       { number_of_data_nodes:      1 }
-  - match:     { active_primary_shards:     0 }
-  - match:     { active_shards:             0 }
+  - gte:       { active_primary_shards:     0 }
+  - gte:       { active_shards:             0 }
   - match:     { relocating_shards:         0 }
   - match:     { initializing_shards:       0 }
   - match:     { unassigned_shards:         0 }

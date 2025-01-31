@@ -433,6 +433,7 @@ public interface Role {
         );
 
         for (RoleDescriptor.IndicesPrivileges indexPrivilege : roleDescriptor.getIndicesPrivileges()) {
+            // TODO properly handle this
             if (Arrays.asList(indexPrivilege.getIndices()).contains("*")) {
                 builder.add(
                     fieldPermissionsCache.getFieldPermissions(
@@ -441,7 +442,6 @@ public interface Role {
                     indexPrivilege.getQuery() == null ? null : Collections.singleton(indexPrivilege.getQuery()),
                     IndexPrivilege.get(Sets.newHashSet(indexPrivilege.getPrivileges())),
                     indexPrivilege.allowRestrictedIndices(),
-                    // TODO properly handle this
                     true,
                     indexPrivilege.getIndices()
                 );

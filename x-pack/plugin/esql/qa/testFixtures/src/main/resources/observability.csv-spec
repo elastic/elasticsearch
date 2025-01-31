@@ -3,9 +3,10 @@ required_capability: fn_first_last
 FROM sample_data
 | STATS message = first_value(message) BY @timestamp = BUCKET(@timestamp, 1 hour) 
 | SORT @timestamp
+| KEEp @timestamp, message
 ;
 
-@timestamp:long          | message:keyword
+@timestamp:date          | message:keyword
 2023-10-23T12:00:00.000Z | Connected to 10.1.0.3
 2023-10-23T13:00:00.000Z | Disconnected
 ;
@@ -15,9 +16,10 @@ required_capability: fn_first_last
 FROM sample_data
 | STATS message = last_value(message) BY @timestamp = BUCKET(@timestamp, 1 hour) 
 | SORT @timestamp
+| KEEp @timestamp, message
 ;
 
-@timestamp:long          | message:keyword
+@timestamp:date          | message:keyword
 2023-10-23T12:00:00.000Z | Connected to 10.1.0.2
 2023-10-23T13:00:00.000Z | Connected to 10.1.0.1
 ;

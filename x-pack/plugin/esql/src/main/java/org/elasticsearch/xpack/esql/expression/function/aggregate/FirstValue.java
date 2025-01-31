@@ -10,6 +10,9 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.FirstValueBytesRefAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.FirstValueLongAggregatorFunctionSupplier;
+import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
@@ -23,12 +26,22 @@ import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 
 public class FirstValue extends AggregateFunction implements OptionalArgument, ToAggregator, SurrogateExpression {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "First", FirstValue::new);
+
+    private static final Map<DataType, Function<List<Integer>, AggregatorFunctionSupplier>> SUPPLIERS = Map.ofEntries(
+        Map.entry(DataType.LONG, FirstValueLongAggregatorFunctionSupplier::new),
+        Map.entry(DataType.KEYWORD, FirstValueBytesRefAggregatorFunctionSupplier::new),
+        Map.entry(DataType.TEXT, FirstValueBytesRefAggregatorFunctionSupplier::new),
+        Map.entry(DataType.SEMANTIC_TEXT, FirstValueBytesRefAggregatorFunctionSupplier::new),
+        Map.entry(DataType.VERSION, FirstValueBytesRefAggregatorFunctionSupplier::new)
+    );
 
     // TODO @FunctionInfo
     public FirstValue(Source source, Expression field, Expression by) {
@@ -68,6 +81,8 @@ public class FirstValue extends AggregateFunction implements OptionalArgument, T
         return new FirstValue(source(), field(), filter, parameters());
     }
 
+    // TODO ensure BY is always timestamp/long
+
     @Override
     public DataType dataType() {
         return field().dataType().noText();
@@ -77,7 +92,7 @@ public class FirstValue extends AggregateFunction implements OptionalArgument, T
     protected TypeResolution resolveType() {
         return TypeResolutions.isType(
             field(),
-            dt -> dt == DataType.KEYWORD, // TODO implement for all types
+            SUPPLIERS::containsKey,
             sourceText(),
             DEFAULT,
             "representable except unsigned_long and spatial types"
@@ -86,12 +101,19 @@ public class FirstValue extends AggregateFunction implements OptionalArgument, T
 
     @Override
     public Expression surrogate() {
-        return null;
+        // TODO can this be optimized even further?
+        return field().foldable() ? field() : null;
     }
 
     @Override
     public AggregatorFunctionSupplier supplier(List<Integer> inputChannels) {
-        return null;
+        var type = field().dataType();
+        var supplier = SUPPLIERS.get(type);
+        if (supplier == null) {
+            // If the type checking did its job, this should never happen
+            throw EsqlIllegalArgumentException.illegalDataType(type);
+        }
+        return supplier.apply(inputChannels);
     }
 
     public Expression by() {

@@ -62,7 +62,7 @@ public class DataStreamsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase 
             .setting("xpack.security.enabled", "true")
             .keystore("bootstrap.password", PASS)
             .user("x_pack_rest_user", PASS)
-            .user("data_stream_test_user", PASS, "data_stream_alias_test_role", false)
+            .user("data_stream_test_user", PASS, "data_stream_alias_test_role", true)
             .rolesFile(Resource.fromString(ROLES))
 
         ;

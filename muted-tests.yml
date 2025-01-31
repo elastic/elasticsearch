@@ -378,6 +378,9 @@ tests:
 - class: org.elasticsearch.xpack.application.CohereServiceUpgradeIT
   method: testCohereEmbeddings {upgradedNodes=1}
   issue: https://github.com/elastic/elasticsearch/issues/121362
+- class: org.elasticsearch.xpack.application.CohereServiceUpgradeIT
+  method: testRerank {upgradedNodes=1}
+  issue: https://github.com/elastic/elasticsearch/issues/121363
 
 # Examples:
 #

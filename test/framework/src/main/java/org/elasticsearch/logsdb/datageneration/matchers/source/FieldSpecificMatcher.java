@@ -282,7 +282,7 @@ interface FieldSpecificMatcher {
                         actualSettings,
                         expectedMappings,
                         expectedSettings,
-                        "Values of type [unsigned_long] don't match after normalization, normalized"
+                        "Values of type [counted_keyword] don't match after normalization, normalized"
                             + prettyPrintCollections(actualNormalized, expectedNormalized)
                     )
                 );

@@ -28,7 +28,7 @@ import java.util.Optional;
  * A builder for {@link InnerHitsContext.InnerHitSubContext}
  */
 public abstract class InnerHitContextBuilder {
-    protected final QueryBuilder query;
+    protected QueryBuilder query;
     protected final InnerHitBuilder innerHitBuilder;
     protected final Map<String, InnerHitContextBuilder> children;
 
@@ -124,7 +124,10 @@ public abstract class InnerHitContextBuilder {
         if (innerHitBuilder.getHighlightBuilder() != null) {
             innerHitsContext.highlight(innerHitBuilder.getHighlightBuilder().build(searchExecutionContext));
         }
-        ParsedQuery parsedQuery = new ParsedQuery(query.toQuery(searchExecutionContext), searchExecutionContext.copyNamedQueries());
+        ParsedQuery parsedQuery = new ParsedQuery(
+            innerHitsContext.userQueryBuilder().toQuery(searchExecutionContext),
+            searchExecutionContext.copyNamedQueries()
+        );
         innerHitsContext.parsedQuery(parsedQuery);
         Map<String, InnerHitsContext.InnerHitSubContext> baseChildren = buildChildInnerHits(
             innerHitsContext.parentSearchContext(),

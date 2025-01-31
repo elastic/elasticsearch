@@ -9,4 +9,4 @@ Field that the query will target.
 Value to find in the provided field.
 
 `options`::
-Match additional options as <<esql-function-named-params,function named parameters>>. See <<query-dsl-match-query,match query>> for more information.
+(Optional) Match additional options as <<esql-function-named-params,function named parameters>>. See <<query-dsl-match-query,match query>> for more information.

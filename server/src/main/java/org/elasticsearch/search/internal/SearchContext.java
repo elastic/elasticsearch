@@ -22,6 +22,7 @@ import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.mapper.IdLoader;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.query.ParsedQuery;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.IndexShard;
@@ -125,6 +126,11 @@ public abstract class SearchContext implements Releasable {
     public abstract ShardSearchContextId id();
 
     public abstract String source();
+
+    /**
+     * Returns the original query builder configured in this context.
+     */
+    public abstract QueryBuilder userQueryBuilder();
 
     public abstract ShardSearchRequest request();
 

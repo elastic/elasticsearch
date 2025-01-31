@@ -45,6 +45,7 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -484,6 +485,11 @@ final class DefaultSearchContext extends SearchContext {
     @Override
     public String source() {
         return "search";
+    }
+
+    @Override
+    public QueryBuilder userQueryBuilder() {
+        return request.source() != null ? request.source().query() : new MatchAllQueryBuilder();
     }
 
     @Override

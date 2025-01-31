@@ -19,6 +19,7 @@ import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.mapper.IdLoader;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.query.ParsedQuery;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.search.SearchExtBuilder;
@@ -84,6 +85,11 @@ public abstract class FilteredSearchContext extends SearchContext {
     @Override
     public String source() {
         return in.source();
+    }
+
+    @Override
+    public QueryBuilder userQueryBuilder() {
+        return in.userQueryBuilder();
     }
 
     @Override

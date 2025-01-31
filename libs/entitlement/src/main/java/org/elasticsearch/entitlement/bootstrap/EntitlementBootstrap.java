@@ -14,6 +14,8 @@ import com.sun.tools.attach.AgentLoadException;
 import com.sun.tools.attach.AttachNotSupportedException;
 import com.sun.tools.attach.VirtualMachine;
 
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.CheckedSupplier;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.entitlement.initialization.EntitlementInitialization;
 import org.elasticsearch.entitlement.runtime.api.NotEntitledException;
@@ -146,33 +148,31 @@ public class EntitlementBootstrap {
      * @throws IllegalStateException if the entitlements system can't prevent an unauthorized action of our choosing
      */
     private static void selfTest() {
-        ensureCannotStartProcess(false);
-        ensureCannotStartProcess(true);
-        ensureCanCreateTempFile(false);
-        ensureCanCreateTempFile(true);
+        ensureCannotStartProcess(ProcessBuilder::start);
+        ensureCanCreateTempFile(() -> Files.createTempFile(null, null));
+
+        // Try again with reflection
+        ensureCannotStartProcess(pb -> {
+            try {
+                var start = ProcessBuilder.class.getMethod("start");
+                start.invoke(pb);
+            } catch (InvocationTargetException e) {
+                throw (Exception)e.getCause();
+            }
+        });
+        ensureCanCreateTempFile(() -> (Path) Files.class.getMethod("createTempFile", String.class, String.class, FileAttribute[].class)
+            .invoke(null, null, null, new FileAttribute<?>[0]));
     }
 
-    private static void ensureCannotStartProcess(boolean useReflection) {
+    private static void ensureCannotStartProcess(CheckedConsumer<ProcessBuilder, ?> startProcess) {
         try {
             // The command doesn't matter; it doesn't even need to exist
-            ProcessBuilder builder = new ProcessBuilder("");
-            if (useReflection) {
-                try {
-                    var start = ProcessBuilder.class.getMethod("start");
-                    start.invoke(builder);
-                } catch (InvocationTargetException e) {
-                    throw e.getCause();
-                }
-            } else {
-                builder.start();
-            }
+            startProcess.accept(new ProcessBuilder(""));
         } catch (NotEntitledException e) {
             logger.debug("Success: Entitlement protection correctly prevented process creation");
             return;
-        } catch (IOException e) {
+        } catch (Exception e) {
             throw new IllegalStateException("Failed entitlement protection self-test", e);
-        } catch (Throwable e) {
-            throw new IllegalStateException("Error during entitlement protection self-test", e);
         }
         throw new IllegalStateException("Entitlement protection self-test was incorrectly permitted");
     }
@@ -181,15 +181,9 @@ public class EntitlementBootstrap {
      * Originally {@code Security.selfTest}.
      */
     @SuppressForbidden(reason = "accesses jvm default tempdir as a self-test")
-    private static void ensureCanCreateTempFile(boolean useReflection) {
+    private static void ensureCanCreateTempFile(CheckedSupplier<Path, ?> createTempFile) {
         try {
-            Path p;
-            if (useReflection) {
-                p = (Path) Files.class.getMethod("createTempFile", String.class, String.class, FileAttribute[].class)
-                    .invoke(null, null, null, new FileAttribute<?>[0]);
-            } else {
-                p = Files.createTempFile(null, null);
-            }
+            Path p = createTempFile.get();
             p.toFile().deleteOnExit();
 
             // Make an effort to clean up the file immediately; also, deleteOnExit leaves the file if the JVM exits abnormally.

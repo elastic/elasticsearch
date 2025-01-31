@@ -200,6 +200,11 @@ public class EsqlCapabilities {
         FN_ROUND_UL_FIXES,
 
         /**
+         * Support for function {@code FIRST} and {@code LAST}.
+         */
+        FN_FIRST_LAST,
+
+        /**
          * All functions that take TEXT should never emit TEXT, only KEYWORD. #114334
          */
         FUNCTIONS_NEVER_EMIT_TEXT,

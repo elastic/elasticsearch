@@ -20,7 +20,9 @@ public class KnownIndexVersions {
     /**
      * A sorted list of all known index versions
      */
-    public static final NavigableSet<IndexVersion> ALL_VERSIONS = Collections.unmodifiableNavigableSet(new TreeSet<>(IndexVersions.getAllVersions()));
+    public static final NavigableSet<IndexVersion> ALL_VERSIONS = Collections.unmodifiableNavigableSet(
+        new TreeSet<>(IndexVersions.getAllVersions())
+    );
 
     /**
      * A sorted list of all known index versions that can be written to

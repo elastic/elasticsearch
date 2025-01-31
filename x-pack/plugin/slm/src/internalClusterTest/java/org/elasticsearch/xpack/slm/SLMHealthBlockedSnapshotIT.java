@@ -151,13 +151,12 @@ public class SLMHealthBlockedSnapshotIT extends AbstractSnapshotIntegTestCase {
         // trigger SLM multiple times at the same time
         // TODO: trigger different SLM policies
         List<String> snapshots = new ArrayList<>();
-        for (int i=0; i<10; i++) {
+        for (int i = 0; i < 10; i++) {
             snapshots.add(executePolicy(masterNode, policyName));
         }
 
         // check SLM indicator
         GetHealthAction.Response response = client().execute(GetHealthAction.INSTANCE, new GetHealthAction.Request(true, 1000)).get();
-
 
         // remove delay from snapshotA allowing it to finish
         TestDelayedRepoPlugin.removeDelay();
@@ -168,13 +167,14 @@ public class SLMHealthBlockedSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         GetSnapshotsResponse getSnapshotsResponse1 = admin().cluster().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, repoName).get();
 
-//        GetSnapshotsResponse getSnapshotsResponse1 = client().execute(TransportGetSnapshotsAction.TYPE, new GetSnapshotsRequest(TEST_REQUEST_TIMEOUT)).get();
+        // GetSnapshotsResponse getSnapshotsResponse1 = client().execute(TransportGetSnapshotsAction.TYPE, new
+        // GetSnapshotsRequest(TEST_REQUEST_TIMEOUT)).get();
 
         waitForSnapshot(repoName, snapshots.get(0));
 
-//        for (String snapshot : snapshots) {
-//            waitForSnapshot(repoName, snapshot);
-//        }
+        // for (String snapshot : snapshots) {
+        // waitForSnapshot(repoName, snapshot);
+        // }
 
         // assert snapshots are successful
         assertBusy(() -> {

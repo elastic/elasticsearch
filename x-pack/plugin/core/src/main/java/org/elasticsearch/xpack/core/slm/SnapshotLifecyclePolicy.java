@@ -85,8 +85,12 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
         PARSER.declareString(ConstructingObjectParser.constructorArg(), REPOSITORY);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.map(), CONFIG);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), SnapshotRetentionConfiguration::parse, RETENTION);
-        PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> TimeValue.parseTimeValue(p.text(),
-            TIME_ALLOWED_SINCE_LAST_SNAPSHOT.getPreferredName()), TIME_ALLOWED_SINCE_LAST_SNAPSHOT, ObjectParser.ValueType.STRING);
+        PARSER.declareField(
+            ConstructingObjectParser.optionalConstructorArg(),
+            (p, c) -> TimeValue.parseTimeValue(p.text(), TIME_ALLOWED_SINCE_LAST_SNAPSHOT.getPreferredName()),
+            TIME_ALLOWED_SINCE_LAST_SNAPSHOT,
+            ObjectParser.ValueType.STRING
+        );
     }
 
     public SnapshotLifecyclePolicy(
@@ -126,8 +130,9 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
         this.repository = in.readString();
         this.configuration = in.readGenericMap();
         this.retentionPolicy = in.readOptionalWriteable(SnapshotRetentionConfiguration::new);
-        this.timeAllowedSinceLastSnapshot = in.getTransportVersion().onOrAfter(TransportVersions.SLM_TIME_ALLOWED_SINCE_LAST_SNAPSHOT) ?
-            in.readOptionalTimeValue() : null;
+        this.timeAllowedSinceLastSnapshot = in.getTransportVersion().onOrAfter(TransportVersions.SLM_TIME_ALLOWED_SINCE_LAST_SNAPSHOT)
+            ? in.readOptionalTimeValue()
+            : null;
         this.isCronSchedule = isCronSchedule(schedule);
     }
 

@@ -220,7 +220,7 @@ public class IndexAbstractionResolverTests extends ESTestCase {
             "*",
             selector,
             index,
-            IndicesOptions.strictExpandOpen(),
+            IndicesOptions.strictExpandHidden(),
             metadata,
             indexNameExpressionResolver,
             true

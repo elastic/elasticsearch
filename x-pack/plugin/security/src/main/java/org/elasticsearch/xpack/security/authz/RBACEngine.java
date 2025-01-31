@@ -31,6 +31,7 @@ import org.elasticsearch.action.search.TransportClearScrollAction;
 import org.elasticsearch.action.search.TransportClosePointInTimeAction;
 import org.elasticsearch.action.search.TransportMultiSearchAction;
 import org.elasticsearch.action.search.TransportSearchScrollAction;
+import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.action.termvectors.MultiTermVectorsAction;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
@@ -870,14 +871,16 @@ public class RBACEngine implements AuthorizationEngine {
         // do not include data streams for actions that do not operate on data streams
         TransportRequest request = requestInfo.getRequest();
         final boolean includeDataStreams = (request instanceof IndicesRequest) && ((IndicesRequest) request).includeDataStreams();
-        // TODO need a function not a supplier
         return new AuthorizedIndices((selector) -> {
             Consumer<Collection<String>> timeChecker = timerSupplier.get();
             Set<String> indicesAndAliases = new HashSet<>();
             // TODO: can this be done smarter? I think there are usually more indices/aliases in the cluster then indices defined a roles?
             if (includeDataStreams) {
                 for (IndexAbstraction indexAbstraction : lookup.values()) {
-                    if (predicate.test(indexAbstraction, selector)) {
+                    // TODO this is not great ...
+                    if ((indexAbstraction.isDataStreamConcreteFailureIndex()
+                        && predicate.test(indexAbstraction.getParentDataStream(), IndexComponentSelector.FAILURES.getKey()))
+                        || predicate.test(indexAbstraction, selector)) {
                         indicesAndAliases.add(indexAbstraction.getName());
                         if (indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM) {
                             // add data stream and its backing indices for any authorized data streams
@@ -906,10 +909,11 @@ public class RBACEngine implements AuthorizationEngine {
                 // the action handler must handle the case of accessing resources that do not exist
                 return predicate.test(name, null, selector);
             } else {
+                // TODO do we need to check concrete failure indices here?
                 // We check the parent data stream first if there is one. For testing requested indices, this is most likely
                 // more efficient than checking the index name first because we recommend grant privileges over data stream
                 // instead of backing indices.
-                return (indexAbstraction.getParentDataStream() != null && predicate.test(indexAbstraction.getParentDataStream()))
+                return (indexAbstraction.getParentDataStream() != null && predicate.test(indexAbstraction.getParentDataStream(), selector))
                     || predicate.test(indexAbstraction, selector);
             }
         });

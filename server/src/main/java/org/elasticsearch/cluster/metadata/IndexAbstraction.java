@@ -100,6 +100,10 @@ public interface IndexAbstraction {
         return false;
     }
 
+    default boolean isDataStreamConcreteFailureIndex() {
+        return false;
+    }
+
     /**
      * An index abstraction type.
      */
@@ -191,6 +195,11 @@ public interface IndexAbstraction {
         @Override
         public boolean isSystem() {
             return isSystem;
+        }
+
+        @Override
+        public boolean isDataStreamConcreteFailureIndex() {
+            return getParentDataStream() != null && getParentDataStream().isFailureStoreIndex(getName());
         }
 
         @Override

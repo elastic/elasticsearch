@@ -109,7 +109,13 @@ abstract class DataNodeRequestSender {
                     }
                     for (ShardId shardId : pendingShardIds) {
                         if (targetShards.getShard(shardId).remainingNodes.isEmpty()) {
-                            trackShardLevelFailure(shardId, true, new ShardNotFoundException(shardId, "no shard copies found {}"));
+                            shardFailures.compute(shardId, (k, v) -> {
+                                if (v == null) {
+                                    return new ShardFailure(true, new ShardNotFoundException(shardId, "no shard copies found {}"));
+                                } else {
+                                    return new ShardFailure(true, v.failure);
+                                }
+                            });
                         }
                     }
                     if (shardFailures.values().stream().anyMatch(shardFailure -> shardFailure.fatal)) {

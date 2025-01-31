@@ -149,19 +149,11 @@ public class EntitlementBootstrap {
      */
     private static void selfTest() {
         ensureCannotStartProcess(ProcessBuilder::start);
-        ensureCanCreateTempFile(() -> Files.createTempFile(null, null));
+        ensureCanCreateTempFile(EntitlementBootstrap::createTempFile);
 
         // Try again with reflection
-        ensureCannotStartProcess(pb -> {
-            try {
-                var start = ProcessBuilder.class.getMethod("start");
-                start.invoke(pb);
-            } catch (InvocationTargetException e) {
-                throw (Exception)e.getCause();
-            }
-        });
-        ensureCanCreateTempFile(() -> (Path) Files.class.getMethod("createTempFile", String.class, String.class, FileAttribute[].class)
-            .invoke(null, null, null, new FileAttribute<?>[0]));
+        ensureCannotStartProcess(EntitlementBootstrap::reflectiveStartProcess);
+        ensureCanCreateTempFile(EntitlementBootstrap::reflectiveCreateTempFile);
     }
 
     private static void ensureCannotStartProcess(CheckedConsumer<ProcessBuilder, ?> startProcess) {
@@ -177,10 +169,6 @@ public class EntitlementBootstrap {
         throw new IllegalStateException("Entitlement protection self-test was incorrectly permitted");
     }
 
-    /**
-     * Originally {@code Security.selfTest}.
-     */
-    @SuppressForbidden(reason = "accesses jvm default tempdir as a self-test")
     private static void ensureCanCreateTempFile(CheckedSupplier<Path, ?> createTempFile) {
         try {
             Path p = createTempFile.get();
@@ -198,6 +186,25 @@ public class EntitlementBootstrap {
             throw new IllegalStateException("Unable to perform entitlement protection self-test", e);
         }
         logger.debug("Success: Entitlement protection correctly permitted temp file creation");
+    }
+
+    @SuppressForbidden(reason = "accesses jvm default tempdir as a self-test")
+    private static Path createTempFile() throws Exception {
+        return Files.createTempFile(null, null);
+    }
+
+    private static void reflectiveStartProcess(ProcessBuilder pb) throws Exception {
+        try {
+            var start = ProcessBuilder.class.getMethod("start");
+            start.invoke(pb);
+        } catch (InvocationTargetException e) {
+            throw (Exception) e.getCause();
+        }
+    }
+
+    private static Path reflectiveCreateTempFile() throws Exception {
+        return (Path) Files.class.getMethod("createTempFile", String.class, String.class, FileAttribute[].class)
+            .invoke(null, null, null, new FileAttribute<?>[0]);
     }
 
     private static final Logger logger = LogManager.getLogger(EntitlementBootstrap.class);

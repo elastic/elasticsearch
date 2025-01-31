@@ -372,15 +372,6 @@ tests:
 - class: org.elasticsearch.xpack.security.profile.ProfileIntegTests
   method: testSuggestProfilesWithHint
   issue: https://github.com/elastic/elasticsearch/issues/121116
-- class: org.elasticsearch.xpack.application.CohereServiceUpgradeIT
-  method: testCohereEmbeddings {upgradedNodes=1}
-  issue: https://github.com/elastic/elasticsearch/issues/121362
-- class: org.elasticsearch.xpack.application.CohereServiceUpgradeIT
-  method: testRerank {upgradedNodes=1}
-  issue: https://github.com/elastic/elasticsearch/issues/121363
-- class: org.elasticsearch.xpack.application.CohereServiceUpgradeIT
-  method: testCohereEmbeddings {upgradedNodes=2}
-  issue: https://github.com/elastic/elasticsearch/issues/121364
 - class: org.elasticsearch.upgrades.AddIndexBlockRollingUpgradeIT
   method: testAddBlock {upgradedNodes=2}
   issue: https://github.com/elastic/elasticsearch/issues/121365

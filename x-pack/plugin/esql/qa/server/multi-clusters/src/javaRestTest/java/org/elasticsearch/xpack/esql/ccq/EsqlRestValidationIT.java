@@ -11,8 +11,6 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.apache.http.HttpHost;
 import org.elasticsearch.Version;
-import org.elasticsearch.client.Request;
-import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.test.TestClustersThreadFilter;
@@ -50,20 +48,6 @@ public class EsqlRestValidationIT extends EsqlRestValidationTestCase {
         } finally {
             remoteClient = null;
         }
-    }
-
-    @Before
-    public void randomizeSkipUnavailable() throws IOException {
-        Request request = new Request("PUT", "_cluster/settings");
-        request.setJsonEntity("""
-            {
-                "persistent": {
-                    "cluster.remote.remote_cluster.skip_unavailable": $SKIP_UNAVAILABLE$
-                }
-            }
-            """.replace("$SKIP_UNAVAILABLE$", String.valueOf(randomBoolean())));
-        Response response = client().performRequest(request);
-        assertOK(response);
     }
 
     @Override

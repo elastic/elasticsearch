@@ -474,6 +474,7 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
         Set<String> expectedClusterAliases = expected.stream().map(c -> c.clusterAlias()).collect(Collectors.toSet());
         assertThat(executionInfo.clusterAliases(), equalTo(expectedClusterAliases));
 
+        boolean hasSkipped = false;
         for (ExpectedCluster expectedCluster : expected) {
             EsqlExecutionInfo.Cluster cluster = executionInfo.getCluster(expectedCluster.clusterAlias());
             String msg = cluster.getClusterAlias();
@@ -492,10 +493,12 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
                 assertThat(msg, cluster.getFailures().get(0).getCause(), instanceOf(VerificationException.class));
                 String expectedMsg = "Unknown index [" + expectedCluster.indexExpression() + "]";
                 assertThat(msg, cluster.getFailures().get(0).getCause().getMessage(), containsString(expectedMsg));
+                hasSkipped = true;
             }
             // currently failed shards is always zero - change this once we start allowing partial data for individual shard failures
             assertThat(msg, cluster.getFailedShards(), equalTo(0));
         }
+        assertThat(executionInfo.isPartial(), equalTo(hasSkipped));
     }
 
     public void testSearchesWhereNonExistentClusterIsSpecifiedWithWildcards() {
@@ -541,6 +544,7 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
             assertThat(executionInfo.isCrossClusterSearch(), is(true));
             assertThat(executionInfo.overallTook().millis(), greaterThanOrEqualTo(0L));
             assertThat(executionInfo.includeCCSMetadata(), equalTo(responseExpectMeta));
+            assertThat(executionInfo.isPartial(), equalTo(true));
 
             assertThat(executionInfo.clusterAliases(), equalTo(Set.of(REMOTE_CLUSTER_1, LOCAL_CLUSTER)));
 
@@ -597,6 +601,7 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
             long overallTookMillis = executionInfo.overallTook().millis();
             assertThat(overallTookMillis, greaterThanOrEqualTo(0L));
             assertThat(executionInfo.includeCCSMetadata(), equalTo(responseExpectMeta));
+            assertThat(executionInfo.isPartial(), equalTo(false));
             assertThat(executionInfo.clusterAliases(), equalTo(Set.of(REMOTE_CLUSTER_1, LOCAL_CLUSTER)));
 
             EsqlExecutionInfo.Cluster remoteCluster = executionInfo.getCluster(REMOTE_CLUSTER_1);
@@ -645,6 +650,7 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
             assertThat(executionInfo.isCrossClusterSearch(), is(true));
             assertThat(executionInfo.includeCCSMetadata(), equalTo(responseExpectMeta));
             assertThat(executionInfo.overallTook().millis(), greaterThanOrEqualTo(0L));
+            assertThat(executionInfo.isPartial(), equalTo(false));
 
             EsqlExecutionInfo.Cluster remoteCluster = executionInfo.getCluster(REMOTE_CLUSTER_1);
             assertThat(remoteCluster.getIndexExpression(), equalTo("logs*"));

@@ -280,6 +280,7 @@ public class CrossClustersCancellationIT extends AbstractMultiClustersTestCase {
         EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
 
         assertNotNull(executionInfo);
+        assertThat(executionInfo.isPartial(), equalTo(true));
         EsqlExecutionInfo.Cluster cluster = executionInfo.getCluster(REMOTE_CLUSTER);
 
         assertThat(cluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.PARTIAL));
@@ -308,6 +309,7 @@ public class CrossClustersCancellationIT extends AbstractMultiClustersTestCase {
         try (var resp = requestFuture.actionGet()) {
             EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
             assertNotNull(executionInfo);
+            assertThat(executionInfo.isPartial(), equalTo(true));
 
             List<List<Object>> values = getValuesList(resp);
             assertThat(values.get(0).size(), equalTo(1));

@@ -613,6 +613,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         DataStreamLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING,
         IndicesClusterStateService.SHARD_LOCK_RETRY_INTERVAL_SETTING,
         IndicesClusterStateService.SHARD_LOCK_RETRY_TIMEOUT_SETTING,
+        IndicesClusterStateService.CONCURRENT_SHARD_CLOSE_LIMIT,
         IngestSettings.GROK_WATCHDOG_INTERVAL,
         IngestSettings.GROK_WATCHDOG_MAX_EXECUTION_TIME,
         TDigestExecutionHint.SETTING,

@@ -77,7 +77,7 @@ public class MapperFeatures implements FeatureSpecification {
             DYNAMIC_HANDLING_IN_COPY_TO,
             SourceFieldMapper.SYNTHETIC_RECOVERY_SOURCE,
             ObjectMapper.SUBOBJECTS_FALSE_MAPPING_UPDATE_FIX,
-            USE_SYNTHETIC_SOURCE_FOR_RECOVERY_BY_DEFAULT
+            USE_SYNTHETIC_SOURCE_FOR_RECOVERY_BY_DEFAULT // NOTE: only for snapshot builds
         );
     }
 }

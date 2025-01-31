@@ -22,8 +22,10 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
 import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.FileAttribute;
 import java.util.Map;
 import java.util.function.Function;
 
@@ -144,19 +146,33 @@ public class EntitlementBootstrap {
      * @throws IllegalStateException if the entitlements system can't prevent an unauthorized action of our choosing
      */
     private static void selfTest() {
-        ensureCannotStartProcess();
-        ensureCanCreateTempFile();
+        ensureCannotStartProcess(false);
+        ensureCannotStartProcess(true);
+        ensureCanCreateTempFile(false);
+        ensureCanCreateTempFile(true);
     }
 
-    private static void ensureCannotStartProcess() {
+    private static void ensureCannotStartProcess(boolean useReflection) {
         try {
             // The command doesn't matter; it doesn't even need to exist
-            new ProcessBuilder("").start();
+            ProcessBuilder builder = new ProcessBuilder("");
+            if (useReflection) {
+                try {
+                    var start = ProcessBuilder.class.getMethod("start");
+                    start.invoke(builder);
+                } catch (InvocationTargetException e) {
+                    throw e.getCause();
+                }
+            } else {
+                builder.start();
+            }
         } catch (NotEntitledException e) {
             logger.debug("Success: Entitlement protection correctly prevented process creation");
             return;
         } catch (IOException e) {
             throw new IllegalStateException("Failed entitlement protection self-test", e);
+        } catch (Throwable e) {
+            throw new IllegalStateException("Error during entitlement protection self-test", e);
         }
         throw new IllegalStateException("Entitlement protection self-test was incorrectly permitted");
     }
@@ -165,9 +181,15 @@ public class EntitlementBootstrap {
      * Originally {@code Security.selfTest}.
      */
     @SuppressForbidden(reason = "accesses jvm default tempdir as a self-test")
-    private static void ensureCanCreateTempFile() {
+    private static void ensureCanCreateTempFile(boolean useReflection) {
         try {
-            Path p = Files.createTempFile(null, null);
+            Path p;
+            if (useReflection) {
+                p = (Path) Files.class.getMethod("createTempFile", String.class, String.class, FileAttribute[].class)
+                    .invoke(null, null, null, new FileAttribute<?>[0]);
+            } else {
+                p = Files.createTempFile(null, null);
+            }
             p.toFile().deleteOnExit();
 
             // Make an effort to clean up the file immediately; also, deleteOnExit leaves the file if the JVM exits abnormally.

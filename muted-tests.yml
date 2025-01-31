@@ -393,6 +393,9 @@ tests:
 - class: org.elasticsearch.upgrades.AddIndexBlockRollingUpgradeIT
   method: testAddBlock {upgradedNodes=1}
   issue: https://github.com/elastic/elasticsearch/issues/121367
+- class: org.elasticsearch.env.NodeEnvironmentTests
+  method: testGetBestDowngradeVersion
+  issue: https://github.com/elastic/elasticsearch/issues/121316
 
 # Examples:
 #

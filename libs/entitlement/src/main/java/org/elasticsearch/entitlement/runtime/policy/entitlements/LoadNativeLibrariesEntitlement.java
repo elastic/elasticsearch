@@ -7,7 +7,9 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.entitlement.runtime.policy;
+package org.elasticsearch.entitlement.runtime.policy.entitlements;
+
+import org.elasticsearch.entitlement.runtime.policy.ExternalEntitlement;
 
 /**
  * An Entitlement to allow loading native libraries

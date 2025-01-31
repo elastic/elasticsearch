@@ -12,6 +12,9 @@ package org.elasticsearch.entitlement.runtime.policy;
 import org.elasticsearch.entitlement.runtime.policy.PolicyManager.ModuleEntitlements;
 import org.elasticsearch.entitlement.runtime.policy.agent.TestAgent;
 import org.elasticsearch.entitlement.runtime.policy.agent.inner.TestInnerAgent;
+import org.elasticsearch.entitlement.runtime.policy.entitlements.CreateClassLoaderEntitlement;
+import org.elasticsearch.entitlement.runtime.policy.entitlements.ExitVMEntitlement;
+import org.elasticsearch.entitlement.runtime.policy.entitlements.FileEntitlement;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.compiler.InMemoryJavaCompiler;
 import org.elasticsearch.test.jar.JarUtils;
@@ -302,8 +305,7 @@ public class PolicyManagerTests extends ESTestCase {
             )
         );
         assertEquals(
-            "[server] using module [test] found duplicate flag entitlements "
-                + "[org.elasticsearch.entitlement.runtime.policy.CreateClassLoaderEntitlement]",
+            "[server] using module [test] found duplicate flag entitlements " + "[" + CreateClassLoaderEntitlement.class.getName() + "]",
             iae.getMessage()
         );
 
@@ -319,8 +321,7 @@ public class PolicyManagerTests extends ESTestCase {
             )
         );
         assertEquals(
-            "[agent] using module [unnamed] found duplicate flag entitlements "
-                + "[org.elasticsearch.entitlement.runtime.policy.CreateClassLoaderEntitlement]",
+            "[agent] using module [unnamed] found duplicate flag entitlements " + "[" + CreateClassLoaderEntitlement.class.getName() + "]",
             iae.getMessage()
         );
 
@@ -352,8 +353,7 @@ public class PolicyManagerTests extends ESTestCase {
             )
         );
         assertEquals(
-            "[plugin1] using module [test] found duplicate flag entitlements "
-                + "[org.elasticsearch.entitlement.runtime.policy.CreateClassLoaderEntitlement]",
+            "[plugin1] using module [test] found duplicate flag entitlements " + "[" + CreateClassLoaderEntitlement.class.getName() + "]",
             iae.getMessage()
         );
     }

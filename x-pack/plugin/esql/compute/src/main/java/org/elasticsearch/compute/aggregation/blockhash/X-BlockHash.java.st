@@ -59,7 +59,7 @@ import java.util.BitSet;
 $endif$
 /**
  * Maps a {@link $Type$Block} column to group ids.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-BlockHash.java.st} instead.
  */
 final class $Type$BlockHash extends BlockHash {
     private final int channel;

@@ -73,6 +73,8 @@ import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
+import org.elasticsearch.xpack.esql.planner.premapper.PreMapper;
+import org.elasticsearch.xpack.esql.plugin.TransportActionServices;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 
 import java.util.ArrayList;
@@ -109,12 +111,12 @@ public class EsqlSession {
     private final Verifier verifier;
     private final EsqlFunctionRegistry functionRegistry;
     private final LogicalPlanOptimizer logicalPlanOptimizer;
+    private final PreMapper preMapper;
 
     private final Mapper mapper;
     private final PhysicalPlanOptimizer physicalPlanOptimizer;
     private final PlanTelemetry planTelemetry;
     private final IndicesExpressionGrouper indicesExpressionGrouper;
-    private final QueryBuilderResolver queryBuilderResolver;
 
     public EsqlSession(
         String sessionId,
@@ -128,7 +130,7 @@ public class EsqlSession {
         Verifier verifier,
         PlanTelemetry planTelemetry,
         IndicesExpressionGrouper indicesExpressionGrouper,
-        QueryBuilderResolver queryBuilderResolver
+        TransportActionServices services
     ) {
         this.sessionId = sessionId;
         this.configuration = configuration;
@@ -142,7 +144,7 @@ public class EsqlSession {
         this.physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(configuration));
         this.planTelemetry = planTelemetry;
         this.indicesExpressionGrouper = indicesExpressionGrouper;
-        this.queryBuilderResolver = queryBuilderResolver;
+        this.preMapper = new PreMapper(services);
     }
 
     public String sessionId() {
@@ -162,16 +164,12 @@ public class EsqlSession {
             new EsqlSessionCCSUtils.CssPartialErrorsActionListener(executionInfo, listener) {
                 @Override
                 public void onResponse(LogicalPlan analyzedPlan) {
-                    try {
-                        var optimizedPlan = optimizedPlan(analyzedPlan);
-                        queryBuilderResolver.resolveQueryBuilders(
-                            optimizedPlan,
-                            listener,
-                            (newPlan, next) -> executeOptimizedPlan(request, executionInfo, planRunner, newPlan, next)
-                        );
-                    } catch (Exception e) {
-                        listener.onFailure(e);
-                    }
+                    preMapper.preMapper(
+                        analyzedPlan,
+                        listener.delegateFailureAndWrap(
+                            (l, p) -> executeOptimizedPlan(request, executionInfo, planRunner, optimizedPlan(p), l)
+                        )
+                    );
                 }
             }
         );
@@ -468,7 +466,8 @@ public class EsqlSession {
         IndexResolution indexResolution = result.indices;
         EsqlSessionCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolution);
         EsqlSessionCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.unavailableClusters());
-        if (executionInfo.isCrossClusterSearch() && executionInfo.getClusterStateCount(EsqlExecutionInfo.Cluster.Status.RUNNING) == 0) {
+        if (executionInfo.isCrossClusterSearch()
+            && executionInfo.getClusterStates(EsqlExecutionInfo.Cluster.Status.RUNNING).findAny().isEmpty()) {
             // for a CCS, if all clusters have been marked as SKIPPED, nothing to search so send a sentinel Exception
             // to let the LogicalPlanActionListener decide how to proceed
             logicalPlanListener.onFailure(new NoClustersToSearchException());
@@ -483,7 +482,7 @@ public class EsqlSession {
         // TODO: add a test for this
         if (targetClusters.containsAll(newClusters) == false
             // do not bother with a re-resolution if only remotes were requested and all were offline
-            && executionInfo.getClusterStateCount(EsqlExecutionInfo.Cluster.Status.RUNNING) > 0) {
+            && executionInfo.getClusterStates(EsqlExecutionInfo.Cluster.Status.RUNNING).findAny().isPresent()) {
             enrichPolicyResolver.resolvePolicies(
                 newClusters,
                 unresolvedPolicies,
@@ -622,10 +621,11 @@ public class EsqlSession {
             // for example "from test | eval x = salary | stats max = max(x) by gender"
             // remove the UnresolvedAttribute "x", since that is an Alias defined in "eval"
             AttributeSet planRefs = p.references();
+            Set<String> fieldNames = planRefs.names();
             p.forEachExpressionDown(Alias.class, alias -> {
                 // do not remove the UnresolvedAttribute that has the same name as its alias, ie "rename id = id"
                 // or the UnresolvedAttributes that are used in Functions that have aliases "STATS id = MAX(id)"
-                if (planRefs.names().contains(alias.name())) {
+                if (fieldNames.contains(alias.name())) {
                     return;
                 }
                 references.removeIf(attr -> matchByName(attr, alias.name(), keepCommandReferences.contains(attr)));

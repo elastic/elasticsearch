@@ -57,7 +57,7 @@ GET _cluster/allocation/explain
 [[fix-watermark-errors-temporary]]
 ==== Temporary Relief
 
-To immediately restore write operations, you can temporarily increase the 
+To immediately restore write operations, you can temporarily increase 
 <<disk-based-shard-allocation,disk watermarks>> and remove the 
 <<index-block-settings,write block>>.
 
@@ -106,19 +106,35 @@ PUT _cluster/settings
 [[fix-watermark-errors-resolve]]
 ==== Resolve
 
-As a long-term solution, we recommend you do one of the following best suited 
-to your use case: 
+To resolve watermark errors permanently, perform one of the following actions:
 
-* add nodes to the affected <<data-tiers,data tiers>>
-+
-TIP: You should enable <<xpack-autoscaling,autoscaling>> for clusters deployed using our {ess}, {ece}, and {eck} platforms.
+* Horizontally scale nodes of the affected <<data-tiers,data tiers>>.
 
-* upgrade existing nodes to increase disk space
-+
-TIP: On {ess}, https://support.elastic.co[Elastic Support] intervention may 
-become necessary if <<cluster-health,cluster health>> reaches `status:red`. 
+* Vertically scale existing nodes to increase disk space.
 
-* delete unneeded indices using the <<indices-delete-index,delete index API>>
+* Delete indices using the <<indices-delete-index,delete index API>>, either
+permanently if the index isn't needed, or temporarily to later 
+<<snapshots-restore-snapshot,restore>>.
 
 * update related <<index-lifecycle-management,ILM policy>> to push indices 
 through to later <<data-tiers,data tiers>>
+
+TIP: On {ess} and {ece}, indices may need to be temporarily deleted via
+its {cloud}/ec-api-console.html[Elasticsearch API Console] to later
+<<snapshots-restore-snapshot,snapshot restore>> in order to resolve
+<<cluster-health,cluster health>> `status:red` which will block
+{cloud}/ec-activity-page.html[attempted changes]. If you experience issues
+with this resolution flow on {ess}, kindly reach out to
+https://support.elastic.co[Elastic Support] for assistance.
+
+[discrete]
+[[fix-watermark-errors-prevent]]
+=== Prevent watermark errors
+
+To avoid watermark errors in future, perform one of the following actions:
+
+* If you're using {ess}, {ece}, or {eck}: Enable <<xpack-autoscaling,autoscaling>>.
+
+* Set up {kibana-ref}/kibana-alerts.html[stack monitoring alerts] on top of
+<<monitor-elasticsearch-cluster,{es} monitoring>> to be notified before
+the flood-stage watermark is reached.

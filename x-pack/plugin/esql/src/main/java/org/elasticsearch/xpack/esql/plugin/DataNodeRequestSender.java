@@ -155,7 +155,7 @@ abstract class DataNodeRequestSender {
                 }
                 for (Map.Entry<ShardId, Exception> e : response.shardLevelFailures().entrySet()) {
                     final ShardId shardId = e.getKey();
-                    shardFailures.compute(shardId, (k, v) -> mergeShardExceptions(v, e.getValue()));
+                    trackShardLevelFailure(shardId, e.getValue());
                     pendingShardIds.add(shardId);
                 }
                 onAfter(response.profiles());
@@ -167,7 +167,7 @@ abstract class DataNodeRequestSender {
                     aborted.set(true);
                 }
                 for (ShardId shardId : request.shardIds) {
-                    shardFailures.compute(shardId, (k, v) -> mergeShardExceptions(v, e));
+                    trackShardLevelFailure(shardId, e);
                     pendingShardIds.add(shardId);
                 }
                 onAfter(List.of());
@@ -183,24 +183,28 @@ abstract class DataNodeRequestSender {
         void onFailure(Exception e, boolean receivedData);
     }
 
-    private static Exception mergeShardExceptions(Exception current, Exception e) {
+    private static Exception unwrapFailure(Exception e) {
         e = e instanceof TransportException te ? FailureCollector.unwrapTransportException(te) : e;
         if (TransportActions.isShardNotAvailableException(e)) {
-            e = NoShardAvailableActionException.forOnShardFailureWrapper(e.getMessage());
-        }
-        if (current == null) {
+            return NoShardAvailableActionException.forOnShardFailureWrapper(e.getMessage());
+        } else {
             return e;
         }
-        if (current instanceof NoShardAvailableActionException || ExceptionsHelper.unwrap(current, TaskCancelledException.class) != null) {
+    }
+
+    private void trackShardLevelFailure(ShardId shardId, Exception originalEx) {
+        final Exception e = unwrapFailure(originalEx);
+        // Retain only one meaningful exception and avoid suppressing previous failures to minimize memory usage, especially when handling
+        // many shards.
+        shardFailures.compute(shardId, (k, current) -> {
+            if (current == null) {
+                return e;
+            }
+            if (e instanceof NoShardAvailableActionException || ExceptionsHelper.unwrap(e, TaskCancelledException.class) != null) {
+                return current;
+            }
             return e;
-        }
-        if (e instanceof NoShardAvailableActionException || ExceptionsHelper.unwrap(e, TaskCancelledException.class) != null) {
-            return current;
-        }
-        if (current != e) {
-            current.addSuppressed(e);
-        }
-        return current;
+        });
     }
 
     /**

@@ -85,7 +85,7 @@ public class StatelessCommitNotificationPublisher {
     ) {
         assert uploadedBcc != null;
         assert (shardRoutingTable == null && currentRoutingNodesWithAssignedSearchShards.isEmpty())
-            || shardRoutingTable.unpromotableShards()
+            || shardRoutingTable.assignedUnpromotableShards()
                 .stream()
                 .filter(ShardRouting::assignedToNode)
                 .map(ShardRouting::currentNodeId)

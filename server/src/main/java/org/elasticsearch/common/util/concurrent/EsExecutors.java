@@ -109,12 +109,34 @@ public class EsExecutors {
     ) {
         ExecutorScalingQueue<Runnable> queue = new ExecutorScalingQueue<>();
         EsThreadPoolExecutor executor;
+
+        final int corePoolSize;
+        final long adjustedKeepAliveTime;
+        final boolean allowCoreThreadTimeOut;
+        if (min == 0) {
+            // If a min of 0 is requested we set the thread core count to 1, but we allow the thread cores to timeout.
+            // This way we still achieve the goal of having 0 threads when idle, but we do not run into the risk of running into a case
+            // where we have task(s) in the queue and no worker to consume them.
+            corePoolSize = 1;
+            allowCoreThreadTimeOut = true;
+            if (keepAliveTime == 0) {
+                // The JDK does not allow a timeout of 0 with allowCoreThreadTimeOut
+                adjustedKeepAliveTime = 1;
+            } else {
+                adjustedKeepAliveTime = keepAliveTime;
+            }
+        } else {
+            corePoolSize = min;
+            adjustedKeepAliveTime = keepAliveTime;
+            allowCoreThreadTimeOut = false;
+        }
+
         if (config.trackExecutionTime()) {
             executor = new TaskExecutionTimeTrackingEsThreadPoolExecutor(
                 name,
-                min,
+                corePoolSize,
                 max,
-                keepAliveTime,
+                adjustedKeepAliveTime,
                 unit,
                 queue,
                 TimedRunnable::new,
@@ -126,9 +148,9 @@ public class EsExecutors {
         } else {
             executor = new EsThreadPoolExecutor(
                 name,
-                min,
+                corePoolSize,
                 max,
-                keepAliveTime,
+                adjustedKeepAliveTime,
                 unit,
                 queue,
                 threadFactory,
@@ -136,6 +158,7 @@ public class EsExecutors {
                 contextHolder
             );
         }
+        executor.allowCoreThreadTimeOut(allowCoreThreadTimeOut);
         queue.executor = executor;
         return executor;
     }
@@ -474,6 +497,15 @@ public class EsExecutors {
                     // the executor's workers are shutting down and might have already picked up the task for execution.
                     if (executor.isShutdown() && executor.remove(task)) {
                         reject(executor, task);
+                    }
+                    // The equivalent code in the JDK here would check if the worker count (aka pool size) is 0, and if so it would
+                    // add a worker. We cannot reproduce that exact behaviour.
+                    if (executor.getPoolSize() == 0) {
+                        // add a worker. We could use:
+                        // a) executor.setCorePoolSize(1); (but then we would need to bring it back to 0 "later", and "later" is not trivial
+                        // b) var t = executor.getQueue().poll(); if (t != null) executor.execute(t); (re-enqueue) but this will likely
+                        // have undesired side effects (it's a recursive call in disguise)
+                        // c) executor.ensurePrestart(); which is not public nor protected, so we would have to call it reflectively
                     }
                 }
             } else {

@@ -9,7 +9,6 @@
 
 package org.elasticsearch.search.vectors;
 
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.TransportVersion;
@@ -25,7 +24,6 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Objects;
 
 /**
@@ -151,9 +149,7 @@ public class KnnScoreDocQueryBuilder extends AbstractQueryBuilder<KnnScoreDocQue
             scores[i] = scoreDocs[i].score;
         }
 
-        IndexReader reader = context.getIndexReader();
-        int[] segmentStarts = findSegmentStarts(reader, docs);
-        return new KnnScoreDocQuery(docs, scores, segmentStarts, reader.getContext().id());
+        return new KnnScoreDocQuery(docs, scores, context.getIndexReader());
     }
 
     @Override
@@ -165,24 +161,6 @@ public class KnnScoreDocQueryBuilder extends AbstractQueryBuilder<KnnScoreDocQue
             return new ExactKnnQueryBuilder(queryVector, fieldName, vectorSimilarity);
         }
         return super.doRewrite(queryRewriteContext);
-    }
-
-    private static int[] findSegmentStarts(IndexReader reader, int[] docs) {
-        int[] starts = new int[reader.leaves().size() + 1];
-        starts[starts.length - 1] = docs.length;
-        if (starts.length == 2) {
-            return starts;
-        }
-        int resultIndex = 0;
-        for (int i = 1; i < starts.length - 1; i++) {
-            int upper = reader.leaves().get(i).docBase;
-            resultIndex = Arrays.binarySearch(docs, resultIndex, docs.length, upper);
-            if (resultIndex < 0) {
-                resultIndex = -1 - resultIndex;
-            }
-            starts[i] = resultIndex;
-        }
-        return starts;
     }
 
     @Override

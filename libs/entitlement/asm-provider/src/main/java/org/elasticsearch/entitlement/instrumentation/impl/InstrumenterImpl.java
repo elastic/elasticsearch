@@ -58,30 +58,14 @@ public class InstrumenterImpl implements Instrumenter {
         this.checkMethods = checkMethods;
     }
 
-    static String getCheckerClassName() {
-        int javaVersion = Runtime.version().feature();
-        final String classNamePrefix;
-        if (javaVersion >= 23) {
-            classNamePrefix = "Java23";
-        } else {
-            classNamePrefix = "";
-        }
-        return "org/elasticsearch/entitlement/bridge/" + classNamePrefix + "EntitlementChecker";
-    }
-
-    public static InstrumenterImpl create(Map<MethodKey, CheckMethod> checkMethods) {
-        String checkerClass = getCheckerClassName();
-        String handleClass = checkerClass + "Handle";
-        String getCheckerClassMethodDescriptor = Type.getMethodDescriptor(Type.getObjectType(checkerClass));
+    public static InstrumenterImpl create(Class<?> checkerClass, Map<MethodKey, CheckMethod> checkMethods) {
+        Type checkerClassType = Type.getType(checkerClass);
+        String handleClass = checkerClassType.getInternalName() + "Handle";
+        String getCheckerClassMethodDescriptor = Type.getMethodDescriptor(checkerClassType);
         return new InstrumenterImpl(handleClass, getCheckerClassMethodDescriptor, "", checkMethods);
     }
 
-    public ClassFileInfo instrumentClassFile(Class<?> clazz) throws IOException {
-        ClassFileInfo initial = getClassFileInfo(clazz);
-        return new ClassFileInfo(initial.fileName(), instrumentClass(Type.getInternalName(clazz), initial.bytecodes()));
-    }
-
-    public static ClassFileInfo getClassFileInfo(Class<?> clazz) throws IOException {
+    static ClassFileInfo getClassFileInfo(Class<?> clazz) throws IOException {
         String internalName = Type.getInternalName(clazz);
         String fileName = "/" + internalName + ".class";
         byte[] originalBytecodes;
@@ -168,6 +152,7 @@ public class InstrumenterImpl implements Instrumenter {
             if (isAnnotationPresent == false) {
                 boolean isStatic = (access & ACC_STATIC) != 0;
                 boolean isCtor = "<init>".equals(name);
+                boolean hasReceiver = (isStatic || isCtor) == false;
                 var key = new MethodKey(className, name, Stream.of(Type.getArgumentTypes(descriptor)).map(Type::getInternalName).toList());
                 var instrumentationMethod = checkMethods.get(key);
                 if (instrumentationMethod != null) {
@@ -306,5 +291,5 @@ public class InstrumenterImpl implements Instrumenter {
         mv.visitMethodInsn(INVOKESTATIC, handleClass, "instance", getCheckerClassMethodDescriptor, false);
     }
 
-    public record ClassFileInfo(String fileName, byte[] bytecodes) {}
+    record ClassFileInfo(String fileName, byte[] bytecodes) {}
 }

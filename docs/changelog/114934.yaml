@@ -1,6 +1,0 @@
-pr: 114934
-summary: "[ES|QL] To_DatePeriod and To_TimeDuration return better error messages on\
-  \ `union_type` fields"
-area: ES|QL
-type: bug
-issues: []

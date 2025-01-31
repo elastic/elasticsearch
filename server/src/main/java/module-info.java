@@ -394,6 +394,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.action.downsample;
     exports org.elasticsearch.plugins.internal
         to
+            org.elasticsearch.inference,
             org.elasticsearch.metering,
             org.elasticsearch.stateless,
             org.elasticsearch.settings.secure,
@@ -424,21 +425,14 @@ module org.elasticsearch.server {
 
     provides org.elasticsearch.features.FeatureSpecification
         with
-            org.elasticsearch.action.admin.indices.stats.IndicesStatsFeatures,
             org.elasticsearch.action.bulk.BulkFeatures,
             org.elasticsearch.features.FeatureInfrastructureFeatures,
-            org.elasticsearch.health.HealthFeatures,
-            org.elasticsearch.cluster.metadata.MetadataFeatures,
-            org.elasticsearch.rest.RestFeatures,
-            org.elasticsearch.repositories.RepositoriesFeatures,
-            org.elasticsearch.action.admin.cluster.allocation.AllocationStatsFeatures,
             org.elasticsearch.rest.action.admin.cluster.ClusterRerouteFeatures,
             org.elasticsearch.index.mapper.MapperFeatures,
-            org.elasticsearch.ingest.IngestGeoIpFeatures,
+            org.elasticsearch.index.IndexFeatures,
             org.elasticsearch.search.SearchFeatures,
             org.elasticsearch.script.ScriptFeatures,
             org.elasticsearch.search.retriever.RetrieversFeatures,
-            org.elasticsearch.reservedstate.service.FileSettingsFeatures,
             org.elasticsearch.action.admin.cluster.stats.ClusterStatsFeatures;
 
     uses org.elasticsearch.plugins.internal.SettingsExtension;
@@ -459,13 +453,16 @@ module org.elasticsearch.server {
             org.elasticsearch.index.codec.vectors.ES815HnswBitVectorsFormat,
             org.elasticsearch.index.codec.vectors.ES815BitFlatVectorFormat,
             org.elasticsearch.index.codec.vectors.es816.ES816BinaryQuantizedVectorsFormat,
-            org.elasticsearch.index.codec.vectors.es816.ES816HnswBinaryQuantizedVectorsFormat;
+            org.elasticsearch.index.codec.vectors.es816.ES816HnswBinaryQuantizedVectorsFormat,
+            org.elasticsearch.index.codec.vectors.es818.ES818BinaryQuantizedVectorsFormat,
+            org.elasticsearch.index.codec.vectors.es818.ES818HnswBinaryQuantizedVectorsFormat;
 
     provides org.apache.lucene.codecs.Codec
         with
             org.elasticsearch.index.codec.Elasticsearch814Codec,
             org.elasticsearch.index.codec.Elasticsearch816Codec,
-            org.elasticsearch.index.codec.Elasticsearch900Codec;
+            org.elasticsearch.index.codec.Elasticsearch900Codec,
+            org.elasticsearch.index.codec.Elasticsearch900Lucene101Codec;
 
     provides org.apache.logging.log4j.core.util.ContextDataProvider with org.elasticsearch.common.logging.DynamicContextDataProvider;
 
@@ -477,5 +474,6 @@ module org.elasticsearch.server {
     exports org.elasticsearch.lucene.spatial;
     exports org.elasticsearch.inference.configuration;
     exports org.elasticsearch.monitor.metrics;
-
+    exports org.elasticsearch.plugins.internal.rewriter to org.elasticsearch.inference;
+    exports org.elasticsearch.lucene.util.automaton;
 }

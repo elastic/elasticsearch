@@ -114,12 +114,12 @@ class GoogleCloudStorageBlobContainer extends AbstractBlobContainer {
 
     @Override
     public DeleteResult delete(OperationPurpose purpose) throws IOException {
-        return blobStore.deleteDirectory(purpose, path().buildAsString());
+        return blobStore.deleteDirectory(path().buildAsString());
     }
 
     @Override
     public void deleteBlobsIgnoringIfNotExists(OperationPurpose purpose, Iterator<String> blobNames) throws IOException {
-        blobStore.deleteBlobsIgnoringIfNotExists(purpose, new Iterator<>() {
+        blobStore.deleteBlobs(new Iterator<>() {
             @Override
             public boolean hasNext() {
                 return blobNames.hasNext();
@@ -145,13 +145,11 @@ class GoogleCloudStorageBlobContainer extends AbstractBlobContainer {
         BytesReference updated,
         ActionListener<OptionalBytesReference> listener
     ) {
-        if (skipCas(listener)) return;
         ActionListener.completeWith(listener, () -> blobStore.compareAndExchangeRegister(buildKey(key), path, key, expected, updated));
     }
 
     @Override
     public void getRegister(OperationPurpose purpose, String key, ActionListener<OptionalBytesReference> listener) {
-        if (skipCas(listener)) return;
         ActionListener.completeWith(listener, () -> blobStore.getRegister(buildKey(key), path, key));
     }
 }

@@ -64,7 +64,6 @@ public class CompoundAnalysisTests extends ESTestCase {
                 hasItems("donau", "dampf", "schiff", "donaudampfschiff", "spargel", "creme", "suppe", "spargelcremesuppe")
             );
         }
-        assertWarnings("Setting [version] on analysis component [custom7] has no effect and is deprecated");
     }
 
     public void testHyphenationDecompoundingAnalyzerOnlyLongestMatch() throws Exception {
@@ -76,7 +75,6 @@ public class CompoundAnalysisTests extends ESTestCase {
                 hasItems("kaffeemaschine", "kaffee", "fee", "maschine", "fussballpumpe", "fussball", "ballpumpe", "pumpe")
             );
         }
-        assertWarnings("Setting [version] on analysis component [custom7] has no effect and is deprecated");
     }
 
     /**
@@ -89,7 +87,6 @@ public class CompoundAnalysisTests extends ESTestCase {
             List<String> terms = analyze(settings, "hyphenationDecompoundingAnalyzerNoSubMatches", "kaffeemaschine fussballpumpe");
             MatcherAssert.assertThat(terms, hasItems("kaffeemaschine", "kaffee", "maschine", "fussballpumpe", "fussball", "ballpumpe"));
         }
-        assertWarnings("Setting [version] on analysis component [custom7] has no effect and is deprecated");
     }
 
     /**
@@ -102,7 +99,6 @@ public class CompoundAnalysisTests extends ESTestCase {
             List<String> terms = analyze(settings, "hyphenationDecompoundingAnalyzerNoOverlappingMatches", "kaffeemaschine fussballpumpe");
             MatcherAssert.assertThat(terms, hasItems("kaffeemaschine", "kaffee", "maschine", "fussballpumpe", "fussball", "pumpe"));
         }
-        assertWarnings("Setting [version] on analysis component [custom7] has no effect and is deprecated");
     }
 
     private List<String> analyze(Settings settings, String analyzerName, String text) throws IOException {

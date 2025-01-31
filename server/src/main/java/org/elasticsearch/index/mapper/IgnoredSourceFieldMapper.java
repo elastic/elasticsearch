@@ -25,8 +25,6 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
@@ -56,7 +54,6 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
 
     public static final TypeParser PARSER = new FixedTypeParser(context -> new IgnoredSourceFieldMapper(context.getIndexSettings()));
 
-    static final NodeFeature TRACK_IGNORED_SOURCE = new NodeFeature("mapper.track_ignored_source");
     static final NodeFeature DONT_EXPAND_DOTS_IN_IGNORED_SOURCE = new NodeFeature("mapper.ignored_source.dont_expand_dots");
     static final NodeFeature IGNORED_SOURCE_AS_TOP_LEVEL_METADATA_ARRAY_FIELD = new NodeFeature(
         "mapper.ignored_source_as_top_level_metadata_array_field"
@@ -162,33 +159,7 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
             return;
         }
 
-        Collection<NameValue> ignoredValuesToWrite = context.getIgnoredFieldValues();
-        if (context.getCopyToFields().isEmpty() == false && indexSettings.getSkipIgnoredSourceWrite() == false) {
-            /*
-            Mark fields as containing copied data meaning they should not be present
-            in synthetic _source (to be consistent with stored _source).
-            Ignored source values take precedence over standard synthetic source implementation
-            so by adding the `XContentDataHelper.voidValue()` entry we disable the field in synthetic source.
-            Otherwise, it would be constructed f.e. from doc_values which leads to duplicate values
-            in copied field after reindexing.
-            */
-            var mutableList = new ArrayList<>(ignoredValuesToWrite);
-            for (String copyToField : context.getCopyToFields()) {
-                ObjectMapper parent = context.parent().findParentMapper(copyToField);
-                if (parent == null) {
-                    // There are scenarios when this can happen:
-                    // 1. all values of the field that is the source of copy_to are null
-                    // 2. copy_to points at a field inside a disabled object
-                    // 3. copy_to points at dynamic field which is not yet applied to mapping, we will process it properly on re-parse.
-                    continue;
-                }
-                int offset = parent.isRoot() ? 0 : parent.fullPath().length() + 1;
-                mutableList.add(new IgnoredSourceFieldMapper.NameValue(copyToField, offset, XContentDataHelper.voidValue(), context.doc()));
-            }
-            ignoredValuesToWrite = mutableList;
-        }
-
-        for (NameValue nameValue : ignoredValuesToWrite) {
+        for (NameValue nameValue : context.getIgnoredFieldValues()) {
             nameValue.doc().add(new StoredField(NAME, encode(nameValue)));
         }
     }
@@ -234,7 +205,7 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
         // not being available.
         // We would like to have an option to lose some values in synthetic source
         // but have search not fail.
-        return new SyntheticSourceSupport.Native(new SourceLoader.SyntheticFieldLoader() {
+        return new SyntheticSourceSupport.Native(() -> new SourceLoader.SyntheticFieldLoader() {
             @Override
             public Stream<Map.Entry<String, StoredFieldLoader>> storedFieldLoaders() {
                 if (indexSettings.getSkipIgnoredSourceRead()) {

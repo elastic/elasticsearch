@@ -130,10 +130,11 @@ public class FieldSortIT extends ESIntegTestCase {
                 .setSize(10),
             response -> {
                 logClusterState();
+                Number previous = (Number) response.getHits().getHits()[0].getSourceAsMap().get("entry");
                 for (int j = 1; j < response.getHits().getHits().length; j++) {
                     Number current = (Number) response.getHits().getHits()[j].getSourceAsMap().get("entry");
-                    Number previous = (Number) response.getHits().getHits()[j - 1].getSourceAsMap().get("entry");
                     assertThat(response.toString(), current.intValue(), lessThan(previous.intValue()));
+                    previous = current;
                 }
             }
         );
@@ -144,10 +145,11 @@ public class FieldSortIT extends ESIntegTestCase {
                 .setSize(10),
             response -> {
                 logClusterState();
+                Number previous = (Number) response.getHits().getHits()[0].getSourceAsMap().get("entry");
                 for (int j = 1; j < response.getHits().getHits().length; j++) {
                     Number current = (Number) response.getHits().getHits()[j].getSourceAsMap().get("entry");
-                    Number previous = (Number) response.getHits().getHits()[j - 1].getSourceAsMap().get("entry");
                     assertThat(response.toString(), current.intValue(), greaterThan(previous.intValue()));
+                    previous = current;
                 }
             }
         );
@@ -202,7 +204,6 @@ public class FieldSortIT extends ESIntegTestCase {
                         response -> {
                             for (int j = 0; j < response.getHits().getHits().length; j++) {
                                 assertThat(
-                                    response.toString() + "\n vs. \n" + allDocsResponse.toString(),
                                     response.getHits().getHits()[j].getId(),
                                     equalTo(allDocsResponse.getHits().getHits()[j].getId())
                                 );
@@ -2004,10 +2005,12 @@ public class FieldSortIT extends ESIntegTestCase {
     }
 
     public void testSortMixedFieldTypes() {
-        assertAcked(prepareCreate("index_long").setMapping("foo", "type=long").get());
-        assertAcked(prepareCreate("index_integer").setMapping("foo", "type=integer").get());
-        assertAcked(prepareCreate("index_double").setMapping("foo", "type=double").get());
-        assertAcked(prepareCreate("index_keyword").setMapping("foo", "type=keyword").get());
+        assertAcked(
+            prepareCreate("index_long").setMapping("foo", "type=long"),
+            prepareCreate("index_integer").setMapping("foo", "type=integer"),
+            prepareCreate("index_double").setMapping("foo", "type=double"),
+            prepareCreate("index_keyword").setMapping("foo", "type=keyword")
+        );
 
         prepareIndex("index_long").setId("1").setSource("foo", "123").get();
         prepareIndex("index_integer").setId("1").setSource("foo", "123").get();
@@ -2039,9 +2042,11 @@ public class FieldSortIT extends ESIntegTestCase {
     }
 
     public void testSortMixedFieldTypesWithNoDocsForOneType() {
-        assertAcked(prepareCreate("index_long").setMapping("foo", "type=long").get());
-        assertAcked(prepareCreate("index_other").setMapping("bar", "type=keyword").get());
-        assertAcked(prepareCreate("index_double").setMapping("foo", "type=double").get());
+        assertAcked(
+            prepareCreate("index_long").setMapping("foo", "type=long"),
+            prepareCreate("index_other").setMapping("bar", "type=keyword"),
+            prepareCreate("index_double").setMapping("foo", "type=double")
+        );
 
         prepareIndex("index_long").setId("1").setSource("foo", "123").get();
         prepareIndex("index_long").setId("2").setSource("foo", "124").get();

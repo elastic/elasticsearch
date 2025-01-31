@@ -1,11 +1,12 @@
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
 esplugin {
-  name 'x-pack-ccr'
-  description 'Elasticsearch Expanded Pack Plugin - CCR'
-  classname 'org.elasticsearch.xpack.ccr.Ccr'
-  hasNativeController false
-  requiresKeystore true
+  name = 'x-pack-ccr'
+  description = 'Elasticsearch Expanded Pack Plugin - CCR'
+  classname ='org.elasticsearch.xpack.ccr.Ccr'
+  hasNativeController =false
+  requiresKeystore =true
   extendedPlugins = ['x-pack-core']
 }
 base {
@@ -31,6 +32,16 @@ tasks.named('internalClusterTestTestingConventions').configure {
   baseClass 'org.elasticsearch.xpack.CcrIntegTestCase'
   baseClass 'org.elasticsearch.xpack.CcrSingleNodeTestCase'
   baseClass 'org.elasticsearch.test.ESIntegTestCase'
+}
+
+tasks.named("javaRestTest").configure {
+  usesDefaultDistribution()
+}
+
+restResources {
+  restApi {
+    include 'bulk', 'search', '_common', 'indices', 'index', 'cluster', 'data_stream'
+  }
 }
 
 addQaCheckDependencies(project)

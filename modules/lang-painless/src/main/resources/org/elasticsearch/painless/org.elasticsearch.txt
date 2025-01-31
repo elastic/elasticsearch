@@ -123,7 +123,7 @@ class org.elasticsearch.index.mapper.vectors.DenseVectorScriptDocValues {
     float getMagnitude()
 }
 
-class org.elasticsearch.index.mapper.vectors.MultiDenseVectorScriptDocValues {
+class org.elasticsearch.index.mapper.vectors.RankVectorsScriptDocValues {
     Iterator getVectorValues()
     float[] getMagnitudes()
 }

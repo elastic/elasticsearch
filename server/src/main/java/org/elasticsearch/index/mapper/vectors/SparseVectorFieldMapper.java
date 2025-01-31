@@ -78,6 +78,11 @@ public class SparseVectorFieldMapper extends FieldMapper {
             super(name);
         }
 
+        public Builder setStored(boolean value) {
+            stored.setValue(value);
+            return this;
+        }
+
         @Override
         protected Parameter<?>[] getParameters() {
             return new Parameter<?>[] { stored, meta };
@@ -159,7 +164,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport() {
         if (fieldType().isStored()) {
-            return new SyntheticSourceSupport.Native(new SparseVectorSyntheticFieldLoader(fullPath(), leafName()));
+            return new SyntheticSourceSupport.Native(() -> new SparseVectorSyntheticFieldLoader(fullPath(), leafName()));
         }
         return super.syntheticSourceSupport();
     }
@@ -200,6 +205,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
             );
         }
 
+        final boolean isWithinLeaf = context.path().isWithinLeafObject();
         String feature = null;
         try {
             // make sure that we don't expand dots in field names while parsing
@@ -234,7 +240,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
                 context.addToFieldNames(fieldType().name());
             }
         } finally {
-            context.path().setWithinLeafObject(false);
+            context.path().setWithinLeafObject(isWithinLeaf);
         }
     }
 

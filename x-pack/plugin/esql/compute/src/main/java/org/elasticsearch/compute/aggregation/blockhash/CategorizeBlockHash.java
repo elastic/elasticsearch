@@ -44,7 +44,7 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * Base BlockHash implementation for {@code Categorize} grouping function.
+ * BlockHash implementation for {@code Categorize} grouping function.
  */
 public class CategorizeBlockHash extends BlockHash {
 
@@ -53,11 +53,9 @@ public class CategorizeBlockHash extends BlockHash {
     );
     private static final int NULL_ORD = 0;
 
-    // TODO: this should probably also take an emitBatchSize
     private final int channel;
     private final AggregatorMode aggregatorMode;
     private final TokenListCategorizer.CloseableTokenListCategorizer categorizer;
-
     private final CategorizeEvaluator evaluator;
 
     /**
@@ -95,12 +93,14 @@ public class CategorizeBlockHash extends BlockHash {
         }
     }
 
+    boolean seenNull() {
+        return seenNull;
+    }
+
     @Override
     public void add(Page page, GroupingAggregatorFunction.AddInput addInput) {
-        if (aggregatorMode.isInputPartial() == false) {
-            addInitial(page, addInput);
-        } else {
-            addIntermediate(page, addInput);
+        try (IntBlock block = add(page)) {
+            addInput.add(0, block);
         }
     }
 
@@ -129,50 +129,38 @@ public class CategorizeBlockHash extends BlockHash {
         Releasables.close(evaluator, categorizer);
     }
 
+    private IntBlock add(Page page) {
+        return aggregatorMode.isInputPartial() == false ? addInitial(page) : addIntermediate(page);
+    }
+
     /**
      * Adds initial (raw) input to the state.
      */
-    private void addInitial(Page page, GroupingAggregatorFunction.AddInput addInput) {
-        try (IntBlock result = (IntBlock) evaluator.eval(page.getBlock(channel))) {
-            addInput.add(0, result);
-        }
+    IntBlock addInitial(Page page) {
+        return (IntBlock) evaluator.eval(page.getBlock(channel));
     }
 
     /**
      * Adds intermediate state to the state.
      */
-    private void addIntermediate(Page page, GroupingAggregatorFunction.AddInput addInput) {
+    private IntBlock addIntermediate(Page page) {
         if (page.getPositionCount() == 0) {
-            return;
+            return null;
         }
         BytesRefBlock categorizerState = page.getBlock(channel);
         if (categorizerState.areAllValuesNull()) {
             seenNull = true;
-            try (var newIds = blockFactory.newConstantIntVector(NULL_ORD, 1)) {
-                addInput.add(0, newIds);
-            }
-            return;
+            return blockFactory.newConstantIntBlockWith(NULL_ORD, 1);
         }
-
-        Map<Integer, Integer> idMap = readIntermediate(categorizerState.getBytesRef(0, new BytesRef()));
-        try (IntBlock.Builder newIdsBuilder = blockFactory.newIntBlockBuilder(idMap.size())) {
-            int fromId = idMap.containsKey(0) ? 0 : 1;
-            int toId = fromId + idMap.size();
-            for (int i = fromId; i < toId; i++) {
-                newIdsBuilder.appendInt(idMap.get(i));
-            }
-            try (IntBlock newIds = newIdsBuilder.build()) {
-                addInput.add(0, newIds);
-            }
-        }
+        return recategorize(categorizerState.getBytesRef(0, new BytesRef()), null).asBlock();
     }
 
     /**
-     * Read intermediate state from a block.
-     *
-     * @return a map from the old category id to the new one. The old ids go from 0 to {@code size - 1}.
+     * Reads the intermediate state from a block and recategorizes the provided IDs.
+     * If no IDs are provided, the IDs are the IDs in the categorizer's state in order.
+     * (So 0...N-1 or 1...N, depending on whether null is present.)
      */
-    private Map<Integer, Integer> readIntermediate(BytesRef bytes) {
+    IntVector recategorize(BytesRef bytes, IntVector ids) {
         Map<Integer, Integer> idMap = new HashMap<>();
         try (StreamInput in = new BytesArray(bytes).streamInput()) {
             if (in.readBoolean()) {
@@ -185,9 +173,21 @@ public class CategorizeBlockHash extends BlockHash {
                 // +1 because the 0 ordinal is reserved for null
                 idMap.put(oldCategoryId + 1, newCategoryId + 1);
             }
-            return idMap;
         } catch (IOException e) {
             throw new RuntimeException(e);
+        }
+        try (IntVector.Builder newIdsBuilder = blockFactory.newIntVectorBuilder(idMap.size())) {
+            if (ids == null) {
+                int idOffset = idMap.containsKey(0) ? 0 : 1;
+                for (int i = 0; i < idMap.size(); i++) {
+                    newIdsBuilder.appendInt(idMap.get(i + idOffset));
+                }
+            } else {
+                for (int i = 0; i < ids.getPositionCount(); i++) {
+                    newIdsBuilder.appendInt(idMap.get(ids.getInt(i)));
+                }
+            }
+            return newIdsBuilder.build();
         }
     }
 
@@ -198,15 +198,20 @@ public class CategorizeBlockHash extends BlockHash {
         if (categorizer.getCategoryCount() == 0) {
             return blockFactory.newConstantNullBlock(seenNull ? 1 : 0);
         }
+        int positionCount = categorizer.getCategoryCount() + (seenNull ? 1 : 0);
+        // We're returning a block with N positions just because the Page must have all blocks with the same position count!
+        return blockFactory.newConstantBytesRefBlockWith(serializeCategorizer(), positionCount);
+    }
+
+    BytesRef serializeCategorizer() {
+        // TODO: This BytesStreamOutput is not accounted for by the circuit breaker. Fix that!
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.writeBoolean(seenNull);
             out.writeVInt(categorizer.getCategoryCount());
             for (SerializableTokenListCategory category : categorizer.toCategoriesById()) {
                 category.writeTo(out);
             }
-            // We're returning a block with N positions just because the Page must have all blocks with the same position count!
-            int positionCount = categorizer.getCategoryCount() + (seenNull ? 1 : 0);
-            return blockFactory.newConstantBytesRefBlockWith(out.bytes().toBytesRef(), positionCount);
+            return out.bytes().toBytesRef();
         } catch (IOException e) {
             throw new RuntimeException(e);
         }

@@ -37,8 +37,6 @@ import java.nio.file.Files;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.health.HealthStatus.GREEN;
 import static org.elasticsearch.health.HealthStatus.YELLOW;
@@ -120,6 +118,18 @@ public class FileSettingsService extends MasterNodeFileWatchingService implement
         } else if (fileSettingsMetadata != null) {
             mdBuilder.removeReservedState(fileSettingsMetadata);
         }
+    }
+
+    @Override
+    protected void doStart() {
+        healthIndicatorService.startOccurred();
+        super.doStart();
+    }
+
+    @Override
+    protected void doStop() {
+        super.doStop();
+        healthIndicatorService.stopOccurred();
     }
 
     /**
@@ -211,6 +221,7 @@ public class FileSettingsService extends MasterNodeFileWatchingService implement
 
     public static class FileSettingsHealthIndicatorService implements HealthIndicatorService {
         static final String NAME = "file_settings";
+        static final String INACTIVE_SYMPTOM = "File-based settings are inactive";
         static final String NO_CHANGES_SYMPTOM = "No file-based setting changes have occurred";
         static final String SUCCESS_SYMPTOM = "The most recent file-based settings were applied successfully";
         static final String FAILURE_SYMPTOM = "The most recent file-based settings encountered an error";
@@ -225,21 +236,33 @@ public class FileSettingsService extends MasterNodeFileWatchingService implement
             )
         );
 
-        private final AtomicLong changeCount = new AtomicLong(0);
-        private final AtomicLong failureStreak = new AtomicLong(0);
-        private final AtomicReference<String> mostRecentFailure = new AtomicReference<>();
+        private boolean isActive = false;
+        private long changeCount = 0;
+        private long failureStreak = 0;
+        private String mostRecentFailure = null;
 
-        public void changeOccurred() {
-            changeCount.incrementAndGet();
+        public synchronized void startOccurred() {
+            isActive = true;
+            failureStreak = 0;
         }
 
-        public void successOccurred() {
-            failureStreak.set(0);
+        public synchronized void stopOccurred() {
+            isActive = false;
+            mostRecentFailure = null;
         }
 
-        public void failureOccurred(String description) {
-            failureStreak.incrementAndGet();
-            mostRecentFailure.set(description);
+        public synchronized void changeOccurred() {
+            ++changeCount;
+        }
+
+        public synchronized void successOccurred() {
+            failureStreak = 0;
+            mostRecentFailure = null;
+        }
+
+        public synchronized void failureOccurred(String description) {
+            ++failureStreak;
+            mostRecentFailure = description;
         }
 
         @Override
@@ -248,18 +271,20 @@ public class FileSettingsService extends MasterNodeFileWatchingService implement
         }
 
         @Override
-        public HealthIndicatorResult calculate(boolean verbose, int maxAffectedResourcesCount, HealthInfo healthInfo) {
-            if (0 == changeCount.get()) {
+        public synchronized HealthIndicatorResult calculate(boolean verbose, int maxAffectedResourcesCount, HealthInfo healthInfo) {
+            if (isActive == false) {
+                return createIndicator(GREEN, INACTIVE_SYMPTOM, HealthIndicatorDetails.EMPTY, List.of(), List.of());
+            }
+            if (0 == changeCount) {
                 return createIndicator(GREEN, NO_CHANGES_SYMPTOM, HealthIndicatorDetails.EMPTY, List.of(), List.of());
             }
-            long numFailures = failureStreak.get();
-            if (0 == numFailures) {
+            if (0 == failureStreak) {
                 return createIndicator(GREEN, SUCCESS_SYMPTOM, HealthIndicatorDetails.EMPTY, List.of(), List.of());
             } else {
                 return createIndicator(
                     YELLOW,
                     FAILURE_SYMPTOM,
-                    new SimpleHealthIndicatorDetails(Map.of("failure_streak", numFailures, "most_recent_failure", mostRecentFailure.get())),
+                    new SimpleHealthIndicatorDetails(Map.of("failure_streak", failureStreak, "most_recent_failure", mostRecentFailure)),
                     STALE_SETTINGS_IMPACT,
                     List.of()
                 );

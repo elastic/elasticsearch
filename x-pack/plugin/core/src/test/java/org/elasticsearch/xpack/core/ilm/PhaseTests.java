@@ -18,9 +18,8 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
@@ -42,9 +41,9 @@ public class PhaseTests extends AbstractXContentSerializingTestCase<Phase> {
         if (randomBoolean()) {
             after = randomTimeValue(0, 1_000_000_000, TimeUnit.SECONDS, TimeUnit.MINUTES, TimeUnit.HOURS, TimeUnit.DAYS);
         }
-        Map<String, LifecycleAction> actions = Collections.emptyMap();
+        Map<String, LifecycleAction> actions = Map.of();
         if (randomBoolean()) {
-            actions = Collections.singletonMap(MockAction.NAME, new MockAction());
+            actions = Map.of(MockAction.NAME, new MockAction());
         }
         return new Phase(phaseName, after, actions);
     }
@@ -61,7 +60,7 @@ public class PhaseTests extends AbstractXContentSerializingTestCase<Phase> {
 
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         return new NamedWriteableRegistry(
-            Arrays.asList(new NamedWriteableRegistry.Entry(LifecycleAction.class, MockAction.NAME, MockAction::new))
+            List.of(new NamedWriteableRegistry.Entry(LifecycleAction.class, MockAction.NAME, MockAction::new))
         );
     }
 
@@ -85,7 +84,7 @@ public class PhaseTests extends AbstractXContentSerializingTestCase<Phase> {
             case 1 -> after = TimeValue.timeValueSeconds(after.getSeconds() + randomIntBetween(1, 1000));
             case 2 -> {
                 actions = new HashMap<>(actions);
-                actions.put(MockAction.NAME + "another", new MockAction(Collections.emptyList()));
+                actions.put(MockAction.NAME + "another", new MockAction(List.of()));
             }
             default -> throw new AssertionError("Illegal randomisation branch");
         }
@@ -93,7 +92,7 @@ public class PhaseTests extends AbstractXContentSerializingTestCase<Phase> {
     }
 
     public void testDefaultAfter() {
-        Phase phase = new Phase(randomAlphaOfLength(20), null, Collections.emptyMap());
+        Phase phase = new Phase(randomAlphaOfLength(20), null, Map.of());
         assertEquals(TimeValue.ZERO, phase.getMinimumAge());
     }
 }

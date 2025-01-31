@@ -4,6 +4,12 @@
 <titleabbrev>Bulk</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-document[Document APIs].
+--
+
 Performs multiple indexing or delete operations in a single API call.
 This reduces overhead and can greatly increase indexing speed.
 
@@ -255,6 +261,10 @@ include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=refresh]
 
 `require_alias`::
 (Optional, Boolean) If `true`, the request's actions must target an index alias.
+Defaults to `false`.
+
+`require_data_stream`::
+(Optional, Boolean) If `true`, the request's actions must target a data stream (existing or to-be-created).
 Defaults to `false`.
 
 include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=routing]

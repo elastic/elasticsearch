@@ -20,7 +20,6 @@ import org.elasticsearch.gradle.distribution.ElasticsearchDistributionTypes;
 import org.elasticsearch.gradle.internal.distribution.InternalElasticsearchDistributionTypes;
 import org.elasticsearch.gradle.internal.docker.DockerSupportPlugin;
 import org.elasticsearch.gradle.internal.docker.DockerSupportService;
-import org.elasticsearch.gradle.internal.info.BuildParameterExtension;
 import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.GradleException;
@@ -49,7 +48,7 @@ public class InternalDistributionDownloadPlugin implements Plugin<Project> {
         // this is needed for isInternal
         project.getRootProject().getPluginManager().apply(GlobalBuildInfoPlugin.class);
         project.getRootProject().getPluginManager().apply(DockerSupportPlugin.class);
-        BuildParameterExtension buildParams = loadBuildParams(project).get();
+        var buildParams = loadBuildParams(project).get();
 
         DistributionDownloadPlugin distributionDownloadPlugin = project.getPlugins().apply(DistributionDownloadPlugin.class);
         Provider<DockerSupportService> dockerSupport = GradleUtils.getBuildService(
@@ -61,7 +60,7 @@ public class InternalDistributionDownloadPlugin implements Plugin<Project> {
         );
         registerInternalDistributionResolutions(
             DistributionDownloadPlugin.getRegistrationsContainer(project),
-            buildParams.getBwcVersionsProperty()
+            buildParams.getBwcVersionsProvider()
         );
     }
 
@@ -99,6 +98,29 @@ public class InternalDistributionDownloadPlugin implements Plugin<Project> {
                 String projectConfig = getProjectConfig(distribution, unreleasedInfo);
                 return new ProjectBasedDistributionDependency(
                     (config) -> projectDependency(project.getDependencies(), unreleasedInfo.gradleProjectPath(), projectConfig)
+                );
+            }
+            return null;
+        }));
+
+        // Distribution resolution for "override" versions. This allows for building from source for any version, including the current
+        // version of existing released versions from a commit form the main branch. This is done by passing certain system properties, ex:
+        //
+        // -Dtests.bwc.refspec.main=deadbeef -Dtests.bwc.main.version=9.0.0
+        //
+        // The 'test.bwc.main.version' property should map to the version returned by the commit referenced in 'tests.bwc.refspec.main'.
+        resolutions.add(new DistributionResolution("override", (project, distribution) -> {
+            String versionProperty = System.getProperty("tests.bwc.main.version");
+            // We use this phony version as a placeholder for the real version
+            if (distribution.getVersion().equals("0.0.0")) {
+                BwcVersions.UnreleasedVersionInfo unreleasedVersionInfo = new BwcVersions.UnreleasedVersionInfo(
+                    Version.fromString(versionProperty),
+                    "main",
+                    ":distribution:bwc:main"
+                );
+                String projectConfig = getProjectConfig(distribution, unreleasedVersionInfo);
+                return new ProjectBasedDistributionDependency(
+                    (config) -> projectDependency(project.getDependencies(), unreleasedVersionInfo.gradleProjectPath(), projectConfig)
                 );
             }
             return null;

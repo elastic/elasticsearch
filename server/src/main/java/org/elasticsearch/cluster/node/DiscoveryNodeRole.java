@@ -153,7 +153,7 @@ public class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole> {
     /**
      * Represents the role for a content node.
      */
-    public static DiscoveryNodeRole DATA_CONTENT_NODE_ROLE = new DiscoveryNodeRole("data_content", "s", true) {
+    public static final DiscoveryNodeRole DATA_CONTENT_NODE_ROLE = new DiscoveryNodeRole("data_content", "s", true) {
 
         @Override
         public boolean isEnabledByDefault(final Settings settings) {
@@ -164,7 +164,7 @@ public class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole> {
     /**
      * Represents the role for a hot node.
      */
-    public static DiscoveryNodeRole DATA_HOT_NODE_ROLE = new DiscoveryNodeRole("data_hot", "h", true) {
+    public static final DiscoveryNodeRole DATA_HOT_NODE_ROLE = new DiscoveryNodeRole("data_hot", "h", true) {
 
         @Override
         public boolean isEnabledByDefault(final Settings settings) {
@@ -175,7 +175,7 @@ public class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole> {
     /**
      * Represents the role for a warm node.
      */
-    public static DiscoveryNodeRole DATA_WARM_NODE_ROLE = new DiscoveryNodeRole("data_warm", "w", true) {
+    public static final DiscoveryNodeRole DATA_WARM_NODE_ROLE = new DiscoveryNodeRole("data_warm", "w", true) {
 
         @Override
         public boolean isEnabledByDefault(final Settings settings) {
@@ -186,7 +186,7 @@ public class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole> {
     /**
      * Represents the role for a cold node.
      */
-    public static DiscoveryNodeRole DATA_COLD_NODE_ROLE = new DiscoveryNodeRole("data_cold", "c", true) {
+    public static final DiscoveryNodeRole DATA_COLD_NODE_ROLE = new DiscoveryNodeRole("data_cold", "c", true) {
 
         @Override
         public boolean isEnabledByDefault(final Settings settings) {
@@ -197,7 +197,7 @@ public class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole> {
     /**
      * Represents the role for a frozen node.
      */
-    public static DiscoveryNodeRole DATA_FROZEN_NODE_ROLE = new DiscoveryNodeRole("data_frozen", "f", true) {
+    public static final DiscoveryNodeRole DATA_FROZEN_NODE_ROLE = new DiscoveryNodeRole("data_frozen", "f", true) {
 
         @Override
         public boolean isEnabledByDefault(final Settings settings) {

@@ -39,7 +39,7 @@ public record AlibabaCloudSearchEmbeddingsRequestEntity(List<String> input, Alib
         builder.startObject();
         builder.field(TEXTS_FIELD, input);
 
-        String inputType = covertToString(taskSettings.getInputType());
+        String inputType = convertToString(taskSettings.getInputType());
         if (inputType != null) {
             builder.field(INPUT_TYPE_FIELD, inputType);
         }
@@ -49,7 +49,7 @@ public record AlibabaCloudSearchEmbeddingsRequestEntity(List<String> input, Alib
     }
 
     // default for testing
-    static String covertToString(InputType inputType) {
+    static String convertToString(InputType inputType) {
         if (inputType == null) {
             return null;
         }

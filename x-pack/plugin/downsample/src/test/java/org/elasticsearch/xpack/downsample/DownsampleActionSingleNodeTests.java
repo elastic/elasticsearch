@@ -49,6 +49,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
@@ -201,14 +202,19 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
                 IndexSettings.TIME_SERIES_START_TIME.getKey(),
                 DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(Instant.ofEpochMilli(startTime).toEpochMilli())
             )
-            .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2106-01-08T23:40:53.384Z");
+            .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2106-01-08T23:40:53.384Z")
+            .put(FieldMapper.IGNORE_MALFORMED_SETTING.getKey(), randomBoolean());
 
         if (randomBoolean()) {
             settings.put(IndexMetadata.SETTING_INDEX_HIDDEN, randomBoolean());
         }
 
         XContentBuilder mapping = jsonBuilder().startObject().startObject("_doc").startObject("properties");
-        mapping.startObject(FIELD_TIMESTAMP).field("type", "date").endObject();
+        mapping.startObject(FIELD_TIMESTAMP).field("type", "date");
+        if (settings.get(FieldMapper.IGNORE_MALFORMED_SETTING.getKey()).equals("true")) {
+            mapping.field("ignore_malformed", false);
+        }
+        mapping.endObject();
 
         // Dimensions
         mapping.startObject(FIELD_DIMENSION_1).field("type", "keyword").field("time_series_dimension", true).endObject();
@@ -443,7 +449,9 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         prepareSourceIndex(sourceIndex, true);
         downsample(sourceIndex, downsampleIndex, config);
 
-        GetIndexResponse indexSettingsResp = indicesAdmin().prepareGetIndex().addIndices(sourceIndex, downsampleIndex).get();
+        GetIndexResponse indexSettingsResp = indicesAdmin().prepareGetIndex(TEST_REQUEST_TIMEOUT)
+            .addIndices(sourceIndex, downsampleIndex)
+            .get();
         assertDownsampleIndexSettings(sourceIndex, downsampleIndex, indexSettingsResp);
         for (String key : settings.keySet()) {
             if (LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey().equals(key)) {
@@ -599,7 +607,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         );
         assertBusy(() -> {
             try {
-                assertEquals(indicesAdmin().prepareGetIndex().addIndices(downsampleIndex).get().getIndices().length, 1);
+                assertEquals(indicesAdmin().prepareGetIndex(TEST_REQUEST_TIMEOUT).addIndices(downsampleIndex).get().getIndices().length, 1);
             } catch (IndexNotFoundException e) {
                 fail("downsample index has not been created");
             }
@@ -1173,7 +1181,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
     @SuppressWarnings("unchecked")
     private void assertDownsampleIndex(String sourceIndex, String downsampleIndex, DownsampleConfig config) throws Exception {
         // Retrieve field information for the metric fields
-        final GetMappingsResponse getMappingsResponse = indicesAdmin().prepareGetMappings(sourceIndex).get();
+        final GetMappingsResponse getMappingsResponse = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, sourceIndex).get();
         final Map<String, Object> sourceIndexMappings = getMappingsResponse.mappings()
             .entrySet()
             .stream()
@@ -1205,7 +1213,9 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
 
         assertDownsampleIndexAggregations(sourceIndex, downsampleIndex, config, metricFields, labelFields);
 
-        GetIndexResponse indexSettingsResp = indicesAdmin().prepareGetIndex().addIndices(sourceIndex, downsampleIndex).get();
+        GetIndexResponse indexSettingsResp = indicesAdmin().prepareGetIndex(TEST_REQUEST_TIMEOUT)
+            .addIndices(sourceIndex, downsampleIndex)
+            .get();
         assertDownsampleIndexSettings(sourceIndex, downsampleIndex, indexSettingsResp);
 
         Map<String, Map<String, Object>> mappings = (Map<String, Map<String, Object>>) indexSettingsResp.getMappings()
@@ -1215,8 +1225,9 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
 
         assertFieldMappings(config, metricFields, mappings);
 
-        GetMappingsResponse indexMappings = indicesAdmin().getMappings(new GetMappingsRequest().indices(downsampleIndex, sourceIndex))
-            .actionGet();
+        GetMappingsResponse indexMappings = indicesAdmin().getMappings(
+            new GetMappingsRequest(TEST_REQUEST_TIMEOUT).indices(downsampleIndex, sourceIndex)
+        ).actionGet();
         Map<String, String> downsampleIndexProperties = (Map<String, String>) indexMappings.mappings()
             .get(downsampleIndex)
             .sourceAsMap()

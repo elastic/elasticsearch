@@ -14,6 +14,7 @@ import org.elasticsearch.compute.ann.ConvertEvaluator;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.utils.SpatialEnvelopeVisitor;
+import org.elasticsearch.geometry.utils.SpatialEnvelopeVisitor.WrapLongitude;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -114,7 +115,7 @@ public class StYMax extends UnaryScalarFunction {
         if (geometry instanceof Point point) {
             return point.getY();
         }
-        var envelope = SpatialEnvelopeVisitor.visitGeo(geometry, true);
+        var envelope = SpatialEnvelopeVisitor.visitGeo(geometry, WrapLongitude.WRAP);
         if (envelope.isPresent()) {
             return envelope.get().getMaxY();
         }

@@ -9,17 +9,24 @@ package org.elasticsearch.xpack.esql.session;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.indices.IndicesExpressionGrouper;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.transport.RemoteClusterAware;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
+import org.elasticsearch.xpack.esql.analysis.TableInfo;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
@@ -192,20 +199,22 @@ class EsqlSessionCCSUtils {
 
         /**
          * Rules enforced at planning time around non-matching indices
-         * P1. fail query if no matching indices on any cluster (VerificationException) - that is handled elsewhere (TODO: document where)
-         * P2. fail query if a skip_unavailable:false cluster has no matching indices (the local cluster already has this rule
-         *     enforced at planning time)
-         * P3. fail query if the local cluster has no matching indices and a concrete index was specified
+         * 1. fail query if no matching indices on any cluster (VerificationException) - that is handled elsewhere
+         * 2. fail query if a cluster has no matching indices *and* a concrete index was specified - handled here
          */
         String fatalErrorMessage = null;
         /*
          * These are clusters in the original request that are not present in the field-caps response. They were
-         * specified with an index expression matched no indices, so the search on that cluster is done.
+         * specified with an index expression that matched no indices, so the search on that cluster is done.
          * Mark it as SKIPPED with 0 shards searched and took=0.
          */
         for (String c : clustersWithNoMatchingIndices) {
+            if (executionInfo.getCluster(c).getStatus() == EsqlExecutionInfo.Cluster.Status.SKIPPED) {
+                // if cluster was already marked SKIPPED during enrich policy resolution, do not overwrite
+                continue;
+            }
             final String indexExpression = executionInfo.getCluster(c).getIndexExpression();
-            if (missingIndicesIsFatal(c, executionInfo)) {
+            if (concreteIndexRequested(executionInfo.getCluster(c).getIndexExpression())) {
                 String error = Strings.format(
                     "Unknown index [%s]",
                     (c.equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY) ? indexExpression : c + ":" + indexExpression)
@@ -216,10 +225,11 @@ class EsqlSessionCCSUtils {
                     fatalErrorMessage += "; " + error;
                 }
             } else {
-                // handles local cluster (when no concrete indices requested) and skip_unavailable=true clusters
+                // no matching indices and no concrete index requested - just skip it, no error
                 EsqlExecutionInfo.Cluster.Status status;
                 ShardSearchFailure failure;
                 if (c.equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY)) {
+                    // never mark local cluster as SKIPPED
                     status = EsqlExecutionInfo.Cluster.Status.SUCCESSFUL;
                     failure = null;
                 } else {
@@ -246,15 +256,10 @@ class EsqlSessionCCSUtils {
     }
 
     // visible for testing
-    static boolean missingIndicesIsFatal(String clusterAlias, EsqlExecutionInfo executionInfo) {
-        // missing indices on local cluster is fatal only if a concrete index requested
-        if (clusterAlias.equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY)) {
-            return concreteIndexRequested(executionInfo.getCluster(clusterAlias).getIndexExpression());
+    static boolean concreteIndexRequested(String indexExpression) {
+        if (Strings.isNullOrBlank(indexExpression)) {
+            return false;
         }
-        return executionInfo.getCluster(clusterAlias).isSkipUnavailable() == false;
-    }
-
-    private static boolean concreteIndexRequested(String indexExpression) {
         for (String expr : indexExpression.split(",")) {
             if (expr.charAt(0) == '<' || expr.startsWith("-<")) {
                 // skip date math expressions
@@ -284,6 +289,51 @@ class EsqlSessionCCSUtils {
                             .setFailedShards(0)
                             .build()
                     );
+                }
+            }
+        }
+    }
+
+    /**
+     * Checks the index expression for the presence of remote clusters. If found, it will ensure that the caller
+     * has a valid Enterprise (or Trial) license on the querying cluster.
+     * @param indices index expression requested by user
+     * @param indicesGrouper grouper of index expressions by cluster alias
+     * @param licenseState license state on the querying cluster
+     * @throws org.elasticsearch.ElasticsearchStatusException if the license is not valid (or present) for ES|QL CCS search.
+     */
+    public static void checkForCcsLicense(
+        EsqlExecutionInfo executionInfo,
+        List<TableInfo> indices,
+        IndicesExpressionGrouper indicesGrouper,
+        XPackLicenseState licenseState
+    ) {
+        for (TableInfo tableInfo : indices) {
+            Map<String, OriginalIndices> groupedIndices;
+            try {
+                groupedIndices = indicesGrouper.groupIndices(IndicesOptions.DEFAULT, tableInfo.id().indexPattern());
+            } catch (NoSuchRemoteClusterException e) {
+                if (EsqlLicenseChecker.isCcsAllowed(licenseState)) {
+                    throw e;
+                } else {
+                    throw EsqlLicenseChecker.invalidLicenseForCcsException(licenseState);
+                }
+            }
+            // check if it is a cross-cluster query
+            if (groupedIndices.size() > 1 || groupedIndices.containsKey(RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY) == false) {
+                if (EsqlLicenseChecker.isCcsAllowed(licenseState) == false) {
+                    // initialize the cluster entries in EsqlExecutionInfo before throwing the invalid license error
+                    // so that the CCS telemetry handler can recognize that this error is CCS-related
+                    for (Map.Entry<String, OriginalIndices> entry : groupedIndices.entrySet()) {
+                        executionInfo.swapCluster(
+                            entry.getKey(),
+                            (k, v) -> new EsqlExecutionInfo.Cluster(
+                                entry.getKey(),
+                                Strings.arrayToCommaDelimitedString(entry.getValue().indices())
+                            )
+                        );
+                    }
+                    throw EsqlLicenseChecker.invalidLicenseForCcsException(licenseState);
                 }
             }
         }

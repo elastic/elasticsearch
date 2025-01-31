@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.plan.logical;
 
+import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 import java.util.Arrays;
@@ -29,6 +30,10 @@ public abstract class BinaryPlan extends LogicalPlan {
     public LogicalPlan right() {
         return right;
     }
+
+    public abstract AttributeSet leftReferences();
+
+    public abstract AttributeSet rightReferences();
 
     @Override
     public final BinaryPlan replaceChildren(List<LogicalPlan> newChildren) {

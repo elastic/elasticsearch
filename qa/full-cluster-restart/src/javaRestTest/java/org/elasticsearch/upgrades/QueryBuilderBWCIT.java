@@ -12,6 +12,8 @@ package org.elasticsearch.upgrades;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
+import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
@@ -21,6 +23,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
 import org.elasticsearch.index.query.DisMaxQueryBuilder;
@@ -51,6 +54,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.cluster.ClusterState.VERSION_INTRODUCING_TRANSPORT_VERSIONS;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 
 /**
@@ -71,7 +75,7 @@ public class QueryBuilderBWCIT extends ParameterizedFullClusterRestartTestCase {
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
-        .version(getOldClusterTestVersion())
+        .version(org.elasticsearch.test.cluster.util.Version.fromString(OLD_CLUSTER_VERSION))
         .nodes(2)
         .setting("xpack.security.enabled", "false")
         .feature(FeatureFlag.FAILURE_STORE_ENABLED)
@@ -245,7 +249,19 @@ public class QueryBuilderBWCIT extends ParameterizedFullClusterRestartTestCase {
                     InputStream in = new ByteArrayInputStream(qbSource, 0, qbSource.length);
                     StreamInput input = new NamedWriteableAwareStreamInput(new InputStreamStreamInput(in), registry)
                 ) {
-                    input.setTransportVersion(TransportVersion.readVersion(input));
+                    @UpdateForV10(owner = UpdateForV10.Owner.SEARCH_FOUNDATIONS)    // won't need to read <8.8 data anymore
+                    boolean originalClusterHasTransportVersion = parseLegacyVersion(getOldClusterVersion()).map(
+                        v -> v.onOrAfter(VERSION_INTRODUCING_TRANSPORT_VERSIONS)
+                    ).orElse(true);
+                    TransportVersion transportVersion;
+                    if (originalClusterHasTransportVersion == false) {
+                        transportVersion = TransportVersion.fromId(
+                            parseLegacyVersion(getOldClusterVersion()).map(Version::id).orElse(TransportVersions.MINIMUM_COMPATIBLE.id())
+                        );
+                    } else {
+                        transportVersion = TransportVersion.readVersion(input);
+                    }
+                    input.setTransportVersion(transportVersion);
                     QueryBuilder queryBuilder = input.readNamedWriteable(QueryBuilder.class);
                     assert in.read() == -1;
                     assertEquals(expectedQueryBuilder, queryBuilder);

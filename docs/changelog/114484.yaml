@@ -1,6 +1,0 @@
-pr: 114484
-summary: Add `docvalue_fields` Support for `dense_vector` Fields
-area: Search
-type: enhancement
-issues:
-  - 108470

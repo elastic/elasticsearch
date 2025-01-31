@@ -22,7 +22,7 @@ public class NorwegianAnalyzerProvider extends AbstractIndexAnalyzerProvider<Nor
     private final NorwegianAnalyzer analyzer;
 
     NorwegianAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
-        super(name, settings);
+        super(name);
         analyzer = new NorwegianAnalyzer(
             Analysis.parseStopWords(env, settings, NorwegianAnalyzer.getDefaultStopSet()),
             Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET)

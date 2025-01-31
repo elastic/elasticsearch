@@ -120,6 +120,16 @@ public class HashJoinExec extends BinaryExec implements EstimatesRowSize {
     }
 
     @Override
+    public AttributeSet leftReferences() {
+        return Expressions.references(leftFields);
+    }
+
+    @Override
+    public AttributeSet rightReferences() {
+        return Expressions.references(rightFields);
+    }
+
+    @Override
     public HashJoinExec replaceChildren(PhysicalPlan left, PhysicalPlan right) {
         return new HashJoinExec(source(), left, right, matchFields, leftFields, rightFields, output);
     }

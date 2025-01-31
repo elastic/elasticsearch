@@ -41,6 +41,16 @@
         "type": "time",
         "description": "Update the time interval in which the results (partial or final) for this search will be available",
         "default": "5d"
+      },
+      "allow_partial_search_results": {
+        "type":"boolean",
+        "description":"Control whether the query should keep running in case of shard failures, and return partial results",
+        "default":true
+      },
+      "allow_partial_sequence_results": {
+        "type":"boolean",
+        "description":"Control whether a sequence query should return partial results or no results at all in case of shard failures. This option has effect only if [allow_partial_search_results] is true.",
+        "default":false
       }
     },
     "body":{

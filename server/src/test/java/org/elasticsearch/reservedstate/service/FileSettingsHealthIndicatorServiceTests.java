@@ -22,6 +22,7 @@ import java.util.Map;
 import static org.elasticsearch.health.HealthStatus.GREEN;
 import static org.elasticsearch.health.HealthStatus.YELLOW;
 import static org.elasticsearch.reservedstate.service.FileSettingsService.FileSettingsHealthIndicatorService.FAILURE_SYMPTOM;
+import static org.elasticsearch.reservedstate.service.FileSettingsService.FileSettingsHealthIndicatorService.INACTIVE_SYMPTOM;
 import static org.elasticsearch.reservedstate.service.FileSettingsService.FileSettingsHealthIndicatorService.NO_CHANGES_SYMPTOM;
 import static org.elasticsearch.reservedstate.service.FileSettingsService.FileSettingsHealthIndicatorService.STALE_SETTINGS_IMPACT;
 import static org.elasticsearch.reservedstate.service.FileSettingsService.FileSettingsHealthIndicatorService.SUCCESS_SYMPTOM;
@@ -39,14 +40,27 @@ public class FileSettingsHealthIndicatorServiceTests extends ESTestCase {
         healthIndicatorService = new FileSettingsHealthIndicatorService();
     }
 
-    public void testInitiallyGreen() {
+    public void testInitiallyGreen() {}
+
+    public void testStartAndStop() {
+        assertEquals(
+            new HealthIndicatorResult("file_settings", GREEN, INACTIVE_SYMPTOM, HealthIndicatorDetails.EMPTY, List.of(), List.of()),
+            healthIndicatorService.calculate(false, null)
+        );
+        healthIndicatorService.startOccurred();
         assertEquals(
             new HealthIndicatorResult("file_settings", GREEN, NO_CHANGES_SYMPTOM, HealthIndicatorDetails.EMPTY, List.of(), List.of()),
+            healthIndicatorService.calculate(false, null)
+        );
+        healthIndicatorService.stopOccurred();
+        assertEquals(
+            new HealthIndicatorResult("file_settings", GREEN, INACTIVE_SYMPTOM, HealthIndicatorDetails.EMPTY, List.of(), List.of()),
             healthIndicatorService.calculate(false, null)
         );
     }
 
     public void testGreenYellowYellowGreen() {
+        healthIndicatorService.startOccurred();
         healthIndicatorService.changeOccurred();
         // This is a strange case: a change occurred, but neither success nor failure have been reported yet.
         // While the change is still in progress, we don't change the status.

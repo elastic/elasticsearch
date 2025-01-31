@@ -13,7 +13,7 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.inference.ChunkedInferenceServiceResults;
+import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
@@ -47,7 +47,7 @@ public abstract class SenderService implements InferenceService {
         this.serviceComponents = Objects.requireNonNull(serviceComponents);
     }
 
-    protected Sender getSender() {
+    public Sender getSender() {
         return sender;
     }
 
@@ -73,7 +73,7 @@ public abstract class SenderService implements InferenceService {
 
     private static InferenceInputs createInput(Model model, List<String> input, @Nullable String query, boolean stream) {
         return switch (model.getTaskType()) {
-            case COMPLETION -> new ChatCompletionInput(input, stream);
+            case COMPLETION, CHAT_COMPLETION -> new ChatCompletionInput(input, stream);
             case RERANK -> new QueryAndDocsInputs(query, input, stream);
             case TEXT_EMBEDDING, SPARSE_EMBEDDING -> new DocumentsOnlyInput(input, stream);
             default -> throw new ElasticsearchStatusException(
@@ -102,7 +102,7 @@ public abstract class SenderService implements InferenceService {
         Map<String, Object> taskSettings,
         InputType inputType,
         TimeValue timeout,
-        ActionListener<List<ChunkedInferenceServiceResults>> listener
+        ActionListener<List<ChunkedInference>> listener
     ) {
         init();
         // a non-null query is not supported and is dropped by all providers
@@ -131,7 +131,7 @@ public abstract class SenderService implements InferenceService {
         Map<String, Object> taskSettings,
         InputType inputType,
         TimeValue timeout,
-        ActionListener<List<ChunkedInferenceServiceResults>> listener
+        ActionListener<List<ChunkedInference>> listener
     );
 
     public void start(Model model, ActionListener<Boolean> listener) {

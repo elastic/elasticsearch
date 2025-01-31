@@ -19,9 +19,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 
 import java.util.Arrays;
-import java.util.Locale;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 /**
  * Invokes a force merge on a single index.
@@ -62,17 +60,13 @@ public class ForceMergeStep extends AsyncActionStep {
             } else {
                 DefaultShardOperationFailedException[] failures = response.getShardFailures();
                 String policyName = indexMetadata.getLifecyclePolicyName();
-                String errorMessage = String.format(
-                    Locale.ROOT,
+                String errorMessage = Strings.format(
                     "index [%s] in policy [%s] encountered failures [%s] on step [%s]",
                     indexName,
                     policyName,
                     failures == null
                         ? "n/a"
-                        : Strings.collectionToDelimitedString(
-                            Arrays.stream(failures).map(Strings::toString).collect(Collectors.toList()),
-                            ","
-                        ),
+                        : Strings.collectionToDelimitedString(Arrays.stream(failures).map(Strings::toString).toList(), ","),
                     NAME
                 );
                 logger.warn(errorMessage);

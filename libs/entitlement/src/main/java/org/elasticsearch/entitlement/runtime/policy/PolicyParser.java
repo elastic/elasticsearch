@@ -9,6 +9,15 @@
 
 package org.elasticsearch.entitlement.runtime.policy;
 
+import org.elasticsearch.entitlement.runtime.policy.entitlements.CreateClassLoaderEntitlement;
+import org.elasticsearch.entitlement.runtime.policy.entitlements.Entitlement;
+import org.elasticsearch.entitlement.runtime.policy.entitlements.FileEntitlement;
+import org.elasticsearch.entitlement.runtime.policy.entitlements.InboundNetworkEntitlement;
+import org.elasticsearch.entitlement.runtime.policy.entitlements.LoadNativeLibrariesEntitlement;
+import org.elasticsearch.entitlement.runtime.policy.entitlements.OutboundNetworkEntitlement;
+import org.elasticsearch.entitlement.runtime.policy.entitlements.SetHttpsConnectionPropertiesEntitlement;
+import org.elasticsearch.entitlement.runtime.policy.entitlements.WriteSystemPropertiesEntitlement;
+import org.elasticsearch.xcontent.XContentLocation;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.yaml.YamlXContent;
@@ -34,11 +43,20 @@ import java.util.stream.Stream;
  */
 public class PolicyParser {
 
-    private static final Map<String, Class<?>> EXTERNAL_ENTITLEMENTS = Stream.of(FileEntitlement.class, CreateClassLoaderEntitlement.class)
-        .collect(Collectors.toUnmodifiableMap(PolicyParser::getEntitlementTypeName, Function.identity()));
+    private static final Map<String, Class<?>> EXTERNAL_ENTITLEMENTS = Stream.of(
+        FileEntitlement.class,
+        CreateClassLoaderEntitlement.class,
+        SetHttpsConnectionPropertiesEntitlement.class,
+        OutboundNetworkEntitlement.class,
+        InboundNetworkEntitlement.class,
+        WriteSystemPropertiesEntitlement.class,
+        LoadNativeLibrariesEntitlement.class
+    ).collect(Collectors.toUnmodifiableMap(PolicyParser::getEntitlementTypeName, Function.identity()));
 
     protected final XContentParser policyParser;
     protected final String policyName;
+    private final boolean isExternalPlugin;
+    private final Map<String, Class<?>> externalEntitlements;
 
     static String getEntitlementTypeName(Class<? extends Entitlement> entitlementClass) {
         var entitlementClassName = entitlementClass.getSimpleName();
@@ -56,9 +74,17 @@ public class PolicyParser {
             .collect(Collectors.joining("_"));
     }
 
-    public PolicyParser(InputStream inputStream, String policyName) throws IOException {
+    public PolicyParser(InputStream inputStream, String policyName, boolean isExternalPlugin) throws IOException {
+        this(inputStream, policyName, isExternalPlugin, EXTERNAL_ENTITLEMENTS);
+    }
+
+    // package private for tests
+    PolicyParser(InputStream inputStream, String policyName, boolean isExternalPlugin, Map<String, Class<?>> externalEntitlements)
+        throws IOException {
         this.policyParser = YamlXContent.yamlXContent.createParser(XContentParserConfiguration.EMPTY, Objects.requireNonNull(inputStream));
         this.policyName = policyName;
+        this.isExternalPlugin = isExternalPlugin;
+        this.externalEntitlements = externalEntitlements;
     }
 
     public Policy parsePolicy() {
@@ -113,16 +139,36 @@ public class PolicyParser {
     }
 
     protected Entitlement parseEntitlement(String scopeName, String entitlementType) throws IOException {
-        Class<?> entitlementClass = EXTERNAL_ENTITLEMENTS.get(entitlementType);
+        XContentLocation startLocation = policyParser.getTokenLocation();
+        Class<?> entitlementClass = externalEntitlements.get(entitlementType);
 
         if (entitlementClass == null) {
             throw newPolicyParserException(scopeName, "unknown entitlement type [" + entitlementType + "]");
         }
 
-        Constructor<?> entitlementConstructor = entitlementClass.getConstructors()[0];
-        ExternalEntitlement entitlementMetadata = entitlementConstructor.getAnnotation(ExternalEntitlement.class);
+        Constructor<?> entitlementConstructor = null;
+        ExternalEntitlement entitlementMetadata = null;
+        for (var ctor : entitlementClass.getConstructors()) {
+            var metadata = ctor.getAnnotation(ExternalEntitlement.class);
+            if (metadata != null) {
+                if (entitlementMetadata != null) {
+                    throw new IllegalStateException(
+                        "entitlement class ["
+                            + entitlementClass.getName()
+                            + "] has more than one constructor annotated with ExternalEntitlement"
+                    );
+                }
+                entitlementConstructor = ctor;
+                entitlementMetadata = metadata;
+            }
+
+        }
         if (entitlementMetadata == null) {
             throw newPolicyParserException(scopeName, "unknown entitlement type [" + entitlementType + "]");
+        }
+
+        if (entitlementMetadata.esModulesOnly() && isExternalPlugin) {
+            throw newPolicyParserException("entitlement type [" + entitlementType + "] is allowed only on modules");
         }
 
         Class<?>[] parameterTypes = entitlementConstructor.getParameterTypes();
@@ -160,7 +206,10 @@ public class PolicyParser {
         try {
             return (Entitlement) entitlementConstructor.newInstance(parameterValues);
         } catch (InvocationTargetException | InstantiationException | IllegalAccessException e) {
-            throw new IllegalStateException("internal error");
+            if (e.getCause() instanceof PolicyValidationException piae) {
+                throw newPolicyParserException(startLocation, scopeName, entitlementType, piae);
+            }
+            throw new IllegalStateException("internal error", e);
         }
     }
 
@@ -180,5 +229,14 @@ public class PolicyParser {
             entitlementType,
             message
         );
+    }
+
+    protected PolicyParserException newPolicyParserException(
+        XContentLocation location,
+        String scopeName,
+        String entitlementType,
+        PolicyValidationException cause
+    ) {
+        return PolicyParserException.newPolicyParserException(location, policyName, scopeName, entitlementType, cause);
     }
 }

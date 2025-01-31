@@ -26,7 +26,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 
 public class UpdateConnectorServiceTypeAction {
 
-    public static final String NAME = "indices:data/write/xpack/connector/update_service_type";
+    public static final String NAME = "cluster:admin/xpack/connector/update_service_type";
     public static final ActionType<ConnectorUpdateActionResponse> INSTANCE = new ActionType<>(NAME);
 
     private UpdateConnectorServiceTypeAction() {/* no instances */}

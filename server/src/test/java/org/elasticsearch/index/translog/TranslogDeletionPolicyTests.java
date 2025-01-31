@@ -17,6 +17,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.engine.TranslogOperationAsserter;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.mockito.Mockito;
@@ -95,6 +96,7 @@ public class TranslogDeletionPolicyTests extends ESTestCase {
                 BigArrays.NON_RECYCLING_INSTANCE,
                 TranslogTests.RANDOMIZING_IO_BUFFERS,
                 TranslogConfig.NOOP_OPERATION_LISTENER,
+                TranslogOperationAsserter.DEFAULT,
                 true
             );
             writer = Mockito.spy(writer);

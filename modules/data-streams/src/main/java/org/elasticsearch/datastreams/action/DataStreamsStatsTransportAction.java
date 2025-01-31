@@ -101,16 +101,6 @@ public class DataStreamsStatsTransportAction extends TransportBroadcastByNodeAct
     }
 
     @Override
-    protected String[] resolveConcreteIndexNames(ClusterState clusterState, DataStreamsStatsAction.Request request) {
-        return DataStreamsActionUtil.resolveConcreteIndexNames(
-            indexNameExpressionResolver,
-            clusterState,
-            request.indices(),
-            request.indicesOptions()
-        ).toArray(String[]::new);
-    }
-
-    @Override
     protected ShardsIterator shards(ClusterState clusterState, DataStreamsStatsAction.Request request, String[] concreteIndices) {
         return clusterState.getRoutingTable().allShards(concreteIndices);
     }
@@ -143,6 +133,16 @@ public class DataStreamsStatsTransportAction extends TransportBroadcastByNodeAct
     }
 
     @Override
+    protected String[] resolveConcreteIndexNames(ClusterState clusterState, DataStreamsStatsAction.Request request) {
+        return DataStreamsActionUtil.resolveConcreteIndexNames(
+            indexNameExpressionResolver,
+            clusterState,
+            request.indices(),
+            request.indicesOptions()
+        ).toArray(String[]::new);
+    }
+
+    @Override
     protected DataStreamsStatsAction.DataStreamShardStats readShardResult(StreamInput in) throws IOException {
         return new DataStreamsStatsAction.DataStreamShardStats(in);
     }
@@ -163,13 +163,17 @@ public class DataStreamsStatsTransportAction extends TransportBroadcastByNodeAct
             request.indicesOptions(),
             request.indices()
         );
-        for (String abstractionName : abstractionNames) {
-            IndexAbstraction indexAbstraction = indicesLookup.get(abstractionName);
+        for (String abstraction : abstractionNames) {
+            IndexAbstraction indexAbstraction = indicesLookup.get(abstraction);
             assert indexAbstraction != null;
             if (indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM) {
                 DataStream dataStream = (DataStream) indexAbstraction;
                 AggregatedStats stats = aggregatedDataStreamsStats.computeIfAbsent(dataStream.getName(), s -> new AggregatedStats());
                 dataStream.getIndices().stream().map(Index::getName).forEach(index -> {
+                    stats.backingIndices.add(index);
+                    allBackingIndices.add(index);
+                });
+                dataStream.getFailureIndices().stream().map(Index::getName).forEach(index -> {
                     stats.backingIndices.add(index);
                     allBackingIndices.add(index);
                 });

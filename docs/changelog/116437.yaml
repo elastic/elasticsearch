@@ -1,5 +1,0 @@
-pr: 116437
-summary: Ensure class resource stream is closed in `ResourceUtils`
-area: Indices APIs
-type: enhancement
-issues: []

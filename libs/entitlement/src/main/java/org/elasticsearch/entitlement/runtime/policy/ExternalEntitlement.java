@@ -9,6 +9,8 @@
 
 package org.elasticsearch.entitlement.runtime.policy;
 
+import org.elasticsearch.entitlement.runtime.policy.entitlements.Entitlement;
+
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -33,4 +35,12 @@ public @interface ExternalEntitlement {
      * have to match the parameter names of the constructor.
      */
     String[] parameterNames() default {};
+
+    /**
+     * This flag indicates if this Entitlement can be used in external plugins,
+     * or if it can be used only in Elasticsearch modules ("internal" plugins).
+     * Using an entitlement that is not {@code pluginsAccessible} in an external
+     * plugin policy will throw in exception while parsing.
+     */
+    boolean esModulesOnly() default true;
 }

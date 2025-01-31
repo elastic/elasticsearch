@@ -143,9 +143,8 @@ public abstract class AbstractGeoTestCase extends ESIntegTestCase {
         }
         singleCentroid = computeCentroid(allSingleVal);
         multiCentroid = computeCentroid(allMultiVal);
-        assertAcked(prepareCreate(EMPTY_IDX_NAME).setMapping(SINGLE_VALUED_FIELD_NAME, "type=" + fieldTypeName()));
-
         assertAcked(
+            prepareCreate(EMPTY_IDX_NAME).setMapping(SINGLE_VALUED_FIELD_NAME, "type=" + fieldTypeName()),
             prepareCreate(DATELINE_IDX_NAME).setMapping(
                 SINGLE_VALUED_FIELD_NAME,
                 "type=" + fieldTypeName(),

@@ -94,14 +94,4 @@ public final class VectorEncoderDecoder {
         return multiMagnitudes;
     }
 
-    public static void decodeMultiDenseVector(BytesRef vectorBR, int numVectors, float[][] multiVectorValue) {
-        if (vectorBR == null) {
-            throw new IllegalArgumentException(MultiDenseVectorScriptDocValues.MISSING_VECTOR_FIELD_MESSAGE);
-        }
-        FloatBuffer fb = ByteBuffer.wrap(vectorBR.bytes, vectorBR.offset, vectorBR.length).order(ByteOrder.LITTLE_ENDIAN).asFloatBuffer();
-        for (int i = 0; i < numVectors; i++) {
-            fb.get(multiVectorValue[i]);
-        }
-    }
-
 }

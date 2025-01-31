@@ -23,9 +23,9 @@ public class TransportVersionUtilsTests extends ESTestCase {
 
     private static final Map<String, CompatibilityVersions> transportVersions = Map.of(
         "Alfredo",
-        new CompatibilityVersions(TransportVersions.V_7_0_0, Map.of()),
+        new CompatibilityVersions(TransportVersions.V_8_1_0, Map.of()),
         "Bertram",
-        new CompatibilityVersions(TransportVersions.V_7_0_1, Map.of()),
+        new CompatibilityVersions(TransportVersions.V_8_6_0, Map.of()),
         "Charles",
         new CompatibilityVersions(TransportVersions.V_8_9_X, Map.of()),
         "Dominic",
@@ -48,7 +48,7 @@ public class TransportVersionUtilsTests extends ESTestCase {
     );
 
     public void testGetMinTransportVersion() {
-        assertThat(TransportVersionUtils.getMinTransportVersion(state), equalTo(TransportVersions.V_7_0_0));
+        assertThat(TransportVersionUtils.getMinTransportVersion(state), equalTo(TransportVersions.V_8_0_0));
     }
 
     public void testIsMinTransformVersionSameAsCurrent() {
@@ -78,7 +78,7 @@ public class TransportVersionUtilsTests extends ESTestCase {
     }
 
     public void testIsMinTransportVersionOnOrAfter() {
-        assertThat(TransportVersionUtils.isMinTransportVersionOnOrAfter(state, TransportVersions.V_7_0_0), equalTo(true));
+        assertThat(TransportVersionUtils.isMinTransportVersionOnOrAfter(state, TransportVersions.V_8_0_0), equalTo(true));
         assertThat(TransportVersionUtils.isMinTransportVersionOnOrAfter(state, TransportVersions.V_8_9_X), equalTo(false));
     }
 }

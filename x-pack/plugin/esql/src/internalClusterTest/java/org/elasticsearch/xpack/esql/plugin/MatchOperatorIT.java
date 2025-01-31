@@ -11,7 +11,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
@@ -22,7 +21,7 @@ import java.util.List;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.CoreMatchers.containsString;
 
-@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE", reason = "debug")
+//@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE", reason = "debug")
 public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
 
     @Before
@@ -207,19 +206,19 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
         assertThat(error.getMessage(), containsString("Unknown column [content]"));
     }
 
-    public void testWhereMatchWithFunctions() {
+    public void testWhereMatchNotPushedDown() {
         var query = """
             FROM test
-            | WHERE content:"fox" OR to_upper(content) == "FOX"
+            | WHERE content:"fox" OR length(content) < 20
+            | KEEP id
+            | SORT id
             """;
-        var error = expectThrows(ElasticsearchException.class, () -> run(query));
-        assertThat(
-            error.getMessage(),
-            containsString(
-                "Invalid condition [content:\"fox\" OR to_upper(content) == \"FOX\"]. "
-                    + "[:] operator can't be used as part of an or condition"
-            )
-        );
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id"));
+            assertColumnTypes(resp.columns(), List.of("integer"));
+            assertValues(resp.values(), List.of(List.of(1), List.of(2), List.of(6)));
+        }
     }
 
     public void testWhereMatchWithRow() {
@@ -231,7 +230,7 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
         var error = expectThrows(ElasticsearchException.class, () -> run(query));
         assertThat(
             error.getMessage(),
-            containsString("[:] operator cannot operate on [\"a brown fox\"], which is not a field from an index mapping")
+            containsString("line 2:9: [:] operator cannot operate on [content], which is not a field from an index mapping")
         );
     }
 
@@ -248,11 +247,15 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
     public void testMatchWithNonTextField() {
         var query = """
             FROM test
-            | WHERE id:"fox"
+            | WHERE id:3
+            | KEEP id
             """;
 
-        var error = expectThrows(VerificationException.class, () -> run(query));
-        assertThat(error.getMessage(), containsString("first argument of [id:\"fox\"] must be [string], found value [id] type [integer]"));
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id"));
+            assertColumnTypes(resp.columns(), List.of("integer"));
+            assertValues(resp.values(), List.of(List.of(3)));
+        }
     }
 
     private void createAndPopulateIndex() {

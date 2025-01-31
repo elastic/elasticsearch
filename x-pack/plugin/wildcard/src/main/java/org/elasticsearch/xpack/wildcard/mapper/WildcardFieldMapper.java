@@ -94,7 +94,7 @@ import static org.elasticsearch.index.IndexSettings.IGNORE_ABOVE_SETTING;
 public class WildcardFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "wildcard";
-    public static short MAX_CLAUSES_IN_APPROXIMATION_QUERY = 10;
+    public static final short MAX_CLAUSES_IN_APPROXIMATION_QUERY = 10;
     public static final int NGRAM_SIZE = 3;
 
     static final NamedAnalyzer WILDCARD_ANALYZER_7_10 = new NamedAnalyzer("_wildcard_7_10", AnalyzerScope.GLOBAL, new Analyzer() {
@@ -252,7 +252,7 @@ public class WildcardFieldMapper extends FieldMapper {
         }
     }
 
-    public static TypeParser PARSER = new TypeParser(
+    public static final TypeParser PARSER = new TypeParser(
         (n, c) -> new Builder(n, IGNORE_ABOVE_SETTING.get(c.getSettings()), c.indexVersionCreated())
     );
 
@@ -990,20 +990,20 @@ public class WildcardFieldMapper extends FieldMapper {
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport() {
-        var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>();
-        layers.add(new WildcardSyntheticFieldLoader());
-        if (ignoreAbove != Integer.MAX_VALUE) {
-            layers.add(new CompositeSyntheticFieldLoader.StoredFieldLayer(originalName()) {
-                @Override
-                protected void writeValue(Object value, XContentBuilder b) throws IOException {
-                    BytesRef r = (BytesRef) value;
-                    b.utf8Value(r.bytes, r.offset, r.length);
-                }
-            });
-        }
-
-        var loader = new CompositeSyntheticFieldLoader(leafName(), fullPath(), layers);
-        return new SyntheticSourceSupport.Native(loader);
+        return new SyntheticSourceSupport.Native(() -> {
+            var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>();
+            layers.add(new WildcardSyntheticFieldLoader());
+            if (ignoreAbove != Integer.MAX_VALUE) {
+                layers.add(new CompositeSyntheticFieldLoader.StoredFieldLayer(originalName()) {
+                    @Override
+                    protected void writeValue(Object value, XContentBuilder b) throws IOException {
+                        BytesRef r = (BytesRef) value;
+                        b.utf8Value(r.bytes, r.offset, r.length);
+                    }
+                });
+            }
+            return new CompositeSyntheticFieldLoader(leafName(), fullPath(), layers);
+        });
     }
 
     private class WildcardSyntheticFieldLoader implements CompositeSyntheticFieldLoader.DocValuesLayer {

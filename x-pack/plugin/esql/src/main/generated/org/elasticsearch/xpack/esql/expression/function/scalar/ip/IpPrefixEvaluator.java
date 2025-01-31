@@ -23,7 +23,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link IpPrefix}.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
 public final class IpPrefixEvaluator implements EvalOperator.ExpressionEvaluator {
   private final Source source;

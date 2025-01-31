@@ -17,12 +17,12 @@ import org.gradle.api.InvalidUserDataException;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
+import org.gradle.api.file.FileSystemOperations;
 import org.gradle.api.file.ProjectLayout;
 import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.plugins.JvmToolchainsPlugin;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.provider.ProviderFactory;
-import org.gradle.api.tasks.Copy;
 import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.jvm.toolchain.JavaToolchainService;
@@ -54,11 +54,17 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
     private final ObjectFactory objectFactory;
     private ProviderFactory providerFactory;
     private JavaToolchainService toolChainService;
+    private FileSystemOperations fileSystemOperations;
 
     @Inject
-    public InternalDistributionBwcSetupPlugin(ObjectFactory objectFactory, ProviderFactory providerFactory) {
+    public InternalDistributionBwcSetupPlugin(
+        ObjectFactory objectFactory,
+        ProviderFactory providerFactory,
+        FileSystemOperations fileSystemOperations
+    ) {
         this.objectFactory = objectFactory;
         this.providerFactory = providerFactory;
+        this.fileSystemOperations = fileSystemOperations;
     }
 
     @Override
@@ -66,7 +72,7 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
         project.getRootProject().getPluginManager().apply(GlobalBuildInfoPlugin.class);
         project.getPlugins().apply(JvmToolchainsPlugin.class);
         toolChainService = project.getExtensions().getByType(JavaToolchainService.class);
-        BuildParameterExtension buildParams = loadBuildParams(project).get();
+        var buildParams = loadBuildParams(project).get();
         Boolean isCi = buildParams.isCi();
         buildParams.getBwcVersions().forPreviousUnreleased((BwcVersions.UnreleasedVersionInfo unreleasedVersion) -> {
             configureBwcProject(
@@ -76,9 +82,28 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
                 providerFactory,
                 objectFactory,
                 toolChainService,
-                isCi
+                isCi,
+                fileSystemOperations
             );
         });
+
+        // Also set up the "main" project which is just used for arbitrary overrides. See InternalDistributionDownloadPlugin.
+        if (System.getProperty("tests.bwc.main.version") != null) {
+            configureBwcProject(
+                project.project(":distribution:bwc:main"),
+                buildParams,
+                new BwcVersions.UnreleasedVersionInfo(
+                    Version.fromString(System.getProperty("tests.bwc.main.version")),
+                    "main",
+                    ":distribution:bwc:main"
+                ),
+                providerFactory,
+                objectFactory,
+                toolChainService,
+                isCi,
+                fileSystemOperations
+            );
+        }
     }
 
     private static void configureBwcProject(
@@ -88,7 +113,8 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
         ProviderFactory providerFactory,
         ObjectFactory objectFactory,
         JavaToolchainService toolChainService,
-        Boolean isCi
+        Boolean isCi,
+        FileSystemOperations fileSystemOperations
     ) {
         ProjectLayout layout = project.getLayout();
         Provider<BwcVersions.UnreleasedVersionInfo> versionInfoProvider = providerFactory.provider(() -> versionInfo);
@@ -120,11 +146,20 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
         List<DistributionProject> distributionProjects = resolveArchiveProjects(checkoutDir.get(), bwcVersion.get());
 
         // Setup gradle user home directory
-        project.getTasks().register("setupGradleUserHome", Copy.class, copy -> {
-            copy.into(project.getGradle().getGradleUserHomeDir().getAbsolutePath() + "-" + project.getName());
-            copy.from(project.getGradle().getGradleUserHomeDir().getAbsolutePath(), copySpec -> {
-                copySpec.include("gradle.properties");
-                copySpec.include("init.d/*");
+        // We don't use a normal `Copy` task here as snapshotting the entire gradle user home is very expensive. This task is cheap, so
+        // up-to-date checking doesn't buy us much
+        project.getTasks().register("setupGradleUserHome", task -> {
+            File gradleUserHome = project.getGradle().getGradleUserHomeDir();
+            String projectName = project.getName();
+            task.doLast(t -> {
+                fileSystemOperations.copy(copy -> {
+                    String absoluteGradleUserHomePath = gradleUserHome.getAbsolutePath();
+                    copy.into(absoluteGradleUserHomePath + "-" + projectName);
+                    copy.from(absoluteGradleUserHomePath, copySpec -> {
+                        copySpec.include("gradle.properties");
+                        copySpec.include("init.d/*");
+                    });
+                });
             });
         });
 

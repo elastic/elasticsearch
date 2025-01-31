@@ -1,10 +1,19 @@
 [[infer-service-elasticsearch]]
-=== Elasticsearch {infer} service
+=== Elasticsearch {infer} integration
+
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-inference[{infer-cap} APIs].
+--
 
 Creates an {infer} endpoint to perform an {infer} task with the `elasticsearch` service.
 
-NOTE: If you use the ELSER or the E5 model through the `elasticsearch` service, the API request will automatically download and deploy the model if it isn't downloaded yet.
-
+[NOTE]
+====
+* Your {es} deployment contains <<default-enpoints,preconfigured ELSER and E5 {infer} endpoints>>, you only need to create the enpoints using the API if you want to customize the settings.
+* If you use the ELSER or the E5 model through the `elasticsearch` service, the API request will automatically download and deploy the model if it isn't downloaded yet.
+====
 
 [discrete]
 [[infer-service-elasticsearch-api-request]]
@@ -40,7 +49,7 @@ Available task types:
 (Optional, object)
 include::inference-shared.asciidoc[tag=chunking-settings]
 
-`max_chunking_size`:::
+`max_chunk_size`:::
 (Optional, integer)
 include::inference-shared.asciidoc[tag=chunking-settings-max-chunking-size]
 
@@ -153,7 +162,12 @@ For further details, refer to the {ml-docs}/ml-nlp-elser.html[ELSER model docume
 [[inference-example-elastic-reranker]]
 ==== Elastic Rerank via the `elasticsearch` service
 
-The following example shows how to create an {infer} endpoint called `my-elastic-rerank` to perform a `rerank` task type using the built-in Elastic Rerank cross-encoder model.
+The following example shows how to create an {infer} endpoint called `my-elastic-rerank` to perform a `rerank` task type using the built-in {ml-docs}/ml-nlp-rerank.html[Elastic Rerank] cross-encoder model.
+
+[TIP]
+====
+Refer to this https://github.com/elastic/elasticsearch-labs/blob/main/notebooks/search/12-semantic-reranking-elastic-rerank.ipynb[Python notebook] for an end-to-end example using Elastic Rerank.
+====
 
 The API request below will automatically download the Elastic Rerank model if it isn't already downloaded and then deploy the model.
 Once deployed, the model can be used for semantic re-ranking with a <<text-similarity-reranker-retriever-example-elastic-rerank,`text_similarity_reranker` retriever>>.

@@ -78,8 +78,8 @@ public interface InferenceService extends Closeable {
      * Whether this service should be hidden from the API. Should be used for services
      * that are not ready to be used.
      */
-    default Boolean hideFromConfigurationApi() {
-        return Boolean.FALSE;
+    default boolean hideFromConfigurationApi() {
+        return false;
     }
 
     /**
@@ -144,7 +144,7 @@ public interface InferenceService extends Closeable {
         Map<String, Object> taskSettings,
         InputType inputType,
         TimeValue timeout,
-        ActionListener<List<ChunkedInferenceServiceResults>> listener
+        ActionListener<List<ChunkedInference>> listener
     );
 
     /**
@@ -219,7 +219,7 @@ public interface InferenceService extends Closeable {
         return supportedStreamingTasks().contains(taskType);
     }
 
-    record DefaultConfigId(String inferenceId, TaskType taskType, InferenceService service) {};
+    record DefaultConfigId(String inferenceId, MinimalServiceSettings settings, InferenceService service) {};
 
     /**
      * Get the Ids and task type of any default configurations provided by this service

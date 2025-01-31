@@ -223,7 +223,8 @@ null               | null      | null
 ;
 
 
-overwriteName
+// the query is incorrectly physically planned (fails the verification) in pre-8.13.0 versions
+overwriteName#[skip:-8.12.99]
 from employees | sort emp_no asc | eval full_name = concat(first_name, " ", last_name) | dissect full_name "%{emp_no} %{b}" | keep full_name, emp_no, b | limit 3;
 
 full_name:keyword | emp_no:keyword | b:keyword
@@ -244,7 +245,8 @@ emp_no:integer | first_name:keyword | rest:keyword
 ;
 
 
-overwriteNameWhere
+// the query is incorrectly physically planned (fails the verification) in pre-8.13.0 versions
+overwriteNameWhere#[skip:-8.12.99]
 from employees | sort emp_no asc | eval full_name = concat(first_name, " ", last_name) | dissect full_name "%{emp_no} %{b}" | where emp_no == "Bezalel" | keep full_name, emp_no, b | limit 3;
 
 full_name:keyword | emp_no:keyword | b:keyword

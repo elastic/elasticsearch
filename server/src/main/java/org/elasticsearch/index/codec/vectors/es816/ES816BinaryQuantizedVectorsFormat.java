@@ -62,7 +62,7 @@ public class ES816BinaryQuantizedVectorsFormat extends FlatVectorsFormat {
 
     @Override
     public FlatVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
-        return new ES816BinaryQuantizedVectorsWriter(scorer, rawVectorFormat.fieldsWriter(state), state);
+        throw new UnsupportedOperationException();
     }
 
     @Override

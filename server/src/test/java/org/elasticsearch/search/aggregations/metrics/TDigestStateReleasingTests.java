@@ -102,19 +102,18 @@ public class TDigestStateReleasingTests extends ESTestCase {
      */
     public <E extends Exception> void testCircuitBreakerTrip(CheckedFunction<CircuitBreaker, TDigestState, E> tDigestStateFactory)
         throws E {
-        try (CrankyCircuitBreakerService circuitBreakerService = new CrankyCircuitBreakerService()) {
-            CircuitBreaker breaker = circuitBreakerService.getBreaker("test");
+        CrankyCircuitBreakerService circuitBreakerService = new CrankyCircuitBreakerService();
+        CircuitBreaker breaker = circuitBreakerService.getBreaker("test");
 
-            try (TDigestState state = tDigestStateFactory.apply(breaker)) {
-                // Add some data to make it trip. It won't work in all digest types
-                for (int i = 0; i < 10; i++) {
-                    state.add(randomDoubleBetween(-Double.MAX_VALUE, Double.MAX_VALUE, true));
-                }
-            } catch (CircuitBreakingException e) {
-                // Expected
-            } finally {
-                assertThat("unreleased bytes", breaker.getUsed(), equalTo(0L));
+        try (TDigestState state = tDigestStateFactory.apply(breaker)) {
+            // Add some data to make it trip. It won't work in all digest types
+            for (int i = 0; i < 10; i++) {
+                state.add(randomDoubleBetween(-Double.MAX_VALUE, Double.MAX_VALUE, true));
             }
+        } catch (CircuitBreakingException e) {
+            // Expected
+        } finally {
+            assertThat("unreleased bytes", breaker.getUsed(), equalTo(0L));
         }
     }
 }

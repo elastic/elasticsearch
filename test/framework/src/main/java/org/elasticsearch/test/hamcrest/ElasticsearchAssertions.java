@@ -21,6 +21,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.RequestBuilder;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequestBuilder;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -107,8 +108,42 @@ public class ElasticsearchAssertions {
         assertAcked(builder, TimeValue.timeValueSeconds(30));
     }
 
-    public static void assertAcked(ActionFuture<? extends IsAcknowledgedSupplier> future) {
-        assertAcked(future.actionGet());
+    @SafeVarargs
+    public static void assertAcked(RequestBuilder<?, ? extends IsAcknowledgedSupplier>... builders) {
+        final List<ActionFuture<? extends IsAcknowledgedSupplier>> futures = new ArrayList<>(builders.length);
+        for (RequestBuilder<?, ? extends IsAcknowledgedSupplier> response : builders) {
+            futures.add(response.execute());
+        }
+        Throwable tr = null;
+        for (var future : futures) {
+            try {
+                assertAcked(future.get());
+            } catch (Throwable t) {
+                tr = ExceptionsHelper.useOrSuppress(tr, t);
+            }
+        }
+        if (tr != null) {
+            throw new AssertionError(tr);
+        }
+    }
+
+    @SafeVarargs
+    public static void assertAcked(ActionFuture<? extends IsAcknowledgedSupplier>... futures) {
+        if (futures.length == 1) {
+            assertAcked(futures[0].actionGet());
+            return;
+        }
+        Throwable tr = null;
+        for (var future : futures) {
+            try {
+                assertAcked(future.get());
+            } catch (Throwable t) {
+                tr = ExceptionsHelper.useOrSuppress(tr, t);
+            }
+        }
+        if (tr != null) {
+            throw new AssertionError(tr);
+        }
     }
 
     public static void assertAcked(RequestBuilder<?, ? extends IsAcknowledgedSupplier> builder, TimeValue timeValue) {
@@ -131,6 +166,28 @@ public class ElasticsearchAssertions {
      * Assert that an index creation was fully acknowledged, meaning that both the index creation cluster
      * state update was successful and that the requisite number of shard copies were started before returning.
      */
+    public static void assertAcked(CreateIndexRequestBuilder... requests) {
+        if (requests.length == 1) {
+            assertAcked(requests[0]);
+            return;
+        }
+        final List<Future<CreateIndexResponse>> futures = new ArrayList<>(requests.length);
+        for (CreateIndexRequestBuilder response : requests) {
+            futures.add(response.execute());
+        }
+        Throwable tr = null;
+        for (Future<CreateIndexResponse> future : futures) {
+            try {
+                assertAcked(future.get());
+            } catch (Throwable t) {
+                tr = ExceptionsHelper.useOrSuppress(tr, t);
+            }
+        }
+        if (tr != null) {
+            throw new AssertionError(tr);
+        }
+    }
+
     public static void assertAcked(CreateIndexResponse response) {
         assertThat(response.getClass().getSimpleName() + " failed - not acked", response.isAcknowledged(), is(true));
         assertThat(

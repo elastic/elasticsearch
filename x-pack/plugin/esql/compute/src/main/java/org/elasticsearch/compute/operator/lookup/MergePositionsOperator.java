@@ -20,21 +20,24 @@ import java.util.Arrays;
 import java.util.Objects;
 
 /**
- * Combines values at the given blocks with the same positions into a single position for the blocks at the given channels
+ * Combines values at the given blocks with the same positions into a single position
+ * for the blocks at the given channels.
+ * <p>
  * Example, input pages consisting of three blocks:
- * positions    | field-1 | field-2 |
- * -----------------------------------
+ * </p>
+ * <pre>{@code
+ * | positions    | field-1 | field-2 |
+ * ------------------------------------
  * Page 1:
- * 1           |  a,b    |   2020  |
- * 1           |  c      |   2021  |
- * ---------------------------------
+ * | 1            |  a,b    |   2020  |
+ * | 1            |  c      |   2021  |
  * Page 2:
- * 2           |  a,e    |   2021  |
- * ---------------------------------
+ * | 2            |  a,e    |   2021  |
  * Page 3:
- * 4           |  d      |   null  |
- * ---------------------------------
+ * | 4            |  d      |   null  |
+ * }</pre>
  * Output:
+ * <pre>{@code
  * |  field-1   | field-2    |
  * ---------------------------
  * |  null      | null       |
@@ -42,6 +45,7 @@ import java.util.Objects;
  * |  a,e       | 2021       |
  * |  null      | null       |
  * |  d         | 2023       |
+ * }</pre>
  */
 public final class MergePositionsOperator implements Operator {
     private boolean finished = false;

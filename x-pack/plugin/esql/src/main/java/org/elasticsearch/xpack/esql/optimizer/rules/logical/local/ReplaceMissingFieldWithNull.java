@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.logical.local;
 
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -41,10 +42,17 @@ public class ReplaceMissingFieldWithNull extends ParameterizedRule<LogicalPlan, 
 
     @Override
     public LogicalPlan apply(LogicalPlan plan, LocalLogicalOptimizerContext localLogicalOptimizerContext) {
-        return plan.transformUp(p -> missingToNull(p, localLogicalOptimizerContext.searchStats()));
+        AttributeSet lookupFields = new AttributeSet();
+        plan.forEachUp(EsRelation.class, esRelation -> {
+            if (esRelation.indexMode() == IndexMode.LOOKUP) {
+                lookupFields.addAll(esRelation.output());
+            }
+        });
+
+        return plan.transformUp(p -> missingToNull(p, localLogicalOptimizerContext.searchStats(), lookupFields));
     }
 
-    private LogicalPlan missingToNull(LogicalPlan plan, SearchStats stats) {
+    private LogicalPlan missingToNull(LogicalPlan plan, SearchStats stats, AttributeSet lookupFields) {
         if (plan instanceof EsRelation || plan instanceof LocalRelation) {
             return plan;
         }
@@ -95,7 +103,9 @@ public class ReplaceMissingFieldWithNull extends ParameterizedRule<LogicalPlan, 
                 plan = plan.transformExpressionsOnlyUp(
                     FieldAttribute.class,
                     // Do not use the attribute name, this can deviate from the field name for union types.
-                    f -> stats.exists(f.fieldName()) ? f : Literal.of(f, null)
+                    // Also skip fields from lookup indices because we do not have stats for these.
+                    // TODO: We do have stats for lookup indices in case they are being used in the FROM clause; this can be refined.
+                    f -> stats.exists(f.fieldName()) || lookupFields.contains(f) ? f : Literal.of(f, null)
                 );
             }
 

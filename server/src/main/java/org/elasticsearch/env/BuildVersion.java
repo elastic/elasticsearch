@@ -38,6 +38,12 @@ import java.util.ServiceLoader;
 public abstract class BuildVersion implements ToXContentFragment, Writeable {
 
     /**
+     * Checks if this version can operate properly in a cluster without features
+     * that are assumed in the currently running Elasticsearch.
+     */
+    public abstract boolean canRemoveAssumedFeatures();
+
+    /**
      * Check whether this version is on or after a minimum threshold.
      *
      * <p>In some cases, the only thing we need to know about a version is whether
@@ -66,6 +72,12 @@ public abstract class BuildVersion implements ToXContentFragment, Writeable {
      * Returns this build version in a form suitable for storing in node metadata
      */
     public abstract String toNodeMetadata();
+
+    /**
+     * Returns the minimum compatible build version based on the current version.
+     * Ie a node needs to have at least the return version in order to communicate with a node running the current version.
+     */
+    public abstract BuildVersion minimumCompatibilityVersion();
 
     /**
      * Create a {@link BuildVersion} from a version ID number.

@@ -34,7 +34,7 @@ public class ChangePointOperatorTests extends OperatorTestCase {
         for (int i = 0; i < size; i++) {
             if (i <= size / 2) {
                 data.add(0L);
-            }  else {
+            } else {
                 data.add(1L);
             }
         }

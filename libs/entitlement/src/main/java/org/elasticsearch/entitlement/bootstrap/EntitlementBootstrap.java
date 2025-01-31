@@ -169,6 +169,7 @@ public class EntitlementBootstrap {
         throw new IllegalStateException("Entitlement protection self-test was incorrectly permitted");
     }
 
+    @SuppressForbidden(reason = "accesses jvm default tempdir as a self-test")
     private static void ensureCanCreateTempFile(CheckedSupplier<Path, ?> createTempFile) {
         try {
             Path p = createTempFile.get();

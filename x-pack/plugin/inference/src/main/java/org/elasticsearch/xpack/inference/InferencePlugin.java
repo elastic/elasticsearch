@@ -114,6 +114,7 @@ import org.elasticsearch.xpack.inference.services.anthropic.AnthropicService;
 import org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioService;
 import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiService;
 import org.elasticsearch.xpack.inference.services.cohere.CohereService;
+import org.elasticsearch.xpack.inference.services.deepseek.DeepSeekService;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceComponents;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettings;
@@ -357,6 +358,7 @@ public class InferencePlugin extends Plugin
             context -> new AlibabaCloudSearchService(httpFactory.get(), serviceComponents.get()),
             context -> new IbmWatsonxService(httpFactory.get(), serviceComponents.get()),
             context -> new JinaAIService(httpFactory.get(), serviceComponents.get()),
+            context -> new DeepSeekService(httpFactory.get(), serviceComponents.get()),
             ElasticsearchInternalService::new
         );
     }

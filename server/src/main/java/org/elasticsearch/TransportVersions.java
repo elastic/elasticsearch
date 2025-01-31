@@ -185,6 +185,7 @@ public class TransportVersions {
     public static final TransportVersion ESQL_DRIVER_TASK_DESCRIPTION = def(9_005_0_00);
     public static final TransportVersion ESQL_RETRY_ON_SHARD_LEVEL_FAILURE = def(9_006_0_00);
     public static final TransportVersion ESQL_PROFILE_ASYNC_NANOS = def(9_007_00_0);
+    public static final TransportVersion ML_INFERENCE_DEEPSEEK = def(9_008_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

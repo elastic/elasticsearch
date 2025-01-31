@@ -22,6 +22,7 @@ import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -56,7 +57,7 @@ public class HighlightPhase implements FetchSubPhase {
             var query = Rewriteable.rewrite(context.userQueryBuilder(), rewriteContext, true).toQuery(context.getSearchExecutionContext());
             return getProcessor(context, context.highlight(), query);
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            throw new UncheckedIOException("Exception during the rewrite of the highlight query", e);
         }
     }
 

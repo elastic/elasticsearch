@@ -489,7 +489,10 @@ final class DefaultSearchContext extends SearchContext {
 
     @Override
     public QueryBuilder userQueryBuilder() {
-        return request.source() != null ? request.source().query() : new MatchAllQueryBuilder();
+        if (request.source() == null || request.source().query() == null) {
+            return new MatchAllQueryBuilder();
+        }
+        return request.source().query();
     }
 
     @Override

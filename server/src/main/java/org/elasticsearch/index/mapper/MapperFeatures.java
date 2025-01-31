@@ -57,13 +57,11 @@ public class MapperFeatures implements FeatureSpecification {
         ObjectMapper.SUBOBJECTS_FALSE_MAPPING_UPDATE_FIX
     );
 
-    private static final Set<NodeFeature> ADDITIONAL_TEST_FEATURES = Set.of(USE_SYNTHETIC_SOURCE_FOR_RECOVERY_BY_DEFAULT);
-
     @Override
     public Set<NodeFeature> getTestFeatures() {
         if (IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE.isEnabled()) {
             final Set<NodeFeature> features = new HashSet<>(DEFAULT_TEST_FEATURES);
-            features.addAll(ADDITIONAL_TEST_FEATURES);
+            features.add(USE_SYNTHETIC_SOURCE_FOR_RECOVERY_BY_DEFAULT);
             return features;
         }
         return DEFAULT_TEST_FEATURES;

@@ -52,7 +52,7 @@ public class CohereEmbeddingTypeTests extends ESTestCase {
 
     public void testTranslateToVersion_ReturnsInt8_WhenVersionIsBeforeBitEnumAddition_WhenSpecifyingBit() {
         assertThat(
-            CohereEmbeddingType.translateToVersion(CohereEmbeddingType.BIT, new TransportVersion(8_839_00_0)),
+            CohereEmbeddingType.translateToVersion(CohereEmbeddingType.BIT, new TransportVersion(8_840_00_0)),
             is(CohereEmbeddingType.INT8)
         );
     }

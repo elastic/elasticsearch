@@ -14,11 +14,14 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.KnownIndexVersions;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.VersionUtils;
 
 import java.util.NavigableSet;
 import java.util.Random;
 import java.util.Set;
 import java.util.stream.Collectors;
+
+import static org.apache.lucene.tests.util.LuceneTestCase.random;
 
 public class IndexVersionUtils {
 
@@ -42,12 +45,12 @@ public class IndexVersionUtils {
 
     /** Returns a random {@link IndexVersion} from all available versions. */
     public static IndexVersion randomVersion() {
-        return ESTestCase.randomFrom(ALL_VERSIONS);
+        return VersionUtils.randomFrom(random(), ALL_VERSIONS, IndexVersion::fromId);
     }
 
     /** Returns a random {@link IndexVersion} from all versions that can be written to. */
     public static IndexVersion randomWriteVersion() {
-        return ESTestCase.randomFrom(ALL_WRITE_VERSIONS);
+        return VersionUtils.randomFrom(random(), ALL_WRITE_VERSIONS, IndexVersion::fromId);
     }
 
     /** Returns a random {@link IndexVersion} from all available versions without the ignore set */
@@ -75,7 +78,7 @@ public class IndexVersionUtils {
             versions = versions.headSet(maxVersion, true);
         }
 
-        return ESTestCase.randomFrom(random, versions);
+        return VersionUtils.randomFrom(random, versions, IndexVersion::fromId);
     }
 
     public static IndexVersion getPreviousVersion() {
@@ -85,11 +88,11 @@ public class IndexVersionUtils {
     }
 
     public static IndexVersion getPreviousVersion(IndexVersion version) {
-        var versions = allReleasedVersions().headSet(version, false);
-        if (versions.isEmpty()) {
+        IndexVersion lower = allReleasedVersions().lower(version);
+        if (lower == null) {
             throw new IllegalArgumentException("couldn't find any released versions before [" + version + "]");
         }
-        return versions.getLast();
+        return lower;
     }
 
     public static IndexVersion getPreviousMajorVersion(IndexVersion version) {
@@ -97,11 +100,11 @@ public class IndexVersionUtils {
     }
 
     public static IndexVersion getNextVersion(IndexVersion version) {
-        var versions = allReleasedVersions().tailSet(version, false);
-        if (versions.isEmpty()) {
+        IndexVersion higher = allReleasedVersions().higher(version);
+        if (higher == null) {
             throw new IllegalArgumentException("couldn't find any released versions after [" + version + "]");
         }
-        return versions.getFirst();
+        return higher;
     }
 
     /** Returns a random {@code IndexVersion} that is compatible with {@link IndexVersion#current()} */

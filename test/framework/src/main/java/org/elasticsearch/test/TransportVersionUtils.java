@@ -13,15 +13,24 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.core.Nullable;
 
+import java.util.Collections;
 import java.util.NavigableSet;
 import java.util.Random;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.stream.Collectors;
 
+import static org.apache.lucene.tests.util.LuceneTestCase.random;
+
 public class TransportVersionUtils {
+
+    private static final NavigableSet<TransportVersion> RELEASED_VERSIONS = Collections.unmodifiableNavigableSet(
+        new TreeSet<>(TransportVersion.getAllVersions())
+    );
+
     /** Returns all released versions */
     public static NavigableSet<TransportVersion> allReleasedVersions() {
-        return TransportVersion.getAllVersions();
+        return RELEASED_VERSIONS;
     }
 
     /** Returns the oldest known {@link TransportVersion} */
@@ -31,7 +40,7 @@ public class TransportVersionUtils {
 
     /** Returns a random {@link TransportVersion} from all available versions. */
     public static TransportVersion randomVersion() {
-        return ESTestCase.randomFrom(allReleasedVersions());
+        return VersionUtils.randomFrom(random(), allReleasedVersions(), TransportVersion::fromId);
     }
 
     /** Returns a random {@link TransportVersion} from all available versions without the ignore set */
@@ -41,7 +50,7 @@ public class TransportVersionUtils {
 
     /** Returns a random {@link TransportVersion} from all available versions. */
     public static TransportVersion randomVersion(Random random) {
-        return ESTestCase.randomFrom(random, allReleasedVersions());
+        return VersionUtils.randomFrom(random, allReleasedVersions(), TransportVersion::fromId);
     }
 
     /** Returns a random {@link TransportVersion} between <code>minVersion</code> and <code>maxVersion</code> (inclusive). */
@@ -68,7 +77,7 @@ public class TransportVersionUtils {
             versions = versions.headSet(maxVersion, true);
         }
 
-        return ESTestCase.randomFrom(random, versions);
+        return VersionUtils.randomFrom(random, versions, TransportVersion::fromId);
     }
 
     public static TransportVersion getPreviousVersion() {
@@ -78,11 +87,11 @@ public class TransportVersionUtils {
     }
 
     public static TransportVersion getPreviousVersion(TransportVersion version) {
-        var versions = allReleasedVersions().headSet(version, false);
-        if (versions.isEmpty()) {
+        TransportVersion lower = allReleasedVersions().lower(version);
+        if (lower == null) {
             throw new IllegalArgumentException("couldn't find any released versions before [" + version + "]");
         }
-        return versions.getLast();
+        return lower;
     }
 
     public static TransportVersion getNextVersion(TransportVersion version) {
@@ -90,8 +99,8 @@ public class TransportVersionUtils {
     }
 
     public static TransportVersion getNextVersion(TransportVersion version, boolean createIfNecessary) {
-        var versions = allReleasedVersions().tailSet(version, false);
-        if (versions.isEmpty()) {
+        TransportVersion higher = allReleasedVersions().higher(version);
+        if (higher == null) {
             if (createIfNecessary) {
                 // create a new transport version one greater than specified
                 return new TransportVersion(version.id() + 1);
@@ -99,7 +108,7 @@ public class TransportVersionUtils {
                 throw new IllegalArgumentException("couldn't find any released versions after [" + version + "]");
             }
         }
-        return versions.getFirst();
+        return higher;
     }
 
     /** Returns a random {@code TransportVersion} that is compatible with {@link TransportVersion#current()} */

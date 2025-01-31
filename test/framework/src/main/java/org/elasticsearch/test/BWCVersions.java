@@ -18,7 +18,7 @@ public final class BWCVersions {
     private BWCVersions() {}
 
     public static NavigableSet<TransportVersion> getAllBWCVersions() {
-        return TransportVersion.getAllVersions().tailSet(TransportVersions.MINIMUM_COMPATIBLE, true);
+        return TransportVersionUtils.allReleasedVersions().tailSet(TransportVersions.MINIMUM_COMPATIBLE, true);
     }
 
     public static final NavigableSet<TransportVersion> DEFAULT_BWC_VERSIONS = getAllBWCVersions();

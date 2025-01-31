@@ -9,18 +9,26 @@
 
 package org.elasticsearch.test;
 
+import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
+
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.VersionId;
 import org.elasticsearch.core.Nullable;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.NavigableSet;
 import java.util.Random;
+import java.util.TreeSet;
+import java.util.function.IntFunction;
 
 /** Utilities for selecting versions in tests */
 public class VersionUtils {
 
-    private static final NavigableSet<Version> ALL_VERSIONS = Version.getDeclaredVersions(Version.class);
+    private static final NavigableSet<Version> ALL_VERSIONS = Collections.unmodifiableNavigableSet(
+        new TreeSet<>(Version.getDeclaredVersions(Version.class))
+    );
 
     /**
      * Returns an immutable, sorted list containing all versions, both released and unreleased.
@@ -69,7 +77,7 @@ public class VersionUtils {
 
     /** Returns a random {@link Version} from all available versions. */
     public static Version randomVersion(Random random) {
-        return ESTestCase.randomFrom(random, ALL_VERSIONS);
+        return randomFrom(random, ALL_VERSIONS, Version::fromId);
     }
 
     /** Returns a random {@link Version} from all available versions, that is compatible with the given version. */
@@ -98,11 +106,24 @@ public class VersionUtils {
             versions = versions.headSet(maxVersion, true);
         }
 
-        return ESTestCase.randomFrom(random, versions);
+        return randomFrom(random, versions, Version::fromId);
     }
 
     /** Returns the maximum {@link Version} that is compatible with the given version. */
     public static Version maxCompatibleVersion(Version version) {
-        return ALL_VERSIONS.descendingSet().stream().filter(version::isCompatible).filter(version::onOrBefore).findFirst().orElseThrow();
+        return ALL_VERSIONS.tailSet(version, true).descendingSet().stream().filter(version::isCompatible).findFirst().orElseThrow();
+    }
+
+    public static <T extends VersionId<T>> T randomFrom(Random random, NavigableSet<T> set, IntFunction<T> ctor) {
+        // get the first and last id, pick a random id in the middle, then find that id in the set in O(nlogn) time
+        // this assumes the id numbers are reasonably evenly distributed in the set
+        assert set.isEmpty() == false;
+        int lowest = set.getFirst().id();
+        int highest = set.getLast().id();
+
+        T randomId = ctor.apply(RandomNumbers.randomIntBetween(random, lowest, highest));
+        // try to find the id below, then the id above. We're just looking for *some* item in the set that is close to randomId
+        T found = set.floor(randomId);
+        return found != null ? found : set.ceiling(randomId);
     }
 }

@@ -74,6 +74,4 @@ tasks.named("yamlRestCompatTestTransform").configure ({ task ->
   task.skipTest("index/91_metrics_no_subobjects/Metrics object indexing with synthetic source", "_source.mode mapping attribute is no-op since 9.0.0")
   task.skipTest("index/91_metrics_no_subobjects/Root without subobjects with synthetic source", "_source.mode mapping attribute is no-op since 9.0.0")
   task.skipTest("indices.create/20_synthetic_source/synthetic_source with copy_to inside nested object", "temporary until backported")
-  task.skipTest("update/10_synthetic_source/keyword", "synthetic source recovery behind a feature flag and not enabled in release builds")
-  task.skipTest("update/10_synthetic_source/stored text", "synthetic source recovery behind a feature flag and not enabled in release builds")
 })

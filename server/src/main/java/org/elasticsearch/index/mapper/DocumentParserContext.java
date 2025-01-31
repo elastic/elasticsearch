@@ -50,6 +50,13 @@ public abstract class DocumentParserContext {
             this.in = in;
         }
 
+        // Used to create a copy_to context.
+        // It is important to reset `dynamic` here since it is possible that we copy into a completely different object.
+        private Wrapper(RootObjectMapper root, DocumentParserContext in) {
+            super(root, ObjectMapper.Dynamic.getRootDynamic(in.mappingLookup()), in);
+            this.in = in;
+        }
+
         @Override
         public Iterable<LuceneDocument> nonRootDocuments() {
             return in.nonRootDocuments();
@@ -711,6 +718,7 @@ public abstract class DocumentParserContext {
 
         ContentPath path = new ContentPath();
         XContentParser parser = DotExpandingXContentParser.expandDots(new CopyToParser(copyToField, parser()), path);
+
         return new Wrapper(root(), this) {
             @Override
             public ContentPath path() {

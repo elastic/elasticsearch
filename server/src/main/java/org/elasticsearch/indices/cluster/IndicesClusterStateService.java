@@ -116,6 +116,10 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         Setting.Property.NodeScope
     );
 
+    /**
+     * Maximum number of shards to try and close concurrently. Defaults to the smaller of {@code node.processors} and {@code 10}, but can be
+     * set to any positive integer.
+     */
     public static final Setting<Integer> CONCURRENT_SHARD_CLOSE_LIMIT = Setting.intSetting(
         "indices.store.max_concurrent_closing_shards",
         settings -> Integer.toString(Math.min(10, EsExecutors.NODE_PROCESSORS_SETTING.get(settings).roundUp())),

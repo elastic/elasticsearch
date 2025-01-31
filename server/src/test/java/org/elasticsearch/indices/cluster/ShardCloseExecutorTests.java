@@ -19,6 +19,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class ShardCloseExecutorTests extends ESTestCase {
 
     public void testThrottling() {
+        // This defaults to the number of CPUs of the machine running the tests which could be either side of 10.
         final var defaultProcessors = EsExecutors.NODE_PROCESSORS_SETTING.get(Settings.EMPTY).roundUp();
         ensureThrottling(Math.min(10, defaultProcessors), Settings.EMPTY);
 
@@ -27,13 +28,14 @@ public class ShardCloseExecutorTests extends ESTestCase {
                 10,
                 Settings.builder().put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), between(10, defaultProcessors - 1)).build()
             );
-        }
+        } // else we cannot run this check, the machine running the tests doesn't have enough CPUs
 
         if (1 < defaultProcessors) {
             final var fewProcessors = between(1, Math.min(10, defaultProcessors - 1));
             ensureThrottling(fewProcessors, Settings.builder().put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), fewProcessors).build());
-        }
+        } // else we cannot run this check, the machine running the tests has a fraction of a single CPU (e.g. it's running in a container)
 
+        // but in any case we can override the throttle regardless of its default value
         final var override = between(1, defaultProcessors * 2);
         ensureThrottling(
             override,
@@ -46,16 +48,21 @@ public class ShardCloseExecutorTests extends ESTestCase {
         final var executor = new IndicesClusterStateService.ShardCloseExecutor(settings, tasksToRun::add);
         final var runCount = new AtomicInteger();
 
+        // enqueue one more task than the throttling limit
         for (int i = 0; i < expectedLimit + 1; i++) {
             executor.execute(runCount::incrementAndGet);
         }
 
-        assertEquals(expectedLimit, tasksToRun.size()); // didn't enqueue the final task yet
+        // check that we submitted tasks up to the expected limit, holding back the final task behind the throttle for now
+        assertEquals(expectedLimit, tasksToRun.size());
 
-        for (int i = 0; i < tasksToRun.size(); i++) {
+        // now execute all the tasks one by one
+        for (int i = 0; i < expectedLimit + 1; i++) {
             assertEquals(i, runCount.get());
             tasksToRun.get(i).run();
             assertEquals(i + 1, runCount.get());
+
+            // executing the first task enqueues the final task
             assertEquals(expectedLimit + 1, tasksToRun.size());
         }
     }

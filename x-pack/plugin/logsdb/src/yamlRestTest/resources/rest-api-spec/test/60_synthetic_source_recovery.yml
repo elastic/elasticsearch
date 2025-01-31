@@ -1,8 +1,8 @@
 ---
 synthetic recovery for synthetic source mode index:
   - requires:
-      cluster_features: [ "index.recovery.synthetic_source_default" ]
-      reason: requires synthetic recovery source by default
+      cluster_features: [ "mapper.synthetic_recovery_source" ]
+      reason: requires synthetic recovery source
 
   - do:
       indices.create:
@@ -88,8 +88,8 @@ synthetic recovery for standard index:
 ---
 synthetic recovery for logsdb index:
   - requires:
-      cluster_features: [ "index.recovery.synthetic_source_default" ]
-      reason: requires synthetic recovery source by default
+      cluster_features: [ "mapper.synthetic_recovery_source" ]
+      reason: requires synthetic recovery source
 
   - do:
       indices.create:
@@ -109,8 +109,8 @@ synthetic recovery for logsdb index:
 ---
 synthetic recovery for time_series index:
   - requires:
-      cluster_features: [ "index.recovery.synthetic_source_default" ]
-      reason: requires synthetic recovery source by default
+      cluster_features: [ "mapper.synthetic_recovery_source" ]
+      reason: requires synthetic recovery source
 
   - do:
       indices.create:

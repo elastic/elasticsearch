@@ -5,7 +5,9 @@
 ++++
 
 The `ip_location` processor adds information about the geographical location of an
-IPv4 or IPv6 address.
+IPv4 or IPv6 address. It is compatible with the GeoIP2 and GeoLite2 IP geolocation
+databases available from https://www.maxmind.com/[MaxMind], as well as many of the
+IP geolocation databases available from https://ipinfo.io[IPinfo].
 
 [[ip-location-automatic-updates]]
 By default, the processor uses the GeoLite2 City, GeoLite2 Country, and GeoLite2

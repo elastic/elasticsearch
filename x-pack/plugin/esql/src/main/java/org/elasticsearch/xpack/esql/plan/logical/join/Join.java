@@ -63,7 +63,7 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        Source.EMPTY.writeTo(out);
+        source().writeTo(out);
         out.writeNamedWriteable(left());
         out.writeNamedWriteable(right());
         config.writeTo(out);

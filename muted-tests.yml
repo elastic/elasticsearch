@@ -143,8 +143,10 @@ tests:
 - class: org.elasticsearch.datastreams.DataStreamsClientYamlTestSuiteIT
   method: test {p0=data_stream/120_data_streams_stats/Multiple data stream}
   issue: https://github.com/elastic/elasticsearch/issues/118217
+# TODO: re-enabled after backport of https://github.com/elastic/elasticsearch/pull/119110
 - class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
   method: test {p0=update/100_synthetic_source/keyword}
+  # TODO: re-enabled after backport of https://github.com/elastic/elasticsearch/pull/119110
 - class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
   method: test {p0=update/100_synthetic_source/stored text}
 - class: org.elasticsearch.action.search.SearchQueryThenFetchAsyncActionTests

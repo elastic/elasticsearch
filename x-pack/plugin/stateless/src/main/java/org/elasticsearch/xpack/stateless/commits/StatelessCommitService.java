@@ -596,7 +596,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 }
                 virtualBcc = commitState.appendCommit(reference);
                 virtualBcc.addNotifiedSearchNodeIds(
-                    shardRoutingTable.map(e -> e.unpromotableShards())
+                    shardRoutingTable.map(e -> e.assignedUnpromotableShards())
                         .orElse(List.of())
                         .stream()
                         .map(shardRouting -> shardRouting.currentNodeId())
@@ -1171,7 +1171,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             primaryTermAndGenToBlobReference.put(recoveryBCCBlob.getPrimaryTermAndGeneration(), recoveryBCCBlob);
 
             var currentUnpromotableShardAssignedNodes = shardRoutingFinder.apply(shardId)
-                .map(IndexShardRoutingTable::unpromotableShards)
+                .map(IndexShardRoutingTable::assignedUnpromotableShards)
                 .orElse(List.of())
                 .stream()
                 .map(ShardRouting::currentNodeId)
@@ -1845,7 +1845,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             var notificationCommitBCCDependencies = resolveReferencedBCCsForCommit(notificationCommitGeneration);
             Optional<IndexShardRoutingTable> shardRoutingTable = shardRoutingFinder.apply(uploadedBcc.shardId());
             Optional<Set<String>> optCurrentRoutingNodesWithAssignedSearchShards = shardRoutingTable.map(
-                routingTable -> routingTable.unpromotableShards()
+                routingTable -> routingTable.assignedUnpromotableShards()
                     .stream()
                     .filter(ShardRouting::assignedToNode)
                     .map(ShardRouting::currentNodeId)
@@ -2861,7 +2861,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                             // If the routing for any of the shard copies changed, update the shard commit tracking.
                             if (event.previousState().routingTable().hasIndex(shardId.getIndex())
                                 && event.previousState().routingTable().shardRoutingTable(shardId) != currentShardRoutingTable) {
-                                var currentUnpromotableShards = currentShardRoutingTable.unpromotableShards();
+                                var currentUnpromotableShards = currentShardRoutingTable.assignedUnpromotableShards();
                                 var currentUnpromotableShardAssignedNodes = currentUnpromotableShards.stream()
                                     .filter(ShardRouting::assignedToNode)
                                     .map(ShardRouting::currentNodeId)

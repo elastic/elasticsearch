@@ -997,7 +997,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
 
             var state = clusterStateWithPrimaryAndSearchShards(shardId, 1);
             stateRef.set(state);
-            String searchNodeId = state.routingTable().shardRoutingTable(shardId).unpromotableShards().get(0).currentNodeId();
+            String searchNodeId = state.routingTable().shardRoutingTable(shardId).assignedUnpromotableShards().get(0).currentNodeId();
             fakeSearchNode.setSearchDiscoveryNode(state.getNodes().get(searchNodeId));
 
             var initialCommits = testHarness.generateIndexCommitsWithoutMergeOrDeletion(10);
@@ -1745,7 +1745,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
             var noSearchState = clusterStateWithPrimaryAndSearchShards(shardId, 0);
             var searchState = clusterStateWithPrimaryAndSearchShards(shardId, 1);
             stateRef.set(noSearchState);
-            String searchNodeId = searchState.routingTable().shardRoutingTable(shardId).unpromotableShards().get(0).currentNodeId();
+            String searchNodeId = searchState.routingTable().shardRoutingTable(shardId).assignedUnpromotableShards().get(0).currentNodeId();
             fakeSearchNode.setSearchDiscoveryNode(searchState.getNodes().get(searchNodeId));
 
             CyclicBarrier startBarrier = new CyclicBarrier(3);

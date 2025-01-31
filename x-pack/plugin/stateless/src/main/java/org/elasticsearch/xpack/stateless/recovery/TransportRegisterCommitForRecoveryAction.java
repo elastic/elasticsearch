@@ -134,7 +134,7 @@ public class TransportRegisterCommitForRecoveryAction extends HandledTransportAc
     }
 
     private boolean isSearchShardInRoutingTable(ClusterState state, ShardId shardId, String nodeId) {
-        for (var shardRouting : state.routingTable().shardRoutingTable(shardId).unpromotableShards()) {
+        for (var shardRouting : state.routingTable().shardRoutingTable(shardId).assignedUnpromotableShards()) {
             if (shardRouting.currentNodeId().equals(nodeId)) {
                 return true;
             }

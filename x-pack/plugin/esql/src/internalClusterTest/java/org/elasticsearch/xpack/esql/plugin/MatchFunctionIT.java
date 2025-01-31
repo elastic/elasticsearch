@@ -246,7 +246,7 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
         var error = expectThrows(ElasticsearchException.class, () -> run(query));
         assertThat(
             error.getMessage(),
-            containsString("[MATCH] function cannot operate on [\"a brown fox\"], which is not a field from an index mapping")
+            containsString("line 2:15: [MATCH] function cannot operate on [content], which is not a field from an index mapping")
         );
     }
 

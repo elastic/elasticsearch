@@ -229,6 +229,11 @@ public final class IndicesStore implements ClusterStateListener, Closeable {
         long clusterStateVersion,
         IndexShardRoutingTable indexShardRoutingTable
     ) {
+        if (DiscoveryNode.isStateless(clusterService.getSettings())) {
+            deleteShardStoreOnApplierThread(indexShardRoutingTable.shardId(), clusterStateVersion);
+            return;
+        }
+
         List<Tuple<DiscoveryNode, ShardActiveRequest>> requests = new ArrayList<>(indexShardRoutingTable.size());
         String indexUUID = indexShardRoutingTable.shardId().getIndex().getUUID();
         for (int copy = 0; copy < indexShardRoutingTable.size(); copy++) {
@@ -320,34 +325,37 @@ public final class IndicesStore implements ClusterStateListener, Closeable {
                 return;
             }
 
-            clusterService.getClusterApplierService()
-                .runOnApplierThread("indices_store ([" + shardId + "] active fully on other nodes)", Priority.HIGH, currentState -> {
-                    if (clusterStateVersion != currentState.getVersion()) {
-                        logger.trace(
-                            "not deleting shard {}, the update task state version[{}] is not equal to cluster state before "
-                                + "shard active api call [{}]",
-                            shardId,
-                            currentState.getVersion(),
-                            clusterStateVersion
-                        );
-                        return;
-                    }
-                    try {
-                        indicesService.deleteShardStore("no longer used", shardId, currentState);
-                    } catch (Exception ex) {
-                        logger.debug(() -> format("%s failed to delete unallocated shard, ignoring", shardId), ex);
-                    }
-                }, new ActionListener<>() {
-                    @Override
-                    public void onResponse(Void unused) {}
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        logger.error(() -> format("%s unexpected error during deletion of unallocated shard", shardId), e);
-                    }
-                });
+            deleteShardStoreOnApplierThread(shardId, clusterStateVersion);
         }
+    }
 
+    private void deleteShardStoreOnApplierThread(ShardId shardId, long clusterStateVersion) {
+        clusterService.getClusterApplierService()
+            .runOnApplierThread("indices_store ([" + shardId + "] active fully on other nodes)", Priority.HIGH, currentState -> {
+                if (clusterStateVersion != currentState.getVersion()) {
+                    logger.trace(
+                        "not deleting shard {}, the update task state version[{}] is not equal to cluster state before "
+                            + "shard active api call [{}]",
+                        shardId,
+                        currentState.getVersion(),
+                        clusterStateVersion
+                    );
+                    return;
+                }
+                try {
+                    indicesService.deleteShardStore("no longer used", shardId, currentState);
+                } catch (Exception ex) {
+                    logger.debug(() -> format("%s failed to delete unallocated shard, ignoring", shardId), ex);
+                }
+            }, new ActionListener<>() {
+                @Override
+                public void onResponse(Void unused) {}
+
+                @Override
+                public void onFailure(Exception e) {
+                    logger.error(() -> format("%s unexpected error during deletion of unallocated shard", shardId), e);
+                }
+            });
     }
 
     private class ShardActiveRequestHandler implements TransportRequestHandler<ShardActiveRequest> {

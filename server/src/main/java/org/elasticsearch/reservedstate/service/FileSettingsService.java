@@ -248,7 +248,8 @@ public class FileSettingsService extends MasterNodeFileWatchingService implement
             DESCRIPTION_LENGTH_LIMIT_KEY,
             100,
             1, // Need room for the ellipsis
-            Setting.Property.OperatorDynamic);
+            Setting.Property.OperatorDynamic
+        );
 
         private final Settings settings;
         private boolean isActive = false;

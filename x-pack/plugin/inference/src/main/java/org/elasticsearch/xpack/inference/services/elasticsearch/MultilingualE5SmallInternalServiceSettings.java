@@ -18,6 +18,9 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService.MULTILINGUAL_E5_SMALL_MODEL_ID;
+import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService.MULTILINGUAL_E5_SMALL_MODEL_ID_LINUX_X86;
+
 public class MultilingualE5SmallInternalServiceSettings extends ElasticsearchInternalServiceSettings {
 
     public static final String NAME = "multilingual_e5_small_service_settings";
@@ -29,17 +32,26 @@ public class MultilingualE5SmallInternalServiceSettings extends ElasticsearchInt
         return MinimalServiceSettings.textEmbedding(DIMENSIONS, SIMILARITY, DenseVectorFieldMapper.ElementType.FLOAT);
     }
 
+    public static MultilingualE5SmallInternalServiceSettings defaultEndpointSettings(boolean useLinuxOptimizedModel) {
+        return new MultilingualE5SmallInternalServiceSettings(
+            null,
+            1,
+            useLinuxOptimizedModel ? MULTILINGUAL_E5_SMALL_MODEL_ID_LINUX_X86 : MULTILINGUAL_E5_SMALL_MODEL_ID,
+            new AdaptiveAllocationsSettings(Boolean.TRUE, 0, 32)
+        );
+    }
+
     public MultilingualE5SmallInternalServiceSettings(ElasticsearchInternalServiceSettings other) {
         super(other);
     }
 
-    public MultilingualE5SmallInternalServiceSettings(
+    MultilingualE5SmallInternalServiceSettings(
         Integer numAllocations,
         int numThreads,
         String modelId,
         AdaptiveAllocationsSettings adaptiveAllocationsSettings
     ) {
-        super(numAllocations, numThreads, modelId, adaptiveAllocationsSettings);
+        super(numAllocations, numThreads, modelId, adaptiveAllocationsSettings, null);
     }
 
     public MultilingualE5SmallInternalServiceSettings(StreamInput in) throws IOException {

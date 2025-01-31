@@ -16,6 +16,7 @@ import org.elasticsearch.test.index.IndexVersionUtils;
 import org.hamcrest.Matchers;
 
 import java.lang.reflect.Modifier;
+import java.util.Collections;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -170,7 +171,7 @@ public class IndexVersionTests extends ESTestCase {
     }
 
     public void testCURRENTIsLatest() {
-        assertThat(IndexVersions.getAllVersions().getLast(), is(IndexVersion.current()));
+        assertThat(Collections.max(IndexVersions.getAllVersions()), is(IndexVersion.current()));
     }
 
     public void testToString() {

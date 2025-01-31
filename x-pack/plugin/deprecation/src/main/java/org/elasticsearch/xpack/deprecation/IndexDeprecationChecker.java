@@ -25,12 +25,12 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.deprecation.DeprecationChecks.filterChecks;
 import static org.elasticsearch.xpack.deprecation.LegacyTiersDetection.DEPRECATION_COMMON_DETAIL;
 import static org.elasticsearch.xpack.deprecation.LegacyTiersDetection.DEPRECATION_HELP_URL;
 
@@ -67,7 +67,10 @@ public class IndexDeprecationChecker implements ResourceDeprecationChecker {
         Map<String, List<String>> indexToTransformIds = indexToTransformIds(precomputedData.transformConfigs());
         for (String concreteIndex : concreteIndexNames) {
             IndexMetadata indexMetadata = clusterState.getMetadata().index(concreteIndex);
-            List<DeprecationIssue> singleIndexIssues = filterChecks(checks, c -> c.apply(indexMetadata, clusterState, indexToTransformIds));
+            List<DeprecationIssue> singleIndexIssues = checks.stream()
+                .map(c -> c.apply(indexMetadata, clusterState, indexToTransformIds))
+                .filter(Objects::nonNull)
+                .toList();
             if (singleIndexIssues.isEmpty() == false) {
                 indexSettingsIssues.put(concreteIndex, singleIndexIssues);
             }

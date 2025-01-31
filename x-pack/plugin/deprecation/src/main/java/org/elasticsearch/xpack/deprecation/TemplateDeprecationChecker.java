@@ -19,9 +19,9 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Function;
 
-import static org.elasticsearch.xpack.deprecation.DeprecationChecks.filterChecks;
 import static org.elasticsearch.xpack.deprecation.LegacyTiersDetection.DEPRECATION_COMMON_DETAIL;
 import static org.elasticsearch.xpack.deprecation.LegacyTiersDetection.DEPRECATION_HELP_URL;
 import static org.elasticsearch.xpack.deprecation.LegacyTiersDetection.DEPRECATION_MESSAGE;
@@ -70,7 +70,10 @@ public class TemplateDeprecationChecker implements ResourceDeprecationChecker {
             String name = entry.getKey();
             ComposableIndexTemplate template = entry.getValue();
 
-            List<DeprecationIssue> issuesForSingleIndexTemplate = filterChecks(indexTemplateChecks, c -> c.apply(template));
+            List<DeprecationIssue> issuesForSingleIndexTemplate = indexTemplateChecks.stream()
+                .map(c -> c.apply(template))
+                .filter(Objects::nonNull)
+                .toList();
             if (issuesForSingleIndexTemplate.isEmpty() == false) {
                 issues.computeIfAbsent(name, ignored -> new ArrayList<>()).addAll(issuesForSingleIndexTemplate);
             }
@@ -79,7 +82,10 @@ public class TemplateDeprecationChecker implements ResourceDeprecationChecker {
             String name = entry.getKey();
             ComponentTemplate template = entry.getValue();
 
-            List<DeprecationIssue> issuesForSingleIndexTemplate = filterChecks(componentTemplateChecks, c -> c.apply(template));
+            List<DeprecationIssue> issuesForSingleIndexTemplate = componentTemplateChecks.stream()
+                .map(c -> c.apply(template))
+                .filter(Objects::nonNull)
+                .toList();
             if (issuesForSingleIndexTemplate.isEmpty() == false) {
                 issues.computeIfAbsent(name, ignored -> new ArrayList<>()).addAll(issuesForSingleIndexTemplate);
             }

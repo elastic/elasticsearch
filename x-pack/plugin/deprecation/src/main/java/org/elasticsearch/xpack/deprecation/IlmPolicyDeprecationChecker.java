@@ -19,9 +19,9 @@ import org.elasticsearch.xpack.core.ilm.Phase;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Function;
 
-import static org.elasticsearch.xpack.deprecation.DeprecationChecks.filterChecks;
 import static org.elasticsearch.xpack.deprecation.LegacyTiersDetection.DEPRECATION_COMMON_DETAIL;
 import static org.elasticsearch.xpack.deprecation.LegacyTiersDetection.DEPRECATION_HELP_URL;
 import static org.elasticsearch.xpack.deprecation.LegacyTiersDetection.DEPRECATION_MESSAGE;
@@ -33,10 +33,7 @@ import static org.elasticsearch.xpack.deprecation.LegacyTiersDetection.containsD
 public class IlmPolicyDeprecationChecker implements ResourceDeprecationChecker {
 
     public static final String NAME = "ilm_policies";
-    private static final List<Function<LifecyclePolicy, DeprecationIssue>> CHECKS = List.of(
-        IlmPolicyDeprecationChecker::checkLegacyTiers,
-        IlmPolicyDeprecationChecker::checkFrozenAction
-    );
+    private final List<Function<LifecyclePolicy, DeprecationIssue>> checks = List.of(this::checkLegacyTiers, this::checkFrozenAction);
 
     /**
      * @param clusterState The cluster state provided for the checker
@@ -67,7 +64,10 @@ public class IlmPolicyDeprecationChecker implements ResourceDeprecationChecker {
             String name = entry.getKey();
             LifecyclePolicyMetadata policyMetadata = entry.getValue();
 
-            List<DeprecationIssue> issuesForSinglePolicy = filterChecks(CHECKS, c -> c.apply(policyMetadata.getPolicy()));
+            List<DeprecationIssue> issuesForSinglePolicy = checks.stream()
+                .map(c -> c.apply(policyMetadata.getPolicy()))
+                .filter(Objects::nonNull)
+                .toList();
             if (issuesForSinglePolicy.isEmpty() == false) {
                 issues.put(name, issuesForSinglePolicy);
             }
@@ -75,7 +75,7 @@ public class IlmPolicyDeprecationChecker implements ResourceDeprecationChecker {
         return issues.isEmpty() ? Map.of() : issues;
     }
 
-    static DeprecationIssue checkLegacyTiers(LifecyclePolicy policy) {
+    private DeprecationIssue checkLegacyTiers(LifecyclePolicy policy) {
         for (Phase phase : policy.getPhases().values()) {
             AllocateAction allocateAction = (AllocateAction) phase.getActions().get(AllocateAction.NAME);
             if (allocateAction != null) {
@@ -96,7 +96,7 @@ public class IlmPolicyDeprecationChecker implements ResourceDeprecationChecker {
         return null;
     }
 
-    static DeprecationIssue checkFrozenAction(LifecyclePolicy policy) {
+    private DeprecationIssue checkFrozenAction(LifecyclePolicy policy) {
         for (Phase phase : policy.getPhases().values()) {
             if (phase.getActions().containsKey(FreezeAction.NAME)) {
                 return new DeprecationIssue(

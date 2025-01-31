@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.injection.guice.Inject;
@@ -50,6 +51,11 @@ import java.util.stream.Stream;
 public class TransportDeprecationInfoAction extends TransportMasterNodeReadAction<
     DeprecationInfoAction.Request,
     DeprecationInfoAction.Response> {
+    public static final Setting<List<String>> SKIP_DEPRECATIONS_SETTING = Setting.stringListSetting(
+        "deprecation.skip_deprecated_settings",
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
     private static final List<DeprecationChecker> PLUGIN_CHECKERS = List.of(new MlDeprecationChecker());
 
     private final NodeClient client;
@@ -86,7 +92,7 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.settings = settings;
         this.xContentRegistry = xContentRegistry;
-        skipTheseDeprecations = DeprecationChecks.SKIP_DEPRECATIONS_SETTING.get(settings);
+        skipTheseDeprecations = SKIP_DEPRECATIONS_SETTING.get(settings);
         nodeDeprecationChecker = new NodeDeprecationChecker(threadPool);
         clusterDeprecationChecker = new ClusterDeprecationChecker(xContentRegistry);
         resourceDeprecationCheckers = List.of(
@@ -96,8 +102,7 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
             new IlmPolicyDeprecationChecker()
         );
         // Safe to register this here because it happens synchronously before the cluster service is started:
-        clusterService.getClusterSettings()
-            .addSettingsUpdateConsumer(DeprecationChecks.SKIP_DEPRECATIONS_SETTING, this::setSkipDeprecations);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(SKIP_DEPRECATIONS_SETTING, this::setSkipDeprecations);
     }
 
     private <T> void setSkipDeprecations(List<String> skipDeprecations) {

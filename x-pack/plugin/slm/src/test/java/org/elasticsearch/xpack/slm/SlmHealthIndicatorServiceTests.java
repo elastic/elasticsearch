@@ -182,7 +182,8 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
                 Map.of(
                     "test-policy",
                     SnapshotLifecyclePolicyMetadata.builder()
-                        .setPolicy(new SnapshotLifecyclePolicy("test-policy", "<test-policy-{now/d}>", "", "test-repository", null, null))
+                        .setPolicy(new SnapshotLifecyclePolicy("test-policy", "<test-policy-{now/d}>", "", "test-repository", null,
+                            null, null))
                         .setVersion(1L)
                         .setModifiedDate(System.currentTimeMillis())
                         .setLastSuccess(snapshotInvocation(execTime, execTime + 1000L))
@@ -197,6 +198,7 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
                                 "<test-policy-{now/d}>",
                                 "",
                                 "test-repository",
+                                null,
                                 null,
                                 null
                             )
@@ -215,6 +217,7 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
                                 "<test-policy-{now/d}>",
                                 "",
                                 "test-repository",
+                                null,
                                 null,
                                 null
                             )
@@ -308,7 +311,7 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
 
     public void testSnapshotPolicyExceedsWarningThresholdPredicate() {
         SnapshotLifecyclePolicyMetadata slmPolicyMetadata = SnapshotLifecyclePolicyMetadata.builder()
-            .setPolicy(new SnapshotLifecyclePolicy("id", "test-policy", "", "test-repository", null, null))
+            .setPolicy(new SnapshotLifecyclePolicy("id", "test-policy", "", "test-repository", null, null, null))
             .setVersion(1L)
             .setModifiedDate(System.currentTimeMillis())
             .build();
@@ -318,7 +321,7 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
         assertThat(SlmHealthIndicatorService.snapshotFailuresExceedWarningCount(1L, slmPolicyMetadata), is(false));
 
         slmPolicyMetadata = SnapshotLifecyclePolicyMetadata.builder()
-            .setPolicy(new SnapshotLifecyclePolicy("id", "test-policy", "", "test-repository", null, null))
+            .setPolicy(new SnapshotLifecyclePolicy("id", "test-policy", "", "test-repository", null, null, null))
             .setVersion(1L)
             .setModifiedDate(System.currentTimeMillis())
             .setLastSuccess(snapshotInvocation(1000L, 2000L))
@@ -330,7 +333,7 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
         assertThat(SlmHealthIndicatorService.snapshotFailuresExceedWarningCount(1L, slmPolicyMetadata), is(false));
 
         slmPolicyMetadata = SnapshotLifecyclePolicyMetadata.builder()
-            .setPolicy(new SnapshotLifecyclePolicy("id", "test-policy", "", "test-repository", null, null))
+            .setPolicy(new SnapshotLifecyclePolicy("id", "test-policy", "", "test-repository", null, null, null))
             .setVersion(1L)
             .setModifiedDate(System.currentTimeMillis())
             .setLastSuccess(snapshotInvocation(1000L, 2000L))
@@ -343,7 +346,7 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
         assertThat(SlmHealthIndicatorService.snapshotFailuresExceedWarningCount(1L, slmPolicyMetadata), is(true));
 
         slmPolicyMetadata = SnapshotLifecyclePolicyMetadata.builder()
-            .setPolicy(new SnapshotLifecyclePolicy("id", "test-policy", "", "test-repository", null, null))
+            .setPolicy(new SnapshotLifecyclePolicy("id", "test-policy", "", "test-repository", null, null, null))
             .setVersion(1L)
             .setModifiedDate(System.currentTimeMillis())
             .setLastSuccess(snapshotInvocation(8000L, 9000L))
@@ -415,7 +418,7 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
         return Map.of(
             "test-policy",
             SnapshotLifecyclePolicyMetadata.builder()
-                .setPolicy(new SnapshotLifecyclePolicy("policy-id", "test-policy", "", "test-repository", null, null))
+                .setPolicy(new SnapshotLifecyclePolicy("policy-id", "test-policy", "", "test-repository", null, null, null))
                 .setVersion(1L)
                 .setModifiedDate(System.currentTimeMillis())
                 .setLastSuccess(lastSuccess)

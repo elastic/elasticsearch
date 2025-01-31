@@ -554,6 +554,7 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
             "* * * 31 FEB ? *",
             "test-repo",
             Collections.singletonMap("indices", Collections.singletonList("*")),
+            null,
             null
         );
         if (isRunningAgainstOldCluster()) {

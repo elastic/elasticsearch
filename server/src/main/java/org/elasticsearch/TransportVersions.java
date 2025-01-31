@@ -165,6 +165,7 @@ public class TransportVersions {
     public static final TransportVersion ADD_INCLUDE_FAILURE_INDICES_OPTION = def(8_831_00_0);
     public static final TransportVersion ESQL_RESPONSE_PARTIAL = def(8_832_00_0);
     public static final TransportVersion RANK_DOC_OPTIONAL_METADATA_FOR_EXPLAIN = def(8_833_00_0);
+    public static final TransportVersion SLM_TIME_ALLOWED_SINCE_LAST_SNAPSHOT = def(8_999_00_0);  // SX TODO: update version
 
     /*
      * STOP! READ THIS FIRST! No, really,

@@ -1,0 +1,282 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.slm;
+
+import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
+import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
+import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
+import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.cluster.SnapshotsInProgress;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.datastreams.DataStreamsPlugin;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.health.GetHealthAction;
+import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
+import org.elasticsearch.indices.recovery.RecoverySettings;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.RepositoryPlugin;
+import org.elasticsearch.repositories.RepositoriesMetrics;
+import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.SnapshotShardContext;
+import org.elasticsearch.repositories.fs.FsRepository;
+import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
+import org.elasticsearch.snapshots.SnapshotInfo;
+import org.elasticsearch.snapshots.SnapshotMissingException;
+import org.elasticsearch.snapshots.SnapshotState;
+import org.elasticsearch.snapshots.mockstore.MockRepository;
+import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
+import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy;
+import org.elasticsearch.xpack.core.slm.SnapshotRetentionConfiguration;
+import org.elasticsearch.xpack.core.slm.action.ExecuteSnapshotLifecycleAction;
+import org.elasticsearch.xpack.core.slm.action.PutSnapshotLifecycleAction;
+import org.elasticsearch.xpack.ilm.IndexLifecycle;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+
+import static org.hamcrest.Matchers.equalTo;
+
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
+public class SLMHealthBlockedSnapshotIT extends AbstractSnapshotIntegTestCase {
+
+    private static final String NEVER_EXECUTE_CRON_SCHEDULE = "* * * 31 FEB ? *";
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return Arrays.asList(
+            MockRepository.Plugin.class,
+            MockTransportService.TestPlugin.class,
+            LocalStateCompositeXPackPlugin.class,
+            IndexLifecycle.class,
+            SnapshotLifecycle.class,
+            DataStreamsPlugin.class,
+            TestDelayedRepoPlugin.class
+        );
+    }
+
+    public static class TestDelayedRepoPlugin extends Plugin implements RepositoryPlugin {
+
+        // Use static vars since instantiated by plugin system
+        private static final AtomicBoolean doDelay = new AtomicBoolean(true);
+        private static final CountDownLatch delayedRepoLatch = new CountDownLatch(1);
+
+        static void removeDelay() {
+            delayedRepoLatch.countDown();
+        }
+
+        @Override
+        public Map<String, Repository.Factory> getRepositories(
+            Environment env,
+            NamedXContentRegistry namedXContentRegistry,
+            ClusterService clusterService,
+            BigArrays bigArrays,
+            RecoverySettings recoverySettings,
+            RepositoriesMetrics repositoriesMetrics
+        ) {
+            return Map.of(
+                TestDelayedRepo.TYPE,
+                metadata -> new TestDelayedRepo(metadata, env, namedXContentRegistry, clusterService, bigArrays, recoverySettings, () -> {
+                    try {
+                        assertTrue(delayedRepoLatch.await(1, TimeUnit.MINUTES));
+                    } catch (InterruptedException e) {
+                        throw new RuntimeException(e);
+                    }
+                })
+            );
+        }
+    }
+
+    static class TestDelayedRepo extends FsRepository {
+        private static final String TYPE = "delayed";
+        private final Runnable delayFn;
+
+        protected TestDelayedRepo(
+            RepositoryMetadata metadata,
+            Environment env,
+            NamedXContentRegistry namedXContentRegistry,
+            ClusterService clusterService,
+            BigArrays bigArrays,
+            RecoverySettings recoverySettings,
+            Runnable delayFn
+        ) {
+            super(metadata, env, namedXContentRegistry, clusterService, bigArrays, recoverySettings);
+            this.delayFn = delayFn;
+        }
+
+        @Override
+        protected void snapshotFile(SnapshotShardContext context, BlobStoreIndexShardSnapshot.FileInfo fileInfo) throws IOException {
+            delayFn.run();
+            super.snapshotFile(context, fileInfo);
+        }
+    }
+
+    public void test1() throws Exception {
+        final String idxName = "test-idx";
+        final String repoName = "test-repo";
+        final String policyName = "test-policy";
+
+        internalCluster().startMasterOnlyNodes(1);
+        final String masterNode = internalCluster().getMasterName();
+        final String dataNode = internalCluster().startDataOnlyNode();
+        ensureStableCluster(2);
+
+        createRandomIndex(idxName, dataNode);
+        createRepository(repoName, TestDelayedRepo.TYPE);
+        createSnapshotPolicy(policyName, "snap", NEVER_EXECUTE_CRON_SCHEDULE, repoName, idxName);
+
+        ensureGreen();
+
+        // trigger SLM multiple times at the same time
+        // TODO: trigger different SLM policies
+        List<String> snapshots = new ArrayList<>();
+        for (int i=0; i<10; i++) {
+            snapshots.add(executePolicy(masterNode, policyName));
+        }
+
+        // check SLM indicator
+        GetHealthAction.Response response = client().execute(GetHealthAction.INSTANCE, new GetHealthAction.Request(true, 1000)).get();
+
+
+        // remove delay from snapshotA allowing it to finish
+        TestDelayedRepoPlugin.removeDelay();
+
+        GetSnapshotsResponse getSnapshotsResponse = admin().cluster().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, repoName).get();
+
+        Thread.sleep(10000);
+
+        GetSnapshotsResponse getSnapshotsResponse1 = admin().cluster().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, repoName).get();
+
+//        GetSnapshotsResponse getSnapshotsResponse1 = client().execute(TransportGetSnapshotsAction.TYPE, new GetSnapshotsRequest(TEST_REQUEST_TIMEOUT)).get();
+
+        waitForSnapshot(repoName, snapshots.get(0));
+
+//        for (String snapshot : snapshots) {
+//            waitForSnapshot(repoName, snapshot);
+//        }
+
+        // assert snapshots are successful
+        assertBusy(() -> {
+            for (String snapshot : snapshots) {
+                assertSnapshotSuccess(repoName, snapshot);
+            }
+        }, 1, TimeUnit.MINUTES);
+    }
+
+    private void createRandomIndex(String idxName, String dataNodeName) throws InterruptedException {
+        // allocate index to the specified data node
+        Settings settings = indexSettings(1, 0).put("index.routing.allocation.require._name", dataNodeName).build();
+        createIndex(idxName, settings);
+
+        logger.info("--> indexing some data");
+        final int numdocs = randomIntBetween(10, 100);
+        IndexRequestBuilder[] builders = new IndexRequestBuilder[numdocs];
+        for (int i = 0; i < builders.length; i++) {
+            builders[i] = prepareIndex(idxName).setId(Integer.toString(i)).setSource("field1", "bar " + i);
+        }
+        indexRandom(true, builders);
+        indicesAdmin().refresh(new RefreshRequest(idxName)).actionGet();
+    }
+
+    private void createSnapshotPolicy(String policyName, String snapshotNamePattern, String schedule, String repoId, String indexPattern) {
+        Map<String, Object> snapConfig = new HashMap<>();
+        snapConfig.put("indices", Collections.singletonList(indexPattern));
+        snapConfig.put("ignore_unavailable", false);
+        snapConfig.put("partial", true);
+
+        SnapshotLifecyclePolicy policy = new SnapshotLifecyclePolicy(
+            policyName,
+            snapshotNamePattern,
+            schedule,
+            repoId,
+            snapConfig,
+            SnapshotRetentionConfiguration.EMPTY
+        );
+
+        PutSnapshotLifecycleAction.Request putLifecycle = new PutSnapshotLifecycleAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            policyName,
+            policy
+        );
+        try {
+            client().execute(PutSnapshotLifecycleAction.INSTANCE, putLifecycle).get();
+        } catch (Exception e) {
+            logger.error("failed to create slm policy", e);
+            fail("failed to create policy " + policy + " got: " + e);
+        }
+    }
+
+    /**
+     * Execute the given policy and return the generated snapshot name
+     */
+    private String executePolicy(String node, String policyId) throws ExecutionException, InterruptedException {
+        ExecuteSnapshotLifecycleAction.Request executeReq = new ExecuteSnapshotLifecycleAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            policyId
+        );
+        ExecuteSnapshotLifecycleAction.Response resp = client(node).execute(ExecuteSnapshotLifecycleAction.INSTANCE, executeReq).get();
+        return resp.getSnapshotName();
+    }
+
+    private void waitForSnapshot(String repo, String snapshotName) throws Exception {
+        assertBusy(() -> {
+            try {
+                SnapshotsStatusResponse s = getSnapshotStatus(repo, snapshotName);
+                assertThat("expected a snapshot but none were returned", s.getSnapshots().size(), equalTo(1));
+                SnapshotStatus status = s.getSnapshots().get(0);
+                logger.info("--> waiting for snapshot {} to be completed, got: {}", snapshotName, status.getState());
+                assertThat(status.getState(), equalTo(SnapshotsInProgress.State.SUCCESS));
+            } catch (SnapshotMissingException e) {
+                logger.error("expected a snapshot but it was missing", e);
+                fail("expected a snapshot with name " + snapshotName + " but it does not exist");
+            }
+        });
+    }
+
+    private void assertSnapshotSuccess(String repository, String snapshot) {
+        try {
+            SnapshotInfo snapshotInfo = getSnapshotInfo(repository, snapshot);
+            assertEquals(SnapshotState.SUCCESS, snapshotInfo.state());
+            assertEquals(1, snapshotInfo.successfulShards());
+            assertEquals(0, snapshotInfo.failedShards());
+            logger.info("Checked snapshot exists and is state SUCCESS");
+        } catch (SnapshotMissingException e) {
+            fail("expected a snapshot with name " + snapshot + " but it does yet not exist");
+        }
+    }
+
+    private SnapshotInfo getSnapshotInfo(String repository, String snapshot) {
+        GetSnapshotsResponse snapshotsStatusResponse = clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, repository)
+            .setSnapshots(snapshot)
+            .get();
+        return snapshotsStatusResponse.getSnapshots().get(0);
+    }
+
+    private SnapshotsStatusResponse getSnapshotStatus(String repo, String snapshotName) {
+        return clusterAdmin().prepareSnapshotStatus(TEST_REQUEST_TIMEOUT, repo).setSnapshots(snapshotName).get();
+    }
+
+}

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.slm;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.cluster.SimpleDiffable;
@@ -20,6 +21,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -52,12 +54,14 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
     private final Map<String, Object> configuration;
     private final SnapshotRetentionConfiguration retentionPolicy;
     private final boolean isCronSchedule;
+    private final TimeValue timeAllowedSinceLastSnapshot;
 
     private static final ParseField NAME = new ParseField("name");
     private static final ParseField SCHEDULE = new ParseField("schedule");
     private static final ParseField REPOSITORY = new ParseField("repository");
     private static final ParseField CONFIG = new ParseField("config");
     private static final ParseField RETENTION = new ParseField("retention");
+    private static final ParseField TIME_ALLOWED_SINCE_LAST_SNAPSHOT = new ParseField("time_allowed_since_last_snapshot");
     private static final String METADATA_FIELD_NAME = "metadata";
 
     @SuppressWarnings("unchecked")
@@ -70,7 +74,8 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
             String repo = (String) a[2];
             Map<String, Object> config = (Map<String, Object>) a[3];
             SnapshotRetentionConfiguration retention = (SnapshotRetentionConfiguration) a[4];
-            return new SnapshotLifecyclePolicy(id, name, schedule, repo, config, retention);
+            TimeValue timeAllowedSinceLastSnapshot = (TimeValue) a[5];
+            return new SnapshotLifecyclePolicy(id, name, schedule, repo, config, retention, timeAllowedSinceLastSnapshot);
         }
     );
 
@@ -80,6 +85,8 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
         PARSER.declareString(ConstructingObjectParser.constructorArg(), REPOSITORY);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.map(), CONFIG);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), SnapshotRetentionConfiguration::parse, RETENTION);
+        PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> TimeValue.parseTimeValue(p.text(),
+            TIME_ALLOWED_SINCE_LAST_SNAPSHOT.getPreferredName()), TIME_ALLOWED_SINCE_LAST_SNAPSHOT, ObjectParser.ValueType.STRING);
     }
 
     public SnapshotLifecyclePolicy(
@@ -88,7 +95,8 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
         final String schedule,
         final String repository,
         @Nullable final Map<String, Object> configuration,
-        @Nullable final SnapshotRetentionConfiguration retentionPolicy
+        @Nullable final SnapshotRetentionConfiguration retentionPolicy,
+        @Nullable final TimeValue timeAllowedSinceLastSnapshot
     ) {
         this.id = Objects.requireNonNull(id, "policy id is required");
         this.name = Objects.requireNonNull(name, "policy snapshot name is required");
@@ -96,6 +104,7 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
         this.repository = Objects.requireNonNull(repository, "policy snapshot repository is required");
         this.configuration = configuration;
         this.retentionPolicy = retentionPolicy;
+        this.timeAllowedSinceLastSnapshot = timeAllowedSinceLastSnapshot;
         this.isCronSchedule = isCronSchedule(schedule);
     }
 
@@ -106,6 +115,9 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
         this.repository = in.readString();
         this.configuration = in.readGenericMap();
         this.retentionPolicy = in.readOptionalWriteable(SnapshotRetentionConfiguration::new);
+        if (in.getTransportVersion().onOrAfter(TransportVersions.SLM_TIME_ALLOWED_SINCE_LAST_SNAPSHOT)) {
+            this.timeAllowedSinceLastSnapshot = in.readOptionalTimeValue();
+        }
         this.isCronSchedule = isCronSchedule(schedule);
     }
 
@@ -133,6 +145,11 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
     @Nullable
     public SnapshotRetentionConfiguration getRetentionPolicy() {
         return this.retentionPolicy;
+    }
+
+    @Nullable
+    public TimeValue getTimeAllowedSinceLastSnapshot() {
+        return this.timeAllowedSinceLastSnapshot;
     }
 
     boolean isCronSchedule() {
@@ -297,6 +314,8 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
             err.addValidationError("invalid repository name [" + repository + "]: cannot be empty");
         }
 
+        // SX TODO: validate timevalue
+
         return err.validationErrors().size() == 0 ? null : err;
     }
 
@@ -339,6 +358,9 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
         out.writeString(this.repository);
         out.writeGenericMap(this.configuration);
         out.writeOptionalWriteable(this.retentionPolicy);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.SLM_TIME_ALLOWED_SINCE_LAST_SNAPSHOT)) {
+            out.writeOptionalTimeValue(this.timeAllowedSinceLastSnapshot);
+        }
     }
 
     @Override
@@ -353,13 +375,16 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
         if (this.retentionPolicy != null) {
             builder.field(RETENTION.getPreferredName(), this.retentionPolicy);
         }
+        if (this.timeAllowedSinceLastSnapshot != null) {
+            builder.field(TIME_ALLOWED_SINCE_LAST_SNAPSHOT.getPreferredName(), this.timeAllowedSinceLastSnapshot);
+        }
         builder.endObject();
         return builder;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, name, schedule, repository, configuration, retentionPolicy);
+        return Objects.hash(id, name, schedule, repository, configuration, retentionPolicy, timeAllowedSinceLastSnapshot);
     }
 
     @Override
@@ -377,7 +402,8 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
             && Objects.equals(schedule, other.schedule)
             && Objects.equals(repository, other.repository)
             && Objects.equals(configuration, other.configuration)
-            && Objects.equals(retentionPolicy, other.retentionPolicy);
+            && Objects.equals(retentionPolicy, other.retentionPolicy)
+            && Objects.equals(timeAllowedSinceLastSnapshot, other.timeAllowedSinceLastSnapshot);
     }
 
     @Override

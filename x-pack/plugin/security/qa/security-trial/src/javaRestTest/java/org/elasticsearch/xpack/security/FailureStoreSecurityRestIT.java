@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.security;
 
-
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;

@@ -409,7 +409,7 @@ public class AlibabaCloudSearchService extends SenderService {
                     HTTP_SCHEMA_NAME,
                     new SettingsConfiguration.Builder(supportedTaskTypes).setDescription("")
                         .setLabel("HTTP Schema")
-                        .setRequired(true)
+                        .setRequired(false)
                         .setSensitive(false)
                         .setUpdatable(false)
                         .setType(SettingsConfigurationFieldType.STRING)

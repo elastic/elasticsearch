@@ -13,6 +13,7 @@ public class IbmWatsonxUtils {
     public static final String V1 = "v1";
     public static final String TEXT = "text";
     public static final String EMBEDDINGS = "embeddings";
+    public static final String RERANKS = "reranks";
 
     private IbmWatsonxUtils() {}
 

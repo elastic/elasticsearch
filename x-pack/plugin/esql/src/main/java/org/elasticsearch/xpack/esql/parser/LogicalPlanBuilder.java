@@ -456,8 +456,16 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         Source src = source(ctx);
         NamedExpression value = visitQualifiedName(ctx.value);
         NamedExpression key = ctx.key == null ? new UnresolvedAttribute(src, "@timestamp") : visitQualifiedName(ctx.key);
-        Attribute targetType = new ReferenceAttribute(src, ctx.targetType == null ? "type" : visitQualifiedName(ctx.targetType).name(), DataType.KEYWORD);
-        Attribute targetPvalue = new ReferenceAttribute(src, ctx.targetPvalue == null ? "pvalue" : visitQualifiedName(ctx.targetPvalue).name(), DataType.DOUBLE);
+        Attribute targetType = new ReferenceAttribute(
+            src,
+            ctx.targetType == null ? "type" : visitQualifiedName(ctx.targetType).name(),
+            DataType.KEYWORD
+        );
+        Attribute targetPvalue = new ReferenceAttribute(
+            src,
+            ctx.targetPvalue == null ? "pvalue" : visitQualifiedName(ctx.targetPvalue).name(),
+            DataType.DOUBLE
+        );
         return child -> {
             // ChangePoint should always run on the coordinating node after the data is collected
             // in sorted order. This is enforced by adding OrderBy here.
@@ -465,7 +473,11 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             // enforced by the Limits here. The first Limit of 1001 data points is necessary to
             // generate a possible warning, the second Limit of 1000 is to truncate the output.
             OrderBy orderBy = new OrderBy(src, child, List.of(new Order(src, key, Order.OrderDirection.ASC, Order.NullsPosition.ANY)));
-            Limit limit = new Limit(src, new Literal(Source.EMPTY, ChangePointOperator.INPUT_VALUE_COUNT_LIMIT + 1, DataType.INTEGER), orderBy);
+            Limit limit = new Limit(
+                src,
+                new Literal(Source.EMPTY, ChangePointOperator.INPUT_VALUE_COUNT_LIMIT + 1, DataType.INTEGER),
+                orderBy
+            );
             ChangePoint changePoint = new ChangePoint(src, limit, value, key, targetType, targetPvalue);
             return new Limit(src, new Literal(Source.EMPTY, ChangePointOperator.INPUT_VALUE_COUNT_LIMIT, DataType.INTEGER), changePoint);
 

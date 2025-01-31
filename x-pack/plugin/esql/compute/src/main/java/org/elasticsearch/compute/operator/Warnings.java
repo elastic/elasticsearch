@@ -96,13 +96,7 @@ public class Warnings {
 
     private Warnings(int lineNumber, int columnNumber, String sourceText, String first) {
         this.location = format("Line {}:{}: ", lineNumber, columnNumber);
-        this.first = format(
-            null,
-            "{}" + first + ". Only first {} failures recorded.",
-            location,
-            sourceText,
-            MAX_ADDED_WARNINGS
-        );
+        this.first = format(null, "{}" + first + ". Only first {} failures recorded.", location, sourceText, MAX_ADDED_WARNINGS);
     }
 
     public void registerException(Exception exception) {

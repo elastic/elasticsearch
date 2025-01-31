@@ -167,7 +167,9 @@ public class ChangePointOperator implements Operator {
             warnings(false).registerException(new IllegalArgumentException(indeterminable.getReason()));
         }
         if (tooManyValues) {
-            warnings(true).registerException(new IllegalArgumentException("too many values; keeping only first " + INPUT_VALUE_COUNT_LIMIT + " values"));
+            warnings(true).registerException(
+                new IllegalArgumentException("too many values; keeping only first " + INPUT_VALUE_COUNT_LIMIT + " values")
+            );
         }
         if (hasNulls) {
             warnings(true).registerException(new IllegalArgumentException("values contain nulls; treating them as zeroes"));

@@ -481,7 +481,6 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             );
             ChangePoint changePoint = new ChangePoint(src, limit, value, key, targetType, targetPvalue);
             return new Limit(src, new Literal(Source.EMPTY, ChangePointOperator.INPUT_VALUE_COUNT_LIMIT, DataType.INTEGER), changePoint);
-
         };
     }
 

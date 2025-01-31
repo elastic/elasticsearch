@@ -66,6 +66,7 @@ public class ChangePointOperatorTests extends OperatorTestCase {
                 }
             }
         }
+        assertThat(seenOne, equalTo(true));
     }
 
     @Override

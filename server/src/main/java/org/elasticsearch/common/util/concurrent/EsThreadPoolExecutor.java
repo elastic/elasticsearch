@@ -67,28 +67,6 @@ public class EsThreadPoolExecutor extends ThreadPoolExecutor {
     }
 
     @Override
-    public void setCorePoolSize(int corePoolSize) {
-        if (corePoolSize == 0) {
-            corePoolSize = 1;
-            // Enforce a minimum timeout > 0 so we can allow core threads timeout
-            if (getKeepAliveTime(TimeUnit.MILLISECONDS) == 0) {
-                setKeepAliveTime(1, TimeUnit.MILLISECONDS);
-            }
-            super.allowCoreThreadTimeOut(true);
-        }
-        super.setCorePoolSize(corePoolSize);
-    }
-
-    @Override
-    public void allowCoreThreadTimeOut(boolean value) {
-        if (value == false && getCorePoolSize() == 0) {
-            // Nope
-            return;
-        }
-        super.allowsCoreThreadTimeOut();
-    }
-
-    @Override
     public void execute(Runnable command) {
         final Runnable wrappedRunnable = wrapRunnable(command);
         try {

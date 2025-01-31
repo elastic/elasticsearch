@@ -17,8 +17,11 @@ import org.elasticsearch.common.unit.Processors;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.node.Node;
 
+import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodHandles;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
+import java.security.PrivilegedExceptionAction;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.AbstractExecutorService;
@@ -109,34 +112,12 @@ public class EsExecutors {
     ) {
         ExecutorScalingQueue<Runnable> queue = new ExecutorScalingQueue<>();
         EsThreadPoolExecutor executor;
-
-        final int corePoolSize;
-        final long adjustedKeepAliveTime;
-        final boolean allowCoreThreadTimeOut;
-        if (min == 0) {
-            // If a min of 0 is requested we set the thread core count to 1, but we allow the thread cores to timeout.
-            // This way we still achieve the goal of having 0 threads when idle, but we do not run into the risk of running into a case
-            // where we have task(s) in the queue and no worker to consume them.
-            corePoolSize = 1;
-            allowCoreThreadTimeOut = true;
-            if (keepAliveTime == 0) {
-                // The JDK does not allow a timeout of 0 with allowCoreThreadTimeOut
-                adjustedKeepAliveTime = 1;
-            } else {
-                adjustedKeepAliveTime = keepAliveTime;
-            }
-        } else {
-            corePoolSize = min;
-            adjustedKeepAliveTime = keepAliveTime;
-            allowCoreThreadTimeOut = false;
-        }
-
         if (config.trackExecutionTime()) {
             executor = new TaskExecutionTimeTrackingEsThreadPoolExecutor(
                 name,
-                corePoolSize,
+                min,
                 max,
-                adjustedKeepAliveTime,
+                keepAliveTime,
                 unit,
                 queue,
                 TimedRunnable::new,
@@ -148,9 +129,9 @@ public class EsExecutors {
         } else {
             executor = new EsThreadPoolExecutor(
                 name,
-                corePoolSize,
+                min,
                 max,
-                adjustedKeepAliveTime,
+                keepAliveTime,
                 unit,
                 queue,
                 threadFactory,
@@ -158,7 +139,6 @@ public class EsExecutors {
                 contextHolder
             );
         }
-        executor.allowCoreThreadTimeOut(allowCoreThreadTimeOut);
         queue.executor = executor;
         return executor;
     }
@@ -479,6 +459,22 @@ public class EsExecutors {
          */
         private final boolean rejectAfterShutdown;
 
+        private static final MethodHandle ensurePrestart$mh = lookupEnsurePrestart();
+
+        @SuppressForbidden(reason = "reflective access")
+        static MethodHandle lookupEnsurePrestart() {
+            try {
+                return AccessController.doPrivileged((PrivilegedExceptionAction<MethodHandle>) () -> {
+                    var ensurePrestartMethod = ThreadPoolExecutor.class.getDeclaredMethod("ensurePrestart");
+                    ensurePrestartMethod.setAccessible(true);
+
+                    return MethodHandles.lookup().unreflect(ensurePrestartMethod);
+                });
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        }
+
         /**
          * @param rejectAfterShutdown indicates if {@link Runnable} should be rejected once the thread pool is shutting down
          */
@@ -506,6 +502,11 @@ public class EsExecutors {
                         // b) var t = executor.getQueue().poll(); if (t != null) executor.execute(t); (re-enqueue) but this will likely
                         // have undesired side effects (it's a recursive call in disguise)
                         // c) executor.ensurePrestart(); which is not public nor protected, so we would have to call it reflectively
+                        try {
+                            ensurePrestart$mh.invokeExact(executor);
+                        } catch (Throwable e) {
+                            throw new RuntimeException(e);
+                        }
                     }
                 }
             } else {

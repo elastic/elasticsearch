@@ -379,18 +379,6 @@ tests:
 - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
   method: test {yaml=reference/rest-api/common-options/line_125}
   issue: https://github.com/elastic/elasticsearch/issues/121338
-- class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
-  method: test {yaml=reference/snapshot-restore/apis/get-snapshot-api/line_751}
-  issue: https://github.com/elastic/elasticsearch/issues/121345
-- class: org.elasticsearch.xpack.security.profile.ProfileIntegTests
-  method: testHasPrivileges
-  issue: https://github.com/elastic/elasticsearch/issues/121346
-- class: org.elasticsearch.xpack.security.profile.ProfileIntegTests
-  method: testActivateProfile
-  issue: https://github.com/elastic/elasticsearch/issues/121151
-- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
-  method: test {yaml=search.vectors/42_knn_search_int4_flat/Vector similarity with filter only}
-  issue: https://github.com/elastic/elasticsearch/issues/121350
 
 # Examples:
 #

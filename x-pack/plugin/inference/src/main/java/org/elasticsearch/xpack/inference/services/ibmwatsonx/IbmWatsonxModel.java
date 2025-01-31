@@ -12,7 +12,6 @@ import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.ServiceSettings;
-import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.ibmwatsonx.IbmWatsonxActionVisitor;
 
@@ -35,12 +34,6 @@ public abstract class IbmWatsonxModel extends Model {
 
     public IbmWatsonxModel(IbmWatsonxModel model, ServiceSettings serviceSettings) {
         super(model, serviceSettings);
-
-        rateLimitServiceSettings = model.rateLimitServiceSettings();
-    }
-
-    public IbmWatsonxModel(IbmWatsonxModel model, TaskSettings taskSettings) {
-        super(model, taskSettings);
 
         rateLimitServiceSettings = model.rateLimitServiceSettings();
     }

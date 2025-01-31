@@ -43,4 +43,12 @@ tasks.named('yamlRestTest') {
   usesDefaultDistribution()
 }
 
+tasks.named("yamlRestTest") {
+  if (buildParams.isSnapshotBuild() == false) {
+    systemProperty 'tests.rest.blacklist', [
+      "resources/rest-api-spec/test/60_synthetic_source_recovery.yml"
+    ].join(',')
+  }
+}
+
 

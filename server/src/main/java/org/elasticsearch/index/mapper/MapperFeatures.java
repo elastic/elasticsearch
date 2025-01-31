@@ -11,9 +11,7 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
-import org.elasticsearch.index.IndexSettings;
 
-import java.util.HashSet;
 import java.util.Set;
 
 /**
@@ -34,36 +32,25 @@ public class MapperFeatures implements FeatureSpecification {
     public static final NodeFeature SORT_FIELDS_CHECK_FOR_NESTED_OBJECT_FIX = new NodeFeature("mapper.nested.sorting_fields_check_fix");
     public static final NodeFeature DYNAMIC_HANDLING_IN_COPY_TO = new NodeFeature("mapper.copy_to.dynamic_handling");
 
-    public static final NodeFeature USE_SYNTHETIC_SOURCE_FOR_RECOVERY_BY_DEFAULT = new NodeFeature(
-        "index.recovery.synthetic_source_default"
-    );
-
-    private static final Set<NodeFeature> DEFAULT_TEST_FEATURES = Set.of(
-        RangeFieldMapper.DATE_RANGE_INDEXING_FIX,
-        IgnoredSourceFieldMapper.DONT_EXPAND_DOTS_IN_IGNORED_SOURCE,
-        SourceFieldMapper.REMOVE_SYNTHETIC_SOURCE_ONLY_VALIDATION,
-        SourceFieldMapper.SOURCE_MODE_FROM_INDEX_SETTING,
-        IgnoredSourceFieldMapper.IGNORED_SOURCE_AS_TOP_LEVEL_METADATA_ARRAY_FIELD,
-        IgnoredSourceFieldMapper.ALWAYS_STORE_OBJECT_ARRAYS_IN_NESTED_OBJECTS,
-        MapperService.LOGSDB_DEFAULT_IGNORE_DYNAMIC_BEYOND_LIMIT,
-        DocumentParser.FIX_PARSING_SUBOBJECTS_FALSE_DYNAMIC_FALSE,
-        CONSTANT_KEYWORD_SYNTHETIC_SOURCE_WRITE_FIX,
-        META_FETCH_FIELDS_ERROR_CODE_CHANGED,
-        SPARSE_VECTOR_STORE_SUPPORT,
-        COUNTED_KEYWORD_SYNTHETIC_SOURCE_NATIVE_SUPPORT,
-        SORT_FIELDS_CHECK_FOR_NESTED_OBJECT_FIX,
-        DYNAMIC_HANDLING_IN_COPY_TO,
-        SourceFieldMapper.SYNTHETIC_RECOVERY_SOURCE,
-        ObjectMapper.SUBOBJECTS_FALSE_MAPPING_UPDATE_FIX
-    );
-
     @Override
     public Set<NodeFeature> getTestFeatures() {
-        if (IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE.isEnabled()) {
-            final Set<NodeFeature> features = new HashSet<>(DEFAULT_TEST_FEATURES);
-            features.add(USE_SYNTHETIC_SOURCE_FOR_RECOVERY_BY_DEFAULT);
-            return features;
-        }
-        return DEFAULT_TEST_FEATURES;
+        return Set.of(
+            RangeFieldMapper.DATE_RANGE_INDEXING_FIX,
+            IgnoredSourceFieldMapper.DONT_EXPAND_DOTS_IN_IGNORED_SOURCE,
+            SourceFieldMapper.REMOVE_SYNTHETIC_SOURCE_ONLY_VALIDATION,
+            SourceFieldMapper.SOURCE_MODE_FROM_INDEX_SETTING,
+            IgnoredSourceFieldMapper.IGNORED_SOURCE_AS_TOP_LEVEL_METADATA_ARRAY_FIELD,
+            IgnoredSourceFieldMapper.ALWAYS_STORE_OBJECT_ARRAYS_IN_NESTED_OBJECTS,
+            MapperService.LOGSDB_DEFAULT_IGNORE_DYNAMIC_BEYOND_LIMIT,
+            DocumentParser.FIX_PARSING_SUBOBJECTS_FALSE_DYNAMIC_FALSE,
+            CONSTANT_KEYWORD_SYNTHETIC_SOURCE_WRITE_FIX,
+            META_FETCH_FIELDS_ERROR_CODE_CHANGED,
+            SPARSE_VECTOR_STORE_SUPPORT,
+            COUNTED_KEYWORD_SYNTHETIC_SOURCE_NATIVE_SUPPORT,
+            SORT_FIELDS_CHECK_FOR_NESTED_OBJECT_FIX,
+            DYNAMIC_HANDLING_IN_COPY_TO,
+            SourceFieldMapper.SYNTHETIC_RECOVERY_SOURCE,
+            ObjectMapper.SUBOBJECTS_FALSE_MAPPING_UPDATE_FIX
+        );
     }
 }

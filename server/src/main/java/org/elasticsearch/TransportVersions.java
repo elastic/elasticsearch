@@ -171,6 +171,7 @@ public class TransportVersions {
     public static final TransportVersion LINEAR_RETRIEVER_SUPPORT = def(8_837_00_0);
     public static final TransportVersion TIMEOUT_GET_PARAM_FOR_RESOLVE_CLUSTER = def(8_838_00_0);
     public static final TransportVersion INFERENCE_REQUEST_ADAPTIVE_RATE_LIMITING = def(8_839_00_0);
+    public static final TransportVersion ELASTICSEARCH_9_0 = def(9_000_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,
@@ -229,15 +230,13 @@ public class TransportVersions {
      * Reference to the earliest compatible transport version to this version of the codebase.
      * This should be the transport version used by the highest minor version of the previous major.
      */
-    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA)
-    // This needs to be bumped to the 8.last
-    public static final TransportVersion MINIMUM_COMPATIBLE = V_7_17_0;
+    public static final TransportVersion MINIMUM_COMPATIBLE = BYTE_SIZE_VALUE_ALWAYS_USES_BYTES_1;
 
     /**
      * Reference to the minimum transport version that can be used with CCS.
      * This should be the transport version used by the previous minor release.
      */
-    public static final TransportVersion MINIMUM_CCS_VERSION = V_8_15_0;
+    public static final TransportVersion MINIMUM_CCS_VERSION = BYTE_SIZE_VALUE_ALWAYS_USES_BYTES_1;
 
     /**
      * Sorted list of all versions defined in this class

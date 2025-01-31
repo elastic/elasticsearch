@@ -9,12 +9,22 @@
 
 package org.elasticsearch.lucene;
 
+import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
+import org.elasticsearch.client.Response;
+import org.elasticsearch.client.RestClient;
+import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.test.cluster.util.Version;
+import org.elasticsearch.test.rest.ObjectPath;
+
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_READ_ONLY_BLOCK;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_WRITE_BLOCK;
@@ -36,6 +46,9 @@ public class FullClusterRestartLuceneIndexCompatibilityIT extends FullClusterRes
     public FullClusterRestartLuceneIndexCompatibilityIT(Version version) {
         super(version);
     }
+
+    // we need a place to store async_search ids across cluster restarts
+    private static Map<String, String> async_search_ids = new HashMap<>(3);
 
     /**
      * Creates an index on N-2, upgrades to N-1 and marks as read-only, then upgrades to N.
@@ -373,5 +386,119 @@ public class FullClusterRestartLuceneIndexCompatibilityIT extends FullClusterRes
             logger.debug("--> deleting index [{}]", index);
             deleteIndex(index);
         }
+    }
+
+    /**
+     * 1. creates an index on N-2 and performs async_search on it that is kept in system index
+     * 2. After update to N-1 (latest) perform a system index migration step, also write block the index
+     * 3. on N, check that async search results are still retrievable and we can write to the system index
+     */
+    public void testAsyncSearchIndexMigration() throws Exception {
+        final String index = suffix("index");
+        final String asyncSearchIndex = ".async-search";
+        final int numDocs = 2431;
+
+        final Request asyncSearchRequest = new Request("POST", "/" + index + "/_async_search?size=100&keep_on_completion=true");
+
+        if (isFullyUpgradedTo(VERSION_MINUS_2)) {
+            createIndex(
+                client(),
+                index,
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomInt(2))
+                    .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
+                    .build()
+            );
+            indexDocs(index, numDocs);
+            ensureGreen(index);
+
+            assertThat(indexVersion(index), equalTo(VERSION_MINUS_2));
+            String asyncId = searchAsyncAndStoreId(asyncSearchRequest, "n-2_id");
+            ensureGreen(asyncSearchIndex);
+
+            checkRetrieveAsyncSearch(asyncId, numDocs);
+            assertBusy(() -> assertDocCountNoWarnings(client(), asyncSearchIndex, 1));
+            assertThat(indexVersion(asyncSearchIndex, true), equalTo(VERSION_MINUS_2));
+            return;
+        }
+
+        if (isFullyUpgradedTo(VERSION_MINUS_1)) {
+            // check .async-search index is readable
+            assertThat(indexVersion(asyncSearchIndex, true), equalTo(VERSION_MINUS_2));
+
+            // migrate system indices
+            Request migrateRequest = new Request("POST", "/_migration/system_features");
+            assertThat(
+                ObjectPath.createFromResponse(client().performRequest(migrateRequest)).evaluate("features.0.feature_name"),
+                equalTo("async_search")
+            );
+            assertBusy(() -> {
+                Request checkMigrateProgress = new Request("GET", "/_migration/system_features");
+                Response resp = null;
+                try {
+                    assertFalse(
+                        ObjectPath.createFromResponse(client().performRequest(checkMigrateProgress))
+                            .evaluate("migration_status")
+                            .equals("IN_PROGRESS")
+                    );
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            });
+
+            // check search results from n-2 search are still readable
+            checkRetrieveAsyncSearch(async_search_ids.get("n-2_id"), numDocs);
+
+            // perform new async search and check its readable
+            String asyncId = searchAsyncAndStoreId(asyncSearchRequest, "n-1_id");
+            checkRetrieveAsyncSearch(asyncId, numDocs);
+            assertBusy(() -> assertDocCountNoWarnings(client(), asyncSearchIndex, 2));
+
+            // in order to move to current version we need write block for n-2 index
+            addIndexBlock(index, IndexMetadata.APIBlock.WRITE);
+        }
+
+        if (isFullyUpgradedTo(VERSION_CURRENT)) {
+            assertThat(indexVersion(index, true), equalTo(VERSION_MINUS_2));
+            checkRetrieveAsyncSearch(async_search_ids.get("n-2_id"), numDocs);
+            checkRetrieveAsyncSearch(async_search_ids.get("n-1_id"), numDocs);
+
+            // check system index is still writeable
+            String asyncId = searchAsyncAndStoreId(asyncSearchRequest, "n_id");
+            checkRetrieveAsyncSearch(asyncId, numDocs);
+            assertBusy(() -> assertDocCountNoWarnings(client(), asyncSearchIndex, 3));
+        }
+
+    }
+
+    private static String searchAsyncAndStoreId(Request asyncSearchRequest, String asyncIdName) throws IOException {
+        ObjectPath resp = ObjectPath.createFromResponse(client().performRequest(asyncSearchRequest));
+        String asyncId = resp.evaluate("id");
+        assertNotNull(asyncId);
+        async_search_ids.put(asyncIdName, asyncId);
+        return asyncId;
+    }
+
+    private static void checkRetrieveAsyncSearch(String asyncId, int numDocs) throws IOException {
+        var asyncGet = new Request("GET", "/_async_search/" + asyncId);
+        ObjectPath resp = ObjectPath.createFromResponse(client().performRequest(asyncGet));
+        assertEquals(Integer.valueOf(numDocs), resp.evaluate("response.hits.total.value"));
+    }
+
+    /**
+     * Assert that the index in question has the given number of documents present
+     */
+    public static void assertDocCountNoWarnings(RestClient client, String indexName, long docCount) throws IOException {
+        Request countReq = new Request("GET", "/" + indexName + "/_count");
+        RequestOptions.Builder options = countReq.getOptions().toBuilder();
+        options.setWarningsHandler(WarningsHandler.PERMISSIVE);
+        countReq.setOptions(options);
+        ObjectPath resp = ObjectPath.createFromResponse(client.performRequest(countReq));
+        assertEquals(
+            "expected " + docCount + " documents but it was a different number",
+            docCount,
+            Long.parseLong(resp.evaluate("count").toString())
+        );
     }
 }

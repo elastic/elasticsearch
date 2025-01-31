@@ -237,7 +237,7 @@ public class CrossClustersCancellationIT extends AbstractMultiClustersTestCase {
         requestFuture.actionGet(30, TimeUnit.SECONDS).close();
     }
 
-    // Check that cancelling remote task with skip_unavailable=true produces partial
+    // Check that cancelling remote task with skip_unavailable=true produces failure
     public void testCancelSkipUnavailable() throws Exception {
         createRemoteIndex(between(10, 100));
         EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest();
@@ -276,16 +276,9 @@ public class CrossClustersCancellationIT extends AbstractMultiClustersTestCase {
         } finally {
             SimplePauseFieldPlugin.allowEmitting.countDown();
         }
-        var resp = requestFuture.actionGet();
-        EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
 
-        assertNotNull(executionInfo);
-        assertThat(executionInfo.isPartial(), equalTo(true));
-        EsqlExecutionInfo.Cluster cluster = executionInfo.getCluster(REMOTE_CLUSTER);
-
-        assertThat(cluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.PARTIAL));
-        assertThat(cluster.getFailures().size(), equalTo(1));
-        assertThat(cluster.getFailures().get(0).getCause(), instanceOf(TaskCancelledException.class));
+        Exception error = expectThrows(Exception.class, requestFuture::actionGet);
+        assertThat(error.getMessage(), containsString("remote failed"));
     }
 
     // Check that closing remote node with skip_unavailable=true produces partial

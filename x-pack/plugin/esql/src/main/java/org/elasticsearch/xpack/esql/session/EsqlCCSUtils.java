@@ -360,12 +360,14 @@ public class EsqlCCSUtils {
         });
     }
 
+    /**
+     * We will ignore the error if it's remote unavailable and the cluster is marked to skip unavailable.
+     */
     public static boolean shouldIgnoreRuntimeError(EsqlExecutionInfo executionInfo, String clusterAlias, Exception e) {
         if (executionInfo.isSkipUnavailable(clusterAlias) == false) {
             return false;
         }
 
-        return ExceptionsHelper.isRemoteUnavailableException(e)
-            || (e instanceof RemoteTransportException && ExceptionsHelper.unwrap(e, TaskCancelledException.class) != null);
+        return ExceptionsHelper.isRemoteUnavailableException(e);
     }
 }

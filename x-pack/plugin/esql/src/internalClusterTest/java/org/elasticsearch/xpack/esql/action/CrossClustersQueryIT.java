@@ -846,8 +846,8 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
         assertTrue(latch.await(30, TimeUnit.SECONDS));
     }
 
-    // Non-disconnect remote failures still fail the request
-    public void testRemoteFailureSkipUnavailable() throws IOException {
+    // Non-disconnect remote failures still fail the request even if skip_unavailable is true
+    public void testRemoteFailureSkipUnavailableTrue() throws IOException {
         Map<String, Object> testClusterInfo = setupFailClusters();
         String localIndex = (String) testClusterInfo.get("local.index");
         String remote1Index = (String) testClusterInfo.get("remote.index");

@@ -31,11 +31,18 @@ import org.elasticsearch.entitlement.runtime.policy.Scope;
 import java.lang.instrument.Instrumentation;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
+import java.nio.file.FileSystems;
+import java.nio.file.OpenOption;
+import java.nio.file.Path;
+import java.nio.file.spi.FileSystemProvider;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Called by the agent during {@code agentmain} to configure the entitlement system,
@@ -46,6 +53,7 @@ import java.util.stream.Collectors;
  */
 public class EntitlementInitialization {
 
+    private static final String AGENTS_PACKAGE_NAME = "co.elastic.apm.agent";
     private static final Module ENTITLEMENTS_MODULE = PolicyManager.class.getModule();
 
     private static ElasticsearchEntitlementChecker manager;
@@ -59,11 +67,37 @@ public class EntitlementInitialization {
     public static void initialize(Instrumentation inst) throws Exception {
         manager = initChecker();
 
-        Map<MethodKey, CheckMethod> checkMethods = INSTRUMENTER_FACTORY.lookupMethods(EntitlementChecker.class);
+        Map<MethodKey, CheckMethod> checkMethods = new HashMap<>();
+        int javaVersion = Runtime.version().feature();
+        Set<Class<?>> interfaces = new HashSet<>();
+        for (int i = 17; i <= javaVersion; ++i) {
+            interfaces.add(getVersionSpecificCheckerClass(i, "org.elasticsearch.entitlement.bridge", "EntitlementChecker"));
+        }
+        for (var checkerInterface : interfaces) {
+            checkMethods.putAll(INSTRUMENTATION_SERVICE.lookupMethods(checkerInterface));
+        }
 
+        var fileSystemProviderClass = FileSystems.getDefault().provider().getClass();
+        Stream.of(
+            INSTRUMENTATION_SERVICE.lookupImplementationMethod(
+                FileSystemProvider.class,
+                "newInputStream",
+                fileSystemProviderClass,
+                EntitlementChecker.class,
+                "checkNewInputStream",
+                Path.class,
+                OpenOption[].class
+            )
+        ).forEach(instrumentation -> checkMethods.put(instrumentation.targetMethod(), instrumentation.checkMethod()));
+
+        var latestCheckerInterface = getVersionSpecificCheckerClass(
+            javaVersion,
+            "org.elasticsearch.entitlement.bridge",
+            "EntitlementChecker"
+        );
         var classesToTransform = checkMethods.keySet().stream().map(MethodKey::className).collect(Collectors.toSet());
 
-        Instrumenter instrumenter = INSTRUMENTER_FACTORY.newInstrumenter(EntitlementChecker.class, checkMethods);
+        Instrumenter instrumenter = INSTRUMENTATION_SERVICE.newInstrumenter(latestCheckerInterface, checkMethods);
         inst.addTransformer(new Transformer(instrumenter, classesToTransform), true);
         inst.retransformClasses(findClassesToRetransform(inst.getAllLoadedClasses(), classesToTransform));
     }
@@ -98,33 +132,26 @@ public class EntitlementInitialization {
                     )
                 ),
                 new Scope("org.apache.httpcomponents.httpclient", List.of(new OutboundNetworkEntitlement())),
-                new Scope("io.netty.transport", List.of(new InboundNetworkEntitlement(), new OutboundNetworkEntitlement()))
+                new Scope("io.netty.transport", List.of(new InboundNetworkEntitlement(), new OutboundNetworkEntitlement())),
+                new Scope("org.apache.lucene.core", List.of(new LoadNativeLibrariesEntitlement())),
+                new Scope("org.elasticsearch.nativeaccess", List.of(new LoadNativeLibrariesEntitlement()))
             )
         );
         // agents run without a module, so this is a special hack for the apm agent
         // this should be removed once https://github.com/elastic/elasticsearch/issues/109335 is completed
         List<Entitlement> agentEntitlements = List.of(new CreateClassLoaderEntitlement());
         var resolver = EntitlementBootstrap.bootstrapArgs().pluginResolver();
-        return new PolicyManager(serverPolicy, agentEntitlements, pluginPolicies, resolver, ENTITLEMENTS_MODULE);
+        return new PolicyManager(serverPolicy, agentEntitlements, pluginPolicies, resolver, AGENTS_PACKAGE_NAME, ENTITLEMENTS_MODULE);
     }
 
     private static ElasticsearchEntitlementChecker initChecker() {
         final PolicyManager policyManager = createPolicyManager();
 
-        int javaVersion = Runtime.version().feature();
-        final String classNamePrefix;
-        if (javaVersion >= 23) {
-            classNamePrefix = "Java23";
-        } else {
-            classNamePrefix = "";
-        }
-        final String className = "org.elasticsearch.entitlement.runtime.api." + classNamePrefix + "ElasticsearchEntitlementChecker";
-        Class<?> clazz;
-        try {
-            clazz = Class.forName(className);
-        } catch (ClassNotFoundException e) {
-            throw new AssertionError("entitlement lib cannot find entitlement impl", e);
-        }
+        Class<?> clazz = getVersionSpecificCheckerClass(
+            Runtime.version().feature(),
+            "org.elasticsearch.entitlement.runtime.api",
+            "ElasticsearchEntitlementChecker"
+        );
         Constructor<?> constructor;
         try {
             constructor = clazz.getConstructor(PolicyManager.class);
@@ -138,7 +165,28 @@ public class EntitlementInitialization {
         }
     }
 
-    private static final InstrumentationService INSTRUMENTER_FACTORY = new ProviderLocator<>(
+    private static Class<?> getVersionSpecificCheckerClass(int javaVersion, String packageName, String baseClassName) {
+        final String classNamePrefix;
+        if (javaVersion == 21) {
+            classNamePrefix = "Java21";
+        } else if (javaVersion == 22) {
+            classNamePrefix = "Java22";
+        } else if (javaVersion >= 23) {
+            classNamePrefix = "Java23";
+        } else {
+            classNamePrefix = "";
+        }
+        final String className = packageName + "." + classNamePrefix + baseClassName;
+        Class<?> clazz;
+        try {
+            clazz = Class.forName(className);
+        } catch (ClassNotFoundException e) {
+            throw new AssertionError("entitlement lib cannot find entitlement class " + className, e);
+        }
+        return clazz;
+    }
+
+    private static final InstrumentationService INSTRUMENTATION_SERVICE = new ProviderLocator<>(
         "entitlement",
         InstrumentationService.class,
         "org.elasticsearch.entitlement.instrumentation",

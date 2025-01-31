@@ -9,9 +9,11 @@
 
 package org.elasticsearch.entitlement.runtime.api;
 
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.entitlement.bridge.EntitlementChecker;
 import org.elasticsearch.entitlement.runtime.policy.PolicyManager;
 
+import java.io.File;
 import java.io.InputStream;
 import java.io.PrintStream;
 import java.io.PrintWriter;
@@ -44,6 +46,11 @@ import java.nio.channels.CompletionHandler;
 import java.nio.channels.DatagramChannel;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
+import java.nio.charset.Charset;
+import java.nio.file.OpenOption;
+import java.nio.file.Path;
+import java.nio.file.attribute.UserPrincipal;
+import java.nio.file.spi.FileSystemProvider;
 import java.security.cert.CertStoreParameters;
 import java.util.List;
 import java.util.Locale;
@@ -60,9 +67,10 @@ import javax.net.ssl.SSLSocketFactory;
  * API methods for managing the checks.
  * The trampoline module loads this object via SPI.
  */
+@SuppressForbidden(reason = "Explicitly checking APIs that are forbidden")
 public class ElasticsearchEntitlementChecker implements EntitlementChecker {
 
-    private final PolicyManager policyManager;
+    protected final PolicyManager policyManager;
 
     public ElasticsearchEntitlementChecker(PolicyManager policyManager) {
         this.policyManager = policyManager;
@@ -752,6 +760,7 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
 
     @Override
     public void check$java_lang_Runtime$load(Class<?> callerClass, Runtime that, String filename) {
+        // TODO: check filesystem entitlement READ
         policyManager.checkLoadingNativeLibraries(callerClass);
     }
 
@@ -762,11 +771,71 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
 
     @Override
     public void check$java_lang_System$$load(Class<?> callerClass, String filename) {
+        // TODO: check filesystem entitlement READ
         policyManager.checkLoadingNativeLibraries(callerClass);
     }
 
     @Override
     public void check$java_lang_System$$loadLibrary(Class<?> callerClass, String libname) {
         policyManager.checkLoadingNativeLibraries(callerClass);
+    }
+
+    @Override
+    public void check$java_lang_ModuleLayer$Controller$enableNativeAccess(
+        Class<?> callerClass,
+        ModuleLayer.Controller that,
+        Module target
+    ) {
+        policyManager.checkLoadingNativeLibraries(callerClass);
+    }
+
+    @Override
+    public void check$java_util_Scanner$(Class<?> callerClass, File source) {
+        policyManager.checkFileRead(callerClass, source);
+    }
+
+    @Override
+    public void check$java_util_Scanner$(Class<?> callerClass, File source, String charsetName) {
+        policyManager.checkFileRead(callerClass, source);
+    }
+
+    @Override
+    public void check$java_util_Scanner$(Class<?> callerClass, File source, Charset charset) {
+        policyManager.checkFileRead(callerClass, source);
+    }
+
+    @Override
+    public void check$java_io_FileOutputStream$(Class<?> callerClass, String name) {
+        policyManager.checkFileWrite(callerClass, new File(name));
+    }
+
+    @Override
+    public void check$java_io_FileOutputStream$(Class<?> callerClass, String name, boolean append) {
+        policyManager.checkFileWrite(callerClass, new File(name));
+    }
+
+    @Override
+    public void check$java_io_FileOutputStream$(Class<?> callerClass, File file) {
+        policyManager.checkFileWrite(callerClass, file);
+    }
+
+    @Override
+    public void check$java_io_FileOutputStream$(Class<?> callerClass, File file, boolean append) {
+        policyManager.checkFileWrite(callerClass, file);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$probeContentType(Class<?> callerClass, Path path) {
+        policyManager.checkFileRead(callerClass, path);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$setOwner(Class<?> callerClass, Path path, UserPrincipal principal) {
+        policyManager.checkFileWrite(callerClass, path);
+    }
+
+    @Override
+    public void checkNewInputStream(Class<?> callerClass, FileSystemProvider that, Path path, OpenOption... options) {
+        // TODO: policyManger.checkFileSystemRead(path);
     }
 }

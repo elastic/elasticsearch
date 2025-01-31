@@ -17,8 +17,17 @@ tasks.named('jar').configure {
   if (sourceSets.findByName("main23")) {
     from sourceSets.main23.output
   }
+  if (sourceSets.findByName("main21")) {
+    from sourceSets.main21.output
+  }
+  if (sourceSets.findByName("main22")) {
+    from sourceSets.main22.output
+  }
 }
 
+// The bridge only uses things within the jdk, but the checker
+// needs to have many forbidden apis in its signatures. Suppressing
+// each use of forbidden apis would be tedious and not useful.
 tasks.withType(CheckForbiddenApisTask).configureEach {
-  replaceSignatureFiles 'jdk-signatures'
+  enabled = false
 }

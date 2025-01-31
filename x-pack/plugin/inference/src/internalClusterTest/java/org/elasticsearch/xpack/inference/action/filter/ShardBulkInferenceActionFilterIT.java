@@ -20,8 +20,9 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.plugins.Plugin;
@@ -49,14 +50,21 @@ public class ShardBulkInferenceActionFilterIT extends ESIntegTestCase {
     public static final String INDEX_NAME = "test-index";
 
     private final boolean useLegacyFormat;
+    private final boolean useSyntheticSource;
 
-    public ShardBulkInferenceActionFilterIT(boolean useLegacyFormat) {
+    public ShardBulkInferenceActionFilterIT(boolean useLegacyFormat, boolean useSyntheticSource) {
         this.useLegacyFormat = useLegacyFormat;
+        this.useSyntheticSource = useSyntheticSource;
     }
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {
-        return List.of(new Object[] { true }, new Object[] { false });
+        return List.of(
+            new Object[] { true, false },
+            new Object[] { true, true },
+            new Object[] { false, false },
+            new Object[] { false, true }
+        );
     }
 
     @Before
@@ -79,37 +87,38 @@ public class ShardBulkInferenceActionFilterIT extends ESIntegTestCase {
 
     @Override
     public Settings indexSettings() {
-        return Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+        var builder = Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 10))
-            .put(InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT.getKey(), useLegacyFormat)
-            .build();
+            .put(InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT.getKey(), useLegacyFormat);
+        if (useSyntheticSource) {
+            builder.put(IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(), true);
+            builder.put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.SYNTHETIC.name());
+        }
+        return builder.build();
     }
 
     public void testBulkOperations() throws Exception {
-        indicesAdmin().prepareCreate(INDEX_NAME)
-            .setMapping(
-                String.format(
-                    Locale.ROOT,
-                    """
-                        {
-                            "properties": {
-                                "sparse_field": {
-                                    "type": "semantic_text",
-                                    "inference_id": "%s"
-                                },
-                                "dense_field": {
-                                    "type": "semantic_text",
-                                    "inference_id": "%s"
-                                }
+        prepareCreate(INDEX_NAME).setMapping(
+            String.format(
+                Locale.ROOT,
+                """
+                    {
+                        "properties": {
+                            "sparse_field": {
+                                "type": "semantic_text",
+                                "inference_id": "%s"
+                            },
+                            "dense_field": {
+                                "type": "semantic_text",
+                                "inference_id": "%s"
                             }
                         }
-                        """,
-                    TestSparseInferenceServiceExtension.TestInferenceService.NAME,
-                    TestDenseInferenceServiceExtension.TestInferenceService.NAME
-                )
+                    }
+                    """,
+                TestSparseInferenceServiceExtension.TestInferenceService.NAME,
+                TestDenseInferenceServiceExtension.TestInferenceService.NAME
             )
-            .get();
+        ).get();
 
         int totalBulkReqs = randomIntBetween(2, 100);
         long totalDocs = 0;

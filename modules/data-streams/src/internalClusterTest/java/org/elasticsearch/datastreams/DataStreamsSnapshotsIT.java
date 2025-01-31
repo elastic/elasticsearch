@@ -1112,11 +1112,8 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
 
     /**
      * This test is a copy of the {@link #testPartialRestoreSnapshotThatIncludesDataStream()} the only difference
-     * is that one include the global state and one doesn't. In general this shouldn't matter that's why it used to be
-     * a random parameter of the test, but because of #107515 it fails when we include the global state. Keep them
-     * separate until this is fixed.
+     * is that one include the global state and one doesn't.
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/107515")
     public void testPartialRestoreSnapshotThatIncludesDataStreamWithGlobalState() {
         final String snapshot = "test-snapshot";
         final String indexWithoutDataStream = "test-idx-no-ds";
@@ -1282,11 +1279,8 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
 
     /**
      * This test is a copy of the {@link #testExcludeDSFromSnapshotWhenExcludingAnyOfItsIndices()} ()} the only difference
-     * is that one include the global state and one doesn't. In general this shouldn't matter that's why it used to be
-     * a random parameter of the test, but because of #107515 it fails when we include the global state. Keep them
-     * separate until this is fixed.
+     * is that one include the global state and one doesn't.
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/107515")
     public void testExcludeDSFromSnapshotWhenExcludingItsIndicesWithGlobalState() {
         final String snapshot = "test-snapshot";
         final String indexWithoutDataStream = "test-idx-no-ds";

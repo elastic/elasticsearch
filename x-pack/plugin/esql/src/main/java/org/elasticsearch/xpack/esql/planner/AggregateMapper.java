@@ -214,6 +214,9 @@ final class AggregateMapper {
         if (tuple.v1().isAssignableFrom(Rate.class)) {
             // rate doesn't support non-grouping aggregations
             return Stream.of(new AggDef(tuple.v1(), tuple.v2().v1(), tuple.v2().v2(), true));
+        } else if (tuple.v2().v1().equals("AggregateMetricDouble")) {
+            // TODO: support grouping aggregations for aggregate metric double
+            return Stream.of(new AggDef(tuple.v1(), tuple.v2().v1(), tuple.v2().v2(), false));
         } else {
             return Stream.of(
                 new AggDef(tuple.v1(), tuple.v2().v1(), tuple.v2().v2(), true),
@@ -333,6 +336,7 @@ final class AggregateMapper {
             case CARTESIAN_POINT -> "CartesianPoint";
             case GEO_SHAPE -> "GeoShape";
             case CARTESIAN_SHAPE -> "CartesianShape";
+            case AGGREGATE_METRIC_DOUBLE -> "AggregateMetricDouble";
             case SEMANTIC_TEXT, UNSUPPORTED, NULL, UNSIGNED_LONG, SHORT, BYTE, FLOAT, HALF_FLOAT, SCALED_FLOAT, OBJECT, SOURCE, DATE_PERIOD,
                 TIME_DURATION, DOC_DATA_TYPE, TSID_DATA_TYPE, PARTIAL_AGG -> throw new EsqlIllegalArgumentException(
                     "illegal agg type: " + type.typeName()

@@ -7240,38 +7240,6 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertEquals("1:60: argument of [to_timeduration(x)] must be a constant, received [x]", e.getMessage().substring(header.length()));
     }
 
-    // These should pass eventually once we lift some restrictions on match function
-    public void testMatchWithNonIndexedColumnCurrentlyUnsupported() {
-        final String header = "Found 1 problem\nline ";
-        VerificationException e = expectThrows(VerificationException.class, () -> plan("""
-            from test | eval initial = substring(first_name, 1) | where match(initial, "A")"""));
-        assertTrue(e.getMessage().startsWith("Found "));
-        assertEquals(
-            "1:67: [MATCH] function cannot operate on [initial], which is not a field from an index mapping",
-            e.getMessage().substring(header.length())
-        );
-
-        e = expectThrows(VerificationException.class, () -> plan("""
-            from test | eval text=concat(first_name, last_name) | where match(text, "cat")"""));
-        assertTrue(e.getMessage().startsWith("Found "));
-        assertEquals(
-            "1:67: [MATCH] function cannot operate on [text], which is not a field from an index mapping",
-            e.getMessage().substring(header.length())
-        );
-    }
-
-    public void testMatchFunctionIsNotNullable() {
-        String queryText = """
-            row n = null | eval text = n + 5 | where match(text::keyword, "Anna")
-            """;
-
-        VerificationException ve = expectThrows(VerificationException.class, () -> plan(queryText));
-        assertThat(
-            ve.getMessage(),
-            containsString("[MATCH] function cannot operate on [text::keyword], which is not a field from an index mapping")
-        );
-    }
-
     public void testWhereNull() {
         var plan = plan("""
             from test

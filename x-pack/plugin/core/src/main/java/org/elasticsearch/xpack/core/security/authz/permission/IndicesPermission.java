@@ -847,17 +847,20 @@ public final class IndicesPermission {
             // TODO: [Jake] how to support selectors for hasPrivileges ? (are reg-ex's just broken for hasPrivilege index checks ?)
             // TODO: [Jake] ensure that only ::failure selectors can be added the role (i.e. error on name::* or name::data)
             // TODO: [Jake] ensure that no selectors can be added to remote_indices (or gate usage with a feature flag, or just test)
-            String[] indicesResolved = maybeAddFailureExclusions(indices);
+            String[] patternsReWritten = maybeAddFailureExclusions(indices);
             this.allowRestrictedIndices = allowRestrictedIndices;
             ConcurrentHashMap<String[], Automaton> indexNameAutomatonMemo = new ConcurrentHashMap<>(1);
             if (allowRestrictedIndices) {
-                this.indexNameMatcher = StringMatcher.of(indicesResolved);
-                this.indexNameAutomaton = () -> indexNameAutomatonMemo.computeIfAbsent(indices, k -> Automatons.patterns(indices));
-            } else {
-                this.indexNameMatcher = StringMatcher.of(indicesResolved).and(name -> restrictedIndices.isRestricted(name) == false);
+                this.indexNameMatcher = StringMatcher.of(patternsReWritten);
                 this.indexNameAutomaton = () -> indexNameAutomatonMemo.computeIfAbsent(
-                    indices,
-                    k -> Automatons.minusAndMinimize(Automatons.patterns(indices), restrictedIndices.getAutomaton())
+                    patternsReWritten,
+                    k -> Automatons.patterns(patternsReWritten)
+                );
+            } else {
+                this.indexNameMatcher = StringMatcher.of(patternsReWritten).and(name -> restrictedIndices.isRestricted(name) == false);
+                this.indexNameAutomaton = () -> indexNameAutomatonMemo.computeIfAbsent(
+                    patternsReWritten,
+                    k -> Automatons.minusAndMinimize(Automatons.patterns(patternsReWritten), restrictedIndices.getAutomaton())
                 );
             }
             this.fieldPermissions = Objects.requireNonNull(fieldPermissions);

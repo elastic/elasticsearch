@@ -191,8 +191,12 @@ public class TransportVersionTests extends ESTestCase {
     public void testPatchVersionsStillAvailable() {
         for (TransportVersion tv : TransportVersion.getAllVersions()) {
             if (tv.onOrAfter(TransportVersions.V_8_9_X) && (tv.id() % 100) > 90) {
-                fail("Transport version " + tv + " is nearing the limit of available patch numbers." +
-                    " Please inform the Core/Infra team that isPatchFrom may need to be modified");
+                fail(
+                    "Transport version "
+                        + tv
+                        + " is nearing the limit of available patch numbers."
+                        + " Please inform the Core/Infra team that isPatchFrom may need to be modified"
+                );
             }
         }
     }

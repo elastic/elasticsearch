@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.plugin;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -22,7 +23,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -116,7 +116,7 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
         var future = sendRequests(targetShards, (node, shardIds, aliasFilters, listener) -> {
             fail("expect no data-node request is sent when target shards are missing");
         });
-        var error = expectThrows(ShardNotFoundException.class, future::actionGet);
+        var error = expectThrows(NoShardAvailableActionException.class, future::actionGet);
         assertThat(error.getMessage(), containsString("no shard copies found"));
     }
 

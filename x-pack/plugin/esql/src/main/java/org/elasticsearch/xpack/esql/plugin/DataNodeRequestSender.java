@@ -57,9 +57,8 @@ abstract class DataNodeRequestSender {
     private final ReentrantLock sendingLock = new ReentrantLock();
     private final Queue<ShardId> pendingShardIds = ConcurrentCollections.newQueue();
     private final Map<DiscoveryNode, Semaphore> nodePermits = new HashMap<>();
-    private final Map<ShardId, Exception> shardFailures = ConcurrentCollections.newConcurrentMap();
+    private final Map<ShardId, ShardFailure> shardFailures = ConcurrentCollections.newConcurrentMap();
     private final AtomicBoolean changed = new AtomicBoolean();
-    private final AtomicBoolean aborted = new AtomicBoolean();
 
     DataNodeRequestSender(TransportService transportService, Executor esqlExecutor, CancellableTask rootTask) {
         this.transportService = transportService;
@@ -110,16 +109,12 @@ abstract class DataNodeRequestSender {
                     }
                     for (ShardId shardId : pendingShardIds) {
                         if (targetShards.getShard(shardId).remainingNodes.isEmpty()) {
-                            final Exception failure = shardFailures.get(shardId);
-                            if (failure == null) {
-                                shardFailures.put(shardId, new ShardNotFoundException(shardId, "no shard copies found {}", shardId));
-                            }
-                            aborted.set(true);
+                            trackShardLevelFailure(shardId, true, new ShardNotFoundException(shardId, "no shard copies found {}"));
                         }
                     }
-                    if (aborted.get()) {
-                        for (Exception e : shardFailures.values()) {
-                            computeListener.acquireAvoid().onFailure(e);
+                    if (shardFailures.values().stream().anyMatch(shardFailure -> shardFailure.fatal)) {
+                        for (var e : shardFailures.values()) {
+                            computeListener.acquireAvoid().onFailure(e.failure);
                         }
                     } else {
                         var nodeRequests = selectNodeRequests(targetShards);
@@ -155,7 +150,7 @@ abstract class DataNodeRequestSender {
                 }
                 for (Map.Entry<ShardId, Exception> e : response.shardLevelFailures().entrySet()) {
                     final ShardId shardId = e.getKey();
-                    trackShardLevelFailure(shardId, e.getValue());
+                    trackShardLevelFailure(shardId, false, e.getValue());
                     pendingShardIds.add(shardId);
                 }
                 onAfter(response.profiles());
@@ -163,11 +158,8 @@ abstract class DataNodeRequestSender {
 
             @Override
             public void onFailure(Exception e, boolean receivedData) {
-                if (receivedData) {
-                    aborted.set(true);
-                }
                 for (ShardId shardId : request.shardIds) {
-                    trackShardLevelFailure(shardId, e);
+                    trackShardLevelFailure(shardId, receivedData, e);
                     pendingShardIds.add(shardId);
                 }
                 onAfter(List.of());
@@ -192,18 +184,18 @@ abstract class DataNodeRequestSender {
         }
     }
 
-    private void trackShardLevelFailure(ShardId shardId, Exception originalEx) {
+    private void trackShardLevelFailure(ShardId shardId, boolean fatal, Exception originalEx) {
         final Exception e = unwrapFailure(originalEx);
         // Retain only one meaningful exception and avoid suppressing previous failures to minimize memory usage, especially when handling
         // many shards.
         shardFailures.compute(shardId, (k, current) -> {
             if (current == null) {
-                return e;
+                return new ShardFailure(fatal, e);
             }
             if (e instanceof NoShardAvailableActionException || ExceptionsHelper.unwrap(e, TaskCancelledException.class) != null) {
-                return current;
+                return new ShardFailure(current.fatal || fatal, current.failure);
             }
-            return e;
+            return new ShardFailure(current.fatal || fatal, e);
         });
     }
 
@@ -233,6 +225,10 @@ abstract class DataNodeRequestSender {
     }
 
     record NodeRequest(DiscoveryNode node, List<ShardId> shardIds, Map<Index, AliasFilter> aliasFilters) {
+
+    }
+
+    private record ShardFailure(boolean fatal, Exception failure) {
 
     }
 

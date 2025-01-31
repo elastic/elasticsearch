@@ -353,7 +353,7 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
     }
 
     /**
-     *
+     * Removes the skipped settings from the selected indices and the component and index templates.
      * @param state The cluster state to modify
      * @param indexNames The names of the indexes whose settings need to be filtered
      * @param skipTheseDeprecatedSettings The settings that will be removed from cluster metadata and the index metadata of all the
@@ -405,7 +405,7 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
             String templateName = entry.getKey();
             ComposableIndexTemplate indexTemplate = entry.getValue();
             Template template = indexTemplate.template();
-            if (templateName == null || template.settings() == null || template.settings().isEmpty()) {
+            if (template == null || template.settings() == null || template.settings().isEmpty()) {
                 return Tuple.tuple(templateName, indexTemplate);
             }
             return Tuple.tuple(

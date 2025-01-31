@@ -1,5 +1,3 @@
-// TODO: investigate occasional mem.leak in this big test
-
 too much data
 required_capability: change_point
 

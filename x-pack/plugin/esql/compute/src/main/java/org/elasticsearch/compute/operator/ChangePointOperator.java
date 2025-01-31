@@ -14,53 +14,51 @@ import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.ml.aggs.MlAggsHelper;
 import org.elasticsearch.xpack.ml.aggs.changepoint.ChangePointDetector;
 import org.elasticsearch.xpack.ml.aggs.changepoint.ChangeType;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.Deque;
+import java.util.LinkedList;
 
 public class ChangePointOperator implements Operator {
 
-    // TODO: close upon failure / interrupt
-
     public static final int INPUT_VALUE_COUNT_LIMIT = 1000;
 
-    public record Factory(int inputChannel, String sourceText, int sourceLine, int sourceColumn) implements OperatorFactory {
+    public record Factory(int channel, String sourceText, int sourceLine, int sourceColumn) implements OperatorFactory {
         @Override
         public Operator get(DriverContext driverContext) {
-            return new ChangePointOperator(driverContext, inputChannel, sourceText, sourceLine, sourceColumn);
+            return new ChangePointOperator(driverContext, channel, sourceText, sourceLine, sourceColumn);
         }
 
         @Override
         public String describe() {
-            return "ChangePointOperator[input=" + inputChannel + "]";
+            return "ChangePointOperator[channel=" + channel + "]";
         }
     }
 
     private final DriverContext driverContext;
-    private final int inputChannel;
+    private final int channel;
     private final String sourceText;
     private final int sourceLine;
     private final int sourceColumn;
 
-    private final List<Page> inputPages;
-    private final List<Page> outputPages;
+    private final Deque<Page> inputPages;
+    private final Deque<Page> outputPages;
     private boolean finished;
-    private int outputPageIndex;
     private Warnings warnings;
 
-    public ChangePointOperator(DriverContext driverContext, int inputChannel, String sourceText, int sourceLine, int sourceColumn) {
+    public ChangePointOperator(DriverContext driverContext, int channel, String sourceText, int sourceLine, int sourceColumn) {
         this.driverContext = driverContext;
-        this.inputChannel = inputChannel;
+        this.channel = channel;
         this.sourceText = sourceText;
         this.sourceLine = sourceLine;
         this.sourceColumn = sourceColumn;
 
         finished = false;
-        inputPages = new ArrayList<>();
-        outputPages = new ArrayList<>();
+        inputPages = new LinkedList<>();
+        outputPages = new LinkedList<>();
         warnings = null;
     }
 
@@ -89,14 +87,10 @@ public class ChangePointOperator implements Operator {
 
     @Override
     public Page getOutput() {
-        if (finished == false) {
+        if (finished == false || outputPages.isEmpty()) {
             return null;
         }
-        if (outputPageIndex == outputPages.size()) {
-            outputPages.clear();
-            return null;
-        }
-        return outputPages.get(outputPageIndex++);
+        return outputPages.removeFirst();
     }
 
     private void createOutputPages() {
@@ -109,12 +103,11 @@ public class ChangePointOperator implements Operator {
             valuesCount = INPUT_VALUE_COUNT_LIMIT;
         }
 
-        // TODO: account for this memory?
         double[] values = new double[valuesCount];
         int valuesIndex = 0;
         boolean hasNulls = false;
         for (Page inputPage : inputPages) {
-            Block inputBlock = inputPage.getBlock(inputChannel);
+            Block inputBlock = inputPage.getBlock(channel);
             for (int i = 0; i < inputBlock.getPositionCount() && valuesIndex < valuesCount; i++) {
                 Object value = BlockUtils.toJavaObject(inputBlock, i);
                 if (value == null) {
@@ -131,37 +124,47 @@ public class ChangePointOperator implements Operator {
 
         BlockFactory blockFactory = driverContext.blockFactory();
         int pageStartIndex = 0;
-        for (Page inputPage : inputPages) {
-            Block changeTypeBlock;
-            Block changePvalueBlock;
-            if (pageStartIndex <= changePointIndex && changePointIndex < pageStartIndex + inputPage.getPositionCount()) {
-                try (
-                    BytesRefBlock.Builder changeTypeBlockBuilder = blockFactory.newBytesRefBlockBuilder(inputPage.getPositionCount());
-                    DoubleBlock.Builder pvalueBlockBuilder = blockFactory.newDoubleBlockBuilder(inputPage.getPositionCount())
-                ) {
-                    for (int i = 0; i < inputPage.getPositionCount(); i++) {
-                        if (pageStartIndex + i == changePointIndex) {
-                            changeTypeBlockBuilder.appendBytesRef(new BytesRef(changeType.getWriteableName()));
-                            pvalueBlockBuilder.appendDouble(changeType.pValue());
-                        } else {
-                            changeTypeBlockBuilder.appendNull();
-                            pvalueBlockBuilder.appendNull();
+        while (inputPages.isEmpty() == false) {
+            Page inputPage = inputPages.peek();
+            Page outputPage;
+            Block changeTypeBlock = null;
+            Block changePvalueBlock = null;
+            boolean success = false;
+            try {
+                if (pageStartIndex <= changePointIndex && changePointIndex < pageStartIndex + inputPage.getPositionCount()) {
+                    try (
+                        BytesRefBlock.Builder changeTypeBlockBuilder = blockFactory.newBytesRefBlockBuilder(inputPage.getPositionCount());
+                        DoubleBlock.Builder pvalueBlockBuilder = blockFactory.newDoubleBlockBuilder(inputPage.getPositionCount())
+                    ) {
+                        for (int i = 0; i < inputPage.getPositionCount(); i++) {
+                            if (pageStartIndex + i == changePointIndex) {
+                                changeTypeBlockBuilder.appendBytesRef(new BytesRef(changeType.getWriteableName()));
+                                pvalueBlockBuilder.appendDouble(changeType.pValue());
+                            } else {
+                                changeTypeBlockBuilder.appendNull();
+                                pvalueBlockBuilder.appendNull();
+                            }
                         }
+                        changeTypeBlock = changeTypeBlockBuilder.build();
+                        changePvalueBlock = pvalueBlockBuilder.build();
                     }
-                    changeTypeBlock = changeTypeBlockBuilder.build();
-                    changePvalueBlock = pvalueBlockBuilder.build();
+                } else {
+                    changeTypeBlock = blockFactory.newConstantNullBlock(inputPage.getPositionCount());
+                    changePvalueBlock = blockFactory.newConstantNullBlock(inputPage.getPositionCount());
                 }
-            } else {
-                changeTypeBlock = blockFactory.newConstantNullBlock(inputPage.getPositionCount());
-                changePvalueBlock = blockFactory.newConstantNullBlock(inputPage.getPositionCount());
+
+                outputPage = inputPage.appendBlocks(new Block[] { changeTypeBlock, changePvalueBlock });
+                success = true;
+            } finally {
+                if (success == false) {
+                    Releasables.closeExpectNoException(changeTypeBlock, changePvalueBlock);
+                }
             }
 
-            Page outputPage = inputPage.appendBlocks(new Block[] { changeTypeBlock, changePvalueBlock });
+            inputPages.removeFirst();
             outputPages.add(outputPage);
             pageStartIndex += inputPage.getPositionCount();
         }
-
-        inputPages.clear();
 
         if (changeType instanceof ChangeType.Indeterminable indeterminable) {
             warnings(false).registerException(new IllegalArgumentException(indeterminable.getReason()));
@@ -177,7 +180,19 @@ public class ChangePointOperator implements Operator {
     }
 
     @Override
-    public void close() {}
+    public void close() {
+        for (Page page : inputPages) {
+            page.releaseBlocks();
+        }
+        for (Page page : outputPages) {
+            page.releaseBlocks();
+        }
+    }
+
+    @Override
+    public String toString() {
+        return "ChangePointOperator[channel=" + channel + "]";
+    }
 
     private Warnings warnings(boolean onlyWarnings) {
         if (warnings == null) {

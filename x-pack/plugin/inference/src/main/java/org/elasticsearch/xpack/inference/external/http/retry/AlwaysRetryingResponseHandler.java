@@ -20,6 +20,7 @@ import java.util.Objects;
 import static org.elasticsearch.xpack.inference.external.http.HttpUtils.checkForEmptyBody;
 import static org.elasticsearch.xpack.inference.external.http.HttpUtils.checkForFailureStatusCode;
 
+// TODO remove this
 /**
  * Provides a {@link ResponseHandler} which flags all errors as retryable.
  */
@@ -58,4 +59,8 @@ public class AlwaysRetryingResponseHandler implements ResponseHandler {
         }
     }
 
+    @Override
+    public boolean canHandleStreamingResponses() {
+        return false;
+    }
 }

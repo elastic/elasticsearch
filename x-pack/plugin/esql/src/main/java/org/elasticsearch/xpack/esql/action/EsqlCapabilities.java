@@ -20,6 +20,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.esql.core.plugin.EsqlCorePlugin.AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG;
+
 /**
  * A {@link Set} of "capabilities" supported by the {@link RestEsqlQueryAction}
  * and {@link RestEsqlAsyncQueryAction} APIs. These are exposed over the
@@ -694,7 +696,7 @@ public class EsqlCapabilities {
         /**
          * LOOKUP JOIN
          */
-        JOIN_LOOKUP_V12(Build.current().isSnapshot()),
+        JOIN_LOOKUP_V12,
 
         /**
          * LOOKUP JOIN with TEXT fields on the right (right side of the join) (#119473)
@@ -779,7 +781,12 @@ public class EsqlCapabilities {
         /**
          * Support match options in match function
          */
-        MATCH_FUNCTION_OPTIONS;
+        MATCH_FUNCTION_OPTIONS,
+
+        /**
+         * Support for aggregate_metric_double type
+         */
+        AGGREGATE_METRIC_DOUBLE(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG.isEnabled());
 
         private final boolean enabled;
 

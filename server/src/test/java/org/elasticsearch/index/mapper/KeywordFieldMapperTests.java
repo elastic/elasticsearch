@@ -773,6 +773,8 @@ public class KeywordFieldMapperTests extends MapperTestCase {
     }
 
     public void testFieldTypeWithSkipDocValues_LogsDbMode() throws IOException {
+        assumeTrue("Needs feature flag to be enabled", FieldMapper.DOC_VALUES_SPARSE_INDEX.isEnabled());
+
         final MapperService mapperService = createMapperService(
             Settings.builder()
                 .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.name())
@@ -792,6 +794,8 @@ public class KeywordFieldMapperTests extends MapperTestCase {
     }
 
     public void testFieldTypeDefault_StandardMode() throws IOException {
+        assumeTrue("Needs feature flag to be enabled", FieldMapper.DOC_VALUES_SPARSE_INDEX.isEnabled());
+
         final MapperService mapperService = createMapperService(
             Settings.builder()
                 .put(IndexSettings.MODE.getKey(), IndexMode.STANDARD.name())
@@ -811,6 +815,8 @@ public class KeywordFieldMapperTests extends MapperTestCase {
     }
 
     public void testFieldTypeDefault_NonMatchingFieldName() throws IOException {
+        assumeTrue("Needs feature flag to be enabled", FieldMapper.DOC_VALUES_SPARSE_INDEX.isEnabled());
+
         final MapperService mapperService = createMapperService(
             Settings.builder()
                 .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.name())
@@ -830,6 +836,8 @@ public class KeywordFieldMapperTests extends MapperTestCase {
     }
 
     public void testFieldTypeDefault_ConfiguredIndexed() throws IOException {
+        assumeTrue("Needs feature flag to be enabled", FieldMapper.DOC_VALUES_SPARSE_INDEX.isEnabled());
+
         final MapperService mapperService = createMapperService(
             Settings.builder()
                 .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.name())
@@ -850,6 +858,8 @@ public class KeywordFieldMapperTests extends MapperTestCase {
     }
 
     public void testFieldTypeDefault_ConfiguredDocValues() throws IOException {
+        assumeTrue("Needs feature flag to be enabled", FieldMapper.DOC_VALUES_SPARSE_INDEX.isEnabled());
+
         final MapperService mapperService = createMapperService(
             Settings.builder()
                 .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.name())
@@ -870,6 +880,8 @@ public class KeywordFieldMapperTests extends MapperTestCase {
     }
 
     public void testFieldTypeDefault_LogsDbMode_NonSortField() throws IOException {
+        assumeTrue("Needs feature flag to be enabled", FieldMapper.DOC_VALUES_SPARSE_INDEX.isEnabled());
+
         final MapperService mapperService = createMapperService(
             Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.name()).build(),
             mapping(b -> {
@@ -886,6 +898,8 @@ public class KeywordFieldMapperTests extends MapperTestCase {
     }
 
     public void testFieldTypeWithSkipDocValues_IndexedFalseDocValuesTrue() throws IOException {
+        assumeTrue("Needs feature flag to be enabled", FieldMapper.DOC_VALUES_SPARSE_INDEX.isEnabled());
+
         final MapperService mapperService = createMapperService(
             Settings.builder()
                 .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.name())
@@ -907,6 +921,8 @@ public class KeywordFieldMapperTests extends MapperTestCase {
     }
 
     public void testFieldTypeDefault_IndexedFalseDocValuesFalse() throws IOException {
+        assumeTrue("Needs feature flag to be enabled", FieldMapper.DOC_VALUES_SPARSE_INDEX.isEnabled());
+
         final MapperService mapperService = createMapperService(
             Settings.builder()
                 .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.name())

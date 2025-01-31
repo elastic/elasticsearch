@@ -56,6 +56,7 @@ class EntitlementsTestRule implements TestRule {
             .systemProperty("es.entitlements.enabled", "true")
             .systemProperty("es.entitlements.testdir", () -> testDir.getRoot().getAbsolutePath())
             .setting("xpack.security.enabled", "false")
+            .setting("logger.org.elasticsearch.entitlement", "TRACE")
             .build();
         ruleChain = RuleChain.outerRule(testDir).around(tempDirSetup).around(cluster);
     }

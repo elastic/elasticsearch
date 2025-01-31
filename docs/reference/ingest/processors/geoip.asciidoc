@@ -5,7 +5,8 @@
 ++++
 
 The `geoip` processor adds information about the geographical location of an
-IPv4 or IPv6 address.
+IPv4 or IPv6 address. It is compatible with the GeoIP2 and GeoLite2 IP geolocation
+databases available from https://www.maxmind.com/[MaxMind].
 
 [[geoip-automatic-updates]]
 By default, the processor uses the GeoLite2 City, GeoLite2 Country, and GeoLite2

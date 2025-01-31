@@ -456,7 +456,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         Source src = source(ctx);
         NamedExpression value = visitQualifiedName(ctx.value);
         NamedExpression key = visitQualifiedName(ctx.key);
-        Attribute targetType = new ReferenceAttribute(src, visitQualifiedName(ctx.targetType).name(), DataType.TEXT);
+        Attribute targetType = new ReferenceAttribute(src, visitQualifiedName(ctx.targetType).name(), DataType.KEYWORD);
         Attribute targetPvalue = new ReferenceAttribute(src, visitQualifiedName(ctx.targetPvalue).name(), DataType.DOUBLE);
         return child -> {
             // ChangePoint should always run on the coordinating node after the data is collected

@@ -22,7 +22,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.function.BiPredicate;
-import java.util.function.Supplier;
+import java.util.function.Function;
 
 public class IndexAbstractionResolver {
 
@@ -32,13 +32,11 @@ public class IndexAbstractionResolver {
         this.indexNameExpressionResolver = indexNameExpressionResolver;
     }
 
-    public record IndexNameWithSelector(String index, @Nullable String selector) {}
-
     public List<String> resolveIndexAbstractions(
         Iterable<String> indices,
         IndicesOptions indicesOptions,
         Metadata metadata,
-        Supplier<Set<String>> allAuthorizedAndAvailable,
+        Function<String, Set<String>> allAuthorizedAndAvailable,
         BiPredicate<String, String> isAuthorized,
         boolean includeDataStreams
     ) {
@@ -72,7 +70,7 @@ public class IndexAbstractionResolver {
             if (indicesOptions.expandWildcardExpressions() && Regex.isSimpleMatchPattern(indexAbstraction)) {
                 wildcardSeen = true;
                 Set<String> resolvedIndices = new HashSet<>();
-                for (String authorizedIndex : allAuthorizedAndAvailable.get()) {
+                for (String authorizedIndex : allAuthorizedAndAvailable.apply(selectorString)) {
                     if (Regex.simpleMatch(indexAbstraction, authorizedIndex)
                         && isIndexVisible(
                             indexAbstraction,

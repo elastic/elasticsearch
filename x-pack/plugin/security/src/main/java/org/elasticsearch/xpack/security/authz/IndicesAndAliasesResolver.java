@@ -351,7 +351,7 @@ class IndicesAndAliasesResolver {
                     split.getLocal(),
                     indicesOptions,
                     metadata,
-                    authorizedIndices.all(),
+                    authorizedIndices::all,
                     authorizedIndices::check,
                     indicesRequest.includeDataStreams()
                 );

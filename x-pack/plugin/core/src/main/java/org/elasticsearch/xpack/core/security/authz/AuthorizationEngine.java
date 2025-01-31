@@ -292,6 +292,8 @@ public interface AuthorizationEngine {
          */
         Supplier<Set<String>> all();
 
+        Set<String> all(String selector);
+
         /**
          * Checks if an index-like resource name is authorized, for an action by a user. The resource might or might not exist.
          */

@@ -240,7 +240,7 @@ public class IndexAbstractionResolverTests extends ESTestCase {
             expressions,
             indicesOptions,
             metadata,
-            mask,
+            (selector) -> mask.get(),
             (idx, selector) -> true,
             true
         );

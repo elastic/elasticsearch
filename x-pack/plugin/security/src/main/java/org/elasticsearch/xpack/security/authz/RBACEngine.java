@@ -39,8 +39,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.CachedSupplier;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.transport.TransportActionProxy;
@@ -108,6 +108,7 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.BiPredicate;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -870,13 +871,13 @@ public class RBACEngine implements AuthorizationEngine {
         TransportRequest request = requestInfo.getRequest();
         final boolean includeDataStreams = (request instanceof IndicesRequest) && ((IndicesRequest) request).includeDataStreams();
         // TODO need a function not a supplier
-        return new AuthorizedIndices(() -> {
+        return new AuthorizedIndices((selector) -> {
             Consumer<Collection<String>> timeChecker = timerSupplier.get();
             Set<String> indicesAndAliases = new HashSet<>();
             // TODO: can this be done smarter? I think there are usually more indices/aliases in the cluster then indices defined a roles?
             if (includeDataStreams) {
                 for (IndexAbstraction indexAbstraction : lookup.values()) {
-                    if (predicate.test(indexAbstraction)) {
+                    if (predicate.test(indexAbstraction, selector)) {
                         indicesAndAliases.add(indexAbstraction.getName());
                         if (indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM) {
                             // add data stream and its backing indices for any authorized data streams
@@ -1037,17 +1038,26 @@ public class RBACEngine implements AuthorizationEngine {
 
     static final class AuthorizedIndices implements AuthorizationEngine.AuthorizedIndices {
 
-        private final CachedSupplier<Set<String>> allAuthorizedAndAvailableSupplier;
+        // TODO results need to be cached
+        private final Function<String, Set<String>> allAuthorizedAndAvailableBySelector;
         private final BiPredicate<String, String> isAuthorizedPredicate;
 
-        AuthorizedIndices(Supplier<Set<String>> allAuthorizedAndAvailableSupplier, BiPredicate<String, String> isAuthorizedPredicate) {
-            this.allAuthorizedAndAvailableSupplier = CachedSupplier.wrap(allAuthorizedAndAvailableSupplier);
+        AuthorizedIndices(
+            Function<String, Set<String>> allAuthorizedAndAvailableBySelector,
+            BiPredicate<String, String> isAuthorizedPredicate
+        ) {
+            this.allAuthorizedAndAvailableBySelector = allAuthorizedAndAvailableBySelector;
             this.isAuthorizedPredicate = Objects.requireNonNull(isAuthorizedPredicate);
         }
 
         @Override
         public Supplier<Set<String>> all() {
-            return allAuthorizedAndAvailableSupplier;
+            return () -> all(null);
+        }
+
+        @Override
+        public Set<String> all(@Nullable String selector) {
+            return allAuthorizedAndAvailableBySelector.apply(selector);
         }
 
         @Override

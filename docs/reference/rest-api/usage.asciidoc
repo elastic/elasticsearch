@@ -514,7 +514,7 @@ GET /_xpack/usage
   },
   "logsdb": {
     "available": true,
-    "enabled": false,
+    "enabled": true,
     "indices_count": 0,
     "indices_with_synthetic_source": 0,
     "num_docs": 0,

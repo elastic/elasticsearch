@@ -50,7 +50,7 @@ public class ClearBlobCacheNodeResponse extends BaseNodeResponse implements Chun
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params outerParams) {
         return Iterators.single((builder, params) -> {
             builder.field("node_id", getNode().getId());
-            builder.field("timestamp", getTimestamp());
+            builder.field("timestamp", timestamp);
             builder.field("evictions", evictions);
             return builder;
         });

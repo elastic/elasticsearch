@@ -72,10 +72,11 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                     .allowAliasToMultipleIndices(false)
                     .allowClosedIndices(true)
                     .ignoreThrottled(false)
-                    .allowFailureIndices(true)
+                    .allowSelectors(false)
                     .build()
             )
             .build();
+
         private boolean includeDefaults = false;
         private boolean verbose = false;
 
@@ -417,10 +418,10 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                     builder.field(FAILURE_STORE_ENABLED.getPreferredName(), failureStoreEffectivelyEnabled);
                     builder.field(
                         DataStream.ROLLOVER_ON_WRITE_FIELD.getPreferredName(),
-                        dataStream.getFailureIndices().isRolloverOnWrite()
+                        dataStream.getFailureComponent().isRolloverOnWrite()
                     );
-                    indicesToXContent(builder, dataStream.getFailureIndices().getIndices());
-                    addAutoShardingEvent(builder, params, dataStream.getFailureIndices().getAutoShardingEvent());
+                    indicesToXContent(builder, dataStream.getFailureIndices());
+                    addAutoShardingEvent(builder, params, dataStream.getFailureComponent().getAutoShardingEvent());
                     builder.endObject();
                 }
                 builder.endObject();

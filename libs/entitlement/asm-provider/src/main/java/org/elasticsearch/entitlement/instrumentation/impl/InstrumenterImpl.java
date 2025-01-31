@@ -152,6 +152,7 @@ public class InstrumenterImpl implements Instrumenter {
             if (isAnnotationPresent == false) {
                 boolean isStatic = (access & ACC_STATIC) != 0;
                 boolean isCtor = "<init>".equals(name);
+                boolean hasReceiver = (isStatic || isCtor) == false;
                 var key = new MethodKey(className, name, Stream.of(Type.getArgumentTypes(descriptor)).map(Type::getInternalName).toList());
                 var instrumentationMethod = checkMethods.get(key);
                 if (instrumentationMethod != null) {

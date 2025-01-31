@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.ip.CIDRMatch;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Pow;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.esql.expression.predicate.fulltext.FullTextPredicate;
+import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -87,6 +88,7 @@ import java.util.jar.JarInputStream;
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomConfiguration;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
+import static org.elasticsearch.xpack.esql.index.EsIndexSerializationTests.randomEsIndex;
 import static org.mockito.Mockito.mock;
 
 /**
@@ -490,6 +492,9 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
         }
         if (argClass == Configuration.class) {
             return randomConfiguration();
+        }
+        if (argClass == EsIndex.class) {
+            return randomEsIndex();
         }
         if (argClass == JoinConfig.class) {
             return new JoinConfig(

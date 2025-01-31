@@ -9,7 +9,7 @@ setup:
           capabilities: [ 'failure_store_in_template' ]
         - method: POST
           path: /{index}/_rollover
-          capabilities: [ 'lazy-rollover-failure-store' ]
+          capabilities: [ 'lazy-rollover-failure-store', 'index-expression-selectors' ]
 
   - do:
       allowed_warnings:
@@ -58,8 +58,7 @@ teardown:
 
   - do:
       indices.rollover:
-        alias: "data-stream-for-rollover"
-        target_failure_store: true
+        alias: "data-stream-for-rollover::failures"
 
   - match: { acknowledged: true }
   - match: { old_index: "/\\.fs-data-stream-for-rollover-(\\d{4}\\.\\d{2}\\.\\d{2}-)?000002/" }
@@ -92,8 +91,7 @@ teardown:
 
   - do:
       indices.rollover:
-        alias: "data-stream-for-rollover"
-        target_failure_store: true
+        alias: "data-stream-for-rollover::failures"
         body:
           conditions:
             max_docs: 1
@@ -130,8 +128,7 @@ teardown:
 
   - do:
       indices.rollover:
-        alias: "data-stream-for-rollover"
-        target_failure_store: true
+        alias: "data-stream-for-rollover::failures"
         body:
           conditions:
             max_primary_shard_docs: 2
@@ -165,8 +162,7 @@ teardown:
   # Mark the failure store for lazy rollover
   - do:
       indices.rollover:
-        alias: "data-stream-for-rollover"
-        target_failure_store: true
+        alias: "data-stream-for-rollover::failures"
         lazy: true
 
   - match: { acknowledged: true }
@@ -263,8 +259,7 @@ teardown:
   # Mark the failure store for lazy rollover
   - do:
       indices.rollover:
-        alias: data-stream-for-lazy-rollover
-        target_failure_store: true
+        alias: data-stream-for-lazy-rollover::failures
         lazy: true
 
   - match: { acknowledged: true }
@@ -332,8 +327,7 @@ teardown:
   # Mark the failure store for lazy rollover
   - do:
       indices.rollover:
-        alias: "data-stream-for-rollover"
-        target_failure_store: true
+        alias: "data-stream-for-rollover::failures"
         lazy: true
 
   - match: { acknowledged: true }
@@ -377,16 +371,14 @@ teardown:
   - do:
       catch: /Rolling over\/initializing an empty failure store is only supported without conditions\./
       indices.rollover:
-        alias: "data-stream-for-rollover"
-        target_failure_store: true
+        alias: "data-stream-for-rollover::failures"
         body:
           conditions:
             max_docs: 1
 
   - do:
       indices.rollover:
-        alias: "data-stream-for-rollover"
-        target_failure_store: true
+        alias: "data-stream-for-rollover::failures"
 
   - match: { acknowledged: true }
   - match: { old_index: "_none_" }
@@ -424,8 +416,7 @@ teardown:
   # Initializing should work
   - do:
       indices.rollover:
-        alias: "other-data-stream-for-rollover"
-        target_failure_store: true
+        alias: "other-data-stream-for-rollover::failures"
 
   - match: { acknowledged: true }
   - match: { old_index: "_none_" }
@@ -448,8 +439,7 @@ teardown:
   # And "regular" rollover should work
   - do:
       indices.rollover:
-        alias: "other-data-stream-for-rollover"
-        target_failure_store: true
+        alias: "other-data-stream-for-rollover::failures"
 
   - match: { acknowledged: true }
   - match: { old_index: "/\\.fs-other-data-stream-for-rollover-(\\d{4}\\.\\d{2}\\.\\d{2}-)?000002/" }

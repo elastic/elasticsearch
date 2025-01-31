@@ -118,7 +118,7 @@ public class RetentionLeases implements ToXContentFragment, Writeable {
      * Represents an empty an un-versioned retention lease collection. This is used when no retention lease collection is found in the
      * commit point
      */
-    public static RetentionLeases EMPTY = new RetentionLeases(1, 0, Collections.emptyList());
+    public static final RetentionLeases EMPTY = new RetentionLeases(1, 0, Collections.emptyList());
 
     /**
      * Constructs a new retention lease collection with the specified version and underlying collection of retention leases.

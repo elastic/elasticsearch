@@ -39,7 +39,7 @@ public class DeprecationLogger {
      * Deprecation messages are logged at this level.
      * More serious that WARN by 1, but less serious than ERROR
      */
-    public static Level CRITICAL = Level.forName("CRITICAL", Level.WARN.intLevel() - 1);
+    public static final Level CRITICAL = Level.forName("CRITICAL", Level.WARN.intLevel() - 1);
     private static volatile List<String> skipTheseDeprecations = Collections.emptyList();
     private final Logger logger;
 

@@ -67,6 +67,7 @@ public class MvSlice extends EsqlScalarFunction implements OptionalArgument, Eva
             "ip",
             "keyword",
             "long",
+            "unsigned_long",
             "version" },
         description = """
             Returns a subset of the multivalued field using the start and end index values.
@@ -96,6 +97,7 @@ public class MvSlice extends EsqlScalarFunction implements OptionalArgument, Eva
                 "keyword",
                 "long",
                 "text",
+                "unsigned_long",
                 "version" },
             description = "Multivalue expression. If `null`, the function returns `null`."
         ) Expression field,
@@ -187,8 +189,8 @@ public class MvSlice extends EsqlScalarFunction implements OptionalArgument, Eva
     @Override
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         if (start.foldable() && end.foldable()) {
-            int startOffset = stringToInt(String.valueOf(start.fold()));
-            int endOffset = stringToInt(String.valueOf(end.fold()));
+            int startOffset = stringToInt(String.valueOf(start.fold(toEvaluator.foldCtx())));
+            int endOffset = stringToInt(String.valueOf(end.fold(toEvaluator.foldCtx())));
             checkStartEnd(startOffset, endOffset);
         }
         return switch (PlannerUtils.toElementType(field.dataType())) {

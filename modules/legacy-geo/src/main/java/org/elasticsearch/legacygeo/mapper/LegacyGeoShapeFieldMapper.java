@@ -33,6 +33,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapper;
+import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -46,7 +47,6 @@ import org.elasticsearch.legacygeo.XShapeCollection;
 import org.elasticsearch.legacygeo.builders.ShapeBuilder;
 import org.elasticsearch.legacygeo.parsers.ShapeParser;
 import org.elasticsearch.legacygeo.query.LegacyGeoShapeQueryProcessor;
-import org.elasticsearch.lucene.spatial.CoordinateEncoder;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.locationtech.spatial4j.shape.Point;
@@ -84,6 +84,7 @@ import java.util.stream.Collectors;
  * "field" : "POLYGON ((100.0 0.0, 101.0 0.0, 101.0 1.0, 100.0 1.0, 100.0 0.0))
  *
  * @deprecated use the field mapper in the spatial module
+ * TODO: Remove this class once we no longer need to supported reading 7.x indices that might have this field type
  */
 @Deprecated
 public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<ShapeBuilder<?, ?, ?>> {
@@ -359,7 +360,7 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
     }
 
     @Deprecated
-    public static Mapper.TypeParser PARSER = (name, node, parserContext) -> {
+    public static final Mapper.TypeParser PARSER = (name, node, parserContext) -> {
         boolean ignoreMalformedByDefault = IGNORE_MALFORMED_SETTING.get(parserContext.getSettings());
         boolean coerceByDefault = COERCE_SETTING.get(parserContext.getSettings());
         FieldMapper.Builder builder = new LegacyGeoShapeFieldMapper.Builder(
@@ -533,14 +534,9 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
         }
 
         @Override
-        protected boolean isBoundsExtractionSupported() {
-            // Extracting bounds for geo shapes is not implemented yet.
-            return false;
-        }
-
-        @Override
-        protected CoordinateEncoder coordinateEncoder() {
-            return CoordinateEncoder.GEO;
+        public BlockLoader blockLoader(BlockLoaderContext blContext) {
+            // Legacy geo-shapes do not support doc-values, we can only lead from source in ES|QL
+            return blockLoaderFromSource(blContext);
         }
     }
 

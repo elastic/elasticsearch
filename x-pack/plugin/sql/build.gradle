@@ -10,7 +10,7 @@ apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
   name = 'x-pack-sql'
-  description 'The Elasticsearch plugin that powers SQL for Elasticsearch'
+  description = 'The Elasticsearch plugin that powers SQL for Elasticsearch'
   classname = 'org.elasticsearch.xpack.sql.plugin.SqlPlugin'
   extendedPlugins = ['x-pack-ql', 'lang-painless']
 }

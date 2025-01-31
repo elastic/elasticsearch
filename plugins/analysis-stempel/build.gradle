@@ -10,8 +10,8 @@ apply plugin: 'elasticsearch.legacy-yaml-rest-test'
 apply plugin: 'elasticsearch.legacy-yaml-rest-compat-test'
 
 esplugin {
-  description 'The Stempel (Polish) Analysis plugin integrates Lucene stempel (polish) analysis module into elasticsearch.'
-  classname 'org.elasticsearch.plugin.analysis.stempel.AnalysisStempelPlugin'
+  description = 'The Stempel (Polish) Analysis plugin integrates Lucene stempel (polish) analysis module into elasticsearch.'
+  classname ='org.elasticsearch.plugin.analysis.stempel.AnalysisStempelPlugin'
 }
 
 dependencies {

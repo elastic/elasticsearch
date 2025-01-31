@@ -11,6 +11,7 @@ package org.elasticsearch.search.retriever;
 
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
@@ -88,10 +89,7 @@ public class KnnRetrieverBuilderParsingTests extends AbstractXContentTestCase<Kn
     protected KnnRetrieverBuilder doParseInstance(XContentParser parser) throws IOException {
         return (KnnRetrieverBuilder) RetrieverBuilder.parseTopLevelRetrieverBuilder(
             parser,
-            new RetrieverParserContext(
-                new SearchUsage(),
-                nf -> nf == RetrieverBuilder.RETRIEVERS_SUPPORTED || nf == KnnRetrieverBuilder.KNN_RETRIEVER_SUPPORTED
-            )
+            new RetrieverParserContext(new SearchUsage(), Predicates.never())
         );
     }
 

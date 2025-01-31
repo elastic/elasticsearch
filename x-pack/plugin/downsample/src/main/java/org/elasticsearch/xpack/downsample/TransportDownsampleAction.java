@@ -165,7 +165,6 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
             threadPool,
             actionFilters,
             DownsampleAction.Request::new,
-            indexNameExpressionResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.client = new OriginSettingClient(client, ClientHelper.ROLLUP_ORIGIN);
@@ -285,7 +284,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         // At any point if there is an issue, delete the downsample index
 
         // 1. Extract source index mappings
-        final GetMappingsRequest getMappingsRequest = new GetMappingsRequest().indices(sourceIndexName);
+        final GetMappingsRequest getMappingsRequest = new GetMappingsRequest(request.masterNodeTimeout()).indices(sourceIndexName);
         getMappingsRequest.setParentTask(parentTask);
         client.admin().indices().getMappings(getMappingsRequest, listener.delegateFailureAndWrap((delegate, getMappingsResponse) -> {
             final Map<String, Object> sourceIndexMappings = getMappingsResponse.mappings()
@@ -550,7 +549,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                 persistentTaskId,
                 DownsampleShardTask.TASK_NAME,
                 params,
-                null,
+                TimeValue.THIRTY_SECONDS /* TODO should this be configurable? longer by default? infinite? */,
                 ActionListener.wrap(
                     startedTask -> persistentTasksService.waitForPersistentTaskCondition(
                         startedTask.getId(),

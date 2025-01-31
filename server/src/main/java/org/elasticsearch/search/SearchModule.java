@@ -913,7 +913,7 @@ public class SearchModule {
         NamedRegistry<Highlighter> highlighters = new NamedRegistry<>("highlighter");
         highlighters.register("fvh", new FastVectorHighlighter(settings));
         highlighters.register("plain", new PlainHighlighter());
-        highlighters.register("unified", new DefaultHighlighter());
+        highlighters.register(DefaultHighlighter.NAME, new DefaultHighlighter());
         highlighters.extractAndRegister(plugins, SearchPlugin::getHighlighters);
 
         return unmodifiableMap(highlighters.getRegistry());
@@ -1049,8 +1049,9 @@ public class SearchModule {
         registerFetchSubPhase(new StoredFieldsPhase());
         registerFetchSubPhase(new FetchDocValuesPhase());
         registerFetchSubPhase(new ScriptFieldsPhase());
-        registerFetchSubPhase(new FetchSourcePhase());
         registerFetchSubPhase(new FetchFieldsPhase());
+        // register after fetch fields to handle metadata fields that needs to be copied in _source (e.g. _inference_fields).
+        registerFetchSubPhase(new FetchSourcePhase());
         registerFetchSubPhase(new FetchVersionPhase());
         registerFetchSubPhase(new SeqNoPrimaryTermPhase());
         registerFetchSubPhase(new MatchedQueriesPhase());
@@ -1156,6 +1157,10 @@ public class SearchModule {
         );
         registerQuery(
             new QuerySpec<>(
+                /*
+                 * Deprecated in #64227, 7.12/8.0. We do not plan to remove this so we
+                 * do not break any users using this.
+                 */
                 (new ParseField(GeoPolygonQueryBuilder.NAME).withAllDeprecated(GeoPolygonQueryBuilder.GEO_POLYGON_DEPRECATION_MSG)),
                 GeoPolygonQueryBuilder::new,
                 GeoPolygonQueryBuilder::fromXContent

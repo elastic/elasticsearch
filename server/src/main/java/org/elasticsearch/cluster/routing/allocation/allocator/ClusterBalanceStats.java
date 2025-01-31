@@ -39,7 +39,7 @@ public record ClusterBalanceStats(
     Map<String, NodeBalanceStats> nodes
 ) implements Writeable, ToXContentObject {
 
-    public static ClusterBalanceStats EMPTY = new ClusterBalanceStats(0, 0, Map.of(), Map.of());
+    public static final ClusterBalanceStats EMPTY = new ClusterBalanceStats(0, 0, Map.of(), Map.of());
 
     public static ClusterBalanceStats createFrom(
         ClusterState clusterState,

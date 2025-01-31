@@ -203,7 +203,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
             }""", TEXT_FIELD_NAME);
 
         IntervalQueryBuilder builder = (IntervalQueryBuilder) parseQuery(json);
-        Query expected = new IntervalQuery(TEXT_FIELD_NAME, XIntervals.unordered(Intervals.term("hello"), Intervals.term("world")));
+        Query expected = new IntervalQuery(TEXT_FIELD_NAME, Intervals.unordered(Intervals.term("hello"), Intervals.term("world")));
 
         assertEquals(expected, builder.toQuery(createSearchExecutionContext()));
 
@@ -222,7 +222,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
         builder = (IntervalQueryBuilder) parseQuery(json);
         expected = new IntervalQuery(
             TEXT_FIELD_NAME,
-            Intervals.maxgaps(40, XIntervals.unordered(Intervals.term("hello"), Intervals.term("world")))
+            Intervals.maxgaps(40, Intervals.unordered(Intervals.term("hello"), Intervals.term("world")))
         );
         assertEquals(expected, builder.toQuery(createSearchExecutionContext()));
 
@@ -241,7 +241,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
 
         builder = (IntervalQueryBuilder) parseQuery(json);
         expected = new BoostQuery(
-            new IntervalQuery(TEXT_FIELD_NAME, XIntervals.ordered(Intervals.term("hello"), Intervals.term("world"))),
+            new IntervalQuery(TEXT_FIELD_NAME, Intervals.ordered(Intervals.term("hello"), Intervals.term("world"))),
             2
         );
         assertEquals(expected, builder.toQuery(createSearchExecutionContext()));
@@ -263,7 +263,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
         builder = (IntervalQueryBuilder) parseQuery(json);
         expected = new IntervalQuery(
             TEXT_FIELD_NAME,
-            Intervals.maxgaps(10, XIntervals.ordered(Intervals.term("Hello"), Intervals.term("world")))
+            Intervals.maxgaps(10, Intervals.ordered(Intervals.term("Hello"), Intervals.term("world")))
         );
         assertEquals(expected, builder.toQuery(createSearchExecutionContext()));
 
@@ -285,7 +285,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
         builder = (IntervalQueryBuilder) parseQuery(json);
         expected = new IntervalQuery(
             TEXT_FIELD_NAME,
-            Intervals.fixField(MASKED_FIELD, Intervals.maxgaps(10, XIntervals.ordered(Intervals.term("Hello"), Intervals.term("world"))))
+            Intervals.fixField(MASKED_FIELD, Intervals.maxgaps(10, Intervals.ordered(Intervals.term("Hello"), Intervals.term("world"))))
         );
         assertEquals(expected, builder.toQuery(createSearchExecutionContext()));
 
@@ -314,7 +314,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
         expected = new IntervalQuery(
             TEXT_FIELD_NAME,
             Intervals.containing(
-                Intervals.maxgaps(10, XIntervals.ordered(Intervals.term("Hello"), Intervals.term("world"))),
+                Intervals.maxgaps(10, Intervals.ordered(Intervals.term("Hello"), Intervals.term("world"))),
                 Intervals.term("blah")
             )
         );
@@ -426,7 +426,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
                 Intervals.containedBy(
                     Intervals.maxgaps(
                         30,
-                        XIntervals.ordered(Intervals.term("one"), XIntervals.unordered(Intervals.term("two"), Intervals.term("three")))
+                        Intervals.ordered(Intervals.term("one"), Intervals.unordered(Intervals.term("two"), Intervals.term("three")))
                     ),
                     Intervals.term("SENTENCE")
                 )
@@ -486,7 +486,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
             Intervals.notContainedBy(
                 Intervals.maxgaps(
                     30,
-                    XIntervals.ordered(Intervals.term("atmosphere"), Intervals.or(Intervals.term("cold"), Intervals.term("outside")))
+                    Intervals.ordered(Intervals.term("atmosphere"), Intervals.or(Intervals.term("cold"), Intervals.term("outside")))
                 ),
                 Intervals.term("freeze")
             )

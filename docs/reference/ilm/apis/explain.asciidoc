@@ -5,6 +5,12 @@
 <titleabbrev>Explain lifecycle</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-ilm[{ilm-cap} APIs].
+--
+
 Retrieves the current <<index-lifecycle-management,lifecycle>> status for one or more indices. For data
 streams, the API retrieves the current lifecycle status for the stream's backing
 indices.

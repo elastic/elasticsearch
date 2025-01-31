@@ -32,6 +32,9 @@ import java.util.List;
  * forwards to the next phase immediately.
  */
 class ExpandSearchPhase extends SearchPhase {
+
+    static final String NAME = "expand";
+
     private final AbstractSearchAsyncAction<?> context;
     private final SearchResponseSections searchResponseSections;
     private final AtomicArray<SearchPhaseResult> queryPhaseResults;
@@ -41,7 +44,7 @@ class ExpandSearchPhase extends SearchPhase {
         SearchResponseSections searchResponseSections,
         AtomicArray<SearchPhaseResult> queryPhaseResults
     ) {
-        super("expand");
+        super(NAME);
         this.context = context;
         this.searchResponseSections = searchResponseSections;
         this.queryPhaseResults = queryPhaseResults;
@@ -61,7 +64,7 @@ class ExpandSearchPhase extends SearchPhase {
     }
 
     @Override
-    public void run() {
+    protected void run() {
         var searchHits = searchResponseSections.hits();
         if (isCollapseRequest() == false || searchHits.getHits().length == 0) {
             onPhaseDone();
@@ -134,7 +137,7 @@ class ExpandSearchPhase extends SearchPhase {
     }
 
     private void phaseFailure(Exception ex) {
-        context.onPhaseFailure(this, "failed to expand hits", ex);
+        context.onPhaseFailure(NAME, "failed to expand hits", ex);
     }
 
     private static SearchSourceBuilder buildExpandSearchSourceBuilder(InnerHitBuilder options, CollapseBuilder innerCollapseBuilder) {
@@ -179,6 +182,6 @@ class ExpandSearchPhase extends SearchPhase {
     }
 
     private void onPhaseDone() {
-        context.executeNextPhase(this, this::nextPhase);
+        context.executeNextPhase(NAME, this::nextPhase);
     }
 }

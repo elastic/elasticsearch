@@ -34,6 +34,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -83,8 +84,7 @@ public class ServerSentEventsRestActionListenerTests extends ESIntegTestCase {
     private static final Exception expectedException = new IllegalStateException("hello there");
     private static final String expectedExceptionAsServerSentEvent = """
         {\
-        "error":{"root_cause":[{"type":"illegal_state_exception","reason":"hello there",\
-        "caused_by":{"type":"illegal_state_exception","reason":"hello there"}}],\
+        "error":{"root_cause":[{"type":"illegal_state_exception","reason":"hello there"}],\
         "type":"illegal_state_exception","reason":"hello there"},"status":500\
         }""";
 
@@ -242,7 +242,7 @@ public class ServerSentEventsRestActionListenerTests extends ESIntegTestCase {
         @Override
         public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
             var randomString = randomUnicodeOfLengthBetween(2, 20);
-            return ChunkedToXContent.builder(params).object(b -> b.field("delta", randomString));
+            return ChunkedToXContentHelper.chunk((b, p) -> b.startObject().field("delta", randomString).endObject());
         }
     }
 
@@ -275,7 +275,7 @@ public class ServerSentEventsRestActionListenerTests extends ESIntegTestCase {
 
         @Override
         public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-            return ChunkedToXContent.builder(params).field("result", randomUnicodeOfLengthBetween(2, 20));
+            return ChunkedToXContentHelper.chunk((b, p) -> b.field("result", randomUnicodeOfLengthBetween(2, 20)));
         }
     }
 

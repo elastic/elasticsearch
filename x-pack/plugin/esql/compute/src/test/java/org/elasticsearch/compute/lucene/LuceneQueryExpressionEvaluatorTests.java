@@ -32,14 +32,14 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.LuceneQueryExpressionEvaluator.DenseCollector;
-import org.elasticsearch.compute.operator.ComputeTestCase;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Operator;
-import org.elasticsearch.compute.operator.OperatorTestCase;
 import org.elasticsearch.compute.operator.ShuffleDocsOperator;
-import org.elasticsearch.compute.operator.TestResultPageSinkOperator;
+import org.elasticsearch.compute.test.ComputeTestCase;
+import org.elasticsearch.compute.test.OperatorTestCase;
+import org.elasticsearch.compute.test.TestResultPageSinkOperator;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.index.mapper.BlockDocValuesReader;
 
@@ -51,7 +51,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
 
-import static org.elasticsearch.compute.operator.OperatorTestCase.randomPageSize;
+import static org.elasticsearch.compute.test.OperatorTestCase.randomPageSize;
 import static org.hamcrest.Matchers.equalTo;
 
 public class LuceneQueryExpressionEvaluatorTests extends ComputeTestCase {
@@ -183,8 +183,8 @@ public class LuceneQueryExpressionEvaluatorTests extends ComputeTestCase {
             );
             LuceneQueryExpressionEvaluator luceneQueryEvaluator = new LuceneQueryExpressionEvaluator(
                 blockFactory,
-                new LuceneQueryExpressionEvaluator.ShardConfig[] { shard },
-                0
+                new LuceneQueryExpressionEvaluator.ShardConfig[] { shard }
+
             );
 
             List<Operator> operators = new ArrayList<>();

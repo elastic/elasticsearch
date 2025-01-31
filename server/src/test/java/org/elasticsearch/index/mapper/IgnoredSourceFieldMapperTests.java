@@ -756,6 +756,23 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
         assertEquals("{\"value\":[\"foo\",null]}", syntheticSource);
     }
 
+    public void testIndexStoredArraySourceSingleLeafElementInObjectArray() throws IOException {
+        DocumentMapper documentMapper = createMapperServiceWithStoredArraySource(mapping(b -> {
+            b.startObject("path").field("synthetic_source_keep", "none").startObject("properties");
+            {
+                b.startObject("int_value").field("type", "integer").endObject();
+            }
+            b.endObject().endObject();
+        })).documentMapper();
+        var syntheticSource = syntheticSource(documentMapper, b -> {
+            b.startArray("path");
+            b.startObject().field("int_value", 10).endObject();
+            b.startObject().array("int_value", new int[] { 20 }).endObject();
+            b.endArray();
+        });
+        assertEquals("{\"path\":{\"int_value\":[10,20]}}", syntheticSource);
+    }
+
     public void testIndexStoredArraySourceSingleObjectElement() throws IOException {
         DocumentMapper documentMapper = createMapperServiceWithStoredArraySource(mapping(b -> {
             b.startObject("path").startObject("properties");
@@ -848,7 +865,7 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
             b.field("bool_value", true);
         });
         assertEquals("""
-            {"bool_value":true,"path":{"int_value":[10,20]}}""", syntheticSource);
+            {"bool_value":true,"path":{"int_value":[20,10]}}""", syntheticSource);
     }
 
     public void testIndexStoredArraySourceNestedValueArray() throws IOException {
@@ -912,7 +929,7 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
             b.endObject();
         });
         assertEquals("""
-            {"path":{"bool_value":true,"int_value":[10,20,30],"obj":{"foo":[1,2]}}}""", syntheticSource);
+            {"path":{"bool_value":true,"int_value":[10,20,30],"obj":{"foo":[2,1]}}}""", syntheticSource);
     }
 
     public void testFieldStoredArraySourceNestedValueArray() throws IOException {

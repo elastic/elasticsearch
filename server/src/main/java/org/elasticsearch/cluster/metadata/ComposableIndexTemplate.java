@@ -427,7 +427,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         /**
          * A mapping snippet for a backing index with `_data_stream_timestamp` meta field mapper properly configured.
          */
-        public static CompressedXContent DATA_STREAM_MAPPING_SNIPPET;
+        public static final CompressedXContent DATA_STREAM_MAPPING_SNIPPET;
 
         static {
             try {

@@ -9,11 +9,12 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RegexMatch;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.StringPattern;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 
 public final class ReplaceRegexMatch extends OptimizerRules.OptimizerExpressionRule<RegexMatch<?>> {
@@ -23,7 +24,7 @@ public final class ReplaceRegexMatch extends OptimizerRules.OptimizerExpressionR
     }
 
     @Override
-    public Expression rule(RegexMatch<?> regexMatch) {
+    public Expression rule(RegexMatch<?> regexMatch, LogicalOptimizerContext ctx) {
         Expression e = regexMatch;
         StringPattern pattern = regexMatch.pattern();
         boolean matchesAll;

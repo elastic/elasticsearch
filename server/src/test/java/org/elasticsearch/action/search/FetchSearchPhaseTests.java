@@ -752,7 +752,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
     ) {
         return (searchResponse, scrollId) -> new SearchPhase("test") {
             @Override
-            public void run() {
+            protected void run() {
                 mockSearchPhaseContext.sendSearchResponse(searchResponse, null);
             }
         };

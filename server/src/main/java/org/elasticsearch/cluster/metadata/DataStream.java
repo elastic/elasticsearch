@@ -82,7 +82,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     public static final DateFormatter DATE_FORMATTER = DateFormatter.forPattern("uuuu.MM.dd");
     public static final String TIMESTAMP_FIELD_NAME = "@timestamp";
     // Timeseries indices' leaf readers should be sorted by desc order of their timestamp field, as it allows search time optimizations
-    public static Comparator<LeafReader> TIMESERIES_LEAF_READERS_SORTER = Comparator.comparingLong((LeafReader r) -> {
+    public static final Comparator<LeafReader> TIMESERIES_LEAF_READERS_SORTER = Comparator.comparingLong((LeafReader r) -> {
         try {
             PointValues points = r.getPointValues(TIMESTAMP_FIELD_NAME);
             if (points != null) {
@@ -259,6 +259,15 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         return backingIndices.indices;
     }
 
+    @Override
+    public List<Index> getFailureIndices(Metadata ignored) {
+        return failureIndices.indices;
+    }
+
+    public List<Index> getFailureIndices() {
+        return failureIndices.indices;
+    }
+
     public long getGeneration() {
         return generation;
     }
@@ -269,10 +278,19 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     }
 
     /**
+     * @param metadata is not necessary for data streams
+     * @return the write failure index if the failure store is enabled and there is already at least one failure, null otherwise
+     */
+    @Override
+    public Index getWriteFailureIndex(Metadata metadata) {
+        return getWriteFailureIndex();
+    }
+
+    /**
      * @return the write failure index if the failure store is enabled and there is already at least one failure, null otherwise
      */
     @Nullable
-    public Index getFailureStoreWriteIndex() {
+    public Index getWriteFailureIndex() {
         return failureIndices.indices.isEmpty() ? null : failureIndices.getWriteIndex();
     }
 
@@ -495,11 +513,11 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         return backingIndices.autoShardingEvent;
     }
 
-    public DataStreamIndices getBackingIndices() {
+    public DataStreamIndices getDataComponent() {
         return backingIndices;
     }
 
-    public DataStreamIndices getFailureIndices() {
+    public DataStreamIndices getFailureComponent() {
         return failureIndices;
     }
 

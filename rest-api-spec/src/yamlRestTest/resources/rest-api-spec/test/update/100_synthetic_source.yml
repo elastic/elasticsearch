@@ -6,8 +6,8 @@ setup:
 ---
 keyword:
   - requires:
-      cluster_features: [ "index.recovery.synthetic_source" ]
-      reason: requires synthetic recovery source
+      cluster_features: [ "index.recovery.synthetic_source_default" ]
+      reason: requires synthetic recovery source by default
 
   - do:
       indices.create:
@@ -66,8 +66,8 @@ keyword:
 ---
 stored text:
   - requires:
-      cluster_features: [ "index.recovery.synthetic_source" ]
-      reason: requires synthetic recovery source
+      cluster_features: [ "index.recovery.synthetic_source_default" ]
+      reason: requires synthetic recovery source by default
 
   - do:
       indices.create:

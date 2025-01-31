@@ -31,7 +31,9 @@ public class MapperFeatures implements FeatureSpecification {
     public static final NodeFeature SPARSE_VECTOR_STORE_SUPPORT = new NodeFeature("mapper.sparse_vector.store_support");
     public static final NodeFeature SORT_FIELDS_CHECK_FOR_NESTED_OBJECT_FIX = new NodeFeature("mapper.nested.sorting_fields_check_fix");
     public static final NodeFeature DYNAMIC_HANDLING_IN_COPY_TO = new NodeFeature("mapper.copy_to.dynamic_handling");
-    public static final NodeFeature SYNTHETIC_SOURCE_RECOVERY = new NodeFeature("index.recovery.synthetic_source");
+    public static final NodeFeature USE_SYNTHETIC_SOURCE_FOR_RECOVERY_BY_DEFAULT = new NodeFeature(
+        "index.recovery.synthetic_source_default"
+    );
 
     @Override
     public Set<NodeFeature> getTestFeatures() {

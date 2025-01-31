@@ -84,7 +84,7 @@ The Search API returns `400 - Bad request` while it would previously return
 `500 - Internal Server Error` in the following cases of invalid request:
 
 *   the result window is too large
-*   sort is used in  combination with rescore
+*   sort is used in combination with rescore
 *   the rescore window is too large
 *   the number of slices is too large
 *   keep alive for scroll is too large
@@ -305,6 +305,17 @@ Lucene 8 introduced more constraints on similarities, in particular:
 - scores must not be negative,
 - scores must not decrease when term freq increases,
 - scores must not increase when norm (interpreted as an unsigned long) increases.
+
+[discrete]
+==== Change of scoring for fields that omit norms
+Before, if a field was indexed without norms,
+<<index-modules-similarity, similarity modules>> dropped the document length
+from the calculation. For the `BM25` similarity this was equivalent to
+setting `b=0`.
+
+Currently, if a field is indexed without norms, similarity modules assume
+the document length to be `1`. For the `BM25` similarity, this means using
+the default or provided value of `b` to calculate scores.
 
 [discrete]
 ==== Weights in Function Score must be positive

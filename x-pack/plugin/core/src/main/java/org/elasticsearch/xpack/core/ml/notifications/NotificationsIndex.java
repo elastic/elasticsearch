@@ -13,11 +13,15 @@ import java.util.Map;
 
 public final class NotificationsIndex {
 
-    public static final String NOTIFICATIONS_INDEX = ".ml-notifications-000002";
+    public static final String NOTIFICATIONS_INDEX_PREFIX = ".ml-notifications-";
+    public static final String NOTIFICATIONS_INDEX_VERSION = "000002";
+    public static final String NOTIFICATIONS_INDEX = NOTIFICATIONS_INDEX_PREFIX + NOTIFICATIONS_INDEX_VERSION;
+    public static final String NOTIFICATIONS_INDEX_WRITE_ALIAS = ".ml-notifications-write";
 
     private static final String RESOURCE_PATH = "/ml/";
     private static final String MAPPINGS_VERSION_VARIABLE = "xpack.ml.version";
     public static final int NOTIFICATIONS_INDEX_MAPPINGS_VERSION = 1;
+    public static final int NOTIFICATIONS_INDEX_TEMPLATE_VERSION = 1;
 
     private NotificationsIndex() {}
 

@@ -17,10 +17,11 @@ import java.util.Set;
 public final class SearchFeatures implements FeatureSpecification {
 
     public static final NodeFeature LUCENE_10_0_0_UPGRADE = new NodeFeature("lucene_10_upgrade");
+    public static final NodeFeature LUCENE_10_1_0_UPGRADE = new NodeFeature("lucene_10_1_upgrade");
 
     @Override
     public Set<NodeFeature> getFeatures() {
-        return Set.of(LUCENE_10_0_0_UPGRADE);
+        return Set.of(LUCENE_10_0_0_UPGRADE, LUCENE_10_1_0_UPGRADE);
     }
 
     public static final NodeFeature RETRIEVER_RESCORER_ENABLED = new NodeFeature("search.retriever.rescorer.enabled");

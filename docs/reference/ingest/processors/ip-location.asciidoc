@@ -26,8 +26,8 @@ stats API>>.
 If your cluster can't connect to the Elastic GeoIP endpoint or you want to
 manage your own updates, see <<manage-geoip-database-updates>>.
 
-If you would like to have {es} download database files directly from Maxmind using your own provided
-license key, see <<put-ip-location-database-api>>.
+If you would like to have {es} download database files directly from Maxmind or IPinfo using your own
+license key or access token, see <<put-ip-location-database-api>>.
 
 If {es} can't connect to the endpoint for 30 days all updated databases will become
 invalid. {es} will stop enriching documents with ip geolocation data and will add `tags: ["_ip_location_expired_database"]`

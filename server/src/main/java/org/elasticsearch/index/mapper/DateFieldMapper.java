@@ -75,6 +75,7 @@ import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.common.time.DateUtils.toLong;
 
@@ -384,15 +385,9 @@ public final class DateFieldMapper extends FieldMapper {
 
         @Override
         public DateFieldMapper build(MapperBuilderContext context) {
-            final String fullFieldName = context.buildFullName(leafName());
-            boolean hasDocValuesSparseIndex = FieldMapper.DOC_VALUES_SPARSE_INDEX.isEnabled()
-                && indexCreatedVersion.onOrAfter(IndexVersions.TIMESTAMP_DOC_VALUES_SPARSE_INDEX)
-                && hasDocValuesSparseIndex(fullFieldName);
-            boolean hasInvertedIndex = (index.isSet() && index.getValue()) && indexCreatedVersion.isLegacyIndexVersion() == false || hasDocValuesSparseIndex == false;
-            System.out.println("### field: " + fullFieldName + " sparse index: " + hasDocValuesSparseIndex + ", inverted index: " + hasInvertedIndex);
             DateFieldType ft = new DateFieldType(
-                fullFieldName,
-                hasInvertedIndex,
+                context.buildFullName(leafName()),
+                index.getValue() && indexCreatedVersion.isLegacyIndexVersion() == false,
                 index.getValue(),
                 store.getValue(),
                 docValues.getValue(),
@@ -420,24 +415,55 @@ public final class DateFieldMapper extends FieldMapper {
                 context.isSourceSynthetic(),
                 indexMode,
                 indexSortConfig,
-                hasDocValuesSparseIndex,
+                isIndexParamExplicitlySet -> hasSparseDocValuesIndex(
+                    context.buildFullName(leafName()),
+                    isIndexParamExplicitlySet,
+                    docValues.getValue()
+                ),
                 this
             );
         }
 
-        private boolean hasDocValuesSparseIndex(final String fullFieldName) {
-            if (index.isSet() && index.getValue()) {
-                return false;
-            }
-
-            boolean indexNotConfigured = index.isConfigured() == false;
-            boolean isLogsDBMode = IndexMode.LOGSDB.equals(indexMode);
-            boolean isTimestampField = DataStreamTimestampFieldMapper.DEFAULT_PATH.equals(fullFieldName);
-            boolean hasPrimarySort = indexSortConfig != null && indexSortConfig.hasPrimarySortOnField(
-                DataStreamTimestampFieldMapper.DEFAULT_PATH
-            );
-
-            return indexNotConfigured && isLogsDBMode && isTimestampField && hasPrimarySort;
+        /**
+         * Determines whether the {@code @timestamp} field should use a sparse doc values index.
+         *
+         * <p>This method enables sparse doc values indexing only when the {@code index}
+         * parameter is at its default value (i.e., not explicitly set). If the {@code index}
+         * parameter is explicitly set, whether to {@code true} or {@code false}, sparse indexing
+         * is not enabled.</p>
+         *
+         * <p>When the {@code index} parameter is explicitly set to {@code true}, an inverted index
+         * is used on the {@code @timestamp} field to maintain normal behavior and ensure backward
+         * compatibility.</p>
+         *
+         * <p>If the {@code index} parameter is explicitly set to {@code false}, the behavior is to
+         * fail, as at least one type of index (either a sparse index or an inverted index) is
+         * required on the {@code @timestamp} field. See {@link DataStreamTimestampFieldMapper#doValidate(MappingLookup)}
+         * where the validation on the {@code @timestamp} field is conducted to check if it is indexed.</p>
+         *
+         * <p>After checking that the {@code index} parameter is not explicitly set, the method also checks that doc values are enabled,
+         * that the index mode is {@code LOGSDB}, the field name matches the default timestamp field for data streams, and that the index
+         * has a primary sort configured on this field.</p>
+         *
+         * @param fullFieldName the fully qualified name of the field being checked, expected to be {@code @timestamp}
+         * @param isIndexParamExplicitlySet {@code true} if the index parameter was explicitly set (to either {@code true} or {@code false}),
+         *                                  {@code false} if it is using its default value
+         * @param hasDocValues if doc values are enabled
+         * @return {@code true} if sparse doc values indexing should be enabled, {@code false} otherwise
+         * @throws IllegalStateException if the {@code index} parameter is explicitly set to {@code false},
+         *                               as at least one type of index must be created on the {@code @timestamp} field
+         */
+        private boolean hasSparseDocValuesIndex(
+            final String fullFieldName,
+            final Boolean isIndexParamExplicitlySet,
+            final boolean hasDocValues
+        ) {
+            return isIndexParamExplicitlySet == false
+                && hasDocValues
+                && IndexMode.LOGSDB.equals(indexMode)
+                && DataStreamTimestampFieldMapper.DEFAULT_PATH.equals(fullFieldName)
+                && indexSortConfig != null
+                && indexSortConfig.hasPrimarySortOnField(DataStreamTimestampFieldMapper.DEFAULT_PATH);
         }
 
     }
@@ -949,12 +975,12 @@ public final class DateFieldMapper extends FieldMapper {
         boolean isSourceSynthetic,
         IndexMode indexMode,
         IndexSortConfig indexSortConfig,
-        boolean hasDocValuesSparseIndex,
+        Predicate<Boolean> sparseIndexPredicate,
         Builder builder
     ) {
         super(leafName, mappedFieldType, builderParams);
         this.store = builder.store.getValue();
-        this.indexed = builder.index.getValue();
+        this.indexed = builder.index.getValue() && sparseIndexPredicate.test(builder.index.isSet()) == false;
         this.hasDocValues = builder.docValues.getValue();
         this.locale = builder.locale.getValue();
         this.format = builder.format.getValue();
@@ -971,7 +997,8 @@ public final class DateFieldMapper extends FieldMapper {
         this.isDataStreamTimestampField = mappedFieldType.name().equals(DataStreamTimestampFieldMapper.DEFAULT_PATH);
         this.indexMode = indexMode;
         this.indexSortConfig = indexSortConfig;
-        this.hasDocValuesSparseIndex = hasDocValuesSparseIndex;
+        this.hasDocValuesSparseIndex = sparseIndexPredicate.test(builder.index.isSet());
+        System.out.println("### inverted index: " + this.indexed + ", sparse index: " + this.hasDocValuesSparseIndex);
     }
 
     @Override

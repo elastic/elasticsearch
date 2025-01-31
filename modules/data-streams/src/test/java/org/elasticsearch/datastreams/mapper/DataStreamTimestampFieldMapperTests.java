@@ -21,7 +21,6 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MetadataMapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -300,14 +299,17 @@ public class DataStreamTimestampFieldMapperTests extends MetadataMapperTestCase 
             .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.name())
             .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), DataStreamTimestampFieldMapper.DEFAULT_PATH)
             .build();
-        final IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> withMapping(
-            new TestMapperServiceBuilder().settings(settings).applyDefaultMapping(false).build(),
-            timestampMapping(true, b -> {
-                b.startObject(DataStreamTimestampFieldMapper.DEFAULT_PATH);
-                b.field("type", "date");
-                b.field("index", false);
-                b.endObject();
-            }))
+        final IllegalArgumentException ex = assertThrows(
+            IllegalArgumentException.class,
+            () -> withMapping(
+                new TestMapperServiceBuilder().settings(settings).applyDefaultMapping(false).build(),
+                timestampMapping(true, b -> {
+                    b.startObject(DataStreamTimestampFieldMapper.DEFAULT_PATH);
+                    b.field("type", "date");
+                    b.field("index", false);
+                    b.endObject();
+                })
+            )
         );
 
         assertEquals("data stream timestamp field [@timestamp] has disallowed attributes: [index]", ex.getMessage());
@@ -318,9 +320,9 @@ public class DataStreamTimestampFieldMapperTests extends MetadataMapperTestCase 
             .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.name())
             .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), DataStreamTimestampFieldMapper.DEFAULT_PATH)
             .build();
-        final IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> createMapperService(
-            settings,
-            timestampMapping(true, b -> {
+        final IllegalArgumentException ex = assertThrows(
+            IllegalArgumentException.class,
+            () -> createMapperService(settings, timestampMapping(true, b -> {
                 b.startObject(DataStreamTimestampFieldMapper.DEFAULT_PATH);
                 b.field("type", "date");
                 b.field("index", false);

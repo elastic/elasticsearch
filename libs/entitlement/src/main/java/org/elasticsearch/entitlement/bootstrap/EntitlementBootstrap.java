@@ -157,11 +157,13 @@ public class EntitlementBootstrap {
                 var start = ProcessBuilder.class.getMethod("start");
                 start.invoke(pb);
             } catch (InvocationTargetException e) {
-                throw (Exception)e.getCause();
+                throw (Exception) e.getCause();
             }
         });
-        ensureCanCreateTempFile(() -> (Path) Files.class.getMethod("createTempFile", String.class, String.class, FileAttribute[].class)
-            .invoke(null, null, null, new FileAttribute<?>[0]));
+        ensureCanCreateTempFile(
+            () -> (Path) Files.class.getMethod("createTempFile", String.class, String.class, FileAttribute[].class)
+                .invoke(null, null, null, new FileAttribute<?>[0])
+        );
     }
 
     private static void ensureCannotStartProcess(CheckedConsumer<ProcessBuilder, ?> startProcess) {

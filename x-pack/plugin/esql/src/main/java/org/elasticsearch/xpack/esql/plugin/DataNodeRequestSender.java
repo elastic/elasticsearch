@@ -24,7 +24,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -109,13 +108,13 @@ abstract class DataNodeRequestSender {
                     }
                     for (ShardId shardId : pendingShardIds) {
                         if (targetShards.getShard(shardId).remainingNodes.isEmpty()) {
-                            shardFailures.compute(shardId, (k, v) -> {
-                                if (v == null) {
-                                    return new ShardFailure(true, new ShardNotFoundException(shardId, "no shard copies found {}"));
-                                } else {
-                                    return new ShardFailure(true, v.failure);
-                                }
-                            });
+                            shardFailures.compute(
+                                shardId,
+                                (k, v) -> new ShardFailure(
+                                    true,
+                                    v == null ? new NoShardAvailableActionException(shardId, "no shard copies found") : v.failure
+                                )
+                            );
                         }
                     }
                     if (shardFailures.values().stream().anyMatch(shardFailure -> shardFailure.fatal)) {

@@ -92,7 +92,12 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                 childSessionId,
                 queryPragmas.exchangeBufferSize(),
                 esqlExecutor,
-                ActionListener.wrap(unused -> {
+                EsqlCCSUtils.skipUnavailableListener(
+                    openExchangeListener,
+                    executionInfo,
+                    clusterAlias,
+                    EsqlExecutionInfo.Cluster.Status.SKIPPED
+                ).delegateFailureAndWrap((l, unused) -> {
                     var listenerGroup = new RemoteListenerGroup(
                         transportService,
                         rootTask,
@@ -129,18 +134,6 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                         TransportRequestOptions.EMPTY,
                         new ActionListenerResponseHandler<>(clusterListener, ComputeResponse::new, esqlExecutor)
                     );
-                }, e -> {
-                    if (EsqlCCSUtils.shouldIgnoreRuntimeError(executionInfo, clusterAlias, e)) {
-                        EsqlCCSUtils.markClusterWithFinalStateAndNoShards(
-                            executionInfo,
-                            clusterAlias,
-                            EsqlExecutionInfo.Cluster.Status.SKIPPED,
-                            e
-                        );
-                        openExchangeListener.onResponse(null);
-                    } else {
-                        openExchangeListener.onFailure(e);
-                    }
                 })
             );
         }

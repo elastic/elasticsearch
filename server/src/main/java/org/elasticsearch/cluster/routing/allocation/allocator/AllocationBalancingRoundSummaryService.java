@@ -43,7 +43,7 @@ public class AllocationBalancingRoundSummaryService {
         Setting.Property.Dynamic
     );
 
-    /** Controls how frequently in time balancer round summaries are logged. If less than zero, effectively disables reporting. */
+    /** Controls how frequently in time balancer round summaries are logged. */
     public static final Setting<TimeValue> BALANCER_ROUND_SUMMARIES_LOG_INTERVAL_SETTING = Setting.timeSetting(
         "cluster.routing.allocation.desired_balance.balanace_round_summaries_interval",
         TimeValue.timeValueSeconds(10),
@@ -61,10 +61,10 @@ public class AllocationBalancingRoundSummaryService {
      * A concurrency-safe list of balancing round summaries. Balancer rounds are run and added here serially, so the queue will naturally
      * progress from newer to older results.
      */
-    private ConcurrentLinkedQueue<BalancingRoundSummary> summaries = new ConcurrentLinkedQueue<>();
+    private final ConcurrentLinkedQueue<BalancingRoundSummary> summaries = new ConcurrentLinkedQueue<>();
 
     /** This reference is set when reporting is scheduled. If it is null, then reporting is inactive. */
-    private AtomicReference<Scheduler.Cancellable> scheduledReportFuture = new AtomicReference<>();
+    private final AtomicReference<Scheduler.Cancellable> scheduledReportFuture = new AtomicReference<>();
 
     public AllocationBalancingRoundSummaryService(ThreadPool threadPool, ClusterSettings clusterSettings) {
         this.threadPool = threadPool;

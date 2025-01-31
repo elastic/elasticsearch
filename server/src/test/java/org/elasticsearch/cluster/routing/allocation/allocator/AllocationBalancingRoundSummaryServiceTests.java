@@ -24,6 +24,8 @@ import org.junit.Before;
 public class AllocationBalancingRoundSummaryServiceTests extends ESTestCase {
     private static final Logger logger = LogManager.getLogger(AllocationBalancingRoundSummaryServiceTests.class);
 
+    private static final String BALANCING_SUMMARY_MSG_PREFIX = "Balancing round summaries:*";
+
     final Settings enabledSummariesSettings = Settings.builder()
         .put(AllocationBalancingRoundSummaryService.ENABLE_BALANCER_ROUND_SUMMARIES_SETTING.getKey(), true)
         .build();
@@ -73,10 +75,13 @@ public class AllocationBalancingRoundSummaryServiceTests extends ESTestCase {
                     "Running balancer summary logging",
                     AllocationBalancingRoundSummaryService.class.getName(),
                     Level.INFO,
-                    "Balancing round summaries:*"
+                    "*"
                 )
             );
 
+            if (deterministicTaskQueue.hasDeferredTasks()) {
+                deterministicTaskQueue.advanceTime();
+            }
             deterministicTaskQueue.runAllRunnableTasks();
             mockLog.awaitAllExpectationsMatched();
             service.verifyNumberOfSummaries(0);
@@ -98,7 +103,7 @@ public class AllocationBalancingRoundSummaryServiceTests extends ESTestCase {
                     "Running balancer summary logging",
                     AllocationBalancingRoundSummaryService.class.getName(),
                     Level.INFO,
-                    "Balancing round summaries:*"
+                    BALANCING_SUMMARY_MSG_PREFIX
                 )
             );
 
@@ -118,7 +123,7 @@ public class AllocationBalancingRoundSummaryServiceTests extends ESTestCase {
                     "Running balancer summary logging a second time",
                     AllocationBalancingRoundSummaryService.class.getName(),
                     Level.INFO,
-                    "Balancing round summaries:*"
+                    BALANCING_SUMMARY_MSG_PREFIX
                 )
             );
 
@@ -173,7 +178,7 @@ public class AllocationBalancingRoundSummaryServiceTests extends ESTestCase {
                     "Running balancer summary logging of combined summaries",
                     AllocationBalancingRoundSummaryService.class.getName(),
                     Level.INFO,
-                    "Balancing round summaries:*"
+                    BALANCING_SUMMARY_MSG_PREFIX
                 )
             );
 
@@ -191,7 +196,7 @@ public class AllocationBalancingRoundSummaryServiceTests extends ESTestCase {
                     "No balancer round summary to log",
                     AllocationBalancingRoundSummaryService.class.getName(),
                     Level.INFO,
-                    "Balancing round summaries:*"
+                    "*"
                 )
             );
 
@@ -238,7 +243,7 @@ public class AllocationBalancingRoundSummaryServiceTests extends ESTestCase {
                     "Running balancer summary logging",
                     AllocationBalancingRoundSummaryService.class.getName(),
                     Level.INFO,
-                    "Balancing round summaries:*"
+                    "*"
                 )
             );
             deterministicTaskQueue.advanceTime();

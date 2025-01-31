@@ -55,6 +55,7 @@ public class FailureStoreSecurityRestIT extends SecurityOnTrialLicenseRestTestCa
         assertContainsDocIds(performRequestAsUser1(new Request("GET", "/test*::failures/_search")), failedDocId);
         assertContainsDocIds(performRequestAsUser1(new Request("GET", "/*1::failures/_search")), failedDocId);
         assertContainsDocIds(performRequestAsUser1(new Request("GET", "/*::failures/_search")), failedDocId);
+        assertContainsDocIds(performRequestAsUser1(new Request("GET", "/.fs*/_search")), failedDocId);
 
         expectThrows404(() -> performRequestAsUser1(new Request("GET", "/test12::failures/_search")));
         expectThrows404(() -> performRequestAsUser1(new Request("GET", "/test2::failures/_search")));
@@ -64,9 +65,10 @@ public class FailureStoreSecurityRestIT extends SecurityOnTrialLicenseRestTestCa
         assertContainsDocIds(adminClient().performRequest(new Request("GET", "/test*::failures/_search")), failedDocId);
         assertContainsDocIds(adminClient().performRequest(new Request("GET", "/*1::failures/_search")), failedDocId);
         assertContainsDocIds(adminClient().performRequest(new Request("GET", "/*::failures/_search")), failedDocId);
+        assertContainsDocIds(adminClient().performRequest(new Request("GET", "/.fs*/_search")), failedDocId);
 
-        expectThrows404(() -> adminClient().performRequest(new Request("GET", "/test2::failures/_search")));
         expectThrows404(() -> adminClient().performRequest(new Request("GET", "/test12::failures/_search")));
+        expectThrows404(() -> adminClient().performRequest(new Request("GET", "/test2::failures/_search")));
     }
 
     private static void expectThrows404(ThrowingRunnable get) {

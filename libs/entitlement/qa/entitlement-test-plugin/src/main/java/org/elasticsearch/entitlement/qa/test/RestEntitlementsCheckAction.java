@@ -34,6 +34,7 @@ import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
@@ -234,9 +235,14 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
         .filter(entry -> entry.getValue().fromJavaVersion() == null || Runtime.version().feature() >= entry.getValue().fromJavaVersion())
         .collect(Collectors.toUnmodifiableMap(Entry::getKey, Entry::getValue));
 
+    @SuppressForbidden(reason = "Need package private methods so we don't have to make them all public")
+    private static Method[] getDeclaredMethods(Class<?> clazz) {
+        return clazz.getDeclaredMethods();
+    }
+
     private static Stream<Entry<String, CheckAction>> getTestEntries(Class<?> actionsClass) {
         List<Entry<String, CheckAction>> entries = new ArrayList<>();
-        for (var method : actionsClass.getDeclaredMethods()) {
+        for (var method : getDeclaredMethods(actionsClass)) {
             var testAnnotation = method.getAnnotation(EntitlementTest.class);
             if (testAnnotation == null) {
                 continue;

@@ -74,9 +74,12 @@ public abstract class TestCluster {
 
     protected void ensureNoInitializingShards() {
         logger.info("--> waiting for all initializing shards to complete within a reasonable time before wiping the cluster");
-        assertNoTimeout(client().admin().cluster().health(
-            new ClusterHealthRequest(TEST_REQUEST_TIMEOUT, "_all").waitForNoInitializingShards(true)
-        ).actionGet());
+        assertNoTimeout(
+            client().admin()
+                .cluster()
+                .health(new ClusterHealthRequest(TEST_REQUEST_TIMEOUT, "_all").waitForNoInitializingShards(true))
+                .actionGet()
+        );
     }
 
     /**

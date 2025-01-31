@@ -514,3 +514,5 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=search.highlight/30_max_analyzed_offset/Plain highlighter with max_analyzed_offset < 0 should FAIL}
   issue: https://github.com/elastic/elasticsearch/issues/121359
+- class: org.elasticsearch.xpack.esql.action.CrossClusterAsyncQueryIT
+  issue: https://github.com/elastic/elasticsearch/issues/121143

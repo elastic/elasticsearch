@@ -131,13 +131,6 @@ public class AllocationBalancingRoundSummaryService {
     }
 
     /**
-     * Returns whether reporting is turned on with the given point-in-time summary setting values.
-     */
-    private boolean shouldReschedule(boolean enableValue) {
-        return enableValue;
-    }
-
-    /**
      * Schedules a periodic task to drain and report the latest balancer round summaries, or cancels the already running task, if the latest
      * setting values dictate a change to enable or disable reporting. A change to {@link #BALANCER_ROUND_SUMMARIES_LOG_INTERVAL_SETTING}
      * will only take effect when the periodic task completes and reschedules itself.

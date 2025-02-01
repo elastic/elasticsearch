@@ -543,3 +543,6 @@ tests:
 - class: org.elasticsearch.xpack.inference.action.TransportInferenceActionTests
   method: testRerouting_ToOtherNode
   issue: https://github.com/elastic/elasticsearch/issues/121293
+- class: org.elasticsearch.xpack.inference.action.TransportInferenceActionTests
+  method: testRerouting_HandlesTransportException_FromOtherNode
+  issue: https://github.com/elastic/elasticsearch/issues/121292

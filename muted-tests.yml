@@ -403,6 +403,9 @@ tests:
 - class: org.elasticsearch.xpack.security.authc.jwt.JwtRealmSingleNodeTests
   method: testGrantApiKeyForJWT
   issue: https://github.com/elastic/elasticsearch/issues/121039
+- class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
+  method: test {yaml=cluster.health/10_basic/cluster health basic test}
+  issue: https://github.com/elastic/elasticsearch/issues/121478
 
 # Examples:
 #

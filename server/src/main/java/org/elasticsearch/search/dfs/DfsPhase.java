@@ -20,6 +20,8 @@ import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopScoreDocCollectorManager;
 import org.elasticsearch.index.query.ParsedQuery;
+import org.elasticsearch.index.query.PerDocumentQueryRewriteContext;
+import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
@@ -119,9 +121,19 @@ public class DfsPhase {
         }
 
         try {
+            // We apply the per-document rewrite context to prevent costly nearest neighbor searches
+            // during query rewriting. Since we are only extracting term statistics and not executing
+            // the query, these expensive operations are unnecessary.
+            PerDocumentQueryRewriteContext rewriteContext = new PerDocumentQueryRewriteContext(
+                context.getSearchExecutionContext().getParserConfig(),
+                context.getSearchExecutionContext()::nowInMillis
+            );
+            Query query = Rewriteable.rewrite(context.userQueryBuilder(), rewriteContext, true)
+                .toQuery(context.getSearchExecutionContext());
+
             Timer timer = maybeStartTimer(profiler, DfsTimingType.CREATE_WEIGHT);
             try {
-                searcher.createWeight(context.rewrittenQuery(), ScoreMode.COMPLETE, 1);
+                searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE, 1);
             } finally {
                 if (timer != null) {
                     timer.stop();

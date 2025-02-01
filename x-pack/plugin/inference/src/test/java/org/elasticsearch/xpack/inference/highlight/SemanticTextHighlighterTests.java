@@ -33,7 +33,9 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.query.NestedQueryBuilder;
+import org.elasticsearch.index.query.PerDocumentQueryRewriteContext;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
@@ -233,11 +235,17 @@ public class SemanticTextHighlighterTests extends MapperServiceTestCase {
                 int docID = topDocs.scoreDocs[0].doc;
                 SemanticTextHighlighter highlighter = new SemanticTextHighlighter();
                 var execContext = createSearchExecutionContext(mapperService);
-                var luceneQuery = execContext.toQuery(request.source().query()).query();
                 FetchContext fetchContext = mock(FetchContext.class);
                 Mockito.when(fetchContext.highlight()).thenReturn(new SearchHighlightContext(Collections.emptyList()));
-                Mockito.when(fetchContext.query()).thenReturn(luceneQuery);
                 Mockito.when(fetchContext.getSearchExecutionContext()).thenReturn(execContext);
+
+                PerDocumentQueryRewriteContext rewriteContext = new PerDocumentQueryRewriteContext(
+                    execContext.getParserConfig(),
+                    execContext::nowInMillis
+                );
+                var query = Rewriteable.rewrite(request.source().query(), rewriteContext, true);
+                Mockito.when(fetchContext.userQueryBuilder()).thenReturn(query);
+                var luceneQuery = execContext.toQuery(query).query();
 
                 FetchSubPhase.HitContext hitContext = new FetchSubPhase.HitContext(
                     new SearchHit(docID),

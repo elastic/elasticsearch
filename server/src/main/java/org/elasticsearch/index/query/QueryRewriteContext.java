@@ -223,7 +223,7 @@ public class QueryRewriteContext {
         return null;
     }
 
-    public InnerHitsRewriteContext convertToInnerHitsRewriteContext() {
+    public PerDocumentQueryRewriteContext convertToPerDocumentQueryRewriteContext() {
         return null;
     }
 

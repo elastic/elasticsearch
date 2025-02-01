@@ -54,7 +54,7 @@ Defaults to `open`.
 
 include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
 
-include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=local]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=local-deprecated-9.0.0]
 
 include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 

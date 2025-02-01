@@ -49,8 +49,12 @@ public abstract class LocalClusterStateRequest extends ActionRequest {
         in.readBoolean();
     }
 
+    /**
+     * Most transport actions that run on the local node will never need to serialize their request. The exceptions are actions that are
+     * run across clusters and will thus need to serialize requests for communication between the clusters.
+     */
     @Override
-    public final void writeTo(StreamOutput out) throws IOException {
+    public void writeTo(StreamOutput out) throws IOException {
         TransportAction.localOnly();
     }
 

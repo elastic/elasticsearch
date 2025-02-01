@@ -11,8 +11,8 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.info.ClusterInfoRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.UpdateForV10;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -33,17 +33,15 @@ public class ExplainLifecycleRequest extends ClusterInfoRequest<ExplainLifecycle
         super(masterTimeout, IndicesOptions.strictExpandOpen());
     }
 
+    /**
+     * NB prior to 9.0 this was a TransportMasterNodeReadAction so for BwC we must remain able to read these requests until
+     * we no longer need to support calling this action remotely.
+     */
+    @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
     public ExplainLifecycleRequest(StreamInput in) throws IOException {
         super(in);
         onlyErrors = in.readBoolean();
         onlyManaged = in.readBoolean();
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeBoolean(onlyErrors);
-        out.writeBoolean(onlyManaged);
     }
 
     public boolean onlyErrors() {

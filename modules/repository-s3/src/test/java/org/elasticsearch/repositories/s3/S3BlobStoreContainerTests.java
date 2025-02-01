@@ -213,7 +213,7 @@ public class S3BlobStoreContainerTests extends ESTestCase {
         final ArgumentCaptor<CompleteMultipartUploadRequest> compArgCaptor = ArgumentCaptor.forClass(CompleteMultipartUploadRequest.class);
         when(client.completeMultipartUpload(compArgCaptor.capture())).thenReturn(new CompleteMultipartUploadResult());
 
-        final ByteArrayInputStream inputStream = new ByteArrayInputStream(new byte[0]);
+        final ByteArrayInputStream inputStream = new ByteArrayInputStream(new byte[1]);
         final S3BlobContainer blobContainer = new S3BlobContainer(blobPath, blobStore);
         blobContainer.executeMultipartUpload(randomPurpose(), blobStore, blobName, inputStream, blobSize);
 

@@ -69,8 +69,11 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.Date;
 import java.util.Iterator;
 import java.util.List;
@@ -189,13 +192,18 @@ class S3BlobContainer extends AbstractBlobContainer {
                     }
                 }
                 assert lastPart == false || successful : "must only write last part if successful";
+                final var byteStream = buffer.bytes().streamInput();
+                byteStream.mark(0);
+                final var md5 = md5DigestOfInputStream(byteStream, Long.MAX_VALUE);
+                byteStream.reset();
                 final UploadPartRequest uploadRequest = createPartUploadRequest(
                     purpose,
-                    buffer.bytes().streamInput(),
+                    byteStream,
                     uploadId.get(),
                     parts.size() + 1,
                     absoluteBlobKey,
                     buffer.size(),
+                    md5,
                     lastPart
                 );
                 final UploadPartResult uploadResponse;
@@ -260,6 +268,7 @@ class S3BlobContainer extends AbstractBlobContainer {
         int number,
         String blobName,
         long size,
+        byte[] partMd5,
         boolean lastPart
     ) {
         final UploadPartRequest uploadRequest = new UploadPartRequest();
@@ -270,6 +279,7 @@ class S3BlobContainer extends AbstractBlobContainer {
         uploadRequest.setInputStream(stream);
         S3BlobStore.configureRequestForMetrics(uploadRequest, blobStore, Operation.PUT_MULTIPART_OBJECT, purpose);
         uploadRequest.setPartSize(size);
+        uploadRequest.setMd5Digest(Base64.getEncoder().encodeToString(partMd5));
         uploadRequest.setLastPart(lastPart);
         return uploadRequest;
     }
@@ -457,8 +467,18 @@ class S3BlobContainer extends AbstractBlobContainer {
         if (blobSize > s3BlobStore.bufferSizeInBytes()) {
             throw new IllegalArgumentException("Upload request size [" + blobSize + "] can't be larger than buffer size");
         }
+        // required to reset the stream for MD5 calculation
+        if (input.markSupported() == false) {
+            throw new IllegalArgumentException("input stream mark not supported");
+        }
 
         final ObjectMetadata md = new ObjectMetadata();
+
+        input.mark(0);
+        final byte[] md5 = md5DigestOfInputStream(input, Long.MAX_VALUE);
+        input.reset();
+        md.setContentMD5(Base64.getEncoder().encodeToString(md5));
+
         md.setContentLength(blobSize);
         if (s3BlobStore.serverSideEncryption()) {
             md.setSSEAlgorithm(ObjectMetadata.AES_256_SERVER_SIDE_ENCRYPTION);
@@ -485,7 +505,6 @@ class S3BlobContainer extends AbstractBlobContainer {
         final InputStream input,
         final long blobSize
     ) throws IOException {
-
         ensureMultiPartUploadSize(blobSize);
         final long partSize = s3BlobStore.bufferSizeInBytes();
         final Tuple<Long, Long> multiparts = numberOfMultiparts(blobSize, partSize);
@@ -497,6 +516,19 @@ class S3BlobContainer extends AbstractBlobContainer {
         final int nbParts = multiparts.v1().intValue();
         final long lastPartSize = multiparts.v2();
         assert blobSize == (((nbParts - 1) * partSize) + lastPartSize) : "blobSize does not match multipart sizes";
+
+        // required to reset the stream for MD5 calculation
+        if (input.markSupported() == false) {
+            throw new IllegalArgumentException("input stream mark not supported");
+        }
+
+        final byte[][] md5s = new byte[nbParts][];
+        input.mark(0);
+        for (int i = 0; i < nbParts - 1; i++) {
+            md5s[i] = md5DigestOfInputStream(input, partSize);
+        }
+        md5s[nbParts - 1] = md5DigestOfInputStream(input, lastPartSize);
+        input.reset();
 
         final SetOnce<String> uploadId = new SetOnce<>();
         final String bucketName = s3BlobStore.bucket();
@@ -525,6 +557,7 @@ class S3BlobContainer extends AbstractBlobContainer {
                     i,
                     blobName,
                     lastPart ? lastPartSize : partSize,
+                    md5s[i - 1],
                     lastPart
                 );
                 bytesCount += uploadRequest.getPartSize();
@@ -561,6 +594,28 @@ class S3BlobContainer extends AbstractBlobContainer {
             if ((success == false) && Strings.hasLength(uploadId.get())) {
                 abortMultiPartUpload(purpose, uploadId.get(), blobName);
             }
+        }
+    }
+
+    // Calculate the MD5 of up to remaining bytes of the given InputStream
+    private byte[] md5DigestOfInputStream(final InputStream inputStream, long remaining) throws IOException {
+        try {
+            final MessageDigest md5 = MessageDigest.getInstance("MD5");
+            // update in chunks to bound memory usage while amortizing read cost
+            byte[] buffer = new byte[65536];
+            int bytesRead;
+            do {
+                final int toRead = (int) Math.min(remaining, buffer.length);
+                bytesRead = inputStream.read(buffer, 0, toRead);
+                if (bytesRead > 0) {
+                    md5.update(buffer, 0, bytesRead);
+                    remaining -= bytesRead;
+                }
+            } while (bytesRead > 0);
+
+            return md5.digest();
+        } catch (NoSuchAlgorithmException e) {
+            throw new IOException(e);
         }
     }
 

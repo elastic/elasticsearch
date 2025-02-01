@@ -266,6 +266,10 @@ public class SubscribableListener<T> implements ActionListener<T> {
         return isDone(state);
     }
 
+    public final boolean isSuccess() {
+        return state instanceof SuccessResult;
+    }
+
     /**
      * @return the result with which this listener completed successfully, or throw the exception with which it failed.
      *

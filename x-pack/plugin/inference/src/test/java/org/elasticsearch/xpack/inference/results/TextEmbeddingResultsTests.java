@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.results;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xpack.core.inference.results.InferenceByteEmbedding;
 import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingByteResults;
 import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.ml.inference.results.MlTextEmbeddingResults;
@@ -141,7 +142,7 @@ public class TextEmbeddingResultsTests extends AbstractWireSerializingTestCase<I
     public static Map<String, Object> buildExpectationByte(List<byte[]> embeddings) {
         return Map.of(
             InferenceTextEmbeddingByteResults.TEXT_EMBEDDING_BYTES,
-            embeddings.stream().map(InferenceTextEmbeddingByteResults.InferenceByteEmbedding::new).toList()
+            embeddings.stream().map(InferenceByteEmbedding::new).toList()
         );
     }
 

@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbeddingB
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbeddingFloat;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbeddingSparse;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceError;
+import org.elasticsearch.xpack.core.inference.results.InferenceByteEmbedding;
 import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingByteResults;
 import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
@@ -368,16 +369,16 @@ public class EmbeddingRequestChunkerTests extends ESTestCase {
 
         // 4 inputs in 2 batches
         {
-            var embeddings = new ArrayList<InferenceTextEmbeddingByteResults.InferenceByteEmbedding>();
+            var embeddings = new ArrayList<InferenceByteEmbedding>();
             for (int i = 0; i < batchSize; i++) {
-                embeddings.add(new InferenceTextEmbeddingByteResults.InferenceByteEmbedding(new byte[] { randomByte() }));
+                embeddings.add(new InferenceByteEmbedding(new byte[] { randomByte() }));
             }
             batches.get(0).listener().onResponse(new InferenceTextEmbeddingByteResults(embeddings));
         }
         {
-            var embeddings = new ArrayList<InferenceTextEmbeddingByteResults.InferenceByteEmbedding>();
+            var embeddings = new ArrayList<InferenceByteEmbedding>();
             for (int i = 0; i < 4; i++) { // 4 requests in the 2nd batch
-                embeddings.add(new InferenceTextEmbeddingByteResults.InferenceByteEmbedding(new byte[] { randomByte() }));
+                embeddings.add(new InferenceByteEmbedding(new byte[] { randomByte() }));
             }
             batches.get(1).listener().onResponse(new InferenceTextEmbeddingByteResults(embeddings));
         }

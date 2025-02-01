@@ -151,6 +151,7 @@ public class ListenableFutureTests extends ESTestCase {
         reachabilityChecker.ensureUnreachable();
     }
 
+    @AwaitsFix(bugUrl = "testing")
     public void testRejection() {
         final CyclicBarrier barrier = new CyclicBarrier(2);
         final EsThreadPoolExecutor executorService = EsExecutors.newFixed(

@@ -60,7 +60,6 @@ public class TransportTermVectorsAction extends TransportSingleShardAction<TermV
 
     }
 
-    @Override
     protected ShardIterator shards(ClusterState state, InternalRequest request) {
         final var operationRouting = clusterService.operationRouting();
         if (request.request().doc() != null && request.request().routing() == null) {

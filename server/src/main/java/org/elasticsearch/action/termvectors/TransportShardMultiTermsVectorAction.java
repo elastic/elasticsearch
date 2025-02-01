@@ -79,9 +79,11 @@ public class TransportShardMultiTermsVectorAction extends TransportSingleShardAc
 
     @Override
     protected ShardIterator shards(ClusterState state, InternalRequest request) {
-        ShardIterator shards = clusterService.operationRouting()
-            .getShards(state, request.concreteIndex(), request.request().shardId(), request.request().preference());
-        return clusterService.operationRouting().useOnlyPromotableShardsForStateless(shards);
+        return clusterService.operationRouting()
+            .useOnlyPromotableShardsForStateless(
+                clusterService.operationRouting()
+                    .getShards(state, request.concreteIndex(), request.request().shardId(), request.request().preference())
+            );
     }
 
     @Override

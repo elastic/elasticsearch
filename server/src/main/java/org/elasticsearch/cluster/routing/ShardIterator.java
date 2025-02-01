@@ -11,19 +11,61 @@ package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.index.shard.ShardId;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /**
- * Allows to iterate over a set of shard instances (routing) within a shard id group.
+ * The {@link ShardIterator} iterates shard copies for a given {@link ShardId shard id}
  */
-public interface ShardIterator extends ShardsIterator, Comparable<ShardIterator> {
+public class ShardIterator extends PlainShardsIterator implements Comparable<ShardIterator> {
+
+    private final ShardId shardId;
+
+    public static ShardIterator allSearchableShards(ShardIterator shardIterator) {
+        return new ShardIterator(shardIterator.shardId(), shardsThatCanHandleSearches(shardIterator));
+    }
+
+    private static List<ShardRouting> shardsThatCanHandleSearches(ShardIterator iterator) {
+        final List<ShardRouting> shardsThatCanHandleSearches = new ArrayList<>(iterator.size());
+        for (ShardRouting shardRouting : iterator) {
+            if (shardRouting.isSearchable()) {
+                shardsThatCanHandleSearches.add(shardRouting);
+            }
+        }
+        return shardsThatCanHandleSearches;
+    }
 
     /**
-     * The shard id this group relates to.
+     * Creates a {@link ShardIterator} instance that iterates over a subset of the given shards
+     * this the a given <code>shardId</code>.
+     *
+     * @param shardId shard id of the group
+     * @param shards  shards to iterate
      */
-    ShardId shardId();
+    public ShardIterator(ShardId shardId, List<ShardRouting> shards) {
+        super(shards);
+        this.shardId = shardId;
+    }
 
-    /**
-     * Resets the iterator.
-     */
+    public ShardId shardId() {
+        return this.shardId;
+    }
+
     @Override
-    void reset();
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        ShardIterator that = (ShardIterator) o;
+        return shardId.equals(that.shardId());
+    }
+
+    @Override
+    public int hashCode() {
+        return shardId.hashCode();
+    }
+
+    @Override
+    public int compareTo(ShardIterator o) {
+        return shardId.compareTo(o.shardId());
+    }
 }

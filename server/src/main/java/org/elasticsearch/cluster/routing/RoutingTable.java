@@ -227,7 +227,7 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
                     if (predicate.test(shardRouting)) {
                         set.add(shardRouting.shardsIt());
                     } else if (includeEmpty) { // we need this for counting properly, just make it an empty one
-                        set.add(new PlainShardIterator(shardRouting.shardId(), Collections.emptyList()));
+                        set.add(new ShardIterator(shardRouting.shardId(), Collections.emptyList()));
                     }
                 }
             }
@@ -299,7 +299,7 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
                 if (primary.active()) {
                     set.add(primary.shardsIt());
                 } else if (includeEmpty) { // we need this for counting properly, just make it an empty one
-                    set.add(new PlainShardIterator(primary.shardId(), Collections.emptyList()));
+                    set.add(new ShardIterator(primary.shardId(), Collections.emptyList()));
                 }
             }
         }

@@ -54,6 +54,7 @@ import org.elasticsearch.xpack.core.deprecation.DeprecatedIndexPredicate;
 
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.APIBlock.WRITE;
 
@@ -372,7 +373,7 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
                 listener.delegateFailureAndWrap((delegate, ignored) -> {
                     getIndexDocCount(sourceIndexName, parentTaskId, delegate.delegateFailureAndWrap((delegate1, sourceCount) -> {
                         getIndexDocCount(destIndexName, parentTaskId, delegate1.delegateFailureAndWrap((delegate2, destCount) -> {
-                            assert sourceCount == destCount
+                            assert Objects.equals(sourceCount, destCount)
                                 : String.format(
                                     Locale.ROOT,
                                     "source index [%s] has %d docs and dest [%s] has %d docs",

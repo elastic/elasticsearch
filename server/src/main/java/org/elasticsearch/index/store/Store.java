@@ -168,11 +168,11 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
 
     // Keep a reference to the wrapped RefCounter so we can call AbstractRefCounted#refCount()
     private final AbstractRefCounted innerRefCounter = AbstractRefCounted.of(this::closeInternal); // close us once we are done
-    private final RefCounted refCounter = LeakTracker.wrap(innerRefCounter);
+    private final RefCounted refCounter;
     private boolean hasIndexSort;
 
     public Store(ShardId shardId, IndexSettings indexSettings, Directory directory, ShardLock shardLock) {
-        this(shardId, indexSettings, directory, shardLock, OnClose.EMPTY, false);
+        this(shardId, indexSettings, directory, shardLock, OnClose.EMPTY, false, true);
     }
 
     public Store(
@@ -182,6 +182,18 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         ShardLock shardLock,
         OnClose onClose,
         boolean hasIndexSort
+    ) {
+        this(shardId, indexSettings, directory, shardLock, onClose, hasIndexSort, true);
+    }
+
+    public Store(
+        ShardId shardId,
+        IndexSettings indexSettings,
+        Directory directory,
+        ShardLock shardLock,
+        OnClose onClose,
+        boolean hasIndexSort,
+        boolean detectLeaks
     ) {
         super(shardId, indexSettings);
         this.directory = new StoreDirectory(
@@ -195,6 +207,8 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         assert onClose != null;
         assert shardLock != null;
         assert shardLock.getShardId().equals(shardId);
+
+        this.refCounter = detectLeaks ? LeakTracker.wrap(innerRefCounter) : innerRefCounter;
     }
 
     public Directory directory() {

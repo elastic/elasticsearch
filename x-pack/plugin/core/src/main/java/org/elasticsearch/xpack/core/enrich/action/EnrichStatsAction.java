@@ -10,12 +10,16 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.support.master.MasterNodeRequest;
+import org.elasticsearch.action.support.local.LocalClusterStateRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.UpdateForV10;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -23,6 +27,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 public class EnrichStatsAction extends ActionType<EnrichStatsAction.Response> {
@@ -34,12 +39,17 @@ public class EnrichStatsAction extends ActionType<EnrichStatsAction.Response> {
         super(NAME);
     }
 
-    public static class Request extends MasterNodeRequest<Request> {
+    public static class Request extends LocalClusterStateRequest {
 
         public Request(TimeValue masterNodeTimeout) {
             super(masterNodeTimeout);
         }
 
+        /**
+         * NB prior to 9.0 this was a TransportMasterNodeReadAction so for BwC we must remain able to read these requests until
+         * we no longer need to support calling this action remotely.
+         */
+        @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
         public Request(StreamInput in) throws IOException {
             super(in);
         }
@@ -47,6 +57,11 @@ public class EnrichStatsAction extends ActionType<EnrichStatsAction.Response> {
         @Override
         public ActionRequestValidationException validate() {
             return null;
+        }
+
+        @Override
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+            return new CancellableTask(id, type, action, "", parentTaskId, headers);
         }
     }
 
@@ -62,13 +77,6 @@ public class EnrichStatsAction extends ActionType<EnrichStatsAction.Response> {
             this.cacheStats = cacheStats;
         }
 
-        public Response(StreamInput in) throws IOException {
-            super(in);
-            executingPolicies = in.readCollectionAsList(ExecutingPolicy::new);
-            coordinatorStats = in.readCollectionAsList(CoordinatorStats::new);
-            cacheStats = in.readCollectionAsList(CacheStats::new);
-        }
-
         public List<ExecutingPolicy> getExecutingPolicies() {
             return executingPolicies;
         }
@@ -81,6 +89,11 @@ public class EnrichStatsAction extends ActionType<EnrichStatsAction.Response> {
             return cacheStats;
         }
 
+        /**
+         * NB prior to 9.0 this was a TransportMasterNodeReadAction so for BwC we must remain able to write these responses until
+         * we no longer need to support calling this action remotely.
+         */
+        @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeCollection(executingPolicies);
@@ -167,10 +180,11 @@ public class EnrichStatsAction extends ActionType<EnrichStatsAction.Response> {
 
         public record ExecutingPolicy(String name, TaskInfo taskInfo) implements Writeable, ToXContentFragment {
 
-            ExecutingPolicy(StreamInput in) throws IOException {
-                this(in.readString(), TaskInfo.from(in));
-            }
-
+            /**
+             * NB prior to 9.0 this was a TransportMasterNodeReadAction so for BwC we must remain able to write these responses until
+             * we no longer need to support calling this action remotely.
+             */
+            @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
             @Override
             public void writeTo(StreamOutput out) throws IOException {
                 out.writeString(name);

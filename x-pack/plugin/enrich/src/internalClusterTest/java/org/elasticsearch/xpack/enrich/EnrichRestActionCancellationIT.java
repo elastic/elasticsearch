@@ -23,6 +23,7 @@ import org.elasticsearch.rest.root.MainRestPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.transport.netty4.Netty4Plugin;
+import org.elasticsearch.xpack.core.enrich.action.EnrichStatsAction;
 import org.elasticsearch.xpack.core.enrich.action.GetEnrichPolicyAction;
 
 import java.io.IOException;
@@ -60,6 +61,10 @@ public class EnrichRestActionCancellationIT extends ESIntegTestCase {
 
     public void testGetEnrichPolicyCancellation() throws IOException {
         runRestActionCancellationTest(new Request(HttpGet.METHOD_NAME, "/_enrich/policy"), GetEnrichPolicyAction.NAME);
+    }
+
+    public void testEnrichStatsCancellation() throws IOException {
+        runRestActionCancellationTest(new Request(HttpGet.METHOD_NAME, "/_enrich/_stats"), EnrichStatsAction.NAME);
     }
 
     private void runRestActionCancellationTest(Request request, String actionName) {

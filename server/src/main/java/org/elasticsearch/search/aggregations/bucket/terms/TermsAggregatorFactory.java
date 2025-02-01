@@ -511,7 +511,6 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                         bucketCountThresholds,
                         context,
                         parent,
-                        false,
                         subAggCollectMode,
                         showTermDocCountError,
                         metadata,

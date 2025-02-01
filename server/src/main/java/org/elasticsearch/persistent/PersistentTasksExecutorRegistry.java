@@ -8,6 +8,8 @@
  */
 package org.elasticsearch.persistent;
 
+import org.elasticsearch.core.Strings;
+
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -23,7 +25,17 @@ public class PersistentTasksExecutorRegistry {
     public PersistentTasksExecutorRegistry(Collection<PersistentTasksExecutor<?>> taskExecutors) {
         Map<String, PersistentTasksExecutor<?>> map = new HashMap<>();
         for (PersistentTasksExecutor<?> executor : taskExecutors) {
-            map.put(executor.getTaskName(), executor);
+            final var old = map.put(executor.getTaskName(), executor);
+            if (old != null) {
+                final var message = Strings.format(
+                    "task [%s] is already registered with [%s], cannot re-register with [%s]",
+                    executor.getTaskName(),
+                    old,
+                    executor
+                );
+                assert false : message;
+                throw new IllegalStateException(message);
+            }
         }
         this.taskExecutors = Collections.unmodifiableMap(map);
     }

@@ -52,7 +52,7 @@ public class DefaultWrappersHandler implements DataSourceHandler {
         return (values) -> {
             HashSet<Object> previousValues = new HashSet<>();
             return () -> {
-                if (ESTestCase.randomBoolean()) {
+                if (previousValues.size() > 0 && ESTestCase.randomBoolean()) {
                     return ESTestCase.randomFrom(previousValues);
                 } else {
                     var value = values.get();

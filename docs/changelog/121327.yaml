@@ -1,0 +1,5 @@
+pr: 121327
+summary: Fix priviledges in system migration WRITE block
+area: Infra/Core
+type: bug
+issues: []

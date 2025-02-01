@@ -88,6 +88,10 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
     private volatile boolean resetCurrentDesiredBalance = false;
     private final Set<String> processedNodeShutdowns = new HashSet<>();
     private final DesiredBalanceMetrics desiredBalanceMetrics;
+    /**
+     * Manages balancer round results in order to report on the balancer activity in a configurable manner.
+     */
+    private final AllocationBalancingRoundSummaryService balancerRoundSummaryService;
 
     // stats
     protected final CounterMetric computationsSubmitted = new CounterMetric();
@@ -132,6 +136,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         NodeAllocationStatsAndWeightsCalculator nodeAllocationStatsAndWeightsCalculator
     ) {
         this.desiredBalanceMetrics = new DesiredBalanceMetrics(telemetryProvider.getMeterRegistry());
+        this.balancerRoundSummaryService = new AllocationBalancingRoundSummaryService(threadPool, clusterService.getClusterSettings());
         this.delegateAllocator = delegateAllocator;
         this.threadPool = threadPool;
         this.reconciler = reconciler;
@@ -320,6 +325,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
             }
 
             if (currentDesiredBalanceRef.compareAndSet(oldDesiredBalance, newDesiredBalance)) {
+                balancerRoundSummaryService.addBalancerRoundSummary(calculateBalancingRoundSummary(oldDesiredBalance, newDesiredBalance));
                 if (logger.isTraceEnabled()) {
                     var diff = DesiredBalance.hasChanges(oldDesiredBalance, newDesiredBalance)
                         ? "Diff: " + DesiredBalance.humanReadableDiff(oldDesiredBalance, newDesiredBalance)
@@ -332,6 +338,13 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
                 break;
             }
         }
+    }
+
+    /**
+     * Summarizes the work required to move from an old to new desired balance shard allocation.
+     */
+    private BalancingRoundSummary calculateBalancingRoundSummary(DesiredBalance oldDesiredBalance, DesiredBalance newDesiredBalance) {
+        return new BalancingRoundSummary(DesiredBalance.shardMovements(oldDesiredBalance, newDesiredBalance));
     }
 
     protected void submitReconcileTask(DesiredBalance desiredBalance) {

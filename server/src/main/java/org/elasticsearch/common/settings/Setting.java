@@ -1580,6 +1580,15 @@ public class Setting<T> implements ToXContentObject {
         return new Setting<>(key, Boolean.toString(defaultValue), booleanParser(key, properties), validator, properties);
     }
 
+    public static Setting<Boolean> boolSetting(
+        String key,
+        Function<Settings, String> defaultValueFn,
+        Validator<Boolean> validator,
+        Property... properties
+    ) {
+        return new Setting<>(key, defaultValueFn, booleanParser(key, properties), validator, properties);
+    }
+
     public static Setting<Boolean> boolSetting(String key, Function<Settings, String> defaultValueFn, Property... properties) {
         return new Setting<>(key, defaultValueFn, booleanParser(key, properties), properties);
     }

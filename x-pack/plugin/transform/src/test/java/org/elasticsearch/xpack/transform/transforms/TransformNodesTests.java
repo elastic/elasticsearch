@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.transform.transforms;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -38,6 +39,7 @@ import static org.elasticsearch.persistent.PersistentTasksCustomMetadata.INITIAL
 import static org.elasticsearch.test.hamcrest.OptionalMatchers.isEmpty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.isA;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.oneOf;
 
@@ -246,7 +248,9 @@ public class TransformNodesTests extends ESTestCase {
         {
             DiscoveryNodes nodes = DiscoveryNodes.EMPTY_NODES;
             assertThat(TransformNodes.hasAnyTransformNode(nodes), is(false));
-            expectThrows(ElasticsearchStatusException.class, () -> TransformNodes.throwIfNoTransformNodes(newClusterState(nodes)));
+            TransformNodes.completeWithNoTransformNodeException(
+                ActionTestUtils.assertNoSuccessListener(e -> assertThat(e, isA(ElasticsearchStatusException.class)))
+            );
         }
         {
             DiscoveryNodes nodes = DiscoveryNodes.builder()
@@ -255,7 +259,9 @@ public class TransformNodesTests extends ESTestCase {
                 .add(newDiscoveryNode("node-3", TransformConfigVersion.V_7_13_0))
                 .build();
             assertThat(TransformNodes.hasAnyTransformNode(nodes), is(false));
-            expectThrows(ElasticsearchStatusException.class, () -> TransformNodes.throwIfNoTransformNodes(newClusterState(nodes)));
+            TransformNodes.completeWithNoTransformNodeException(
+                ActionTestUtils.assertNoSuccessListener(e -> assertThat(e, isA(ElasticsearchStatusException.class)))
+            );
         }
         {
             DiscoveryNodes nodes = DiscoveryNodes.builder()
@@ -265,7 +271,6 @@ public class TransformNodesTests extends ESTestCase {
                 .add(newDiscoveryNode("node-4", TransformConfigVersion.V_7_13_0))
                 .build();
             assertThat(TransformNodes.hasAnyTransformNode(nodes), is(true));
-            TransformNodes.throwIfNoTransformNodes(newClusterState(nodes));
         }
     }
 

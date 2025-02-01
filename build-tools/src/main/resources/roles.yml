@@ -6,6 +6,9 @@ _es_test_root:
     - names: [ "*" ]
       allow_restricted_indices: true
       privileges: [ "ALL" ]
+    - names: [ "*::failures" ]
+      allow_restricted_indices: true
+      privileges: [ "ALL" ]
   run_as: [ "*" ]
   applications:
     - application: "*"

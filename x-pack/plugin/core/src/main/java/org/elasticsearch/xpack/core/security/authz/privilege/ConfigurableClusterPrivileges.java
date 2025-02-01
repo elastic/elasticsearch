@@ -419,6 +419,7 @@ public final class ConfigurableClusterPrivileges {
                         FieldPermissions.DEFAULT,
                         null,
                         false,
+                        false,
                         indexPatternPrivilege.indexPatterns()
                     );
                 }

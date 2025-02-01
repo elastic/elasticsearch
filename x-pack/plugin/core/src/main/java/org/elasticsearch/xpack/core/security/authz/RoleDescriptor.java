@@ -12,6 +12,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
+import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -50,6 +51,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.createParserNotCompressed;
 import static org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions.ROLE_REMOTE_CLUSTER_PRIVS;
@@ -1373,6 +1376,15 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
 
         public String[] getIndices() {
             return this.indices;
+        }
+
+        public static Set<String> filterFailureIndices(Set<String> indices) {
+            return indices.stream().filter(index -> {
+                // TODO improve check
+                return index != null
+                    && (index.endsWith("::" + IndexComponentSelector.FAILURES.getKey())
+                        || index.endsWith("::" + IndexComponentSelector.FAILURES.getKey() + "/"));
+            }).collect(Collectors.toSet());
         }
 
         public String[] getPrivileges() {

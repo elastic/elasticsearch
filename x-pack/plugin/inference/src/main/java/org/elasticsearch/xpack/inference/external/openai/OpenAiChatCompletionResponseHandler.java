@@ -8,13 +8,24 @@
 package org.elasticsearch.xpack.inference.external.openai;
 
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
+import org.elasticsearch.xpack.inference.external.http.retry.ErrorResponse;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseParser;
 import org.elasticsearch.xpack.inference.external.http.retry.RetryException;
 import org.elasticsearch.xpack.inference.external.request.Request;
 
+import java.util.function.Function;
+
 public class OpenAiChatCompletionResponseHandler extends OpenAiResponseHandler {
     public OpenAiChatCompletionResponseHandler(String requestType, ResponseParser parseFunction) {
         super(requestType, parseFunction, true);
+    }
+
+    protected OpenAiChatCompletionResponseHandler(
+        String requestType,
+        ResponseParser parseFunction,
+        Function<HttpResult, ErrorResponse> errorParseFunction
+    ) {
+        super(requestType, parseFunction, errorParseFunction, true);
     }
 
     @Override

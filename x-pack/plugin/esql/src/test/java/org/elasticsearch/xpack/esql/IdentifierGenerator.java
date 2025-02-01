@@ -80,7 +80,7 @@ public class IdentifierGenerator {
 
         var pattern = maybeQuote(index.toString());
         if (canAdd(Features.CROSS_CLUSTER, features)) {
-            var cluster = randomIdentifier();
+            var cluster = maybeQuote(randomIdentifier());
             pattern = maybeQuote(cluster + ":" + pattern);
         }
 

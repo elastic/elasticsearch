@@ -39,6 +39,8 @@ public interface DataSourceResponse {
 
     record ArrayWrapper(Function<Supplier<Object>, Supplier<Object>> wrapper) implements DataSourceResponse {}
 
+    record RepeatingWrapper(Function<Supplier<Object>, Supplier<Object>> wrapper) implements DataSourceResponse {}
+
     interface ChildFieldGenerator extends DataSourceResponse {
         int generateChildFieldCount();
 

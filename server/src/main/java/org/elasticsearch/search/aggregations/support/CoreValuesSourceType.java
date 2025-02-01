@@ -292,6 +292,7 @@ public enum CoreValuesSourceType implements ValuesSourceType {
                  */
                 @Override
                 public Function<Rounding, Rounding.Prepared> roundingPreparer(AggregationContext context) throws IOException {
+                    String fieldName = fieldContext.fieldType().name();
                     DateFieldType dft = (DateFieldType) fieldContext.fieldType();
                     /*
                      * The range of dates, min first, then max. This is an array so we can
@@ -307,10 +308,10 @@ public enum CoreValuesSourceType implements ValuesSourceType {
                          * search index (isSearchable) and the resolution which
                          * is on the DateFieldType.
                          */
-                        byte[] min = PointValues.getMinPackedValue(context.searcher().getIndexReader(), fieldContext.field());
+                        byte[] min = PointValues.getMinPackedValue(context.searcher().getIndexReader(), fieldName);
                         if (min != null) {
                             // null means that there aren't values in the index
-                            byte[] max = PointValues.getMaxPackedValue(context.searcher().getIndexReader(), fieldContext.field());
+                            byte[] max = PointValues.getMaxPackedValue(context.searcher().getIndexReader(), fieldName);
                             range[0] = dft.resolution().parsePointAsMillis(min);
                             range[1] = dft.resolution().parsePointAsMillis(max);
                         }
@@ -320,12 +321,12 @@ public enum CoreValuesSourceType implements ValuesSourceType {
                     boolean isMultiValue = false;
                     for (LeafReaderContext leaf : context.searcher().getLeafContexts()) {
                         if (fieldContext.fieldType().isIndexed()) {
-                            PointValues pointValues = leaf.reader().getPointValues(fieldContext.field());
+                            PointValues pointValues = leaf.reader().getPointValues(fieldName);
                             if (pointValues != null && pointValues.size() != pointValues.getDocCount()) {
                                 isMultiValue = true;
                             }
                         } else if (fieldContext.fieldType().hasDocValues()) {
-                            if (DocValues.unwrapSingleton(leaf.reader().getSortedNumericDocValues(fieldContext.field())) == null) {
+                            if (DocValues.unwrapSingleton(leaf.reader().getSortedNumericDocValues(fieldName)) == null) {
                                 isMultiValue = true;
                             }
                         }

@@ -23,6 +23,7 @@ import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.RecoverySource;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.store.ByteArrayIndexInput;
@@ -34,6 +35,7 @@ import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
@@ -277,6 +279,10 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
     @Override
     public final String[] listAll() {
         ensureOpen();
+        return listAllFiles();
+    }
+
+    private String[] listAllFiles() {
         return files().stream().map(BlobStoreIndexShardSnapshot.FileInfo::physicalName).sorted(String::compareTo).toArray(String[]::new);
     }
 
@@ -288,42 +294,39 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
 
     @Override
     public Set<String> getPendingDeletions() {
-        throw unsupportedException();
+        throw unsupportedException("getPendingDeletions");
     }
 
     @Override
-    public void sync(Collection<String> names) {
-        throw unsupportedException();
-    }
+    public void sync(Collection<String> names) {}
 
     @Override
-    public void syncMetaData() {
-        throw unsupportedException();
-    }
+    public void syncMetaData() {}
 
     @Override
     public void deleteFile(String name) {
-        throw unsupportedException();
+        throw unsupportedException("deleteFile(" + name + ')');
     }
 
     @Override
     public IndexOutput createOutput(String name, IOContext context) {
-        throw unsupportedException();
+        throw unsupportedException("createOutput(" + name + ", " + context + ')');
     }
 
     @Override
     public IndexOutput createTempOutput(String prefix, String suffix, IOContext context) {
-        throw unsupportedException();
+        throw unsupportedException("createTempOutput(" + prefix + ", " + suffix + ", " + context + ')');
     }
 
     @Override
     public void rename(String source, String dest) {
-        throw unsupportedException();
+        throw unsupportedException("rename(" + source + ", " + dest + ')');
     }
 
-    private static UnsupportedOperationException unsupportedException() {
-        assert false : "this operation is not supported and should have not be called";
-        return new UnsupportedOperationException("Searchable snapshot directory does not support this operation");
+    private UnsupportedOperationException unsupportedException(String description) {
+        var message = "Searchable snapshot directory does not support the operation [" + description + ']';
+        assert false : message + ", current directory files: " + Strings.arrayToCommaDelimitedString(this.listAllFiles());
+        return new UnsupportedOperationException(message);
     }
 
     @Override
@@ -612,24 +615,33 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         final Path cacheDir = CacheService.getShardCachePath(shardPath).resolve(snapshotId.getUUID());
         Files.createDirectories(cacheDir);
 
-        return new InMemoryNoOpCommitDirectory(
-            new SearchableSnapshotDirectory(
-                blobContainerSupplier,
-                lazySnapshot::getOrCompute,
-                blobStoreCacheService,
-                initialRepository.getMetadata().name(),
-                snapshotId,
-                indexId,
-                shardPath.getShardId(),
-                indexSettings.getSettings(),
-                currentTimeNanosSupplier,
-                cache,
-                cacheDir,
-                shardPath,
-                threadPool,
-                sharedBlobCacheService
-            )
+        final var dir = new SearchableSnapshotDirectory(
+            blobContainerSupplier,
+            lazySnapshot::getOrCompute,
+            blobStoreCacheService,
+            initialRepository.getMetadata().name(),
+            snapshotId,
+            indexId,
+            shardPath.getShardId(),
+            indexSettings.getSettings(),
+            currentTimeNanosSupplier,
+            cache,
+            cacheDir,
+            shardPath,
+            threadPool,
+            sharedBlobCacheService
         );
+
+        // Archives indices mounted as searchable snapshots always require a writeable Lucene directory in order to rewrite the segments
+        // infos file to the latest Lucene version. Similarly, searchable snapshot indices created before 9.0.0 also require a writeable
+        // directory because in previous versions commits were executed during recovery (to associate translogs with Lucene indices),
+        // creating additional files that need to be sent and written to replicas during peer-recoveries. From 9.0.0 we merged a change to
+        // skip commits creation during recovery for searchable snapshots (see https://github.com/elastic/elasticsearch/pull/118606).
+        var version = IndexMetadata.SETTING_INDEX_VERSION_COMPATIBILITY.get(indexSettings.getSettings());
+        if (version.before(IndexVersions.UPGRADE_TO_LUCENE_10_0_0) || indexSettings.getIndexVersionCreated().isLegacyIndexVersion()) {
+            return new InMemoryNoOpCommitDirectory(dir);
+        }
+        return dir;
     }
 
     public static SearchableSnapshotDirectory unwrapDirectory(Directory dir) {

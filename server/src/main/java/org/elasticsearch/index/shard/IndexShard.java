@@ -3209,7 +3209,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             try {
                 doCheckIndex();
             } catch (IOException e) {
-                store.markStoreCorrupted(e);
+                if (ExceptionsHelper.unwrap(e, AlreadyClosedException.class) != null) {
+                    // Cache-based read operations on Lucene files can throw an AlreadyClosedException wrapped into an IOException in case
+                    // of evictions. We don't want to mark the store as corrupted for this.
+                } else {
+                    store.markStoreCorrupted(e);
+                }
                 throw e;
             } finally {
                 store.decRef();

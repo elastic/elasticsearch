@@ -70,6 +70,7 @@ import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.transport.LeakTracker;
 
 import java.io.Closeable;
 import java.io.EOFException;
@@ -165,7 +166,9 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     private final ShardLock shardLock;
     private final OnClose onClose;
 
-    private final AbstractRefCounted refCounter = AbstractRefCounted.of(this::closeInternal); // close us once we are done
+    // Keep a reference to the wrapped RefCounter so we can call AbstractRefCounted#refCount()
+    private final AbstractRefCounted innerRefCounter = AbstractRefCounted.of(this::closeInternal); // close us once we are done
+    private final RefCounted refCounter = LeakTracker.wrap(innerRefCounter);
     private boolean hasIndexSort;
 
     public Store(ShardId shardId, IndexSettings indexSettings, Directory directory, ShardLock shardLock) {
@@ -235,7 +238,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     }
 
     final void ensureOpen() {
-        if (this.refCounter.refCount() <= 0) {
+        if (this.innerRefCounter.refCount() <= 0) {
             throw new AlreadyClosedException("store is already closed");
         }
     }
@@ -437,7 +440,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         if (isClosed.compareAndSet(false, true)) {
             // only do this once!
             decRef();
-            logger.debug("store reference count on close: {}", refCounter.refCount());
+            logger.debug("store reference count on close: {}", innerRefCounter.refCount());
         }
     }
 
@@ -749,7 +752,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      * Returns the current reference count.
      */
     public int refCount() {
-        return refCounter.refCount();
+        return innerRefCounter.refCount();
     }
 
     public void beforeClose() {

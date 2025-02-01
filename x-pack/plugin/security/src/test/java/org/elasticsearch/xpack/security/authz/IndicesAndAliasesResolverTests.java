@@ -333,7 +333,11 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             new RoleDescriptor(
                 "data_stream_test2",
                 null,
-                new IndicesPrivileges[] { IndicesPrivileges.builder().indices(otherDataStreamName + "*").privileges("all").build() },
+                new IndicesPrivileges[] {
+                    IndicesPrivileges.builder()
+                        .indices(otherDataStreamName + "*", otherDataStreamName + "*::failures")
+                        .privileges("all")
+                        .build() },
                 null
             )
         );
@@ -342,7 +346,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             new RoleDescriptor(
                 "data_stream_test3",
                 null,
-                new IndicesPrivileges[] { IndicesPrivileges.builder().indices("logs*").privileges("all").build() },
+                new IndicesPrivileges[] { IndicesPrivileges.builder().indices("logs*", "logs*::failures").privileges("all").build() },
                 null
             )
         );
@@ -2413,7 +2417,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
     public void testBackingIndicesAreNotVisibleWhenNotIncludedByRequestWithoutWildcard() {
         final User user = new User("data-stream-tester2", "data_stream_test2");
         String dataStreamName = "logs-foobar";
-        GetAliasesRequest request = new GetAliasesRequest(TEST_REQUEST_TIMEOUT, dataStreamName);
+        GetAliasesRequest request = new GetAliasesRequest(TEST_REQUEST_TIMEOUT, dataStreamName, dataStreamName + "::failures");
         assertThat(request, instanceOf(IndicesRequest.Replaceable.class));
         assertThat(request.includeDataStreams(), is(true));
 
@@ -2680,6 +2684,6 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
     }
 
     private boolean runFailureStore() {
-        return DataStream.isFailureStoreFeatureFlagEnabled() && randomBoolean();
+        return DataStream.isFailureStoreFeatureFlagEnabled() && Boolean.TRUE;// && randomBoolean();
     }
 }

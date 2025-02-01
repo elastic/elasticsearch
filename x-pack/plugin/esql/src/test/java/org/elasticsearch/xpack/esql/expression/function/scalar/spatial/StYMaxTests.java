@@ -42,11 +42,7 @@ public class StYMaxTests extends AbstractScalarFunctionTestCase {
         TestCaseSupplier.forUnaryCartesianPoint(suppliers, expectedCartesian, DOUBLE, StYMaxTests::valueOfCartesian, List.of());
         TestCaseSupplier.forUnaryGeoShape(suppliers, expectedGeo, DOUBLE, StYMaxTests::valueOfGeo, List.of());
         TestCaseSupplier.forUnaryCartesianShape(suppliers, expectedCartesian, DOUBLE, StYMaxTests::valueOfCartesian, List.of());
-        return parameterSuppliersFromTypedDataWithDefaultChecks(
-            true,
-            suppliers,
-            (v, p) -> "geo_point, cartesian_point, geo_shape or cartesian_shape"
-        );
+        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
     }
 
     private static double valueOfGeo(BytesRef wkb) {

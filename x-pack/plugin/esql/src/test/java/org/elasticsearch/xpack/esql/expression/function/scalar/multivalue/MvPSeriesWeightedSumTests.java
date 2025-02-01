@@ -35,7 +35,7 @@ public class MvPSeriesWeightedSumTests extends AbstractScalarFunctionTestCase {
 
         doubles(cases);
 
-        return parameterSuppliersFromTypedDataWithDefaultChecks(
+        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(
             (nullPosition, nullValueDataType, original) -> nullValueDataType == DataType.NULL ? DataType.NULL : original.expectedType(),
             (nullPosition, nullData, original) -> {
                 if (nullData.isForceLiteral()) {
@@ -43,8 +43,7 @@ public class MvPSeriesWeightedSumTests extends AbstractScalarFunctionTestCase {
                 }
                 return nullData.type() == DataType.NULL ? equalTo("LiteralsEvaluator[lit=null]") : original;
             },
-            cases,
-            (valid, position) -> "double"
+            cases
         );
     }
 

@@ -32,7 +32,7 @@ public class NowTests extends AbstractConfigurationFunctionTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        return parameterSuppliersFromTypedDataWithDefaultChecks(
+        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(
             true,
             List.of(
                 new TestCaseSupplier(
@@ -45,8 +45,7 @@ public class NowTests extends AbstractConfigurationFunctionTestCase {
                         equalTo(EsqlTestUtils.TEST_CFG.now().toInstant().toEpochMilli())
                     )
                 )
-            ),
-            (valid, position) -> ""
+            )
         );
     }
 

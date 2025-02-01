@@ -418,6 +418,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.CrossClusterAsyncQueryIT
   method: testStopQueryLocal
   issue: https://github.com/elastic/elasticsearch/issues/121487
+- class: org.elasticsearch.xpack.esql.action.CrossClusterAsyncQueryIT
+  method: testSuccessfulPathways
+  issue: https://github.com/elastic/elasticsearch/issues/121488
 
 # Examples:
 #

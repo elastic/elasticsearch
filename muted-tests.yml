@@ -424,6 +424,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.CrossClusterAsyncQueryIT
   method: testAsyncQueriesWithLimit0
   issue: https://github.com/elastic/elasticsearch/issues/121489
+- class: org.elasticsearch.xpack.security.profile.ProfileIntegTests
+  method: testSuggestProfilesWithHint
+  issue: https://github.com/elastic/elasticsearch/issues/121116
 
 # Examples:
 #

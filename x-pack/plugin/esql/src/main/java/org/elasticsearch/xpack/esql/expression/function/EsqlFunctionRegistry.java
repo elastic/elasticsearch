@@ -92,6 +92,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.Signum;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Sin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Sinh;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Sqrt;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.Square;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Tan;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Tanh;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Tau;
@@ -328,6 +329,7 @@ public class EsqlFunctionRegistry {
                 def(Signum.class, Signum::new, "signum"),
                 def(Sin.class, Sin::new, "sin"),
                 def(Sinh.class, Sinh::new, "sinh"),
+                def(Square.class, Square::new, "square"),
                 def(Sqrt.class, Sqrt::new, "sqrt"),
                 def(Tan.class, Tan::new, "tan"),
                 def(Tanh.class, Tanh::new, "tanh"),

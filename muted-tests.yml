@@ -415,6 +415,9 @@ tests:
 - class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
   method: test {yaml=cat.aliases/10_basic/Empty cluster}
   issue: https://github.com/elastic/elasticsearch/issues/121484
+- class: org.elasticsearch.xpack.transform.checkpoint.TransformCCSCanMatchIT
+  method: testTransformLifecycle_RangeQueryThatMatchesNoShards
+  issue: https://github.com/elastic/elasticsearch/issues/121480
 
 # Examples:
 #

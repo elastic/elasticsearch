@@ -1578,13 +1578,14 @@ FROM sample_data, sample_data_ts_long
 multiIndexIndirectUseOfUnionTypesInMvExpand
 required_capability: union_types
 FROM sample_data, sample_data_ts_long
-| EVAL foo = MV_APPEND(message, message)
+| EVAL foo = MV_APPEND(message, message, message)
 | SORT client_ip ASC
 | LIMIT 1
 | MV_EXPAND foo
 ;
 
 @timestamp:unsupported | client_ip:ip | event_duration:long | message:keyword | foo:keyword
+           null        | 172.21.0.5   |             1232382 | Disconnected    | Disconnected
            null        | 172.21.0.5   |             1232382 | Disconnected    | Disconnected
            null        | 172.21.0.5   |             1232382 | Disconnected    | Disconnected
 ;

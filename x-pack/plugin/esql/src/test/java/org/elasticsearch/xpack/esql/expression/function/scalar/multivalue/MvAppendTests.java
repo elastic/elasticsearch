@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTe
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
@@ -49,7 +50,7 @@ public class MvAppendTests extends AbstractScalarFunctionTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new MvAppend(source, args.get(0), args.get(1));
+        return new MvAppend(source, args.get(0), args.subList(1, args.size()));
     }
 
     private static void booleans(List<TestCaseSupplier> suppliers) {
@@ -63,7 +64,7 @@ public class MvAppendTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(field1, DataType.BOOLEAN, "field1"),
                     new TestCaseSupplier.TypedData(field2, DataType.BOOLEAN, "field2")
                 ),
-                "MvAppendBooleanEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
+                "MvAppendBooleanEvaluator[field1=Attribute[channel=0], field2=[Attribute[channel=1]]]",
                 DataType.BOOLEAN,
                 equalTo(result)
             );
@@ -81,7 +82,7 @@ public class MvAppendTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(field1, DataType.INTEGER, "field1"),
                     new TestCaseSupplier.TypedData(field2, DataType.INTEGER, "field2")
                 ),
-                "MvAppendIntEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
+                "MvAppendIntEvaluator[field1=Attribute[channel=0], field2=[Attribute[channel=1]]]",
                 DataType.INTEGER,
                 equalTo(result)
             );
@@ -99,7 +100,7 @@ public class MvAppendTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(field1, DataType.LONG, "field1"),
                     new TestCaseSupplier.TypedData(field2, DataType.LONG, "field2")
                 ),
-                "MvAppendLongEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
+                "MvAppendLongEvaluator[field1=Attribute[channel=0], field2=[Attribute[channel=1]]]",
                 DataType.LONG,
                 equalTo(result)
             );
@@ -128,7 +129,7 @@ public class MvAppendTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(field1, DataType.DATETIME, "field1"),
                     new TestCaseSupplier.TypedData(field2, DataType.DATETIME, "field2")
                 ),
-                "MvAppendLongEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
+                "MvAppendLongEvaluator[field1=Attribute[channel=0], field2=[Attribute[channel=1]]]",
                 DataType.DATETIME,
                 equalTo(result)
             );
@@ -161,7 +162,7 @@ public class MvAppendTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(field1, DataType.DOUBLE, "field1"),
                     new TestCaseSupplier.TypedData(field2, DataType.DOUBLE, "field2")
                 ),
-                "MvAppendDoubleEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
+                "MvAppendDoubleEvaluator[field1=Attribute[channel=0], field2=[Attribute[channel=1]]]",
                 DataType.DOUBLE,
                 equalTo(result)
             );
@@ -188,6 +189,54 @@ public class MvAppendTests extends AbstractScalarFunctionTestCase {
                 }));
             }
         }
+        suppliers.add(new TestCaseSupplier(List.of(DataType.KEYWORD, DataType.KEYWORD), () -> {
+            List<Object> field1 = randomList(1, 10, () -> randomLiteral(DataType.KEYWORD).value());
+            List<Object> field2 = randomList(1, 10, () -> randomLiteral(DataType.KEYWORD).value());
+            var result = new ArrayList<>(field1);
+            result.addAll(field2);
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(field1, DataType.KEYWORD, "field1"),
+                    new TestCaseSupplier.TypedData(field2, DataType.KEYWORD, "field2")
+                ),
+                "MvAppendBytesRefEvaluator[field1=Attribute[channel=0], field2=[Attribute[channel=1]]]",
+                DataType.KEYWORD,
+                equalTo(result)
+            );
+        }));
+
+        suppliers.add(new TestCaseSupplier(List.of(DataType.TEXT, DataType.TEXT), () -> {
+            List<Object> field1 = randomList(1, 10, () -> randomLiteral(DataType.TEXT).value());
+            List<Object> field2 = randomList(1, 10, () -> randomLiteral(DataType.TEXT).value());
+            var result = new ArrayList<>(field1);
+            result.addAll(field2);
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(field1, DataType.TEXT, "field1"),
+                    new TestCaseSupplier.TypedData(field2, DataType.TEXT, "field2")
+                ),
+                "MvAppendBytesRefEvaluator[field1=Attribute[channel=0], field2=[Attribute[channel=1]]]",
+                DataType.TEXT,
+                equalTo(result)
+            );
+        }));
+
+        suppliers.add(new TestCaseSupplier(List.of(DataType.SEMANTIC_TEXT, DataType.SEMANTIC_TEXT), () -> {
+            List<Object> field1 = randomList(1, 10, () -> randomLiteral(DataType.SEMANTIC_TEXT).value());
+            List<Object> field2 = randomList(1, 10, () -> randomLiteral(DataType.SEMANTIC_TEXT).value());
+            var result = new ArrayList<>(field1);
+            result.addAll(field2);
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(field1, DataType.SEMANTIC_TEXT, "field1"),
+                    new TestCaseSupplier.TypedData(field2, DataType.SEMANTIC_TEXT, "field2")
+                ),
+                "MvAppendBytesRefEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
+                DataType.SEMANTIC_TEXT,
+                equalTo(result)
+            );
+        }));
+
         suppliers.add(new TestCaseSupplier(List.of(DataType.IP, DataType.IP), () -> {
             List<Object> field1 = randomList(1, 10, () -> randomLiteral(DataType.IP).value());
             List<Object> field2 = randomList(1, 10, () -> randomLiteral(DataType.IP).value());
@@ -198,7 +247,7 @@ public class MvAppendTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(field1, DataType.IP, "field"),
                     new TestCaseSupplier.TypedData(field2, DataType.IP, "field")
                 ),
-                "MvAppendBytesRefEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
+                "MvAppendBytesRefEvaluator[field1=Attribute[channel=0], field2=[Attribute[channel=1]]]",
                 DataType.IP,
                 equalTo(result)
             );
@@ -214,7 +263,7 @@ public class MvAppendTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(field1, DataType.VERSION, "field"),
                     new TestCaseSupplier.TypedData(field2, DataType.VERSION, "field")
                 ),
-                "MvAppendBytesRefEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
+                "MvAppendBytesRefEvaluator[field1=Attribute[channel=0], field2=[Attribute[channel=1]]]",
                 DataType.VERSION,
                 equalTo(result)
             );
@@ -230,7 +279,7 @@ public class MvAppendTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(field1, DataType.GEO_POINT, "field1"),
                     new TestCaseSupplier.TypedData(field2, DataType.GEO_POINT, "field2")
                 ),
-                "MvAppendBytesRefEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
+                "MvAppendBytesRefEvaluator[field1=Attribute[channel=0], field2=[Attribute[channel=1]]]",
                 DataType.GEO_POINT,
                 equalTo(result)
             );
@@ -246,7 +295,7 @@ public class MvAppendTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(field1, DataType.CARTESIAN_POINT, "field1"),
                     new TestCaseSupplier.TypedData(field2, DataType.CARTESIAN_POINT, "field2")
                 ),
-                "MvAppendBytesRefEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
+                "MvAppendBytesRefEvaluator[field1=Attribute[channel=0], field2=[Attribute[channel=1]]]",
                 DataType.CARTESIAN_POINT,
                 equalTo(result)
             );
@@ -262,7 +311,7 @@ public class MvAppendTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(field1, DataType.GEO_SHAPE, "field1"),
                     new TestCaseSupplier.TypedData(field2, DataType.GEO_SHAPE, "field2")
                 ),
-                "MvAppendBytesRefEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
+                "MvAppendBytesRefEvaluator[field1=Attribute[channel=0], field2=[Attribute[channel=1]]]",
                 DataType.GEO_SHAPE,
                 equalTo(result)
             );
@@ -278,7 +327,7 @@ public class MvAppendTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(field1, DataType.CARTESIAN_SHAPE, "field1"),
                     new TestCaseSupplier.TypedData(field2, DataType.CARTESIAN_SHAPE, "field2")
                 ),
-                "MvAppendBytesRefEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
+                "MvAppendBytesRefEvaluator[field1=Attribute[channel=0], field2=[Attribute[channel=1]]]",
                 DataType.CARTESIAN_SHAPE,
                 equalTo(result)
             );

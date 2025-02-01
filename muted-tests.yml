@@ -400,6 +400,9 @@ tests:
 - class: org.elasticsearch.xpack.security.authc.jwt.JwtRealmSingleNodeTests
   method: testClientSecretRotation
   issue: https://github.com/elastic/elasticsearch/issues/120985
+- class: org.elasticsearch.xpack.security.authc.jwt.JwtRealmSingleNodeTests
+  method: testGrantApiKeyForJWT
+  issue: https://github.com/elastic/elasticsearch/issues/121039
 
 # Examples:
 #

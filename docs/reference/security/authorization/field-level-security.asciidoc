@@ -3,8 +3,8 @@
 === Field level security
 
 Field level security restricts the fields that users have read access to.
-In particular, it restricts which fields can be accessed from document-based 
-read APIs. 
+In particular, it restricts which fields can be accessed from document-based
+read APIs.
 
 To enable field level security, specify the fields that each role can access
 as part of the indices permissions in a role definition. Field level security is
@@ -30,9 +30,11 @@ POST /_security/role/test_role1
 }
 --------------------------------------------------
 
-Access to the following metadata fields is always allowed: `_id`,
-`_type`, `_parent`, `_routing`, `_timestamp`, `_ttl`, `_size` and `_index`. If
-you specify an empty list of fields, only these metadata fields are accessible.
+Access to the following metadata fields is always allowed:
+`_ignored`, `_id`, `_routing`, `_tsid`, `_ts_routing_hash`, `_index`, `_index_mode`, `_nested_path`, `_type`,
+`_version`, `_seq_no`, `_primary_term`, `_doc_count`, `_data_stream_timestamp`, `_field_names`,
+`_size`, `_feature`, `_tier`.
+If you specify an empty list of fields, only these metadata fields are accessible.
 
 NOTE: Omitting the fields entry entirely disables field level security.
 

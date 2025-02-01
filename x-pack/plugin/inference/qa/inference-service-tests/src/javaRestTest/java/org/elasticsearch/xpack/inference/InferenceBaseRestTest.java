@@ -355,7 +355,8 @@ public class InferenceBaseRestTest extends ESRestTestCase {
         List<String> input,
         @Nullable Consumer<Response> responseConsumerCallback
     ) throws Exception {
-        var endpoint = Strings.format("_inference/%s/%s/_unified", taskType, modelId);
+        var route = randomBoolean() ? "_stream" : "_unified"; // TODO remove unified route
+        var endpoint = Strings.format("_inference/%s/%s/%s", taskType, modelId, route);
         return callAsyncUnified(endpoint, input, "user", responseConsumerCallback);
     }
 

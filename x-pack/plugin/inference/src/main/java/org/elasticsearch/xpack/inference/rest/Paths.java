@@ -31,6 +31,7 @@ public final class Paths {
         + INFERENCE_ID
         + "}/_stream";
 
+    // TODO remove the _unified path
     public static final String UNIFIED_SUFFIX = "_unified";
     static final String UNIFIED_INFERENCE_ID_PATH = "_inference/{" + TASK_TYPE_OR_INFERENCE_ID + "}/" + UNIFIED_SUFFIX;
     static final String UNIFIED_TASK_TYPE_INFERENCE_ID_PATH = "_inference/{"

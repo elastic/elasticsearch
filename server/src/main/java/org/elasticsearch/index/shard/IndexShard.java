@@ -12,6 +12,7 @@ package org.elasticsearch.index.shard;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.DelegatingAnalyzerWrapper;
+import org.apache.lucene.codecs.FieldsProducer;
 import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FieldInfos;
@@ -20,6 +21,7 @@ import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.Sort;
@@ -85,6 +87,7 @@ import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
 import org.elasticsearch.index.cache.request.ShardRequestCache;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.codec.FieldInfosWithUsages;
+import org.elasticsearch.index.codec.TrackingInMemoryPostingsBytesCodec;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.Engine.GetResult;
@@ -4145,6 +4148,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     int numSegments = 0;
                     int totalFields = 0;
                     long usages = 0;
+                    long totalPostingBytes = 0;
                     for (LeafReaderContext leaf : searcher.getLeafContexts()) {
                         numSegments++;
                         var fieldInfos = leaf.reader().getFieldInfos();
@@ -4156,8 +4160,18 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         } else {
                             usages = -1;
                         }
+                        SegmentReader segmentReader = Lucene.tryUnwrapSegmentReader(leaf.reader());
+                        if (segmentReader != null) {
+                            FieldsProducer postingsReader = segmentReader.getPostingsReader();
+                            String postingBytes = segmentReader.getSegmentInfo().info.getAttribute(
+                                TrackingInMemoryPostingsBytesCodec.IN_MEMORY_POSTINGS_BYTES_KEY
+                            );
+                            if (postingBytes != null) {
+                                totalPostingBytes += Long.parseLong(postingBytes);
+                            }
+                        }
                     }
-                    shardFieldStats = new ShardFieldStats(numSegments, totalFields, usages);
+                    shardFieldStats = new ShardFieldStats(numSegments, totalFields, usages, totalPostingBytes);
                 } catch (AlreadyClosedException ignored) {
 
                 }

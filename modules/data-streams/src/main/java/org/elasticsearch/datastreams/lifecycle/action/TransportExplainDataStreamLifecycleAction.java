@@ -14,7 +14,8 @@ import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
 import org.elasticsearch.action.datastreams.lifecycle.ExplainDataStreamLifecycleAction;
 import org.elasticsearch.action.datastreams.lifecycle.ExplainIndexDataStreamLifecycle;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
+import org.elasticsearch.action.support.ChannelActionListener;
+import org.elasticsearch.action.support.local.TransportLocalClusterStateAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -28,8 +29,10 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleErrorStore;
 import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -40,7 +43,7 @@ import java.util.List;
 /**
  * Transport action handling the explain the data stream lifecycle requests for one or more data stream lifecycle managed indices.
  */
-public class TransportExplainDataStreamLifecycleAction extends TransportMasterNodeReadAction<
+public class TransportExplainDataStreamLifecycleAction extends TransportLocalClusterStateAction<
     ExplainDataStreamLifecycleAction.Request,
     ExplainDataStreamLifecycleAction.Response> {
 
@@ -48,6 +51,12 @@ public class TransportExplainDataStreamLifecycleAction extends TransportMasterNo
     private final DataStreamLifecycleErrorStore errorStore;
     private final DataStreamGlobalRetentionSettings globalRetentionSettings;
 
+    /**
+     * NB prior to 9.0 this was a TransportMasterNodeReadAction so for BwC it must be registered with the TransportService until
+     * we no longer need to support calling this action remotely.
+     */
+    @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
+    @SuppressWarnings("this-escape")
     @Inject
     public TransportExplainDataStreamLifecycleAction(
         TransportService transportService,
@@ -60,27 +69,32 @@ public class TransportExplainDataStreamLifecycleAction extends TransportMasterNo
     ) {
         super(
             ExplainDataStreamLifecycleAction.INSTANCE.name(),
-            transportService,
-            clusterService,
-            threadPool,
             actionFilters,
-            ExplainDataStreamLifecycleAction.Request::new,
-            ExplainDataStreamLifecycleAction.Response::new,
+            transportService.getTaskManager(),
+            clusterService,
             threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.errorStore = dataLifecycleServiceErrorStore;
         this.globalRetentionSettings = globalRetentionSettings;
+
+        transportService.registerRequestHandler(
+            actionName,
+            executor,
+            false,
+            true,
+            ExplainDataStreamLifecycleAction.Request::new,
+            (request, channel, task) -> executeDirect(task, request, new ChannelActionListener<>(channel))
+        );
     }
 
     @Override
-    protected void masterOperation(
+    protected void localClusterStateOperation(
         Task task,
         ExplainDataStreamLifecycleAction.Request request,
         ClusterState state,
         ActionListener<ExplainDataStreamLifecycleAction.Response> listener
     ) throws Exception {
-
         String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(state, request);
         List<ExplainIndexDataStreamLifecycle> explainIndices = new ArrayList<>(concreteIndices.length);
         Metadata metadata = state.metadata();
@@ -115,6 +129,7 @@ public class TransportExplainDataStreamLifecycleAction extends TransportMasterNo
             explainIndices.add(explainIndexDataStreamLifecycle);
         }
 
+        ((CancellableTask) task).ensureNotCancelled();
         ClusterSettings clusterSettings = clusterService.getClusterSettings();
         listener.onResponse(
             new ExplainDataStreamLifecycleAction.Response(

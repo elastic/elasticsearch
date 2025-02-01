@@ -16,7 +16,7 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.master.MasterNodeReadRequest;
+import org.elasticsearch.action.support.local.LocalClusterStateRequest;
 import org.elasticsearch.cluster.metadata.DataStreamGlobalRetention;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.common.collect.Iterators;
@@ -25,6 +25,10 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.UpdateForV10;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 
@@ -32,6 +36,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -46,7 +51,7 @@ public class ExplainDataStreamLifecycleAction {
     /**
      * Request explaining the data stream lifecycle for one or more indices.
      */
-    public static class Request extends MasterNodeReadRequest<Request> implements IndicesRequest.Replaceable {
+    public static class Request extends LocalClusterStateRequest implements IndicesRequest.Replaceable {
         private String[] names;
         private boolean includeDefaults;
         private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpen();
@@ -71,23 +76,25 @@ public class ExplainDataStreamLifecycleAction {
         }
 
         @Override
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+            return new CancellableTask(id, type, action, "", parentTaskId, headers);
+        }
+
+        @Override
         public boolean includeDataStreams() {
             return true;
         }
 
+        /**
+         * NB prior to 9.0 this was a TransportMasterNodeReadAction so for BwC we must remain able to read these requests until
+         * we no longer need to support calling this action remotely.
+         */
+        @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
         public Request(StreamInput in) throws IOException {
             super(in);
             this.names = in.readOptionalStringArray();
             this.indicesOptions = IndicesOptions.readIndicesOptions(in);
             this.includeDefaults = in.readBoolean();
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeOptionalStringArray(names);
-            indicesOptions.writeIndicesOptions(out);
-            out.writeBoolean(includeDefaults);
         }
 
         @Override
@@ -159,15 +166,6 @@ public class ExplainDataStreamLifecycleAction {
             this.globalRetention = globalRetention;
         }
 
-        public Response(StreamInput in) throws IOException {
-            super(in);
-            this.indices = in.readCollectionAsList(ExplainIndexDataStreamLifecycle::new);
-            this.rolloverConfiguration = in.readOptionalWriteable(RolloverConfiguration::new);
-            this.globalRetention = in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)
-                ? in.readOptionalWriteable(DataStreamGlobalRetention::read)
-                : null;
-        }
-
         public List<ExplainIndexDataStreamLifecycle> getIndices() {
             return indices;
         }
@@ -180,6 +178,11 @@ public class ExplainDataStreamLifecycleAction {
             return globalRetention;
         }
 
+        /**
+         * NB prior to 9.0 this was a TransportMasterNodeReadAction so for BwC we must remain able to write these responses until
+         * we no longer need to support calling this action remotely.
+         */
+        @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeCollection(indices);

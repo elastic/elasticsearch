@@ -13,22 +13,16 @@ import org.elasticsearch.action.admin.indices.rollover.MaxPrimaryShardDocsCondit
 import org.elasticsearch.action.admin.indices.rollover.MinPrimaryShardDocsCondition;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConditions;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
-import org.elasticsearch.cluster.metadata.DataStreamGlobalRetention;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.List;
@@ -39,26 +33,7 @@ import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
-public class ExplainDataStreamLifecycleResponseTests extends AbstractWireSerializingTestCase<Response> {
-
-    private NamedWriteableRegistry namedWriteableRegistry;
-    private NamedXContentRegistry xContentRegistry;
-
-    @Before
-    public void setupNamedWriteableRegistry() {
-        namedWriteableRegistry = new NamedWriteableRegistry(IndicesModule.getNamedWriteables());
-        xContentRegistry = new NamedXContentRegistry(IndicesModule.getNamedXContents());
-    }
-
-    @Override
-    protected NamedXContentRegistry xContentRegistry() {
-        return xContentRegistry;
-    }
-
-    @Override
-    protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        return namedWriteableRegistry;
-    }
+public class ExplainDataStreamLifecycleResponseTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testToXContent() throws IOException {
@@ -276,40 +251,6 @@ public class ExplainDataStreamLifecycleResponseTests extends AbstractWireSeriali
                     new NullPointerException("bad times").getMessage(),
                     System.currentTimeMillis(),
                     randomIntBetween(0, 30)
-                )
-                : null
-        );
-    }
-
-    @Override
-    protected Writeable.Reader<Response> instanceReader() {
-        return Response::new;
-    }
-
-    @Override
-    protected Response createTestInstance() {
-        return randomResponse();
-    }
-
-    @Override
-    protected Response mutateInstance(Response instance) {
-        return randomResponse();
-    }
-
-    private Response randomResponse() {
-        return new Response(
-            List.of(createRandomIndexDataStreamLifecycleExplanation(System.nanoTime(), randomBoolean() ? new DataStreamLifecycle() : null)),
-            randomBoolean()
-                ? new RolloverConfiguration(
-                    new RolloverConditions(
-                        Map.of(MaxPrimaryShardDocsCondition.NAME, new MaxPrimaryShardDocsCondition(randomLongBetween(1000, 199_999_000)))
-                    )
-                )
-                : null,
-            randomBoolean()
-                ? new DataStreamGlobalRetention(
-                    TimeValue.timeValueDays(randomIntBetween(1, 10)),
-                    TimeValue.timeValueDays(randomIntBetween(10, 20))
                 )
                 : null
         );

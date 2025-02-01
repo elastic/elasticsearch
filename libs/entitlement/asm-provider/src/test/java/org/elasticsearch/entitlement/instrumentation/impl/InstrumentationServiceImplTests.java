@@ -55,6 +55,14 @@ public class InstrumentationServiceImplTests extends ESTestCase {
         void check$org_example_TestTargetClass$instanceMethodWithArgs(Class<?> clazz, TestTargetClass that, int x, int y);
     }
 
+    interface TestCheckerDerived extends TestChecker {
+        void check$org_example_TestTargetClass$instanceMethodNoArgs(Class<?> clazz, TestTargetClass that);
+
+        void check$org_example_TestTargetClass$differentInstanceMethod(Class<?> clazz, TestTargetClass that);
+    }
+
+    interface TestCheckerDerived2 extends TestCheckerDerived, TestChecker {}
+
     interface TestCheckerOverloads {
         void check$org_example_TestTargetClass$$staticMethodWithOverload(Class<?> clazz, int x, int y);
 
@@ -154,6 +162,75 @@ public class InstrumentationServiceImplTests extends ESTestCase {
                         "org/elasticsearch/entitlement/instrumentation/impl/InstrumentationServiceImplTests$TestCheckerOverloads",
                         "check$org_example_TestTargetClass$$staticMethodWithOverload",
                         List.of("Ljava/lang/Class;", "I", "I")
+                    )
+                )
+            )
+        );
+    }
+
+    public void testInstrumentationTargetLookupWithDerivedClass() throws IOException {
+        Map<MethodKey, CheckMethod> checkMethods = instrumentationService.lookupMethods(TestCheckerDerived2.class);
+
+        assertThat(checkMethods, aMapWithSize(4));
+        assertThat(
+            checkMethods,
+            hasEntry(
+                equalTo(new MethodKey("org/example/TestTargetClass", "staticMethod", List.of("I", "java/lang/String", "java/lang/Object"))),
+                equalTo(
+                    new CheckMethod(
+                        "org/elasticsearch/entitlement/instrumentation/impl/InstrumentationServiceImplTests$TestChecker",
+                        "check$org_example_TestTargetClass$$staticMethod",
+                        List.of("Ljava/lang/Class;", "I", "Ljava/lang/String;", "Ljava/lang/Object;")
+                    )
+                )
+            )
+        );
+        assertThat(
+            checkMethods,
+            hasEntry(
+                equalTo(new MethodKey("org/example/TestTargetClass", "instanceMethodNoArgs", List.of())),
+                equalTo(
+                    new CheckMethod(
+                        "org/elasticsearch/entitlement/instrumentation/impl/InstrumentationServiceImplTests$TestCheckerDerived",
+                        "check$org_example_TestTargetClass$instanceMethodNoArgs",
+                        List.of(
+                            "Ljava/lang/Class;",
+                            "Lorg/elasticsearch/entitlement/instrumentation/impl/InstrumentationServiceImplTests$TestTargetClass;"
+                        )
+                    )
+                )
+            )
+        );
+        assertThat(
+            checkMethods,
+            hasEntry(
+                equalTo(new MethodKey("org/example/TestTargetClass", "instanceMethodWithArgs", List.of("I", "I"))),
+                equalTo(
+                    new CheckMethod(
+                        "org/elasticsearch/entitlement/instrumentation/impl/InstrumentationServiceImplTests$TestChecker",
+                        "check$org_example_TestTargetClass$instanceMethodWithArgs",
+                        List.of(
+                            "Ljava/lang/Class;",
+                            "Lorg/elasticsearch/entitlement/instrumentation/impl/InstrumentationServiceImplTests$TestTargetClass;",
+                            "I",
+                            "I"
+                        )
+                    )
+                )
+            )
+        );
+        assertThat(
+            checkMethods,
+            hasEntry(
+                equalTo(new MethodKey("org/example/TestTargetClass", "differentInstanceMethod", List.of())),
+                equalTo(
+                    new CheckMethod(
+                        "org/elasticsearch/entitlement/instrumentation/impl/InstrumentationServiceImplTests$TestCheckerDerived",
+                        "check$org_example_TestTargetClass$differentInstanceMethod",
+                        List.of(
+                            "Ljava/lang/Class;",
+                            "Lorg/elasticsearch/entitlement/instrumentation/impl/InstrumentationServiceImplTests$TestTargetClass;"
+                        )
                     )
                 )
             )

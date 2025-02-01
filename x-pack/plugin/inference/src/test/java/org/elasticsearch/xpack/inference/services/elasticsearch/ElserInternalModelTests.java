@@ -16,7 +16,7 @@ public class ElserInternalModelTests extends ESTestCase {
             "foo",
             TaskType.SPARSE_EMBEDDING,
             ElasticsearchInternalService.NAME,
-            new ElserInternalServiceSettings(null, 1, "elser", null),
+            new ElserInternalServiceSettings(new ElasticsearchInternalServiceSettings(null, 1, "elser", null, null)),
             new ElserMlNodeTaskSettings(),
             null
         );

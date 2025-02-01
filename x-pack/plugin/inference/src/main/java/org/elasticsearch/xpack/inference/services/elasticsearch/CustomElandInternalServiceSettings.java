@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.elasticsearch;
 
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
 
 import java.io.IOException;
 
@@ -18,15 +17,6 @@ public class CustomElandInternalServiceSettings extends ElasticsearchInternalSer
 
     public CustomElandInternalServiceSettings(ElasticsearchInternalServiceSettings other) {
         super(other);
-    }
-
-    public CustomElandInternalServiceSettings(
-        Integer numAllocations,
-        int numThreads,
-        String modelId,
-        AdaptiveAllocationsSettings adaptiveAllocationsSettings
-    ) {
-        super(numAllocations, numThreads, modelId, adaptiveAllocationsSettings);
     }
 
     public CustomElandInternalServiceSettings(StreamInput in) throws IOException {

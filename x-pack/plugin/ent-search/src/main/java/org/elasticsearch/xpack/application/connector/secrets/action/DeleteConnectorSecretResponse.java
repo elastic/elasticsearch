@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.application.connector.secrets.action;
 
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -24,18 +24,13 @@ public class DeleteConnectorSecretResponse extends ActionResponse implements ToX
         this.deleted = deleted;
     }
 
-    public DeleteConnectorSecretResponse(StreamInput in) throws IOException {
-        super(in);
-        this.deleted = in.readBoolean();
-    }
-
     public boolean isDeleted() {
         return deleted;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeBoolean(deleted);
+        TransportAction.localOnly();
     }
 
     @Override

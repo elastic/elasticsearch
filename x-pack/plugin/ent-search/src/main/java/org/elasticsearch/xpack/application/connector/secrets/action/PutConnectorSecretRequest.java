@@ -10,9 +10,9 @@ package org.elasticsearch.xpack.application.connector.secrets.action;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -38,12 +38,6 @@ public class PutConnectorSecretRequest extends ActionRequest implements ToXConte
     public PutConnectorSecretRequest(String id, String value) {
         this.id = id;
         this.value = value;
-    }
-
-    public PutConnectorSecretRequest(StreamInput in) throws IOException {
-        super(in);
-        this.id = in.readString();
-        this.value = in.readString();
     }
 
     public static final ConstructingObjectParser<PutConnectorSecretRequest, String> PARSER = new ConstructingObjectParser<>(
@@ -77,9 +71,7 @@ public class PutConnectorSecretRequest extends ActionRequest implements ToXConte
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeString(id);
-        out.writeString(value);
+        TransportAction.localOnly();
     }
 
     @Override

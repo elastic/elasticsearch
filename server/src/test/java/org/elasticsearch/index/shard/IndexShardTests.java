@@ -84,6 +84,7 @@ import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.engine.InternalEngineFactory;
 import org.elasticsearch.index.engine.ReadOnlyEngine;
 import org.elasticsearch.index.engine.Segment;
+import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.FieldDataStats;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -1729,6 +1730,86 @@ public class IndexShardTests extends IndexShardTestCase {
         }
     }
 
+    public void testIndexingErrors() throws IOException {
+        AtomicBoolean throwOnIndex = new AtomicBoolean();
+        IndexShard shard = newStartedShard(randomBoolean(), Settings.EMPTY, config -> new InternalEngine(config) {
+            @Override
+            public IndexResult index(Index index) throws IOException {
+                if (throwOnIndex.get()) {
+                    throw new IOException("test indexing errors");
+                } else {
+                    return super.index(index);
+                }
+            }
+        });
+        long nbIndexedDocs = randomIntBetween(1, 10);
+        AtomicLong nbFailed = new AtomicLong();
+        for (int id = 0; id < nbIndexedDocs; id++) {
+            throwOnIndex.set(randomBoolean());
+            if (throwOnIndex.get()) {
+                nbFailed.incrementAndGet();
+                int finalId = id;
+                expectThrows(IOException.class, () -> indexDoc(shard, "_doc", "test" + finalId));
+            } else {
+                Engine.IndexResult indexResult = indexDoc(shard, "_doc", "test" + id);
+                assertThat(indexResult.isCreated(), is(true));
+            }
+        }
+        assertThat(shard.indexingStats().getTotal().getIndexFailedCount(), equalTo(nbFailed.get()));
+        assertThat(shard.indexingStats().getTotal().getIndexFailedDueToVersionConflictCount(), equalTo(0L));
+        assertThat(shard.indexingStats().getTotal().getIndexCount(), equalTo(nbIndexedDocs - nbFailed.get()));
+        closeShards(shard);
+    }
+
+    public void testIndexingErrorsDueToVersionConflict() throws IOException {
+        AtomicBoolean throwOnIndex = new AtomicBoolean();
+        IndexShard shard = newStartedShard(true, Settings.EMPTY, config -> new InternalEngine(config) {
+            @Override
+            public IndexResult index(Index index) throws IOException {
+                if (throwOnIndex.get()) {
+                    throw new IOException("test indexing errors");
+                } else {
+                    return super.index(index);
+                }
+            }
+        });
+        long nbIndexedDocs = randomIntBetween(1, 10);
+        AtomicLong indexingFailedCount = new AtomicLong();
+        AtomicLong indexingFailedWithVersionConflictCount = new AtomicLong();
+        AtomicLong indexingSuccessCount = new AtomicLong();
+        for (int id = 0; id < nbIndexedDocs; id++) {
+            if (randomBoolean()) {
+                // version conflict
+                throwOnIndex.set(false);
+                indexingFailedWithVersionConflictCount.incrementAndGet();
+                indexingFailedCount.incrementAndGet();
+                Engine.IndexResult indexResult = indexDoc(shard, "test" + id, 10L, "{}", XContentType.JSON, null);
+                assertThat(indexResult.isCreated(), is(false));
+                assertThat(indexResult.getFailure(), instanceOf(VersionConflictEngineException.class));
+            } else {
+                throwOnIndex.set(randomBoolean());
+                int finalId = id;
+                if (throwOnIndex.get()) {
+                    // indexing failure
+                    indexingFailedCount.incrementAndGet();
+                    expectThrows(IOException.class, () -> indexDoc(shard, "_doc", "test" + finalId));
+                } else {
+                    // indexing successful
+                    indexingSuccessCount.incrementAndGet();
+                    Engine.IndexResult indexResult = indexDoc(shard, "_doc", "test" + id);
+                    assertThat(indexResult.isCreated(), is(true));
+                }
+            }
+        }
+        assertThat(shard.indexingStats().getTotal().getIndexCount(), equalTo(indexingSuccessCount.get()));
+        assertThat(shard.indexingStats().getTotal().getIndexFailedCount(), equalTo(indexingFailedCount.get()));
+        assertThat(
+            shard.indexingStats().getTotal().getIndexFailedDueToVersionConflictCount(),
+            equalTo(indexingFailedWithVersionConflictCount.get())
+        );
+        closeShards(shard);
+    }
+
     public void testRefreshMetric() throws IOException {
         IndexShard shard = newStartedShard();
         // refresh on: finalize and end of recovery
@@ -1819,7 +1900,15 @@ public class IndexShardTests extends IndexShardTestCase {
             shard.refresh("test");
         } else {
             // trigger internal refresh
-            shard.newChangesSnapshot("test", 0, Long.MAX_VALUE, false, randomBoolean(), randomBoolean()).close();
+            shard.newChangesSnapshot(
+                "test",
+                0,
+                Long.MAX_VALUE,
+                false,
+                randomBoolean(),
+                randomBoolean(),
+                randomLongBetween(1, ByteSizeValue.ofMb(32).getBytes())
+            ).close();
         }
         assertThat(shard.getShardFieldStats(), sameInstance(stats));
         // index more docs
@@ -1837,7 +1926,15 @@ public class IndexShardTests extends IndexShardTestCase {
             shard.refresh("test");
         } else {
             // trigger internal refresh
-            shard.newChangesSnapshot("test", 0, Long.MAX_VALUE, false, randomBoolean(), randomBoolean()).close();
+            shard.newChangesSnapshot(
+                "test",
+                0,
+                Long.MAX_VALUE,
+                false,
+                randomBoolean(),
+                randomBoolean(),
+                randomLongBetween(1, ByteSizeValue.ofMb(32).getBytes())
+            ).close();
         }
         stats = shard.getShardFieldStats();
         assertThat(stats.numSegments(), equalTo(2));
@@ -4400,7 +4497,7 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(shard);
     }
 
-    public void testResetEngine() throws Exception {
+    public void testResetEngineToGlobalCheckpoint() throws Exception {
         IndexShard shard = newStartedShard(false);
         indexOnReplicaWithGaps(shard, between(0, 1000), Math.toIntExact(shard.getLocalCheckpoint()));
         long maxSeqNoBeforeRollback = shard.seqNoStats().getMaxSeqNo();
@@ -4460,6 +4557,33 @@ public class IndexShardTests extends IndexShardTestCase {
         done.set(true);
         thread.join();
         closeShard(shard, false);
+    }
+
+    public void testResetEngine() throws Exception {
+        var newEngineCreated = new CountDownLatch(2);
+        var indexShard = newStartedShard(true, Settings.EMPTY, config -> {
+            try {
+                return new ReadOnlyEngine(config, null, null, true, Function.identity(), true, true) {
+                    @Override
+                    public void prepareForEngineReset() throws IOException {
+                        ;
+                    }
+                };
+            } finally {
+                newEngineCreated.countDown();
+            }
+        });
+        var newEngineNotification = new CountDownLatch(1);
+        indexShard.waitForEngineOrClosedShard(ActionListener.running(newEngineNotification::countDown));
+
+        var onAcquired = new PlainActionFuture<Releasable>();
+        indexShard.acquireAllPrimaryOperationsPermits(onAcquired, TimeValue.timeValueMinutes(1L));
+        try (var permits = safeGet(onAcquired)) {
+            indexShard.resetEngine();
+        }
+        safeAwait(newEngineCreated);
+        safeAwait(newEngineNotification);
+        closeShard(indexShard, false);
     }
 
     /**

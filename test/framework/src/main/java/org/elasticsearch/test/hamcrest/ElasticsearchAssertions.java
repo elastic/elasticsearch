@@ -21,6 +21,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.RequestBuilder;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequestBuilder;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -68,6 +69,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -106,8 +108,42 @@ public class ElasticsearchAssertions {
         assertAcked(builder, TimeValue.timeValueSeconds(30));
     }
 
-    public static void assertAcked(ActionFuture<? extends IsAcknowledgedSupplier> future) {
-        assertAcked(future.actionGet());
+    @SafeVarargs
+    public static void assertAcked(RequestBuilder<?, ? extends IsAcknowledgedSupplier>... builders) {
+        final List<ActionFuture<? extends IsAcknowledgedSupplier>> futures = new ArrayList<>(builders.length);
+        for (RequestBuilder<?, ? extends IsAcknowledgedSupplier> response : builders) {
+            futures.add(response.execute());
+        }
+        Throwable tr = null;
+        for (var future : futures) {
+            try {
+                assertAcked(future.get());
+            } catch (Throwable t) {
+                tr = ExceptionsHelper.useOrSuppress(tr, t);
+            }
+        }
+        if (tr != null) {
+            throw new AssertionError(tr);
+        }
+    }
+
+    @SafeVarargs
+    public static void assertAcked(ActionFuture<? extends IsAcknowledgedSupplier>... futures) {
+        if (futures.length == 1) {
+            assertAcked(futures[0].actionGet());
+            return;
+        }
+        Throwable tr = null;
+        for (var future : futures) {
+            try {
+                assertAcked(future.get());
+            } catch (Throwable t) {
+                tr = ExceptionsHelper.useOrSuppress(tr, t);
+            }
+        }
+        if (tr != null) {
+            throw new AssertionError(tr);
+        }
     }
 
     public static void assertAcked(RequestBuilder<?, ? extends IsAcknowledgedSupplier> builder, TimeValue timeValue) {
@@ -130,6 +166,28 @@ public class ElasticsearchAssertions {
      * Assert that an index creation was fully acknowledged, meaning that both the index creation cluster
      * state update was successful and that the requisite number of shard copies were started before returning.
      */
+    public static void assertAcked(CreateIndexRequestBuilder... requests) {
+        if (requests.length == 1) {
+            assertAcked(requests[0]);
+            return;
+        }
+        final List<Future<CreateIndexResponse>> futures = new ArrayList<>(requests.length);
+        for (CreateIndexRequestBuilder response : requests) {
+            futures.add(response.execute());
+        }
+        Throwable tr = null;
+        for (Future<CreateIndexResponse> future : futures) {
+            try {
+                assertAcked(future.get());
+            } catch (Throwable t) {
+                tr = ExceptionsHelper.useOrSuppress(tr, t);
+            }
+        }
+        if (tr != null) {
+            throw new AssertionError(tr);
+        }
+    }
+
     public static void assertAcked(CreateIndexResponse response) {
         assertThat(response.getClass().getSimpleName() + " failed - not acked", response.isAcknowledged(), is(true));
         assertThat(
@@ -304,6 +362,10 @@ public class ElasticsearchAssertions {
         assertResponse(searchRequestBuilder, res -> assertHitCount(res, expectedHitCount));
     }
 
+    public static void assertHitCount(long expectedHitCount, SearchRequestBuilder... searchRequestBuilders) {
+        assertResponses(res -> assertHitCount(res, expectedHitCount), searchRequestBuilders);
+    }
+
     public static void assertHitCount(ActionFuture<SearchResponse> responseFuture, long expectedHitCount) {
         try {
             assertResponse(responseFuture, res -> assertHitCount(res, expectedHitCount));
@@ -372,6 +434,37 @@ public class ElasticsearchAssertions {
             consumer.accept(res);
         } finally {
             res.decRef();
+        }
+    }
+
+    /**
+     * Same as {@link #assertResponse(RequestBuilder, Consumer)} but runs the same assertion on multiple requests that are started
+     * concurrently.
+     */
+    @SafeVarargs
+    public static <Q extends ActionRequest, R extends ActionResponse> void assertResponses(
+        Consumer<R> consumer,
+        RequestBuilder<Q, R>... searchRequestBuilder
+    ) {
+        List<Future<R>> futures = new ArrayList<>(searchRequestBuilder.length);
+        for (RequestBuilder<Q, R> builder : searchRequestBuilder) {
+            futures.add(builder.execute());
+        }
+        Throwable tr = null;
+        for (Future<R> f : futures) {
+            try {
+                var res = f.get();
+                try {
+                    consumer.accept(res);
+                } finally {
+                    res.decRef();
+                }
+            } catch (Throwable t) {
+                tr = ExceptionsHelper.useOrSuppress(tr, t);
+            }
+        }
+        if (tr != null) {
+            throw new AssertionError(tr);
         }
     }
 

@@ -204,10 +204,10 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                 null
             ) {
                 @Override
-                protected SearchPhase getNextPhase(SearchPhaseResults<SearchPhaseResult> results, SearchPhaseContext context) {
+                protected SearchPhase getNextPhase() {
                     return new SearchPhase("test") {
                         @Override
-                        public void run() {
+                        protected void run() {
                             latch.countDown();
                         }
                     };

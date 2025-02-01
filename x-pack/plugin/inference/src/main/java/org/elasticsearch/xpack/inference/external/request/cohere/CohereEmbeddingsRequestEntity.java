@@ -34,7 +34,7 @@ public record CohereEmbeddingsRequestEntity(
     private static final String CLUSTERING = "clustering";
     private static final String CLASSIFICATION = "classification";
     private static final String TEXTS_FIELD = "texts";
-    static final String INPUT_TYPE_FIELD = "input_type";
+    public static final String INPUT_TYPE_FIELD = "input_type";
     static final String EMBEDDING_TYPES_FIELD = "embedding_types";
 
     public CohereEmbeddingsRequestEntity {
@@ -51,7 +51,7 @@ public record CohereEmbeddingsRequestEntity(
         }
 
         if (taskSettings.getInputType() != null) {
-            builder.field(INPUT_TYPE_FIELD, covertToString(taskSettings.getInputType()));
+            builder.field(INPUT_TYPE_FIELD, convertToString(taskSettings.getInputType()));
         }
 
         if (embeddingType != null) {
@@ -67,7 +67,7 @@ public record CohereEmbeddingsRequestEntity(
     }
 
     // default for testing
-    static String covertToString(InputType inputType) {
+    static String convertToString(InputType inputType) {
         return switch (inputType) {
             case INGEST -> SEARCH_DOCUMENT;
             case SEARCH -> SEARCH_QUERY;

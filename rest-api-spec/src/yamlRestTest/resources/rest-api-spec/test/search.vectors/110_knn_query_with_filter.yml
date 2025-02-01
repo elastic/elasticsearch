@@ -59,7 +59,6 @@ setup:
 
 ---
 "Simple knn query":
-
   - do:
       search:
         index: my_index
@@ -71,8 +70,9 @@ setup:
               field: my_vector
               query_vector: [1, 1, 1, 1]
               num_candidates: 5
+              k: 5
 
-  - match: { hits.total.value: 5 } # collector sees num_candidates docs
+  - match: { hits.total.value: 5 }
   - length: {hits.hits: 3}
   - match: { hits.hits.0._id: "1" }
   - match: { hits.hits.0.fields.my_name.0: v1 }
@@ -93,8 +93,9 @@ setup:
               field: my_vector
               query_vector: [1, 1, 1, 1]
               num_candidates: 5
+              k: 5
 
-  - match: { hits.total.value: 5 } # collector sees num_candidates docs
+  - match: { hits.total.value: 5 }
   - length: {hits.hits: 3}
   - match: { hits.hits.0._id: "2" }
   - match: { hits.hits.0.fields.my_name.0: v2 }
@@ -140,6 +141,7 @@ setup:
                     field: my_vector
                     query_vector: [1, 1, 1, 1]
                     num_candidates: 5
+                    k: 5
 
   - match: { hits.total.value: 5 }
   - length: { hits.hits: 3 }
@@ -184,6 +186,7 @@ setup:
               field: my_vector
               query_vector: [1, 1, 1, 1]
               num_candidates: 100
+              k: 100
 
   - match: { hits.total.value: 10 } # 5 docs from each alias
   - length: {hits.hits: 6}
@@ -213,6 +216,7 @@ setup:
               field: my_vector
               query_vector: [1, 1, 1, 1]
               num_candidates: 5
+              k: 5
               filter:
                 term:
                   my_name: v2
@@ -243,9 +247,10 @@ setup:
                     field: my_vector
                     query_vector: [1, 1, 1, 1]
                     num_candidates: 5
+                    k: 5
 
   - match: { hits.total.value: 2 }
-  - length: {hits.hits: 2} # knn query returns top 5 docs, but they are post-filtered to 2 docs
+  - length: {hits.hits: 2} # knn query returns top 3 docs, but they are post-filtered to 2 docs
   - match: { hits.hits.0._id: "2" }
   - match: { hits.hits.0.fields.my_name.0: v2 }
   - match: { hits.hits.1._id: "4" }
@@ -271,4 +276,4 @@ setup:
                         my_name: v1
 
   - match: { hits.total.value:  0}
-  - length: { hits.hits: 0 } # knn query returns top 5 docs, but they are post-filtered to 0 docs
+  - length: { hits.hits: 0 } # knn query returns top 3 docs, but they are post-filtered to 0 docs

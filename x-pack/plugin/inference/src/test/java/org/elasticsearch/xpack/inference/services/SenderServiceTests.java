@@ -11,8 +11,8 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.inference.ChunkedInferenceServiceResults;
-import org.elasticsearch.inference.ChunkingOptions;
+import org.elasticsearch.inference.ChunkedInference;
+import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
@@ -23,10 +23,13 @@ import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
+import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -115,14 +118,21 @@ public class SenderServiceTests extends ESTestCase {
         }
 
         @Override
+        protected void doUnifiedCompletionInfer(
+            Model model,
+            UnifiedChatInput inputs,
+            TimeValue timeout,
+            ActionListener<InferenceServiceResults> listener
+        ) {}
+
+        @Override
         protected void doChunkedInfer(
             Model model,
             DocumentsOnlyInput inputs,
             Map<String, Object> taskSettings,
             InputType inputType,
-            ChunkingOptions chunkingOptions,
             TimeValue timeout,
-            ActionListener<List<ChunkedInferenceServiceResults>> listener
+            ActionListener<List<ChunkedInference>> listener
         ) {
 
         }
@@ -160,6 +170,20 @@ public class SenderServiceTests extends ESTestCase {
         @Override
         public TransportVersion getMinimalSupportedVersion() {
             return TransportVersion.current();
+        }
+
+        @Override
+        public InferenceServiceConfiguration getConfiguration() {
+            return new InferenceServiceConfiguration.Builder().setService("test service")
+                .setName("Test")
+                .setTaskTypes(supportedTaskTypes())
+                .setConfigurations(new HashMap<>())
+                .build();
+        }
+
+        @Override
+        public EnumSet<TaskType> supportedTaskTypes() {
+            return EnumSet.of(TaskType.TEXT_EMBEDDING);
         }
     }
 }

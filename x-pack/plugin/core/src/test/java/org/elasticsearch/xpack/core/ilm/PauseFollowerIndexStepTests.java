@@ -22,7 +22,7 @@ import org.elasticsearch.xpack.core.ccr.action.PauseFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.ShardFollowTask;
 import org.mockito.Mockito;
 
-import java.util.Collections;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.core.ilm.UnfollowAction.CCR_METADATA_KEY;
 import static org.hamcrest.Matchers.equalTo;
@@ -38,7 +38,7 @@ public class PauseFollowerIndexStepTests extends AbstractUnfollowIndexStepTestCa
     public void testPauseFollowingIndex() throws Exception {
         IndexMetadata indexMetadata = IndexMetadata.builder("follower-index")
             .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true"))
-            .putCustom(CCR_METADATA_KEY, Collections.emptyMap())
+            .putCustom(CCR_METADATA_KEY, Map.of())
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
@@ -60,7 +60,7 @@ public class PauseFollowerIndexStepTests extends AbstractUnfollowIndexStepTestCa
     public void testRequestNotAcknowledged() {
         IndexMetadata indexMetadata = IndexMetadata.builder("follower-index")
             .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true"))
-            .putCustom(CCR_METADATA_KEY, Collections.emptyMap())
+            .putCustom(CCR_METADATA_KEY, Map.of())
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
@@ -81,7 +81,7 @@ public class PauseFollowerIndexStepTests extends AbstractUnfollowIndexStepTestCa
     public void testPauseFollowingIndexFailed() {
         IndexMetadata indexMetadata = IndexMetadata.builder("follower-index")
             .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true"))
-            .putCustom(CCR_METADATA_KEY, Collections.emptyMap())
+            .putCustom(CCR_METADATA_KEY, Map.of())
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
@@ -107,7 +107,7 @@ public class PauseFollowerIndexStepTests extends AbstractUnfollowIndexStepTestCa
     public final void testNoShardFollowPersistentTasks() throws Exception {
         IndexMetadata indexMetadata = IndexMetadata.builder("managed-index")
             .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true"))
-            .putCustom(CCR_METADATA_KEY, Collections.emptyMap())
+            .putCustom(CCR_METADATA_KEY, Map.of())
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
@@ -138,7 +138,7 @@ public class PauseFollowerIndexStepTests extends AbstractUnfollowIndexStepTestCa
 
         IndexMetadata followerIndex = IndexMetadata.builder("follower-index")
             .settings(settings(IndexVersion.current()))
-            .putCustom(CCR_METADATA_KEY, Collections.emptyMap())
+            .putCustom(CCR_METADATA_KEY, Map.of())
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
@@ -165,13 +165,13 @@ public class PauseFollowerIndexStepTests extends AbstractUnfollowIndexStepTestCa
                     1024,
                     1,
                     1,
-                    new ByteSizeValue(32, ByteSizeUnit.MB),
-                    new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES),
+                    ByteSizeValue.of(32, ByteSizeUnit.MB),
+                    ByteSizeValue.of(Long.MAX_VALUE, ByteSizeUnit.BYTES),
                     10240,
-                    new ByteSizeValue(512, ByteSizeUnit.MB),
+                    ByteSizeValue.of(512, ByteSizeUnit.MB),
                     TimeValue.timeValueMillis(10),
                     TimeValue.timeValueMillis(10),
-                    Collections.emptyMap()
+                    Map.of()
                 ),
                 null
             );

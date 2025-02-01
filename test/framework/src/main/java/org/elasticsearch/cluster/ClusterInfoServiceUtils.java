@@ -13,6 +13,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.service.ClusterApplierService;
+import org.elasticsearch.core.TimeValue;
 
 import java.util.concurrent.TimeUnit;
 
@@ -36,5 +37,9 @@ public class ClusterInfoServiceUtils {
         } catch (Exception e) {
             throw new AssertionError(e);
         }
+    }
+
+    public static void setUpdateFrequency(InternalClusterInfoService internalClusterInfoService, TimeValue updateFrequency) {
+        internalClusterInfoService.setUpdateFrequency(updateFrequency);
     }
 }

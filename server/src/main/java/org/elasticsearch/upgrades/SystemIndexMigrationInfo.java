@@ -44,6 +44,7 @@ class SystemIndexMigrationInfo implements Comparable<SystemIndexMigrationInfo> {
     private final Settings settings;
     private final String mapping;
     private final String origin;
+    private final String migrationScript;
     private final SystemIndices.Feature owningFeature;
     private final boolean allowsTemplates;
 
@@ -57,6 +58,7 @@ class SystemIndexMigrationInfo implements Comparable<SystemIndexMigrationInfo> {
         Settings settings,
         String mapping,
         String origin,
+        String migrationScript,
         SystemIndices.Feature owningFeature,
         boolean allowsTemplates
     ) {
@@ -65,6 +67,7 @@ class SystemIndexMigrationInfo implements Comparable<SystemIndexMigrationInfo> {
         this.settings = settings;
         this.mapping = mapping;
         this.origin = origin;
+        this.migrationScript = migrationScript;
         this.owningFeature = owningFeature;
         this.allowsTemplates = allowsTemplates;
     }
@@ -116,6 +119,10 @@ class SystemIndexMigrationInfo implements Comparable<SystemIndexMigrationInfo> {
      */
     String getOrigin() {
         return origin;
+    }
+
+    String getMigrationScript() {
+        return migrationScript;
     }
 
     /**
@@ -217,6 +224,7 @@ class SystemIndexMigrationInfo implements Comparable<SystemIndexMigrationInfo> {
             settings,
             mapping,
             descriptor.getOrigin(),
+            descriptor.getMigrationScript(),
             feature,
             descriptor.allowsTemplates()
         );

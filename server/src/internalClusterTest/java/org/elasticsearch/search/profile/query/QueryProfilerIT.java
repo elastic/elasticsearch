@@ -68,7 +68,11 @@ public class QueryProfilerIT extends ESIntegTestCase {
                 prepareSearch().setQuery(q).setTrackTotalHits(true).setProfile(true).setSearchType(SearchType.QUERY_THEN_FETCH),
                 response -> {
                     assertNotNull("Profile response element should not be null", response.getProfileResults());
-                    assertThat("Profile response should not be an empty array", response.getProfileResults().size(), not(0));
+                    if (response.getSkippedShards() == response.getSuccessfulShards()) {
+                        assertEquals(0, response.getProfileResults().size());
+                    } else {
+                        assertThat("Profile response should not be an empty array", response.getProfileResults().size(), not(0));
+                    }
                     for (Map.Entry<String, SearchProfileShardResult> shard : response.getProfileResults().entrySet()) {
                         for (QueryProfileShardResult searchProfiles : shard.getValue().getQueryProfileResults()) {
                             for (ProfileResult result : searchProfiles.getQueryResults()) {

@@ -41,8 +41,7 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
         return new InferenceAction.Request(
             randomFrom(TaskType.values()),
             randomAlphaOfLength(6),
-            // null,
-            randomNullOrAlphaOfLength(10),
+            randomAlphaOfLengthOrNull(10),
             randomList(1, 5, () -> randomAlphaOfLength(8)),
             randomMap(0, 3, () -> new Tuple<>(randomAlphaOfLength(4), randomAlphaOfLength(4))),
             randomFrom(InputType.values()),
@@ -385,6 +384,29 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
         );
 
         assertThat(deserializedInstance.getInputType(), is(InputType.UNSPECIFIED));
+    }
+
+    public void testWriteTo_WhenVersionIsBeforeAdaptiveRateLimiting_ShouldSetHasBeenReroutedToTrue() throws IOException {
+        var instance = new InferenceAction.Request(
+            TaskType.TEXT_EMBEDDING,
+            "model",
+            null,
+            List.of("input"),
+            Map.of(),
+            InputType.UNSPECIFIED,
+            InferenceAction.Request.DEFAULT_TIMEOUT,
+            false
+        );
+
+        InferenceAction.Request deserializedInstance = copyWriteable(
+            instance,
+            getNamedWriteableRegistry(),
+            instanceReader(),
+            TransportVersions.V_8_13_0
+        );
+
+        // Verify that hasBeenRerouted is true after deserializing a request coming from an older transport version
+        assertTrue(deserializedInstance.hasBeenRerouted());
     }
 
     public void testGetInputTypeToWrite_ReturnsIngest_WhenInputTypeIsUnspecified_VersionBeforeUnspecifiedIntroduced() {

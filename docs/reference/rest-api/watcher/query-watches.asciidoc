@@ -5,6 +5,12 @@
 <titleabbrev>Query watches</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-watcher[{watcher} APIs].
+--
+
 Retrieves all registered watches.
 
 [[watcher-api-query-watches-request]]

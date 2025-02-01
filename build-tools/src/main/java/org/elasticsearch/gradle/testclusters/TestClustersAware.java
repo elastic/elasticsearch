@@ -8,6 +8,7 @@
  */
 package org.elasticsearch.gradle.testclusters;
 
+import org.elasticsearch.gradle.ElasticsearchDistribution;
 import org.gradle.api.Task;
 import org.gradle.api.provider.Property;
 import org.gradle.api.provider.Provider;
@@ -25,7 +26,7 @@ public interface TestClustersAware extends Task {
     Collection<ElasticsearchCluster> getClusters();
 
     @ServiceReference(REGISTRY_SERVICE_NAME)
-    Property<TestClustersRegistry> getRegistery();
+    Property<TestClustersRegistry> getRegistry();
 
     @ServiceReference(TEST_CLUSTER_TASKS_SERVICE)
     Property<TestClustersPlugin.TaskEventsService> getTasksService();
@@ -34,11 +35,24 @@ public interface TestClustersAware extends Task {
         if (cluster.getPath().equals(getProject().getPath()) == false) {
             throw new TestClustersException("Task " + getPath() + " can't use test cluster from" + " another project " + cluster);
         }
-
-        cluster.getNodes()
-            .all(node -> node.getDistributions().forEach(distro -> dependsOn(getProject().provider(() -> distro.maybeFreeze()))));
-        dependsOn(cluster.getPluginAndModuleConfigurations());
+        if (cluster.getName().equals(getName())) {
+            for (ElasticsearchNode node : cluster.getNodes()) {
+                for (ElasticsearchDistribution distro : node.getDistributions()) {
+                    ElasticsearchDistribution frozenDistro = distro.maybeFreeze();
+                    dependsOn(frozenDistro);
+                }
+            }
+            dependsOn(cluster.getPluginAndModuleConfigurations());
+        }
         getClusters().add(cluster);
+    }
+
+    default Provider<TestClusterInfo> getClusterInfo(String clusterName) {
+        return getProject().getProviders().of(TestClusterValueSource.class, source -> {
+            source.getParameters().getService().set(getRegistry());
+            source.getParameters().getClusterName().set(clusterName);
+            source.getParameters().getPath().set(getProject().getIsolated().getPath());
+        });
     }
 
     default void useCluster(Provider<ElasticsearchCluster> cluster) {
@@ -71,6 +85,14 @@ public interface TestClustersAware extends Task {
                 );
                 node.cliJvmArgs("-agentlib:jdwp=transport=dt_socket,server=n,suspend=y,address=" + cliDebugPort);
                 cliDebugPort += 1;
+            }
+        }
+    }
+
+    default void enableEntitlements() {
+        for (ElasticsearchCluster cluster : getClusters()) {
+            for (ElasticsearchNode node : cluster.getNodes()) {
+                node.cliJvmArgs("-Des.entitlements.enabled=true");
             }
         }
     }

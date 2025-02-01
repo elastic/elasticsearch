@@ -35,7 +35,7 @@ import static org.elasticsearch.xpack.application.connector.syncjob.ConnectorSyn
 
 public class UpdateConnectorSyncJobIngestionStatsAction {
 
-    public static final String NAME = "indices:data/write/xpack/connector/sync_job/update_stats";
+    public static final String NAME = "cluster:admin/xpack/connector/sync_job/update_stats";
     public static final ActionType<ConnectorUpdateActionResponse> INSTANCE = new ActionType<>(NAME);
 
     private UpdateConnectorSyncJobIngestionStatsAction() {/* no instances */}

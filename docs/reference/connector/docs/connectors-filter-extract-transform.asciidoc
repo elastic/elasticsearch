@@ -13,7 +13,7 @@ The following diagram provides an overview of how content extraction, sync rules
 [.screenshot]
 image::images/pipelines-extraction-sync-rules.png[Architecture diagram of data pipeline with content extraction, sync rules, and ingest pipelines]
 
-By default, only the connector specific logic (2) and the default `ent-search-generic-ingestion` pipeline (6) extract and transform your data, as configured in your deployment.
+By default, only the connector specific logic (2) and the default `search-default-ingestion` pipeline (6) extract and transform your data, as configured in your deployment.
 
 The following tools are available for more advanced use cases:
 

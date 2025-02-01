@@ -46,15 +46,21 @@ public class DatabaseNodeServiceIT extends AbstractGeoIpIT {
     public void testNonGzippedDatabase() throws Exception {
         String databaseType = "GeoLite2-Country";
         String databaseFileName = databaseType + ".mmdb";
-        // making the dabase name unique so we know we're not using another one:
+        // making the database name unique so we know we're not using another one:
         String databaseName = randomAlphaOfLength(20) + "-" + databaseFileName;
         byte[] mmdbBytes = getBytesForFile(databaseFileName);
         final DatabaseNodeService databaseNodeService = internalCluster().getInstance(DatabaseNodeService.class);
         assertNull(databaseNodeService.getDatabase(databaseName));
         int numChunks = indexData(databaseName, mmdbBytes);
-        retrieveDatabase(databaseNodeService, databaseName, mmdbBytes, numChunks);
-        assertBusy(() -> assertNotNull(databaseNodeService.getDatabase(databaseName)));
-        assertValidDatabase(databaseNodeService, databaseName, databaseType);
+        /*
+         * If DatabaseNodeService::checkDatabases runs it will sometimes (rarely) remove the database we are using in this test while we
+         * are trying to assert things about it. So if it does then we 'just' try again.
+         */
+        assertBusy(() -> {
+            retrieveDatabase(databaseNodeService, databaseName, mmdbBytes, numChunks);
+            assertNotNull(databaseNodeService.getDatabase(databaseName));
+            assertValidDatabase(databaseNodeService, databaseName, databaseType);
+        });
     }
 
     /*
@@ -64,16 +70,22 @@ public class DatabaseNodeServiceIT extends AbstractGeoIpIT {
     public void testGzippedDatabase() throws Exception {
         String databaseType = "GeoLite2-Country";
         String databaseFileName = databaseType + ".mmdb";
-        // making the dabase name unique so we know we're not using another one:
+        // making the database name unique so we know we're not using another one:
         String databaseName = randomAlphaOfLength(20) + "-" + databaseFileName;
         byte[] mmdbBytes = getBytesForFile(databaseFileName);
         byte[] gzipBytes = gzipFileBytes(databaseName, mmdbBytes);
         final DatabaseNodeService databaseNodeService = internalCluster().getInstance(DatabaseNodeService.class);
         assertNull(databaseNodeService.getDatabase(databaseName));
         int numChunks = indexData(databaseName, gzipBytes);
-        retrieveDatabase(databaseNodeService, databaseName, gzipBytes, numChunks);
-        assertBusy(() -> assertNotNull(databaseNodeService.getDatabase(databaseName)));
-        assertValidDatabase(databaseNodeService, databaseName, databaseType);
+        /*
+         * If DatabaseNodeService::checkDatabases runs it will sometimes (rarely) remove the database we are using in this test while we
+         * are trying to assert things about it. So if it does then we 'just' try again.
+         */
+        assertBusy(() -> {
+            retrieveDatabase(databaseNodeService, databaseName, gzipBytes, numChunks);
+            assertNotNull(databaseNodeService.getDatabase(databaseName));
+            assertValidDatabase(databaseNodeService, databaseName, databaseType);
+        });
     }
 
     /*

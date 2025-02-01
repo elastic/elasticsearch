@@ -1,6 +1,0 @@
-pr: 113499
-summary: Fix synthetic source for flattened field when used with `ignore_above`
-area: Logs
-type: bug
-issues:
- - 112044

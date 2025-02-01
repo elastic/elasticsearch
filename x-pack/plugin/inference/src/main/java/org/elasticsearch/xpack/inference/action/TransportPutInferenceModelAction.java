@@ -13,7 +13,6 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -22,6 +21,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.StrictDynamicMappingException;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceRegistry;
@@ -29,12 +29,15 @@ import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.license.LicenseUtils;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.inference.action.PutInferenceModelAction;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentUtils;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
@@ -49,6 +52,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.xpack.inference.InferencePlugin.INFERENCE_API_FEATURE;
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService.OLD_ELSER_SERVICE_NAME;
 
 public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
@@ -57,9 +61,9 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
 
     private static final Logger logger = LogManager.getLogger(TransportPutInferenceModelAction.class);
 
+    private final XPackLicenseState licenseState;
     private final ModelRegistry modelRegistry;
     private final InferenceServiceRegistry serviceRegistry;
-    private final Client client;
     private volatile boolean skipValidationAndStart;
 
     @Inject
@@ -69,9 +73,9 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
         ThreadPool threadPool,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
+        XPackLicenseState licenseState,
         ModelRegistry modelRegistry,
         InferenceServiceRegistry serviceRegistry,
-        Client client,
         Settings settings
     ) {
         super(
@@ -81,13 +85,12 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
             threadPool,
             actionFilters,
             PutInferenceModelAction.Request::new,
-            indexNameExpressionResolver,
             PutInferenceModelAction.Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
+        this.licenseState = licenseState;
         this.modelRegistry = modelRegistry;
         this.serviceRegistry = serviceRegistry;
-        this.client = client;
         this.skipValidationAndStart = InferencePlugin.SKIP_VALIDATE_AND_START.get(settings);
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(InferencePlugin.SKIP_VALIDATE_AND_START, this::setSkipValidationAndStart);
@@ -100,6 +103,22 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
         ClusterState state,
         ActionListener<PutInferenceModelAction.Response> listener
     ) throws Exception {
+        if (INFERENCE_API_FEATURE.check(licenseState) == false) {
+            listener.onFailure(LicenseUtils.newComplianceException(XPackField.INFERENCE));
+            return;
+        }
+
+        if (modelRegistry.containsDefaultConfigId(request.getInferenceEntityId())) {
+            listener.onFailure(
+                new ElasticsearchStatusException(
+                    "[{}] is a reserved inference ID. Cannot create a new inference endpoint with a reserved ID.",
+                    RestStatus.BAD_REQUEST,
+                    request.getInferenceEntityId()
+                )
+            );
+            return;
+        }
+
         var requestAsMap = requestToMap(request);
         var resolvedTaskType = ServiceUtils.resolveTaskType(request.getTaskType(), (String) requestAsMap.remove(TaskType.NAME));
 
@@ -152,14 +171,14 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
         if ((assignments == null || assignments.isEmpty()) == false) {
             listener.onFailure(
                 ExceptionsHelper.badRequestException(
-                    Messages.MODEL_ID_MATCHES_EXISTING_MODEL_IDS_BUT_MUST_NOT,
+                    Messages.INFERENCE_ID_MATCHES_EXISTING_MODEL_IDS_BUT_MUST_NOT,
                     request.getInferenceEntityId()
                 )
             );
             return;
         }
 
-        parseAndStoreModel(service.get(), request.getInferenceEntityId(), resolvedTaskType, requestAsMap, listener);
+        parseAndStoreModel(service.get(), request.getInferenceEntityId(), resolvedTaskType, requestAsMap, request.ackTimeout(), listener);
     }
 
     private void parseAndStoreModel(
@@ -167,12 +186,13 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
         String inferenceEntityId,
         TaskType taskType,
         Map<String, Object> config,
+        TimeValue timeout,
         ActionListener<PutInferenceModelAction.Response> listener
     ) {
         ActionListener<Model> storeModelListener = listener.delegateFailureAndWrap(
             (delegate, verifiedModel) -> modelRegistry.storeModel(
                 verifiedModel,
-                ActionListener.wrap(r -> startInferenceEndpoint(service, verifiedModel, delegate), e -> {
+                ActionListener.wrap(r -> startInferenceEndpoint(service, timeout, verifiedModel, delegate), e -> {
                     if (e.getCause() instanceof StrictDynamicMappingException && e.getCause().getMessage().contains("chunking_settings")) {
                         delegate.onFailure(
                             new ElasticsearchStatusException(
@@ -199,11 +219,16 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
         service.parseRequestConfig(inferenceEntityId, taskType, config, parsedModelListener);
     }
 
-    private void startInferenceEndpoint(InferenceService service, Model model, ActionListener<PutInferenceModelAction.Response> listener) {
+    private void startInferenceEndpoint(
+        InferenceService service,
+        TimeValue timeout,
+        Model model,
+        ActionListener<PutInferenceModelAction.Response> listener
+    ) {
         if (skipValidationAndStart) {
             listener.onResponse(new PutInferenceModelAction.Response(model.getConfigurations()));
         } else {
-            service.start(model, listener.map(started -> new PutInferenceModelAction.Response(model.getConfigurations())));
+            service.start(model, timeout, listener.map(started -> new PutInferenceModelAction.Response(model.getConfigurations())));
         }
     }
 

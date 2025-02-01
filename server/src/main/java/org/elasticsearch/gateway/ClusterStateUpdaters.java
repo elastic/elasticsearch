@@ -143,6 +143,7 @@ public class ClusterStateUpdaters {
                 .coordinationMetadata(state.metadata().coordinationMetadata())
                 .build();
 
+            assert state.routingTable().indicesRouting().isEmpty() : "routing table is not empty: " + state.routingTable().indicesRouting();
             return ClusterState.builder(state).metadata(metadata).blocks(blocks.build()).build();
         }
         return state;

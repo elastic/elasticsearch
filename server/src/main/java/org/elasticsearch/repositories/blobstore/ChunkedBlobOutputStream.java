@@ -128,7 +128,7 @@ public abstract class ChunkedBlobOutputStream<T> extends OutputStream {
     }
 
     /**
-     * Write the contents of {@link #buffer} to storage. Implementations should call {@link #finishPart} at the end to track the the chunk
+     * Write the contents of {@link #buffer} to storage. Implementations should call {@link #finishPart} at the end to track the chunk
      * of data just written and ready {@link #buffer} for the next write.
      */
     protected abstract void flushBuffer() throws IOException;

@@ -59,7 +59,6 @@ import org.elasticsearch.xpack.searchablesnapshots.action.SearchableSnapshotsSta
 
 import java.time.ZoneId;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -169,12 +168,9 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
         logger.info("--> restoring partial index [{}] with cache enabled", restoredIndexName);
 
         Settings.Builder indexSettingsBuilder = Settings.builder().put(SearchableSnapshots.SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), true);
-        final List<String> nonCachedExtensions;
         if (randomBoolean()) {
-            nonCachedExtensions = randomSubsetOf(Arrays.asList("fdt", "fdx", "nvd", "dvd", "tip", "cfs", "dim"));
+            var nonCachedExtensions = randomSubsetOf(Arrays.asList("fdt", "fdx", "nvd", "dvd", "tip", "cfs", "dim"));
             indexSettingsBuilder.putList(SearchableSnapshots.SNAPSHOT_CACHE_EXCLUDED_FILE_TYPES_SETTING.getKey(), nonCachedExtensions);
-        } else {
-            nonCachedExtensions = Collections.emptyList();
         }
         if (randomBoolean()) {
             indexSettingsBuilder.put(
@@ -264,8 +260,6 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
             final long originalSize = snapshotShards.get(shardRouting.getId()).getStats().getTotalSize();
             totalExpectedSize += originalSize;
 
-            // an extra segments_N file is created for bootstrapping new history and associating translog. We can extract the size of this
-            // extra file but we have to unwrap the in-memory directory first.
             final Directory unwrappedDir = FilterDirectory.unwrap(
                 internalCluster().getInstance(IndicesService.class, getDiscoveryNodes().resolveNode(shardRouting.currentNodeId()).getName())
                     .indexServiceSafe(shardRouting.index())
@@ -277,7 +271,7 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
             assertThat(shardRouting.toString(), unwrappedDir, instanceOf(ByteBuffersDirectory.class));
 
             final ByteBuffersDirectory inMemoryDir = (ByteBuffersDirectory) unwrappedDir;
-            assertThat(inMemoryDir.listAll(), arrayWithSize(1));
+            assertThat(inMemoryDir.listAll(), arrayWithSize(0));
 
             assertThat(shardRouting.toString(), store.totalDataSetSizeInBytes(), equalTo(originalSize));
         }
@@ -324,17 +318,17 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
         );
 
         if (deletedBeforeMount) {
-            assertThat(indicesAdmin().prepareGetAliases(aliasName).get().getAliases().size(), equalTo(0));
+            assertThat(indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, aliasName).get().getAliases().size(), equalTo(0));
             assertAcked(indicesAdmin().prepareAliases().addAlias(restoredIndexName, aliasName));
         } else if (indexName.equals(restoredIndexName) == false) {
-            assertThat(indicesAdmin().prepareGetAliases(aliasName).get().getAliases().size(), equalTo(1));
+            assertThat(indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, aliasName).get().getAliases().size(), equalTo(1));
             assertAcked(
                 indicesAdmin().prepareAliases()
                     .addAliasAction(IndicesAliasesRequest.AliasActions.remove().index(indexName).alias(aliasName).mustExist(true))
                     .addAlias(restoredIndexName, aliasName)
             );
         }
-        assertThat(indicesAdmin().prepareGetAliases(aliasName).get().getAliases().size(), equalTo(1));
+        assertThat(indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, aliasName).get().getAliases().size(), equalTo(1));
         assertTotalHits(aliasName, originalAllHits, originalBarHits);
 
         final var request = new ClusterAllocationExplainRequest(TEST_REQUEST_TIMEOUT).setIndex(restoredIndexName)
@@ -428,7 +422,7 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
         assertFalse(clonedIndexSettings.hasValue(IndexModule.INDEX_RECOVERY_TYPE_SETTING.getKey()));
 
         assertAcked(indicesAdmin().prepareDelete(restoredIndexName));
-        assertThat(indicesAdmin().prepareGetAliases(aliasName).get().getAliases().size(), equalTo(0));
+        assertThat(indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, aliasName).get().getAliases().size(), equalTo(0));
         assertAcked(indicesAdmin().prepareAliases().addAlias(clonedIndexName, aliasName));
         assertTotalHits(aliasName, originalAllHits, originalBarHits);
     }

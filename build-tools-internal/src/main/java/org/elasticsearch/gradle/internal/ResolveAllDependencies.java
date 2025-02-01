@@ -12,8 +12,11 @@ package org.elasticsearch.gradle.internal;
 import org.elasticsearch.gradle.VersionProperties;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.artifacts.Configuration;
+import org.gradle.api.artifacts.FileCollectionDependency;
+import org.gradle.api.artifacts.component.ModuleComponentIdentifier;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.model.ObjectFactory;
+import org.gradle.api.provider.ProviderFactory;
 import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.TaskAction;
@@ -26,9 +29,6 @@ import java.util.stream.Collectors;
 
 import javax.inject.Inject;
 
-import static org.elasticsearch.gradle.DistributionDownloadPlugin.DISTRO_EXTRACTED_CONFIG_PREFIX;
-import static org.elasticsearch.gradle.internal.test.rest.compat.compat.LegacyYamlRestCompatTestPlugin.BWC_MINOR_CONFIG_NAME;
-
 public abstract class ResolveAllDependencies extends DefaultTask {
 
     private boolean resolveJavaToolChain = false;
@@ -37,18 +37,28 @@ public abstract class ResolveAllDependencies extends DefaultTask {
     protected abstract JavaToolchainService getJavaToolchainService();
 
     private final ObjectFactory objectFactory;
+    private final ProviderFactory providerFactory;
 
     private Collection<Configuration> configs;
 
     @Inject
-    public ResolveAllDependencies(ObjectFactory objectFactory) {
+    public ResolveAllDependencies(ObjectFactory objectFactory, ProviderFactory providerFactory) {
         this.objectFactory = objectFactory;
+        this.providerFactory = providerFactory;
     }
 
     @InputFiles
     public FileCollection getResolvedArtifacts() {
-        return objectFactory.fileCollection()
-            .from(configs.stream().filter(ResolveAllDependencies::canBeResolved).collect(Collectors.toList()));
+        return objectFactory.fileCollection().from(configs.stream().filter(ResolveAllDependencies::canBeResolved).map(c -> {
+            // Make a copy of the configuration, omitting file collection dependencies to avoid building project artifacts
+            Configuration copy = c.copyRecursive(d -> d instanceof FileCollectionDependency == false);
+            copy.setCanBeConsumed(false);
+            return copy;
+        })
+            // Include only module dependencies, ignoring things like project dependencies so we don't unnecessarily build stuff
+            .map(c -> c.getIncoming().artifactView(v -> v.lenient(true).componentFilter(i -> i instanceof ModuleComponentIdentifier)))
+            .map(artifactView -> providerFactory.provider(artifactView::getFiles))
+            .collect(Collectors.toList()));
     }
 
     @TaskAction
@@ -95,8 +105,8 @@ public abstract class ResolveAllDependencies extends DefaultTask {
                 return false;
             }
         }
-        return configuration.getName().startsWith(DISTRO_EXTRACTED_CONFIG_PREFIX) == false
-            && configuration.getName().equals(BWC_MINOR_CONFIG_NAME) == false;
+
+        return true;
     }
 
 }

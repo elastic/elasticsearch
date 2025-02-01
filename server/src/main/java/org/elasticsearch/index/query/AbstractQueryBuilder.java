@@ -21,6 +21,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.SuggestingErrorOnUnknown;
+import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
 import org.elasticsearch.xcontent.AbstractObjectParser;
 import org.elasticsearch.xcontent.FilterXContentParser;
 import org.elasticsearch.xcontent.FilterXContentParserWrapper;
@@ -216,12 +217,12 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
      * @return the same input object or a {@link BytesRef} representation if input was of type string
      */
     static Object maybeConvertToBytesRef(Object obj) {
-        if (obj instanceof String) {
-            return BytesRefs.checkIndexableLength(BytesRefs.toBytesRef(obj));
-        } else if (obj instanceof CharBuffer) {
-            return BytesRefs.checkIndexableLength(new BytesRef((CharBuffer) obj));
-        } else if (obj instanceof BigInteger) {
-            return BytesRefs.toBytesRef(obj);
+        if (obj instanceof String v) {
+            return BytesRefs.checkIndexableLength(BytesRefs.toExactSizedBytesRef(v));
+        } else if (obj instanceof CharBuffer v) {
+            return BytesRefs.checkIndexableLength(new BytesRef(v));
+        } else if (obj instanceof BigInteger v) {
+            return BytesRefs.toBytesRef(v);
         }
         return obj;
     }
@@ -278,6 +279,14 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
 
     @Override
     public final QueryBuilder rewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+        QueryRewriteInterceptor queryRewriteInterceptor = queryRewriteContext.getQueryRewriteInterceptor();
+        if (queryRewriteInterceptor != null) {
+            var rewritten = queryRewriteInterceptor.interceptAndRewrite(queryRewriteContext, this);
+            if (rewritten != this) {
+                return new InterceptedQueryBuilderWrapper(rewritten);
+            }
+        }
+
         QueryBuilder rewritten = doRewrite(queryRewriteContext);
         if (rewritten == this) {
             return rewritten;

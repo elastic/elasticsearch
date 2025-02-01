@@ -5,6 +5,12 @@
 <titleabbrev>Clear SQL cursor</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-sql[SQL APIs].
+--
+
 Clears an <<sql-pagination,SQL search cursor>>.
 
 ////

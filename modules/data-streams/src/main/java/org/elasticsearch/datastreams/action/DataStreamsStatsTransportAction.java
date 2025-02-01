@@ -31,6 +31,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.ReadOnlyEngine;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.indices.IndicesService;
@@ -100,16 +101,6 @@ public class DataStreamsStatsTransportAction extends TransportBroadcastByNodeAct
     }
 
     @Override
-    protected String[] resolveConcreteIndexNames(ClusterState clusterState, DataStreamsStatsAction.Request request) {
-        return DataStreamsActionUtil.resolveConcreteIndexNames(
-            indexNameExpressionResolver,
-            clusterState,
-            request.indices(),
-            request.indicesOptions()
-        ).toArray(String[]::new);
-    }
-
-    @Override
     protected ShardsIterator shards(ClusterState clusterState, DataStreamsStatsAction.Request request, String[] concreteIndices) {
         return clusterState.getRoutingTable().allShards(concreteIndices);
     }
@@ -130,7 +121,7 @@ public class DataStreamsStatsTransportAction extends TransportBroadcastByNodeAct
             DataStream dataStream = indexAbstraction.getParentDataStream();
             assert dataStream != null;
             long maxTimestamp = 0L;
-            try (Engine.Searcher searcher = indexShard.acquireSearcher("data_stream_stats")) {
+            try (Engine.Searcher searcher = indexShard.acquireSearcher(ReadOnlyEngine.FIELD_RANGE_SEARCH_SOURCE)) {
                 IndexReader indexReader = searcher.getIndexReader();
                 byte[] maxPackedValue = PointValues.getMaxPackedValue(indexReader, DataStream.TIMESTAMP_FIELD_NAME);
                 if (maxPackedValue != null) {
@@ -139,6 +130,16 @@ public class DataStreamsStatsTransportAction extends TransportBroadcastByNodeAct
             }
             return new DataStreamsStatsAction.DataStreamShardStats(indexShard.routingEntry(), storeStats, maxTimestamp);
         });
+    }
+
+    @Override
+    protected String[] resolveConcreteIndexNames(ClusterState clusterState, DataStreamsStatsAction.Request request) {
+        return DataStreamsActionUtil.resolveConcreteIndexNames(
+            indexNameExpressionResolver,
+            clusterState,
+            request.indices(),
+            request.indicesOptions()
+        ).toArray(String[]::new);
     }
 
     @Override
@@ -162,13 +163,17 @@ public class DataStreamsStatsTransportAction extends TransportBroadcastByNodeAct
             request.indicesOptions(),
             request.indices()
         );
-        for (String abstractionName : abstractionNames) {
-            IndexAbstraction indexAbstraction = indicesLookup.get(abstractionName);
+        for (String abstraction : abstractionNames) {
+            IndexAbstraction indexAbstraction = indicesLookup.get(abstraction);
             assert indexAbstraction != null;
             if (indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM) {
                 DataStream dataStream = (DataStream) indexAbstraction;
                 AggregatedStats stats = aggregatedDataStreamsStats.computeIfAbsent(dataStream.getName(), s -> new AggregatedStats());
                 dataStream.getIndices().stream().map(Index::getName).forEach(index -> {
+                    stats.backingIndices.add(index);
+                    allBackingIndices.add(index);
+                });
+                dataStream.getFailureIndices().stream().map(Index::getName).forEach(index -> {
                     stats.backingIndices.add(index);
                     allBackingIndices.add(index);
                 });

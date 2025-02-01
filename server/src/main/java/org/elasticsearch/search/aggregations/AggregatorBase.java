@@ -13,6 +13,8 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
+import org.elasticsearch.common.CheckedIntFunction;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.Maps;
@@ -40,7 +42,7 @@ public abstract class AggregatorBase extends Aggregator {
 
     protected final String name;
     protected final Aggregator parent;
-    private final AggregationContext context;
+    protected final AggregationContext context;
     private final Map<String, Object> metadata;
 
     protected final Aggregator[] subAggregators;
@@ -48,6 +50,8 @@ public abstract class AggregatorBase extends Aggregator {
 
     private Map<String, Aggregator> subAggregatorbyName;
     private long requestBytesUsed;
+    private final CircuitBreaker breaker;
+    private int callCount;
 
     /**
      * Constructs a new Aggregator.
@@ -72,6 +76,7 @@ public abstract class AggregatorBase extends Aggregator {
         this.metadata = metadata;
         this.parent = parent;
         this.context = context;
+        this.breaker = context.breaker();
         assert factories != null : "sub-factories provided to BucketAggregator must not be null, use AggragatorFactories.EMPTY instead";
         this.subAggregators = factories.createSubAggregators(this, subAggregatorCardinality);
         context.addReleasable(this);
@@ -325,6 +330,30 @@ public abstract class AggregatorBase extends Aggregator {
             aggs.add(aggregator.buildEmptyAggregation());
         }
         return InternalAggregations.from(aggs);
+    }
+
+    /**
+     * Builds the aggregations array with the provided size and populates it using the provided function.
+     */
+    protected final InternalAggregation[] buildAggregations(int size, CheckedIntFunction<InternalAggregation, IOException> aggFunction)
+        throws IOException {
+        final InternalAggregation[] results = new InternalAggregation[size];
+        for (int i = 0; i < results.length; i++) {
+            checkRealMemoryCB("internal_aggregation");
+            results[i] = aggFunction.apply(i);
+        }
+        return results;
+    }
+
+    /**
+     * This method calls the circuit breaker from time to time in order to give it a chance to check available
+     * memory in the parent breaker (Which should be a real memory breaker) and break the execution if we are running out.
+     * To achieve that, we are passing 0 as the estimated bytes every 1024 calls
+     */
+    protected final void checkRealMemoryCB(String label) {
+        if ((++callCount & 0x3FF) == 0) {
+            breaker.addEstimateBytesAndMaybeBreak(0, label);
+        }
     }
 
     @Override

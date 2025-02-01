@@ -11,26 +11,26 @@ package org.elasticsearch.action.admin.indices.template.post;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
+import org.elasticsearch.action.support.ChannelActionListener;
+import org.elasticsearch.action.support.local.TransportLocalClusterStateAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
@@ -48,7 +48,7 @@ import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.fi
  * Handles simulating an index template either by name (looking it up in the
  * cluster state), or by a provided template configuration
  */
-public class TransportSimulateTemplateAction extends TransportMasterNodeReadAction<
+public class TransportSimulateTemplateAction extends TransportLocalClusterStateAction<
     SimulateTemplateAction.Request,
     SimulateIndexTemplateResponse> {
 
@@ -60,14 +60,18 @@ public class TransportSimulateTemplateAction extends TransportMasterNodeReadActi
     private final ClusterSettings clusterSettings;
     private final boolean isDslOnlyMode;
 
+    /**
+     * NB prior to 9.0 this was a TransportMasterNodeReadAction so for BwC it must be registered with the TransportService until
+     * we no longer need to support calling this action remotely.
+     */
+    @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
+    @SuppressWarnings("this-escape")
     @Inject
     public TransportSimulateTemplateAction(
         TransportService transportService,
         ClusterService clusterService,
-        ThreadPool threadPool,
         MetadataIndexTemplateService indexTemplateService,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
         NamedXContentRegistry xContentRegistry,
         IndicesService indicesService,
         SystemIndices systemIndices,
@@ -75,13 +79,9 @@ public class TransportSimulateTemplateAction extends TransportMasterNodeReadActi
     ) {
         super(
             SimulateTemplateAction.NAME,
-            transportService,
-            clusterService,
-            threadPool,
             actionFilters,
-            SimulateTemplateAction.Request::new,
-            indexNameExpressionResolver,
-            SimulateIndexTemplateResponse::new,
+            transportService.getTaskManager(),
+            clusterService,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.indexTemplateService = indexTemplateService;
@@ -91,10 +91,19 @@ public class TransportSimulateTemplateAction extends TransportMasterNodeReadActi
         this.indexSettingProviders = indexSettingProviders.getIndexSettingProviders();
         this.clusterSettings = clusterService.getClusterSettings();
         this.isDslOnlyMode = isDataStreamsLifecycleOnlyMode(clusterService.getSettings());
+
+        transportService.registerRequestHandler(
+            actionName,
+            executor,
+            false,
+            true,
+            SimulateTemplateAction.Request::new,
+            (request, channel, task) -> executeDirect(task, request, new ChannelActionListener<>(channel))
+        );
     }
 
     @Override
-    protected void masterOperation(
+    protected void localClusterStateOperation(
         Task task,
         SimulateTemplateAction.Request request,
         ClusterState state,

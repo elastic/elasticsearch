@@ -1,7 +1,7 @@
 [[recipes]]
-== Recipes
+== Search relevance optimizations
 
-This section includes a few recipes to help with common problems:
+This section includes a few recipes to help with common search relevance issues:
 
 * <<mixing-exact-search-with-stemming,Mixing exact search with stemming>>
 * <<consistent-scoring,Getting consistent scores>>

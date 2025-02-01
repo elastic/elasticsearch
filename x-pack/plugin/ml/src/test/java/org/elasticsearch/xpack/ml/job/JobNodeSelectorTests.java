@@ -88,19 +88,6 @@ public class JobNodeSelectorTests extends ESTestCase {
         assertEquals("{_node_name1}{ML config version=10.0.0}", JobNodeSelector.nodeNameAndVersion(node));
     }
 
-    public void testNodeNameAndVersionForOldNode() {
-        TransportAddress ta = new TransportAddress(InetAddress.getLoopbackAddress(), 9300);
-        Map<String, String> attributes = Map.of("unrelated", "attribute");
-        DiscoveryNode node = DiscoveryNodeUtils.builder("_node_id2")
-            .name("_node_name2")
-            .address(ta)
-            .attributes(attributes)
-            .roles(ROLES_WITH_ML)
-            .version(VersionInformation.inferVersions(Version.V_8_7_0))
-            .build();
-        assertEquals("{_node_name2}{ML config version=8.7.0}", JobNodeSelector.nodeNameAndVersion(node));
-    }
-
     public void testNodeNameAndMlAttributes() {
         TransportAddress ta = new TransportAddress(InetAddress.getLoopbackAddress(), 9300);
         SortedMap<String, String> attributes = new TreeMap<>();

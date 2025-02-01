@@ -14,12 +14,12 @@ tasks.named("loggerUsageCheck").configure {enabled = false }
 
 dependencies {
   testImplementation(project(":test:framework")) {
-    exclude group: 'org.elasticsearch', module: 'elasticsearch-logging'
+    exclude group: 'org.elasticsearch', module: 'logging'
   }
 }
 
 
 tasks.named('forbiddenApisMain').configure {
-  // :libs:elasticsearch-logging does not depend on server
+  // :libs:logging does not depend on server
   replaceSignatureFiles 'jdk-signatures'
 }

@@ -37,12 +37,20 @@ public class ToDatetimeTests extends AbstractScalarFunctionTestCase {
         final String read = "Attribute[channel=0]";
         final List<TestCaseSupplier> suppliers = new ArrayList<>();
 
-        TestCaseSupplier.forUnaryDatetime(suppliers, read, DataType.DATETIME, Instant::toEpochMilli, emptyList());
-        TestCaseSupplier.forUnaryDateNanos(
+        TestCaseSupplier.unary(
+            suppliers,
+            read,
+            TestCaseSupplier.dateCases(),
+            DataType.DATETIME,
+            v -> ((Instant) v).toEpochMilli(),
+            emptyList()
+        );
+        TestCaseSupplier.unary(
             suppliers,
             "ToDatetimeFromDateNanosEvaluator[field=" + read + "]",
+            TestCaseSupplier.dateNanosCases(),
             DataType.DATETIME,
-            i -> DateUtils.toMilliSeconds(DateUtils.toLong(i)),
+            i -> DateUtils.toMilliSeconds(DateUtils.toLong((Instant) i)),
             emptyList()
         );
 
@@ -170,7 +178,7 @@ public class ToDatetimeTests extends AbstractScalarFunctionTestCase {
             )
         );
 
-        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers, (v, p) -> "date_nanos or datetime or numeric or string");
+        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
     }
 
     private static String randomDateString(long from, long to) {

@@ -165,7 +165,7 @@ public class DataFrameAnalyticsConfigTests extends AbstractBWCSerializationTestC
             );
         }
         if (randomBoolean()) {
-            builder.setModelMemoryLimit(new ByteSizeValue(randomIntBetween(1, 16), randomFrom(ByteSizeUnit.MB, ByteSizeUnit.GB)));
+            builder.setModelMemoryLimit(ByteSizeValue.of(randomIntBetween(1, 16), randomFrom(ByteSizeUnit.MB, ByteSizeUnit.GB)));
         }
         if (randomBoolean()) {
             builder.setDescription(randomAlphaOfLength(20));
@@ -285,31 +285,31 @@ public class DataFrameAnalyticsConfigTests extends AbstractBWCSerializationTestC
         assertTooSmall(
             expectThrows(
                 ElasticsearchStatusException.class,
-                () -> builder.setModelMemoryLimit(new ByteSizeValue(-1, ByteSizeUnit.BYTES)).build()
+                () -> builder.setModelMemoryLimit(ByteSizeValue.of(-1, ByteSizeUnit.BYTES)).build()
             )
         );
         assertTooSmall(
             expectThrows(
                 ElasticsearchStatusException.class,
-                () -> builder.setModelMemoryLimit(new ByteSizeValue(0, ByteSizeUnit.BYTES)).build()
+                () -> builder.setModelMemoryLimit(ByteSizeValue.of(0, ByteSizeUnit.BYTES)).build()
             )
         );
         assertTooSmall(
             expectThrows(
                 ElasticsearchStatusException.class,
-                () -> builder.setModelMemoryLimit(new ByteSizeValue(0, ByteSizeUnit.KB)).build()
+                () -> builder.setModelMemoryLimit(ByteSizeValue.of(0, ByteSizeUnit.KB)).build()
             )
         );
         assertTooSmall(
             expectThrows(
                 ElasticsearchStatusException.class,
-                () -> builder.setModelMemoryLimit(new ByteSizeValue(0, ByteSizeUnit.MB)).build()
+                () -> builder.setModelMemoryLimit(ByteSizeValue.of(0, ByteSizeUnit.MB)).build()
             )
         );
         assertTooSmall(
             expectThrows(
                 ElasticsearchStatusException.class,
-                () -> builder.setModelMemoryLimit(new ByteSizeValue(1023, ByteSizeUnit.BYTES)).build()
+                () -> builder.setModelMemoryLimit(ByteSizeValue.of(1023, ByteSizeUnit.BYTES)).build()
             )
         );
     }
@@ -329,7 +329,7 @@ public class DataFrameAnalyticsConfigTests extends AbstractBWCSerializationTestC
 
         DataFrameAnalyticsConfig defaultLimitConfig = createRandomBuilder("foo").setModelMemoryLimit(null).build();
 
-        ByteSizeValue maxLimit = new ByteSizeValue(randomIntBetween(500, 1000), ByteSizeUnit.MB);
+        ByteSizeValue maxLimit = ByteSizeValue.of(randomIntBetween(500, 1000), ByteSizeUnit.MB);
         if (maxLimit.compareTo(defaultLimitConfig.getModelMemoryLimit()) < 0) {
             assertThat(maxLimit, equalTo(new DataFrameAnalyticsConfig.Builder(defaultLimitConfig, maxLimit).build().getModelMemoryLimit()));
         } else {
@@ -342,10 +342,10 @@ public class DataFrameAnalyticsConfigTests extends AbstractBWCSerializationTestC
 
     public void testExplicitModelMemoryLimitTooHigh() {
 
-        ByteSizeValue configuredLimit = new ByteSizeValue(randomIntBetween(5, 10), ByteSizeUnit.GB);
+        ByteSizeValue configuredLimit = ByteSizeValue.of(randomIntBetween(5, 10), ByteSizeUnit.GB);
         DataFrameAnalyticsConfig explicitLimitConfig = createRandomBuilder("foo").setModelMemoryLimit(configuredLimit).build();
 
-        ByteSizeValue maxLimit = new ByteSizeValue(randomIntBetween(500, 1000), ByteSizeUnit.MB);
+        ByteSizeValue maxLimit = ByteSizeValue.of(randomIntBetween(500, 1000), ByteSizeUnit.MB);
         ElasticsearchStatusException e = expectThrows(
             ElasticsearchStatusException.class,
             () -> new DataFrameAnalyticsConfig.Builder(explicitLimitConfig, maxLimit).build()

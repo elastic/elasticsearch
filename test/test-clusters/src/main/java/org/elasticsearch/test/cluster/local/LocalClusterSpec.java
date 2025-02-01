@@ -22,6 +22,7 @@ import org.elasticsearch.test.cluster.util.resource.Resource;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -90,8 +91,8 @@ public class LocalClusterSpec implements ClusterSpec {
         private final Map<String, String> settings;
         private final List<EnvironmentProvider> environmentProviders;
         private final Map<String, String> environment;
-        private final Set<String> modules;
-        private final Set<String> plugins;
+        private final Map<String, DefaultPluginInstallSpec> modules;
+        private final Map<String, DefaultPluginInstallSpec> plugins;
         private final DistributionType distributionType;
         private final Set<FeatureFlag> features;
         private final List<SettingsProvider> keystoreProviders;
@@ -112,8 +113,8 @@ public class LocalClusterSpec implements ClusterSpec {
             Map<String, String> settings,
             List<EnvironmentProvider> environmentProviders,
             Map<String, String> environment,
-            Set<String> modules,
-            Set<String> plugins,
+            Map<String, DefaultPluginInstallSpec> modules,
+            Map<String, DefaultPluginInstallSpec> plugins,
             DistributionType distributionType,
             Set<FeatureFlag> features,
             List<SettingsProvider> keystoreProviders,
@@ -155,7 +156,7 @@ public class LocalClusterSpec implements ClusterSpec {
         }
 
         public String getName() {
-            return name == null ? cluster.getName() + "-" + cluster.getNodes().indexOf(this) : name;
+            return name;
         }
 
         public Version getVersion() {
@@ -174,11 +175,11 @@ public class LocalClusterSpec implements ClusterSpec {
             return distributionType;
         }
 
-        public Set<String> getModules() {
+        public Map<String, DefaultPluginInstallSpec> getModules() {
             return modules;
         }
 
-        public Set<String> getPlugins() {
+        public Map<String, DefaultPluginInstallSpec> getPlugins() {
             return plugins;
         }
 
@@ -345,7 +346,7 @@ public class LocalClusterSpec implements ClusterSpec {
 
             newCluster.setNodes(nodeSpecs);
 
-            return nodeSpecs.stream().filter(n -> n.getName().equals(this.getName())).findFirst().get();
+            return nodeSpecs.stream().filter(n -> Objects.equals(n.getName(), this.getName())).findFirst().get();
         }
     }
 }

@@ -40,6 +40,17 @@ public final class ExchangeRequest extends TransportRequest {
         out.writeBoolean(sourcesFinished);
     }
 
+    @Override
+    public TaskId getParentTask() {
+        // Exchange requests with `sourcesFinished=true` complete the remote sink and return without blocking.
+        // Masking the parent task allows these requests to bypass task cancellation, ensuring cleanup of the remote sink.
+        // TODO: Maybe add a separate action/request for closing exchange sinks?
+        if (sourcesFinished) {
+            return TaskId.EMPTY_TASK_ID;
+        }
+        return super.getParentTask();
+    }
+
     /**
      * True if the {@link ExchangeSourceHandler} has enough input.
      * The corresponding {@link ExchangeSinkHandler} can drain pages and finish itself.
@@ -70,9 +81,9 @@ public final class ExchangeRequest extends TransportRequest {
 
     @Override
     public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-        if (parentTaskId.isSet() == false) {
-            assert false : "ExchangeRequest must have a parent task";
-            throw new IllegalStateException("ExchangeRequest must have a parent task");
+        if (sourcesFinished == false && parentTaskId.isSet() == false) {
+            assert false : "ExchangeRequest with sourcesFinished=false must have a parent task";
+            throw new IllegalStateException("ExchangeRequest with sourcesFinished=false must have a parent task");
         }
         return new CancellableTask(id, type, action, "", parentTaskId, headers) {
             @Override

@@ -265,6 +265,11 @@ class AzureClientProvider extends AbstractLifecycleComponent {
     @Override
     protected void doClose() {}
 
+    // visible for testing
+    ConnectionProvider getConnectionProvider() {
+        return connectionProvider;
+    }
+
     static class RequestMetrics {
         private volatile long totalRequestTimeNanos = 0;
         private volatile int requestCount;

@@ -9,16 +9,18 @@
 package org.elasticsearch.validate;
 
 import org.elasticsearch.action.admin.indices.alias.Alias;
+import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryResponse;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.MoreLikeThisQueryBuilder.Item;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermsQueryBuilder;
+import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.TermsLookup;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
@@ -207,12 +209,8 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
     }
 
     public void testValidateEmptyCluster() {
-        try {
-            indicesAdmin().prepareValidateQuery().get();
-            fail("Expected IndexNotFoundException");
-        } catch (IndexNotFoundException e) {
-            assertThat(e.getMessage(), is("no such index [_all] and no indices exist"));
-        }
+        ValidateQueryResponse response = indicesAdmin().prepareValidateQuery().get();
+        assertThat(response.getTotalShards(), is(0));
     }
 
     public void testExplainNoQuery() {
@@ -378,5 +376,53 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
         TermsQueryBuilder termsLookupQuery = QueryBuilders.termsLookupQuery("user", new TermsLookup("twitter", "1", "followers"));
         ValidateQueryResponse response = indicesAdmin().prepareValidateQuery("twitter").setQuery(termsLookupQuery).setExplain(true).get();
         assertThat(response.isValid(), is(true));
+    }
+
+    public void testOneClosedIndex() {
+        createIndex("test");
+
+        boolean ignoreUnavailable = false;
+        IndicesOptions options = IndicesOptions.fromOptions(ignoreUnavailable, true, true, false, true, true, false, false);
+        client().admin().indices().close(new CloseIndexRequest("test")).actionGet();
+        IndexClosedException ex = expectThrows(
+            IndexClosedException.class,
+            indicesAdmin().prepareValidateQuery("test").setIndicesOptions(options)
+        );
+        assertEquals("closed", ex.getMessage());
+    }
+
+    public void testOneClosedIndexIgnoreUnavailable() {
+        createIndex("test");
+
+        boolean ignoreUnavailable = true;
+        IndicesOptions options = IndicesOptions.fromOptions(ignoreUnavailable, true, true, false, true, true, false, false);
+        client().admin().indices().close(new CloseIndexRequest("test")).actionGet();
+        ValidateQueryResponse response = indicesAdmin().prepareValidateQuery("test").setIndicesOptions(options).get();
+        assertThat(response.getTotalShards(), is(0));
+    }
+
+    public void testTwoIndicesOneClosed() {
+        createIndex("test1");
+        createIndex("test2");
+
+        boolean ignoreUnavailable = false;
+        IndicesOptions options = IndicesOptions.fromOptions(ignoreUnavailable, true, true, false, true, true, false, false);
+        client().admin().indices().close(new CloseIndexRequest("test1")).actionGet();
+        IndexClosedException ex = expectThrows(
+            IndexClosedException.class,
+            indicesAdmin().prepareValidateQuery("test1", "test2").setIndicesOptions(options)
+        );
+        assertEquals("closed", ex.getMessage());
+    }
+
+    public void testTwoIndicesOneClosedIgnoreUnavailable() {
+        createIndex("test1");
+        createIndex("test2");
+
+        boolean ignoreUnavailable = true;
+        IndicesOptions options = IndicesOptions.fromOptions(ignoreUnavailable, true, true, false, true, true, false, false);
+        client().admin().indices().close(new CloseIndexRequest("test1")).actionGet();
+        ValidateQueryResponse response = indicesAdmin().prepareValidateQuery("test1", "test2").setIndicesOptions(options).get();
+        assertThat(response.getTotalShards(), is(1));
     }
 }

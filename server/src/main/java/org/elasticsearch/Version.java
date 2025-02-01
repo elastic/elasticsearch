@@ -14,8 +14,8 @@ import org.elasticsearch.common.VersionId;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Assertions;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -187,10 +187,20 @@ public class Version implements VersionId<Version>, ToXContentFragment {
     public static final Version V_8_15_2 = new Version(8_15_02_99);
     public static final Version V_8_15_3 = new Version(8_15_03_99);
     public static final Version V_8_15_4 = new Version(8_15_04_99);
+    public static final Version V_8_15_5 = new Version(8_15_05_99);
     public static final Version V_8_16_0 = new Version(8_16_00_99);
+    public static final Version V_8_16_1 = new Version(8_16_01_99);
+    public static final Version V_8_16_2 = new Version(8_16_02_99);
+    public static final Version V_8_16_3 = new Version(8_16_03_99);
+    public static final Version V_8_16_4 = new Version(8_16_04_99);
     public static final Version V_8_17_0 = new Version(8_17_00_99);
+    public static final Version V_8_17_1 = new Version(8_17_01_99);
+    public static final Version V_8_17_2 = new Version(8_17_02_99);
+    public static final Version V_8_18_0 = new Version(8_18_00_99);
+    public static final Version V_8_19_0 = new Version(8_19_00_99);
     public static final Version V_9_0_0 = new Version(9_00_00_99);
-    public static final Version CURRENT = V_9_0_0;
+    public static final Version V_9_1_0 = new Version(9_01_00_99);
+    public static final Version CURRENT = V_9_1_0;
 
     private static final NavigableMap<Integer, Version> VERSION_IDS;
     private static final Map<String, Version> VERSION_STRINGS;
@@ -234,17 +244,15 @@ public class Version implements VersionId<Version>, ToXContentFragment {
         VERSION_STRINGS = Map.copyOf(builderByString);
     }
 
-    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA)
-    // Re-enable this assertion once the rest api version is bumped
     private static void assertRestApiVersion() {
-        // assert RestApiVersion.current().major == CURRENT.major && RestApiVersion.previous().major == CURRENT.major - 1
-        // : "RestApiVersion must be upgraded "
-        // + "to reflect major from Version.CURRENT ["
-        // + CURRENT.major
-        // + "]"
-        // + " but is still set to ["
-        // + RestApiVersion.current().major
-        // + "]";
+        assert RestApiVersion.current().major == CURRENT.major && RestApiVersion.previous().major == CURRENT.major - 1
+            : "RestApiVersion must be upgraded "
+                + "to reflect major from Version.CURRENT ["
+                + CURRENT.major
+                + "]"
+                + " but is still set to ["
+                + RestApiVersion.current().major
+                + "]";
     }
 
     public static Version readVersion(StreamInput in) throws IOException {

@@ -206,13 +206,32 @@ public class Docker {
                 ps output:
                 %s
 
-                stdout():
+                Stdout:
                 %s
 
                 Stderr:
+                %s
+
+                Thread dump:
                 %s\
-                """, psOutput, dockerLogs.stdout(), dockerLogs.stderr()));
+                """, psOutput, dockerLogs.stdout(), dockerLogs.stderr(), getThreadDump()));
         }
+    }
+
+    /**
+     * @return output of jstack for currently running Java process
+     */
+    private static String getThreadDump() {
+        try {
+            String pid = dockerShell.run("/usr/share/elasticsearch/jdk/bin/jps | grep -v 'Jps' | awk '{print $1}'").stdout();
+            if (pid.isEmpty() == false) {
+                return dockerShell.run("/usr/share/elasticsearch/jdk/bin/jstack " + Integer.parseInt(pid)).stdout();
+            }
+        } catch (Exception e) {
+            logger.error("Failed to get thread dump", e);
+        }
+
+        return "";
     }
 
     /**
@@ -532,7 +551,7 @@ public class Docker {
                 )
             );
 
-        if (es.distribution.packaging == Packaging.DOCKER_CLOUD || es.distribution.packaging == Packaging.DOCKER_CLOUD_ESS) {
+        if (es.distribution.packaging == Packaging.DOCKER_CLOUD_ESS) {
             verifyCloudContainerInstallation(es);
         }
     }

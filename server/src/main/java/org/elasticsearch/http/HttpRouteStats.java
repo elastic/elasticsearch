@@ -49,6 +49,8 @@ public record HttpRouteStats(
     long[] responseTimeHistogram
 ) implements Writeable, ToXContentObject {
 
+    public static final HttpRouteStats EMPTY = new HttpRouteStats(0, 0, new long[0], 0, 0, new long[0], new long[0]);
+
     public HttpRouteStats(StreamInput in) throws IOException {
         this(in.readVLong(), in.readVLong(), in.readVLongArray(), in.readVLong(), in.readVLong(), in.readVLongArray(), in.readVLongArray());
     }

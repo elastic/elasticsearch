@@ -6,6 +6,12 @@
 <titleabbrev>Test Grok pattern</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-text_structure[Text structure APIs].
+--
+
 Tests a Grok pattern on lines of text, see also <<grok,Grokking grok>>.
 
 [discrete]

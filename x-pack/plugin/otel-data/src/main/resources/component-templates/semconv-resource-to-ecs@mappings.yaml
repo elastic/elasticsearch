@@ -95,6 +95,9 @@ template:
               k8s.statefulset.name:
                 type: keyword
                 ignore_above: 1024
+              k8s.cluster.name:
+                type: keyword
+                ignore_above: 1024
       service.node.name:
         type: alias
         path: resource.attributes.service.instance.id
@@ -131,6 +134,10 @@ template:
       host.os.version:
         type: alias
         path: resource.attributes.os.version
+      orchestrator.cluster.name:
+        type: alias
+        path: resource.attributes.k8s.cluster.name
+# Below are non-ECS fields that may be used by Kibana.
       kubernetes.deployment.name:
         type: alias
         path: resource.attributes.k8s.deployment.name
@@ -170,7 +177,6 @@ template:
       kubernetes.node.hostname:
         type: alias
         path: resource.attributes.k8s.node.hostname
-# Below are non-ECS fields that may be used by Kibana.
       service.language.name:
         type: alias
         path: resource.attributes.telemetry.sdk.language

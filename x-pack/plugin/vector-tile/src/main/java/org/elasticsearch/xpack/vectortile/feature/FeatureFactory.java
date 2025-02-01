@@ -307,8 +307,11 @@ public class FeatureFactory {
                         return null;
                     }
                 } catch (TopologyException ex) {
-                    // we should never get here but just to be super safe because a TopologyException will kill the node
-                    throw new IllegalArgumentException(ex);
+                    // Note we should never throw a TopologyException as it kill the node
+                    // unfortunately the intersection method is not perfect and it will throw this error for complex
+                    // geometries even when valid. We can still simplify such geometry so we just return the original and
+                    // let the simplification process handle it.
+                    return geometry;
                 }
             }
         }

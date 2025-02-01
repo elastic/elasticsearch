@@ -123,5 +123,4 @@ public class AzureOpenAiEmbeddingsModel extends AzureOpenAiModel {
     public String[] operationPathSegments() {
         return new String[] { AzureOpenAiUtils.EMBEDDINGS_PATH };
     }
-
 }

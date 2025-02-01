@@ -52,7 +52,7 @@ public interface PlanStreamInput {
     String readCachedString() throws IOException;
 
     static String readCachedStringWithVersionCheck(StreamInput planStreamInput) throws IOException {
-        if (planStreamInput.getTransportVersion().before(TransportVersions.ESQL_CACHED_STRING_SERIALIZATION)) {
+        if (planStreamInput.getTransportVersion().before(TransportVersions.V_8_16_0)) {
             return planStreamInput.readString();
         }
         return ((PlanStreamInput) planStreamInput).readCachedString();

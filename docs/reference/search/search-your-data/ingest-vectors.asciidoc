@@ -1,0 +1,141 @@
+[[bring-your-own-vectors]]
+=== Bring your own dense vector embeddings to {es}
+++++
+<titleabbrev>Bring your own dense vectors</titleabbrev>
+++++
+
+This tutorial demonstrates how to index documents that already have dense vector embeddings into {es}.
+You'll also learn the syntax for searching these documents using a `knn` query.
+
+You'll find links at the end of this tutorial for more information about deploying a text embedding model in {es}, so you can generate embeddings for queries on the fly.
+
+[TIP]
+====
+This is an advanced use case.
+Refer to <<semantic-search,Semantic search>> for an overview of your options for semantic search with {es}.
+====
+
+[discrete]
+[[bring-your-own-vectors-create-index]]
+=== Step 1: Create an index with `dense_vector` mapping
+
+Each document in our simple dataset will have:
+
+* A review: stored in a `review_text` field
+* An embedding of that review: stored in a `review_vector` field
+** The `review_vector` field is defined as a <<dense-vector,`dense_vector`>> data type.
+
+[TIP]
+====
+The `dense_vector` type automatically uses `int8_hnsw` quantization by default to reduce the memory footprint required when searching float vectors.
+Learn more about balancing performance and accuracy in <<dense-vector-quantization,Dense vector quantization>>.
+====
+
+[source,console]
+----
+PUT /amazon-reviews
+{
+  "mappings": {
+    "properties": {
+      "review_vector": {
+        "type": "dense_vector",
+        "dims": 8, <1>
+        "index": true, <2>
+        "similarity": "cosine" <3>
+      },
+      "review_text": {
+        "type": "text"
+      }
+    }
+  }
+}
+----
+// TEST SETUP
+<1> The `dims` parameter must match the length of the embedding vector. Here we're using a simple 8-dimensional embedding for readability. If not specified, `dims` will be dynamically calculated based on the first indexed document.
+<2> The `index` parameter is set to `true` to enable the use of the `knn` query.
+<3> The `similarity` parameter defines the similarity function used to compare the query vector to the document vectors. `cosine` is the default similarity function for `dense_vector` fields in {es}.
+
+[discrete]
+[[bring-your-own-vectors-index-documents]]
+=== Step 2: Index documents with embeddings
+
+[discrete]
+==== Index a single document
+
+First, index a single document to understand the document structure.
+
+[source,console]
+----
+PUT /amazon-reviews/_doc/1
+{
+  "review_text": "This product is lifechanging! I'm telling all my friends about it.",
+  "review_vector": [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8] <1>
+}
+----
+// TEST
+<1> The size of the `review_vector` array is 8, matching the `dims` count specified in the mapping.
+
+[discrete]
+==== Bulk index multiple documents
+
+In a production scenario, you'll want to index many documents at once using the <<docs-bulk,`_bulk` endpoint>>.
+
+Here's an example of indexing multiple documents in a single `_bulk` request.
+
+[source,console]
+----
+POST /_bulk
+{ "index": { "_index": "amazon-reviews", "_id": "2" } }
+{ "review_text": "This product is amazing! I love it.", "review_vector": [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8] }
+{ "index": { "_index": "amazon-reviews", "_id": "3" } }
+{ "review_text": "This product is terrible. I hate it.", "review_vector": [0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1] }
+{ "index": { "_index": "amazon-reviews", "_id": "4" } }
+{ "review_text": "This product is great. I can do anything with it.", "review_vector": [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8] }
+{ "index": { "_index": "amazon-reviews", "_id": "5" } }
+{ "review_text": "This product has ruined my life and the lives of my family and friends.", "review_vector": [0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1] }
+----
+// TEST[continued]
+
+[discrete]
+[[bring-your-own-vectors-search-documents]]
+=== Step 3: Search documents with embeddings
+
+Now you can query these document vectors using a <<knn-retriever,`knn` retriever>>.
+`knn` is a type of vector search, which finds the `k` most similar documents to a query vector.
+Here we're simply using a raw vector for the query text, for demonstration purposes.
+
+[source,console]
+----
+POST /amazon-reviews/_search
+{
+  "retriever": {
+    "knn": { 
+      "field": "review_vector",
+      "query_vector": [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8], <1>
+      "k": 2, <2>
+      "num_candidates": 5 <3>
+    }
+  }
+}
+----
+// TEST[skip:flakeyknnerror]
+<1> In this simple example, we're sending a raw vector as the query text. In a real-world scenario, you'll need to generate vectors for queries using an embedding model.
+<2> The `k` parameter specifies the number of results to return.
+<3> The `num_candidates` parameter is optional. It limits the number of candidates returned by the search node. This can improve performance and reduce costs.
+
+[discrete]
+[[bring-your-own-vectors-learn-more]]
+=== Learn more
+
+In this simple example, we're sending a raw vector for the query text.
+In a real-world scenario you won't know the query text ahead of time.
+You'll need to generate query vectors, on the fly, using the same embedding model that generated the document vectors.
+
+For this you'll need to deploy a text embedding model in {es} and use the <<knn-query-top-level-parameters,`query_vector_builder` parameter>>. Alternatively, you can generate vectors client-side and send them directly with the search request.
+
+Learn how to <<semantic-search-deployed-nlp-model,use a deployed text embedding model>> for semantic search.
+
+[TIP]
+====
+If you're just getting started with vector search in {es}, refer to <<semantic-search,Semantic search>>.
+====

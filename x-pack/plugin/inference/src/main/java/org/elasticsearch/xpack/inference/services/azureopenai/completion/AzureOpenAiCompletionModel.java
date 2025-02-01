@@ -119,5 +119,4 @@ public class AzureOpenAiCompletionModel extends AzureOpenAiModel {
     public String[] operationPathSegments() {
         return new String[] { AzureOpenAiUtils.CHAT_PATH, AzureOpenAiUtils.COMPLETIONS_PATH };
     }
-
 }

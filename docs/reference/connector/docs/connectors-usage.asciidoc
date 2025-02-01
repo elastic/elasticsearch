@@ -3,7 +3,7 @@
 
 This document describes operations available to <<es-native-connectors,managed connectors>> and <<es-build-connector,self-managed connectors>>, using the UI.
 
-In the Kibana UI, go to *Search > Content > Connectors* to view a summary of all your connectors and sync jobs, and to create new connectors.
+In the Kibana UI, navigate to *Search > Content > Connectors* from the main menu, or use the {kibana-ref}/kibana-concepts-analysts.html#_finding_your_apps_and_objects[global search field]. Here, you can view a summary of all your connectors and sync jobs, and to create new connectors.
 
 [TIP]
 ====
@@ -24,7 +24,7 @@ Once you've chosen the data source type you'd like to sync, you'll be prompted t
 
 View and manage all Elasticsearch indices managed by connectors.
 
-In the {kib} UI, navigate to *Search > Content > Connectors* to view a list of connector indices and their attributes, including connector type health and ingestion status.
+In the {kib} UI, navigate to *Search > Content > Connectors* from the main menu, or use the {kibana-ref}/kibana-concepts-analysts.html#_finding_your_apps_and_objects[global search field]. Here, you can view a list of connector indices and their attributes, including connector type health and ingestion status.
 
 Within this interface, you can choose to view the details for each existing index or delete an index.
 Or, you can <<es-connectors-usage-index-create,create a new connector index>>.
@@ -82,7 +82,7 @@ The workflow for these updates is as follows:
 
 After creating an index to be managed by a connector, you can configure automatic, recurring syncs.
 
-In the {kib} UI, navigate to *Search > Content > Connectors*.
+In the {kib} UI, navigate to *Search > Content > Connectors* from the main menu, or use the {kibana-ref}/kibana-concepts-analysts.html#_finding_your_apps_and_objects[global search field].
 
 Choose the index to configure, and then choose the *Scheduling* tab.
 
@@ -107,7 +107,7 @@ You may want to <<es-connectors-usage-index-view,view the index details>> to see
 
 After creating the index to be managed by a connector, you can request a single sync at any time.
 
-In the {kib} UI, navigate to *Search > Content > Elasticsearch indices*.
+In the {kib} UI, navigate to *Search > Content > Elasticsearch indices* from the main menu, or use the {kibana-ref}/kibana-concepts-analysts.html#_finding_your_apps_and_objects[global search field].
 
 Then choose the index to sync.
 
@@ -128,7 +128,7 @@ This operation requires access to Kibana and the `write` {ref}/security-privileg
 
 After a sync has started, you can cancel the sync before it completes.
 
-In the {kib} UI, navigate to *Search > Content > Elasticsearch indices*.
+In the {kib} UI, navigate to *Search > Content > Elasticsearch indices* from the main menu, or use the {kibana-ref}/kibana-concepts-analysts.html#_finding_your_apps_and_objects[global search field].
 
 Then choose the index with the running sync.
 
@@ -144,7 +144,7 @@ This operation requires access to Kibana and the `write` {ref}/security-privileg
 
 View the index details to see a variety of information that communicate the status of the index and connector.
 
-In the {kib} UI, navigate to *Search > Content > Elasticsearch indices*.
+In the {kib} UI, navigate to *Search > Content > Elasticsearch indices* from the main menu, or use the {kibana-ref}/kibana-concepts-analysts.html#_finding_your_apps_and_objects[global search field].
 
 Then choose the index to view.
 
@@ -192,7 +192,7 @@ This operation requires access to Kibana and the `read` {ref}/security-privilege
 View the documents the connector has synced from the data.
 Additionally view the index mappings to determine the current document schema.
 
-In the {kib} UI, navigate to *Search > Content > Elasticsearch indices*.
+In the {kib} UI, navigate to *Search > Content > Elasticsearch indices* from the main menu, or use the {kibana-ref}/kibana-concepts-analysts.html#_finding_your_apps_and_objects[global search field].
 
 Then choose the index to view.
 
@@ -211,7 +211,7 @@ See <<es-connectors-security>> for security details.
 
 Use <<es-sync-rules,sync rules>> to limit which documents are fetched from the data source, or limit which fetched documents are stored in Elastic.
 
-In the {kib} UI, navigate to *Search > Content > Elasticsearch indices*.
+In the {kib} UI, navigate to *Search > Content > Elasticsearch indices* from the main menu, or use the {kibana-ref}/kibana-concepts-analysts.html#_finding_your_apps_and_objects[global search field].
 
 Then choose the index to manage and choose the *Sync rules* tab.
 
@@ -220,6 +220,6 @@ Then choose the index to manage and choose the *Sync rules* tab.
 
 Use {ref}/ingest-pipeline-search.html[ingest pipelines] to transform fetched data before it is stored in Elastic.
 
-In the {kib} UI, navigate to *Search > Content > Elasticsearch indices*.
+In the {kib} UI, navigate to *Search > Content > Elasticsearch indices* from the main menu, or use the {kibana-ref}/kibana-concepts-analysts.html#_finding_your_apps_and_objects[global search field].
 
 Then choose the index to manage and choose the *Pipelines* tab.

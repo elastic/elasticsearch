@@ -92,6 +92,21 @@ public record ReservedStateMetadata(
     }
 
     /**
+     * Get the reserved keys for the handler name
+     *
+     * @param handlerName handler name to get keys for
+     * @return set of keys for that handler
+     */
+    public Set<String> keys(String handlerName) {
+        ReservedStateHandlerMetadata handlerMetadata = handlers.get(handlerName);
+        if (handlerMetadata == null || handlerMetadata.keys().isEmpty()) {
+            return Collections.emptySet();
+        }
+
+        return Collections.unmodifiableSet(handlerMetadata.keys());
+    }
+
+    /**
      * Reads an {@link ReservedStateMetadata} from a {@link StreamInput}
      *
      * @param in the {@link StreamInput} to read from

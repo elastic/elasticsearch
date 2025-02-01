@@ -1,5 +1,0 @@
-pr: 114429
-summary: Add chunking settings configuration to `ElasticsearchService/ELSER`
-area: Machine Learning
-type: enhancement
-issues: []

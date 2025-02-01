@@ -117,7 +117,7 @@ public class NodesStatsRequestParameters implements Writeable {
         }
 
         public static void writeSetTo(StreamOutput out, EnumSet<Metric> metrics) throws IOException {
-            if (out.getTransportVersion().onOrAfter(TransportVersions.NODES_STATS_ENUM_SET)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
                 out.writeEnumSet(metrics);
             } else {
                 out.writeCollection(metrics, (output, metric) -> output.writeString(metric.metricName));
@@ -125,7 +125,7 @@ public class NodesStatsRequestParameters implements Writeable {
         }
 
         public static EnumSet<Metric> readSetFrom(StreamInput in) throws IOException {
-            if (in.getTransportVersion().onOrAfter(TransportVersions.NODES_STATS_ENUM_SET)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
                 return in.readEnumSet(Metric.class);
             } else {
                 return in.readCollection((i) -> EnumSet.noneOf(Metric.class), (is, out) -> {

@@ -11,8 +11,12 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePattern;
+import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
+import org.elasticsearch.xpack.esql.core.querydsl.query.RegexQuery;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
@@ -20,13 +24,18 @@ import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
+import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 
 import java.io.IOException;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
 
-public class RLike extends org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLike implements EvaluatorMapper {
+public class RLike extends org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLike
+    implements
+        EvaluatorMapper,
+        TranslationAware.SingleValueTranslationAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "RLike", RLike::new);
 
     @FunctionInfo(returnType = "boolean", description = """
@@ -49,7 +58,7 @@ public class RLike extends org.elasticsearch.xpack.esql.core.expression.predicat
         ----
         include::{esql-specs}/string.csv-spec[tag=rlikeEscapingTripleQuotes]
         ----
-        """, examples = @Example(file = "docs", tag = "rlike"))
+        """, operator = "RLIKE", examples = @Example(file = "docs", tag = "rlike"))
     public RLike(
         Source source,
         @Param(name = "str", type = { "keyword", "text" }, description = "A literal value.") Expression value,
@@ -79,7 +88,7 @@ public class RLike extends org.elasticsearch.xpack.esql.core.expression.predicat
     }
 
     @Override
-    protected NodeInfo<org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLike> info() {
+    protected NodeInfo<RLike> info() {
         return NodeInfo.create(this, RLike::new, field(), pattern(), caseInsensitive());
     }
 
@@ -94,7 +103,29 @@ public class RLike extends org.elasticsearch.xpack.esql.core.expression.predicat
     }
 
     @Override
+    public Boolean fold(FoldContext ctx) {
+        return (Boolean) EvaluatorMapper.super.fold(source(), ctx);
+    }
+
+    @Override
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         return AutomataMatch.toEvaluator(source(), toEvaluator.apply(field()), pattern().createAutomaton());
+    }
+
+    @Override
+    public boolean translatable(LucenePushdownPredicates pushdownPredicates) {
+        return pushdownPredicates.isPushableFieldAttribute(field());
+    }
+
+    @Override
+    public Query asQuery(TranslatorHandler handler) {
+        var fa = LucenePushdownPredicates.checkIsFieldAttribute(field());
+        // TODO: see whether escaping is needed
+        return new RegexQuery(source(), handler.nameOf(fa.exactAttribute()), pattern().asJavaRegex(), caseInsensitive());
+    }
+
+    @Override
+    public Expression singleValueField() {
+        return field();
     }
 }

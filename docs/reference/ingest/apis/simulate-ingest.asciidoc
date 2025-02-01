@@ -5,6 +5,12 @@
 <titleabbrev>Simulate ingest</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-ingest[Ingest APIs].
+--
+
 Executes ingest pipelines against a set of provided documents, optionally
 with substitute pipeline definitions. This API is meant to be used for
 troubleshooting or pipeline development, as it does not actually index any
@@ -265,8 +271,8 @@ Definition of a mapping that will be merged into the index's mapping for validat
 
 [[simulate-ingest-api-pre-existing-pipelines-ex]]
 ===== Use pre-existing pipeline definitions
-In this example the index `index` has a default pipeline called `my-pipeline` and a final
-pipeline called `my-final-pipeline`. Since both documents are being ingested into `index`,
+In this example the index `my-index` has a default pipeline called `my-pipeline` and a final
+pipeline called `my-final-pipeline`. Since both documents are being ingested into `my-index`,
 both pipelines are executed using the pipeline definitions that are already in the system.
 
 [source,console]

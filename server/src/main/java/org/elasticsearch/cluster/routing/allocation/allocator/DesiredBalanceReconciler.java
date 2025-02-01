@@ -20,7 +20,10 @@ import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
+import org.elasticsearch.cluster.routing.allocation.NodeAllocationStatsAndWeightsCalculator;
+import org.elasticsearch.cluster.routing.allocation.NodeAllocationStatsAndWeightsCalculator.NodeAllocationStatsAndWeight;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceMetrics.AllocationStats;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -33,7 +36,9 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.Iterator;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
@@ -49,6 +54,10 @@ public class DesiredBalanceReconciler {
 
     private static final Logger logger = LogManager.getLogger(DesiredBalanceReconciler.class);
 
+    /**
+     * The minimum interval that log messages will be written if the number of undesired shard allocations reaches the percentage of total
+     * shards set by {@link #UNDESIRED_ALLOCATIONS_LOG_THRESHOLD_SETTING}.
+     */
     public static final Setting<TimeValue> UNDESIRED_ALLOCATIONS_LOG_INTERVAL_SETTING = Setting.timeSetting(
         "cluster.routing.allocation.desired_balance.undesired_allocations.log_interval",
         TimeValue.timeValueHours(1),
@@ -57,6 +66,10 @@ public class DesiredBalanceReconciler {
         Setting.Property.NodeScope
     );
 
+    /**
+     * Warning log messages may be periodically written if the number of shards that are on undesired nodes reaches this percentage setting.
+     * Works together with {@link #UNDESIRED_ALLOCATIONS_LOG_INTERVAL_SETTING} to log on a periodic basis.
+     */
     public static final Setting<Double> UNDESIRED_ALLOCATIONS_LOG_THRESHOLD_SETTING = Setting.doubleSetting(
         "cluster.routing.allocation.desired_balance.undesired_allocations.threshold",
         0.1,
@@ -70,8 +83,14 @@ public class DesiredBalanceReconciler {
     private final NodeAllocationOrdering allocationOrdering = new NodeAllocationOrdering();
     private final NodeAllocationOrdering moveOrdering = new NodeAllocationOrdering();
     private final DesiredBalanceMetrics desiredBalanceMetrics;
+    private final NodeAllocationStatsAndWeightsCalculator nodeAllocationStatsAndWeightsCalculator;
 
-    public DesiredBalanceReconciler(ClusterSettings clusterSettings, ThreadPool threadPool, DesiredBalanceMetrics desiredBalanceMetrics) {
+    public DesiredBalanceReconciler(
+        ClusterSettings clusterSettings,
+        ThreadPool threadPool,
+        DesiredBalanceMetrics desiredBalanceMetrics,
+        NodeAllocationStatsAndWeightsCalculator nodeAllocationStatsAndWeightsCalculator
+    ) {
         this.desiredBalanceMetrics = desiredBalanceMetrics;
         this.undesiredAllocationLogInterval = new FrequencyCappedAction(
             threadPool.relativeTimeInMillisSupplier(),
@@ -82,8 +101,16 @@ public class DesiredBalanceReconciler {
             UNDESIRED_ALLOCATIONS_LOG_THRESHOLD_SETTING,
             value -> this.undesiredAllocationsLogThreshold = value
         );
+        this.nodeAllocationStatsAndWeightsCalculator = nodeAllocationStatsAndWeightsCalculator;
     }
 
+    /**
+     * Applies a desired shard allocation to the routing table by initializing and relocating shards in the cluster state.
+     *
+     * @param desiredBalance The new desired cluster shard allocation
+     * @param allocation Cluster state information with which to make decisions, contains routing table metadata that will be modified to
+     *                   reach the given desired balance.
+     */
     public void reconcile(DesiredBalance desiredBalance, RoutingAllocation allocation) {
         var nodeIds = allocation.routingNodes().getAllNodeIds();
         allocationOrdering.retainNodes(nodeIds);
@@ -138,10 +165,31 @@ public class DesiredBalanceReconciler {
                 moveShards();
                 // 3. move any other shards that are desired elsewhere
                 logger.trace("Reconciler#balance");
-                balance();
+                var allocationStats = balance();
 
                 logger.debug("Reconciliation is complete");
+
+                updateDesireBalanceMetrics(allocationStats);
             }
+        }
+
+        private void updateDesireBalanceMetrics(AllocationStats allocationStats) {
+            var nodesStatsAndWeights = nodeAllocationStatsAndWeightsCalculator.nodesAllocationStatsAndWeights(
+                allocation.metadata(),
+                allocation.routingNodes(),
+                allocation.clusterInfo(),
+                desiredBalance
+            );
+            Map<DiscoveryNode, NodeAllocationStatsAndWeight> filteredNodeAllocationStatsAndWeights = new HashMap<>(
+                nodesStatsAndWeights.size()
+            );
+            for (var nodeStatsAndWeight : nodesStatsAndWeights.entrySet()) {
+                var node = allocation.nodes().get(nodeStatsAndWeight.getKey());
+                if (node != null) {
+                    filteredNodeAllocationStatsAndWeights.put(node, nodeStatsAndWeight.getValue());
+                }
+            }
+            desiredBalanceMetrics.updateMetrics(allocationStats, desiredBalance.weightsPerNode(), filteredNodeAllocationStatsAndWeights);
         }
 
         private boolean allocateUnassignedInvariant() {
@@ -464,9 +512,9 @@ public class DesiredBalanceReconciler {
             }
         }
 
-        private void balance() {
+        private AllocationStats balance() {
             if (allocation.deciders().canRebalance(allocation).type() != Decision.Type.YES) {
-                return;
+                return DesiredBalanceMetrics.EMPTY_ALLOCATION_STATS;
             }
 
             int unassignedShards = routingNodes.unassigned().size() + routingNodes.unassigned().ignored().size();
@@ -532,9 +580,9 @@ public class DesiredBalanceReconciler {
                 }
             }
 
-            desiredBalanceMetrics.updateMetrics(unassignedShards, totalAllocations, undesiredAllocationsExcludingShuttingDownNodes);
-
             maybeLogUndesiredAllocationsWarning(totalAllocations, undesiredAllocationsExcludingShuttingDownNodes, routingNodes.size());
+
+            return new AllocationStats(unassignedShards, totalAllocations, undesiredAllocationsExcludingShuttingDownNodes);
         }
 
         private void maybeLogUndesiredAllocationsWarning(int totalAllocations, int undesiredAllocations, int nodeCount) {

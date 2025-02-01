@@ -9,6 +9,7 @@
 package org.elasticsearch.search.aggregations;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.DelayableWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -34,7 +35,6 @@ import java.util.function.Function;
  */
 public abstract class InternalAggregation implements Aggregation, NamedWriteable {
     protected final String name;
-
     protected final Map<String, Object> metadata;
 
     /**
@@ -51,8 +51,15 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
      * Read from a stream.
      */
     protected InternalAggregation(StreamInput in) throws IOException {
-        name = in.readString();
-        metadata = in.readGenericMap();
+        final String name = in.readString();
+        final Map<String, Object> metadata = in.readGenericMap();
+        if (in instanceof DelayableWriteable.Deduplicator d) {
+            this.name = d.deduplicate(name);
+            this.metadata = metadata == null || metadata.isEmpty() ? metadata : d.deduplicate(metadata);
+        } else {
+            this.name = name;
+            this.metadata = metadata;
+        }
     }
 
     @Override

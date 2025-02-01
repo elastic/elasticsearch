@@ -24,6 +24,7 @@ import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -34,6 +35,7 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.math.BigInteger;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.Collections;
@@ -150,8 +152,15 @@ public class Setting<T> implements ToXContentObject {
          * Indicates that this index-level setting was deprecated in {@link Version#V_7_17_0} and is
          * forbidden in indices created from {@link Version#V_8_0_0} onwards.
          */
-        @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA) // introduce IndexSettingDeprecatedInV8AndRemovedInV9 to replace this constant
+        @UpdateForV10(owner = UpdateForV10.Owner.CORE_INFRA)  // remove constant if indices created in V7 couldn't be read by v10 anymore
+        // note we still need v7 settings in v9 because we support reading from N-2 indices now
         IndexSettingDeprecatedInV7AndRemovedInV8,
+
+        /**
+         * Indicates that this index-level setting was deprecated in {@link Version#V_8_18_0} and is
+         * forbidden in indices created from {@link Version#V_9_0_0} onwards.
+         */
+        IndexSettingDeprecatedInV8AndRemovedInV9,
 
         /**
          * Indicates that this setting is accessible by non-operator users (public) in serverless
@@ -174,7 +183,8 @@ public class Setting<T> implements ToXContentObject {
     private static final EnumSet<Property> DEPRECATED_PROPERTIES = EnumSet.of(
         Property.Deprecated,
         Property.DeprecatedWarning,
-        Property.IndexSettingDeprecatedInV7AndRemovedInV8
+        Property.IndexSettingDeprecatedInV7AndRemovedInV8,
+        Property.IndexSettingDeprecatedInV8AndRemovedInV9
     );
 
     @SuppressWarnings("this-escape")
@@ -214,6 +224,7 @@ public class Setting<T> implements ToXContentObject {
             checkPropertyRequiresIndexScope(propertiesAsSet, Property.InternalIndex);
             checkPropertyRequiresIndexScope(propertiesAsSet, Property.PrivateIndex);
             checkPropertyRequiresIndexScope(propertiesAsSet, Property.IndexSettingDeprecatedInV7AndRemovedInV8);
+            checkPropertyRequiresIndexScope(propertiesAsSet, Property.IndexSettingDeprecatedInV8AndRemovedInV9);
             checkPropertyRequiresNodeScope(propertiesAsSet);
             this.properties = propertiesAsSet;
         }
@@ -448,7 +459,8 @@ public class Setting<T> implements ToXContentObject {
     private boolean isDeprecated() {
         return properties.contains(Property.Deprecated)
             || properties.contains(Property.DeprecatedWarning)
-            || properties.contains(Property.IndexSettingDeprecatedInV7AndRemovedInV8);
+            || properties.contains(Property.IndexSettingDeprecatedInV7AndRemovedInV8)
+            || properties.contains(Property.IndexSettingDeprecatedInV8AndRemovedInV9);
     }
 
     private boolean isDeprecatedWarningOnly() {
@@ -1485,25 +1497,66 @@ public class Setting<T> implements ToXContentObject {
     }
 
     public static int parseInt(String s, int minValue, int maxValue, String key, boolean isFiltered) {
-        int value = Integer.parseInt(s);
+        int value;
+        try {
+            value = Integer.parseInt(s);
+        } catch (NumberFormatException e) {
+            // check if value is a number or garbage
+            try {
+                var bi = new BigInteger(s);
+                // it's a number, so check which bound it is outside
+                if (bi.compareTo(BigInteger.valueOf(minValue)) < 0) {
+                    throw newNumericBoundsException(s, key, isFiltered, ">=", minValue);
+                } else {
+                    throw newNumericBoundsException(s, key, isFiltered, "<=", maxValue);
+                }
+            } catch (NumberFormatException e2) {
+                throw e; // it's garbage, use the original exception
+            }
+        }
         if (value < minValue) {
-            String err = "Failed to parse value" + (isFiltered ? "" : " [" + s + "]") + " for setting [" + key + "] must be >= " + minValue;
-            throw new IllegalArgumentException(err);
+            throw newNumericBoundsException(s, key, isFiltered, ">=", minValue);
         }
         if (value > maxValue) {
-            String err = "Failed to parse value" + (isFiltered ? "" : " [" + s + "]") + " for setting [" + key + "] must be <= " + maxValue;
-            throw new IllegalArgumentException(err);
+            throw newNumericBoundsException(s, key, isFiltered, "<=", maxValue);
         }
         return value;
     }
 
     static long parseLong(String s, long minValue, String key, boolean isFiltered) {
-        long value = Long.parseLong(s);
+        long value;
+        try {
+            value = Long.parseLong(s);
+        } catch (NumberFormatException e) {
+            // check if value is a number or garbage
+            try {
+                var bi = new BigInteger(s);
+                // it's a number, so check which bound it is outside
+                if (bi.compareTo(BigInteger.valueOf(minValue)) < 0) {
+                    throw newNumericBoundsException(s, key, isFiltered, ">=", minValue);
+                } else {
+                    throw newNumericBoundsException(s, key, isFiltered, "<=", Long.MAX_VALUE);
+                }
+            } catch (NumberFormatException e2) {
+                throw e; // it's garbage, use the original exception
+            }
+        }
         if (value < minValue) {
-            String err = "Failed to parse value" + (isFiltered ? "" : " [" + s + "]") + " for setting [" + key + "] must be >= " + minValue;
-            throw new IllegalArgumentException(err);
+            throw newNumericBoundsException(s, key, isFiltered, ">=", minValue);
         }
         return value;
+    }
+
+    private static IllegalArgumentException newNumericBoundsException(String s, String key, boolean isFiltered, String type, long bound) {
+        String err = "Failed to parse value"
+            + (isFiltered ? "" : " [" + s + "]")
+            + " for setting ["
+            + key
+            + "] must be "
+            + type
+            + " "
+            + bound;
+        throw new IllegalArgumentException(err);
     }
 
     public static Setting<Integer> intSetting(String key, int defaultValue, Property... properties) {
@@ -1685,7 +1738,7 @@ public class Setting<T> implements ToXContentObject {
      *
      * @param key the key for the setting
      * @param defaultValue the default value for this setting
-     * @param properties properties properties for this setting like scope, filtering...
+     * @param properties properties for this setting like scope, filtering...
      * @return the setting object
      */
     public static Setting<ByteSizeValue> memorySizeSetting(String key, ByteSizeValue defaultValue, Property... properties) {

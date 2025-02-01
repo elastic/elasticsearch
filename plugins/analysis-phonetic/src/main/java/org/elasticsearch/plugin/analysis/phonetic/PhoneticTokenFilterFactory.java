@@ -46,7 +46,7 @@ public class PhoneticTokenFilterFactory extends AbstractTokenFilterFactory {
     private boolean isDaitchMokotoff;
 
     public PhoneticTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
-        super(name, settings);
+        super(name);
         this.languageset = null;
         this.nametype = null;
         this.ruletype = null;

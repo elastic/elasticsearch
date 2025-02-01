@@ -4,6 +4,12 @@
 <titleabbrev>Create or update component template</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-indices[Index APIs].
+--
+
 Creates or updates a component template. Component templates are building blocks
 for constructing <<index-templates,index templates>> that specify index
 <<mapping,mappings>>, <<index-modules-settings,settings>>, and
@@ -91,6 +97,7 @@ Name of the component template to create.
 {es} includes the following built-in component templates:
 
 // tag::built-in-component-templates[]
+- `kibana-reporting@settings`
 - `logs@mappings`
 - `logs@settings`
 - `metrics@mappings`

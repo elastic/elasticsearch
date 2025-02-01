@@ -18,7 +18,8 @@ end::adaptive-allocation-max-number[]
 
 tag::adaptive-allocation-min-number[]
 Specifies the minimum number of allocations to scale to.
-If set, it must be greater than or equal to `1`.
+If set, it must be greater than or equal to `0`.
+If not defined, the deployment scales to `0`.
 end::adaptive-allocation-min-number[]
 
 tag::aggregations[]
@@ -917,7 +918,7 @@ An array of index names. Wildcards are supported. For example:
 `["it_ops_metrics", "server*"]`.
 +
 --
-NOTE: If any indices are in remote clusters then the {ml} nodes need to have the
+NOTE: If any indices are in remote clusters then the master nodes and the {ml} nodes need to have the
 `remote_cluster_client` role.
 
 --
@@ -1165,6 +1166,12 @@ end::inference-config-text-embedding[]
 tag::inference-config-text-embedding-size[]
 The number of dimensions in the embedding vector produced by the model.
 end::inference-config-text-embedding-size[]
+
+tag::inference-config-text-expansion[]
+The text expansion task works with sparse embedding models to transform an input sequence
+into a vector of weighted tokens. These embeddings capture semantic meanings and
+context and can be used in a <<sparse-vector,sparse vector>> field for powerful insights.
+end::inference-config-text-expansion[]
 
 tag::inference-config-text-similarity[]
 Text similarity takes an input sequence and compares it with another input sequence. This is commonly referred to

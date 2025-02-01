@@ -19,7 +19,7 @@ import org.elasticsearch.index.analysis.NormalizingTokenFilterFactory;
 public class ArabicNormalizationFilterFactory extends AbstractTokenFilterFactory implements NormalizingTokenFilterFactory {
 
     ArabicNormalizationFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
-        super(name, settings);
+        super(name);
     }
 
     @Override

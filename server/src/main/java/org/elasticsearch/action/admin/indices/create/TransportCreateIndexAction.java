@@ -68,7 +68,6 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
             threadPool,
             actionFilters,
             CreateIndexRequest::new,
-            indexNameExpressionResolver,
             CreateIndexResponse::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
@@ -135,11 +134,10 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
         // We check this via the request's origin. Eventually, `SystemIndexManager` will reconfigure
         // the index to the latest settings.
         if (isManagedSystemIndex && Strings.isNullOrEmpty(request.origin())) {
-            final SystemIndexDescriptor descriptor = mainDescriptor.getDescriptorCompatibleWith(
-                state.getMinSystemIndexMappingVersions().get(mainDescriptor.getPrimaryIndex())
-            );
+            final var requiredMinimumMappingVersion = state.getMinSystemIndexMappingVersions().get(mainDescriptor.getPrimaryIndex());
+            final SystemIndexDescriptor descriptor = mainDescriptor.getDescriptorCompatibleWith(requiredMinimumMappingVersion);
             if (descriptor == null) {
-                final String message = mainDescriptor.getMinimumMappingsVersionMessage("create index");
+                final String message = mainDescriptor.getMinimumMappingsVersionMessage("create index", requiredMinimumMappingVersion);
                 logger.warn(message);
                 listener.onFailure(new IllegalStateException(message));
                 return;

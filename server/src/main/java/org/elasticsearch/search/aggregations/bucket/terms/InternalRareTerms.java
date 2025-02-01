@@ -10,6 +10,7 @@ package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.SetBackedScalingCuckooFilter;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.BucketOrder;
@@ -29,10 +30,11 @@ public abstract class InternalRareTerms<A extends InternalRareTerms<A, B>, B ext
     implements
         RareTerms {
 
-    public abstract static class Bucket<B extends Bucket<B>> extends InternalMultiBucketAggregation.InternalBucket
+    public abstract static class Bucket<B extends Bucket<B>> extends InternalMultiBucketAggregation.InternalBucketWritable
         implements
             RareTerms.Bucket,
-            KeyComparable<B> {
+            KeyComparable<B>,
+            Writeable {
         /**
          * Reads a bucket. Should be a constructor reference.
          */
@@ -81,14 +83,12 @@ public abstract class InternalRareTerms<A extends InternalRareTerms<A, B>, B ext
             return aggregations;
         }
 
-        @Override
-        public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        private void bucketToXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             keyToXContent(builder);
             builder.field(CommonFields.DOC_COUNT.getPreferredName(), getDocCount());
             aggregations.toXContentInternal(builder, params);
             builder.endObject();
-            return builder;
         }
 
         protected abstract XContentBuilder keyToXContent(XContentBuilder builder) throws IOException;
@@ -160,7 +160,7 @@ public abstract class InternalRareTerms<A extends InternalRareTerms<A, B>, B ext
         throws IOException {
         builder.startArray(CommonFields.BUCKETS.getPreferredName());
         for (Bucket<?> bucket : buckets) {
-            bucket.toXContent(builder, params);
+            bucket.bucketToXContent(builder, params);
         }
         builder.endArray();
         return builder;

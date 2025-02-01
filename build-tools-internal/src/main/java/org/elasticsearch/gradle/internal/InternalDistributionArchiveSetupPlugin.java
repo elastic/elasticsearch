@@ -76,12 +76,14 @@ public class InternalDistributionArchiveSetupPlugin implements Plugin<Project> {
                 sub.getArtifacts().add(DEFAULT_CONFIGURATION_NAME, distributionArchive.getArchiveTask());
                 var extractedConfiguration = sub.getConfigurations().create(EXTRACTED_CONFIGURATION_NAME);
                 extractedConfiguration.setCanBeResolved(false);
+                extractedConfiguration.setCanBeConsumed(true);
                 extractedConfiguration.getAttributes()
                     .attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE);
                 sub.getArtifacts().add(EXTRACTED_CONFIGURATION_NAME, distributionArchive.getExpandedDistTask());
                 // The "composite" configuration is specifically used for resolving transformed artifacts in an included build
                 var compositeConfiguration = sub.getConfigurations().create(COMPOSITE_CONFIGURATION_NAME);
                 compositeConfiguration.setCanBeResolved(false);
+                compositeConfiguration.setCanBeConsumed(true);
                 compositeConfiguration.getAttributes()
                     .attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE);
                 compositeConfiguration.getAttributes().attribute(Attribute.of("composite", Boolean.class), true);
@@ -132,14 +134,14 @@ public class InternalDistributionArchiveSetupPlugin implements Plugin<Project> {
         });
 
         File pluginsDir = new File(project.getBuildDir(), "plugins-hack/plugins");
-        project.getExtensions().add("pluginsDir", pluginsDir);
+        project.getExtensions().getExtraProperties().set("pluginsDir", pluginsDir);
         project.getTasks().register("createPluginsDir", EmptyDirTask.class, t -> {
             t.setDir(pluginsDir);
             t.setDirMode(0755);
         });
 
         File jvmOptionsDir = new File(project.getBuildDir(), "jvm-options-hack/jvm.options.d");
-        project.getExtensions().add("jvmOptionsDir", jvmOptionsDir);
+        project.getExtensions().getExtraProperties().set("jvmOptionsDir", jvmOptionsDir);
         project.getTasks().register("createJvmOptionsDir", EmptyDirTask.class, t -> {
             t.setDir(jvmOptionsDir);
             t.setDirMode(0750);

@@ -15,6 +15,7 @@ sles-15.2
 sles-15.3
 sles-15.4
 sles-15.5
+sles-15.6
 
 # These OSes are deprecated and filtered starting with 8.0.0, but need to be excluded
 # for PR checks

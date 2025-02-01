@@ -15,7 +15,6 @@
   "keyword" : "to_string",
   "long" : "to_long",
   "string" : "to_string",
-  "text" : "to_string",
   "time_duration" : "to_timeduration",
   "unsigned_long" : "to_unsigned_long",
   "version" : "to_version"

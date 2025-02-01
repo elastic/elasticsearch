@@ -2659,6 +2659,12 @@ public abstract class ESTestCase extends LuceneTestCase {
         );
     }
 
+    public static <T extends Throwable> T expectThrows(Class<T> expectedType, Matcher<String> messageMatcher, ThrowingRunnable runnable) {
+        var e = expectThrows(expectedType, runnable);
+        assertThat(e.getMessage(), messageMatcher);
+        return e;
+    }
+
     /**
      * Same as {@link #runInParallel(int, IntConsumer)} but also attempts to start all tasks at the same time by blocking execution on a
      * barrier until all threads are started and ready to execute their task.

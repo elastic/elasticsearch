@@ -180,7 +180,8 @@ public class SingleValueQuery extends Query {
                     source.source().getLineNumber(),
                     source.source().getColumnNumber(),
                     source.text()
-                )
+                ),
+                "single-value function encountered multi-value"
             );
             org.apache.lucene.search.Query rewrite = singleValueQuery.rewrite(context.searcher());
             if (rewrite instanceof MatchAllDocsQuery) {

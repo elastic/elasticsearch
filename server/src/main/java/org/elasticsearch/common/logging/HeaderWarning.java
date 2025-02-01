@@ -16,6 +16,7 @@ import org.elasticsearch.tasks.Task;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.BitSet;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Locale;
 import java.util.Objects;
@@ -408,6 +409,17 @@ public class HeaderWarning {
         addWarning(THREAD_CONTEXT, message, params);
     }
 
+    /**
+     * Adds a warning header without any formatting or prefix
+     */
+    public static void addRawWarning(String warningHeader) {
+        addRawWarning(THREAD_CONTEXT, warningHeader);
+    }
+
+    public static Set<String> getWarnings() {
+        return getWarnings(THREAD_CONTEXT);
+    }
+
     // package scope for testing
     static void addWarning(Set<ThreadContext> threadContexts, String message, Object... params) {
         final Iterator<ThreadContext> iterator = threadContexts.iterator();
@@ -425,5 +437,26 @@ public class HeaderWarning {
                 }
             }
         }
+    }
+
+    static void addRawWarning(Set<ThreadContext> threadContexts, String warningHeader) {
+        for (ThreadContext threadContext : threadContexts) {
+            threadContext.addResponseHeader("Warning", warningHeader);
+        }
+    }
+
+    static Set<String> getWarnings(Set<ThreadContext> threadContexts) {
+        final Iterator<ThreadContext> iterator = threadContexts.iterator();
+        if (iterator.hasNext()) {
+            final Set<String> warnings = new HashSet<>();
+            while (iterator.hasNext()) {
+                final ThreadContext next = iterator.next();
+                final Set<String> contextWarnings = next.getResponseHeader("Warning");
+                warnings.addAll(contextWarnings);
+
+            }
+            return warnings;
+        }
+        return Set.of();
     }
 }

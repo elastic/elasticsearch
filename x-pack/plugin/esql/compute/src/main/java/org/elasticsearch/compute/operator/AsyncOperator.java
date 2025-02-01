@@ -16,6 +16,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.TimeValue;
@@ -26,6 +27,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.atomic.LongAdder;
 
 /**
@@ -41,6 +43,7 @@ public abstract class AsyncOperator<Fetched> implements Operator {
     private volatile SubscribableListener<Void> blockedFuture;
 
     private final Map<Long, Fetched> buffers = ConcurrentCollections.newConcurrentMap();
+    private final Set<String> storedWarningHeaders = ConcurrentCollections.newConcurrentSet();
     private final FailureCollector failureCollector = new FailureCollector();
     private final DriverContext driverContext;
 
@@ -89,9 +92,11 @@ public abstract class AsyncOperator<Fetched> implements Operator {
         try {
             final ActionListener<Fetched> listener = ActionListener.wrap(output -> {
                 buffers.put(seqNo, output);
+                storeWarnings();
                 onSeqNoCompleted(seqNo);
             }, e -> {
                 releasePageOnAnyThread(input);
+                storeWarnings();
                 failureCollector.unwrapAndCollect(e);
                 onSeqNoCompleted(seqNo);
             });
@@ -184,6 +189,7 @@ public abstract class AsyncOperator<Fetched> implements Operator {
     public boolean isFinished() {
         if (finished && checkpoint.getPersistedCheckpoint() == checkpoint.getMaxSeqNo()) {
             checkFailure();
+            restoreWarnings();
             return true;
         } else {
             return false;
@@ -197,6 +203,7 @@ public abstract class AsyncOperator<Fetched> implements Operator {
     public final Fetched fetchFromBuffer() {
         checkFailure();
         long persistedCheckpoint = checkpoint.getPersistedCheckpoint();
+        restoreWarnings();
         if (persistedCheckpoint < checkpoint.getProcessedCheckpoint()) {
             persistedCheckpoint++;
             Fetched result = buffers.remove(persistedCheckpoint);
@@ -205,6 +212,18 @@ public abstract class AsyncOperator<Fetched> implements Operator {
         } else {
             return null;
         }
+    }
+
+    private void storeWarnings() {
+        Set<String> warnings = HeaderWarning.getWarnings();
+        storedWarningHeaders.addAll(warnings);
+    }
+
+    private void restoreWarnings() {
+        for (String warning : storedWarningHeaders) {
+            HeaderWarning.addRawWarning(warning);
+        }
+        // TODO: Remove warnings?
     }
 
     @Override

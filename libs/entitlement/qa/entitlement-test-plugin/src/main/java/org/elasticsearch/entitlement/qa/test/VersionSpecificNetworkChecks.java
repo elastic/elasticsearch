@@ -14,21 +14,51 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.net.spi.InetAddressResolver;
+import java.net.spi.InetAddressResolverProvider;
 
 class VersionSpecificNetworkChecks {
-    static void createInetAddressResolverProvider() {}
+    static void createInetAddressResolverProvider() {
+        var x = new InetAddressResolverProvider() {
+            @Override
+            public InetAddressResolver get(Configuration configuration) {
+                return null;
+            }
+
+            @Override
+            public String name() {
+                return "TEST";
+            }
+        };
+    }
 
     static void httpClientSend() throws InterruptedException {
-        HttpClient httpClient = HttpClient.newBuilder().build();
-        try {
-            httpClient.send(HttpRequest.newBuilder(URI.create("http://localhost")).build(), HttpResponse.BodyHandlers.discarding());
-        } catch (IOException e) {
-            // Expected, the send action may fail with these parameters (but after it run the entitlement check in the prologue)
+        try (HttpClient httpClient = HttpClient.newBuilder().build()) {
+            // Shutdown the client, so the send action will shortcut before actually executing any network operation
+            // (but after it run our check in the prologue)
+            httpClient.shutdown();
+            try {
+                httpClient.send(HttpRequest.newBuilder(URI.create("http://localhost")).build(), HttpResponse.BodyHandlers.discarding());
+            } catch (IOException e) {
+                // Expected, since we shut down the client
+            }
         }
     }
 
     static void httpClientSendAsync() {
-        HttpClient httpClient = HttpClient.newBuilder().build();
-        httpClient.sendAsync(HttpRequest.newBuilder(URI.create("http://localhost")).build(), HttpResponse.BodyHandlers.discarding());
+        try (HttpClient httpClient = HttpClient.newBuilder().build()) {
+            // Shutdown the client, so the send action will return before actually executing any network operation
+            // (but after it run our check in the prologue)
+            httpClient.shutdown();
+            var future = httpClient.sendAsync(
+                HttpRequest.newBuilder(URI.create("http://localhost")).build(),
+                HttpResponse.BodyHandlers.discarding()
+            );
+            assert future.isCompletedExceptionally();
+            future.exceptionally(ex -> {
+                assert ex instanceof IOException;
+                return null;
+            });
+        }
     }
 }

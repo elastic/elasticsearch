@@ -27,15 +27,15 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.xpack.aggregatemetric.AggregateMetricMapperPlugin;
 import org.elasticsearch.xpack.aggregatemetric.aggregations.support.AggregateMetricsValuesSourceType;
-import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper.AggregateDoubleMetricFieldType;
-import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper.Metric;
+import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateMetricDoubleFieldMapper.AggregateMetricDoubleFieldType;
+import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateMetricDoubleFieldMapper.Metric;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.function.Consumer;
 
 import static java.util.Collections.singleton;
-import static org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper.subfieldName;
+import static org.elasticsearch.xpack.aggregatemetric.mapper.AggregateMetricDoubleFieldMapper.subfieldName;
 
 public class AggregateMetricBackedSumAggregatorTests extends AggregatorTestCase {
 
@@ -116,8 +116,8 @@ public class AggregateMetricBackedSumAggregatorTests extends AggregatorTestCase 
      * @param fieldName the name of the field
      * @return the created field type
      */
-    private AggregateDoubleMetricFieldType createDefaultFieldType(String fieldName) {
-        AggregateDoubleMetricFieldType fieldType = new AggregateDoubleMetricFieldType(fieldName);
+    private AggregateMetricDoubleFieldType createDefaultFieldType(String fieldName) {
+        AggregateMetricDoubleFieldType fieldType = new AggregateMetricDoubleFieldType(fieldName);
 
         for (Metric m : List.of(Metric.value_count, Metric.sum)) {
             String subfieldName = subfieldName(fieldName, m);

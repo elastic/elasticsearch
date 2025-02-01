@@ -1,0 +1,5 @@
+pr: 121322
+summary: "[PoC 2] ESQL - Add scoring for full text functions disjunctions using `ExpressionEvaluator`"
+area: ES|QL
+type: enhancement
+issues: []

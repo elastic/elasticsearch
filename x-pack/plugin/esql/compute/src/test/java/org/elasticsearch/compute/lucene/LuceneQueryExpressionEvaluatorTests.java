@@ -57,13 +57,20 @@ import static org.hamcrest.Matchers.equalTo;
 public class LuceneQueryExpressionEvaluatorTests extends ComputeTestCase {
     private static final String FIELD = "g";
 
-    public void testDenseCollectorSmall() {
-        try (DenseCollector collector = new DenseCollector(blockFactory(), 0, 2)) {
+    public void testDenseCollectorSmall() throws IOException {
+        try (
+            DenseCollector collector = new DenseCollector(
+                blockFactory(),
+                new LuceneQueryExpressionEvaluator.NonScoringDocScorerVectorProvider(blockFactory()),
+                0,
+                2
+            )
+        ) {
             collector.collect(0);
             collector.collect(1);
             collector.collect(2);
             collector.finish();
-            try (BooleanVector result = collector.build()) {
+            try (BooleanVector result = (BooleanVector) collector.build()) {
                 for (int i = 0; i <= 2; i++) {
                     assertThat(result.getBoolean(i), equalTo(true));
                 }
@@ -71,12 +78,19 @@ public class LuceneQueryExpressionEvaluatorTests extends ComputeTestCase {
         }
     }
 
-    public void testDenseCollectorSimple() {
-        try (DenseCollector collector = new DenseCollector(blockFactory(), 0, 10)) {
+    public void testDenseCollectorSimple() throws IOException {
+        try (
+            DenseCollector collector = new DenseCollector(
+                blockFactory(),
+                new LuceneQueryExpressionEvaluator.NonScoringDocScorerVectorProvider(blockFactory()),
+                0,
+                10
+            )
+        ) {
             collector.collect(2);
             collector.collect(5);
             collector.finish();
-            try (BooleanVector result = collector.build()) {
+            try (BooleanVector result = (BooleanVector) collector.build()) {
                 for (int i = 0; i < 11; i++) {
                     assertThat(result.getBoolean(i), equalTo(i == 2 || i == 5));
                 }
@@ -84,12 +98,19 @@ public class LuceneQueryExpressionEvaluatorTests extends ComputeTestCase {
         }
     }
 
-    public void testDenseCollector() {
+    public void testDenseCollector() throws IOException {
         int length = between(1, 10_000);
         int min = between(0, Integer.MAX_VALUE - length - 1);
         int max = min + length + 1;
         boolean[] expected = new boolean[length];
-        try (DenseCollector collector = new DenseCollector(blockFactory(), min, max)) {
+        try (
+            DenseCollector collector = new DenseCollector(
+                blockFactory(),
+                new LuceneQueryExpressionEvaluator.NonScoringDocScorerVectorProvider(blockFactory()),
+                min,
+                max
+            )
+        ) {
             for (int i = 0; i < length; i++) {
                 expected[i] = randomBoolean();
                 if (expected[i]) {
@@ -97,7 +118,7 @@ public class LuceneQueryExpressionEvaluatorTests extends ComputeTestCase {
                 }
             }
             collector.finish();
-            try (BooleanVector result = collector.build()) {
+            try (BooleanVector result = (BooleanVector) collector.build()) {
                 for (int i = 0; i < length; i++) {
                     assertThat(result.getBoolean(i), equalTo(expected[i]));
                 }
@@ -183,8 +204,8 @@ public class LuceneQueryExpressionEvaluatorTests extends ComputeTestCase {
             );
             LuceneQueryExpressionEvaluator luceneQueryEvaluator = new LuceneQueryExpressionEvaluator(
                 blockFactory,
-                new LuceneQueryExpressionEvaluator.ShardConfig[] { shard }
-
+                new LuceneQueryExpressionEvaluator.ShardConfig[] { shard },
+                new LuceneQueryExpressionEvaluator.NonScoringDocScorerVectorProvider(blockFactory)
             );
 
             List<Operator> operators = new ArrayList<>();

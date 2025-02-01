@@ -23,5 +23,11 @@ public abstract class ExpressionMapper<E extends Expression> {
         typeToken = ReflectionUtils.detectSuperTypeForRuleLike(getClass());
     }
 
-    public abstract ExpressionEvaluator.Factory map(FoldContext foldCtx, E expression, Layout layout, List<ShardContext> shardContexts);
+    public abstract ExpressionEvaluator.Factory map(
+        FoldContext foldCtx,
+        E expression,
+        Layout layout,
+        List<ShardContext> shardContexts,
+        boolean usesScoring
+    );
 }

@@ -23,8 +23,10 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DocVector;
+import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasable;
@@ -45,20 +47,22 @@ public class LuceneQueryExpressionEvaluator implements EvalOperator.ExpressionEv
 
     private final BlockFactory blockFactory;
     private final ShardConfig[] shards;
+    private final DocScorerVectorProvider docScorerVectorProvider;
 
     private ShardState[] perShardState = EMPTY_SHARD_STATES;
 
-    public LuceneQueryExpressionEvaluator(BlockFactory blockFactory, ShardConfig[] shards) {
+    public static final double SCORE_FOR_FALSE = -1.0;
+
+    LuceneQueryExpressionEvaluator(BlockFactory blockFactory, ShardConfig[] shards, DocScorerVectorProvider docScorerVectorProvider) {
         this.blockFactory = blockFactory;
         this.shards = shards;
+        this.docScorerVectorProvider = docScorerVectorProvider;
     }
 
     @Override
     public Block eval(Page page) {
         // Lucene based operators retrieve DocVectors as first block
-        Block block = page.getBlock(0);
-        assert block instanceof DocBlock : "LuceneQueryExpressionEvaluator expects DocBlock as input";
-        DocVector docs = (DocVector) block.asVector();
+        DocVector docs = page.<DocBlock>getBlock(0).asVector();
         try {
             if (docs.singleSegmentNonDecreasing()) {
                 return evalSingleSegmentNonDecreasing(docs).asBlock();
@@ -67,6 +71,8 @@ public class LuceneQueryExpressionEvaluator implements EvalOperator.ExpressionEv
             }
         } catch (IOException e) {
             throw new UncheckedIOException(e);
+        } finally {
+            Releasables.closeExpectNoException(docScorerVectorProvider);
         }
     }
 
@@ -100,7 +106,7 @@ public class LuceneQueryExpressionEvaluator implements EvalOperator.ExpressionEv
      *     common.
      * </p>
      */
-    private BooleanVector evalSingleSegmentNonDecreasing(DocVector docs) throws IOException {
+    private Vector evalSingleSegmentNonDecreasing(DocVector docs) throws IOException {
         ShardState shardState = shardState(docs.shards().getInt(0));
         SegmentState segmentState = shardState.segmentState(docs.segments().getInt(0));
         int min = docs.docs().getInt(0);
@@ -126,31 +132,30 @@ public class LuceneQueryExpressionEvaluator implements EvalOperator.ExpressionEv
      *     the order that the {@link DocVector} came in.
      * </p>
      */
-    private BooleanVector evalSlow(DocVector docs) throws IOException {
+    private Vector evalSlow(DocVector docs) throws IOException {
         int[] map = docs.shardSegmentDocMapForwards();
         // Clear any state flags from the previous run
         int prevShard = -1;
         int prevSegment = -1;
         SegmentState segmentState = null;
-        try (BooleanVector.Builder builder = blockFactory.newBooleanVectorFixedBuilder(docs.getPositionCount())) {
-            for (int i = 0; i < docs.getPositionCount(); i++) {
-                int shard = docs.shards().getInt(docs.shards().getInt(map[i]));
-                int segment = docs.segments().getInt(map[i]);
-                if (segmentState == null || prevShard != shard || prevSegment != segment) {
-                    segmentState = shardState(shard).segmentState(segment);
-                    segmentState.initScorer(docs.docs().getInt(map[i]));
-                    prevShard = shard;
-                    prevSegment = segment;
-                }
-                if (segmentState.noMatch) {
-                    builder.appendBoolean(false);
-                } else {
-                    segmentState.scoreSingleDocWithScorer(builder, docs.docs().getInt(map[i]));
-                }
+        docScorerVectorProvider.init(docs.getPositionCount());
+        for (int i = 0; i < docs.getPositionCount(); i++) {
+            int shard = docs.shards().getInt(docs.shards().getInt(map[i]));
+            int segment = docs.segments().getInt(map[i]);
+            if (segmentState == null || prevShard != shard || prevSegment != segment) {
+                segmentState = shardState(shard).segmentState(segment);
+                segmentState.initScorer(docs.docs().getInt(map[i]));
+                prevShard = shard;
+                prevSegment = segment;
             }
-            try (BooleanVector outOfOrder = builder.build()) {
-                return outOfOrder.filter(docs.shardSegmentDocMapBackwards());
+            if (segmentState.noMatch) {
+                docScorerVectorProvider.addNoMatchingDoc();
+            } else {
+                segmentState.scoreSingleDocWithScorer(docs.docs().getInt(map[i]));
             }
+        }
+        try (Vector outOfOrder = docScorerVectorProvider.build()) {
+            return outOfOrder.filter(docs.shardSegmentDocMapBackwards());
         }
     }
 
@@ -175,7 +180,7 @@ public class LuceneQueryExpressionEvaluator implements EvalOperator.ExpressionEv
         private SegmentState[] perSegmentState = EMPTY_SEGMENT_STATES;
 
         ShardState(ShardConfig config) throws IOException {
-            weight = config.searcher.createWeight(config.query, ScoreMode.COMPLETE_NO_SCORES, 0.0f);
+            weight = config.searcher.createWeight(config.query, docScorerVectorProvider.scoreMode(), 1.0f);
             searcher = config.searcher;
         }
 
@@ -231,7 +236,7 @@ public class LuceneQueryExpressionEvaluator implements EvalOperator.ExpressionEv
          * Score a range using the {@link BulkScorer}. This should be faster
          * than using {@link #scoreSparse} for dense doc ids.
          */
-        BooleanVector scoreDense(int min, int max) throws IOException {
+        Vector scoreDense(int min, int max) throws IOException {
             int length = max - min + 1;
             if (noMatch) {
                 return blockFactory.newConstantBooleanVector(false, length);
@@ -246,7 +251,7 @@ public class LuceneQueryExpressionEvaluator implements EvalOperator.ExpressionEv
                     return blockFactory.newConstantBooleanVector(false, length);
                 }
             }
-            try (DenseCollector collector = new DenseCollector(blockFactory, min, max)) {
+            try (DenseCollector collector = new DenseCollector(blockFactory, docScorerVectorProvider, min, max)) {
                 bulkScorer.score(collector, ctx.reader().getLiveDocs(), min, max + 1);
                 return collector.build();
             }
@@ -256,17 +261,16 @@ public class LuceneQueryExpressionEvaluator implements EvalOperator.ExpressionEv
          * Score a vector of doc ids using {@link Scorer}. If you have a dense range of
          * doc ids it'd be faster to use {@link #scoreDense}.
          */
-        BooleanVector scoreSparse(IntVector docs) throws IOException {
+        Vector scoreSparse(IntVector docs) throws IOException {
             initScorer(docs.getInt(0));
             if (noMatch) {
-                return blockFactory.newConstantBooleanVector(false, docs.getPositionCount());
+                return docScorerVectorProvider.noMatchVector(docs.getPositionCount());
             }
-            try (BooleanVector.Builder builder = blockFactory.newBooleanVectorFixedBuilder(docs.getPositionCount())) {
-                for (int i = 0; i < docs.getPositionCount(); i++) {
-                    scoreSingleDocWithScorer(builder, docs.getInt(i));
-                }
-                return builder.build();
+            docScorerVectorProvider.init(docs.getPositionCount());
+            for (int i = 0; i < docs.getPositionCount(); i++) {
+                scoreSingleDocWithScorer(docs.getInt(i));
             }
+            return docScorerVectorProvider.build();
         }
 
         private void initScorer(int minDocId) throws IOException {
@@ -285,13 +289,17 @@ public class LuceneQueryExpressionEvaluator implements EvalOperator.ExpressionEv
             }
         }
 
-        private void scoreSingleDocWithScorer(BooleanVector.Builder builder, int doc) throws IOException {
+        private void scoreSingleDocWithScorer(int doc) throws IOException {
             if (scorer.iterator().docID() == doc) {
-                builder.appendBoolean(true);
+                docScorerVectorProvider.addNatchingDoc(scorer);
             } else if (scorer.iterator().docID() > doc) {
-                builder.appendBoolean(false);
+                docScorerVectorProvider.addNoMatchingDoc();
             } else {
-                builder.appendBoolean(scorer.iterator().advance(doc) == doc);
+                if (scorer.iterator().advance(doc) == doc) {
+                    docScorerVectorProvider.addNatchingDoc(scorer);
+                } else {
+                    docScorerVectorProvider.addNoMatchingDoc();
+                }
             }
         }
     }
@@ -305,37 +313,174 @@ public class LuceneQueryExpressionEvaluator implements EvalOperator.ExpressionEv
      * which isn't documented, but @jpountz swears is true.
      */
     static class DenseCollector implements LeafCollector, Releasable {
-        private final BooleanVector.FixedBuilder builder;
         private final int max;
+        private final DocScorerVectorProvider docScorerVectorProvider;
+        private Scorable scorable;
 
         int next;
 
-        DenseCollector(BlockFactory blockFactory, int min, int max) {
-            this.builder = blockFactory.newBooleanVectorFixedBuilder(max - min + 1);
+        DenseCollector(BlockFactory blockFactory, DocScorerVectorProvider docScorerVectorProvider, int min, int max) {
+            this.docScorerVectorProvider = docScorerVectorProvider;
+            this.docScorerVectorProvider.init(max - min + 1);
             this.max = max;
             next = min;
         }
 
         @Override
-        public void setScorer(Scorable scorable) {}
-
-        @Override
-        public void collect(int doc) {
-            while (next++ < doc) {
-                builder.appendBoolean(false);
-            }
-            builder.appendBoolean(true);
+        public void setScorer(Scorable scorable) {
+            this.scorable = scorable;
         }
 
-        public BooleanVector build() {
-            return builder.build();
+        @Override
+        public void collect(int doc) throws IOException {
+            while (next++ < doc) {
+                docScorerVectorProvider.addNoMatchingDoc();
+            }
+            docScorerVectorProvider.addNatchingDoc(scorable);
+        }
+
+        public Vector build() {
+            return docScorerVectorProvider.build();
         }
 
         @Override
         public void finish() {
             while (next++ <= max) {
-                builder.appendBoolean(false);
+                docScorerVectorProvider.addNoMatchingDoc();
             }
+        }
+
+        @Override
+        public void close() {
+            Releasables.closeExpectNoException(docScorerVectorProvider);
+        }
+    }
+
+    /**
+     * Encapsulates the logic for scoring documents, depending on whether we need a boolean vector for filtering
+     * or a double vector for scoring
+     */
+    private interface DocScorerVectorProvider extends Releasable {
+
+        /**
+         * Returns the vector to use when no documents match the query
+         */
+        Vector noMatchVector(int docs);
+
+        /**
+         * Initializes the vector to build. Needed to be called before scoring any documents
+         */
+        void init(int numDocs);
+
+        /**
+         * Adds a document that matches the query
+         */
+        void addNatchingDoc(Scorable scorable) throws IOException;
+
+        /**
+         * Adds a document that does not match the query
+         */
+        void addNoMatchingDoc();
+
+        /**
+         * Builds the resulting vector after adding all docs
+         */
+        Vector build();
+
+        /**
+         * Retrieves the score mode for the query
+         */
+        ScoreMode scoreMode();
+    }
+
+    static class NonScoringDocScorerVectorProvider implements DocScorerVectorProvider {
+
+        private final BlockFactory blockFactory;
+        private BooleanVector.Builder builder;
+
+        NonScoringDocScorerVectorProvider(BlockFactory blockFactory) {
+            this.blockFactory = blockFactory;
+        }
+
+        @Override
+        public ScoreMode scoreMode() {
+            return ScoreMode.COMPLETE_NO_SCORES;
+        }
+
+        @Override
+        public Vector noMatchVector(int docs) {
+            return blockFactory.newConstantBooleanVector(false, docs);
+        }
+
+        @Override
+        public void init(int numDocs) {
+            builder = blockFactory.newBooleanVectorFixedBuilder(numDocs);
+        }
+
+        @Override
+        public void addNatchingDoc(Scorable scorable) {
+            assert builder != null : "init must be called before scoring";
+            builder.appendBoolean(true);
+        }
+
+        @Override
+        public void addNoMatchingDoc() {
+            assert builder != null : "init must be called before scoring";
+            builder.appendBoolean(false);
+        }
+
+        @Override
+        public Vector build() {
+            assert builder != null : "init must be called before build";
+            return builder.build();
+        }
+
+        @Override
+        public void close() {
+            Releasables.closeExpectNoException(builder);
+        }
+    }
+
+    static class ScoringDocScorerVectorProvider implements DocScorerVectorProvider {
+
+        private final BlockFactory blockFactory;
+        private DoubleVector.Builder builder;
+
+        ScoringDocScorerVectorProvider(BlockFactory blockFactory) {
+            this.blockFactory = blockFactory;
+        }
+
+        @Override
+        public ScoreMode scoreMode() {
+            return ScoreMode.COMPLETE;
+        }
+
+        @Override
+        public Vector noMatchVector(int docs) {
+            return blockFactory.newConstantDoubleVector(SCORE_FOR_FALSE, docs);
+        }
+
+        @Override
+        public void init(int numDocs) {
+            builder = blockFactory.newDoubleVectorFixedBuilder(numDocs);
+        }
+
+        @Override
+        public void addNatchingDoc(Scorable scorable) throws IOException {
+            assert builder != null : "init must be called before scoring";
+            builder.appendDouble(scorable.score());
+        }
+
+        @Override
+        public void addNoMatchingDoc() {
+            assert builder != null : "init must be called before scoring";
+            builder.appendDouble(SCORE_FOR_FALSE);
+        }
+
+        @Override
+        public Vector build() {
+            assert builder != null : "init must be called before build";
+            return builder.build();
         }
 
         @Override
@@ -346,14 +491,22 @@ public class LuceneQueryExpressionEvaluator implements EvalOperator.ExpressionEv
 
     public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
         private final ShardConfig[] shardConfigs;
+        private final boolean useScoring;
 
-        public Factory(ShardConfig[] shardConfigs) {
+        public Factory(ShardConfig[] shardConfigs, boolean useScoring) {
             this.shardConfigs = shardConfigs;
+            this.useScoring = useScoring;
         }
 
         @Override
         public EvalOperator.ExpressionEvaluator get(DriverContext context) {
-            return new LuceneQueryExpressionEvaluator(context.blockFactory(), shardConfigs);
+            final DocScorerVectorProvider docScorerVectorProvider;
+            if (useScoring) {
+                docScorerVectorProvider = new ScoringDocScorerVectorProvider(context.blockFactory());
+            } else {
+                docScorerVectorProvider = new NonScoringDocScorerVectorProvider(context.blockFactory());
+            }
+            return new LuceneQueryExpressionEvaluator(context.blockFactory(), shardConfigs, docScorerVectorProvider);
         }
     }
 }

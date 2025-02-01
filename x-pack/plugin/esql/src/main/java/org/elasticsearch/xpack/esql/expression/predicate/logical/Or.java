@@ -20,11 +20,11 @@ public class Or extends BinaryLogic implements Negatable<BinaryLogic> {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Or", Or::new);
 
     public Or(Source source, Expression left, Expression right) {
-        super(source, left, right, BinaryLogicOperation.OR);
+        super(source, left, right, BinaryLogicOperation.OR, BinaryScoringLogicOperation.OR);
     }
 
     private Or(StreamInput in) throws IOException {
-        super(in, BinaryLogicOperation.OR);
+        super(in, BinaryLogicOperation.OR, BinaryScoringLogicOperation.OR);
     }
 
     @Override

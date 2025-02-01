@@ -21,6 +21,7 @@ import org.elasticsearch.compute.operator.ColumnExtractOperator;
 import org.elasticsearch.compute.operator.ColumnLoadOperator;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.EvalOperatorFactory;
 import org.elasticsearch.compute.operator.FilterOperator.FilterOperatorFactory;
 import org.elasticsearch.compute.operator.LocalSourceOperator;
@@ -69,6 +70,7 @@ import org.elasticsearch.xpack.esql.enrich.LookupFromIndexOperator;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.evaluator.command.GrokEvaluatorExtracter;
+import org.elasticsearch.xpack.esql.evaluator.mapper.BooleanToScoringExpressionEvaluator;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
@@ -675,11 +677,20 @@ public class LocalExecutionPlanner {
 
     private PhysicalOperation planFilter(FilterExec filter, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(filter.child(), context);
+
         // TODO: should this be extracted into a separate eval block?
-        return source.with(
-            new FilterOperatorFactory(EvalMapper.toEvaluator(context.foldCtx(), filter.condition(), source.layout, shardContexts)),
-            source.layout
+        boolean usesScore = PlannerUtils.usesScoring(filter);
+        EvalOperator.ExpressionEvaluator.Factory evaluatorFactory = EvalMapper.toEvaluator(
+            context.foldCtx(),
+            filter.condition(),
+            source.layout,
+            shardContexts,
+            usesScore
         );
+        if (usesScore) {
+            evaluatorFactory = new BooleanToScoringExpressionEvaluator.Factory(evaluatorFactory);
+        }
+        return source.with(new FilterOperatorFactory(evaluatorFactory, PlannerUtils.usesScoring(filter)), source.layout);
     }
 
     private PhysicalOperation planLimit(LimitExec limit, LocalExecutionPlannerContext context) {

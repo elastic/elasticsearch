@@ -16,7 +16,7 @@ grant {
   permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
 
   // required to add google certs to the gcs client trustore
-  permission java.lang.RuntimePermission "setFactory";
+  //permission java.lang.RuntimePermission "setFactory";
 
   // gcs client opens socket connections for to access repository
   // also, AWS Bedrock client opens socket connections and needs resolve for to access to resources

@@ -12,8 +12,6 @@ package org.elasticsearch.action.fieldcaps;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.cluster.ClusterState;
@@ -21,16 +19,21 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.tasks.Task;
+import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequestOptions;
+import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -53,7 +56,7 @@ final class RequestDispatcher {
     private final TransportService transportService;
     private final ClusterState clusterState;
     private final FieldCapabilitiesRequest fieldCapsRequest;
-    private final Task parentTask;
+    private final CancellableTask parentTask;
     private final OriginalIndices originalIndices;
     private final long nowInMillis;
 
@@ -66,11 +69,12 @@ final class RequestDispatcher {
     private final AtomicInteger pendingRequests = new AtomicInteger();
     private final AtomicInteger executionRound = new AtomicInteger();
     private final Map<String, IndexSelector> indexSelectors;
+    private final IndicesService indicesService;
 
     RequestDispatcher(
-        ClusterService clusterService,
+        IndicesService indicesService,
         TransportService transportService,
-        Task parentTask,
+        CancellableTask parentTask,
         FieldCapabilitiesRequest fieldCapsRequest,
         OriginalIndices originalIndices,
         long nowInMillis,
@@ -80,11 +84,13 @@ final class RequestDispatcher {
         BiConsumer<String, Exception> onIndexFailure,
         Runnable onComplete
     ) {
+        this.indicesService = indicesService;
         this.transportService = transportService;
         this.fieldCapsRequest = fieldCapsRequest;
         this.parentTask = parentTask;
         this.originalIndices = originalIndices;
         this.nowInMillis = nowInMillis;
+        var clusterService = indicesService.clusterService();
         this.clusterState = clusterService.state();
         this.hasFilter = fieldCapsRequest.indexFilter() != null && fieldCapsRequest.indexFilter() instanceof MatchAllQueryBuilder == false;
         this.executor = executor;
@@ -158,26 +164,31 @@ final class RequestDispatcher {
         if (nodeToSelectedShards.isEmpty()) {
             onComplete.run();
         } else {
+            var localShardIds = nodeToSelectedShards.remove(clusterState.nodes().getLocalNodeId());
             for (Map.Entry<String, List<ShardId>> e : nodeToSelectedShards.entrySet()) {
-                sendRequestToNode(e.getKey(), e.getValue());
+                sendRequestToNode(e.getKey(), makeNodeRequest(e.getValue()));
+            }
+            if (localShardIds != null) {
+                try {
+                    TransportFieldCapabilitiesAction.runOnLocalNode(
+                        indicesService,
+                        makeNodeRequest(localShardIds),
+                        parentTask,
+                        onIndexResponse,
+                        this::consumeUnmatchedShardId,
+                        this::consumeFailure
+                    );
+                } catch (Exception e) {
+                    onRequestFailure(localShardIds, e);
+                } finally {
+                    afterRequestsCompleted(localShardIds.size());
+                }
             }
         }
     }
 
-    // for testing
-    int executionRound() {
-        return executionRound.get();
-    }
-
-    private void sendRequestToNode(String nodeId, List<ShardId> shardIds) {
-        final DiscoveryNode node = clusterState.nodes().get(nodeId);
-        assert node != null;
-        LOGGER.debug("round {} sends field caps node request to node {} for shardIds {}", executionRound, node, shardIds);
-        final ActionListener<FieldCapabilitiesNodeResponse> listener = ActionListener.wrap(
-            this::onRequestResponse,
-            failure -> onRequestFailure(shardIds, failure)
-        );
-        final FieldCapabilitiesNodeRequest nodeRequest = new FieldCapabilitiesNodeRequest(
+    private FieldCapabilitiesNodeRequest makeNodeRequest(List<ShardId> shardIds) {
+        return new FieldCapabilitiesNodeRequest(
             shardIds,
             fieldCapsRequest.fields(),
             fieldCapsRequest.filters(),
@@ -188,51 +199,107 @@ final class RequestDispatcher {
             fieldCapsRequest.runtimeFields(),
             fieldCapsRequest.includeEmptyFields()
         );
+    }
+
+    // for testing
+    int executionRound() {
+        return executionRound.get();
+    }
+
+    private void sendRequestToNode(String nodeId, FieldCapabilitiesNodeRequest nodeRequest) {
+        final DiscoveryNode node = clusterState.nodes().get(nodeId);
+        assert node != null;
+        LOGGER.debug("round {} sends field caps node request to node {} for shardIds {}", executionRound, node, nodeRequest.shardIds());
         transportService.sendChildRequest(
             node,
             TransportFieldCapabilitiesAction.ACTION_NODE_NAME,
             nodeRequest,
             parentTask,
             TransportRequestOptions.EMPTY,
-            new ActionListenerResponseHandler<>(
-                ActionListener.runAfter(listener, () -> afterRequestsCompleted(shardIds.size())),
-                FieldCapabilitiesNodeResponse::new,
-                executor
-            )
+            new TransportResponseHandler<>() {
+
+                private Exception failure;
+
+                @Override
+                public Executor executor() {
+                    return executor;
+                }
+
+                @Override
+                public void handleResponse(TransportResponse response) {
+                    var f = this.failure;
+                    if (f != null) {
+                        onFailure(f);
+                        return;
+                    }
+                    afterRequestsCompleted(nodeRequest.shardIds().size());
+                }
+
+                @Override
+                public void handleException(TransportException e) {
+                    onFailure(e);
+                }
+
+                private void onFailure(Exception e) {
+                    try {
+                        onRequestFailure(nodeRequest.shardIds(), e);
+                    } finally {
+                        afterRequestsCompleted(nodeRequest.shardIds().size());
+                    }
+                }
+
+                @Override
+                public TransportResponse read(StreamInput in) throws IOException {
+                    try {
+                        FieldCapabilitiesIndexResponse.readList(in, RequestDispatcher.this::consumeIndexResponse);
+                        int failures = in.readVInt();
+                        for (int i = 0; i < failures; i++) {
+                            consumeFailure(new ShardId(in), in.readException());
+                        }
+                        int unmatched = in.readVInt();
+                        for (int i = 0; i < unmatched; i++) {
+                            consumeUnmatchedShardId(new ShardId(in));
+                        }
+                    } catch (Exception e) {
+                        in.skip(in.available());
+                        failure = e;
+                    }
+                    return TransportResponse.Empty.INSTANCE;
+                }
+            }
         );
     }
 
+    private void consumeFailure(ShardId shardId, Exception e) {
+        final IndexSelector indexSelector = indexSelectors.get(shardId.getIndexName());
+        if (indexSelector != null) {
+            indexSelector.setFailure(shardId, e);
+        }
+    }
+
+    private void consumeUnmatchedShardId(ShardId unmatchedShardId) {
+        final IndexSelector indexSelector = indexSelectors.get(unmatchedShardId.getIndexName());
+        if (indexSelector != null) {
+            indexSelector.addUnmatchedShardId(unmatchedShardId);
+        }
+    }
+
+    private void consumeIndexResponse(FieldCapabilitiesIndexResponse indexResponse) {
+        if (indexResponse.canMatch()
+            && (fieldCapsRequest.includeEmptyFields() == false || indexSelectors.remove(indexResponse.getIndexName()) != null)) {
+            // we accept all the responses because they may vary from node to node if we exclude empty fields
+            onIndexResponse.accept(indexResponse);
+        }
+    }
+
     private void afterRequestsCompleted(int numRequests) {
-        if (pendingRequests.addAndGet(-numRequests) == 0) {
+        int res = pendingRequests.addAndGet(-numRequests);
+        assert res >= 0;
+        if (res == 0) {
             // Here we only retry after all pending requests have responded to avoid exploding network requests
             // when the cluster is unstable or overloaded as an eager retry approach can add more load to the cluster.
             executionRound.incrementAndGet();
             execute();
-        }
-    }
-
-    private void onRequestResponse(FieldCapabilitiesNodeResponse nodeResponse) {
-        for (FieldCapabilitiesIndexResponse indexResponse : nodeResponse.getIndexResponses()) {
-            if (indexResponse.canMatch()) {
-                if (fieldCapsRequest.includeEmptyFields() == false) {
-                    // we accept all the responses because they may vary from node to node if we exclude empty fields
-                    onIndexResponse.accept(indexResponse);
-                } else if (indexSelectors.remove(indexResponse.getIndexName()) != null) {
-                    onIndexResponse.accept(indexResponse);
-                }
-            }
-        }
-        for (ShardId unmatchedShardId : nodeResponse.getUnmatchedShardIds()) {
-            final IndexSelector indexSelector = indexSelectors.get(unmatchedShardId.getIndexName());
-            if (indexSelector != null) {
-                indexSelector.addUnmatchedShardId(unmatchedShardId);
-            }
-        }
-        for (Map.Entry<ShardId, Exception> e : nodeResponse.getFailures().entrySet()) {
-            final IndexSelector indexSelector = indexSelectors.get(e.getKey().getIndexName());
-            if (indexSelector != null) {
-                indexSelector.setFailure(e.getKey(), e.getValue());
-            }
         }
     }
 

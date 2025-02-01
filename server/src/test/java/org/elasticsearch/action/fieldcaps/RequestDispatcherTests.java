@@ -35,6 +35,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.ReplicaAfterPrimaryA
 import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -48,8 +49,9 @@ import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
-import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
@@ -127,7 +129,7 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
             final boolean withFilter = randomBoolean();
             final ResponseCollector responseCollector = new ResponseCollector();
             final RequestDispatcher dispatcher = new RequestDispatcher(
-                mockClusterService(clusterState),
+                mockIndicesService(clusterState),
                 transportService,
                 newRandomParentTask(),
                 randomFieldCapRequest(withFilter),
@@ -196,7 +198,7 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
             final boolean withFilter = randomBoolean();
             final ResponseCollector responseCollector = new ResponseCollector();
             final RequestDispatcher dispatcher = new RequestDispatcher(
-                mockClusterService(clusterState),
+                mockIndicesService(clusterState),
                 transportService,
                 newRandomParentTask(),
                 randomFieldCapRequest(withFilter),
@@ -316,7 +318,7 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
             final boolean withFilter = randomBoolean();
             final ResponseCollector responseCollector = new ResponseCollector();
             final RequestDispatcher dispatcher = new RequestDispatcher(
-                mockClusterService(clusterState),
+                mockIndicesService(clusterState),
                 transportService,
                 newRandomParentTask(),
                 randomFieldCapRequest(withFilter),
@@ -438,7 +440,7 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
             final boolean withFilter = true;
             final ResponseCollector responseCollector = new ResponseCollector();
             final RequestDispatcher dispatcher = new RequestDispatcher(
-                mockClusterService(clusterState),
+                mockIndicesService(clusterState),
                 transportService,
                 newRandomParentTask(),
                 randomFieldCapRequest(withFilter),
@@ -534,7 +536,7 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
             final boolean withFilter = true;
             final ResponseCollector responseCollector = new ResponseCollector();
             final RequestDispatcher dispatcher = new RequestDispatcher(
-                mockClusterService(clusterState),
+                mockIndicesService(clusterState),
                 transportService,
                 newRandomParentTask(),
                 randomFieldCapRequest(withFilter),
@@ -624,7 +626,7 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
             final ResponseCollector responseCollector = new ResponseCollector();
             boolean withFilter = randomBoolean();
             final RequestDispatcher dispatcher = new RequestDispatcher(
-                mockClusterService(clusterState),
+                mockIndicesService(clusterState),
                 transportService,
                 newRandomParentTask(),
                 randomFieldCapRequest(withFilter),
@@ -855,7 +857,6 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
             requestTracker.get().verifyAfterComplete();
         }
 
-        @SuppressWarnings("unchecked")
         <T extends TransportResponse> void sendResponse(TransportResponseHandler<T> handler, TransportResponse resp) {
             threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION).submit(new AbstractRunnable() {
                 @Override
@@ -864,8 +865,10 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
                 }
 
                 @Override
-                protected void doRun() {
-                    handler.handleResponse((T) resp);
+                protected void doRun() throws IOException {
+                    final BytesStreamOutput output = new BytesStreamOutput();
+                    resp.writeTo(output);
+                    handler.handleResponse(handler.read(output.bytes().streamInput()));
                 }
             });
         }
@@ -945,8 +948,8 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
         return shardIds;
     }
 
-    static Task newRandomParentTask() {
-        return new Task(0, "type", "action", randomAlphaOfLength(10), TaskId.EMPTY_TASK_ID, Collections.emptyMap());
+    static CancellableTask newRandomParentTask() {
+        return new CancellableTask(0, "type", "action", randomAlphaOfLength(10), TaskId.EMPTY_TASK_ID, Collections.emptyMap());
     }
 
     private ClusterState newClusterState(Metadata metadata, DiscoveryNodes discoveryNodes) {
@@ -1004,12 +1007,14 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
         }
     }
 
-    static ClusterService mockClusterService(ClusterState clusterState) {
+    static IndicesService mockIndicesService(ClusterState clusterState) {
         final ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.state()).thenReturn(clusterState);
         final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         final OperationRouting operationRouting = new OperationRouting(Settings.EMPTY, clusterSettings);
         when(clusterService.operationRouting()).thenReturn(operationRouting);
-        return clusterService;
+        IndicesService indicesService = mock(IndicesService.class);
+        when(indicesService.clusterService()).thenReturn(clusterService);
+        return indicesService;
     }
 }

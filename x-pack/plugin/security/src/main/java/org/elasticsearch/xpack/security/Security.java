@@ -1548,7 +1548,8 @@ public class Security extends Plugin
                         dlsBitsetCache.get(),
                         securityContext.get(),
                         getLicenseState(),
-                        indexService.getScriptService()
+                        indexService.getScriptService(),
+                        indexService.mapperService()
                     )
                 );
                 /*

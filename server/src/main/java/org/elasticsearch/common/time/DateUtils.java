@@ -325,8 +325,8 @@ public class DateUtils {
     }
 
     /**
-     * Rounds the given utc milliseconds sicne the epoch down to the next unit millis
-     *
+     * Rounds the given utc milliseconds since the epoch down to the next unit millis
+     * <p>
      * Note: This does not check for correctness of the result, as this only works with units smaller or equal than a day
      *       In order to ensure the performance of this methods, there are no guards or checks in it
      *
@@ -367,6 +367,22 @@ public class DateUtils {
     }
 
     /**
+     * Round down to the beginning of the nearest multiple of the specified month interval based on the year
+     * @param utcMillis the milliseconds since the epoch
+     * @param monthInterval the interval in months to round down to
+     * @return The milliseconds since the epoch rounded down to the beginning of the nearest multiple of the specified month interval based on the year
+     */
+    public static long roundIntervalMonthOfYear(final long utcMillis, final int monthInterval) {
+        if (monthInterval <= 0) {
+            throw new IllegalArgumentException("month interval [" + monthInterval + "] must be positive");
+        }
+        int year = getYear(utcMillis);
+        int month = getMonthOfYear(utcMillis, year);
+        int firstMonthOfInterval = (((year * 12 + month - 1) / monthInterval) * monthInterval) + 1;
+        return DateUtils.of(firstMonthOfInterval / 12, firstMonthOfInterval % 12);
+    }
+
+    /**
      * Round down to the beginning of the year of the specified time
      * @param utcMillis the milliseconds since the epoch
      * @return The milliseconds since the epoch rounded down to the beginning of the year
@@ -377,12 +393,41 @@ public class DateUtils {
     }
 
     /**
+     * Round down to the beginning of the nearest multiple of the specified year interval
+     * @param utcMillis the milliseconds since the epoch
+     * @param yearInterval the interval in years to round down to
+     * @return The milliseconds since the epoch rounded down to the beginning of the nearest multiple of the specified year interval
+     */
+    public static long roundYearInterval(final long utcMillis, final int yearInterval) {
+        if (yearInterval <= 0) {
+            throw new IllegalArgumentException("year interval [" + yearInterval + "] must be positive");
+        }
+        int year = getYear(utcMillis);
+        return utcMillisAtStartOfYear((year - 1) / yearInterval * yearInterval + 1);
+    }
+
+    /**
      * Round down to the beginning of the week based on week year of the specified time
      * @param utcMillis the milliseconds since the epoch
      * @return The milliseconds since the epoch rounded down to the beginning of the week based on week year
      */
     public static long roundWeekOfWeekYear(final long utcMillis) {
-        return roundFloor(utcMillis + 3 * 86400 * 1000L, 604800000) - 3 * 86400 * 1000L;
+        return roundWeekIntervalOfWeekYear(utcMillis, 1);
+    }
+
+    /**
+     * Round down to the beginning of the nearest multiple of the specified week interval based on week year
+     * <p>
+     * Consider Sun Dec 29 1969 00:00:00.000 as the start of the first week.
+     * @param utcMillis the milliseconds since the epoch
+     * @param weekInterval the interval in weeks to round down to
+     * @return The milliseconds since the epoch rounded down to the beginning of the nearest multiple of the specified week interval based on week year
+     */
+    public static long roundWeekIntervalOfWeekYear(final long utcMillis, final int weekInterval) {
+        if (weekInterval <= 0) {
+            throw new IllegalArgumentException("week interval [" + weekInterval + "] must be positive");
+        }
+        return roundFloor(utcMillis + 3 * 86400 * 1000L, 604800000L * weekInterval) - 3 * 86400 * 1000L;
     }
 
     /**

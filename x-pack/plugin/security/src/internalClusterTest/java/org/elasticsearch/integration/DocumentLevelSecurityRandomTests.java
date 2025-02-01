@@ -144,6 +144,43 @@ public class DocumentLevelSecurityRandomTests extends SecurityIntegTestCase {
                         .endObject()
                 )
         );
+        doTestWithRuntimeFieldsInTestIndex();
+    }
+
+    public void testWithRuntimeFieldsAndSyntheticSource() throws Exception {
+        assertAcked(
+            indicesAdmin().prepareCreate("test")
+                .setMapping(
+                    XContentFactory.jsonBuilder()
+                        .startObject()
+                        .startObject("_source")
+                        .field("mode", "synthetic")
+                        .endObject()
+                        .startObject("runtime")
+                        .startObject("field1")
+                        .field("type", "keyword")
+                        .endObject()
+                        .startObject("field2")
+                        .field("type", "keyword")
+                        .endObject()
+                        .endObject()
+                        .startObject("properties")
+                        .startObject("field1")
+                        .field("type", "text")
+                        .field("store", true)
+                        .endObject()
+                        .startObject("field2")
+                        .field("type", "text")
+                        .field("store", true)
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                )
+        );
+        doTestWithRuntimeFieldsInTestIndex();
+    }
+
+    private void doTestWithRuntimeFieldsInTestIndex() {
         List<IndexRequestBuilder> requests = new ArrayList<>(47);
         for (int i = 1; i <= 42; i++) {
             requests.add(prepareIndex("test").setSource("field1", "value1", "field2", "foo" + i));
@@ -158,5 +195,4 @@ public class DocumentLevelSecurityRandomTests extends SecurityIntegTestCase {
             42L
         );
     }
-
 }

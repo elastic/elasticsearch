@@ -169,14 +169,16 @@ public abstract class ESRestTestCase extends ESTestCase {
     private static final String EXPECTED_ROLLUP_WARNING_MESSAGE =
         "The rollup functionality will be removed in Elasticsearch 10.0. See docs for more information.";
     public static final RequestOptions.Builder ROLLUP_REQUESTS_OPTIONS = RequestOptions.DEFAULT.toBuilder().setWarningsHandler(warnings -> {
-        // Either no warning, because of bwc integration test OR
-        // the expected warning, because on current version
         if (warnings.isEmpty()) {
             return false;
-        } else if (warnings.size() == 1 && EXPECTED_ROLLUP_WARNING_MESSAGE.equals(warnings.get(0))) {
-            return false;
         } else {
-            return true;
+            // Sometimes multiple rollup deprecation warnings. Transport actions can be invoked multiple time on different nodes.
+            for (String warning : warnings) {
+                if (EXPECTED_ROLLUP_WARNING_MESSAGE.equals(warning) == false) {
+                    return true;
+                }
+            }
+            return false;
         }
     });
 

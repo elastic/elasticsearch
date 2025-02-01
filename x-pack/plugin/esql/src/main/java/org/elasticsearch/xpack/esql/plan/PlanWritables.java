@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.plan;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.ChangePoint;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -27,6 +28,7 @@ import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
+import org.elasticsearch.xpack.esql.plan.physical.ChangePointExec;
 import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
 import org.elasticsearch.xpack.esql.plan.physical.EnrichExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
@@ -57,13 +59,14 @@ public class PlanWritables {
     public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
         entries.addAll(logical());
-        entries.addAll(phsyical());
+        entries.addAll(physical());
         return entries;
     }
 
     public static List<NamedWriteableRegistry.Entry> logical() {
         return List.of(
             Aggregate.ENTRY,
+            ChangePoint.ENTRY,
             Dissect.ENTRY,
             Enrich.ENTRY,
             EsRelation.ENTRY,
@@ -84,9 +87,10 @@ public class PlanWritables {
         );
     }
 
-    public static List<NamedWriteableRegistry.Entry> phsyical() {
+    public static List<NamedWriteableRegistry.Entry> physical() {
         return List.of(
             AggregateExec.ENTRY,
+            ChangePointExec.ENTRY,
             DissectExec.ENTRY,
             EnrichExec.ENTRY,
             EsQueryExec.ENTRY,

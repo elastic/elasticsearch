@@ -786,7 +786,12 @@ public class EsqlCapabilities {
         /**
          * Support for aggregate_metric_double type
          */
-        AGGREGATE_METRIC_DOUBLE(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG.isEnabled());
+        AGGREGATE_METRIC_DOUBLE(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG.isEnabled()),
+
+        /**
+         * Support change point detection "CHANGE_POINT".
+         */
+        CHANGE_POINT(Build.current().isSnapshot());
 
         private final boolean enabled;
 

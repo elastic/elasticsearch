@@ -12,6 +12,7 @@ import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.elasticsearch.Build;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.compute.operator.ChangePointOperator;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.dissect.DissectException;
 import org.elasticsearch.dissect.DissectParser;
@@ -30,6 +31,7 @@ import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -40,6 +42,7 @@ import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.ChangePoint;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -436,6 +439,38 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 Map.of(),
                 keepClauses.isEmpty() ? List.of() : keepClauses
             );
+        };
+    }
+
+    @Override
+    public PlanFactory visitChangePointCommand(EsqlBaseParser.ChangePointCommandContext ctx) {
+        Source src = source(ctx);
+        NamedExpression value = visitQualifiedName(ctx.value);
+        NamedExpression key = ctx.key == null ? new UnresolvedAttribute(src, "@timestamp") : visitQualifiedName(ctx.key);
+        Attribute targetType = new ReferenceAttribute(
+            src,
+            ctx.targetType == null ? "type" : visitQualifiedName(ctx.targetType).name(),
+            DataType.KEYWORD
+        );
+        Attribute targetPvalue = new ReferenceAttribute(
+            src,
+            ctx.targetPvalue == null ? "pvalue" : visitQualifiedName(ctx.targetPvalue).name(),
+            DataType.DOUBLE
+        );
+        return child -> {
+            // ChangePoint should always run on the coordinating node after the data is collected
+            // in sorted order. This is enforced by adding OrderBy here.
+            // Furthermore, ChangePoint should be called with at most 1000 data points. That's
+            // enforced by the Limits here. The first Limit of 1001 data points is necessary to
+            // generate a possible warning, the second Limit of 1000 is to truncate the output.
+            OrderBy orderBy = new OrderBy(src, child, List.of(new Order(src, key, Order.OrderDirection.ASC, Order.NullsPosition.ANY)));
+            Limit limit = new Limit(
+                src,
+                new Literal(Source.EMPTY, ChangePointOperator.INPUT_VALUE_COUNT_LIMIT + 1, DataType.INTEGER),
+                orderBy
+            );
+            ChangePoint changePoint = new ChangePoint(src, limit, value, key, targetType, targetPvalue);
+            return new Limit(src, new Literal(Source.EMPTY, ChangePointOperator.INPUT_VALUE_COUNT_LIMIT, DataType.INTEGER), changePoint);
         };
     }
 

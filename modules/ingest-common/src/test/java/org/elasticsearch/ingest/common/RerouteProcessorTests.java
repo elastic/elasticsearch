@@ -216,6 +216,16 @@ public class RerouteProcessorTests extends ESTestCase {
         }
 
         {
+            IngestDocument ingestDocument = createIngestDocument(".ds-logs-system.auth-default");
+            RerouteProcessor processor = createRerouteProcessor(List.of(), List.of());
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> processor.execute(ingestDocument));
+            assertThat(
+                e.getMessage(),
+                equalTo("invalid data stream name: [.ds-logs-system.auth-default]; must follow naming scheme <type>-<dataset>-<namespace>")
+            );
+        }
+
+        {
             // naturally, though, a plain destination doesn't have to match the data stream naming convention
             IngestDocument ingestDocument = createIngestDocument("foo");
             RerouteProcessor processor = createRerouteProcessor("bar");

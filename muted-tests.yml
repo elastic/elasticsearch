@@ -415,6 +415,9 @@ tests:
 - class: org.elasticsearch.xpack.transform.checkpoint.TransformCCSCanMatchIT
   method: testTransformLifecycle_RangeQueryThatMatchesNoShards
   issue: https://github.com/elastic/elasticsearch/issues/121480
+- class: org.elasticsearch.xpack.esql.action.CrossClusterAsyncQueryIT
+  method: testStopQueryLocal
+  issue: https://github.com/elastic/elasticsearch/issues/121487
 
 # Examples:
 #

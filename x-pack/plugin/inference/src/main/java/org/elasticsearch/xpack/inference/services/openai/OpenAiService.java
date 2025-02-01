@@ -376,7 +376,7 @@ public class OpenAiService extends SenderService {
 
     @Override
     public Set<TaskType> supportedStreamingTasks() {
-        return EnumSet.of(TaskType.COMPLETION, TaskType.CHAT_COMPLETION, TaskType.ANY);
+        return EnumSet.of(TaskType.COMPLETION, TaskType.CHAT_COMPLETION);
     }
 
     /**

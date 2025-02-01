@@ -510,11 +510,17 @@ public class CrossClusterEnrichUnavailableClustersIT extends AbstractEnrichBased
         assertThat(executionInfo.overallTook().millis(), greaterThanOrEqualTo(0L));
         assertTrue(executionInfo.isCrossClusterSearch());
 
+        boolean hasPartials = false;
         for (String clusterAlias : executionInfo.clusterAliases()) {
             EsqlExecutionInfo.Cluster cluster = executionInfo.getCluster(clusterAlias);
             assertThat(cluster.getTook().millis(), greaterThanOrEqualTo(0L));
             assertThat(cluster.getTook().millis(), lessThanOrEqualTo(executionInfo.overallTook().millis()));
+            if (cluster.getStatus() == EsqlExecutionInfo.Cluster.Status.PARTIAL
+                || cluster.getStatus() == EsqlExecutionInfo.Cluster.Status.SKIPPED) {
+                hasPartials = true;
+            }
         }
+        assertThat(executionInfo.isPartial(), equalTo(hasPartials));
     }
 
     private void setSkipUnavailable(String clusterAlias, boolean skip) {

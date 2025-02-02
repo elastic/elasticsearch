@@ -436,6 +436,9 @@ tests:
 - class: org.elasticsearch.ingest.geoip.FullClusterRestartIT
   method: testGeoIpSystemFeaturesMigration {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/121115
+- class: org.elasticsearch.xpack.core.ilm.SetSingleNodeAllocateStepTests
+  method: testPerformActionSomeShardsOnlyOnNewNodesButNewNodesInvalidAttrs
+  issue: https://github.com/elastic/elasticsearch/issues/121495
 
 # Examples:
 #

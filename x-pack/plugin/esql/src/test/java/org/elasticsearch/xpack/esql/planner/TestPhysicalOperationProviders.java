@@ -49,6 +49,7 @@ import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
@@ -328,6 +329,12 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
     private BlockResult extractBlockForSingleDoc(DocBlock docBlock, String columnName, TestBlockCopier blockCopier) {
         var indexId = docBlock.asVector().shards().getInt(0);
         var indexPage = indexPages.get(indexId);
+        if (MetadataAttribute.INDEX.equals(columnName)) {
+            return new BlockResultSuccess(
+                docBlock.blockFactory()
+                    .newConstantBytesRefBlockWith(new BytesRef(indexPage.index), blockCopier.docIndices.getPositionCount())
+            );
+        }
         return indexPage.columnIndex(columnName)
             .<BlockResult>map(columnIndex -> new BlockResultSuccess(blockCopier.copyBlock(indexPage.page.getBlock(columnIndex))))
             .orElseGet(() -> new BlockResultMissing(columnName, indexPage.columnNames()));

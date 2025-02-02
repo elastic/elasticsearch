@@ -9,6 +9,8 @@
 
 package org.elasticsearch.entitlement.runtime.policy;
 
+import org.elasticsearch.entitlement.runtime.policy.entitlements.Entitlement;
+
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;

@@ -1831,33 +1831,53 @@ public class JinaAIServiceTests extends ESTestCase {
     @SuppressWarnings("checkstyle:LineLength")
     public void testGetConfiguration() throws Exception {
         try (var service = createJinaAIService()) {
-            String content = XContentHelper.stripWhitespace("""
-                {
-                        "service": "jinaai",
-                        "name": "Jina AI",
-                        "task_types": ["text_embedding", "rerank"],
-                        "configurations": {
-                            "api_key": {
-                                "description": "API Key for the provider you're connecting to.",
-                                "label": "API Key",
-                                "required": true,
-                                "sensitive": true,
-                                "updatable": true,
-                                "type": "str",
-                                "supported_task_types": ["text_embedding", "rerank"]
-                            },
-                            "rate_limit.requests_per_minute": {
-                                "description": "Minimize the number of rate limit errors.",
-                                "label": "Rate Limit",
-                                "required": false,
-                                "sensitive": false,
-                                "updatable": false,
-                                "type": "int",
-                                "supported_task_types": ["text_embedding", "rerank"]
+            String content = XContentHelper.stripWhitespace(
+                """
+                    {
+                            "service": "jinaai",
+                            "name": "Jina AI",
+                            "task_types": ["text_embedding", "rerank"],
+                            "configurations": {
+                                "api_key": {
+                                    "description": "API Key for the provider you're connecting to.",
+                                    "label": "API Key",
+                                    "required": true,
+                                    "sensitive": true,
+                                    "updatable": true,
+                                    "type": "str",
+                                    "supported_task_types": ["text_embedding", "rerank"]
+                                },
+                                "dimensions": {
+                                    "description": "The number of dimensions the resulting embeddings should have. For more information refer to https://api.jina.ai/redoc#tag/embeddings/operation/create_embedding_v1_embeddings_post.",
+                                    "label": "Dimensions",
+                                    "required": false,
+                                    "sensitive": false,
+                                    "updatable": false,
+                                    "type": "int",
+                                    "supported_task_types": ["text_embedding"]
+                                },
+                                "model_id": {
+                                    "description": "The name of the model to use for the inference task.",
+                                    "label": "Model ID",
+                                    "required": true,
+                                    "sensitive": false,
+                                    "updatable": false,
+                                    "type": "str",
+                                    "supported_task_types": ["text_embedding", "rerank"]
+                                },
+                                "rate_limit.requests_per_minute": {
+                                    "description": "Minimize the number of rate limit errors.",
+                                    "label": "Rate Limit",
+                                    "required": false,
+                                    "sensitive": false,
+                                    "updatable": false,
+                                    "type": "int",
+                                    "supported_task_types": ["text_embedding", "rerank"]
+                                }
                             }
                         }
-                    }
-                """);
+                    """
+            );
             InferenceServiceConfiguration configuration = InferenceServiceConfiguration.fromXContentBytes(
                 new BytesArray(content),
                 XContentType.JSON

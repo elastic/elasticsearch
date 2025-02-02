@@ -1,0 +1,6 @@
+pr: 121231
+summary: Fix inference update API calls with `task_type` in body or `deployment_id`
+  defined
+area: Machine Learning
+type: bug
+issues: []

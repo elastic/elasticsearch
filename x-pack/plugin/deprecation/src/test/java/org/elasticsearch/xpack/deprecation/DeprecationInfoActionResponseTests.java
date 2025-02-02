@@ -362,7 +362,14 @@ public class DeprecationInfoActionResponseTests extends AbstractWireSerializingT
             .put(IndexMetadata.builder("test").settings(inputSettings).numberOfShards(1).numberOfReplicas(0))
             .put(dataStreamIndexMetadata, true)
             .put(DataStream.builder("ds-test", List.of(dataStreamIndexMetadata.getIndex())).build())
-            .indexTemplates(Map.of("my-index-template", indexTemplate))
+            .indexTemplates(
+                Map.of(
+                    "my-index-template",
+                    indexTemplate,
+                    "empty-template",
+                    ComposableIndexTemplate.builder().indexPatterns(List.of("random")).build()
+                )
+            )
             .componentTemplates(Map.of("my-component-template", componentTemplate))
             .persistentSettings(inputSettings)
             .build();
@@ -391,7 +398,11 @@ public class DeprecationInfoActionResponseTests extends AbstractWireSerializingT
                 .componentTemplates()
                 .values()
                 .forEach(template -> visibleComponentTemplateSettings.set(template.template().settings()));
-            cs.metadata().templatesV2().values().forEach(template -> visibleIndexTemplateSettings.set(template.template().settings()));
+            cs.metadata().templatesV2().values().forEach(template -> {
+                if (template.template() != null && template.template().settings() != null) {
+                    visibleIndexTemplateSettings.set(template.template().settings());
+                }
+            });
             return Map.of();
         }));
 

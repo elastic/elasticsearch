@@ -230,7 +230,7 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
         var error = expectThrows(ElasticsearchException.class, () -> run(query));
         assertThat(
             error.getMessage(),
-            containsString("[:] operator cannot operate on [\"a brown fox\"], which is not a field from an index mapping")
+            containsString("line 2:9: [:] operator cannot operate on [content], which is not a field from an index mapping")
         );
     }
 

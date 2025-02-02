@@ -94,7 +94,7 @@ public class HealthNodeTaskExecutorTests extends ESTestCase {
     }
 
     public void testTaskCreation() throws Exception {
-        HealthNodeTaskExecutor.create(clusterService, persistentTasksService, featureService, settings, clusterSettings);
+        HealthNodeTaskExecutor.create(clusterService, persistentTasksService, settings, clusterSettings);
         clusterService.getClusterApplierService().onNewClusterState("initialization", this::initialState, ActionListener.noop());
         // Ensure that if the task is gone, it will be recreated.
         clusterService.getClusterApplierService().onNewClusterState("initialization", this::initialState, ActionListener.noop());
@@ -110,13 +110,7 @@ public class HealthNodeTaskExecutorTests extends ESTestCase {
     }
 
     public void testSkippingTaskCreationIfItExists() {
-        HealthNodeTaskExecutor executor = HealthNodeTaskExecutor.create(
-            clusterService,
-            persistentTasksService,
-            featureService,
-            settings,
-            clusterSettings
-        );
+        HealthNodeTaskExecutor executor = HealthNodeTaskExecutor.create(clusterService, persistentTasksService, settings, clusterSettings);
         executor.startTask(new ClusterChangedEvent("", stateWithHealthNodeSelectorTask(initialState()), ClusterState.EMPTY_STATE));
         verify(persistentTasksService, never()).sendStartRequest(
             eq("health-node"),
@@ -132,7 +126,6 @@ public class HealthNodeTaskExecutorTests extends ESTestCase {
             HealthNodeTaskExecutor executor = HealthNodeTaskExecutor.create(
                 clusterService,
                 persistentTasksService,
-                featureService,
                 settings,
                 clusterSettings
             );
@@ -150,7 +143,6 @@ public class HealthNodeTaskExecutorTests extends ESTestCase {
             HealthNodeTaskExecutor executor = HealthNodeTaskExecutor.create(
                 clusterService,
                 persistentTasksService,
-                featureService,
                 settings,
                 clusterSettings
             );
@@ -165,13 +157,7 @@ public class HealthNodeTaskExecutorTests extends ESTestCase {
     }
 
     public void testAbortOnDisable() {
-        HealthNodeTaskExecutor executor = HealthNodeTaskExecutor.create(
-            clusterService,
-            persistentTasksService,
-            featureService,
-            settings,
-            clusterSettings
-        );
+        HealthNodeTaskExecutor executor = HealthNodeTaskExecutor.create(clusterService, persistentTasksService, settings, clusterSettings);
         HealthNode task = mock(HealthNode.class);
         PersistentTaskState state = mock(PersistentTaskState.class);
         executor.nodeOperation(task, new HealthNodeTaskParams(), state);

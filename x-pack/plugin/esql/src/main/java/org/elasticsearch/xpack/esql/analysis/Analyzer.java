@@ -669,13 +669,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             List<Attribute> resolved = new ArrayList<>(cols.size());
             for (Attribute col : cols) {
                 if (col instanceof UnresolvedAttribute ua) {
-                    Attribute resolvedCol = maybeResolveAttribute(ua, output);
-                    if (resolvedCol instanceof UnresolvedAttribute ucol) {
+                    Attribute resolvedField = maybeResolveAttribute(ua, output);
+                    if (resolvedField instanceof UnresolvedAttribute ucol) {
                         String message = ua.unresolvedMessage();
                         String match = "column [" + ucol.name() + "]";
-                        resolvedCol = ucol.withUnresolvedMessage(message.replace(match, match + " in " + side + " side of join"));
+                        resolvedField = ucol.withUnresolvedMessage(message.replace(match, match + " in " + side + " side of join"));
                     }
-                    resolved.add(resolvedCol);
+                    resolved.add(resolvedField);
                 } else {
                     throw new IllegalStateException(
                         "Surprised to discover column [ " + col.name() + "] already resolved when resolving JOIN keys"
@@ -686,16 +686,16 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         private LogicalPlan resolveInsist(Insist insist, List<Attribute> childrenOutput, IndexResolution indexResolution) {
-            Attribute resolvedCol = maybeResolveAttribute(insist.getInsistIdentifier(), childrenOutput);
+            Attribute resolvedCol = maybeResolveAttribute(insist.attribute(), childrenOutput);
             // Field isn't mapped anywhere.
             if (resolvedCol instanceof UnresolvedAttribute) {
-                return pushdownInsist(insist, attrs -> attrs.add(insistKeyword(insist)));
+                return mergeInsist(insist, attrs -> attrs.add(insistKeyword(insist)));
             }
 
             String name = resolvedCol.name();
             // Field is partially unmapped.
-            if (resolvedCol instanceof FieldAttribute f && indexResolution.get().partiallyUnmappedFields().contains(name)) {
-                return pushdownInsist(insist, attrs -> {
+            if (resolvedCol instanceof FieldAttribute f && indexResolution.get().isPartiallyUnmappedField(name)) {
+                return mergeInsist(insist, attrs -> {
                     var index = CollectionUtils.findFirstIndex(attrs, e -> e.name().equals(name)).getAsInt();
                     Attribute attribute = f.field().getDataType() == KEYWORD ? insistKeyword(insist) : invalidInsistAttribute(insist, f);
                     attrs.set(index, attribute);
@@ -706,7 +706,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return insist.child();
         }
 
-        private static EsRelation pushdownInsist(Insist insist, Consumer<List<Attribute>> updateAttributes) {
+        private static EsRelation mergeInsist(Insist insist, Consumer<List<Attribute>> updateAttributes) {
+            assert insist.child() instanceof EsRelation : "INSIST should be on top of a relation (see LogicalPlanBuilder)";
             var relation = (EsRelation) insist.child();
             List<Attribute> newOutput = new ArrayList<>(relation.output());
             updateAttributes.accept(newOutput);
@@ -722,7 +723,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         private static FieldAttribute insistKeyword(Insist insist) {
-            String name = insist.getInsistIdentifier().name();
+            String name = insist.attribute().name();
             return new FieldAttribute(insist.source(), name, new PotentiallyUnmappedKeywordEsField(name));
         }
 

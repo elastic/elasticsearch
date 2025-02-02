@@ -19,11 +19,11 @@ import java.util.List;
 import java.util.Objects;
 
 public class Insist extends UnaryPlan {
-    private final UnresolvedAttribute insistIdentifier;
+    private final UnresolvedAttribute insistedAttribute;
 
-    public Insist(Source source, UnresolvedAttribute insistIdentifier, LogicalPlan child) {
+    public Insist(Source source, UnresolvedAttribute insistedAttribute, LogicalPlan child) {
         super(source, child);
-        this.insistIdentifier = insistIdentifier;
+        this.insistedAttribute = insistedAttribute;
     }
 
     private @Nullable List<Attribute> lazyOutput = null;
@@ -38,27 +38,27 @@ public class Insist extends UnaryPlan {
 
     private List<Attribute> computeOutput() {
         var result = new ArrayList<>(child().output());
-        result.add(insistIdentifier);
+        result.add(insistedAttribute);
         return result;
     }
 
-    public UnresolvedAttribute getInsistIdentifier() {
-        return insistIdentifier;
+    public UnresolvedAttribute attribute() {
+        return insistedAttribute;
     }
 
     @Override
     public Insist replaceChild(LogicalPlan newChild) {
-        return new Insist(source(), insistIdentifier, newChild);
+        return new Insist(source(), insistedAttribute, newChild);
     }
 
     @Override
     public boolean expressionsResolved() {
-        return computeOutput().stream().allMatch(Attribute::resolved);
+        return insistedAttribute.resolved();
     }
 
     @Override
     protected NodeInfo<? extends LogicalPlan> info() {
-        return NodeInfo.create(this, Insist::new, insistIdentifier, child());
+        return NodeInfo.create(this, Insist::new, insistedAttribute, child());
     }
 
     @Override
@@ -73,11 +73,11 @@ public class Insist extends UnaryPlan {
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), Objects.hashCode(insistIdentifier));
+        return Objects.hash(super.hashCode(), Objects.hashCode(insistedAttribute));
     }
 
     @Override
     public boolean equals(Object obj) {
-        return super.equals(obj) && ((Insist) obj).insistIdentifier.equals(insistIdentifier);
+        return super.equals(obj) && ((Insist) obj).insistedAttribute.equals(insistedAttribute);
     }
 }

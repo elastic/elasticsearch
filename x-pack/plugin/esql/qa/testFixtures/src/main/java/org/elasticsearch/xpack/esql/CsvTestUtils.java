@@ -120,9 +120,7 @@ public final class CsvTestUtils {
         return null;
     }
 
-    public record PageColumn(String name, DataType dataType) {}
-
-    public static Tuple<Page, List<PageColumn>> loadPageFromCsv(URL source, Map<String, String> typeMapping) throws Exception {
+    public static Tuple<Page, List<String>> loadPageFromCsv(URL source, Map<String, String> typeMapping) throws Exception {
 
         record CsvColumn(String name, Type type, BuilderWrapper builderWrapper) implements Releasable {
             void append(String stringValue) {
@@ -232,10 +230,10 @@ public final class CsvTestUtils {
                 lineNumber++;
             }
         }
-        var pageColumns = new ArrayList<PageColumn>(columns.length);
+        var pageColumns = new ArrayList<String>(columns.length);
         try {
             var blocks = Arrays.stream(columns)
-                .peek(b -> pageColumns.add(new PageColumn(b.name, DataType.fromTypeName(b.type.name()))))
+                .peek(b -> pageColumns.add(b.name))
                 .map(b -> b.builderWrapper.builder().build())
                 .toArray(Block[]::new);
             return new Tuple<>(new Page(blocks), pageColumns);

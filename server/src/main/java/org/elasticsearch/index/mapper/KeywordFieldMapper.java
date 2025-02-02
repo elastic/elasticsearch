@@ -390,7 +390,7 @@ public final class KeywordFieldMapper extends FieldMapper {
 
                 // keep track of value offsets so that we can reconstruct arrays from doc values in order as was specified during indexing
                 // (if field is stored then there is no point of doing this)
-                offsetsFieldName = leafName() + OFFSETS_FIELD_NAME_SUFFIX;
+                offsetsFieldName = context.buildFullName(leafName() + OFFSETS_FIELD_NAME_SUFFIX);
             } else {
                 offsetsFieldName = null;
             }

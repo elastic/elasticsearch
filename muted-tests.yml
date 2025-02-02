@@ -439,6 +439,9 @@ tests:
 - class: org.elasticsearch.xpack.core.ilm.SetSingleNodeAllocateStepTests
   method: testPerformActionSomeShardsOnlyOnNewNodesButNewNodesInvalidAttrs
   issue: https://github.com/elastic/elasticsearch/issues/121495
+- class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
+  method: test {yaml=cat.aliases/40_hidden/Test cat aliases output with a visible index with a hidden alias}
+  issue: https://github.com/elastic/elasticsearch/issues/121128
 
 # Examples:
 #

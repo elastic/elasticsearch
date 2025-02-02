@@ -442,6 +442,8 @@ tests:
 - class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
   method: test {yaml=cat.aliases/40_hidden/Test cat aliases output with a visible index with a hidden alias}
   issue: https://github.com/elastic/elasticsearch/issues/121128
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  issue: https://github.com/elastic/elasticsearch/issues/121411
 
 # Examples:
 #

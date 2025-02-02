@@ -125,7 +125,8 @@ public class EsqlCapabilities {
         METADATA_FIELDS,
 
         /**
-         * Support specifically for *just* the _index METADATA field.
+         * Support specifically for *just* the _index METADATA field. Used by CsvTests, since that is the only metadata field currently
+         * supported.
          */
         INDEX_METADATA_FIELD,
 

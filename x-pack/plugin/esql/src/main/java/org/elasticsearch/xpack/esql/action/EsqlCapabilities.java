@@ -564,6 +564,13 @@ public class EsqlCapabilities {
 
         /** Capability for remote metadata test */
         METADATA_FIELDS_REMOTE_TEST(false),
+
+        /**
+         * Support specifically for *just* the _index METADATA field. Used by CsvTests, since that is the only metadata field currently
+         * supported.
+         */
+        INDEX_METADATA_FIELD,
+
         /**
          * WIP on Join planning
          * - Introduce BinaryPlan and co

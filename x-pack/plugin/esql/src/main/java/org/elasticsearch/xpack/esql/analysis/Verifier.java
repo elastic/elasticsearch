@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equ
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.Insist;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
@@ -132,7 +133,7 @@ public class Verifier {
 
                 e.forEachUp(ae -> {
                     // Special handling for Project and unsupported/union types: disallow renaming them but pass them through otherwise.
-                    if (p instanceof Project) {
+                    if (p instanceof Project || p instanceof Insist) {
                         if (ae instanceof Alias as && as.child() instanceof UnsupportedAttribute ua) {
                             failures.add(fail(ae, ua.unresolvedMessage()));
                         }

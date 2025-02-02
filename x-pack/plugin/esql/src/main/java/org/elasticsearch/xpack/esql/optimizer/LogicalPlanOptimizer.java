@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.CombineProjections;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ConstantFolding;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ConvertStringToByteRef;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ExtractAggregateCommonFilter;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.FoldInsist;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.FoldNull;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.LiteralsOnTheRight;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PartiallyFoldCase;
@@ -155,6 +156,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
     protected static Batch<LogicalPlan> operators() {
         return new Batch<>(
             "Operator Optimization",
+            new FoldInsist(),
             new CombineProjections(),
             new CombineEvals(),
             new PruneEmptyPlans(),

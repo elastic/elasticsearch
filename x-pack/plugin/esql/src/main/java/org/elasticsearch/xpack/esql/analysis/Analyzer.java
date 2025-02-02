@@ -111,7 +111,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -686,40 +685,43 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         private LogicalPlan resolveInsist(Insist insist, List<Attribute> childrenOutput, IndexResolution indexResolution) {
-            Attribute resolvedCol = maybeResolveAttribute(insist.attribute(), childrenOutput);
+            return insist.withAttribute(resolveInsistAttribute(insist, childrenOutput, indexResolution));
+        }
+
+        private Attribute resolveInsistAttribute(Insist insist, List<Attribute> childrenOutput, IndexResolution indexResolution) {
+            assert insist.attribute() instanceof UnresolvedAttribute : "INSIST should be unresolved at this point";
+            Attribute resolvedCol = maybeResolveAttribute((UnresolvedAttribute) insist.attribute(), childrenOutput);
             // Field isn't mapped anywhere.
             if (resolvedCol instanceof UnresolvedAttribute) {
-                return mergeInsist(insist, attrs -> attrs.add(insistKeyword(insist)));
+                return insistKeyword(insist);
             }
 
+            assert resolvedCol instanceof FieldAttribute : "Resolved INSIST attribute should resolve to a field attribute";
+            var field = ((FieldAttribute) resolvedCol).field();
             String name = resolvedCol.name();
             // Field is partially unmapped.
-            if (resolvedCol instanceof FieldAttribute f && indexResolution.get().isPartiallyUnmappedField(name)) {
-                return mergeInsist(insist, attrs -> {
-                    var index = CollectionUtils.findFirstIndex(attrs, e -> e.name().equals(name)).getAsInt();
-                    Attribute attribute = f.field().getDataType() == KEYWORD ? insistKeyword(insist) : invalidInsistAttribute(insist, f);
-                    attrs.set(index, attribute);
-                });
+            if (indexResolution.get().isPartiallyUnmappedField(name)) {
+                return field.getDataType() == KEYWORD
+                    ? insistKeyword(insist)
+                    : invalidInsistAttribute(insist, (FieldAttribute) resolvedCol);
             }
 
             // Field is mapped everywhere; we can safely ignore the INSIST command.
-            return insist.child();
+            return resolvedCol;
         }
 
-        private static EsRelation mergeInsist(Insist insist, Consumer<List<Attribute>> updateAttributes) {
+        private static EsRelation mergeInsist(Insist insist, Function<List<Attribute>, List<Attribute>> updateAttributes) {
             assert insist.child() instanceof EsRelation : "INSIST should be on top of a relation (see LogicalPlanBuilder)";
             var relation = (EsRelation) insist.child();
-            List<Attribute> newOutput = new ArrayList<>(relation.output());
-            updateAttributes.accept(newOutput);
+            var newOutput = updateAttributes.apply(relation.output());
             return relation.withAttributes(newOutput);
         }
 
-        private static UnsupportedAttribute invalidInsistAttribute(Insist insist, FieldAttribute fa) {
+        private static FieldAttribute invalidInsistAttribute(Insist insist, FieldAttribute fa) {
             String name = fa.name();
             var messageFormat = "Cannot use field [%s] due to ambiguities caused by INSIST. "
                 + "Unmapped fields are treated as KEYWORD in unmapped indices, but field is mapped to another type";
-            var field = new UnsupportedEsField(name, fa.field().getDataType().typeName());
-            return new UnsupportedAttribute(insist.source(), name, field, Strings.format(messageFormat, name));
+            return new FieldAttribute(insist.source(), name, new InvalidMappedField(name, Strings.format(messageFormat, name)));
         }
 
         private static FieldAttribute insistKeyword(Insist insist) {

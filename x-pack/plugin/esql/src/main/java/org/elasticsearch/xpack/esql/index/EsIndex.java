@@ -13,7 +13,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 
-import java.beans.Transient;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Set;
@@ -25,7 +24,7 @@ public record EsIndex(
     Map<String, EsField> mapping,
     Map<String, IndexMode> indexNameWithModes,
     /** Fields mapped only in some (but *not* all) indices. Since this is only used by the analyzer, it is not serialized. */
-    @Transient Set<String> partiallyUnmappedFields
+    Set<String> partiallyUnmappedFields
 ) implements Writeable {
 
     public EsIndex {

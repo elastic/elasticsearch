@@ -9,19 +9,19 @@ package org.elasticsearch.xpack.esql.plan.logical;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.expression.NamedExpressions;
+import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
 public class Insist extends UnaryPlan {
-    private final UnresolvedAttribute insistedAttribute;
+    private final Attribute insistedAttribute;
 
-    public Insist(Source source, UnresolvedAttribute insistedAttribute, LogicalPlan child) {
+    public Insist(Source source, Attribute insistedAttribute, LogicalPlan child) {
         super(source, child);
         this.insistedAttribute = insistedAttribute;
     }
@@ -37,12 +37,10 @@ public class Insist extends UnaryPlan {
     }
 
     private List<Attribute> computeOutput() {
-        var result = new ArrayList<>(child().output());
-        result.add(insistedAttribute);
-        return result;
+        return NamedExpressions.mergeOutputAttributes(List.of(insistedAttribute), child().output());
     }
 
-    public UnresolvedAttribute attribute() {
+    public Attribute attribute() {
         return insistedAttribute;
     }
 
@@ -53,7 +51,8 @@ public class Insist extends UnaryPlan {
 
     @Override
     public boolean expressionsResolved() {
-        return insistedAttribute.resolved();
+        // Like EsqlProject, we allow unsupported attributes to flow through the engine.
+        return attribute().resolved() || attribute() instanceof UnsupportedAttribute;
     }
 
     @Override
@@ -63,12 +62,12 @@ public class Insist extends UnaryPlan {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        throw new UnsupportedOperationException("doesn't escape the node");
+        throw new UnsupportedOperationException("doesn't escape the coordinator node");
     }
 
     @Override
     public String getWriteableName() {
-        throw new UnsupportedOperationException("doesn't escape the node");
+        throw new UnsupportedOperationException("doesn't escape the coordinator node");
     }
 
     @Override
@@ -79,5 +78,9 @@ public class Insist extends UnaryPlan {
     @Override
     public boolean equals(Object obj) {
         return super.equals(obj) && ((Insist) obj).insistedAttribute.equals(insistedAttribute);
+    }
+
+    public LogicalPlan withAttribute(Attribute attribute) {
+        return new Insist(source(), attribute, child());
     }
 }

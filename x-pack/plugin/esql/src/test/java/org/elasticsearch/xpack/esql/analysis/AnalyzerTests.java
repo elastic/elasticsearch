@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
@@ -50,6 +51,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.Insist;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
@@ -2612,9 +2614,7 @@ public class AnalyzerTests extends ESTestCase {
 
         LogicalPlan plan = analyze("FROM test | INSIST_🐔 emp_no");
 
-        LogicalPlan equivalentPlan = analyze("FROM test");
-
-        assertThat(plan, equalTo(equivalentPlan));
+        assertThat(plan.output().getLast().name(), is("emp_no"));
     }
 
     public void testResolveInsist_fieldDoesNotExist_updatesRelationWithNewField() {
@@ -2623,9 +2623,11 @@ public class AnalyzerTests extends ESTestCase {
         LogicalPlan plan = analyze("FROM test | INSIST_🐔 foo");
 
         var limit = as(plan, Limit.class);
-        var relation = as(limit.child(), EsRelation.class);
-        assertThat(relation.output(), hasSize(analyze("FROM test").output().size() + 1));
-        assertThat(((FieldAttribute) relation.output().getLast()).field(), is(new PotentiallyUnmappedKeywordEsField("foo")));
+        var insist = as(limit.child(), Insist.class);
+        assertThat(insist.output(), hasSize(analyze("FROM test").output().size() + 1));
+        var expectedAttribute = new FieldAttribute(Source.EMPTY, "foo", new PotentiallyUnmappedKeywordEsField("foo"));
+        assertThat(insist.attribute(), is(expectedAttribute));
+        assertThat(insist.output().getLast(), is(expectedAttribute));
     }
 
     public void testResolveInsist_multiIndexFieldPartiallyMappedWithSingleKeywordType_updatesRelationWithNewField() {
@@ -2645,8 +2647,8 @@ public class AnalyzerTests extends ESTestCase {
         String query = "FROM foo, bar | INSIST_🐔 message";
         var plan = analyze(query, analyzer(resolution, TEST_VERIFIER, configuration(query)));
         var limit = as(plan, Limit.class);
-        var relation = as(limit.child(), EsRelation.class);
-        var attribute = (FieldAttribute) EsqlTestUtils.singleValue(relation.output());
+        var insist = as(limit.child(), Insist.class);
+        var attribute = (FieldAttribute) EsqlTestUtils.singleValue(insist.output());
         assertThat(attribute.name(), is("message"));
         assertThat(attribute.field(), is(new PotentiallyUnmappedKeywordEsField("message")));
     }
@@ -2663,8 +2665,8 @@ public class AnalyzerTests extends ESTestCase {
         );
         var plan = analyze("FROM foo, bar | INSIST_🐔 message", analyzer(resolution, TEST_VERIFIER));
         var limit = as(plan, Limit.class);
-        var relation = as(limit.child(), EsRelation.class);
-        var attribute = (UnsupportedAttribute) EsqlTestUtils.singleValue(relation.output());
+        var insist = as(limit.child(), Insist.class);
+        var attribute = (UnsupportedAttribute) EsqlTestUtils.singleValue(insist.output());
         assertThat(attribute.name(), is("message"));
 
         String substring = "Cannot use field [message] due to ambiguities caused by INSIST. "
@@ -2687,8 +2689,8 @@ public class AnalyzerTests extends ESTestCase {
         );
         var plan = analyze("FROM foo, bar | INSIST_🐔 message", analyzer(resolution, TEST_VERIFIER));
         var limit = as(plan, Limit.class);
-        var relation = as(limit.child(), EsRelation.class);
-        var attr = (UnsupportedAttribute) EsqlTestUtils.singleValue(relation.output());
+        var insist = as(limit.child(), Insist.class);
+        var attr = (UnsupportedAttribute) EsqlTestUtils.singleValue(insist.output());
 
         String substring = "Cannot use field [message] due to ambiguities caused by INSIST. "
             + "Unmapped fields are treated as KEYWORD in unmapped indices, but field is mapped to another type";
@@ -2709,12 +2711,14 @@ public class AnalyzerTests extends ESTestCase {
             )
         );
         VerificationException e = expectThrows(VerificationException.class, () -> analyze("""
-            FROM multi_index |
-            INSIST_🐔 message |
-            EVAL message = message :: DATETIME""", analyzer(resolution, TEST_VERIFIER)));
-        String msg = "Cannot use field [message] due to ambiguities caused by INSIST. "
-            + "Unmapped fields are treated as KEYWORD in unmapped indices, but field is mapped to another type";
-        assertThat(e.getMessage(), containsString(msg));
+            FROM multi_index
+            | INSIST_🐔 message
+            | EVAL message = message :: keyword
+            """, analyzer(resolution, TEST_VERIFIER)));
+        assertThat(
+            e.getMessage(),
+            containsString("EVAL does not support type [unsupported] as the return data type of expression [message]")
+        );
     }
 
     // TODO There's too much boilerplate involed here! We need a better way of creating FieldCapabilitiesResponses from a mapping or index.

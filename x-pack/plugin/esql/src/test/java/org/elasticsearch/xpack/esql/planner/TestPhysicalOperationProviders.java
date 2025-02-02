@@ -44,7 +44,6 @@ import org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.lucene.spatial.CoordinateEncoder;
 import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
-import org.elasticsearch.xpack.esql.CsvTestUtils.PageColumn;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -94,13 +93,9 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
         return new TestPhysicalOperationProviders(foldContext, indexPages, createAnalysisRegistry());
     }
 
-    public record IndexPage(String index, Page page, List<PageColumn> columns, Set<String> mappedFields) {
-        List<String> columnNames() {
-            return columns.stream().map(PageColumn::name).toList();
-        }
-
+    public record IndexPage(String index, Page page, List<String> columnNames, Set<String> mappedFields) {
         Optional<Integer> columnIndex(String columnName) {
-            var result = IntStream.range(0, columns.size()).filter(i -> columns.get(i).name().equals(columnName)).findFirst();
+            var result = IntStream.range(0, columnNames.size()).filter(i -> columnNames.get(i).equals(columnName)).findFirst();
             return result.isPresent() ? Optional.of(result.getAsInt()) : Optional.empty();
         }
     }

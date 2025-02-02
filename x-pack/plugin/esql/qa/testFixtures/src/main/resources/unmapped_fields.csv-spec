@@ -55,6 +55,18 @@ FROM partial_mapping_sample_data
 2024-10-23T12:15:03.360Z | Connected to 10.1.0.3!
 ;
 
+unmappedFieldAppearsLast
+required_capability: unmapped_fields
+FROM partial_mapping_sample_data
+| INSIST_🐔 event_duration
+| SORT @timestamp DESC
+| Limit 1
+;
+
+@timestamp:date          | client_ip:ip | message:keyword        | event_duration:long
+2024-10-23T13:55:01.543Z | 173.21.3.15  | Connected to 10.1.0.1! | 1756466
+;
+
 fieldDoesNotExistSingleIndex
 required_capability: unmapped_fields
 FROM partial_mapping_sample_data
@@ -131,7 +143,7 @@ FROM partial_mapping_excluded_source_sample_data
 #####################
 
 fieldDoesNotExistMultiIndex
-required_capability: metadata_fields
+required_capability: index_metadata_field
 required_capability: unmapped_fields
 FROM partial_mapping_sample_data, sample_data METADATA _index
 | INSIST_🐔 foo
@@ -157,7 +169,7 @@ sample_data                 | 2023-10-23T12:15:03.360Z | null
 ;
 
 fieldIsUnmappedMultiIndex
-required_capability: metadata_fields
+required_capability: index_metadata_field
 required_capability: unmapped_fields
 FROM partial_mapping_sample_data, sample_data METADATA _index
 | INSIST_🐔 unmapped_message
@@ -184,7 +196,7 @@ FROM partial_mapping_sample_data, sample_data METADATA _index
 
 
 fieldIsMappedToDifferentTypesNoCastMultiIndex
-required_capability: metadata_fields
+required_capability: index_metadata_field
 required_capability: unmapped_fields
 FROM sample_data_ts_long, sample_data METADATA _index
 | INSIST_🐔 @timestamp
@@ -210,7 +222,7 @@ sample_data_ts_long | null
 ;
 
 fieldIsMappedToDifferentTypesButDropped
-required_capability: metadata_fields
+required_capability: index_metadata_field
 required_capability: unmapped_fields
 FROM sample_data_ts_long, sample_data METADATA _index
 | INSIST_🐔 @timestamp
@@ -238,7 +250,7 @@ sample_data_ts_long | 42
 ;
 
 fieldIsPartiallyUnmappedMultiIndex
-required_capability: metadata_fields
+required_capability: index_metadata_field
 required_capability: unmapped_fields
 FROM sample_data, no_mapping_sample_data METADATA _index
 | INSIST_🐔 message
@@ -290,7 +302,7 @@ Connected to 10.1.0.1
 ;
 
 fieldIsPartiallyUnmappedPartiallySourceIsDisabledMultiIndex
-required_capability: metadata_fields
+required_capability: index_metadata_field
 required_capability: source_field_mapping
 required_capability: unmapped_fields
 FROM partial_mapping_sample_data,partial_mapping_no_source_sample_data METADATA _index
@@ -317,7 +329,7 @@ partial_mapping_sample_data           | 2024-10-23T13:55:01.543Z | Connected to 
 ;
 
 partialMappingStats
-required_capability: metadata_fields
+required_capability: index_metadata_field
 required_capability: source_field_mapping
 required_capability: unmapped_fields
 FROM partial_mapping_sample_data,partial_mapping_excluded_source_sample_data METADATA _index
@@ -336,7 +348,7 @@ max(@timestamp):date     | count(*):long | message:keyword
 ;
 
 partialMappingCoalesce
-required_capability: metadata_fields
+required_capability: index_metadata_field
 required_capability: source_field_mapping
 required_capability: unmapped_fields
 FROM partial_mapping_sample_data,partial_mapping_excluded_source_sample_data METADATA _index
@@ -365,7 +377,7 @@ FROM partial_mapping_sample_data,partial_mapping_excluded_source_sample_data MET
 ;
 
 partialMappingUnionTypes
-required_capability: metadata_fields
+required_capability: index_metadata_field
 required_capability: source_field_mapping
 required_capability: unmapped_fields
 FROM partial_mapping_sample_data,partial_mapping_excluded_source_sample_data METADATA _index
@@ -393,7 +405,7 @@ FROM partial_mapping_sample_data,partial_mapping_excluded_source_sample_data MET
 ;
 
 partialMappingUnionTypesStats
-required_capability: metadata_fields
+required_capability: index_metadata_field
 required_capability: source_field_mapping
 required_capability: unmapped_fields
 FROM partial_mapping_sample_data,partial_mapping_excluded_source_sample_data

@@ -502,7 +502,6 @@ public final class SearchPhaseController {
             reducedSuggest = new Suggest(Suggest.reduce(groupedSuggestions));
             reducedCompletionSuggestions = reducedSuggest.filter(CompletionSuggestion.class);
         }
-        final InternalAggregations aggregations = reduceAggs(aggReduceContextBuilder, performFinalReduce, bufferedAggs);
         final SearchProfileResultsBuilder profileBuilder = profileShardResults.isEmpty()
             ? null
             : new SearchProfileResultsBuilder(profileShardResults);
@@ -529,7 +528,12 @@ public final class SearchPhaseController {
             topDocsStats.timedOut,
             topDocsStats.terminatedEarly,
             reducedSuggest,
-            aggregations,
+            bufferedAggs == null
+                ? null
+                : InternalAggregations.topLevelReduceDelayable(
+                    bufferedAggs,
+                    performFinalReduce ? aggReduceContextBuilder.forFinalReduction() : aggReduceContextBuilder.forPartialReduction()
+                ),
             profileBuilder,
             sortedTopDocs,
             sortValueFormats,
@@ -539,19 +543,6 @@ public final class SearchPhaseController {
             from,
             false
         );
-    }
-
-    private static InternalAggregations reduceAggs(
-        AggregationReduceContext.Builder aggReduceContextBuilder,
-        boolean performFinalReduce,
-        List<DelayableWriteable<InternalAggregations>> toReduce
-    ) {
-        return toReduce.isEmpty()
-            ? null
-            : InternalAggregations.topLevelReduceDelayable(
-                toReduce,
-                performFinalReduce ? aggReduceContextBuilder.forFinalReduction() : aggReduceContextBuilder.forPartialReduction()
-            );
     }
 
     /**

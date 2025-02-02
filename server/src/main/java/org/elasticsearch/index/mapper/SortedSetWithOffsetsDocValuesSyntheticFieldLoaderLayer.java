@@ -44,10 +44,10 @@ final class SortedSetWithOffsetsDocValuesSyntheticFieldLoaderLayer implements Co
 
     @Override
     public DocValuesLoader docValuesLoader(LeafReader leafReader, int[] docIdsInLeaf) throws IOException {
-        SortedSetDocValues dv = DocValues.getSortedSet(leafReader, name);
-        BinaryDocValues oDv = DocValues.getBinary(leafReader, offsetsFieldName);
+        SortedSetDocValues valueDocValues = DocValues.getSortedSet(leafReader, name);
+        BinaryDocValues offsetDocValues = DocValues.getBinary(leafReader, offsetsFieldName);
 
-        ImmediateDocValuesLoader loader = new ImmediateDocValuesLoader(dv, oDv);
+        ImmediateDocValuesLoader loader = new ImmediateDocValuesLoader(valueDocValues, offsetDocValues);
         docValues = loader;
         return loader;
     }
@@ -78,26 +78,26 @@ final class SortedSetWithOffsetsDocValuesSyntheticFieldLoaderLayer implements Co
     }
 
     static final class ImmediateDocValuesLoader implements DocValuesLoader {
-        private final BinaryDocValues oDv;
-        private final SortedSetDocValues dv;
+        private final BinaryDocValues offsetDocValues;
+        private final SortedSetDocValues valueDocValues;
         private final ByteArrayStreamInput scratch = new ByteArrayStreamInput();
 
         private boolean hasValue;
         private boolean hasOffset;
         private int[] offsetToOrd;
 
-        ImmediateDocValuesLoader(SortedSetDocValues dv, BinaryDocValues oDv) {
-            this.dv = dv;
-            this.oDv = oDv;
+        ImmediateDocValuesLoader(SortedSetDocValues valueDocValues, BinaryDocValues offsetDocValues) {
+            this.valueDocValues = valueDocValues;
+            this.offsetDocValues = offsetDocValues;
         }
 
         @Override
         public boolean advanceToDoc(int docId) throws IOException {
-            hasValue = dv.advanceExact(docId);
-            hasOffset = oDv.advanceExact(docId);
+            hasValue = valueDocValues.advanceExact(docId);
+            hasOffset = offsetDocValues.advanceExact(docId);
             if (hasValue || hasOffset) {
                 if (hasOffset) {
-                    var encodedValue = oDv.binaryValue();
+                    var encodedValue = offsetDocValues.binaryValue();
                     scratch.reset(encodedValue.bytes, encodedValue.offset, encodedValue.length);
                     offsetToOrd = new int[BitUtil.zigZagDecode(scratch.readVInt())];
                     for (int i = 0; i < offsetToOrd.length; i++) {
@@ -120,7 +120,7 @@ final class SortedSetWithOffsetsDocValuesSyntheticFieldLoaderLayer implements Co
                     // (if offsetToOrd is not null, then at index time an array was always specified even if there is just one value)
                     return offsetToOrd.length + 1;
                 } else {
-                    return dv.docValueCount();
+                    return valueDocValues.docValueCount();
                 }
             } else {
                 if (hasOffset) {
@@ -137,9 +137,9 @@ final class SortedSetWithOffsetsDocValuesSyntheticFieldLoaderLayer implements Co
                 return;
             }
             if (offsetToOrd != null && hasValue) {
-                long[] ords = new long[dv.docValueCount()];
-                for (int i = 0; i < dv.docValueCount(); i++) {
-                    ords[i] = dv.nextOrd();
+                long[] ords = new long[valueDocValues.docValueCount()];
+                for (int i = 0; i < valueDocValues.docValueCount(); i++) {
+                    ords[i] = valueDocValues.nextOrd();
                 }
 
                 for (int offset : offsetToOrd) {
@@ -149,7 +149,7 @@ final class SortedSetWithOffsetsDocValuesSyntheticFieldLoaderLayer implements Co
                     }
 
                     long ord = ords[offset];
-                    BytesRef c = dv.lookupOrd(ord);
+                    BytesRef c = valueDocValues.lookupOrd(ord);
                     b.utf8Value(c.bytes, c.offset, c.length);
                 }
             } else if (offsetToOrd != null) {
@@ -159,8 +159,8 @@ final class SortedSetWithOffsetsDocValuesSyntheticFieldLoaderLayer implements Co
                     b.nullValue();
                 }
             } else {
-                for (int i = 0; i < dv.docValueCount(); i++) {
-                    BytesRef c = dv.lookupOrd(dv.nextOrd());
+                for (int i = 0; i < valueDocValues.docValueCount(); i++) {
+                    BytesRef c = valueDocValues.lookupOrd(valueDocValues.nextOrd());
                     b.utf8Value(c.bytes, c.offset, c.length);
                 }
             }

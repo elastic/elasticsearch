@@ -33,7 +33,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.TreeMap;
 
 /**
  * Context used when parsing incoming documents. Holds everything that is needed to parse a document as well as
@@ -87,13 +86,13 @@ public abstract class DocumentParserContext {
         }
 
         @Override
-        public Map<String, Offsets> getOffSetsByField() {
-            return in.getOffSetsByField();
+        public void processArrayOffsets(DocumentParserContext context) throws IOException {
+            in.processArrayOffsets(context);
         }
 
         @Override
-        void recordOffset(String field, String value) {
-            in.recordOffset(field, value);
+        public ArrayOffsetContext getOffSetContext() {
+            return in.getOffSetContext();
         }
     }
 
@@ -145,7 +144,7 @@ public abstract class DocumentParserContext {
     private final SeqNoFieldMapper.SequenceIDFields seqID;
     private final Set<String> fieldsAppliedFromTemplates;
 
-    private final Map<String, Offsets> offsetsPerField = new HashMap<>();
+    private ArrayOffsetContext arrayOffsetContext;
 
     /**
      * Fields that are copied from values of other fields via copy_to.
@@ -483,33 +482,17 @@ public abstract class DocumentParserContext {
         return copyToFields;
     }
 
-    public static class Offsets {
-
-        public int currentOffset;
-        public final Map<String, List<Integer>> valueToOffsets = new TreeMap<>();
-        public final List<Integer> nullValueOffsets = new ArrayList<>(2);
-
+    public void processArrayOffsets(DocumentParserContext context) throws IOException {
+        if (arrayOffsetContext != null) {
+            arrayOffsetContext.processArrayOffsets(context);
+        }
     }
 
-    public Map<String, Offsets> getOffSetsByField() {
-        return offsetsPerField;
-    }
-
-    void recordOffset(String field, String value) {
-        Offsets arrayOffsets = offsetsPerField.computeIfAbsent(field, k -> new Offsets());
-        int nextOffset = arrayOffsets.currentOffset++;
-        var offsets = arrayOffsets.valueToOffsets.computeIfAbsent(value, s -> new ArrayList<>(2));
-        offsets.add(nextOffset);
-    }
-
-    void recordNull(String field) {
-        Offsets arrayOffsets = offsetsPerField.computeIfAbsent(field, k -> new Offsets());
-        int nextOffset = arrayOffsets.currentOffset++;
-        arrayOffsets.nullValueOffsets.add(nextOffset);
-    }
-
-    void maybeRecordEmptyArray(String field) {
-        offsetsPerField.computeIfAbsent(field, k -> new Offsets());
+    public ArrayOffsetContext getOffSetContext() {
+        if (arrayOffsetContext == null) {
+            arrayOffsetContext = new ArrayOffsetContext();
+        }
+        return arrayOffsetContext;
     }
 
     /**

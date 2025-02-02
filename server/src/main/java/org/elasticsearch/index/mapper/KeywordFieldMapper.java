@@ -968,7 +968,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         while (true) {
             XContentParser.Token token = parser.nextToken();
             if (token == XContentParser.Token.END_ARRAY) {
-                context.maybeRecordEmptyArray(offsetsFieldName);
+                context.getOffSetContext().maybeRecordEmptyArray(offsetsFieldName);
                 return;
             }
             if (token.isValue() || token == XContentParser.Token.VALUE_NULL) {
@@ -978,9 +978,9 @@ public final class KeywordFieldMapper extends FieldMapper {
                 }
                 boolean indexed = indexValue(context, value);
                 if (indexed) {
-                    context.recordOffset(offsetsFieldName, value);
+                    context.getOffSetContext().recordOffset(offsetsFieldName, value);
                 } else if (value == null) {
-                    context.recordNull(offsetsFieldName);
+                    context.getOffSetContext().recordNull(offsetsFieldName);
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
                 parseArray(context);

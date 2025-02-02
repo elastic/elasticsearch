@@ -9,13 +9,10 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.util.BitUtil;
 import org.elasticsearch.common.Explicit;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
@@ -153,43 +150,12 @@ public final class DocumentParser {
 
             executeIndexTimeScripts(context);
 
-            processArrayOffsets(context);
+            context.processArrayOffsets(context);
             for (MetadataFieldMapper metadataMapper : metadataFieldsMappers) {
                 metadataMapper.postParse(context);
             }
         } catch (Exception e) {
             throw wrapInDocumentParsingException(context, e);
-        }
-    }
-
-    // TODO: maybe move this logic to a new meta field mapper?
-    private static void processArrayOffsets(DocumentParserContext context) throws IOException {
-        var offsets = context.getOffSetsByField();
-        for (var entry : offsets.entrySet()) {
-            var fieldName = entry.getKey();
-            var offset = entry.getValue();
-
-            int currentOrd = 0;
-            // This array allows to retain the original ordering of elements in leaf arrays and retain duplicates.
-            int[] offsetToOrd = new int[offset.currentOffset];
-            for (var offsetEntry : offset.valueToOffsets.entrySet()) {
-                for (var offsetAndLevel : offsetEntry.getValue()) {
-                    offsetToOrd[offsetAndLevel] = currentOrd;
-                }
-                currentOrd++;
-            }
-            for (var nullOffset : offset.nullValueOffsets) {
-                offsetToOrd[nullOffset] = -1;
-            }
-
-            try (var streamOutput = new BytesStreamOutput()) {
-                // Could just use vint for array length, but this allows for decoding my_field: null as -1
-                streamOutput.writeVInt(BitUtil.zigZagEncode(offsetToOrd.length));
-                for (int ord : offsetToOrd) {
-                    streamOutput.writeVInt(BitUtil.zigZagEncode(ord));
-                }
-                context.doc().add(new BinaryDocValuesField(fieldName, streamOutput.bytes().toBytesRef()));
-            }
         }
     }
 

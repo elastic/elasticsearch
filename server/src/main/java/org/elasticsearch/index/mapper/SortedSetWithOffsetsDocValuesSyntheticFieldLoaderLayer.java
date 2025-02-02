@@ -16,6 +16,7 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -99,10 +100,7 @@ final class SortedSetWithOffsetsDocValuesSyntheticFieldLoaderLayer implements Co
                 if (hasOffset) {
                     var encodedValue = offsetDocValues.binaryValue();
                     scratch.reset(encodedValue.bytes, encodedValue.offset, encodedValue.length);
-                    offsetToOrd = new int[BitUtil.zigZagDecode(scratch.readVInt())];
-                    for (int i = 0; i < offsetToOrd.length; i++) {
-                        offsetToOrd[i] = BitUtil.zigZagDecode(scratch.readVInt());
-                    }
+                    offsetToOrd = parseOffsetArray(scratch);
                 } else {
                     offsetToOrd = null;
                 }
@@ -167,4 +165,11 @@ final class SortedSetWithOffsetsDocValuesSyntheticFieldLoaderLayer implements Co
         }
     }
 
+    static int[] parseOffsetArray(StreamInput in) throws IOException {
+        int[] offsetToOrd = new int[BitUtil.zigZagDecode(in.readVInt())];
+        for (int i = 0; i < offsetToOrd.length; i++) {
+            offsetToOrd[i] = BitUtil.zigZagDecode(in.readVInt());
+        }
+        return offsetToOrd;
+    }
 }

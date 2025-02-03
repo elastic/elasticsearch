@@ -238,7 +238,6 @@ public class PolicyManagerTests extends ESTestCase {
     }
 
     public void testRequestingModuleWithStackWalk() throws IOException, ClassNotFoundException {
-        var agentsClass = new TestAgent();
         var entitlementsClass = makeClassInItsOwnModule();    // A class in the entitlements library itself
         var requestingClass = makeClassInItsOwnModule();      // This guy is always the right answer
         var instrumentedClass = makeClassInItsOwnModule();    // The class that called the check method
@@ -359,13 +358,6 @@ public class PolicyManagerTests extends ESTestCase {
     }
 
     private static Class<?> makeClassInItsOwnModule() throws IOException, ClassNotFoundException {
-        final Path home = createTempDir();
-        Path jar = createMockPluginJar(home);
-        var layer = createLayerForJar(jar, "org.example.plugin");
-        return layer.findLoader("org.example.plugin").loadClass("q.B");
-    }
-
-    private static Class<?> makeClassInItsOwnUnnamedModule() throws IOException, ClassNotFoundException {
         final Path home = createTempDir();
         Path jar = createMockPluginJar(home);
         var layer = createLayerForJar(jar, "org.example.plugin");

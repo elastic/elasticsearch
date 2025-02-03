@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.get;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
@@ -48,8 +49,9 @@ public class GetSnapshotsResponse extends ActionResponse implements ChunkedToXCo
 
     public GetSnapshotsResponse(StreamInput in) throws IOException {
         this.snapshots = in.readCollectionAsImmutableList(SnapshotInfo::readFrom);
-        // TODO Skip when we have V9 in TransportVersions
-        in.readMap(StreamInput::readException);
+        if (in.getTransportVersion().before(TransportVersions.REMOVE_SNAPSHOT_FAILURES)) {
+            in.readMap(StreamInput::readException);
+        }
         this.next = in.readOptionalString();
         this.total = in.readVInt();
         this.remaining = in.readVInt();
@@ -80,8 +82,9 @@ public class GetSnapshotsResponse extends ActionResponse implements ChunkedToXCo
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeCollection(snapshots);
-        // TODO Skip when we have V9 in TransportVersions
-        out.writeMap(Map.of(), StreamOutput::writeException);
+        if (out.getTransportVersion().before(TransportVersions.REMOVE_SNAPSHOT_FAILURES)) {
+            out.writeMap(Map.of(), StreamOutput::writeException);
+        }
         out.writeOptionalString(next);
         out.writeVInt(total);
         out.writeVInt(remaining);

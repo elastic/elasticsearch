@@ -109,6 +109,7 @@ public class FailureStoreSecurityRestIT extends SecurityOnTrialLicenseRestTestCa
 
         assertEmpty(performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/*1::data/_search")));
         assertEmpty(performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/*1/_search")));
+        // TODO is this correct?
         assertEmpty(performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/.ds*/_search")));
 
         // user with access to data index
@@ -126,8 +127,8 @@ public class FailureStoreSecurityRestIT extends SecurityOnTrialLicenseRestTestCa
         expectThrows403(() -> performRequest(DATA_ACCESS_USER, new Request("GET", "/test1::failures/_search")));
         expectThrows403(() -> performRequest(DATA_ACCESS_USER, new Request("GET", "/test2::failures/_search")));
         expectThrows403(() -> performRequest(DATA_ACCESS_USER, new Request("GET", "/" + failureIndexName + "/_search")));
-        // TODO this is inconsistent with failure user where we get an empty result for .ds* instead
-        expectThrows403(() -> performRequest(DATA_ACCESS_USER, new Request("GET", "/.fs*/_search")));
+        // TODO is this correct?
+        assertEmpty(performRequest(DATA_ACCESS_USER, new Request("GET", "/.fs*/_search")));
         assertEmpty(performRequest(DATA_ACCESS_USER, new Request("GET", "/*1::failures/_search")));
 
         // user with access to everything

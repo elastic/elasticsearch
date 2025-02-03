@@ -40,8 +40,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CachedSupplier;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.transport.TransportActionProxy;
@@ -109,7 +109,6 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.BiPredicate;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -871,37 +870,55 @@ public class RBACEngine implements AuthorizationEngine {
         // do not include data streams for actions that do not operate on data streams
         TransportRequest request = requestInfo.getRequest();
         final boolean includeDataStreams = (request instanceof IndicesRequest) && ((IndicesRequest) request).includeDataStreams();
-        return new AuthorizedIndices((selector) -> {
+        return new AuthorizedIndices(() -> {
             Consumer<Collection<String>> timeChecker = timerSupplier.get();
-            Set<String> indicesAndAliases = new HashSet<>();
+            Map<String, String> indicesAndAliasesWithSelectors = new HashMap<>();
             // TODO: can this be done smarter? I think there are usually more indices/aliases in the cluster then indices defined a roles?
             if (includeDataStreams) {
                 for (IndexAbstraction indexAbstraction : lookup.values()) {
-                    // TODO this is not great ...
-                    if ((indexAbstraction.isConcreteFailureIndexOfDataStream()
-                        && predicate.test(indexAbstraction.getParentDataStream(), IndexComponentSelector.FAILURES.getKey()))
-                        || predicate.test(indexAbstraction, selector)) {
-                        indicesAndAliases.add(indexAbstraction.getName());
-                        if (indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM) {
-                            // add data stream and its backing indices for any authorized data streams
+                    // TODO this can be cleaned up and optimized to avoid two full predicate checks
+                    final boolean dataAccess = predicate.test(indexAbstraction, IndexComponentSelector.DATA.getKey());
+                    final boolean failureAccess = predicate.test(indexAbstraction, IndexComponentSelector.FAILURES.getKey());
+                    if (indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM) {
+                        // add data stream and its backing indices for any authorized data streams
+                        if (dataAccess) {
                             for (Index index : indexAbstraction.getIndices()) {
-                                indicesAndAliases.add(index.getName());
+                                indicesAndAliasesWithSelectors.put(index.getName(), IndexComponentSelector.DATA.getKey());
                             }
+                        }
+                        if (failureAccess) {
                             for (Index index : ((DataStream) indexAbstraction).getFailureIndices()) {
-                                indicesAndAliases.add(index.getName());
+                                // failure indices are still accessed as "data"
+                                indicesAndAliasesWithSelectors.put(index.getName(), IndexComponentSelector.DATA.getKey());
                             }
                         }
                     }
+                    if (dataAccess || failureAccess) {
+                        if (dataAccess && failureAccess) {
+                            indicesAndAliasesWithSelectors.put(indexAbstraction.getName(), IndexComponentSelector.ALL_APPLICABLE.getKey());
+                        } else if (dataAccess) {
+                            indicesAndAliasesWithSelectors.put(indexAbstraction.getName(), IndexComponentSelector.DATA.getKey());
+                        } else {
+                            indicesAndAliasesWithSelectors.put(indexAbstraction.getName(), IndexComponentSelector.FAILURES.getKey());
+                        }
+                    }
+                    // TODO do we need this?
+                    // else if (indexAbstraction.isConcreteFailureIndexOfDataStream()
+                    // && predicate.test(indexAbstraction.getParentDataStream(), IndexComponentSelector.FAILURES.getKey())) {
+                    // indicesAndAliasesWithSelectors.put(indexAbstraction.getName(), IndexComponentSelector.DATA.getKey());
+                    // }
                 }
             } else {
+                // TODO do we still need to handle failure indices here?
                 for (IndexAbstraction indexAbstraction : lookup.values()) {
-                    if (indexAbstraction.getType() != IndexAbstraction.Type.DATA_STREAM && predicate.test(indexAbstraction)) {
-                        indicesAndAliases.add(indexAbstraction.getName());
+                    if (indexAbstraction.getType() != IndexAbstraction.Type.DATA_STREAM
+                        && predicate.test(indexAbstraction, IndexComponentSelector.DATA.getKey())) {
+                        indicesAndAliasesWithSelectors.put(indexAbstraction.getName(), IndexComponentSelector.DATA.getKey());
                     }
                 }
             }
-            timeChecker.accept(indicesAndAliases);
-            return indicesAndAliases;
+            timeChecker.accept(indicesAndAliasesWithSelectors.keySet());
+            return indicesAndAliasesWithSelectors;
         }, (name, selector) -> {
             final IndexAbstraction indexAbstraction = lookup.get(name);
             if (indexAbstraction == null) {
@@ -1041,26 +1058,26 @@ public class RBACEngine implements AuthorizationEngine {
 
     static final class AuthorizedIndices implements AuthorizationEngine.AuthorizedIndices {
 
-        // TODO results need to be cached
-        private final Function<String, Set<String>> allAuthorizedAndAvailableBySelector;
+        private final CachedSupplier<Map<String, String>> allAuthorizedAndAvailableWithSelectors;
         private final BiPredicate<String, String> isAuthorizedPredicate;
 
         AuthorizedIndices(
-            Function<String, Set<String>> allAuthorizedAndAvailableBySelector,
+            Supplier<Map<String, String>> allAuthorizedAndAvailableWithSelectors,
             BiPredicate<String, String> isAuthorizedPredicate
         ) {
-            this.allAuthorizedAndAvailableBySelector = allAuthorizedAndAvailableBySelector;
+            this.allAuthorizedAndAvailableWithSelectors = CachedSupplier.wrap(allAuthorizedAndAvailableWithSelectors);
             this.isAuthorizedPredicate = Objects.requireNonNull(isAuthorizedPredicate);
         }
 
+        // TODO remove me
         @Override
         public Supplier<Set<String>> all() {
-            return () -> all(null);
+            return () -> allAuthorizedAndAvailableWithSelectors.get().keySet();
         }
 
         @Override
-        public Set<String> all(@Nullable String selector) {
-            return allAuthorizedAndAvailableBySelector.apply(selector);
+        public Supplier<Map<String, String>> allWithSelectors() {
+            return allAuthorizedAndAvailableWithSelectors;
         }
 
         @Override

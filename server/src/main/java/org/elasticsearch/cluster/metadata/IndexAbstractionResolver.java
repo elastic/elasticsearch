@@ -20,9 +20,10 @@ import org.elasticsearch.indices.SystemIndices.SystemIndexAccessLevel;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.BiPredicate;
-import java.util.function.Function;
+import java.util.function.Supplier;
 
 public class IndexAbstractionResolver {
 
@@ -36,7 +37,7 @@ public class IndexAbstractionResolver {
         Iterable<String> indices,
         IndicesOptions indicesOptions,
         Metadata metadata,
-        Function<String, Set<String>> allAuthorizedAndAvailable,
+        Supplier<Map<String, String>> allAuthorizedAndAvailable,
         BiPredicate<String, String> isAuthorized,
         boolean includeDataStreams
     ) {
@@ -70,8 +71,12 @@ public class IndexAbstractionResolver {
             if (indicesOptions.expandWildcardExpressions() && Regex.isSimpleMatchPattern(indexAbstraction)) {
                 wildcardSeen = true;
                 Set<String> resolvedIndices = new HashSet<>();
-                for (String authorizedIndex : allAuthorizedAndAvailable.apply(selectorString)) {
-                    if (Regex.simpleMatch(indexAbstraction, authorizedIndex)
+                Map<String, String> indicesWithSelectors = allAuthorizedAndAvailable.get();
+                for (Map.Entry<String, String> authorizedIndexWithSelector : indicesWithSelectors.entrySet()) {
+                    String authorizedIndex = authorizedIndexWithSelector.getKey();
+                    String authorizedSelector = authorizedIndexWithSelector.getValue();
+                    if (selectorsMatch(authorizedSelector, selectorString)
+                        && Regex.simpleMatch(indexAbstraction, authorizedIndex)
                         && isIndexVisible(
                             indexAbstraction,
                             selectorString,
@@ -112,6 +117,22 @@ public class IndexAbstractionResolver {
             }
         }
         return finalIndices;
+    }
+
+    private static boolean selectorsMatch(@Nullable String authorizedSelectorString, @Nullable String selectorString) {
+        // TODO this can surely be simplified
+        if (authorizedSelectorString == null) {
+            return selectorString == null || IndexComponentSelector.DATA.getKey().equals(selectorString);
+        }
+        if (selectorString == null) {
+            return IndexComponentSelector.getByKey(authorizedSelectorString).shouldIncludeData();
+        }
+        final IndexComponentSelector authorizedSelector = IndexComponentSelector.getByKey(authorizedSelectorString);
+        final IndexComponentSelector selector = IndexComponentSelector.getByKey(selectorString);
+        if (authorizedSelector == IndexComponentSelector.ALL_APPLICABLE) {
+            return true;
+        }
+        return authorizedSelector == selector;
     }
 
     private static void resolveSelectorsAndCombine(

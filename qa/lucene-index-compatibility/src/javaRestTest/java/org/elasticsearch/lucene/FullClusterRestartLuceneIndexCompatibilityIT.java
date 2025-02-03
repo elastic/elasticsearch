@@ -404,7 +404,6 @@ public class FullClusterRestartLuceneIndexCompatibilityIT extends FullClusterRes
                 Settings.builder()
                     .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                     .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomInt(2))
-                    .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
                     .build()
             );
             indexDocs(index, numDocs);
@@ -414,7 +413,7 @@ public class FullClusterRestartLuceneIndexCompatibilityIT extends FullClusterRes
             String asyncId = searchAsyncAndStoreId(asyncSearchRequest, "n-2_id");
             ensureGreen(asyncSearchIndex);
 
-            checkRetrieveAsyncSearch(asyncId, numDocs);
+            assertAsyncSearchHitCount(asyncId, numDocs);
             assertBusy(() -> assertDocCountNoWarnings(client(), asyncSearchIndex, 1));
             assertThat(indexVersion(asyncSearchIndex, true), equalTo(VERSION_MINUS_2));
             return;
@@ -423,6 +422,7 @@ public class FullClusterRestartLuceneIndexCompatibilityIT extends FullClusterRes
         if (isFullyUpgradedTo(VERSION_MINUS_1)) {
             // check .async-search index is readable
             assertThat(indexVersion(asyncSearchIndex, true), equalTo(VERSION_MINUS_2));
+            assertAsyncSearchHitCount(async_search_ids.get("n-2_id"), numDocs);
 
             // migrate system indices
             Request migrateRequest = new Request("POST", "/_migration/system_features");
@@ -440,16 +440,16 @@ public class FullClusterRestartLuceneIndexCompatibilityIT extends FullClusterRes
                             .equals("IN_PROGRESS")
                     );
                 } catch (IOException e) {
-                    throw new RuntimeException(e);
+                    throw new AssertionError("System feature migration failed", e);
                 }
             });
 
             // check search results from n-2 search are still readable
-            checkRetrieveAsyncSearch(async_search_ids.get("n-2_id"), numDocs);
+            assertAsyncSearchHitCount(async_search_ids.get("n-2_id"), numDocs);
 
             // perform new async search and check its readable
             String asyncId = searchAsyncAndStoreId(asyncSearchRequest, "n-1_id");
-            checkRetrieveAsyncSearch(asyncId, numDocs);
+            assertAsyncSearchHitCount(asyncId, numDocs);
             assertBusy(() -> assertDocCountNoWarnings(client(), asyncSearchIndex, 2));
 
             // in order to move to current version we need write block for n-2 index
@@ -458,12 +458,12 @@ public class FullClusterRestartLuceneIndexCompatibilityIT extends FullClusterRes
 
         if (isFullyUpgradedTo(VERSION_CURRENT)) {
             assertThat(indexVersion(index, true), equalTo(VERSION_MINUS_2));
-            checkRetrieveAsyncSearch(async_search_ids.get("n-2_id"), numDocs);
-            checkRetrieveAsyncSearch(async_search_ids.get("n-1_id"), numDocs);
+            assertAsyncSearchHitCount(async_search_ids.get("n-2_id"), numDocs);
+            assertAsyncSearchHitCount(async_search_ids.get("n-1_id"), numDocs);
 
             // check system index is still writeable
             String asyncId = searchAsyncAndStoreId(asyncSearchRequest, "n_id");
-            checkRetrieveAsyncSearch(asyncId, numDocs);
+            assertAsyncSearchHitCount(asyncId, numDocs);
             assertBusy(() -> assertDocCountNoWarnings(client(), asyncSearchIndex, 3));
         }
 
@@ -477,7 +477,7 @@ public class FullClusterRestartLuceneIndexCompatibilityIT extends FullClusterRes
         return asyncId;
     }
 
-    private static void checkRetrieveAsyncSearch(String asyncId, int numDocs) throws IOException {
+    private static void assertAsyncSearchHitCount(String asyncId, int numDocs) throws IOException {
         var asyncGet = new Request("GET", "/_async_search/" + asyncId);
         ObjectPath resp = ObjectPath.createFromResponse(client().performRequest(asyncGet));
         assertEquals(Integer.valueOf(numDocs), resp.evaluate("response.hits.total.value"));

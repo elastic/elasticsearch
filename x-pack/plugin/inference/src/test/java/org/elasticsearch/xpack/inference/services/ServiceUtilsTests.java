@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsS
 import org.elasticsearch.xpack.inference.results.InferenceTextEmbeddingByteResultsTests;
 import org.elasticsearch.xpack.inference.results.TextEmbeddingResultsTests;
 
+import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
@@ -33,6 +34,7 @@ import java.util.Map;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.convertToUri;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUri;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalEnum;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalEnumSet;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveLong;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
@@ -724,6 +726,128 @@ public class ServiceUtilsTests extends ESTestCase {
         );
 
         assertThat(createdEnum, is(InputType.CLASSIFICATION));
+        assertTrue(validation.validationErrors().isEmpty());
+        assertTrue(map.isEmpty());
+    }
+
+    public void testExtractOptionalEnumSet_ReturnsNull_WhenFieldDoesNotExist() {
+        var validation = new ValidationException();
+        Map<String, Object> map = modifiableMap(Map.of("key", "value"));
+        var createdEnum = extractOptionalEnumSet(map, "abc", "scope", InputType::fromString, EnumSet.allOf(InputType.class), validation);
+
+        assertNull(createdEnum);
+        assertTrue(validation.validationErrors().isEmpty());
+        assertThat(map.size(), is(1));
+    }
+
+    public void testExtractOptionalEnumSet_ReturnsNullAndAddsException_WhenAnInvalidValueExists() {
+        var validation = new ValidationException();
+        Map<String, Object> map = modifiableMap(Map.of("key", List.of(InputType.INGEST.toString(), "invalid_value")));
+        var createdEnum = extractOptionalEnumSet(
+            map,
+            "key",
+            "scope",
+            InputType::fromString,
+            EnumSet.of(InputType.INGEST, InputType.SEARCH),
+            validation
+        );
+
+        assertNull(createdEnum);
+        assertFalse(validation.validationErrors().isEmpty());
+        assertTrue(map.isEmpty());
+        assertThat(
+            validation.validationErrors().get(0),
+            is("[scope] Invalid value [invalid_value] received. [key] must be one of [ingest, search]")
+        );
+    }
+
+    public void testExtractOptionalEnumSet_ReturnsNullAndAddsException_WhenValueIsNotList() {
+        var validation = new ValidationException();
+        Map<String, Object> map = modifiableMap(Map.of("key", InputType.INGEST.toString()));
+        var createdEnum = extractOptionalEnumSet(
+            map,
+            "key",
+            "scope",
+            InputType::fromString,
+            EnumSet.of(InputType.INGEST, InputType.SEARCH),
+            validation
+        );
+
+        assertNull(createdEnum);
+        assertFalse(validation.validationErrors().isEmpty());
+        assertTrue(map.isEmpty());
+        assertThat(
+            validation.validationErrors().get(0),
+            is("field [key] is not of the expected type. The value [ingest] cannot be converted to a [List]")
+        );
+    }
+
+    public void testExtractOptionalEnumSet_ReturnsNullAndAddsException_WhenOneListValueIsNotString() {
+        var validation = new ValidationException();
+        Map<String, Object> map = modifiableMap(Map.of("key", List.of(3, InputType.INGEST.toString())));
+        var createdEnum = extractOptionalEnumSet(
+            map,
+            "key",
+            "scope",
+            InputType::fromString,
+            EnumSet.of(InputType.INGEST, InputType.SEARCH),
+            validation
+        );
+
+        assertNull(createdEnum);
+        assertFalse(validation.validationErrors().isEmpty());
+        assertTrue(map.isEmpty());
+        assertThat(
+            validation.validationErrors().get(0),
+            is("field [key] is not of the expected type. The value [3] cannot be converted to a [String]")
+        );
+    }
+
+    public void testExtractOptionalEnumSet_ReturnsNullAndAddsException_WhenListIsEmpty() {
+        var validation = new ValidationException();
+        Map<String, Object> map = modifiableMap(Map.of("key", new ArrayList<>()));
+        var createdEnum = extractOptionalEnumSet(
+            map,
+            "key",
+            "scope",
+            InputType::fromString,
+            EnumSet.of(InputType.INGEST, InputType.SEARCH),
+            validation
+        );
+
+        assertNull(createdEnum);
+        assertFalse(validation.validationErrors().isEmpty());
+        assertTrue(map.isEmpty());
+        assertThat(
+            validation.validationErrors().get(0),
+            is("[scope] Invalid value empty list. [key] must be a non-empty list")
+        );
+    }
+
+    public void testExtractOptionalEnumSet_ReturnsNullAndAddsException_WhenValueIsNotPartOfTheAcceptableValues() {
+        var validation = new ValidationException();
+        Map<String, Object> map = modifiableMap(Map.of("key", List.of(InputType.INGEST.toString(), InputType.UNSPECIFIED.toString())));
+        var createdEnum = extractOptionalEnumSet(map, "key", "scope", InputType::fromString, EnumSet.of(InputType.INGEST), validation);
+
+        assertNull(createdEnum);
+        assertFalse(validation.validationErrors().isEmpty());
+        assertTrue(map.isEmpty());
+        assertThat(validation.validationErrors().get(0), is("[scope] Invalid value [unspecified] received. [key] must be one of [ingest]"));
+    }
+
+    public void testExtractOptionalEnumSet_ReturnsEnumSet_WhenValuesAreAcceptable() {
+        var validation = new ValidationException();
+        Map<String, Object> map = modifiableMap(Map.of("key", List.of(InputType.INGEST.toString(), InputType.SEARCH.toString())));
+        var createdEnumSet = extractOptionalEnumSet(
+            map,
+            "key",
+            "scope",
+            InputType::fromString,
+            EnumSet.allOf(InputType.class),
+            validation
+        );
+
+        assertThat(createdEnumSet, is(EnumSet.of(InputType.INGEST, InputType.SEARCH)));
         assertTrue(validation.validationErrors().isEmpty());
         assertTrue(map.isEmpty());
     }

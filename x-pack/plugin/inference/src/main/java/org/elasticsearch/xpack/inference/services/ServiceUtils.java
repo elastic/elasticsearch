@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.inference.services.settings.ApiKeySecrets;
 
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -73,7 +74,7 @@ public final class ServiceUtils {
 
     /**
      * Remove the object from the map and cast to the expected type.
-     * If the object cannot be cast to type and error is added to the
+     * If the object cannot be cast to type an error is added to the
      * {@code validationException} parameter
      *
      * @param sourceMap Map containing fields
@@ -94,6 +95,45 @@ public final class ServiceUtils {
             return (T) o;
         } else {
             validationException.addValidationError(invalidTypeErrorMsg(key, o, type.getSimpleName()));
+            return null;
+        }
+    }
+
+    /**
+     * Remove a list of objects from the map and cast each entry to the expected type.
+     * If the object cannot be cast to a List or any of the entries cannot be cast
+     * to the type an error is added to the {@code validationException} parameter
+     *
+     * @param sourceMap Map containing fields
+     * @param key The key of the object to remove
+     * @param type The expected type of each list item in the removed object
+     * @param validationException If the value is not of type {@code type}
+     * @return {@code null} if not present else the object cast to type List of type T
+     * @param <T> The expected type
+     */
+    @SuppressWarnings("unchecked")
+    public static <T> List<T> removeAsListOfType(
+        Map<String, Object> sourceMap,
+        String key,
+        Class<T> type,
+        ValidationException validationException
+    ) {
+        Object o = sourceMap.remove(key);
+        if (o == null) {
+            return null;
+        }
+
+        if (List.class.isAssignableFrom(o.getClass())) {
+            // check each list entry
+            for (Object listItem : (List) o) {
+                if (type.isAssignableFrom(listItem.getClass()) == false) {
+                    validationException.addValidationError(invalidTypeErrorMsg(key, listItem, type.getSimpleName()));
+                }
+            }
+
+            return (List<T>) o;
+        } else {
+            validationException.addValidationError(invalidTypeErrorMsg(key, o, List.class.getSimpleName()));
             return null;
         }
     }
@@ -254,6 +294,10 @@ public final class ServiceUtils {
         return Strings.format("[%s] Invalid value empty string. [%s] must be a non-empty string", scope, settingName);
     }
 
+    public static String mustBeNonEmptyList(String settingName, String scope) {
+        return Strings.format("[%s] Invalid value empty list. [%s] must be a non-empty list", scope, settingName);
+    }
+
     public static String invalidTimeValueMsg(String timeValueStr, String settingName, String scope, String exceptionMsg) {
         return Strings.format(
             "[%s] Invalid time value [%s]. [%s] must be a valid time value string: %s",
@@ -392,6 +436,31 @@ public final class ServiceUtils {
 
         if (optionalField != null && optionalField.isEmpty()) {
             validationException.addValidationError(ServiceUtils.mustBeNonEmptyString(settingName, scope));
+        }
+
+        if (validationException.validationErrors().size() > initialValidationErrorCount) {
+            return null;
+        }
+
+        return optionalField;
+    }
+
+    public static List<String> extractOptionalStringArray(
+        Map<String, Object> map,
+        String settingName,
+        String scope,
+        ValidationException validationException
+    ) {
+        int initialValidationErrorCount = validationException.validationErrors().size();
+        List<String> optionalField = ServiceUtils.removeAsListOfType(map, settingName, String.class, validationException);
+
+        if (validationException.validationErrors().size() > initialValidationErrorCount) {
+            // new validation error occurred
+            return null;
+        }
+
+        if (optionalField != null && optionalField.isEmpty()) {
+            validationException.addValidationError(ServiceUtils.mustBeNonEmptyList(settingName, scope));
         }
 
         if (validationException.validationErrors().size() > initialValidationErrorCount) {
@@ -609,6 +678,37 @@ public final class ServiceUtils {
         }
 
         return null;
+    }
+
+    public static <E extends Enum<E>> EnumSet<E> extractOptionalEnumSet(
+        Map<String, Object> map,
+        String settingName,
+        String scope,
+        EnumConstructor<E> constructor,
+        EnumSet<E> validValues,
+        ValidationException validationException
+    ) {
+        var enumStringArray = extractOptionalStringArray(map, settingName, scope, validationException);
+        if (enumStringArray == null) {
+            return null;
+        }
+
+        var createdEnums = new ArrayList<E>();
+        for (String enumString : enumStringArray) {
+            try {
+                var createdEnum = constructor.apply(enumString);
+                validateEnumValue(createdEnum, validValues);
+                createdEnums.add(createdEnum);
+            } catch (IllegalArgumentException e) {
+                var validValuesAsStrings = validValues.stream()
+                    .map(value -> value.toString().toLowerCase(Locale.ROOT))
+                    .toArray(String[]::new);
+                validationException.addValidationError(invalidValue(settingName, scope, enumString, validValuesAsStrings));
+                return null;
+            }
+        }
+
+        return EnumSet.copyOf(createdEnums);
     }
 
     public static Boolean extractOptionalBoolean(Map<String, Object> map, String settingName, ValidationException validationException) {

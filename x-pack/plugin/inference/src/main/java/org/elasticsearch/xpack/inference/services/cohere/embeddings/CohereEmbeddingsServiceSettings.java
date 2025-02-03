@@ -29,17 +29,20 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalEnum;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalEnumSet;
 
 public class CohereEmbeddingsServiceSettings extends FilteredXContentObject implements ServiceSettings {
     public static final String NAME = "cohere_embeddings_service_settings";
 
     static final String EMBEDDING_TYPE = "embedding_type";
 
+    static final String EMBEDDING_TYPES = "embedding_types";
+
     public static CohereEmbeddingsServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         ValidationException validationException = new ValidationException();
         var commonServiceSettings = CohereServiceSettings.fromMap(map, context);
 
-        CohereEmbeddingType embeddingTypes = parseEmbeddingType(map, context, validationException);
+        EnumSet<CohereEmbeddingType> embeddingTypes = parseEmbeddingTypes(map, context, validationException);
 
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;
@@ -48,23 +51,37 @@ public class CohereEmbeddingsServiceSettings extends FilteredXContentObject impl
         return new CohereEmbeddingsServiceSettings(commonServiceSettings, embeddingTypes);
     }
 
-    static CohereEmbeddingType parseEmbeddingType(
+    static EnumSet<CohereEmbeddingType> parseEmbeddingTypes(
         Map<String, Object> map,
         ConfigurationParseContext context,
         ValidationException validationException
     ) {
         return switch (context) {
-            case REQUEST -> Objects.requireNonNullElse(
-                extractOptionalEnum(
+            case REQUEST -> {
+                var embeddingType = extractOptionalEnum(
                     map,
                     EMBEDDING_TYPE,
                     ModelConfigurations.SERVICE_SETTINGS,
                     CohereEmbeddingType::fromString,
                     EnumSet.allOf(CohereEmbeddingType.class),
                     validationException
-                ),
-                CohereEmbeddingType.FLOAT
-            );
+                );
+
+                if (embeddingType == null) {
+                    yield Objects.requireNonNullElse(
+                        extractOptionalEnumSet(
+                            map,
+                            EMBEDDING_TYPES,
+                            ModelConfigurations.SERVICE_SETTINGS,
+                            CohereEmbeddingType::fromString,
+                            EnumSet.allOf(CohereEmbeddingType.class),
+                            validationException
+                        ), EnumSet.of(CohereEmbeddingType.FLOAT)
+                    );
+                } else {
+                    yield EnumSet.of(embeddingType);
+                }
+            }
             case PERSISTENT -> {
                 var embeddingType = ServiceUtils.extractOptionalString(
                     map,
@@ -108,11 +125,11 @@ public class CohereEmbeddingsServiceSettings extends FilteredXContentObject impl
     }
 
     private final CohereServiceSettings commonSettings;
-    private final CohereEmbeddingType embeddingType;
+    private final EnumSet<CohereEmbeddingType> embeddingTypes;
 
-    public CohereEmbeddingsServiceSettings(CohereServiceSettings commonSettings, CohereEmbeddingType embeddingType) {
+    public CohereEmbeddingsServiceSettings(CohereServiceSettings commonSettings, EnumSet<CohereEmbeddingType> embeddingTypes) {
         this.commonSettings = commonSettings;
-        this.embeddingType = Objects.requireNonNull(embeddingType);
+        this.embeddingTypes = Objects.requireNonNull(embeddingTypes);
     }
 
     public CohereEmbeddingsServiceSettings(StreamInput in) throws IOException {

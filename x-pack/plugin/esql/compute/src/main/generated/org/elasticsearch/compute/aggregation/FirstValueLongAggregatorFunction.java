@@ -9,9 +9,11 @@ import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
 import java.util.List;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
+import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
@@ -24,17 +26,16 @@ import org.elasticsearch.compute.operator.DriverContext;
  */
 public final class FirstValueLongAggregatorFunction implements AggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
-      new IntermediateStateDesc("first", ElementType.LONG),
-      new IntermediateStateDesc("seen", ElementType.BOOLEAN)  );
+      new IntermediateStateDesc("agg", ElementType.BYTES_REF)  );
 
   private final DriverContext driverContext;
 
-  private final LongState state;
+  private final FirstValueLongAggregator.FirstValueLongSingleState state;
 
   private final List<Integer> channels;
 
   public FirstValueLongAggregatorFunction(DriverContext driverContext, List<Integer> channels,
-      LongState state) {
+      FirstValueLongAggregator.FirstValueLongSingleState state) {
     this.driverContext = driverContext;
     this.channels = channels;
     this.state = state;
@@ -42,7 +43,7 @@ public final class FirstValueLongAggregatorFunction implements AggregatorFunctio
 
   public static FirstValueLongAggregatorFunction create(DriverContext driverContext,
       List<Integer> channels) {
-    return new FirstValueLongAggregatorFunction(driverContext, channels, new LongState(FirstValueLongAggregator.init()));
+    return new FirstValueLongAggregatorFunction(driverContext, channels, FirstValueLongAggregator.initSingle());
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -82,19 +83,17 @@ public final class FirstValueLongAggregatorFunction implements AggregatorFunctio
   }
 
   private void addRawVector(LongVector vector) {
-    state.seen(true);
     for (int i = 0; i < vector.getPositionCount(); i++) {
-      state.longValue(FirstValueLongAggregator.combine(state.longValue(), vector.getLong(i)));
+      FirstValueLongAggregator.combine(state, vector.getLong(i));
     }
   }
 
   private void addRawVector(LongVector vector, BooleanVector mask) {
-    state.seen(true);
     for (int i = 0; i < vector.getPositionCount(); i++) {
       if (mask.getBoolean(i) == false) {
         continue;
       }
-      state.longValue(FirstValueLongAggregator.combine(state.longValue(), vector.getLong(i)));
+      FirstValueLongAggregator.combine(state, vector.getLong(i));
     }
   }
 
@@ -103,11 +102,10 @@ public final class FirstValueLongAggregatorFunction implements AggregatorFunctio
       if (block.isNull(p)) {
         continue;
       }
-      state.seen(true);
       int start = block.getFirstValueIndex(p);
       int end = start + block.getValueCount(p);
       for (int i = start; i < end; i++) {
-        state.longValue(FirstValueLongAggregator.combine(state.longValue(), block.getLong(i)));
+        FirstValueLongAggregator.combine(state, block.getLong(i));
       }
     }
   }
@@ -120,11 +118,10 @@ public final class FirstValueLongAggregatorFunction implements AggregatorFunctio
       if (block.isNull(p)) {
         continue;
       }
-      state.seen(true);
       int start = block.getFirstValueIndex(p);
       int end = start + block.getValueCount(p);
       for (int i = start; i < end; i++) {
-        state.longValue(FirstValueLongAggregator.combine(state.longValue(), block.getLong(i)));
+        FirstValueLongAggregator.combine(state, block.getLong(i));
       }
     }
   }
@@ -133,22 +130,14 @@ public final class FirstValueLongAggregatorFunction implements AggregatorFunctio
   public void addIntermediateInput(Page page) {
     assert channels.size() == intermediateBlockCount();
     assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size();
-    Block firstUncast = page.getBlock(channels.get(0));
-    if (firstUncast.areAllValuesNull()) {
+    Block aggUncast = page.getBlock(channels.get(0));
+    if (aggUncast.areAllValuesNull()) {
       return;
     }
-    LongVector first = ((LongBlock) firstUncast).asVector();
-    assert first.getPositionCount() == 1;
-    Block seenUncast = page.getBlock(channels.get(1));
-    if (seenUncast.areAllValuesNull()) {
-      return;
-    }
-    BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
-    assert seen.getPositionCount() == 1;
-    if (seen.getBoolean(0)) {
-      state.longValue(FirstValueLongAggregator.combine(state.longValue(), first.getLong(0)));
-      state.seen(true);
-    }
+    BytesRefVector agg = ((BytesRefBlock) aggUncast).asVector();
+    assert agg.getPositionCount() == 1;
+    BytesRef scratch = new BytesRef();
+    FirstValueLongAggregator.combineIntermediate(state, agg.getBytesRef(0, scratch));
   }
 
   @Override
@@ -158,11 +147,7 @@ public final class FirstValueLongAggregatorFunction implements AggregatorFunctio
 
   @Override
   public void evaluateFinal(Block[] blocks, int offset, DriverContext driverContext) {
-    if (state.seen() == false) {
-      blocks[offset] = driverContext.blockFactory().newConstantNullBlock(1);
-      return;
-    }
-    blocks[offset] = driverContext.blockFactory().newConstantLongBlockWith(state.longValue(), 1);
+    blocks[offset] = FirstValueLongAggregator.evaluateFinal(state, driverContext);
   }
 
   @Override

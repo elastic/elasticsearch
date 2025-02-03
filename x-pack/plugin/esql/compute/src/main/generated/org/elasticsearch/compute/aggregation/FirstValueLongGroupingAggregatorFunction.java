@@ -9,9 +9,10 @@ import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
 import java.util.List;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BooleanBlock;
-import org.elasticsearch.compute.data.BooleanVector;
+import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
@@ -26,17 +27,16 @@ import org.elasticsearch.compute.operator.DriverContext;
  */
 public final class FirstValueLongGroupingAggregatorFunction implements GroupingAggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
-      new IntermediateStateDesc("first", ElementType.LONG),
-      new IntermediateStateDesc("seen", ElementType.BOOLEAN)  );
+      new IntermediateStateDesc("agg", ElementType.BYTES_REF)  );
 
-  private final LongArrayState state;
+  private final FirstValueLongAggregator.FirstValueLongGroupingState state;
 
   private final List<Integer> channels;
 
   private final DriverContext driverContext;
 
-  public FirstValueLongGroupingAggregatorFunction(List<Integer> channels, LongArrayState state,
-      DriverContext driverContext) {
+  public FirstValueLongGroupingAggregatorFunction(List<Integer> channels,
+      FirstValueLongAggregator.FirstValueLongGroupingState state, DriverContext driverContext) {
     this.channels = channels;
     this.state = state;
     this.driverContext = driverContext;
@@ -44,7 +44,7 @@ public final class FirstValueLongGroupingAggregatorFunction implements GroupingA
 
   public static FirstValueLongGroupingAggregatorFunction create(List<Integer> channels,
       DriverContext driverContext) {
-    return new FirstValueLongGroupingAggregatorFunction(channels, new LongArrayState(driverContext.bigArrays(), FirstValueLongAggregator.init()), driverContext);
+    return new FirstValueLongGroupingAggregatorFunction(channels, FirstValueLongAggregator.initGrouping(), driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -107,7 +107,7 @@ public final class FirstValueLongGroupingAggregatorFunction implements GroupingA
       int valuesStart = values.getFirstValueIndex(groupPosition + positionOffset);
       int valuesEnd = valuesStart + values.getValueCount(groupPosition + positionOffset);
       for (int v = valuesStart; v < valuesEnd; v++) {
-        state.set(groupId, FirstValueLongAggregator.combine(state.getOrDefault(groupId), values.getLong(v)));
+        FirstValueLongAggregator.combine(state, groupId, values.getLong(v));
       }
     }
   }
@@ -115,7 +115,7 @@ public final class FirstValueLongGroupingAggregatorFunction implements GroupingA
   private void addRawInput(int positionOffset, IntVector groups, LongVector values) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = groups.getInt(groupPosition);
-      state.set(groupId, FirstValueLongAggregator.combine(state.getOrDefault(groupId), values.getLong(groupPosition + positionOffset)));
+      FirstValueLongAggregator.combine(state, groupId, values.getLong(groupPosition + positionOffset));
     }
   }
 
@@ -134,7 +134,7 @@ public final class FirstValueLongGroupingAggregatorFunction implements GroupingA
         int valuesStart = values.getFirstValueIndex(groupPosition + positionOffset);
         int valuesEnd = valuesStart + values.getValueCount(groupPosition + positionOffset);
         for (int v = valuesStart; v < valuesEnd; v++) {
-          state.set(groupId, FirstValueLongAggregator.combine(state.getOrDefault(groupId), values.getLong(v)));
+          FirstValueLongAggregator.combine(state, groupId, values.getLong(v));
         }
       }
     }
@@ -149,7 +149,7 @@ public final class FirstValueLongGroupingAggregatorFunction implements GroupingA
       int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
-        state.set(groupId, FirstValueLongAggregator.combine(state.getOrDefault(groupId), values.getLong(groupPosition + positionOffset)));
+        FirstValueLongAggregator.combine(state, groupId, values.getLong(groupPosition + positionOffset));
       }
     }
   }
@@ -163,22 +163,15 @@ public final class FirstValueLongGroupingAggregatorFunction implements GroupingA
   public void addIntermediateInput(int positionOffset, IntVector groups, Page page) {
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
     assert channels.size() == intermediateBlockCount();
-    Block firstUncast = page.getBlock(channels.get(0));
-    if (firstUncast.areAllValuesNull()) {
+    Block aggUncast = page.getBlock(channels.get(0));
+    if (aggUncast.areAllValuesNull()) {
       return;
     }
-    LongVector first = ((LongBlock) firstUncast).asVector();
-    Block seenUncast = page.getBlock(channels.get(1));
-    if (seenUncast.areAllValuesNull()) {
-      return;
-    }
-    BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
-    assert first.getPositionCount() == seen.getPositionCount();
+    BytesRefVector agg = ((BytesRefBlock) aggUncast).asVector();
+    BytesRef scratch = new BytesRef();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = groups.getInt(groupPosition);
-      if (seen.getBoolean(groupPosition + positionOffset)) {
-        state.set(groupId, FirstValueLongAggregator.combine(state.getOrDefault(groupId), first.getLong(groupPosition + positionOffset)));
-      }
+      FirstValueLongAggregator.combineIntermediate(state, groupId, agg.getBytesRef(groupPosition + positionOffset, scratch));
     }
   }
 
@@ -187,11 +180,9 @@ public final class FirstValueLongGroupingAggregatorFunction implements GroupingA
     if (input.getClass() != getClass()) {
       throw new IllegalArgumentException("expected " + getClass() + "; got " + input.getClass());
     }
-    LongArrayState inState = ((FirstValueLongGroupingAggregatorFunction) input).state;
+    FirstValueLongAggregator.FirstValueLongGroupingState inState = ((FirstValueLongGroupingAggregatorFunction) input).state;
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
-    if (inState.hasValue(position)) {
-      state.set(groupId, FirstValueLongAggregator.combine(state.getOrDefault(groupId), inState.get(position)));
-    }
+    FirstValueLongAggregator.combineStates(state, groupId, inState, position);
   }
 
   @Override
@@ -202,7 +193,7 @@ public final class FirstValueLongGroupingAggregatorFunction implements GroupingA
   @Override
   public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
       DriverContext driverContext) {
-    blocks[offset] = state.toValuesBlock(selected, driverContext);
+    blocks[offset] = FirstValueLongAggregator.evaluateFinal(state, selected, driverContext);
   }
 
   @Override

@@ -318,3 +318,74 @@ height:double | salary:integer                      | type:keyword | pvalue:doub
 2.09          | 38645                               | null         | null                
 2.1           | [43906, 28336, 62233, 31897, 66817] | null         | null                
 ;
+
+
+too much data (change inside limit)
+required_capability: change_point
+
+ROW key1=["A","B","C","D","E","F","G","H","I","J","K","L","M"], 
+    key2=["0","1","2","3","4","5","6","7","8","9"], 
+    key3=["0","1","2","3","4","5","6","7","8","9"]
+  | MV_EXPAND key1
+  | MV_EXPAND key2
+  | MV_EXPAND key3
+  | EVAL key=CONCAT(key1,key2,key3)
+  | EVAL value=CASE(key >= "I42", 1000, 1)
+  | KEEP key, value
+  | CHANGE_POINT value ON key AS type, pvalue
+  | WHERE type IS NOT NULL
+;
+
+warning:Line 10:3: warnings during evaluation of [CHANGE_POINT value ON key AS type, pvalue]. Only first 20 failures recorded.
+warning:Line 10:3: java.lang.IllegalArgumentException: too many values; keeping only first 1000 values
+
+key:keyword | value:integer | type:keyword | pvalue:double
+I42         | 1000          | step_change  | 0.0          
+;
+
+
+too much data (change outside limit)
+required_capability: change_point
+
+ROW key1=["A","B","C","D","E","F","G","H","I","J","K","L","M"], 
+    key2=["0","1","2","3","4","5","6","7","8","9"], 
+    key3=["0","1","2","3","4","5","6","7","8","9"]
+  | MV_EXPAND key1
+  | MV_EXPAND key2
+  | MV_EXPAND key3
+  | EVAL key=CONCAT(key1,key2,key3)
+  | EVAL value=CASE(key >= "L42", 1000, 1)
+  | KEEP key, value
+  | CHANGE_POINT value ON key AS type, pvalue
+  | WHERE type IS NOT NULL
+;
+
+warning:Line 10:3: warnings during evaluation of [CHANGE_POINT value ON key AS type, pvalue]. Only first 20 failures recorded.
+warning:Line 10:3: java.lang.IllegalArgumentException: too many values; keeping only first 1000 values
+
+key:keyword | value:integer | type:keyword | pvalue:double
+;
+
+
+too much data (assert output size)
+required_capability: change_point
+
+ROW key1=["A","B","C","D","E","F","G","H","I","J","K","L","M"], 
+    key2=["0","1","2","3","4","5","6","7","8","9"], 
+    key3=["0","1","2","3","4","5","6","7","8","9"]
+  | MV_EXPAND key1
+  | MV_EXPAND key2
+  | MV_EXPAND key3
+  | EVAL key=CONCAT(key1,key2,key3)
+  | EVAL value=CASE(key >= "I42", 1000, 1)
+  | KEEP key, value
+  | CHANGE_POINT value ON key AS type, pvalue
+  | STATS count=COUNT()
+;
+
+warning:Line 10:3: warnings during evaluation of [CHANGE_POINT value ON key AS type, pvalue]. Only first 20 failures recorded.
+warning:Line 10:3: java.lang.IllegalArgumentException: too many values; keeping only first 1000 values
+
+count:LONG
+1000      
+;

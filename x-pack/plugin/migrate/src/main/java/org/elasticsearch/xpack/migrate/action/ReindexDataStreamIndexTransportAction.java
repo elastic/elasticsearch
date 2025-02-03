@@ -290,7 +290,7 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
                     )
                 );
             }
-            if (bulkByScrollResponse.getBulkFailures().isEmpty() == false) {
+            else if (bulkByScrollResponse.getBulkFailures().isEmpty() == false) {
                 BulkItemResponse.Failure firstBulkFailure = bulkByScrollResponse.getBulkFailures().get(0);
                 listener.onFailure(
                     new ElasticsearchException(

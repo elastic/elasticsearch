@@ -290,13 +290,17 @@ public interface AuthorizationEngine {
          * Returns all the index-like resource names that are available and accessible for an action type by a user,
          * at a fixed point in time (for a single cluster state view).
          */
-        Supplier<Set<String>> all();
+        // TODO remove me
+        default Supplier<Set<String>> allLegacy() {
+            return () -> all().get().keySet();
+        }
 
-        Supplier<Map<String, String>> allWithSelectors();
+        Supplier<Map<String, String>> all();
 
         /**
          * Checks if an index-like resource name is authorized, for an action by a user. The resource might or might not exist.
          */
+        // TODO remove me
         default boolean check(String name) {
             return check(name, null);
         }

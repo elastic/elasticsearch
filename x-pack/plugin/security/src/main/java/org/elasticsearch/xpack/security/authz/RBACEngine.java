@@ -1071,12 +1071,12 @@ public class RBACEngine implements AuthorizationEngine {
 
         // TODO remove me
         @Override
-        public Supplier<Set<String>> all() {
+        public Supplier<Set<String>> allLegacy() {
             return () -> allAuthorizedAndAvailableWithSelectors.get().keySet();
         }
 
         @Override
-        public Supplier<Map<String, String>> allWithSelectors() {
+        public Supplier<Map<String, String>> all() {
             return allAuthorizedAndAvailableWithSelectors;
         }
 

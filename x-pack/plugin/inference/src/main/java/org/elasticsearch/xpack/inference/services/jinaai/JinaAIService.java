@@ -25,6 +25,7 @@ import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.inference.chunking.EmbeddingRequestChunker;
@@ -49,6 +50,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSIONS;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.parsePersistedConfigErrorMsg;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMap;
@@ -338,6 +340,33 @@ public class JinaAIService extends SenderService {
         private static final LazyInitializable<InferenceServiceConfiguration, RuntimeException> configuration = new LazyInitializable<>(
             () -> {
                 var configurationMap = new HashMap<String, SettingsConfiguration>();
+
+                configurationMap.put(
+                    JinaAIServiceSettings.MODEL_ID,
+                    new SettingsConfiguration.Builder(supportedTaskTypes).setDescription(
+                        "The name of the model to use for the inference task."
+                    )
+                        .setLabel("Model ID")
+                        .setRequired(true)
+                        .setSensitive(false)
+                        .setUpdatable(false)
+                        .setType(SettingsConfigurationFieldType.STRING)
+                        .build()
+                );
+
+                configurationMap.put(
+                    DIMENSIONS,
+                    new SettingsConfiguration.Builder(EnumSet.of(TaskType.TEXT_EMBEDDING)).setDescription(
+                        "The number of dimensions the resulting embeddings should have. For more information refer to "
+                            + "https://api.jina.ai/redoc#tag/embeddings/operation/create_embedding_v1_embeddings_post."
+                    )
+                        .setLabel("Dimensions")
+                        .setRequired(false)
+                        .setSensitive(false)
+                        .setUpdatable(false)
+                        .setType(SettingsConfigurationFieldType.INTEGER)
+                        .build()
+                );
 
                 configurationMap.putAll(DefaultSecretSettings.toSettingsConfiguration(supportedTaskTypes));
                 configurationMap.putAll(RateLimitSettings.toSettingsConfiguration(supportedTaskTypes));

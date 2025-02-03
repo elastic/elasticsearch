@@ -11,8 +11,6 @@ package org.elasticsearch.lucene;
 
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.test.cluster.util.Version;
 
@@ -184,7 +182,6 @@ public class FullClusterRestartLuceneIndexCompatibilityIT extends FullClusterRes
                 Settings.builder()
                     .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                     .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomInt(2))
-                    .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), randomFrom(Translog.Durability.values()))
                     .build()
             );
             indexDocs(index, numDocs);

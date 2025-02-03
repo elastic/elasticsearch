@@ -247,3 +247,74 @@ warning:Line 6:3: java.lang.IllegalArgumentException: values contain nulls; trea
 2024-05-10T00:21:00.000Z | 104        | null         | null
 2024-05-10T00:22:00.000Z | 109        | null         | null
 ;
+
+
+multivalued
+required_capability: change_point
+
+FROM employees
+  | STATS salary=VALUES(salary) BY height
+  | EVAL salary = CASE(height == 1.5, [1, 22222, 33333], salary)
+  | EVAL salary = CASE(height == 1.63, [43210, -10000, 999999999], salary)
+  | CHANGE_POINT salary ON height
+;
+
+warning:Line 5:3: warnings during evaluation of [CHANGE_POINT salary ON height]. Only first 20 failures recorded.
+warning:Line 5:3: java.lang.IllegalArgumentException: values is multivalued; keeping only first elements
+
+height:double | salary:integer                      | type:keyword | pvalue:double       
+1.41          | 40031                               | null         | null                
+1.42          | [29175, 39110]                      | null         | null                
+1.44          | [30404, 50128]                      | null         | null                
+1.45          | 49095                               | null         | null                
+1.46          | 39878                               | null         | null                
+1.47          | 60408                               | null         | null                
+1.48          | 44307                               | null         | null                
+1.5           | [1, 22222, 33333]                   | dip          | 6.483898939160238E-4
+1.51          | 28035                               | null         | null                
+1.52          | [34341, 50064, 42716, 37853]        | null         | null                
+1.53          | [73851, 35222, 71165]               | null         | null                
+1.54          | 61358                               | null         | null                
+1.55          | [36051, 37702]                      | null         | null                
+1.56          | 60335                               | null         | null                
+1.57          | [33370, 43602]                      | null         | null                
+1.58          | [54462, 28941]                      | null         | null                
+1.59          | [27215, 50249, 32263]               | null         | null                
+1.61          | [60781, 49818]                      | null         | null                
+1.63          | [43210, -10000, 999999999]          | null         | null                
+1.64          | 38992                               | null         | null                
+1.66          | [25324, 32568]                      | null         | null                
+1.68          | [37716, 46595]                      | null         | null                
+1.69          | 45656                               | null         | null                
+1.7           | [74572, 45797, 74970, 65030]        | null         | null                
+1.74          | [58715, 68547, 32272]               | null         | null                
+1.75          | [47896, 56415, 25976]               | null         | null                
+1.77          | [52044, 41933, 54329, 68431]        | null         | null                
+1.78          | [36174, 52121]                      | null         | null                
+1.79          | 55360                               | null         | null                
+1.8           | 52833                               | null         | null                
+1.81          | [25945, 69904, 73578]               | null         | null                
+1.82          | [48233, 65367, 54518]               | null         | null                
+1.83          | [61805, 38376, 62405]               | null         | null                
+1.85          | 66174                               | null         | null                
+1.87          | 47411                               | null         | null                
+1.89          | 58121                               | null         | null                
+1.9           | 37112                               | null         | null                
+1.91          | 39638                               | null         | null                
+1.92          | 67492                               | null         | null                
+1.93          | 33956                               | null         | null                
+1.94          | [48735, 51956, 43889]               | null         | null                
+1.96          | 43026                               | null         | null                
+1.97          | [48942, 56760]                      | null         | null                
+1.99          | [37137, 74999]                      | null         | null                
+2.0           | [37691, 26436, 44817]               | null         | null                
+2.01          | 35742                               | null         | null                
+2.03          | [57305, 44956]                      | null         | null                
+2.04          | 49281                               | null         | null                
+2.05          | 63528                               | null         | null                
+2.06          | [73717, 39728]                      | null         | null                
+2.07          | [39356, 40612]                      | null         | null                
+2.08          | [56371, 64675]                      | null         | null                
+2.09          | 38645                               | null         | null                
+2.1           | [43906, 28336, 62233, 31897, 66817] | null         | null                
+;

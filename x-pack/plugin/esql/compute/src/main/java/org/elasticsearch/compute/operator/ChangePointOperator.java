@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.ml.aggs.changepoint.ChangeType;
 
 import java.util.Deque;
 import java.util.LinkedList;
+import java.util.List;
 
 /**
  * Find spikes, dips and change point in a list of values.
@@ -115,6 +116,7 @@ public class ChangePointOperator implements Operator {
         double[] values = new double[valuesCount];
         int valuesIndex = 0;
         boolean hasNulls = false;
+        boolean hasMultivalued = false;
         for (Page inputPage : inputPages) {
             Block inputBlock = inputPage.getBlock(channel);
             for (int i = 0; i < inputBlock.getPositionCount() && valuesIndex < valuesCount; i++) {
@@ -122,6 +124,9 @@ public class ChangePointOperator implements Operator {
                 if (value == null) {
                     hasNulls = true;
                     values[valuesIndex++] = 0;
+                } else if (value instanceof List<?> list) {
+                    hasMultivalued = true;
+                    values[valuesIndex++] = ((Number) list.getFirst()).doubleValue();
                 } else {
                     values[valuesIndex++] = ((Number) value).doubleValue();
                 }
@@ -185,6 +190,9 @@ public class ChangePointOperator implements Operator {
         }
         if (hasNulls) {
             warnings(true).registerException(new IllegalArgumentException("values contain nulls; treating them as zeroes"));
+        }
+        if (hasMultivalued) {
+            warnings(true).registerException(new IllegalArgumentException("values is multivalued; keeping only first elements"));
         }
     }
 

@@ -261,18 +261,12 @@ tests:
 - class: org.elasticsearch.datastreams.DataStreamsClientYamlTestSuiteIT
   method: test {p0=data_stream/140_data_stream_aliases/Create data stream alias with filter}
   issue: https://github.com/elastic/elasticsearch/issues/121014
-- class: org.elasticsearch.xpack.security.authc.service.ServiceAccountSingleNodeTests
-  method: testAuthenticateWithServiceFileToken
-  issue: https://github.com/elastic/elasticsearch/issues/120988
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=nodes.stats/11_indices_metrics/indices mappings exact count test for indices level}
   issue: https://github.com/elastic/elasticsearch/issues/120950
 - class: org.elasticsearch.xpack.shutdown.AllocationFailuresResetOnShutdownIT
   method: testResetAllocationFailuresOnNodeShutdown
   issue: https://github.com/elastic/elasticsearch/issues/121129
-- class: org.elasticsearch.xpack.security.authc.jwt.JwtRealmSingleNodeTests
-  method: testActivateProfileForJWT
-  issue: https://github.com/elastic/elasticsearch/issues/120983
 - class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
   method: test {yaml=cluster.health/20_request_timeout/cluster health request timeout waiting for active shards}
   issue: https://github.com/elastic/elasticsearch/issues/121130
@@ -367,21 +361,12 @@ tests:
 - class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackIT
   method: testLookupExplosionBigStringManyMatches
   issue: https://github.com/elastic/elasticsearch/issues/121465
-- class: org.elasticsearch.xpack.security.authc.jwt.JwtRealmSingleNodeTests
-  method: testClientSecretRotation
-  issue: https://github.com/elastic/elasticsearch/issues/120985
-- class: org.elasticsearch.xpack.security.authc.jwt.JwtRealmSingleNodeTests
-  method: testGrantApiKeyForJWT
-  issue: https://github.com/elastic/elasticsearch/issues/121039
 - class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
   method: test {yaml=cluster.health/10_basic/cluster health basic test}
   issue: https://github.com/elastic/elasticsearch/issues/121478
 - class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackIT
   method: testLookupExplosionManyMatches
   issue: https://github.com/elastic/elasticsearch/issues/121481
-- class: org.elasticsearch.xpack.security.profile.ProfileIntegTests
-  method: testGetUsersWithProfileUid
-  issue: https://github.com/elastic/elasticsearch/issues/121483
 - class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
   method: test {yaml=cat.aliases/10_basic/Empty cluster}
   issue: https://github.com/elastic/elasticsearch/issues/121484

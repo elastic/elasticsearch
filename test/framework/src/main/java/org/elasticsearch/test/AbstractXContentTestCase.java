@@ -145,21 +145,8 @@ public abstract class AbstractXContentTestCase<T extends ToXContent> extends EST
         public void test() throws IOException {
             for (int runs = 0; runs < numberOfTestRuns; runs++) {
                 XContentType xContentType = randomFrom(XContentType.values()).canonical();
-                T testInstance = null;
+                T testInstance = instanceSupplier.apply(xContentType);
                 try {
-                    if (xContentType.equals(XContentType.YAML)) {
-                        testInstance = randomValueOtherThanMany(instance -> {
-                            // unicode character U+0085 (NEXT LINE (NEL)) doesn't survive YAML round trip tests (see #97716)
-                            // get a new random instance if we detect this character in the xContent output
-                            try {
-                                return toXContent.apply(instance, xContentType).utf8ToString().contains("\u0085");
-                            } catch (IOException e) {
-                                throw new RuntimeException(e);
-                            }
-                        }, () -> instanceSupplier.apply(xContentType));
-                    } else {
-                        testInstance = instanceSupplier.apply(xContentType);
-                    }
                     BytesReference originalXContent = toXContent.apply(testInstance, xContentType);
                     BytesReference shuffledContent = insertRandomFieldsAndShuffle(
                         originalXContent,
@@ -186,9 +173,7 @@ public abstract class AbstractXContentTestCase<T extends ToXContent> extends EST
                         dispose.accept(parsed);
                     }
                 } finally {
-                    if (testInstance != null) {
-                        dispose.accept(testInstance);
-                    }
+                    dispose.accept(testInstance);
                 }
             }
         }

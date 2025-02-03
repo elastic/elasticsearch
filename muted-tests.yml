@@ -46,9 +46,6 @@ tests:
 - class: org.elasticsearch.packaging.test.WindowsServiceTests
   method: test81JavaOptsInJvmOptions
   issue: https://github.com/elastic/elasticsearch/issues/113313
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=mtermvectors/10_basic/Tests catching other exceptions per item}
-  issue: https://github.com/elastic/elasticsearch/issues/113325
 - class: org.elasticsearch.xpack.transform.integration.TransformIT
   method: testStopWaitForCheckpoint
   issue: https://github.com/elastic/elasticsearch/issues/106113
@@ -411,15 +408,6 @@ tests:
 - class: org.elasticsearch.xpack.transform.checkpoint.TransformCCSCanMatchIT
   method: testTransformLifecycle_RangeQueryThatMatchesNoShards
   issue: https://github.com/elastic/elasticsearch/issues/121480
-- class: org.elasticsearch.xpack.esql.action.CrossClusterAsyncQueryIT
-  method: testStopQueryLocal
-  issue: https://github.com/elastic/elasticsearch/issues/121487
-- class: org.elasticsearch.xpack.esql.action.CrossClusterAsyncQueryIT
-  method: testSuccessfulPathways
-  issue: https://github.com/elastic/elasticsearch/issues/121488
-- class: org.elasticsearch.xpack.esql.action.CrossClusterAsyncQueryIT
-  method: testAsyncQueriesWithLimit0
-  issue: https://github.com/elastic/elasticsearch/issues/121489
 - class: org.elasticsearch.xpack.security.profile.ProfileIntegTests
   method: testSuggestProfilesWithHint
   issue: https://github.com/elastic/elasticsearch/issues/121116

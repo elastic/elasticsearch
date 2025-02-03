@@ -130,7 +130,7 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                         cluster.connection,
                         ComputeService.CLUSTER_ACTION_NAME,
                         clusterRequest,
-                        rootTask,
+                        listenerGroup.getGroupTask(),
                         TransportRequestOptions.EMPTY,
                         new ActionListenerResponseHandler<>(clusterListener, ComputeResponse::new, esqlExecutor)
                     );

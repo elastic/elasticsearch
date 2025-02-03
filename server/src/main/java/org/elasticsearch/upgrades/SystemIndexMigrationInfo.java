@@ -259,10 +259,17 @@ class SystemIndexMigrationInfo implements Comparable<SystemIndexMigrationInfo> {
     ) {
         return feature.getIndexDescriptors()
             .stream()
-            .flatMap(descriptor -> descriptor.getMatchingIndices(metadata).stream().map(metadata.getProject()::index).filter(imd -> {
-                assert imd != null : "got null IndexMetadata for index in system index descriptor [" + descriptor.getIndexPattern() + "]";
-                return Objects.nonNull(imd);
-            }).map(imd -> SystemIndexMigrationInfo.build(imd, descriptor, feature, indexScopedSettings)));
+            .flatMap(
+                descriptor -> descriptor.getMatchingIndices(metadata.getDefaultProject())
+                    .stream()
+                    .map(metadata.getProject()::index)
+                    .filter(imd -> {
+                        assert imd != null
+                            : "got null IndexMetadata for index in system index descriptor [" + descriptor.getIndexPattern() + "]";
+                        return Objects.nonNull(imd);
+                    })
+                    .map(imd -> SystemIndexMigrationInfo.build(imd, descriptor, feature, indexScopedSettings))
+            );
     }
 
     static SystemIndexMigrationInfo fromTaskState(

@@ -11,6 +11,7 @@ package org.elasticsearch.entitlement.runtime.policy;
 
 import org.elasticsearch.entitlement.runtime.policy.entitlements.FileEntitlement;
 
+import java.io.File;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -27,11 +28,11 @@ public final class FileAccessTree {
         List<String> readPaths = new ArrayList<>();
         List<String> writePaths = new ArrayList<>();
         for (FileEntitlement fileEntitlement : fileEntitlements) {
-            var mode = fileEntitlement.mode();
-            if (mode == FileEntitlement.Mode.READ_WRITE) {
-                writePaths.add(fileEntitlement.path());
+            String path = normalizedPath(fileEntitlement);
+            if (fileEntitlement.mode() == FileEntitlement.Mode.READ_WRITE) {
+                writePaths.add(path);
             }
-            readPaths.add(fileEntitlement.path());
+            readPaths.add(path);
         }
 
         readPaths.sort(String::compareTo);
@@ -53,8 +54,12 @@ public final class FileAccessTree {
         return checkPath(normalize(path), writePaths);
     }
 
+    private static String normalizedPath(FileEntitlement fileEntitlement) {
+        return normalize(new File(fileEntitlement.path()).toPath());
+    }
+
     private static String normalize(Path path) {
-        return path.toAbsolutePath().normalize().toString();
+        return path.toAbsolutePath().normalize().toString().replace('\\', '/');
     }
 
     private static boolean checkPath(String path, String[] paths) {

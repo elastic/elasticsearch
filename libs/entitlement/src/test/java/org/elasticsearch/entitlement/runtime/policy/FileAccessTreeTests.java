@@ -87,6 +87,17 @@ public class FileAccessTreeTests extends ESTestCase {
         assertThat(tree.canRead(path("")), is(false));
     }
 
+    public void testSlashesAreInterchangeable() {
+        var tree = FileAccessTree.of(List.of(entitlement("a/b", "read"), entitlement("m\\n", "read")));
+        assertThat(tree.canRead(path("a/b")), is(true));
+        assertThat(tree.canRead(path("a\\b")), is(true));
+        assertThat(tree.canRead(path("m/n")), is(true));
+        assertThat(tree.canRead(path("m\\n")), is(true));
+
+        // Backslash shouldn't be treated as an escape
+        assertThat(tree.canRead(path("m\n")), is(false));
+    }
+
     FileEntitlement entitlement(String path, String mode) {
         Path p = path(path);
         return new FileEntitlement(p.toString(), mode);

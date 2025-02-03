@@ -32,7 +32,7 @@ public class ArrayOffsetContextTests extends ESTestCase {
 
         var binaryDocValues = parserContext.doc().getField("field");
         int[] offsetToOrd = parseOffsetArray(new ByteArrayStreamInput(binaryDocValues.binaryValue().bytes));
-        assertArrayEquals(new int[]{0, 0, 1, 2, 0, 1}, offsetToOrd);
+        assertArrayEquals(new int[] { 0, 0, 1, 2, 0, 1 }, offsetToOrd);
     }
 
     public void testOffsetsWithNull() throws IOException {
@@ -49,7 +49,7 @@ public class ArrayOffsetContextTests extends ESTestCase {
 
         var binaryDocValues = parserContext.doc().getField("field");
         int[] offsetToOrd = parseOffsetArray(new ByteArrayStreamInput(binaryDocValues.binaryValue().bytes));
-        assertArrayEquals(new int[]{-1, 0, 1, 2, -1, 1}, offsetToOrd);
+        assertArrayEquals(new int[] { -1, 0, 1, 2, -1, 1 }, offsetToOrd);
     }
 
     public void testEmptyOffset() throws IOException {
@@ -61,7 +61,7 @@ public class ArrayOffsetContextTests extends ESTestCase {
 
         var binaryDocValues = parserContext.doc().getField("field");
         int[] offsetToOrd = parseOffsetArray(new ByteArrayStreamInput(binaryDocValues.binaryValue().bytes));
-        assertArrayEquals(new int[]{}, offsetToOrd);
+        assertArrayEquals(new int[] {}, offsetToOrd);
     }
 
 }

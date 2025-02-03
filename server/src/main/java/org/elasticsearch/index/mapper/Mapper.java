@@ -217,6 +217,5 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
         return false;
     }
 
-    public void handleEmptyArray(DocumentParserContext context) {
-    }
+    public void handleEmptyArray(DocumentParserContext context) {}
 }

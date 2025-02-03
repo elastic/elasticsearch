@@ -191,9 +191,6 @@ tests:
 - class: org.elasticsearch.reservedstate.service.FileSettingsServiceTests
   method: testProcessFileChanges
   issue: https://github.com/elastic/elasticsearch/issues/115280
-- class: org.elasticsearch.xpack.inference.InferenceCrudIT
-  method: testSupportedStream
-  issue: https://github.com/elastic/elasticsearch/issues/113430
 - class: org.elasticsearch.xpack.spatial.search.GeoGridAggAndQueryConsistencyIT
   method: testGeoShapeGeoHash
   issue: https://github.com/elastic/elasticsearch/issues/115664
@@ -400,9 +397,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
   method: test {date_nanos.Bucket Date nanos by 10 minutes}
   issue: https://github.com/elastic/elasticsearch/issues/120162
-- class: org.elasticsearch.xpack.inference.InferenceCrudIT
-  method: testGetServicesWithCompletionTaskType
-  issue: https://github.com/elastic/elasticsearch/issues/119959
 - class: org.elasticsearch.search.basic.SearchWithRandomIOExceptionsIT
   method: testRandomDirectoryIOExceptions
   issue: https://github.com/elastic/elasticsearch/issues/118733
@@ -507,3 +501,23 @@ tests:
 - class: org.elasticsearch.xpack.security.profile.ProfileIntegTests
   method: testSuggestProfileWithData
   issue: https://github.com/elastic/elasticsearch/issues/121258
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=search.vectors/42_knn_search_int4_flat/Vector similarity with filter only}
+  issue: https://github.com/elastic/elasticsearch/issues/121412
+- class: org.elasticsearch.xpack.inference.common.InferenceServiceNodeLocalRateLimitCalculatorTests
+  issue: https://github.com/elastic/elasticsearch/issues/121294
+- class: org.elasticsearch.xpack.inference.action.TransportInferenceActionTests
+  method: testRerouting_HandlesTransportException_FromOtherNode
+  issue: https://github.com/elastic/elasticsearch/issues/121292
+- class: org.elasticsearch.xpack.inference.action.TransportInferenceActionTests
+  method: testRerouting_ToOtherNode
+  issue: https://github.com/elastic/elasticsearch/issues/121293
+- class: org.elasticsearch.xpack.ml.integration.ClassificationIT
+  method: testStopAndRestart
+  issue: https://github.com/elastic/elasticsearch/issues/121433
+- class: org.elasticsearch.xpack.ml.integration.ClassificationIT
+  method: testDependentVariableIsNested
+  issue: https://github.com/elastic/elasticsearch/issues/121458
+- class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
+  method: test {p0=search.vectors/42_knn_search_int4_flat/Vector similarity with filter only}
+  issue: https://github.com/elastic/elasticsearch/issues/121475

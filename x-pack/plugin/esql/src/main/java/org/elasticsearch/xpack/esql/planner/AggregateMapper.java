@@ -254,23 +254,13 @@ final class AggregateMapper {
 
     /** Determines the engines agg class name, for the given class, type, and grouping. */
     private static String determineAggName(Class<?> clazz, String type, String extra, boolean grouping) {
-        StringBuilder sb = new StringBuilder();
-        sb.append(determinePackageName(clazz)).append(".");
-        sb.append(clazz.getSimpleName());
-        sb.append(type);
-        sb.append(extra);
-        sb.append(grouping ? "Grouping" : "");
-        sb.append("AggregatorFunction");
-        return sb.toString();
-    }
-
-    /** Determines the engine agg package name, for the given class. */
-    private static String determinePackageName(Class<?> clazz) {
-        if (clazz.getSimpleName().startsWith("Spatial")) {
-            // All spatial aggs are in the spatial sub-package
-            return "org.elasticsearch.compute.aggregation.spatial";
-        }
-        return "org.elasticsearch.compute.aggregation";
+        return "org.elasticsearch.compute.aggregation."
+            + (clazz.getSimpleName().startsWith("Spatial") ? "spatial." : "")
+            + clazz.getSimpleName()
+            + type
+            + extra
+            + (grouping ? "Grouping" : "")
+            + "AggregatorFunction";
     }
 
     /** Maps intermediate state description to named expressions.  */

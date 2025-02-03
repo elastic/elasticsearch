@@ -878,7 +878,7 @@ public class RBACEngine implements AuthorizationEngine {
             if (includeDataStreams) {
                 for (IndexAbstraction indexAbstraction : lookup.values()) {
                     // TODO this is not great ...
-                    if ((indexAbstraction.isDataStreamConcreteFailureIndex()
+                    if ((indexAbstraction.isConcreteFailureIndexOfDataStream()
                         && predicate.test(indexAbstraction.getParentDataStream(), IndexComponentSelector.FAILURES.getKey()))
                         || predicate.test(indexAbstraction, selector)) {
                         indicesAndAliases.add(indexAbstraction.getName());

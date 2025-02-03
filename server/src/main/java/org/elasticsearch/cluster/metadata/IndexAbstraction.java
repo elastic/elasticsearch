@@ -100,7 +100,7 @@ public interface IndexAbstraction {
         return false;
     }
 
-    default boolean isDataStreamConcreteFailureIndex() {
+    default boolean isConcreteFailureIndexOfDataStream() {
         return false;
     }
 
@@ -198,7 +198,7 @@ public interface IndexAbstraction {
         }
 
         @Override
-        public boolean isDataStreamConcreteFailureIndex() {
+        public boolean isConcreteFailureIndexOfDataStream() {
             return getParentDataStream() != null && getParentDataStream().isFailureStoreIndex(getName());
         }
 

@@ -11,7 +11,7 @@
 For the most up-to-date API details, refer to {api-es}/group/endpoint-security[Security APIs].
 --
 
-Retrieves the <<security-privileges,security privileges>> for the logged in
+Retrieves the <<security-privileges,security privileges>> for the logged in 
 user.
 
 [[security-api-get-user-privileges-request]]
@@ -22,7 +22,7 @@ user.
 [[security-api-get-user-privileges-prereqs]]
 ==== {api-prereq-title}
 
-* All users can use this API, but only to determine their own privileges. To
+* All users can use this API, but only to determine their own privileges. To 
 check the privileges of other users, you must use the run as feature. For
 more information, see <<run-as-privilege>>.
 
@@ -52,15 +52,6 @@ GET /_security/user/_privileges
     {
       "names" : [
         "*"
-      ],
-      "privileges" : [
-        "all"
-      ],
-      "allow_restricted_indices" : true
-    },
-    {
-      "names" : [
-        "*::failures"
       ],
       "privileges" : [
         "all"

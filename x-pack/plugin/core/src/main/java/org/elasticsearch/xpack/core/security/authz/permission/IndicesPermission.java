@@ -463,10 +463,10 @@ public final class IndicesPermission {
             if (ds != null) {
                 if (group.checkIndex(ds.getName())) {
                     // TODO is this right?
-                    if (indexAbstraction.isDataStreamConcreteFailureIndex()) {
-                        return group.checkSelector(IndexComponentSelector.FAILURES);
-                    }
-                    return group.checkSelector(selector);
+                    final IndexComponentSelector selectorToCheck = indexAbstraction.isConcreteFailureIndexOfDataStream()
+                        ? IndexComponentSelector.FAILURES
+                        : selector;
+                    return group.checkSelector(selectorToCheck);
                 }
             }
             if (indexAbstraction != null && indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM) {

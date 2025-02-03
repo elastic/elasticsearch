@@ -79,6 +79,7 @@ List projects = [
   'distribution:bwc:maintenance',
   'distribution:bwc:minor',
   'distribution:bwc:staged',
+  'distribution:bwc:staged2',
   'distribution:bwc:main',
   'distribution:tools:java-version-checker',
   'distribution:tools:cli-launcher',

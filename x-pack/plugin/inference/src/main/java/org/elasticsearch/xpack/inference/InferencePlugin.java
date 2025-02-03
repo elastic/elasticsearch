@@ -336,7 +336,6 @@ public class InferencePlugin extends Plugin
 
         // Add binding for interface -> implementation
         components.add(new PluginComponentBinding<>(InferenceServiceRateLimitCalculator.class, calculator));
-        components.add(calculator);
 
         return components;
     }

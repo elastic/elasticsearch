@@ -171,8 +171,8 @@ public class TransportVersions {
     public static final TransportVersion LINEAR_RETRIEVER_SUPPORT = def(8_837_00_0);
     public static final TransportVersion TIMEOUT_GET_PARAM_FOR_RESOLVE_CLUSTER = def(8_838_00_0);
     public static final TransportVersion INFERENCE_REQUEST_ADAPTIVE_RATE_LIMITING = def(8_839_00_0);
-    public static final TransportVersion INFERENCE_MODEL_REGISTRY_METADATA = def(8_840_00_0);
-
+    public static final TransportVersion ML_INFERENCE_IBM_WATSONX_RERANK_ADDED = def(8_840_00_0);
+    public static final TransportVersion INFERENCE_MODEL_REGISTRY_METADATA = def(8_850_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

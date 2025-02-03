@@ -106,7 +106,6 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testWhereMatchWithScoring() {
-        assumeTrue("'METADATA _score' is disabled", EsqlCapabilities.Cap.METADATA_SCORE.isEnabled());
         var query = """
             FROM test
             METADATA _score
@@ -123,7 +122,6 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testWhereMatchWithScoringDifferentSort() {
-        assumeTrue("'METADATA _score' is disabled", EsqlCapabilities.Cap.METADATA_SCORE.isEnabled());
         var query = """
             FROM test
             METADATA _score
@@ -140,7 +138,6 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testWhereMatchWithScoringNoSort() {
-        assumeTrue("'METADATA _score' is disabled", EsqlCapabilities.Cap.METADATA_SCORE.isEnabled());
         var query = """
             FROM test
             METADATA _score

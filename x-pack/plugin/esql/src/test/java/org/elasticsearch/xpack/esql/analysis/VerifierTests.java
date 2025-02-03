@@ -2003,6 +2003,19 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
+    public void testChangePoint() {
+        var airports = AnalyzerTestUtils.analyzer(loadMapping("mapping-airports.json", "airports"));
+        assertEquals(
+            "1:17: change point key [location] must be sortable",
+            error("FROM airports | CHANGE_POINT scalerank ON location", airports)
+        );
+        assertEquals(
+            "1:17: change point value [location] must be numeric",
+            error("FROM airports | CHANGE_POINT location ON scalerank", airports)
+        );
+
+    }
+
     public void testSortByAggregate() {
         assertEquals("1:18: Aggregate functions are not allowed in SORT [COUNT]", error("ROW a = 1 | SORT count(*)"));
         assertEquals("1:28: Aggregate functions are not allowed in SORT [COUNT]", error("ROW a = 1 | SORT to_string(count(*))"));

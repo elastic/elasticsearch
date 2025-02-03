@@ -10,6 +10,8 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.operator.ChangePointOperator;
+import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
+import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
@@ -28,7 +30,9 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-public class ChangePoint extends UnaryPlan implements GeneratingPlan<ChangePoint>, SurrogateLogicalPlan {
+import static org.elasticsearch.xpack.esql.common.Failure.fail;
+
+public class ChangePoint extends UnaryPlan implements GeneratingPlan<ChangePoint>, SurrogateLogicalPlan, PostAnalysisVerificationAware {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         LogicalPlan.class,
@@ -167,6 +171,10 @@ public class ChangePoint extends UnaryPlan implements GeneratingPlan<ChangePoint
             && Objects.equals(targetPvalue, other.targetPvalue);
     }
 
+    private Order order() {
+        return new Order(source(), key, Order.OrderDirection.ASC, Order.NullsPosition.ANY);
+    }
+
     @Override
     public LogicalPlan surrogate() {
         // ChangePoint should always run on the coordinating node after the data is collected
@@ -174,8 +182,7 @@ public class ChangePoint extends UnaryPlan implements GeneratingPlan<ChangePoint
         // Furthermore, ChangePoint should be called with at most 1000 data points. That's
         // enforced by the Limits here. The first Limit of N+1 data points is necessary to
         // generate a possible warning, the second Limit of N is to truncate the output.
-        Order order = new Order(source(), key, Order.OrderDirection.ASC, Order.NullsPosition.ANY);
-        OrderBy orderBy = new OrderBy(source(), child(), List.of(order));
+        OrderBy orderBy = new OrderBy(source(), child(), List.of(order()));
         Limit limit = new Limit(
             source(),
             new Literal(Source.EMPTY, ChangePointOperator.INPUT_VALUE_COUNT_LIMIT + 1, DataType.INTEGER),
@@ -183,5 +190,18 @@ public class ChangePoint extends UnaryPlan implements GeneratingPlan<ChangePoint
         );
         ChangePoint changePoint = new ChangePoint(source(), limit, value, key, targetType, targetPvalue);
         return new Limit(source(), new Literal(Source.EMPTY, ChangePointOperator.INPUT_VALUE_COUNT_LIMIT, DataType.INTEGER), changePoint);
+    }
+
+    @Override
+    public void postAnalysisVerification(Failures failures) {
+        // Key must be sortable
+        Order order = order();
+        if (DataType.isSortable(order.dataType()) == false) {
+            failures.add(fail(this, "change point key [" + key.name() + "] must be sortable"));
+        }
+        // Value must be a number
+        if (value.dataType().isNumeric() == false) {
+            failures.add(fail(this, "change point value [" + value.name() + "] must be numeric"));
+        }
     }
 }

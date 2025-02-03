@@ -13,6 +13,7 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchResponseUtils;
@@ -20,6 +21,7 @@ import org.elasticsearch.search.SearchResponseUtils;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -33,6 +35,7 @@ public class FailureStoreSecurityRestIT extends SecurityOnTrialLicenseRestTestCa
     private static final String FAILURE_STORE_ACCESS_USER = "failure_store_access_user";
     private static final SecureString PASSWORD = new SecureString("elastic-password");
 
+    @SuppressWarnings("unchecked")
     public void testFailureStoreAccess() throws IOException {
         String dataAccessRole = "data_access";
         String failureStoreAccessRole = "failure_store_access";
@@ -54,11 +57,26 @@ public class FailureStoreSecurityRestIT extends SecurityOnTrialLicenseRestTestCa
             }"""), failureStoreAccessRole);
 
         createTemplates();
-        List<String> ids = populateDataStreamWithBulkRequest();
-        assertThat(ids.size(), equalTo(2));
-        assertThat(ids, hasItem("1"));
+        List<String> docIds = populateDataStreamWithBulkRequest();
+        assertThat(docIds.size(), equalTo(2));
+        assertThat(docIds, hasItem("1"));
         String successDocId = "1";
-        String failedDocId = ids.stream().filter(id -> false == id.equals(successDocId)).findFirst().get();
+        String failedDocId = docIds.stream().filter(id -> false == id.equals(successDocId)).findFirst().get();
+
+        Request dataStream = new Request("GET", "/_data_stream/test1");
+        Response response = adminClient().performRequest(dataStream);
+        Map<String, Object> dataStreams = entityAsMap(response);
+        assertEquals(Collections.singletonList("test1"), XContentMapValues.extractValue("data_streams.name", dataStreams));
+        List<String> dataIndexNames = (List<String>) XContentMapValues.extractValue("data_streams.indices.index_name", dataStreams);
+        assertThat(dataIndexNames.size(), equalTo(1));
+        List<String> failureIndexNames = (List<String>) XContentMapValues.extractValue(
+            "data_streams.failure_store.indices.index_name",
+            dataStreams
+        );
+        assertThat(failureIndexNames.size(), equalTo(1));
+
+        String dataIndexName = dataIndexNames.get(0);
+        String failureIndexName = failureIndexNames.get(0);
 
         // user with access to failures index
         assertContainsDocIds(performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/test1::failures/_search")), failedDocId);
@@ -66,6 +84,10 @@ public class FailureStoreSecurityRestIT extends SecurityOnTrialLicenseRestTestCa
         assertContainsDocIds(performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/*1::failures/_search")), failedDocId);
         assertContainsDocIds(performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/*::failures/_search")), failedDocId);
         assertContainsDocIds(performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/.fs*/_search")), failedDocId);
+        assertContainsDocIds(
+            performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/" + failureIndexName + "/_search")),
+            failedDocId
+        );
 
         expectThrows404(() -> performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/test12::failures/_search")));
         expectThrows404(() -> performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/test2::failures/_search")));
@@ -75,6 +97,7 @@ public class FailureStoreSecurityRestIT extends SecurityOnTrialLicenseRestTestCa
         expectThrows403(() -> performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/test1/_search")));
         expectThrows403(() -> performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/test2::data/_search")));
         expectThrows403(() -> performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/test2/_search")));
+        expectThrows403(() -> performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/" + dataIndexName + "/_search")));
 
         // empty result
         assertEmpty(performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/*1::data/_search")));

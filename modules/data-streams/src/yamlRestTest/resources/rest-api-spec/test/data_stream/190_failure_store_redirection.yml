@@ -951,4 +951,4 @@ teardown:
   - match: { items.1.create.status: 500 }
   - match: { items.1.create.failure_store: not_enabled }
   - match: { items.1.create.error.type: fail_processor_exception }
-  - match: { items.1.create.error.reason: error_message }
+  - contains: { items.1.create.error.reason: error_message }

@@ -55,6 +55,23 @@ public class SemanticInferenceMetadataFieldsMapperTests extends MapperServiceTes
         assertTrue(InferenceMetadataFieldsMapper.isEnabled(settings));
     }
 
+    public void testIsEnabledByDefault() {
+        // Check index version SOURCE_MAPPER_MODE_ATTRIBUTE_NOOP because that index version was added in the same serverless promotion
+        // where the new format was enabled by default
+        var settings = Settings.builder()
+            .put(
+                IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(),
+                IndexVersionUtils.getPreviousVersion(IndexVersions.SOURCE_MAPPER_MODE_ATTRIBUTE_NOOP)
+            )
+            .build();
+        assertFalse(InferenceMetadataFieldsMapper.isEnabled(settings));
+
+        settings = Settings.builder()
+            .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), IndexVersions.SOURCE_MAPPER_MODE_ATTRIBUTE_NOOP)
+            .build();
+        assertTrue(InferenceMetadataFieldsMapper.isEnabled(settings));
+    }
+
     @Override
     public void testFieldHasValue() {
         assertTrue(

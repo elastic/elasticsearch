@@ -172,6 +172,286 @@ height:double | salary:double      | type:keyword | pvalue:double
 ;
 
 
+no stats command
+required_capability: change_point
+
+FROM employees
+  | KEEP emp_no, salary
+  | CHANGE_POINT salary ON emp_no AS type, pvalue
+;
+
+emp_no:integer | salary:integer | type:keyword | pvalue:double
+10001          | 57305          | null         | null         
+10002          | 56371          | null         | null         
+10003          | 61805          | null         | null         
+10004          | 36174          | null         | null         
+10005          | 63528          | null         | null         
+10006          | 60335          | null         | null         
+10007          | 74572          | null         | null         
+10008          | 43906          | null         | null         
+10009          | 66174          | null         | null         
+10010          | 45797          | null         | null         
+10011          | 31120          | null         | null         
+10012          | 48942          | null         | null         
+10013          | 48735          | null         | null         
+10014          | 37137          | null         | null         
+10015          | 25324          | null         | null         
+10016          | 61358          | null         | null         
+10017          | 58715          | null         | null         
+10018          | 56760          | null         | null         
+10019          | 73717          | null         | null         
+10020          | 40031          | null         | null         
+10021          | 60408          | null         | null         
+10022          | 48233          | null         | null         
+10023          | 47896          | null         | null         
+10024          | 64675          | null         | null         
+10025          | 47411          | null         | null         
+10026          | 28336          | null         | null         
+10027          | 73851          | null         | null         
+10028          | 39356          | null         | null         
+10029          | 74999          | null         | null         
+10030          | 67492          | null         | null         
+10031          | 37716          | null         | null         
+10032          | 62233          | null         | null         
+10033          | 70011          | null         | null         
+10034          | 39878          | null         | null         
+10035          | 25945          | null         | null         
+10036          | 60781          | null         | null         
+10037          | 37691          | null         | null         
+10038          | 35222          | null         | null         
+10039          | 36051          | null         | null         
+10040          | 37112          | null         | null         
+10041          | 56415          | null         | null         
+10042          | 30404          | null         | null         
+10043          | 34341          | null         | null         
+10044          | 39728          | null         | null         
+10045          | 74970          | null         | null         
+10046          | 50064          | null         | null         
+10047          | 42716          | null         | null         
+10048          | 26436          | null         | null         
+10049          | 37853          | null         | null         
+10050          | 43026          | null         | null         
+10051          | 58121          | null         | null         
+10052          | 55360          | null         | null         
+10053          | 54462          | null         | null         
+10054          | 65367          | null         | null         
+10055          | 49281          | null         | null         
+10056          | 33370          | null         | null         
+10057          | 27215          | null         | null         
+10058          | 38376          | null         | null         
+10059          | 44307          | null         | null         
+10060          | 29175          | null         | null         
+10061          | 49095          | null         | null         
+10062          | 65030          | null         | null         
+10063          | 52121          | null         | null         
+10064          | 33956          | null         | null         
+10065          | 50249          | null         | null         
+10066          | 31897          | null         | null         
+10067          | 52044          | null         | null         
+10068          | 28941          | null         | null         
+10069          | 41933          | null         | null         
+10070          | 54329          | null         | null         
+10071          | 40612          | null         | null         
+10072          | 54518          | null         | null         
+10073          | 32568          | null         | null         
+10074          | 38992          | null         | null         
+10075          | 51956          | null         | null         
+10076          | 62405          | null         | null         
+10077          | 46595          | null         | null         
+10078          | 69904          | null         | null         
+10079          | 32263          | null         | null         
+10080          | 52833          | null         | null         
+10081          | 50128          | null         | null         
+10082          | 49818          | null         | null         
+10083          | 39110          | null         | null         
+10084          | 28035          | null         | null         
+10085          | 35742          | null         | null         
+10086          | 68547          | null         | null         
+10087          | 32272          | null         | null         
+10088          | 39638          | null         | null         
+10089          | 43602          | null         | null         
+10090          | 44956          | null         | null         
+10091          | 38645          | null         | null         
+10092          | 25976          | null         | null         
+10093          | 45656          | null         | null         
+10094          | 66817          | null         | null         
+10095          | 37702          | null         | null         
+10096          | 43889          | null         | null         
+10097          | 71165          | null         | null         
+10098          | 44817          | null         | null         
+10099          | 73578          | null         | null         
+10100          | 68431          | null         | null
+;
+
+
+where before change point
+required_capability: change_point
+
+FROM employees
+  | KEEP emp_no, salary
+  | EVAL salary = CASE(emp_no==10022, 100000, salary)
+  | EVAL salary = CASE(emp_no==10033, 1000000, salary)
+  | WHERE emp_no < 10025
+  | CHANGE_POINT salary ON emp_no AS type, pvalue
+;
+
+emp_no:integer | salary:integer | type:keyword | pvalue:double
+10001          | 57305          | null         | null                 
+10002          | 56371          | null         | null                 
+10003          | 61805          | null         | null                 
+10004          | 36174          | null         | null                 
+10005          | 63528          | null         | null                 
+10006          | 60335          | null         | null                 
+10007          | 74572          | null         | null                 
+10008          | 43906          | null         | null                 
+10009          | 66174          | null         | null                 
+10010          | 45797          | null         | null                 
+10011          | 31120          | null         | null                 
+10012          | 48942          | null         | null                 
+10013          | 48735          | null         | null                 
+10014          | 37137          | null         | null                 
+10015          | 25324          | null         | null                 
+10016          | 61358          | null         | null                 
+10017          | 58715          | null         | null                 
+10018          | 56760          | null         | null                 
+10019          | 73717          | null         | null                 
+10020          | 40031          | null         | null                 
+10021          | 60408          | null         | null                 
+10022          | 100000         | spike        | 0.0019710754505321004
+10023          | 47896          | null         | null                 
+10024          | 64675          | null         | null        
+;
+
+
+where after change point
+required_capability: change_point
+
+FROM employees
+  | KEEP emp_no, salary
+  | EVAL salary = CASE(emp_no==10022, 100000, salary)
+  | EVAL salary = CASE(emp_no==10033, 1000000, salary)
+  | CHANGE_POINT salary ON emp_no AS type, pvalue
+  | WHERE emp_no < 10025
+;
+
+emp_no:integer | salary:integer | type:keyword | pvalue:double
+10001          | 57305          | null         | null                 
+10002          | 56371          | null         | null                 
+10003          | 61805          | null         | null                 
+10004          | 36174          | null         | null                 
+10005          | 63528          | null         | null                 
+10006          | 60335          | null         | null                 
+10007          | 74572          | null         | null                 
+10008          | 43906          | null         | null                 
+10009          | 66174          | null         | null                 
+10010          | 45797          | null         | null                 
+10011          | 31120          | null         | null                 
+10012          | 48942          | null         | null                 
+10013          | 48735          | null         | null                 
+10014          | 37137          | null         | null                 
+10015          | 25324          | null         | null                 
+10016          | 61358          | null         | null                 
+10017          | 58715          | null         | null                 
+10018          | 56760          | null         | null                 
+10019          | 73717          | null         | null                 
+10020          | 40031          | null         | null                 
+10021          | 60408          | null         | null                 
+10022          | 100000         | null         | null
+10023          | 47896          | null         | null                 
+10024          | 64675          | null         | null        
+;
+
+
+stats after change point
+required_capability: change_point
+
+FROM employees
+  | KEEP emp_no, salary
+  | EVAL salary=CASE(emp_no==10042, 1000000, salary)
+  | CHANGE_POINT salary ON emp_no
+  | STATS COUNT() by type
+  | SORT type
+;
+
+COUNT():long | type:keyword
+1            | spike
+99           | null
+;
+
+
+sort/limit before change point
+required_capability: change_point
+
+FROM k8s
+  | STATS count=COUNT() BY @timestamp=BUCKET(@timestamp, 1 MINUTE)
+  | SORT count, @timestamp
+  | LIMIT 22
+  | CHANGE_POINT count AS type, pvalue
+;
+
+count:long | @timestamp:datetime      | type:keyword | pvalue:double
+4          | 2024-05-10T00:00:00.000Z | null         | null         
+4          | 2024-05-10T00:01:00.000Z | null         | null         
+8          | 2024-05-10T00:02:00.000Z | null         | null         
+8          | 2024-05-10T00:03:00.000Z | null         | null         
+5          | 2024-05-10T00:04:00.000Z | null         | null         
+8          | 2024-05-10T00:05:00.000Z | null         | null         
+10         | 2024-05-10T00:06:00.000Z | null         | null         
+5          | 2024-05-10T00:07:00.000Z | null         | null         
+12         | 2024-05-10T00:08:00.000Z | null         | null         
+5          | 2024-05-10T00:10:00.000Z | null         | null         
+7          | 2024-05-10T00:11:00.000Z | null         | null         
+8          | 2024-05-10T00:12:00.000Z | null         | null         
+9          | 2024-05-10T00:13:00.000Z | null         | null         
+9          | 2024-05-10T00:14:00.000Z | null         | null         
+11         | 2024-05-10T00:15:00.000Z | null         | null         
+7          | 2024-05-10T00:16:00.000Z | null         | null         
+15         | 2024-05-10T00:17:00.000Z | null         | null         
+17         | 2024-05-10T00:18:00.000Z | null         | null         
+5          | 2024-05-10T00:19:00.000Z | null         | null         
+10         | 2024-05-10T00:20:00.000Z | null         | null         
+4          | 2024-05-10T00:21:00.000Z | null         | null         
+9          | 2024-05-10T00:22:00.000Z | null         | null   
+;
+
+
+sort after change point
+required_capability: change_point
+
+FROM k8s
+  | STATS count=COUNT() BY @timestamp=BUCKET(@timestamp, 1 MINUTE)
+  | EVAL count=count+CASE(@timestamp>="2024-05-10T00:11:00.000Z", 100, 0)
+  | CHANGE_POINT count AS type, pvalue
+  | SORT type, count, @timestamp
+;
+
+@timestamp:datetime      | count:long | type:keyword | pvalue:double
+2024-05-10T00:11:00.000Z | 107        | step_change  | 3.0924162021968114E-23
+2024-05-10T00:00:00.000Z | 4          | null         | null                  
+2024-05-10T00:01:00.000Z | 4          | null         | null                  
+2024-05-10T00:04:00.000Z | 5          | null         | null                  
+2024-05-10T00:07:00.000Z | 5          | null         | null                  
+2024-05-10T00:10:00.000Z | 5          | null         | null                  
+2024-05-10T00:02:00.000Z | 8          | null         | null                  
+2024-05-10T00:03:00.000Z | 8          | null         | null                  
+2024-05-10T00:05:00.000Z | 8          | null         | null                  
+2024-05-10T00:06:00.000Z | 10         | null         | null                  
+2024-05-10T00:08:00.000Z | 12         | null         | null                  
+2024-05-10T00:09:00.000Z | 20         | null         | null                  
+2024-05-10T00:21:00.000Z | 104        | null         | null                  
+2024-05-10T00:19:00.000Z | 105        | null         | null                  
+2024-05-10T00:16:00.000Z | 107        | null         | null                  
+2024-05-10T00:12:00.000Z | 108        | null         | null                  
+2024-05-10T00:13:00.000Z | 109        | null         | null                  
+2024-05-10T00:14:00.000Z | 109        | null         | null                  
+2024-05-10T00:22:00.000Z | 109        | null         | null                  
+2024-05-10T00:20:00.000Z | 110        | null         | null                  
+2024-05-10T00:15:00.000Z | 111        | null         | null                  
+2024-05-10T00:17:00.000Z | 115        | null         | null                  
+2024-05-10T00:18:00.000Z | 117        | null         | null                  
+;
+
+
 reuse column names
 required_capability: change_point
 
@@ -388,4 +668,42 @@ warning:Line 10:3: java.lang.IllegalArgumentException: too many values; keeping 
 
 count:LONG
 1000      
+;
+
+
+detect trend_change (using row)
+required_capability: change_point
+
+ROW time = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25]
+  | MV_EXPAND time
+  | EVAL val = ABS(15-time)
+  | CHANGE_POINT val ON time
+;
+
+time:integer | val:integer | type:keyword | pvalue:double
+1            | 14          | null         | null                   
+2            | 13          | null         | null                   
+3            | 12          | null         | null                   
+4            | 11          | null         | null                   
+5            | 10          | null         | null                   
+6            | 9           | null         | null                   
+7            | 8           | null         | null                   
+8            | 7           | null         | null                   
+9            | 6           | null         | null                   
+10           | 5           | null         | null                   
+11           | 4           | null         | null                   
+12           | 3           | null         | null                   
+13           | 2           | null         | null                   
+14           | 1           | null         | null                   
+15           | 0           | trend_change | 1.2352704486638883E-112
+16           | 1           | null         | null                   
+17           | 2           | null         | null                   
+18           | 3           | null         | null                   
+19           | 4           | null         | null                   
+20           | 5           | null         | null                   
+21           | 6           | null         | null                   
+22           | 7           | null         | null                   
+23           | 8           | null         | null                   
+24           | 9           | null         | null                   
+25           | 10          | null         | null               
 ;

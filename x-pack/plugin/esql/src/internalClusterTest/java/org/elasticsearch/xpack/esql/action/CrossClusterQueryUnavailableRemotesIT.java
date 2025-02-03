@@ -251,7 +251,7 @@ public class CrossClusterQueryUnavailableRemotesIT extends AbstractCrossClusterT
                 assertThat(remoteCluster.getFailedShards(), equalTo(0));
 
                 // ensure that the _clusters metadata is present only if requested
-                assertClusterMetadataInResponse(resp, responseExpectMeta, numClusters);
+                assertClusterMetadataInResponse(resp, responseExpectMeta, 1);
             }
 
             // close remote cluster 2 so that it is also unavailable
@@ -304,7 +304,7 @@ public class CrossClusterQueryUnavailableRemotesIT extends AbstractCrossClusterT
                 assertThat(remote2Cluster.getFailedShards(), equalTo(0));
 
                 // ensure that the _clusters metadata is present only if requested
-                assertClusterMetadataInResponse(resp, responseExpectMeta, numClusters);
+                assertClusterMetadataInResponse(resp, responseExpectMeta, 2);
             }
 
         } finally {

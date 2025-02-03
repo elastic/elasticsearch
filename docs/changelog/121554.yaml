@@ -1,0 +1,6 @@
+pr: 121554
+summary: Do not set source index to verified read-only as will be ignored by future
+  runs
+area: Data streams
+type: bug
+issues: []

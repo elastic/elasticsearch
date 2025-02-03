@@ -7,18 +7,23 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.entitlement.runtime.policy;
+package org.elasticsearch.entitlement.qa.test;
 
-import java.util.List;
-import java.util.Set;
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
 
-/**
- * An Entitlement to allow writing properties such as system properties.
- */
-public record WriteSystemPropertiesEntitlement(Set<String> properties) implements Entitlement {
-
-    @ExternalEntitlement(parameterNames = { "properties" }, esModulesOnly = false)
-    public WriteSystemPropertiesEntitlement(List<String> properties) {
-        this(Set.copyOf(properties));
+@Target(ElementType.METHOD)
+@Retention(RetentionPolicy.RUNTIME)
+public @interface EntitlementTest {
+    enum ExpectedAccess {
+        PLUGINS,
+        ES_MODULES_ONLY,
+        ALWAYS_DENIED
     }
+
+    ExpectedAccess expectedAccess();
+
+    int fromJavaVersion() default -1;
 }

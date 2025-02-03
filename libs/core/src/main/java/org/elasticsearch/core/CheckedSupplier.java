@@ -7,9 +7,12 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.entitlement.runtime.policy;
+package org.elasticsearch.core;
 
-public record CreateClassLoaderEntitlement() implements Entitlement {
-    @ExternalEntitlement
-    public CreateClassLoaderEntitlement {}
+/**
+ * A {@link java.util.function.Supplier}-like interface which allows throwing checked exceptions.
+ */
+@FunctionalInterface
+public interface CheckedSupplier<T, E extends Exception> {
+    T get() throws E;
 }

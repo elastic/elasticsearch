@@ -104,11 +104,7 @@ final class AggregateMapper {
         .collect(Collectors.toUnmodifiableMap(aggDef -> aggDef, AggregateMapper::lookupIntermediateState));
 
     /** Cache of aggregates to intermediate expressions. */
-    private final HashMap<Expression, List<NamedExpression>> cache;
-
-    AggregateMapper() {
-        cache = new HashMap<>();
-    }
+    private final HashMap<Expression, List<NamedExpression>> cache = new HashMap<>();
 
     public List<NamedExpression> mapNonGrouping(List<? extends NamedExpression> aggregates) {
         return doMapping(aggregates, false);

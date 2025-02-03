@@ -36,6 +36,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Stream;
 
 public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
     private final FieldType fieldType;
@@ -114,29 +115,21 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
     protected abstract Object expected(Map<String, Object> fieldMapping, Object value, boolean syntheticSource);
 
     private Object getFieldValue(Map<String, Object> document, String fieldName) {
-        var results = new ArrayList<>();
-        processLevel(document, fieldName, results);
+        var rawValues = new ArrayList<>();
+        processLevel(document, fieldName, rawValues);
 
-        if (results.isEmpty()) {
-            return null;
-        }
-        if (results.size() == 1) {
-            return results.get(0);
+        if (rawValues.size() == 1) {
+            return rawValues.get(0);
         }
 
-        return results;
+        return rawValues.stream().flatMap(v -> v instanceof List<?> l ? l.stream() : Stream.of(v)).toList();
     }
 
     @SuppressWarnings("unchecked")
     private void processLevel(Map<String, Object> level, String field, ArrayList<Object> values) {
         if (field.contains(".") == false) {
             var value = level.get(field);
-            if (value instanceof List<?> l) {
-                values.addAll(l);
-            } else {
-                values.add(value);
-            }
-
+            values.add(value);
             return;
         }
 

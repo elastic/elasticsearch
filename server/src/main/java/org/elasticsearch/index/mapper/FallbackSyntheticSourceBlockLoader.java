@@ -207,16 +207,8 @@ public abstract class FallbackSyntheticSourceBlockLoader implements BlockLoader 
         }
 
         private void parseWithReader(XContentParser parser, List<T> blockValues) throws IOException {
-            if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
-                return;
-            }
-
             if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
                 while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-                    if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
-                        continue;
-                    }
-
                     reader.parse(parser, blockValues);
                 }
                 return;
@@ -252,5 +244,27 @@ public abstract class FallbackSyntheticSourceBlockLoader implements BlockLoader 
         void parse(XContentParser parser, List<T> accumulator) throws IOException;
 
         void writeToBlock(List<T> values, Builder blockBuilder);
+    }
+
+    public abstract static class ReaderWithNullValueSupport<T> implements Reader<T> {
+        private final T nullValue;
+
+        public ReaderWithNullValueSupport(T nullValue) {
+            this.nullValue = nullValue;
+        }
+
+        @Override
+        public void parse(XContentParser parser, List<T> accumulator) throws IOException {
+            if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
+                if (nullValue != null) {
+                    convertValue(nullValue, accumulator);
+                }
+                return;
+            }
+
+            parseNonNullValue(parser, accumulator);
+        }
+
+        abstract void parseNonNullValue(XContentParser parser, List<T> accumulator) throws IOException;
     }
 }

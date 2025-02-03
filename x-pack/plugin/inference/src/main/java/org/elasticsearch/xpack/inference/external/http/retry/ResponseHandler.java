@@ -52,7 +52,6 @@ public interface ResponseHandler {
 
     /**
      * Returns {@code true} if the response handler can handle streaming results, or {@code false} if can only parse the entire payload.
-     * Defaults to {@code false}.
      */
     boolean canHandleStreamingResponses();
 

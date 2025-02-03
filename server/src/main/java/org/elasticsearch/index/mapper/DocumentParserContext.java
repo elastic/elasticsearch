@@ -94,6 +94,21 @@ public abstract class DocumentParserContext {
         public ArrayOffsetContext getOffSetContext() {
             return in.getOffSetContext();
         }
+
+        @Override
+        public void setImmediateXContentParent(XContentParser.Token token) {
+            in.setImmediateXContentParent(token);
+        }
+
+        @Override
+        public XContentParser.Token getImmediateXContentParent() {
+            return in.getImmediateXContentParent();
+        }
+
+        @Override
+        public boolean isImmediateParentAnArray() {
+            return in.isImmediateParentAnArray();
+        }
     }
 
     /**
@@ -493,6 +508,20 @@ public abstract class DocumentParserContext {
             arrayOffsetContext = new ArrayOffsetContext();
         }
         return arrayOffsetContext;
+    }
+
+    private XContentParser.Token token;
+
+    public void setImmediateXContentParent(XContentParser.Token token) {
+        this.token = token;
+    }
+
+    public XContentParser.Token getImmediateXContentParent() {
+        return token;
+    }
+
+    public boolean isImmediateParentAnArray() {
+        return token == XContentParser.Token.START_ARRAY;
     }
 
     /**

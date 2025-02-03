@@ -373,9 +373,11 @@ public final class DocumentParser {
                     }
                     break;
                 case START_OBJECT:
+                    context.setImmediateXContentParent(token);
                     parseObject(context, currentFieldName);
                     break;
                 case START_ARRAY:
+                    context.setImmediateXContentParent(token);
                     parseArray(context, currentFieldName);
                     break;
                 case VALUE_NULL:
@@ -456,7 +458,9 @@ public final class DocumentParser {
                 if (context.canAddIgnoredField()
                     && (fieldMapper.syntheticSourceMode() == FieldMapper.SyntheticSourceMode.FALLBACK
                         || sourceKeepMode == Mapper.SourceKeepMode.ALL
-                        || (sourceKeepMode == Mapper.SourceKeepMode.ARRAYS && context.inArrayScope())
+                        || (sourceKeepMode == Mapper.SourceKeepMode.ARRAYS
+                            && context.inArrayScope()
+                            && mapper.supportStoringArrayOffsets(context) == false)
                         || (context.isWithinCopyTo() == false && context.isCopyToDestinationField(mapper.fullPath())))) {
                     context = context.addIgnoredFieldFromContext(
                         IgnoredSourceFieldMapper.NameValue.fromContext(context, fieldMapper.fullPath(), null)
@@ -613,7 +617,7 @@ public final class DocumentParser {
             // There is a concrete mapper for this field already. Need to check if the mapper
             // expects an array, if so we pass the context straight to the mapper and if not
             // we serialize the array components
-            if (parsesArrayValue(mapper, context)) {
+            if (parsesArrayValue(mapper)) {
                 parseObjectOrField(context, mapper);
             } else {
                 parseNonDynamicArray(context, mapper, lastFieldName, lastFieldName);
@@ -661,7 +665,7 @@ public final class DocumentParser {
             }
             parseNonDynamicArray(context, objectMapperFromTemplate, currentFieldName, currentFieldName);
         } else {
-            if (parsesArrayValue(objectMapperFromTemplate, context)) {
+            if (parsesArrayValue(objectMapperFromTemplate)) {
                 if (context.addDynamicMapper(objectMapperFromTemplate) == false) {
                     context.parser().skipChildren();
                     return;
@@ -675,8 +679,8 @@ public final class DocumentParser {
         }
     }
 
-    private static boolean parsesArrayValue(Mapper mapper, DocumentParserContext context) {
-        return mapper instanceof FieldMapper && ((FieldMapper) mapper).parsesArrayValue(context);
+    private static boolean parsesArrayValue(Mapper mapper) {
+        return mapper instanceof FieldMapper && ((FieldMapper) mapper).parsesArrayValue();
     }
 
     private static void parseNonDynamicArray(
@@ -685,11 +689,12 @@ public final class DocumentParser {
         final String lastFieldName,
         String arrayFieldName
     ) throws IOException {
+        boolean supportStoringArrayOffsets = mapper != null && mapper.supportStoringArrayOffsets(context);
         String fullPath = context.path().pathAsText(arrayFieldName);
 
         // Check if we need to record the array source. This only applies to synthetic source.
         boolean canRemoveSingleLeafElement = false;
-        if (context.canAddIgnoredField() && (parsesArrayValue(mapper, context) == false)) {
+        if (context.canAddIgnoredField() && (parsesArrayValue(mapper) == false && supportStoringArrayOffsets == false)) {
             Mapper.SourceKeepMode mode = Mapper.SourceKeepMode.NONE;
             boolean objectWithFallbackSyntheticSource = false;
             if (mapper instanceof ObjectMapper objectMapper) {
@@ -726,7 +731,7 @@ public final class DocumentParser {
             }
         }
 
-        if (parsesArrayValue(mapper, context) == false) {
+        if (parsesArrayValue(mapper) == false && supportStoringArrayOffsets == false) {
             // In synthetic source, if any array element requires storing its source as-is, it takes precedence over
             // elements from regular source loading that are then skipped from the synthesized array source.
             // To prevent this, we track that parsing sub-context is within array scope.
@@ -735,14 +740,19 @@ public final class DocumentParser {
 
         XContentParser parser = context.parser();
         XContentParser.Token token;
+        XContentParser.Token previousToken = parser.currentToken();
         int elements = 0;
         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
             if (token == XContentParser.Token.START_OBJECT) {
+                context.setImmediateXContentParent(token);
                 elements = 2;
                 parseObject(context, lastFieldName);
             } else if (token == XContentParser.Token.START_ARRAY) {
+                var prev = context.getImmediateXContentParent();
+                context.setImmediateXContentParent(token);
                 elements = 2;
                 parseArray(context, lastFieldName);
+                context.setImmediateXContentParent(prev);
             } else if (token == XContentParser.Token.VALUE_NULL) {
                 elements++;
                 parseNullValue(context, lastFieldName);
@@ -753,7 +763,12 @@ public final class DocumentParser {
                 elements++;
                 parseValue(context, lastFieldName);
             }
+            previousToken = token;
         }
+        if (mapper != null && previousToken == XContentParser.Token.START_ARRAY) {
+            mapper.handleEmptyArray(context);
+        }
+        context.setImmediateXContentParent(token);
         if (elements <= 1 && canRemoveSingleLeafElement) {
             context.removeLastIgnoredField(fullPath);
         }

@@ -63,7 +63,6 @@ import org.elasticsearch.search.runtime.StringScriptFieldRegexpQuery;
 import org.elasticsearch.search.runtime.StringScriptFieldTermQuery;
 import org.elasticsearch.search.runtime.StringScriptFieldWildcardQuery;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -931,61 +930,32 @@ public final class KeywordFieldMapper extends FieldMapper {
         return (KeywordFieldType) super.fieldType();
     }
 
-    @Override
-    public boolean parsesArrayValue(DocumentParserContext context) {
-        // Only if offsets need to be recorded/stored and if current content hasn't been recorded yet.
-        // (for example if parent object or object array got stored in ignored source)
-        return offsetsFieldName != null && context.getRecordedSource() == false;
+    public boolean supportStoringArrayOffsets(DocumentParserContext context) {
+        if (offsetsFieldName != null) {
+            return true;
+        } else {
+            return false;
+        }
     }
 
-    @Override
-    public void parse(DocumentParserContext context) throws IOException {
-        if (offsetsFieldName != null) {
-            if (builderParams.hasScript()) {
-                throwIndexingWithScriptParam();
-            }
-
-            if (context.parser().currentToken() == XContentParser.Token.START_ARRAY) {
-                parseArray(context);
-            } else if (context.parser().currentToken().isValue() || context.parser().currentToken() == XContentParser.Token.VALUE_NULL) {
-                final String value = context.parser().textOrNull();
-                indexValue(context, value == null ? fieldType().nullValue : value);
-            } else {
-                throw new IllegalArgumentException("Encountered unexpected token [" + context.parser().currentToken() + "].");
-            }
-        } else {
-            super.parse(context);
+    public void handleEmptyArray(DocumentParserContext context) {
+        if (offsetsFieldName != null && context.isImmediateParentAnArray() && context.getRecordedSource() == false) {
+            context.getOffSetContext().maybeRecordEmptyArray(offsetsFieldName);
         }
     }
 
     protected void parseCreateField(DocumentParserContext context) throws IOException {
-        final String value = context.parser().textOrNull();
-        indexValue(context, value == null ? fieldType().nullValue : value);
-    }
+        String value = context.parser().textOrNull();
+        if (value == null) {
+            value = fieldType().nullValue;
+        }
 
-    private void parseArray(DocumentParserContext context) throws IOException {
-        XContentParser parser = context.parser();
-        while (true) {
-            XContentParser.Token token = parser.nextToken();
-            if (token == XContentParser.Token.END_ARRAY) {
-                context.getOffSetContext().maybeRecordEmptyArray(offsetsFieldName);
-                return;
-            }
-            if (token.isValue() || token == XContentParser.Token.VALUE_NULL) {
-                String value = context.parser().textOrNull();
-                if (value == null) {
-                    value = fieldType().nullValue;
-                }
-                boolean indexed = indexValue(context, value);
-                if (indexed) {
-                    context.getOffSetContext().recordOffset(offsetsFieldName, value);
-                } else if (value == null) {
-                    context.getOffSetContext().recordNull(offsetsFieldName);
-                }
-            } else if (token == XContentParser.Token.START_ARRAY) {
-                parseArray(context);
-            } else {
-                throw new IllegalArgumentException("Encountered unexpected token [" + token + "].");
+        boolean indexed = indexValue(context, value);
+        if (offsetsFieldName != null && context.isImmediateParentAnArray() && context.getRecordedSource() == false) {
+            if (indexed) {
+                context.getOffSetContext().recordOffset(offsetsFieldName, value);
+            } else if (value == null) {
+                context.getOffSetContext().recordNull(offsetsFieldName);
             }
         }
     }

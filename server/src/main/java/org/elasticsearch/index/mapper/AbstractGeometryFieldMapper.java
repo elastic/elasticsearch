@@ -265,7 +265,7 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
     }
 
     @Override
-    public final boolean parsesArrayValue(DocumentParserContext context) {
+    public final boolean parsesArrayValue() {
         return true;
     }
 }

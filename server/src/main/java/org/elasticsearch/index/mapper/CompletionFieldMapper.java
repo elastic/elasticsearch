@@ -361,7 +361,7 @@ public class CompletionFieldMapper extends FieldMapper {
     }
 
     @Override
-    public boolean parsesArrayValue(DocumentParserContext context) {
+    public boolean parsesArrayValue() {
         return true;
     }
 

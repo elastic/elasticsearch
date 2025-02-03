@@ -166,7 +166,7 @@ public abstract class FieldMapper extends Mapper {
      * whole array to the mapper. If false, the array is split into individual values
      * and each value is passed to the mapper for parsing.
      */
-    public boolean parsesArrayValue(DocumentParserContext context) {
+    public boolean parsesArrayValue() {
         return false;
     }
 

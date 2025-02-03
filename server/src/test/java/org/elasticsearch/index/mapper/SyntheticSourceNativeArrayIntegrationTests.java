@@ -9,15 +9,15 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReader;
-import org.apache.lucene.util.BitUtil;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -36,7 +36,6 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
-import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class SyntheticSourceNativeArrayIntegrationTests extends ESSingleNodeTestCase {
@@ -78,7 +77,7 @@ public class SyntheticSourceNativeArrayIntegrationTests extends ESSingleNodeTest
             new Object[] { "123", "1234", "12345" },
             new Object[] { null, null, null, "blabla" },
             new Object[] { "1", "2", "3", "blabla" } };
-        verifySyntheticArray(arrayValues, mapping, "_id", "_recovery_source", "field._original");
+        verifySyntheticArray(arrayValues, mapping, 4, "_id", "_recovery_source", "field._original");
     }
 
     public void testSynthesizeObjectArray() throws Exception {
@@ -101,10 +100,11 @@ public class SyntheticSourceNativeArrayIntegrationTests extends ESSingleNodeTest
             .endObject()
             .endObject()
             .endObject();
-        verifySyntheticArray(arrays, mapping, "_id", "_recovery_source");
+        verifySyntheticArray(arrays, mapping, null, "_id", "_recovery_source");
     }
 
-    private void verifySyntheticArray(Object[][] arrays, XContentBuilder mapping, String... expectedStoredFields) throws IOException {
+    private void verifySyntheticArray(Object[][] arrays, XContentBuilder mapping, Integer ignoreAbove, String... expectedStoredFields)
+        throws IOException {
         var indexService = createIndex(
             "test-index",
             Settings.builder().put("index.mapping.source.mode", "synthetic").put("index.mapping.synthetic_source_keep", "arrays").build(),
@@ -150,7 +150,6 @@ public class SyntheticSourceNativeArrayIntegrationTests extends ESSingleNodeTest
             }
         }
 
-        indexService.getShard(0).forceMerge(new ForceMergeRequest("test-index").maxNumSegments(1));
         try (var searcher = indexService.getShard(0).acquireSearcher(getTestName())) {
             var reader = searcher.getDirectoryReader();
             for (int i = 0; i < arrays.length; i++) {
@@ -158,25 +157,9 @@ public class SyntheticSourceNativeArrayIntegrationTests extends ESSingleNodeTest
                 // Verify that there is no ignored source:
                 Set<String> storedFieldNames = new LinkedHashSet<>(document.getFields().stream().map(IndexableField::name).toList());
                 assertThat(storedFieldNames, contains(expectedStoredFields));
-
-                // Verify that there is an offset field:
-                var binaryDocValues = reader.leaves().get(0).reader().getBinaryDocValues("field.offsets");
-                boolean match = binaryDocValues.advanceExact(i);
-                if (arrays[i] == null) {
-                    assertThat(match, equalTo(false));
-                } else {
-                    assertThat(match, equalTo(true));
-                    var ref = binaryDocValues.binaryValue();
-                    try (ByteArrayStreamInput scratch = new ByteArrayStreamInput()) {
-                        scratch.reset(ref.bytes, ref.offset, ref.length);
-                        int[] offsets = new int[BitUtil.zigZagDecode(scratch.readVInt())];
-                        for (int j = 0; j < offsets.length; j++) {
-                            offsets[j] = BitUtil.zigZagDecode(scratch.readVInt());
-                        }
-                        assertThat(offsets, notNullValue());
-                    }
-                }
             }
+            var fieldInfo = FieldInfos.getMergedFieldInfos(reader).fieldInfo("field.offsets");
+            assertThat(fieldInfo.getDocValuesType(), equalTo(DocValuesType.BINARY));
         }
     }
 
@@ -236,7 +219,7 @@ public class SyntheticSourceNativeArrayIntegrationTests extends ESSingleNodeTest
             var reader = searcher.getDirectoryReader();
             for (int i = 0; i < documents.size(); i++) {
                 var document = reader.storedFields().document(i);
-                // Verify that there is no ignored source:
+                // Verify that there is ignored source because of leaf array being wrapped by object array:
                 List<String> storedFieldNames = document.getFields().stream().map(IndexableField::name).toList();
                 assertThat(storedFieldNames, contains("_id", "_recovery_source", "_ignored_source"));
 

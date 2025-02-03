@@ -28,7 +28,7 @@ import org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.action.task.StreamingTaskManager;
-import org.elasticsearch.xpack.inference.common.InferenceServiceNodeLocalRateLimitCalculator;
+import org.elasticsearch.xpack.inference.common.InferenceServiceRateLimitCalculator;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.telemetry.InferenceStats;
 import org.junit.Before;
@@ -64,7 +64,7 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
     protected static final String inferenceId = "inferenceEntityId";
     protected InferenceServiceRegistry serviceRegistry;
     protected InferenceStats inferenceStats;
-    protected InferenceServiceNodeLocalRateLimitCalculator inferenceServiceNodeLocalRateLimitCalculator;
+    protected InferenceServiceRateLimitCalculator inferenceServiceRateLimitCalculator;
     protected TransportService transportService;
     protected NodeClient nodeClient;
 
@@ -79,7 +79,7 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
         ThreadPool threadPool = mock();
         nodeClient = mock();
         transportService = mock();
-        inferenceServiceNodeLocalRateLimitCalculator = mock();
+        inferenceServiceRateLimitCalculator = mock();
         licenseState = mock();
         modelRegistry = mock();
         serviceRegistry = mock();
@@ -94,7 +94,7 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
             serviceRegistry,
             inferenceStats,
             streamingTaskManager,
-            inferenceServiceNodeLocalRateLimitCalculator,
+            inferenceServiceRateLimitCalculator,
             nodeClient,
             threadPool
         );
@@ -110,7 +110,7 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
         InferenceServiceRegistry serviceRegistry,
         InferenceStats inferenceStats,
         StreamingTaskManager streamingTaskManager,
-        InferenceServiceNodeLocalRateLimitCalculator inferenceServiceNodeLocalRateLimitCalculator,
+        InferenceServiceRateLimitCalculator inferenceServiceNodeLocalRateLimitCalculator,
         NodeClient nodeClient,
         ThreadPool threadPool
     );

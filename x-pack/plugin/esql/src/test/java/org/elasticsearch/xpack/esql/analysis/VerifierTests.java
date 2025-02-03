@@ -1186,9 +1186,9 @@ public class VerifierTests extends ESTestCase {
 
     public void testMatchInsideEval() throws Exception {
         assumeTrue("Match operator is available just for snapshots", Build.current().isSnapshot());
-
         assertEquals(
-            "1:36: [:] operator is only supported in WHERE commands",
+            "1:36: [:] operator is only supported in WHERE commands\n"
+                + "line 1:36: [:] operator cannot operate on [title], which is not a field from an index mapping",
             error("row title = \"brown fox\" | eval x = title:\"fox\" ")
         );
     }
@@ -1215,6 +1215,25 @@ public class VerifierTests extends ESTestCase {
         );
         assertEquals("1:24: [:] operator cannot be used after LIMIT", error("from test | limit 10 | where first_name:\"Anna\""));
         assertEquals("1:24: [:] operator cannot be used after LIMIT", error("from test | limit 10 | where first_name : \"Anna\""));
+    }
+
+    // These should pass eventually once we lift some restrictions on match function
+    public void testMatchWithNonIndexedColumnCurrentlyUnsupported() {
+        assertEquals(
+            "1:67: [MATCH] function cannot operate on [initial], which is not a field from an index mapping",
+            error("from test | eval initial = substring(first_name, 1) | where match(initial, \"A\")")
+        );
+        assertEquals(
+            "1:67: [MATCH] function cannot operate on [text], which is not a field from an index mapping",
+            error("from test | eval text=concat(first_name, last_name) | where match(text, \"cat\")")
+        );
+    }
+
+    public void testMatchFunctionIsNotNullable() {
+        assertEquals(
+            "1:48: [MATCH] function cannot operate on [text::keyword], which is not a field from an index mapping",
+            error("row n = null | eval text = n + 5 | where match(text::keyword, \"Anna\")")
+        );
     }
 
     public void testQueryStringFunctionsNotAllowedAfterCommands() throws Exception {

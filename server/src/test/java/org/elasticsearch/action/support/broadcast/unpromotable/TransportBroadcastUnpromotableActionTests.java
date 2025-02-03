@@ -333,7 +333,7 @@ public class TransportBroadcastUnpromotableActionTests extends ESTestCase {
 
         // We were able to mark shards as stale, so the request finishes successfully
         assertThat(safeAwait(broadcastUnpromotableRequest(wrongRoutingTable, true)), equalTo(ActionResponse.Empty.INSTANCE));
-        for (var shardRouting : wrongRoutingTable.unpromotableShards()) {
+        for (var shardRouting : wrongRoutingTable.assignedUnpromotableShards()) {
             Mockito.verify(shardStateAction)
                 .remoteShardFailed(
                     eq(shardRouting.shardId()),

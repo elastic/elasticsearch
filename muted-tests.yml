@@ -387,9 +387,6 @@ tests:
 - class: org.elasticsearch.xpack.ml.integration.ClassificationIT
   method: testDependentVariableIsAliasToNested
   issue: https://github.com/elastic/elasticsearch/issues/121415
-- class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackIT
-  method: testLookupExplosionBigStringManyMatches
-  issue: https://github.com/elastic/elasticsearch/issues/121465
 - class: org.elasticsearch.xpack.security.authc.jwt.JwtRealmSingleNodeTests
   method: testClientSecretRotation
   issue: https://github.com/elastic/elasticsearch/issues/120985
@@ -399,9 +396,6 @@ tests:
 - class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
   method: test {yaml=cluster.health/10_basic/cluster health basic test}
   issue: https://github.com/elastic/elasticsearch/issues/121478
-- class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackIT
-  method: testLookupExplosionManyMatches
-  issue: https://github.com/elastic/elasticsearch/issues/121481
 - class: org.elasticsearch.xpack.security.profile.ProfileIntegTests
   method: testGetUsersWithProfileUid
   issue: https://github.com/elastic/elasticsearch/issues/121483

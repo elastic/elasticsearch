@@ -38,7 +38,7 @@ public class VoyageAIServiceSettings extends FilteredXContentObject implements S
     public static final String NAME = "voyageai_service_settings";
     public static final String MODEL_ID = "model_id";
     private static final Logger logger = LogManager.getLogger(VoyageAIServiceSettings.class);
-    // See https://jina.ai/contact-sales/#rate-limit
+    // See https://docs.voyageai.com/docs/rate-limits
     public static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(2_000);
 
     public static VoyageAIServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {

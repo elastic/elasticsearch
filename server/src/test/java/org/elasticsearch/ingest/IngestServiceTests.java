@@ -1419,11 +1419,7 @@ public class IngestServiceTests extends ESTestCase {
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         verify(processor).execute(eqIndexTypeId(indexRequest.version(), indexRequest.versionType(), Map.of()), any());
-        verify(failureHandler, times(1)).apply(
-            eq(0),
-            any(RuntimeException.class),
-            eq(fsStatus)
-        );
+        verify(failureHandler, times(1)).apply(eq(0), any(RuntimeException.class), eq(fsStatus));
         verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
     }
 
@@ -1531,11 +1527,7 @@ public class IngestServiceTests extends ESTestCase {
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         verify(processor).execute(eqIndexTypeId(indexRequest.version(), indexRequest.versionType(), Map.of()), any());
-        verify(failureHandler, times(1)).apply(
-            eq(0),
-            any(RuntimeException.class),
-            eq(fsStatus)
-        );
+        verify(failureHandler, times(1)).apply(eq(0), any(RuntimeException.class), eq(fsStatus));
         verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
     }
 
@@ -1600,11 +1592,7 @@ public class IngestServiceTests extends ESTestCase {
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
 
-        verify(requestItemErrorHandler, times(numIndexRequests)).apply(
-            anyInt(),
-            argThat(e -> e.getCause().equals(error)),
-            eq(fsStatus)
-        );
+        verify(requestItemErrorHandler, times(numIndexRequests)).apply(anyInt(), argThat(e -> e.getCause().equals(error)), eq(fsStatus));
         verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
     }
 

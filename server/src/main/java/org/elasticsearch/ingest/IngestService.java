@@ -737,6 +737,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         String failedIndex,
         IndexDocFailureStoreStatus failureStoreStatus
     ) {
+
         private static final IngestPipelinesExecutionResult SUCCESSFUL_RESULT = new IngestPipelinesExecutionResult(
             true,
             true,
@@ -754,6 +755,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         private static IngestPipelinesExecutionResult failAndStoreFor(String index, Exception e) {
             return new IngestPipelinesExecutionResult(false, true, e, index, IndexDocFailureStoreStatus.USED);
         }
+
         private static IngestPipelinesExecutionResult failWithoutStoringIn(String index, Exception e) {
             return new IngestPipelinesExecutionResult(false, true, e, index, IndexDocFailureStoreStatus.NOT_ENABLED);
         }

@@ -473,7 +473,7 @@ public final class IndicesPermission {
                 return group.checkIndex(name) && group.checkSelector(selector);
             }
             // TODO assertions around selector here?
-            return group.checkIndex(name);
+            return group.checkIndex(name) && group.checkSelector(IndexComponentSelector.DATA);
         }
 
         /**

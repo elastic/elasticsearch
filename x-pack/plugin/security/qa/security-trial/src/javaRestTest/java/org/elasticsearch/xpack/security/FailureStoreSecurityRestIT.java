@@ -29,13 +29,23 @@ import static org.hamcrest.Matchers.hasItem;
 
 public class FailureStoreSecurityRestIT extends SecurityOnTrialLicenseRestTestCase {
 
-    private static final String USER = "user";
+    private static final String DATA_ACCESS_USER = "data_access_user";
+    private static final String FAILURE_STORE_ACCESS_USER = "failure_store_access_user";
     private static final SecureString PASSWORD = new SecureString("elastic-password");
 
     public void testFailureStoreAccess() throws IOException {
+        String dataAccessRole = "data_access";
         String failureStoreAccessRole = "failure_store_access";
-        createUser(USER, PASSWORD, List.of(failureStoreAccessRole));
 
+        createUser(DATA_ACCESS_USER, PASSWORD, List.of(dataAccessRole));
+        createUser(FAILURE_STORE_ACCESS_USER, PASSWORD, List.of(failureStoreAccessRole));
+
+        upsertRole(Strings.format("""
+            {
+              "description": "Role with data access",
+              "cluster": ["all"],
+              "indices": [{"names": ["test*"], "privileges": ["read"]}]
+            }"""), dataAccessRole);
         upsertRole(Strings.format("""
             {
               "description": "Role with failure store access",
@@ -51,14 +61,14 @@ public class FailureStoreSecurityRestIT extends SecurityOnTrialLicenseRestTestCa
         String failedDocId = ids.stream().filter(id -> false == id.equals(successDocId)).findFirst().get();
 
         // user with access to failures index
-        assertContainsDocIds(performRequestAsUser1(new Request("GET", "/test1::failures/_search")), failedDocId);
-        assertContainsDocIds(performRequestAsUser1(new Request("GET", "/test*::failures/_search")), failedDocId);
-        assertContainsDocIds(performRequestAsUser1(new Request("GET", "/*1::failures/_search")), failedDocId);
-        assertContainsDocIds(performRequestAsUser1(new Request("GET", "/*::failures/_search")), failedDocId);
-        assertContainsDocIds(performRequestAsUser1(new Request("GET", "/.fs*/_search")), failedDocId);
+        assertContainsDocIds(performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/test1::failures/_search")), failedDocId);
+        assertContainsDocIds(performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/test*::failures/_search")), failedDocId);
+        assertContainsDocIds(performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/*1::failures/_search")), failedDocId);
+        assertContainsDocIds(performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/*::failures/_search")), failedDocId);
+        assertContainsDocIds(performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/.fs*/_search")), failedDocId);
 
-        expectThrows404(() -> performRequestAsUser1(new Request("GET", "/test12::failures/_search")));
-        expectThrows404(() -> performRequestAsUser1(new Request("GET", "/test2::failures/_search")));
+        expectThrows404(() -> performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/test12::failures/_search")));
+        expectThrows404(() -> performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/test2::failures/_search")));
 
         // user with access to everything
         assertContainsDocIds(adminClient().performRequest(new Request("GET", "/test1::failures/_search")), failedDocId);
@@ -165,8 +175,8 @@ public class FailureStoreSecurityRestIT extends SecurityOnTrialLicenseRestTestCa
         return ids;
     }
 
-    private Response performRequestAsUser1(Request request) throws IOException {
-        request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", basicAuthHeaderValue(USER, PASSWORD)).build());
+    private Response performRequest(String user, Request request) throws IOException {
+        request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", basicAuthHeaderValue(user, PASSWORD)).build());
         var response = client().performRequest(request);
         return response;
     }

@@ -7,12 +7,15 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.entitlement.runtime.policy;
+package org.elasticsearch.entitlement.runtime.policy.entitlements;
+
+import org.elasticsearch.entitlement.runtime.policy.Policy;
 
 /**
- * An Entitlement to allow loading native libraries
+ * Marker interface to ensure that only {@link Entitlement} are
+ * part of a {@link Policy}. All entitlement classes should implement
+ * this.
  */
-public record LoadNativeLibrariesEntitlement() implements Entitlement {
-    @ExternalEntitlement(esModulesOnly = false)
-    public LoadNativeLibrariesEntitlement {}
+public interface Entitlement {
+
 }

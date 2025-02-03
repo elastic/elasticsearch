@@ -32,9 +32,9 @@ import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.entitlement.bootstrap.EntitlementBootstrap;
-import org.elasticsearch.entitlement.runtime.policy.LoadNativeLibrariesEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.Policy;
 import org.elasticsearch.entitlement.runtime.policy.PolicyParserUtils;
+import org.elasticsearch.entitlement.runtime.policy.entitlements.LoadNativeLibrariesEntitlement;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.jdk.JarHell;
@@ -242,7 +242,13 @@ class Elasticsearch {
             pluginsLoader = PluginsLoader.createPluginsLoader(modulesBundles, pluginsBundles, findPluginsWithNativeAccess(pluginPolicies));
 
             var pluginsResolver = PluginsResolver.create(pluginsLoader);
-            EntitlementBootstrap.bootstrap(pluginPolicies, pluginsResolver::resolveClassToPluginName);
+            EntitlementBootstrap.bootstrap(
+                pluginPolicies,
+                pluginsResolver::resolveClassToPluginName,
+                nodeEnv.dataFiles(),
+                nodeEnv.configFile(),
+                nodeEnv.tmpFile()
+            );
         } else if (RuntimeVersionFeature.isSecurityManagerAvailable()) {
             // no need to explicitly enable native access for legacy code
             pluginsLoader = PluginsLoader.createPluginsLoader(modulesBundles, pluginsBundles, Map.of());

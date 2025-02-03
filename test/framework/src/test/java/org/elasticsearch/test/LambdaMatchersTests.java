@@ -19,11 +19,13 @@ import static org.elasticsearch.test.LambdaMatchers.transformedArrayItemsMatch;
 import static org.elasticsearch.test.LambdaMatchers.transformedItemsMatch;
 import static org.elasticsearch.test.LambdaMatchers.transformedMatch;
 import static org.elasticsearch.test.LambdaMatchers.trueWith;
+import static org.hamcrest.Matchers.anything;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
 public class LambdaMatchersTests extends ESTestCase {
@@ -56,6 +58,7 @@ public class LambdaMatchersTests extends ESTestCase {
         assertThat(new A("1"), transformedMatch(a -> a.str, equalTo("1")));
         assertThat(new B("1"), transformedMatch((A a) -> a.str, equalTo("1")));
 
+        assertMismatch((A) null, transformedMatch(A::toString, anything()), is("was null"));
         assertMismatch(new A("1"), transformedMatch(a -> a.str, emptyString()), equalTo("transformed value was \"1\""));
     }
 

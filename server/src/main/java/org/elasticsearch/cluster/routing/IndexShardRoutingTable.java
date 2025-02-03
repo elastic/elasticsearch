@@ -193,7 +193,7 @@ public class IndexShardRoutingTable {
      *
      * @return a {@link List} of shards
      */
-    public List<ShardRouting> unpromotableShards() {
+    public List<ShardRouting> assignedUnpromotableShards() {
         return this.assignedUnpromotableShards;
     }
 
@@ -202,7 +202,7 @@ public class IndexShardRoutingTable {
      *
      * @return a {@link List} of shards
      */
-    public List<ShardRouting> allUnpromotableShards() {
+    public List<ShardRouting> unpromotableShards() {
         return this.unpromotableShards;
     }
 

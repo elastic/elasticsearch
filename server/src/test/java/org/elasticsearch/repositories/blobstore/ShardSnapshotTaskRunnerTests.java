@@ -124,7 +124,15 @@ public class ShardSnapshotTaskRunnerTests extends ESTestCase {
             IndexMetadata.builder(indexId.getName()).settings(indexSettings(IndexVersion.current(), 1, 0)).build(),
             Settings.EMPTY
         );
-        final var dummyStore = new Store(shardId, indexSettings, new ByteBuffersDirectory(), new DummyShardLock(shardId));
+        final var dummyStore = new Store(
+            shardId,
+            indexSettings,
+            new ByteBuffersDirectory(),
+            new DummyShardLock(shardId),
+            Store.OnClose.EMPTY,
+            false,
+            false
+        );
         return new SnapshotShardContext(
             dummyStore,
             null,

@@ -77,7 +77,7 @@ public class SumTests extends AbstractAggregationTestCase {
             )
         );
 
-        return parameterSuppliersFromTypedDataWithDefaultChecks(suppliers);
+        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(suppliers);
     }
 
     @Override

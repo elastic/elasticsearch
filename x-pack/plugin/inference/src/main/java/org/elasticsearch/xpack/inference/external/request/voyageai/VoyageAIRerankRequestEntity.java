@@ -23,6 +23,7 @@ public record VoyageAIRerankRequestEntity(String model, String query, List<Strin
     private static final String QUERY_FIELD = "query";
     private static final String MODEL_FIELD = "model";
     public static final String TRUNCATION_FIELD = "truncation";
+    public static final String RETURN_DOCUMENTS_FIELD = "return_documents";
 
     public VoyageAIRerankRequestEntity {
         Objects.requireNonNull(query);
@@ -42,6 +43,10 @@ public record VoyageAIRerankRequestEntity(String model, String query, List<Strin
         builder.field(MODEL_FIELD, model);
         builder.field(QUERY_FIELD, query);
         builder.field(DOCUMENTS_FIELD, documents);
+
+        if (taskSettings.getDoesReturnDocuments() != null) {
+            builder.field(VoyageAIRerankTaskSettings.RETURN_DOCUMENTS, taskSettings.getDoesReturnDocuments());
+        }
 
         if (taskSettings.getTopKDocumentsOnly() != null) {
             builder.field(VoyageAIRerankTaskSettings.TOP_K_DOCS_ONLY, taskSettings.getTopKDocumentsOnly());

@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
+import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
@@ -74,6 +75,21 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return List.of(MigratePlugin.class, ReindexPlugin.class, MockTransportService.TestPlugin.class, DataStreamsPlugin.class);
+    }
+
+    public void testSourceNotVerifiedReadOnly() throws Exception {
+        // empty source index
+        var sourceIndex = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
+        indicesAdmin().create(new CreateIndexRequest(sourceIndex)).get();
+
+        // call reindex
+        client().execute(ReindexDataStreamIndexAction.INSTANCE, new ReindexDataStreamIndexAction.Request(sourceIndex)).actionGet();
+
+        var settingsResponse = indicesAdmin().getSettings(new GetSettingsRequest().indices(sourceIndex)).actionGet();
+        assertTrue(Boolean.parseBoolean(settingsResponse.getSetting(sourceIndex, IndexMetadata.SETTING_BLOCKS_WRITE)));
+        assertFalse(
+            Boolean.parseBoolean(settingsResponse.getSetting(sourceIndex, MetadataIndexStateService.VERIFIED_READ_ONLY_SETTING.getKey()))
+        );
     }
 
     public void testDestIndexDeletedIfExists() throws Exception {
@@ -468,13 +484,4 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
     private static String formatInstant(Instant instant) {
         return DateFormatter.forPattern(FormatNames.STRICT_DATE_OPTIONAL_TIME.getName()).format(instant);
     }
-
-    private static String getIndexUUID(String index) {
-        return indicesAdmin().getIndex(new GetIndexRequest(TEST_REQUEST_TIMEOUT).indices(index))
-            .actionGet()
-            .getSettings()
-            .get(index)
-            .get(IndexMetadata.SETTING_INDEX_UUID);
-    }
-
 }

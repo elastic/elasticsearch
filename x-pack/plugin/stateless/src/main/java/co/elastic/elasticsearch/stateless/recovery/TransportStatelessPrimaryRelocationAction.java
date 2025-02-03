@@ -17,7 +17,6 @@
 
 package co.elastic.elasticsearch.stateless.recovery;
 
-import co.elastic.elasticsearch.serverless.constants.ServerlessTransportVersions;
 import co.elastic.elasticsearch.stateless.IndexShardCacheWarmer;
 import co.elastic.elasticsearch.stateless.commits.HollowShardsService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
@@ -564,11 +563,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
             shardId = new ShardId(in);
             primaryContext = new ReplicationTracker.PrimaryContext(in);
             retentionLeases = new RetentionLeases(in);
-            if (in.getTransportVersion().onOrAfter(ServerlessTransportVersions.PRIMARY_RELOCATION_SEARCH_NODES)) {
-                searchNodesPerCommit = in.readMap(PrimaryTermAndGeneration::new, in0 -> in0.readCollectionAsSet(StreamInput::readString));
-            } else {
-                searchNodesPerCommit = Map.of();
-            }
+            searchNodesPerCommit = in.readMap(PrimaryTermAndGeneration::new, in0 -> in0.readCollectionAsSet(StreamInput::readString));
         }
 
         @Override
@@ -578,13 +573,11 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
             shardId.writeTo(out);
             primaryContext.writeTo(out);
             retentionLeases.writeTo(out);
-            if (out.getTransportVersion().onOrAfter(ServerlessTransportVersions.PRIMARY_RELOCATION_SEARCH_NODES)) {
-                out.writeMap(
-                    searchNodesPerCommit,
-                    (out0, v) -> v.writeTo(out0),
-                    (out0, v) -> out0.writeCollection(v, StreamOutput::writeString)
-                );
-            }
+            out.writeMap(
+                searchNodesPerCommit,
+                (out0, v) -> v.writeTo(out0),
+                (out0, v) -> out0.writeCollection(v, StreamOutput::writeString)
+            );
         }
 
         public long recoveryId() {

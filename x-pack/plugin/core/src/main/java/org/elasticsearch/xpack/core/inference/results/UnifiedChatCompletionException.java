@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.core.inference.results;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchWrapperException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.core.Nullable;
@@ -18,6 +17,7 @@ import org.elasticsearch.xcontent.ToXContent;
 
 import java.util.Iterator;
 import java.util.Locale;
+import java.util.Objects;
 
 import static java.util.Collections.emptyIterator;
 import static org.elasticsearch.ExceptionsHelper.maybeError;
@@ -41,8 +41,8 @@ public class UnifiedChatCompletionException extends XContentFormattedException {
 
     public UnifiedChatCompletionException(RestStatus status, String message, String type, @Nullable String code, @Nullable String param) {
         super(message, status);
-        this.message = message;
-        this.type = type;
+        this.message = Objects.requireNonNull(message);
+        this.type = Objects.requireNonNull(type);
         this.code = code;
         this.param = param;
     }
@@ -56,8 +56,8 @@ public class UnifiedChatCompletionException extends XContentFormattedException {
         @Nullable String param
     ) {
         super(message, cause, status);
-        this.message = message;
-        this.type = type;
+        this.message = Objects.requireNonNull(message);
+        this.type = Objects.requireNonNull(type);
         this.code = code;
         this.param = param;
     }
@@ -85,9 +85,7 @@ public class UnifiedChatCompletionException extends XContentFormattedException {
     }
 
     public static UnifiedChatCompletionException fromThrowable(Throwable t) {
-        if (t instanceof UnifiedChatCompletionException e) {
-            return e;
-        } else if (unwrapCause(t) instanceof UnifiedChatCompletionException e) {
+        if (ExceptionsHelper.unwrapCause(t) instanceof UnifiedChatCompletionException e) {
             return e;
         } else {
             return maybeError(t).map(error -> {
@@ -115,26 +113,5 @@ public class UnifiedChatCompletionException extends XContentFormattedException {
                 );
             });
         }
-    }
-
-    private static Throwable unwrapCause(Throwable t) {
-        int counter = 0;
-        Throwable result = t;
-        while (result instanceof ElasticsearchWrapperException) {
-            if (result instanceof UnifiedChatCompletionException) {
-                return result;
-            }
-            if (result.getCause() == null) {
-                return result;
-            }
-            if (result.getCause() == result) {
-                return result;
-            }
-            if (counter++ > 10) {
-                return result;
-            }
-            result = result.getCause();
-        }
-        return result;
     }
 }

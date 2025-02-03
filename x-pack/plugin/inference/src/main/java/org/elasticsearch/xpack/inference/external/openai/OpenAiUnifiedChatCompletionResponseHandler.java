@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.external.openai;
 
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -30,8 +29,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.Flow;
 
-import static org.elasticsearch.core.Strings.format;
-
 public class OpenAiUnifiedChatCompletionResponseHandler extends OpenAiChatCompletionResponseHandler {
     public OpenAiUnifiedChatCompletionResponseHandler(String requestType, ResponseParser parseFunction) {
         super(requestType, parseFunction, OpenAiErrorResponse::fromResponse);
@@ -52,22 +49,7 @@ public class OpenAiUnifiedChatCompletionResponseHandler extends OpenAiChatComple
         assert request.isStreaming() : "Only streaming requests support this format";
         var responseStatusCode = result.response().getStatusLine().getStatusCode();
         if (request.isStreaming()) {
-            var errorMessage = (errorResponse == null
-                || errorResponse.errorStructureFound() == false
-                || Strings.isNullOrEmpty(errorResponse.getErrorMessage()))
-                    ? format(
-                        "%s for request from inference entity id [%s] status [%s]",
-                        message,
-                        request.getInferenceEntityId(),
-                        responseStatusCode
-                    )
-                    : format(
-                        "%s for request from inference entity id [%s] status [%s]. Error message: [%s]",
-                        message,
-                        request.getInferenceEntityId(),
-                        responseStatusCode,
-                        errorResponse.getErrorMessage()
-                    );
+            var errorMessage = errorMessage(message, request, result, errorResponse, responseStatusCode);
             var restStatus = toRestStatus(responseStatusCode);
             return errorResponse instanceof OpenAiErrorResponse oer
                 ? new UnifiedChatCompletionException(restStatus, errorMessage, oer.type(), oer.code(), oer.param())

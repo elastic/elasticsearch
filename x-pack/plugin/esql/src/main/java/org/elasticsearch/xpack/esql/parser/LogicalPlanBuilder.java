@@ -12,7 +12,6 @@ import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.elasticsearch.Build;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.compute.operator.ChangePointOperator;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.dissect.DissectException;
 import org.elasticsearch.dissect.DissectParser;
@@ -467,21 +466,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             ctx.targetPvalue == null ? "pvalue" : visitQualifiedName(ctx.targetPvalue).name(),
             DataType.DOUBLE
         );
-        return child -> {
-            // ChangePoint should always run on the coordinating node after the data is collected
-            // in sorted order. This is enforced by adding OrderBy here.
-            // Furthermore, ChangePoint should be called with at most 1000 data points. That's
-            // enforced by the Limits here. The first Limit of 1001 data points is necessary to
-            // generate a possible warning, the second Limit of 1000 is to truncate the output.
-            OrderBy orderBy = new OrderBy(src, child, List.of(new Order(src, key, Order.OrderDirection.ASC, Order.NullsPosition.ANY)));
-            Limit limit = new Limit(
-                src,
-                new Literal(Source.EMPTY, ChangePointOperator.INPUT_VALUE_COUNT_LIMIT + 1, DataType.INTEGER),
-                orderBy
-            );
-            ChangePoint changePoint = new ChangePoint(src, limit, value, key, targetType, targetPvalue);
-            return new Limit(src, new Literal(Source.EMPTY, ChangePointOperator.INPUT_VALUE_COUNT_LIMIT, DataType.INTEGER), changePoint);
-        };
+        return child -> new ChangePoint(src, child, value, key, targetType, targetPvalue);
     }
 
     private static Tuple<Mode, String> parsePolicyName(Token policyToken) {

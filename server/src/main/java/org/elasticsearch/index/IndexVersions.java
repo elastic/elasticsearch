@@ -24,7 +24,6 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.function.IntFunction;
-import java.util.stream.Collectors;
 
 @SuppressWarnings("deprecation")
 public class IndexVersions {
@@ -248,10 +247,6 @@ public class IndexVersions {
         }
 
         return Collections.unmodifiableNavigableMap(builder);
-    }
-
-    static Collection<IndexVersion> getAllWriteVersions() {
-        return VERSION_IDS.values().stream().filter(v -> v.onOrAfter(IndexVersions.MINIMUM_COMPATIBLE)).collect(Collectors.toSet());
     }
 
     static Collection<IndexVersion> getAllVersions() {

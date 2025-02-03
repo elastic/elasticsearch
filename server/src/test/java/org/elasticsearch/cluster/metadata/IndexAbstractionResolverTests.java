@@ -242,7 +242,7 @@ public class IndexAbstractionResolverTests extends ESTestCase {
             expressions,
             indicesOptions,
             metadata,
-            () -> mask.get().stream().collect(Collectors.toMap(key -> key, key -> IndexComponentSelector.DATA.getKey())),
+            () -> mask.get().stream().collect(Collectors.toMap(key -> key, key -> IndexComponentSelector.ALL_APPLICABLE.getKey())),
             (idx, selector) -> true,
             true
         );

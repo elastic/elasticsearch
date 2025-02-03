@@ -17,7 +17,7 @@ import org.elasticsearch.action.admin.cluster.migration.TransportGetFeatureUpgra
 import org.elasticsearch.action.admin.indices.create.AutoCreateAction;
 import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.SystemIndexMetadataUpgradeService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -26,7 +26,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -436,13 +435,12 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
      * This cannot be done via {@link org.elasticsearch.cluster.metadata.IndexNameExpressionResolver} because that class can only handle
      * simple wildcard expressions, but system index name patterns may use full Lucene regular expression syntax,
      *
-     * @param metadata The current metadata to get the list of matching indices from
+     * @param project The current project metadata to get the list of matching indices from
      * @return A list of index names that match this descriptor
      */
     @Override
-    @FixForMultiProject // how do system indices interact with projects?
-    public List<String> getMatchingIndices(Metadata metadata) {
-        return metadata.projects().values().stream().flatMap(p -> p.indices().keySet().stream()).filter(this::matchesIndexPattern).toList();
+    public List<String> getMatchingIndices(ProjectMetadata project) {
+        return project.indices().keySet().stream().filter(this::matchesIndexPattern).toList();
     }
 
     /**

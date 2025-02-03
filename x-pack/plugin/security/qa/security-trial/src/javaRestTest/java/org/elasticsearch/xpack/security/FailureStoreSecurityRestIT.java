@@ -99,10 +99,36 @@ public class FailureStoreSecurityRestIT extends SecurityOnTrialLicenseRestTestCa
         expectThrows403(() -> performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/test2/_search")));
         expectThrows403(() -> performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/" + dataIndexName + "/_search")));
 
-        // empty result
+        assertEmpty(performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/test1::data/_search?ignore_unavailable=true")));
+        assertEmpty(performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/test1/_search?ignore_unavailable=true")));
+        assertEmpty(performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/test2::data/_search?ignore_unavailable=true")));
+        assertEmpty(performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/test2/_search?ignore_unavailable=true")));
+        assertEmpty(
+            performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/" + dataIndexName + "/_search?ignore_unavailable=true"))
+        );
+
         assertEmpty(performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/*1::data/_search")));
         assertEmpty(performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/*1/_search")));
         assertEmpty(performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/.ds*/_search")));
+
+        // user with access to data index
+        assertContainsDocIds(performRequest(DATA_ACCESS_USER, new Request("GET", "/test1/_search")), successDocId);
+        assertContainsDocIds(performRequest(DATA_ACCESS_USER, new Request("GET", "/test*/_search")), successDocId);
+        assertContainsDocIds(performRequest(DATA_ACCESS_USER, new Request("GET", "/*1/_search")), successDocId);
+        assertContainsDocIds(performRequest(DATA_ACCESS_USER, new Request("GET", "/*/_search")), successDocId);
+        assertContainsDocIds(performRequest(DATA_ACCESS_USER, new Request("GET", "/.ds*/_search")), successDocId);
+        assertContainsDocIds(performRequest(DATA_ACCESS_USER, new Request("GET", "/" + dataIndexName + "/_search")), successDocId);
+
+        expectThrows404(() -> performRequest(DATA_ACCESS_USER, new Request("GET", "/test12/_search")));
+        expectThrows404(() -> performRequest(DATA_ACCESS_USER, new Request("GET", "/test2/_search")));
+        expectThrows404(() -> performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/test12::*/_search")));
+
+        expectThrows403(() -> performRequest(DATA_ACCESS_USER, new Request("GET", "/test1::failures/_search")));
+        expectThrows403(() -> performRequest(DATA_ACCESS_USER, new Request("GET", "/test2::failures/_search")));
+        expectThrows403(() -> performRequest(DATA_ACCESS_USER, new Request("GET", "/" + failureIndexName + "/_search")));
+        // TODO this is inconsistent with failure user where we get an empty result for .ds* instead
+        expectThrows403(() -> performRequest(DATA_ACCESS_USER, new Request("GET", "/.fs*/_search")));
+        assertEmpty(performRequest(DATA_ACCESS_USER, new Request("GET", "/*1::failures/_search")));
 
         // user with access to everything
         assertContainsDocIds(adminClient().performRequest(new Request("GET", "/test1::failures/_search")), failedDocId);

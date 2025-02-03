@@ -111,6 +111,10 @@ public class HttpRequestSender implements Sender {
         }
     }
 
+    public void updateRateLimitDivisor(int rateLimitDivisor) {
+        service.updateRateLimitDivisor(rateLimitDivisor);
+    }
+
     private void waitForStartToComplete() {
         try {
             if (startCompleted.await(START_COMPLETED_WAIT_TIME.getSeconds(), TimeUnit.SECONDS) == false) {

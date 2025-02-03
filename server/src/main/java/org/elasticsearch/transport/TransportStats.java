@@ -69,18 +69,16 @@ public class TransportStats implements Writeable, ChunkedToXContent {
         rxSize = in.readVLong();
         txCount = in.readVLong();
         txSize = in.readVLong();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0) && in.readBoolean()) {
-            inboundHandlingTimeBucketFrequencies = new long[HandlingTimeTracker.BUCKET_COUNT];
-            for (int i = 0; i < inboundHandlingTimeBucketFrequencies.length; i++) {
-                inboundHandlingTimeBucketFrequencies[i] = in.readVLong();
-            }
-            outboundHandlingTimeBucketFrequencies = new long[HandlingTimeTracker.BUCKET_COUNT];
-            for (int i = 0; i < inboundHandlingTimeBucketFrequencies.length; i++) {
-                outboundHandlingTimeBucketFrequencies[i] = in.readVLong();
-            }
-        } else {
-            inboundHandlingTimeBucketFrequencies = new long[0];
-            outboundHandlingTimeBucketFrequencies = new long[0];
+        if (in.getTransportVersion().before(TransportVersions.TRANSPORT_STATS_HANDLING_TIME_REQUIRED)) {
+            in.readBoolean();
+        }
+        inboundHandlingTimeBucketFrequencies = new long[HandlingTimeTracker.BUCKET_COUNT];
+        for (int i = 0; i < inboundHandlingTimeBucketFrequencies.length; i++) {
+            inboundHandlingTimeBucketFrequencies[i] = in.readVLong();
+        }
+        outboundHandlingTimeBucketFrequencies = new long[HandlingTimeTracker.BUCKET_COUNT];
+        for (int i = 0; i < inboundHandlingTimeBucketFrequencies.length; i++) {
+            outboundHandlingTimeBucketFrequencies[i] = in.readVLong();
         }
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
             transportActionStats = Collections.unmodifiableMap(in.readOrderedMap(StreamInput::readString, TransportActionStats::new));
@@ -98,15 +96,15 @@ public class TransportStats implements Writeable, ChunkedToXContent {
         out.writeVLong(rxSize);
         out.writeVLong(txCount);
         out.writeVLong(txSize);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0)) {
-            assert (inboundHandlingTimeBucketFrequencies.length > 0) == (outboundHandlingTimeBucketFrequencies.length > 0);
+        assert (inboundHandlingTimeBucketFrequencies.length > 0) == (outboundHandlingTimeBucketFrequencies.length > 0);
+        if (out.getTransportVersion().before(TransportVersions.TRANSPORT_STATS_HANDLING_TIME_REQUIRED)) {
             out.writeBoolean(inboundHandlingTimeBucketFrequencies.length > 0);
-            for (long handlingTimeBucketFrequency : inboundHandlingTimeBucketFrequencies) {
-                out.writeVLong(handlingTimeBucketFrequency);
-            }
-            for (long handlingTimeBucketFrequency : outboundHandlingTimeBucketFrequencies) {
-                out.writeVLong(handlingTimeBucketFrequency);
-            }
+        }
+        for (long handlingTimeBucketFrequency : inboundHandlingTimeBucketFrequencies) {
+            out.writeVLong(handlingTimeBucketFrequency);
+        }
+        for (long handlingTimeBucketFrequency : outboundHandlingTimeBucketFrequencies) {
+            out.writeVLong(handlingTimeBucketFrequency);
         }
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
             out.writeMap(transportActionStats, StreamOutput::writeWriteable);

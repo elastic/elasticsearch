@@ -311,10 +311,7 @@ final class AggregateMapper {
         if (aggClass == ToPartial.class || aggClass == FromPartial.class) {
             return "";
         }
-        if ((aggClass == Max.class || aggClass == Min.class) && type.equals(DataType.IP)) {
-            return "Ip";
-        }
-        if (aggClass == Top.class && type.equals(DataType.IP)) {
+        if ((aggClass == Max.class || aggClass == Min.class || aggClass == Top.class) && type.equals(DataType.IP)) {
             return "Ip";
         }
 

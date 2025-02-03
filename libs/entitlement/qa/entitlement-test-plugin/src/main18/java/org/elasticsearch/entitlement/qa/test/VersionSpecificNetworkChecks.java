@@ -14,9 +14,23 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.net.spi.InetAddressResolver;
+import java.net.spi.InetAddressResolverProvider;
 
 class VersionSpecificNetworkChecks {
-    static void createInetAddressResolverProvider() {}
+    static void createInetAddressResolverProvider() {
+        var x = new InetAddressResolverProvider() {
+            @Override
+            public InetAddressResolver get(Configuration configuration) {
+                return null;
+            }
+
+            @Override
+            public String name() {
+                return "TEST";
+            }
+        };
+    }
 
     static void httpClientSend() throws InterruptedException {
         HttpClient httpClient = HttpClient.newBuilder().build();

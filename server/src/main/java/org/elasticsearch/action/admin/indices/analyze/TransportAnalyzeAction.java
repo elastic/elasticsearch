@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexService.IndexCreationContext;
 import org.elasticsearch.index.IndexSettings;
@@ -64,6 +65,8 @@ import java.util.TreeMap;
  * Transport action used to execute analyze requests
  */
 public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAction.Request, AnalyzeAction.Response> {
+
+    public static final NodeFeature WRONG_CUSTOM_ANALYZER_RETURN_400 = new NodeFeature("wrong_custom_analyzer_return_400");
 
     private final Settings settings;
     private final IndicesService indicesService;
@@ -144,6 +147,8 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
             if (analyzer != null) {
                 return analyze(request, analyzer, maxTokenCount);
             }
+        } catch (IllegalStateException e) {
+            throw new IllegalArgumentException("Can not build a custom analyzer", e);
         }
 
         // Otherwise we use a built-in analyzer, which should not be closed

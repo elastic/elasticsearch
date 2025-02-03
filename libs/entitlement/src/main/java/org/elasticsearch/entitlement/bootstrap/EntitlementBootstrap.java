@@ -14,6 +14,8 @@ import com.sun.tools.attach.AgentLoadException;
 import com.sun.tools.attach.AttachNotSupportedException;
 import com.sun.tools.attach.VirtualMachine;
 
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.CheckedSupplier;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.entitlement.initialization.EntitlementInitialization;
 import org.elasticsearch.entitlement.runtime.api.NotEntitledException;
@@ -22,8 +24,10 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
 import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.FileAttribute;
 import java.util.Map;
 import java.util.function.Function;
 
@@ -31,10 +35,22 @@ import static java.util.Objects.requireNonNull;
 
 public class EntitlementBootstrap {
 
-    public record BootstrapArgs(Map<String, Policy> pluginPolicies, Function<Class<?>, String> pluginResolver) {
+    public record BootstrapArgs(
+        Map<String, Policy> pluginPolicies,
+        Function<Class<?>, String> pluginResolver,
+        Path[] dataDirs,
+        Path configDir,
+        Path tempDir
+    ) {
         public BootstrapArgs {
             requireNonNull(pluginPolicies);
             requireNonNull(pluginResolver);
+            requireNonNull(dataDirs);
+            if (dataDirs.length == 0) {
+                throw new IllegalArgumentException("must provide at least one data directory");
+            }
+            requireNonNull(configDir);
+            requireNonNull(tempDir);
         }
     }
 
@@ -50,13 +66,22 @@ public class EntitlementBootstrap {
      *
      * @param pluginPolicies a map holding policies for plugins (and modules), by plugin (or module) name.
      * @param pluginResolver a functor to map a Java Class to the plugin it belongs to (the plugin name).
+     * @param dataDirs data directories for Elasticsearch
+     * @param configDir the config directory for Elasticsearch
+     * @param tempDir the temp directory for Elasticsearch
      */
-    public static void bootstrap(Map<String, Policy> pluginPolicies, Function<Class<?>, String> pluginResolver) {
+    public static void bootstrap(
+        Map<String, Policy> pluginPolicies,
+        Function<Class<?>, String> pluginResolver,
+        Path[] dataDirs,
+        Path configDir,
+        Path tempDir
+    ) {
         logger.debug("Loading entitlement agent");
         if (EntitlementBootstrap.bootstrapArgs != null) {
             throw new IllegalStateException("plugin data is already set");
         }
-        EntitlementBootstrap.bootstrapArgs = new BootstrapArgs(pluginPolicies, pluginResolver);
+        EntitlementBootstrap.bootstrapArgs = new BootstrapArgs(pluginPolicies, pluginResolver, dataDirs, configDir, tempDir);
         exportInitializationToAgent();
         loadAgent(findAgentJar());
         selfTest();
@@ -123,30 +148,31 @@ public class EntitlementBootstrap {
      * @throws IllegalStateException if the entitlements system can't prevent an unauthorized action of our choosing
      */
     private static void selfTest() {
-        ensureCannotStartProcess();
-        ensureCanCreateTempFile();
+        ensureCannotStartProcess(ProcessBuilder::start);
+        ensureCanCreateTempFile(EntitlementBootstrap::createTempFile);
+
+        // Try again with reflection
+        ensureCannotStartProcess(EntitlementBootstrap::reflectiveStartProcess);
+        ensureCanCreateTempFile(EntitlementBootstrap::reflectiveCreateTempFile);
     }
 
-    private static void ensureCannotStartProcess() {
+    private static void ensureCannotStartProcess(CheckedConsumer<ProcessBuilder, ?> startProcess) {
         try {
             // The command doesn't matter; it doesn't even need to exist
-            new ProcessBuilder("").start();
+            startProcess.accept(new ProcessBuilder(""));
         } catch (NotEntitledException e) {
             logger.debug("Success: Entitlement protection correctly prevented process creation");
             return;
-        } catch (IOException e) {
+        } catch (Exception e) {
             throw new IllegalStateException("Failed entitlement protection self-test", e);
         }
         throw new IllegalStateException("Entitlement protection self-test was incorrectly permitted");
     }
 
-    /**
-     * Originally {@code Security.selfTest}.
-     */
     @SuppressForbidden(reason = "accesses jvm default tempdir as a self-test")
-    private static void ensureCanCreateTempFile() {
+    private static void ensureCanCreateTempFile(CheckedSupplier<Path, ?> createTempFile) {
         try {
-            Path p = Files.createTempFile(null, null);
+            Path p = createTempFile.get();
             p.toFile().deleteOnExit();
 
             // Make an effort to clean up the file immediately; also, deleteOnExit leaves the file if the JVM exits abnormally.
@@ -161,6 +187,25 @@ public class EntitlementBootstrap {
             throw new IllegalStateException("Unable to perform entitlement protection self-test", e);
         }
         logger.debug("Success: Entitlement protection correctly permitted temp file creation");
+    }
+
+    @SuppressForbidden(reason = "accesses jvm default tempdir as a self-test")
+    private static Path createTempFile() throws Exception {
+        return Files.createTempFile(null, null);
+    }
+
+    private static void reflectiveStartProcess(ProcessBuilder pb) throws Exception {
+        try {
+            var start = ProcessBuilder.class.getMethod("start");
+            start.invoke(pb);
+        } catch (InvocationTargetException e) {
+            throw (Exception) e.getCause();
+        }
+    }
+
+    private static Path reflectiveCreateTempFile() throws Exception {
+        return (Path) Files.class.getMethod("createTempFile", String.class, String.class, FileAttribute[].class)
+            .invoke(null, null, null, new FileAttribute<?>[0]);
     }
 
     private static final Logger logger = LogManager.getLogger(EntitlementBootstrap.class);

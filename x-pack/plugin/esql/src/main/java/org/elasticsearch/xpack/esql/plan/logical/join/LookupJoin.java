@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.plan.logical.join;
 
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
+import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -27,7 +28,7 @@ import static org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.LEFT;
 /**
  * Lookup join - specialized LEFT (OUTER) JOIN between the main left side and a lookup index (index_mode = lookup) on the right.
  */
-public class LookupJoin extends Join implements SurrogateLogicalPlan, PostAnalysisVerificationAware {
+public class LookupJoin extends Join implements SurrogateLogicalPlan, PostAnalysisVerificationAware, TelemetryAware {
 
     public LookupJoin(Source source, LogicalPlan left, LogicalPlan right, List<Attribute> joinFields) {
         this(source, left, right, new UsingJoinType(LEFT, joinFields), emptyList(), emptyList(), emptyList());
@@ -75,6 +76,11 @@ public class LookupJoin extends Join implements SurrogateLogicalPlan, PostAnalys
             config().leftFields(),
             config().rightFields()
         );
+    }
+
+    @Override
+    public String telemetryLabel() {
+        return "LOOKUP JOIN";
     }
 
     @Override

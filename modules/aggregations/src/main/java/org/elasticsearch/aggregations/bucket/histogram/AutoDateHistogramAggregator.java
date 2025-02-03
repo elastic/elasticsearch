@@ -576,6 +576,10 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
                 success = true;
                 long maxOwning = oldOrds.maxOwningBucketOrd();
                 for (long owningBucketOrd = 0; owningBucketOrd <= maxOwning; owningBucketOrd++) {
+                    /*
+                     * Check for cancelation during this tight loop as it can take a while and the standard
+                     * cancelation checks don't run during the loop. Becuase it's a tight loop.
+                     */
                     if (context.isCancelled()) {
                         throw new TaskCancelledException("cancelled");
                     }

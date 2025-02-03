@@ -392,7 +392,7 @@ public class CompletionFieldMapper extends FieldMapper {
         // parse
         XContentParser parser = context.parser();
         Token token = parser.currentToken();
-        Map<String, CompletionInputMetadata> inputMap = Maps.newMapWithExpectedSize(1);
+        Map<String, CompletionInputMetadataContainer> inputMap = Maps.newMapWithExpectedSize(1);
 
         if (token == Token.VALUE_NULL) { // ignore null values
             return;
@@ -405,7 +405,7 @@ public class CompletionFieldMapper extends FieldMapper {
         }
 
         // index
-        for (Map.Entry<String, CompletionInputMetadata> completionInput : inputMap.entrySet()) {
+        for (Map.Entry<String, CompletionInputMetadataContainer> completionInput : inputMap.entrySet()) {
             String input = completionInput.getKey();
             if (input.trim().isEmpty()) {
                 context.addIgnoredField(mappedFieldType.name());
@@ -420,21 +420,33 @@ public class CompletionFieldMapper extends FieldMapper {
                 }
                 input = input.substring(0, len);
             }
-            CompletionInputMetadata metadata = completionInput.getValue();
+            CompletionInputMetadataContainer cmc = completionInput.getValue();
             if (fieldType().hasContextMappings()) {
-                fieldType().getContextMappings().addField(context.doc(), fieldType().name(), input, metadata.weight, metadata.contexts);
+                for (CompletionInputMetadata metadata : cmc.getValues()) {
+                    fieldType().getContextMappings().addField(context.doc(), fieldType().name(), input, metadata.weight, metadata.contexts);
+                }
             } else {
-                context.doc().add(new SuggestField(fieldType().name(), input, metadata.weight));
+                context.doc().add(new SuggestField(fieldType().name(), input, cmc.getWeight()));
             }
         }
-
         context.addToFieldNames(fieldType().name());
-        for (CompletionInputMetadata metadata : inputMap.values()) {
-            multiFields().parse(
-                this,
-                context,
-                () -> context.switchParser(new MultiFieldParser(metadata, fieldType().name(), context.parser().getTokenLocation()))
-            );
+        for (CompletionInputMetadataContainer cmc : inputMap.values()) {
+            if (fieldType().hasContextMappings()) {
+                for (CompletionInputMetadata metadata : cmc.getValues()) {
+                    multiFields().parse(
+                        this,
+                        context,
+                        () -> context.switchParser(new MultiFieldParser(metadata, fieldType().name(), context.parser().getTokenLocation()))
+                    );
+                }
+            } else {
+                CompletionInputMetadata metadata = cmc.getValue();
+                multiFields().parse(
+                    this,
+                    context,
+                    () -> context.switchParser(new MultiFieldParser(metadata, fieldType().name(), context.parser().getTokenLocation()))
+                );
+            }
         }
     }
 
@@ -447,11 +459,13 @@ public class CompletionFieldMapper extends FieldMapper {
         DocumentParserContext documentParserContext,
         Token token,
         XContentParser parser,
-        Map<String, CompletionInputMetadata> inputMap
+        Map<String, CompletionInputMetadataContainer> inputMap
     ) throws IOException {
         String currentFieldName = null;
         if (token == Token.VALUE_STRING) {
-            inputMap.put(parser.text(), new CompletionInputMetadata(parser.text(), Collections.<String, Set<String>>emptyMap(), 1));
+            CompletionInputMetadataContainer cmc = new CompletionInputMetadataContainer(fieldType().hasContextMappings());
+            cmc.add(new CompletionInputMetadata(parser.text(), Collections.emptyMap(), 1));
+            inputMap.put(parser.text(), cmc);
         } else if (token == Token.START_OBJECT) {
             Set<String> inputs = new HashSet<>();
             int weight = 1;
@@ -531,8 +545,14 @@ public class CompletionFieldMapper extends FieldMapper {
                 }
             }
             for (String input : inputs) {
-                if (inputMap.containsKey(input) == false || inputMap.get(input).weight < weight) {
-                    inputMap.put(input, new CompletionInputMetadata(input, contextsMap, weight));
+                CompletionInputMetadata cm = new CompletionInputMetadata(input, contextsMap, weight);
+                CompletionInputMetadataContainer cmc = inputMap.get(input);
+                if (cmc != null) {
+                    cmc.add(cm);
+                } else {
+                    cmc = new CompletionInputMetadataContainer(fieldType().hasContextMappings());
+                    cmc.add(cm);
+                    inputMap.put(input, cmc);
                 }
             }
         } else {
@@ -543,10 +563,46 @@ public class CompletionFieldMapper extends FieldMapper {
         }
     }
 
+    static class CompletionInputMetadataContainer {
+        private final boolean hasContexts;
+        private final List<CompletionInputMetadata> list;
+        private CompletionInputMetadata single;
+
+        CompletionInputMetadataContainer(boolean hasContexts) {
+            this.hasContexts = hasContexts;
+            this.list = hasContexts ? new ArrayList<>() : null;
+        }
+
+        void add(CompletionInputMetadata cm) {
+            if (hasContexts) {
+                list.add(cm);
+            } else {
+                if (single == null || single.weight < cm.weight) {
+                    single = cm;
+                }
+            }
+        }
+
+        List<CompletionInputMetadata> getValues() {
+            assert hasContexts;
+            return list;
+        }
+
+        CompletionInputMetadata getValue() {
+            assert hasContexts == false;
+            return single;
+        }
+
+        int getWeight() {
+            assert hasContexts == false;
+            return single.weight;
+        }
+    }
+
     static class CompletionInputMetadata {
-        public final String input;
-        public final Map<String, Set<String>> contexts;
-        public final int weight;
+        private final String input;
+        private final Map<String, Set<String>> contexts;
+        private final int weight;
 
         CompletionInputMetadata(String input, Map<String, Set<String>> contexts, int weight) {
             this.input = input;

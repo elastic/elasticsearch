@@ -37,7 +37,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
-public class AbstractCrossClusterTestCase extends AbstractMultiClustersTestCase {
+public abstract class AbstractCrossClusterTestCase extends AbstractMultiClustersTestCase {
     protected static final String REMOTE_CLUSTER_1 = "cluster-a";
     protected static final String REMOTE_CLUSTER_2 = "remote-b";
     protected static final String LOCAL_INDEX = "logs-1";

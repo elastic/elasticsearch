@@ -193,13 +193,13 @@ public class TransportVersions {
      *
      * M - The major version of Elasticsearch
      * NNN - The server version part
-     * S - The serverless version part. It should always be 0 here, it is used by serverless only.
+     * S - The subsidiary version part. It should always be 0 here, it is only used in subsidiary repositories.
      * PP - The patch version part
      *
      * To determine the id of the next TransportVersion constant, do the following:
      * - Use the same major version, unless bumping majors
      * - Bump the server version part by 1, unless creating a patch version
-     * - Leave the serverless part as 0
+     * - Leave the subsidiary part as 0
      * - Bump the patch part if creating a patch version
      *
      * If a patch version is created, it should be placed sorted among the other existing constants.

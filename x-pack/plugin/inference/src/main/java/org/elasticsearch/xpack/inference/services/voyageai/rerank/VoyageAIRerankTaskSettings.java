@@ -35,9 +35,10 @@ import static org.elasticsearch.xpack.inference.services.voyageai.VoyageAIServic
 public class VoyageAIRerankTaskSettings implements TaskSettings {
 
     public static final String NAME = "voyageai_rerank_task_settings";
+    public static final String RETURN_DOCUMENTS = "return_documents";
     public static final String TOP_K_DOCS_ONLY = "top_k";
 
-    public static final VoyageAIRerankTaskSettings EMPTY_SETTINGS = new VoyageAIRerankTaskSettings(null, null);
+    public static final VoyageAIRerankTaskSettings EMPTY_SETTINGS = new VoyageAIRerankTaskSettings(null, null, null);
 
     public static VoyageAIRerankTaskSettings fromMap(Map<String, Object> map) {
         ValidationException validationException = new ValidationException();
@@ -46,6 +47,7 @@ public class VoyageAIRerankTaskSettings implements TaskSettings {
             return EMPTY_SETTINGS;
         }
 
+        Boolean returnDocuments = extractOptionalBoolean(map, RETURN_DOCUMENTS, validationException);
         Integer topKDocumentsOnly = extractOptionalPositiveInteger(
             map,
             TOP_K_DOCS_ONLY,
@@ -63,7 +65,7 @@ public class VoyageAIRerankTaskSettings implements TaskSettings {
             throw validationException;
         }
 
-        return of(topKDocumentsOnly, truncation);
+        return of(topKDocumentsOnly, returnDocuments, truncation);
     }
 
     /**
@@ -81,30 +83,39 @@ public class VoyageAIRerankTaskSettings implements TaskSettings {
             requestTaskSettings.getTopKDocumentsOnly() != null
                 ? requestTaskSettings.getTopKDocumentsOnly()
                 : originalSettings.getTopKDocumentsOnly(),
+            requestTaskSettings.getReturnDocuments() != null
+                ? requestTaskSettings.getReturnDocuments()
+                : originalSettings.getReturnDocuments(),
             requestTaskSettings.getTruncation() != null ? requestTaskSettings.getTruncation() : originalSettings.getTruncation()
 
         );
     }
 
-    public static VoyageAIRerankTaskSettings of(Integer topKDocumentsOnly, Boolean truncation) {
-        return new VoyageAIRerankTaskSettings(topKDocumentsOnly, truncation);
+    public static VoyageAIRerankTaskSettings of(Integer topKDocumentsOnly, Boolean returnDocuments, Boolean truncation) {
+        return new VoyageAIRerankTaskSettings(topKDocumentsOnly, returnDocuments, truncation);
     }
 
     private final Integer topKDocumentsOnly;
+    private final Boolean returnDocuments;
     private final Boolean truncation;
 
     public VoyageAIRerankTaskSettings(StreamInput in) throws IOException {
-        this(in.readOptionalInt(), in.readOptionalBoolean());
+        this(in.readOptionalInt(), in.readOptionalBoolean(), in.readOptionalBoolean());
     }
 
-    public VoyageAIRerankTaskSettings(@Nullable Integer topKDocumentsOnly, @Nullable Boolean truncation) {
+    public VoyageAIRerankTaskSettings(
+        @Nullable Integer topKDocumentsOnly,
+        @Nullable Boolean doReturnDocuments,
+        @Nullable Boolean truncation
+    ) {
         this.topKDocumentsOnly = topKDocumentsOnly;
+        this.returnDocuments = doReturnDocuments;
         this.truncation = truncation;
     }
 
     @Override
     public boolean isEmpty() {
-        return topKDocumentsOnly == null && truncation == null;
+        return topKDocumentsOnly == null && returnDocuments == null && truncation == null;
     }
 
     @Override
@@ -112,6 +123,9 @@ public class VoyageAIRerankTaskSettings implements TaskSettings {
         builder.startObject();
         if (topKDocumentsOnly != null) {
             builder.field(TOP_K_DOCS_ONLY, topKDocumentsOnly);
+        }
+        if (returnDocuments != null) {
+            builder.field(RETURN_DOCUMENTS, returnDocuments);
         }
         if (truncation != null) {
             builder.field(TRUNCATION, truncation);
@@ -133,6 +147,7 @@ public class VoyageAIRerankTaskSettings implements TaskSettings {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalInt(topKDocumentsOnly);
+        out.writeOptionalBoolean(returnDocuments);
         out.writeOptionalBoolean(truncation);
     }
 
@@ -141,12 +156,14 @@ public class VoyageAIRerankTaskSettings implements TaskSettings {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         VoyageAIRerankTaskSettings that = (VoyageAIRerankTaskSettings) o;
-        return Objects.equals(topKDocumentsOnly, that.topKDocumentsOnly) && Objects.equals(truncation, that.truncation);
+        return Objects.equals(topKDocumentsOnly, that.topKDocumentsOnly) &&
+            Objects.equals(returnDocuments, that.returnDocuments) &&
+            Objects.equals(truncation, that.truncation);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(truncation, topKDocumentsOnly);
+        return Objects.hash(truncation, returnDocuments, topKDocumentsOnly);
     }
 
     public static String invalidInputTypeMessage(InputType inputType) {
@@ -155,6 +172,14 @@ public class VoyageAIRerankTaskSettings implements TaskSettings {
 
     public Integer getTopKDocumentsOnly() {
         return topKDocumentsOnly;
+    }
+
+    public Boolean getDoesReturnDocuments() {
+        return returnDocuments;
+    }
+
+    public Boolean getReturnDocuments() {
+        return returnDocuments;
     }
 
     public Boolean getTruncation() {

@@ -203,7 +203,7 @@ setup:
             similarity: 110
             query_vector: [-0.5, 90.0, -10, 14.8]
 
-  - gt: {hits.hits.0._score: 0}
+  - gt: {hits.hits.0._score: 0.0}
 
   #- match: {hits.hits.0._id: "2"}
   #- match: {hits.hits.0.fields.name.0: "moose.jpg"}

@@ -434,6 +434,9 @@ tests:
 - class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
   method: test {yaml=snapshot.create/10_basic/Create a snapshot for missing index}
   issue: https://github.com/elastic/elasticsearch/issues/121536
+- class: org.elasticsearch.xpack.esql.action.CrossClusterQueryUnavailableRemotesIT
+  method: testRemoteOnlyCCSAgainstDisconnectedRemoteWithSkipUnavailableTrue
+  issue: https://github.com/elastic/elasticsearch/issues/121578
 
 # Examples:
 #

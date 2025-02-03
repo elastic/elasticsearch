@@ -23,7 +23,6 @@ public class ActionFeatures implements FeatureSpecification {
         return Set.of();
     }
 
-
     @Override
     public Set<NodeFeature> getTestFeatures() {
         return Set.of(WRONG_CUSTOM_ANALYZER_RETURN_400);

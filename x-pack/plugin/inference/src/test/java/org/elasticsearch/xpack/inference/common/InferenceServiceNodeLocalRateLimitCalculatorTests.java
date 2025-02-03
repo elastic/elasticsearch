@@ -100,7 +100,7 @@ public class InferenceServiceNodeLocalRateLimitCalculatorTests extends ESIntegTe
         var nodeNames = internalCluster().startNodes(numNodes);
         ensureStableCluster(numNodes);
 
-        var calculator = getCalculatorInstance(internalCluster(), nodeNames.getFirst());
+        var calculator = getCalculatorInstance(internalCluster(), nodeNames.get(0));
         waitForRateLimitingAssignments(calculator);
 
         Set<String> supportedServices = SERVICE_NODE_LOCAL_RATE_LIMIT_CONFIGS.keySet();
@@ -119,7 +119,7 @@ public class InferenceServiceNodeLocalRateLimitCalculatorTests extends ESIntegTe
         var nodeNames = internalCluster().startNodes(numNodes);
         ensureStableCluster(numNodes);
 
-        var calculator = getCalculatorInstance(internalCluster(), nodeNames.getFirst());
+        var calculator = getCalculatorInstance(internalCluster(), nodeNames.get(0));
         waitForRateLimitingAssignments(calculator);
 
         Set<String> supportedServices = SERVICE_NODE_LOCAL_RATE_LIMIT_CONFIGS.keySet();
@@ -150,7 +150,7 @@ public class InferenceServiceNodeLocalRateLimitCalculatorTests extends ESIntegTe
         var nodeNames = internalCluster().startNodes(initialNodes);
         ensureStableCluster(initialNodes);
 
-        var calculator = getCalculatorInstance(internalCluster(), nodeNames.getFirst());
+        var calculator = getCalculatorInstance(internalCluster(), nodeNames.get(0));
         waitForRateLimitingAssignments(calculator);
 
         for (var serviceName : SERVICE_NODE_LOCAL_RATE_LIMIT_CONFIGS.keySet()) {
@@ -180,7 +180,7 @@ public class InferenceServiceNodeLocalRateLimitCalculatorTests extends ESIntegTe
         var nodeNames = internalCluster().startNodes(numNodes);
         ensureStableCluster(numNodes);
 
-        var calculator = getCalculatorInstance(internalCluster(), nodeNames.getFirst());
+        var calculator = getCalculatorInstance(internalCluster(), nodeNames.get(0));
         waitForRateLimitingAssignments(calculator);
 
         for (var serviceName : SERVICE_NODE_LOCAL_RATE_LIMIT_CONFIGS.keySet()) {

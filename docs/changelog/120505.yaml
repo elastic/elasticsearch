@@ -1,0 +1,5 @@
+pr: 120505
+summary: "introduce new categories for deprecated resources in deprecation API"
+area: Indices APIs
+type: enhancement
+issues: []

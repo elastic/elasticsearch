@@ -190,7 +190,7 @@ public class TransportVersionTests extends ESTestCase {
     }
 
     public void testPatchVersionsStillAvailable() {
-        for (TransportVersion tv : TransportVersion.getAllVersions()) {
+        for (TransportVersion tv : TransportVersionUtils.allReleasedVersions()) {
             if (tv.onOrAfter(TransportVersions.V_8_9_X) && (tv.id() % 100) > 90) {
                 fail(
                     "Transport version "

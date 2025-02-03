@@ -31,8 +31,6 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.test.NodeRoles.nonRemoteClusterClientNode;
 import static org.elasticsearch.test.NodeRoles.remoteClusterClientNode;
-import static org.elasticsearch.test.TransportVersionUtils.getPreviousVersion;
-import static org.elasticsearch.test.TransportVersionUtils.randomVersionBetween;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -271,40 +269,6 @@ public class DiscoveryNodeTests extends ESTestCase {
                     assertThat(deserialized.getMaxIndexVersion(), equalTo(node.getMaxIndexVersion()));
                     assertThat(deserialized.getMinReadOnlyIndexVersion(), equalTo(node.getMinReadOnlyIndexVersion()));
                     assertThat(deserialized.getVersionInformation(), equalTo(node.getVersionInformation()));
-                }
-            }
-        }
-
-        {
-            var oldVersion = randomVersionBetween(
-                random(),
-                TransportVersions.MINIMUM_COMPATIBLE,
-                getPreviousVersion(TransportVersions.NODE_VERSION_INFORMATION_WITH_MIN_READ_ONLY_INDEX_VERSION)
-            );
-            try (var out = new BytesStreamOutput()) {
-                out.setTransportVersion(oldVersion);
-                node.writeTo(out);
-
-                try (var in = StreamInput.wrap(out.bytes().array())) {
-                    in.setTransportVersion(oldVersion);
-
-                    var deserialized = new DiscoveryNode(in);
-                    assertThat(deserialized.getId(), equalTo(node.getId()));
-                    assertThat(deserialized.getAddress(), equalTo(node.getAddress()));
-                    assertThat(deserialized.getMinIndexVersion(), equalTo(node.getMinIndexVersion()));
-                    assertThat(deserialized.getMaxIndexVersion(), equalTo(node.getMaxIndexVersion()));
-                    assertThat(deserialized.getMinReadOnlyIndexVersion(), equalTo(node.getMinIndexVersion()));
-                    assertThat(
-                        deserialized.getVersionInformation(),
-                        equalTo(
-                            new VersionInformation(
-                                node.getBuildVersion(),
-                                node.getMinIndexVersion(),
-                                node.getMinIndexVersion(),
-                                node.getMaxIndexVersion()
-                            )
-                        )
-                    );
                 }
             }
         }

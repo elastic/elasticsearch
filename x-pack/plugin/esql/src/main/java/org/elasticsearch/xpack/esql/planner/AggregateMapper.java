@@ -48,6 +48,7 @@ import java.lang.invoke.MethodType;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -99,8 +100,7 @@ final class AggregateMapper {
 
     /** Map of AggDef types to intermediate named expressions. */
     private static final Map<AggDef, List<IntermediateStateDesc>> MAPPER = AGG_FUNCTIONS.stream()
-        .flatMap(AggregateMapper::typeAndNames)
-        .flatMap(AggregateMapper::groupingAndNonGrouping)
+        .flatMap(AggregateMapper::aggDefs)
         .collect(Collectors.toUnmodifiableMap(aggDef -> aggDef, AggregateMapper::lookupIntermediateState));
 
     /** Cache of aggregates to intermediate expressions. */
@@ -167,7 +167,7 @@ final class AggregateMapper {
         return l;
     }
 
-    private static Stream<Tuple<Class<?>, Tuple<String, String>>> typeAndNames(Class<?> clazz) {
+    private static Stream<AggDef> aggDefs(Class<?> clazz) {
         List<String> types;
         List<String> extraConfigs = List.of("");
         if (NumericAggregate.class.isAssignableFrom(clazz)) {
@@ -197,30 +197,24 @@ final class AggregateMapper {
             assert false : "unknown aggregate type " + clazz;
             throw new IllegalArgumentException("unknown aggregate type " + clazz);
         }
-        return combine(clazz, types, extraConfigs);
-    }
+        return combinations(types, extraConfigs).flatMap(typeAndExtraConfig -> {
+            var type = typeAndExtraConfig.v1();
+            var extra = typeAndExtraConfig.v2();
 
-    private static Stream<Tuple<Class<?>, Tuple<String, String>>> combine(Class<?> clazz, List<String> types, List<String> extraConfigs) {
-        return combinations(types, extraConfigs).map(combo -> new Tuple<>(clazz, combo));
+            if (clazz.isAssignableFrom(Rate.class)) {
+                // rate doesn't support non-grouping aggregations
+                return Stream.of(new AggDef(clazz, type, extra, true));
+            } else if (Objects.equals(type, "AggregateMetricDouble")) {
+                // TODO: support grouping aggregations for aggregate metric double
+                return Stream.of(new AggDef(clazz, type, extra, false));
+            } else {
+                return Stream.of(new AggDef(clazz, type, extra, true), new AggDef(clazz, type, extra, false));
+            }
+        });
     }
 
     private static Stream<Tuple<String, String>> combinations(List<String> types, List<String> extraConfigs) {
         return types.stream().flatMap(type -> extraConfigs.stream().map(config -> new Tuple<>(type, config)));
-    }
-
-    private static Stream<AggDef> groupingAndNonGrouping(Tuple<Class<?>, Tuple<String, String>> tuple) {
-        if (tuple.v1().isAssignableFrom(Rate.class)) {
-            // rate doesn't support non-grouping aggregations
-            return Stream.of(new AggDef(tuple.v1(), tuple.v2().v1(), tuple.v2().v2(), true));
-        } else if (tuple.v2().v1().equals("AggregateMetricDouble")) {
-            // TODO: support grouping aggregations for aggregate metric double
-            return Stream.of(new AggDef(tuple.v1(), tuple.v2().v1(), tuple.v2().v2(), false));
-        } else {
-            return Stream.of(
-                new AggDef(tuple.v1(), tuple.v2().v1(), tuple.v2().v2(), true),
-                new AggDef(tuple.v1(), tuple.v2().v1(), tuple.v2().v2(), false)
-            );
-        }
     }
 
     /** Retrieves the intermediate state description for a given class, type, and grouping. */

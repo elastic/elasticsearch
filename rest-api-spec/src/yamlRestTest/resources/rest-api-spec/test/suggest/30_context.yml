@@ -395,3 +395,75 @@ setup:
                 field: suggest_multi_contexts
                 contexts:
                   location: []
+
+---
+"Duplicate suggestions in different contexts":
+  - requires:
+      cluster_features: [ "search.completion_field.duplicate.support" ]
+      reason: "Support for duplicate suggestions in different contexts"
+
+  - do:
+      index:
+        refresh: true
+        index: test
+        id:    "1"
+        body:
+          suggest_context:
+            -
+              input: "foox"
+              weight: 2
+              contexts:
+                color: ["red", "yellow"]
+            -
+              input: "foox"
+              weight: 3
+              contexts:
+                color: ["blue", "green", "yellow"]
+  - do:
+      search:
+        body:
+          suggest:
+            result:
+              text: "foo"
+              completion:
+                field: suggest_context
+                contexts:
+                  color: "red"
+
+  - length: { suggest.result: 1  }
+  - length: { suggest.result.0.options: 1  }
+  - match:  { suggest.result.0.options.0.text: "foox" }
+  - match:  { suggest.result.0.options.0._score: 2 }
+
+  - do:
+      search:
+        body:
+          suggest:
+            result:
+              text: "foo"
+              completion:
+                field: suggest_context
+                contexts:
+                  color: "yellow"
+
+  - length: { suggest.result: 1  }
+  - length: { suggest.result.0.options: 1  }
+  - match:  { suggest.result.0.options.0.text: "foox" }
+  # the highest weight wins
+  - match:  { suggest.result.0.options.0._score: 3 }
+
+  - do:
+      search:
+        body:
+          suggest:
+            result:
+              text: "foo"
+              completion:
+                field: suggest_context
+                contexts:
+                  color: "blue"
+
+  - length: { suggest.result: 1 }
+  - length: { suggest.result.0.options: 1 }
+  - match: { suggest.result.0.options.0.text: "foox" }
+  - match: { suggest.result.0.options.0._score: 3 }

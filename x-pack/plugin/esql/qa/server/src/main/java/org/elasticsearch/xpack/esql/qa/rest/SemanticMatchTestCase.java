@@ -88,13 +88,11 @@ public abstract class SemanticMatchTestCase extends ESRestTestCase {
         Request request = new Request("PUT", "_inference/text_embedding/test_dense_inference");
         request.setJsonEntity("""
                   {
-                   "service": "test_service",
+                   "service": "text_embedding_test_service",
                    "service_settings": {
                      "model": "my_model",
                      "api_key": "abc64",
-                     "dimensions": 128,
-                     "element_type": "float",
-                     "similarity": "cosine"
+                     "dimensions": 128
                    },
                    "task_settings": {
                    }

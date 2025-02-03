@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankR
 
 import java.util.Set;
 
+import static org.elasticsearch.xpack.inference.queries.SemanticKnnVectorQueryRewriteInterceptor.SEMANTIC_KNN_FILTER_FIX;
 import static org.elasticsearch.xpack.inference.queries.SemanticKnnVectorQueryRewriteInterceptor.SEMANTIC_KNN_VECTOR_QUERY_REWRITE_INTERCEPTION_SUPPORTED;
 import static org.elasticsearch.xpack.inference.queries.SemanticMatchQueryRewriteInterceptor.SEMANTIC_MATCH_QUERY_REWRITE_INTERCEPTION_SUPPORTED;
 import static org.elasticsearch.xpack.inference.queries.SemanticSparseVectorQueryRewriteInterceptor.SEMANTIC_SPARSE_VECTOR_QUERY_REWRITE_INTERCEPTION_SUPPORTED;
@@ -42,7 +43,8 @@ public class InferenceFeatures implements FeatureSpecification {
             SEMANTIC_KNN_VECTOR_QUERY_REWRITE_INTERCEPTION_SUPPORTED,
             TextSimilarityRankRetrieverBuilder.TEXT_SIMILARITY_RERANKER_ALIAS_HANDLING_FIX,
             SemanticInferenceMetadataFieldsMapper.INFERENCE_METADATA_FIELDS_ENABLED_BY_DEFAULT,
-            SEMANTIC_TEXT_HIGHLIGHTER_DEFAULT
+            SEMANTIC_TEXT_HIGHLIGHTER_DEFAULT,
+            SEMANTIC_KNN_FILTER_FIX
         );
     }
 }

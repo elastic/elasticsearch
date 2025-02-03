@@ -342,6 +342,7 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
         TaskId parentTaskId
     ) {
         AddIndexBlockRequest addIndexBlockRequest = new AddIndexBlockRequest(block, index);
+        addIndexBlockRequest.markVerified(false);
         addIndexBlockRequest.setParentTask(parentTaskId);
         client.admin().indices().execute(TransportAddIndexBlockAction.TYPE, addIndexBlockRequest, listener);
     }

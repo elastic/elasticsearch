@@ -13,6 +13,7 @@ import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
 import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
 import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.search.TransportSearchAction;
+import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -761,7 +762,15 @@ public class LimitedRoleTests extends ESTestCase {
         }
         {
             fromRole = Role.builder(EMPTY_RESTRICTED_INDICES, "a-role")
-                .add(FieldPermissions.DEFAULT, Collections.emptySet(), IndexPrivilege.READ, true, false, "ind-1*", ".security")
+                .add(
+                    FieldPermissions.DEFAULT,
+                    Collections.emptySet(),
+                    IndexPrivilege.READ,
+                    true,
+                    IndexComponentSelector.DATA,
+                    "ind-1*",
+                    ".security"
+                )
                 .build();
 
             verifyResourcesPrivileges(

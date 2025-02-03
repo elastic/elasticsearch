@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.security.authz.permission;
 
 import org.apache.lucene.util.automaton.Automaton;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.set.Sets;
@@ -252,7 +253,9 @@ public interface Role {
         }
 
         public Builder add(IndexPrivilege privilege, String... indices) {
-            groups.add(new IndicesPermissionGroupDefinition(privilege, FieldPermissions.DEFAULT, null, false, false, indices));
+            groups.add(
+                new IndicesPermissionGroupDefinition(privilege, FieldPermissions.DEFAULT, null, false, IndexComponentSelector.DATA, indices)
+            );
             return this;
         }
 
@@ -264,7 +267,7 @@ public interface Role {
             boolean allowRestrictedIndices,
             String... indices
         ) {
-            return add(fieldPermissions, query, privilege, allowRestrictedIndices, false, indices);
+            return add(fieldPermissions, query, privilege, allowRestrictedIndices, IndexComponentSelector.DATA, indices);
         }
 
         public Builder add(
@@ -272,20 +275,22 @@ public interface Role {
             Set<BytesReference> query,
             IndexPrivilege privilege,
             boolean allowRestrictedIndices,
-            boolean allowFailureStoreAccess,
+            boolean foo,
+            String... indices
+        ) {
+            return add(fieldPermissions, query, privilege, allowRestrictedIndices, IndexComponentSelector.DATA, indices);
+        }
+
+        public Builder add(
+            FieldPermissions fieldPermissions,
+            Set<BytesReference> query,
+            IndexPrivilege privilege,
+            boolean allowRestrictedIndices,
+            IndexComponentSelector selector,
             String... indices
         ) {
             // TODO assert no failures suffixes left
-            groups.add(
-                new IndicesPermissionGroupDefinition(
-                    privilege,
-                    fieldPermissions,
-                    query,
-                    allowRestrictedIndices,
-                    allowFailureStoreAccess,
-                    indices
-                )
-            );
+            groups.add(new IndicesPermissionGroupDefinition(privilege, fieldPermissions, query, allowRestrictedIndices, selector, indices));
             return this;
         }
 
@@ -299,7 +304,16 @@ public interface Role {
             final String... indices
         ) {
             remoteIndicesGroups.computeIfAbsent(remoteClusterAliases, k -> new ArrayList<>())
-                .add(new IndicesPermissionGroupDefinition(privilege, fieldPermissions, query, allowRestrictedIndices, false, indices));
+                .add(
+                    new IndicesPermissionGroupDefinition(
+                        privilege,
+                        fieldPermissions,
+                        query,
+                        allowRestrictedIndices,
+                        IndexComponentSelector.DATA,
+                        indices
+                    )
+                );
             return this;
         }
 
@@ -339,7 +353,7 @@ public interface Role {
                         group.fieldPermissions,
                         group.query,
                         group.allowRestrictedIndices,
-                        group.allowFailureStoreAccess,
+                        group.selector,
                         group.indices
                     );
                 }
@@ -388,7 +402,7 @@ public interface Role {
             private final FieldPermissions fieldPermissions;
             private final @Nullable Set<BytesReference> query;
             private final boolean allowRestrictedIndices;
-            private final boolean allowFailureStoreAccess;
+            private final IndexComponentSelector selector;
             private final String[] indices;
 
             private IndicesPermissionGroupDefinition(
@@ -396,14 +410,14 @@ public interface Role {
                 FieldPermissions fieldPermissions,
                 @Nullable Set<BytesReference> query,
                 boolean allowRestrictedIndices,
-                boolean allowFailureStoreAccess,
+                IndexComponentSelector selector,
                 String... indices
             ) {
                 this.privilege = privilege;
                 this.fieldPermissions = fieldPermissions;
                 this.query = query;
                 this.allowRestrictedIndices = allowRestrictedIndices;
-                this.allowFailureStoreAccess = allowFailureStoreAccess;
+                this.selector = selector;
                 this.indices = indices;
             }
         }
@@ -442,21 +456,21 @@ public interface Role {
                     indexPrivilege.getQuery() == null ? null : Collections.singleton(indexPrivilege.getQuery()),
                     IndexPrivilege.get(Sets.newHashSet(indexPrivilege.getPrivileges())),
                     indexPrivilege.allowRestrictedIndices(),
-                    true,
+                    IndexComponentSelector.ALL_APPLICABLE,
+                    indexPrivilege.getIndices()
+                );
+            } else {
+                builder.add(
+                    fieldPermissionsCache.getFieldPermissions(
+                        new FieldPermissionsDefinition(indexPrivilege.getGrantedFields(), indexPrivilege.getDeniedFields())
+                    ),
+                    indexPrivilege.getQuery() == null ? null : Collections.singleton(indexPrivilege.getQuery()),
+                    IndexPrivilege.get(Sets.newHashSet(indexPrivilege.getPrivileges())),
+                    indexPrivilege.allowRestrictedIndices(),
+                    IndexComponentSelector.DATA,
                     indexPrivilege.getIndices()
                 );
             }
-            builder.add(
-                fieldPermissionsCache.getFieldPermissions(
-                    new FieldPermissionsDefinition(indexPrivilege.getGrantedFields(), indexPrivilege.getDeniedFields())
-                ),
-                indexPrivilege.getQuery() == null ? null : Collections.singleton(indexPrivilege.getQuery()),
-                IndexPrivilege.get(Sets.newHashSet(indexPrivilege.getPrivileges())),
-                indexPrivilege.allowRestrictedIndices(),
-                // TODO properly handle this
-                false,
-                indexPrivilege.getIndices()
-            );
         }
 
         for (RoleDescriptor.RemoteIndicesPrivileges remoteIndicesPrivileges : roleDescriptor.getRemoteIndicesPrivileges()) {

@@ -11,6 +11,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.admin.indices.mapping.put.TransportAutoPutMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.put.TransportPutMappingAction;
 import org.elasticsearch.action.search.TransportSearchAction;
+import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
@@ -258,13 +259,19 @@ public class IndicesPermissionTests extends ESTestCase {
             FieldPermissions.DEFAULT,
             null,
             allowRestrictedIndices4,
-            false,
+            IndexComponentSelector.DATA,
             "a1"
         );
         FieldPermissions fieldPermissions3 = new FieldPermissions(fieldPermissionDef(null, new String[] { "denied_field" }));
         boolean allowRestrictedIndices5 = randomBoolean();
-        IndicesPermission core = builder5.addGroup(IndexPrivilege.READ, fieldPermissions3, null, allowRestrictedIndices5, false, "a1")
-            .build();
+        IndicesPermission core = builder5.addGroup(
+            IndexPrivilege.READ,
+            fieldPermissions3,
+            null,
+            allowRestrictedIndices5,
+            IndexComponentSelector.DATA,
+            "a1"
+        ).build();
         IndicesAccessControl iac = core.authorize(
             TransportSearchAction.TYPE.name(),
             Sets.newHashSet("a1", "ba"),
@@ -289,7 +296,7 @@ public class IndicesPermissionTests extends ESTestCase {
             FieldPermissions.DEFAULT,
             null,
             allowRestrictedIndices1,
-            false,
+            IndexComponentSelector.DATA,
             "a1"
         );
         FieldPermissions fieldPermissions1 = new FieldPermissions(fieldPermissionDef(null, new String[] { "denied_field" }));
@@ -299,7 +306,7 @@ public class IndicesPermissionTests extends ESTestCase {
             fieldPermissions1,
             null,
             allowRestrictedIndices2,
-            false,
+            IndexComponentSelector.DATA,
             "a1"
         );
         FieldPermissions fieldPermissions2 = new FieldPermissions(
@@ -311,14 +318,15 @@ public class IndicesPermissionTests extends ESTestCase {
             fieldPermissions2,
             null,
             allowRestrictedIndices3,
-            false,
+            IndexComponentSelector.DATA,
             "a2"
         );
         FieldPermissions fieldPermissions = new FieldPermissions(
             fieldPermissionDef(new String[] { "*_field2" }, new String[] { "denied_field2" })
         );
         boolean allowRestrictedIndices = randomBoolean();
-        core = builder.addGroup(IndexPrivilege.ALL, fieldPermissions, null, allowRestrictedIndices, false, "a2").build();
+        core = builder.addGroup(IndexPrivilege.ALL, fieldPermissions, null, allowRestrictedIndices, IndexComponentSelector.DATA, "a2")
+            .build();
         iac = core.authorize(TransportSearchAction.TYPE.name(), Sets.newHashSet("a1", "a2"), metadata, fieldPermissionsCache);
         assertFalse(iac.getIndexPermissions("a1").getFieldPermissions().hasFieldLevelSecurity());
         assertFalse(iac.getIndexPermissions("a2").getFieldPermissions().grantsAccessTo("denied_field2"));
@@ -348,7 +356,7 @@ public class IndicesPermissionTests extends ESTestCase {
                 null,
                 randomBoolean(),
                 RESTRICTED_INDICES,
-                false,
+                IndexComponentSelector.DATA,
                 indices.toArray(Strings.EMPTY_ARRAY)
             )
         );
@@ -374,8 +382,14 @@ public class IndicesPermissionTests extends ESTestCase {
 
         // allow_restricted_indices: false
         IndicesPermission.Builder builder1 = new IndicesPermission.Builder(RESTRICTED_INDICES);
-        IndicesPermission indicesPermission = builder1.addGroup(IndexPrivilege.ALL, FieldPermissions.DEFAULT, null, false, false, "*")
-            .build();
+        IndicesPermission indicesPermission = builder1.addGroup(
+            IndexPrivilege.ALL,
+            FieldPermissions.DEFAULT,
+            null,
+            false,
+            IndexComponentSelector.DATA,
+            "*"
+        ).build();
         IndicesAccessControl iac = indicesPermission.authorize(
             TransportSearchAction.TYPE.name(),
             Sets.newHashSet(internalSecurityIndex, SecuritySystemIndices.SECURITY_MAIN_ALIAS),
@@ -390,7 +404,8 @@ public class IndicesPermissionTests extends ESTestCase {
 
         // allow_restricted_indices: true
         IndicesPermission.Builder builder = new IndicesPermission.Builder(RESTRICTED_INDICES);
-        indicesPermission = builder.addGroup(IndexPrivilege.ALL, FieldPermissions.DEFAULT, null, true, false, "*").build();
+        indicesPermission = builder.addGroup(IndexPrivilege.ALL, FieldPermissions.DEFAULT, null, true, IndexComponentSelector.DATA, "*")
+            .build();
         iac = indicesPermission.authorize(
             TransportSearchAction.TYPE.name(),
             Sets.newHashSet(internalSecurityIndex, SecuritySystemIndices.SECURITY_MAIN_ALIAS),
@@ -415,8 +430,14 @@ public class IndicesPermissionTests extends ESTestCase {
 
         // allow_restricted_indices: false
         IndicesPermission.Builder builder1 = new IndicesPermission.Builder(RESTRICTED_INDICES);
-        IndicesPermission indicesPermission = builder1.addGroup(IndexPrivilege.ALL, FieldPermissions.DEFAULT, null, false, false, "*")
-            .build();
+        IndicesPermission indicesPermission = builder1.addGroup(
+            IndexPrivilege.ALL,
+            FieldPermissions.DEFAULT,
+            null,
+            false,
+            IndexComponentSelector.DATA,
+            "*"
+        ).build();
         IndicesAccessControl iac = indicesPermission.authorize(
             TransportSearchAction.TYPE.name(),
             Sets.newHashSet(asyncSearchIndex),
@@ -429,7 +450,8 @@ public class IndicesPermissionTests extends ESTestCase {
 
         // allow_restricted_indices: true
         IndicesPermission.Builder builder = new IndicesPermission.Builder(RESTRICTED_INDICES);
-        indicesPermission = builder.addGroup(IndexPrivilege.ALL, FieldPermissions.DEFAULT, null, true, false, "*").build();
+        indicesPermission = builder.addGroup(IndexPrivilege.ALL, FieldPermissions.DEFAULT, null, true, IndexComponentSelector.DATA, "*")
+            .build();
         iac = indicesPermission.authorize(
             TransportSearchAction.TYPE.name(),
             Sets.newHashSet(asyncSearchIndex),
@@ -466,7 +488,7 @@ public class IndicesPermissionTests extends ESTestCase {
             FieldPermissions.DEFAULT,
             null,
             false,
-            false,
+            IndexComponentSelector.DATA,
             dataStreamName
         ).build();
         IndicesAccessControl iac = indicesPermission.authorize(
@@ -483,8 +505,14 @@ public class IndicesPermissionTests extends ESTestCase {
         }
 
         IndicesPermission.Builder builder1 = new IndicesPermission.Builder(RESTRICTED_INDICES);
-        indicesPermission = builder1.addGroup(IndexPrivilege.CREATE_DOC, FieldPermissions.DEFAULT, null, false, false, dataStreamName)
-            .build();
+        indicesPermission = builder1.addGroup(
+            IndexPrivilege.CREATE_DOC,
+            FieldPermissions.DEFAULT,
+            null,
+            false,
+            IndexComponentSelector.DATA,
+            dataStreamName
+        ).build();
         iac = indicesPermission.authorize(
             randomFrom(TransportPutMappingAction.TYPE.name(), TransportAutoPutMappingAction.TYPE.name()),
             Sets.newHashSet(backingIndices.stream().map(im -> im.getIndex().getName()).collect(Collectors.toList())),
@@ -530,7 +558,7 @@ public class IndicesPermissionTests extends ESTestCase {
             FieldPermissions.DEFAULT,
             null,
             allowRestrictedIndices,
-            false,
+            IndexComponentSelector.DATA,
             "test*"
         );
         FieldPermissions fieldPermissions = new FieldPermissions(fieldPermissionDef(null, new String[] { "denied_field" }));
@@ -540,7 +568,7 @@ public class IndicesPermissionTests extends ESTestCase {
             fieldPermissions,
             null,
             allowRestrictedIndices1,
-            false,
+            IndexComponentSelector.DATA,
             "test_write*"
         ).build();
         IndicesAccessControl iac = core.authorize(
@@ -640,27 +668,40 @@ public class IndicesPermissionTests extends ESTestCase {
             fieldPermissions,
             queries,
             allowRestrictedIndices1,
-            false,
+            IndexComponentSelector.DATA,
             "*"
         ).build();
         assertThat(indicesPermission1.hasFieldOrDocumentLevelSecurity(), is(true));
 
         // IsTotal means no DLS/FLS
         IndicesPermission.Builder builder2 = new IndicesPermission.Builder(RESTRICTED_INDICES);
-        final IndicesPermission indicesPermission2 = builder2.addGroup(IndexPrivilege.ALL, FieldPermissions.DEFAULT, null, true, false, "*")
-            .build();
+        final IndicesPermission indicesPermission2 = builder2.addGroup(
+            IndexPrivilege.ALL,
+            FieldPermissions.DEFAULT,
+            null,
+            true,
+            IndexComponentSelector.DATA,
+            "*"
+        ).build();
         assertThat(indicesPermission2.hasFieldOrDocumentLevelSecurity(), is(false));
 
         // IsTotal means NO DLS/FLS even when there is another group that has DLS/FLS
         IndicesPermission.Builder builder1 = new IndicesPermission.Builder(RESTRICTED_INDICES);
-        IndicesPermission.Builder builder = builder1.addGroup(IndexPrivilege.ALL, FieldPermissions.DEFAULT, null, true, false, "*");
+        IndicesPermission.Builder builder = builder1.addGroup(
+            IndexPrivilege.ALL,
+            FieldPermissions.DEFAULT,
+            null,
+            true,
+            IndexComponentSelector.DATA,
+            "*"
+        );
         boolean allowRestrictedIndices = randomBoolean();
         final IndicesPermission indicesPermission3 = builder.addGroup(
             IndexPrivilege.NONE,
             fieldPermissions,
             queries,
             allowRestrictedIndices,
-            false,
+            IndexComponentSelector.DATA,
             "*"
         ).build();
         assertThat(indicesPermission3.hasFieldOrDocumentLevelSecurity(), is(false));

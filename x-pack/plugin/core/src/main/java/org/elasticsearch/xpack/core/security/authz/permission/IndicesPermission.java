@@ -80,12 +80,10 @@ public final class IndicesPermission {
             FieldPermissions fieldPermissions,
             @Nullable Set<BytesReference> query,
             boolean allowRestrictedIndices,
-            boolean allowFailureStoreAccess,
+            IndexComponentSelector selector,
             String... indices
         ) {
-            groups.add(
-                new Group(privilege, fieldPermissions, query, allowRestrictedIndices, restrictedIndices, allowFailureStoreAccess, indices)
-            );
+            groups.add(new Group(privilege, fieldPermissions, query, allowRestrictedIndices, restrictedIndices, selector, indices));
             return this;
         }
 
@@ -157,16 +155,24 @@ public final class IndicesPermission {
         for (final Group group : groups) {
             if (group.actionMatcher.test(action)) {
                 if (group.allowRestrictedIndices) {
-                    if (group.failureStoreOnly) {
-                        failureAccessRestrictedIndices.addAll(Arrays.asList(group.indices()));
-                    } else {
-                        dataAccessRestrictedIndices.addAll(Arrays.asList(group.indices()));
+                    switch (group.selector) {
+                        case DATA -> dataAccessRestrictedIndices.addAll(Arrays.asList(group.indices()));
+                        case FAILURES -> failureAccessRestrictedIndices.addAll(Arrays.asList(group.indices()));
+                        case ALL_APPLICABLE -> {
+                            dataAccessRestrictedIndices.addAll(Arrays.asList(group.indices()));
+                            failureAccessRestrictedIndices.addAll(Arrays.asList(group.indices()));
+                        }
+                        default -> throw new IllegalStateException("unexpected selector [" + group.selector + "]");
                     }
                 } else {
-                    if (group.failureStoreOnly) {
-                        failureAccessOrdinaryIndices.addAll(Arrays.asList(group.indices()));
-                    } else {
-                        dataAccessOrdinaryIndices.addAll(Arrays.asList(group.indices()));
+                    switch (group.selector) {
+                        case DATA -> dataAccessOrdinaryIndices.addAll(Arrays.asList(group.indices()));
+                        case FAILURES -> failureAccessOrdinaryIndices.addAll(Arrays.asList(group.indices()));
+                        case ALL_APPLICABLE -> {
+                            dataAccessOrdinaryIndices.addAll(Arrays.asList(group.indices()));
+                            failureAccessOrdinaryIndices.addAll(Arrays.asList(group.indices()));
+                        }
+                        default -> throw new IllegalStateException("unexpected selector [" + group.selector + "]");
                     }
                 }
             } else if (isMappingUpdateAction && containsPrivilegeThatGrantsMappingUpdatesForBwc(group)) {
@@ -456,30 +462,17 @@ public final class IndicesPermission {
             final DataStream ds = indexAbstraction == null ? null : indexAbstraction.getParentDataStream();
             if (ds != null) {
                 if (group.checkIndex(ds.getName())) {
-                    // no selector implicitly means include data (?)
-                    if (selector == null || selector.shouldIncludeData()) {
-                        if (ds.isFailureStoreIndex(name)) {
-                            return group.failureStoreOnly;
-                        }
-                        return false == group.failureStoreOnly;
-                    } else {
-                        // TODO this is a simplification:
-                        return group.failureStoreOnly;
+                    // TODO is this right?
+                    if (indexAbstraction.isDataStreamConcreteFailureIndex()) {
+                        return group.checkSelector(IndexComponentSelector.FAILURES);
                     }
+                    return group.checkSelector(selector);
                 }
             }
             if (indexAbstraction != null && indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM) {
-                if (group.checkIndex(name)) {
-                    // no selector implicitly means include data (?)
-                    if (selector == null || selector.shouldIncludeData()) {
-                        return false == group.failureStoreOnly;
-                    } else {
-                        // TODO this is a simplification:
-                        return group.failureStoreOnly;
-                    }
-                }
-                return false;
+                return group.checkIndex(name) && group.checkSelector(selector);
             }
+            // TODO assertions around selector here?
             return group.checkIndex(name);
         }
 
@@ -868,7 +861,7 @@ public final class IndicesPermission {
         // users. Setting this flag true eliminates the special status for the purpose of this permission - restricted indices still have
         // to be covered by the "indices"
         private final boolean allowRestrictedIndices;
-        public final boolean failureStoreOnly;
+        public final IndexComponentSelector selector;
 
         public Group(
             IndexPrivilege privilege,
@@ -876,7 +869,7 @@ public final class IndicesPermission {
             @Nullable Set<BytesReference> query,
             boolean allowRestrictedIndices,
             RestrictedIndices restrictedIndices,
-            boolean failureStoreOnly,
+            IndexComponentSelector selector,
             String... indices
         ) {
             assert indices.length != 0;
@@ -897,7 +890,7 @@ public final class IndicesPermission {
             }
             this.fieldPermissions = Objects.requireNonNull(fieldPermissions);
             this.query = query;
-            this.failureStoreOnly = failureStoreOnly;
+            this.selector = selector;
         }
 
         public IndexPrivilege privilege() {
@@ -924,6 +917,15 @@ public final class IndicesPermission {
         private boolean checkIndex(String index) {
             assert index != null;
             return indexNameMatcher.test(index);
+        }
+
+        private boolean checkSelector(@Nullable IndexComponentSelector selectorToCheck) {
+            if (this.selector == IndexComponentSelector.ALL_APPLICABLE) {
+                return true;
+            }
+            boolean includeData = selectorToCheck == null || selectorToCheck.shouldIncludeData();
+            boolean includeFailures = selectorToCheck != null && selectorToCheck.shouldIncludeFailures();
+            return includeData == this.selector.shouldIncludeData() && includeFailures == this.selector.shouldIncludeFailures();
         }
 
         boolean hasQuery() {

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.core.security.authz.privilege;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersions;
+import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -419,7 +420,7 @@ public final class ConfigurableClusterPrivileges {
                         FieldPermissions.DEFAULT,
                         null,
                         false,
-                        false,
+                        IndexComponentSelector.DATA,
                         indexPatternPrivilege.indexPatterns()
                     );
                 }

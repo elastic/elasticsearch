@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.security.authz.permission;
 
+import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
@@ -67,7 +68,7 @@ public record RemoteIndicesPermission(List<RemoteIndicesGroup> remoteIndicesGrou
                         // but rather on the fulfilling cluster
                         new RestrictedIndices(Automatons.EMPTY),
                         // TODO handle failure store access
-                        false,
+                        IndexComponentSelector.DATA,
                         indices
                     )
                 );

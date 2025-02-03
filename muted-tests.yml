@@ -332,8 +332,6 @@ tests:
 - class: org.elasticsearch.upgrades.VectorSearchIT
   method: testBBQVectorSearch {upgradedNodes=0}
   issue: https://github.com/elastic/elasticsearch/issues/121253
-- class: org.elasticsearch.lucene.FullClusterRestartLuceneIndexCompatibilityIT
-  issue: https://github.com/elastic/elasticsearch/issues/121257
 - class: org.elasticsearch.upgrades.VectorSearchIT
   method: testBBQVectorSearch {upgradedNodes=1}
   issue: https://github.com/elastic/elasticsearch/issues/121271

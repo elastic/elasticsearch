@@ -14,9 +14,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.test.cluster.util.Version;
 
-import java.util.HashMap;
-import java.util.Map;
-
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_READ_ONLY_BLOCK;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_WRITE_BLOCK;
 import static org.elasticsearch.cluster.metadata.MetadataIndexStateService.INDEX_CLOSED_BLOCK;
@@ -37,9 +34,6 @@ public class FullClusterRestartLuceneIndexCompatibilityIT extends FullClusterRes
     public FullClusterRestartLuceneIndexCompatibilityIT(Version version) {
         super(version);
     }
-
-    // we need a place to store async_search ids across cluster restarts
-    private static Map<String, String> async_search_ids = new HashMap<>(3);
 
     /**
      * Creates an index on N-2, upgrades to N-1 and marks as read-only, then upgrades to N.

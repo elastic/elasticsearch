@@ -2659,6 +2659,9 @@ public abstract class ESTestCase extends LuceneTestCase {
         );
     }
 
+    /**
+     * Checks a specific exception class with matched message is thrown by the given runnable, and returns it.
+     */
     public static <T extends Throwable> T expectThrows(Class<T> expectedType, Matcher<String> messageMatcher, ThrowingRunnable runnable) {
         var e = expectThrows(expectedType, runnable);
         assertThat(e.getMessage(), messageMatcher);

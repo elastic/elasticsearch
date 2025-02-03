@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.enrich.action.EnrichStatsAction;
@@ -111,6 +112,7 @@ public class TransportEnrichStatsAction extends TransportLocalClusterStateAction
                 .collect(Collectors.toList());
             delegate.onResponse(new EnrichStatsAction.Response(policyExecutionTasks, coordinatorStats, cacheStats));
         });
+        ((CancellableTask) task).ensureNotCancelled();
         client.execute(EnrichCoordinatorStatsAction.INSTANCE, statsRequest, statsListener);
     }
 

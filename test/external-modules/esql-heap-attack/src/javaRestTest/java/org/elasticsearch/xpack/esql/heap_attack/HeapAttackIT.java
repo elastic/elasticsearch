@@ -636,7 +636,8 @@ public class HeapAttackIT extends ESRestTestCase {
 
     public void testLookupExplosionManyMatches() throws IOException {
         assertCircuitBreaks(() -> {
-            Map<?, ?> result = lookupExplosion(1500, 10000);
+            // 1500, 10000 is enough locally, but some CI machines need more.
+            Map<?, ?> result = lookupExplosion(2000, 10000);
             logger.error("should have failed but got {}", result);
         });
     }
@@ -664,7 +665,8 @@ public class HeapAttackIT extends ESRestTestCase {
 
     public void testLookupExplosionBigStringManyMatches() throws IOException {
         assertCircuitBreaks(() -> {
-            Map<?, ?> result = lookupExplosionBigString(500, 1);
+            // 500, 1 is enough to make it fail locally but some CI needs more
+            Map<?, ?> result = lookupExplosionBigString(800, 1);
             logger.error("should have failed but got {}", result);
         });
     }

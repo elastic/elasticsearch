@@ -290,7 +290,8 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
         // validate timeAllowedSinceLastSnapshot if schedule is syntactically valid
         if (canValidateTimeAllowedSinceLastSnapshot) {
             TimeValue snapshotInterval = calculateNextInterval(Clock.systemUTC());
-            if (timeAllowedSinceLastSnapshot != null && snapshotInterval.duration() > 0
+            if (timeAllowedSinceLastSnapshot != null
+                && snapshotInterval.duration() > 0
                 && timeAllowedSinceLastSnapshot.compareTo(snapshotInterval) < 0) {
                 err.addValidationError(
                     "invalid timeAllowedSinceLastSnapshot ["

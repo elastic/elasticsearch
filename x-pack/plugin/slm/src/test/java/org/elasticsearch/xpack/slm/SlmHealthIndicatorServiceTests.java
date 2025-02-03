@@ -151,7 +151,8 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
                 createSlmPolicy(
                     snapshotInvocation(randomBoolean() ? null : execTime, execTime + 1000L),
                     snapshotInvocation(null, execTime + window + 1000L),
-                    randomLongBetween(0, 4),null
+                    randomLongBetween(0, 4),
+                    null
                 ),
                 RUNNING,
                 null
@@ -334,8 +335,15 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
                     "test-policy-does-not-exceed-time",
                     SnapshotLifecyclePolicyMetadata.builder()
                         .setPolicy(
-                            new SnapshotLifecyclePolicy("test-policy-does-not-exceeds-time", "test",
-                                "", "test-repository", null, null, new TimeValue(1, TimeUnit.HOURS))
+                            new SnapshotLifecyclePolicy(
+                                "test-policy-does-not-exceeds-time",
+                                "test",
+                                "",
+                                "test-repository",
+                                null,
+                                null,
+                                new TimeValue(1, TimeUnit.HOURS)
+                            )
                         )
                         .setVersion(1L)
                         .setModifiedDate(System.currentTimeMillis())
@@ -353,8 +361,15 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
                     "test-policy-exceeds-time-without-success-start-time",
                     SnapshotLifecyclePolicyMetadata.builder()
                         .setPolicy(
-                            new SnapshotLifecyclePolicy("test-policy-exceeds-time-without-success-start-time",
-                                "test", "", "test-repository", null, null, timeAllowed)
+                            new SnapshotLifecyclePolicy(
+                                "test-policy-exceeds-time-without-success-start-time",
+                                "test",
+                                "",
+                                "test-repository",
+                                null,
+                                null,
+                                timeAllowed
+                            )
                         )
                         .setVersion(1L)
                         .setModifiedDate(System.currentTimeMillis())
@@ -387,12 +402,7 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
                                 "count",
                                 2,
                                 "invocations_since_last_success",
-                                Map.of(
-                                    "test-policy-exceeds-time",
-                                    0L,
-                                    "test-policy-exceeds-time-without-success-start-time",
-                                    0L
-                                )
+                                Map.of("test-policy-exceeds-time", 0L, "test-policy-exceeds-time-without-success-start-time", 0L)
                             )
                         )
                     ),
@@ -601,8 +611,9 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
         return Map.of(
             "test-policy",
             SnapshotLifecyclePolicyMetadata.builder()
-                .setPolicy(new SnapshotLifecyclePolicy("policy-id", "test-policy", "", "test-repository", null, null,
-                    timeAllowedSinceLastSnapshot))
+                .setPolicy(
+                    new SnapshotLifecyclePolicy("policy-id", "test-policy", "", "test-repository", null, null, timeAllowedSinceLastSnapshot)
+                )
                 .setVersion(1L)
                 .setModifiedDate(System.currentTimeMillis())
                 .setLastSuccess(lastSuccess)

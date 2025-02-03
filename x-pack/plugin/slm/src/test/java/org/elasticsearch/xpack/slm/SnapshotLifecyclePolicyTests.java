@@ -309,7 +309,7 @@ public class SnapshotLifecyclePolicyTests extends AbstractXContentSerializingTes
                 "repo",
                 Collections.emptyMap(),
                 SnapshotRetentionConfiguration.EMPTY,
-                TimeValue.parseTimeValue("1h","timeAllowedSinceLastSnapshot")
+                TimeValue.parseTimeValue("1h", "timeAllowedSinceLastSnapshot")
             );
             ValidationException e = policy.validate();
             assertThat(e, nullValue());
@@ -341,8 +341,13 @@ public class SnapshotLifecyclePolicyTests extends AbstractXContentSerializingTes
             );
 
             ValidationException e = policy.validate();
-            assertThat(e.validationErrors(), containsInAnyOrder("invalid timeAllowedSinceLastSnapshot [1m]: time is too short, " +
-                "expecting at least more than the interval between snapshots [15m] for schedule [15m]"));
+            assertThat(
+                e.validationErrors(),
+                containsInAnyOrder(
+                    "invalid timeAllowedSinceLastSnapshot [1m]: time is too short, "
+                        + "expecting at least more than the interval between snapshots [15m] for schedule [15m]"
+                )
+            );
         }
         {
             SnapshotLifecyclePolicy policy = new SnapshotLifecyclePolicy(
@@ -352,7 +357,7 @@ public class SnapshotLifecyclePolicyTests extends AbstractXContentSerializingTes
                 "repo",
                 Collections.emptyMap(),
                 SnapshotRetentionConfiguration.EMPTY,
-                TimeValue.parseTimeValue("2d","timeAllowedSinceLastSnapshot")
+                TimeValue.parseTimeValue("2d", "timeAllowedSinceLastSnapshot")
             );
 
             ValidationException e = policy.validate();
@@ -370,8 +375,13 @@ public class SnapshotLifecyclePolicyTests extends AbstractXContentSerializingTes
             );
 
             ValidationException e = policy.validate();
-            assertThat(e.validationErrors(), containsInAnyOrder("invalid timeAllowedSinceLastSnapshot [1m]: time is too short, " +
-                "expecting at least more than the interval between snapshots [1d] for schedule [0 0 1 * * ?]"));
+            assertThat(
+                e.validationErrors(),
+                containsInAnyOrder(
+                    "invalid timeAllowedSinceLastSnapshot [1m]: time is too short, "
+                        + "expecting at least more than the interval between snapshots [1d] for schedule [0 0 1 * * ?]"
+                )
+            );
 
         }
     }

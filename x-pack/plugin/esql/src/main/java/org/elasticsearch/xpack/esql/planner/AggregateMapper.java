@@ -319,11 +319,11 @@ final class AggregateMapper {
         }
 
         return switch (type) {
-            case DataType.BOOLEAN -> "Boolean";
-            case DataType.INTEGER, DataType.COUNTER_INTEGER -> "Int";
-            case DataType.LONG, DataType.DATETIME, DataType.COUNTER_LONG, DataType.DATE_NANOS -> "Long";
-            case DataType.DOUBLE, DataType.COUNTER_DOUBLE -> "Double";
-            case DataType.KEYWORD, DataType.IP, DataType.VERSION, DataType.TEXT, DataType.SEMANTIC_TEXT -> "BytesRef";
+            case BOOLEAN -> "Boolean";
+            case INTEGER, COUNTER_INTEGER -> "Int";
+            case LONG, DATETIME, COUNTER_LONG, DATE_NANOS -> "Long";
+            case DOUBLE, COUNTER_DOUBLE -> "Double";
+            case KEYWORD, IP, VERSION, TEXT, SEMANTIC_TEXT -> "BytesRef";
             case GEO_POINT -> "GeoPoint";
             case CARTESIAN_POINT -> "CartesianPoint";
             case GEO_SHAPE -> "GeoShape";

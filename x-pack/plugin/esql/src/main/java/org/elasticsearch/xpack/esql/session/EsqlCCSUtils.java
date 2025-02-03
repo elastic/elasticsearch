@@ -380,8 +380,8 @@ public class EsqlCCSUtils {
         EsqlExecutionInfo.Cluster.Status status
     ) {
         return delegate.delegateResponse((l, e) -> {
-            if (EsqlCCSUtils.shouldIgnoreRuntimeError(executionInfo, clusterAlias, e)) {
-                EsqlCCSUtils.markClusterWithFinalStateAndNoShards(executionInfo, clusterAlias, status, e);
+            if (shouldIgnoreRuntimeError(executionInfo, clusterAlias, e)) {
+                markClusterWithFinalStateAndNoShards(executionInfo, clusterAlias, status, e);
                 l.onResponse(null);
             } else {
                 l.onFailure(e);

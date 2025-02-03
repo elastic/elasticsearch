@@ -15,6 +15,7 @@ import org.apache.lucene.search.join.BitSetProducer;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
@@ -35,7 +36,12 @@ public abstract class InferenceMetadataFieldsMapper extends MetadataFieldMapper 
      */
     public static final Setting<Boolean> USE_LEGACY_SEMANTIC_TEXT_FORMAT = Setting.boolSetting(
         "index.mapping.semantic_text.use_legacy_format",
-        false,
+        s -> {
+            // Check index version SOURCE_MAPPER_MODE_ATTRIBUTE_NOOP because that index version was added in the same serverless promotion
+            // where the new format was enabled by default
+            IndexVersion indexVersion = IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(s);
+            return Boolean.toString(indexVersion.before(IndexVersions.SOURCE_MAPPER_MODE_ATTRIBUTE_NOOP));
+        },
         Setting.Property.Final,
         Setting.Property.IndexScope,
         Setting.Property.InternalIndex

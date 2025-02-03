@@ -359,7 +359,9 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
                 )
             );
 
-            var elserServiceSettings = new ElserInternalServiceSettings(1, 4, ElserModels.ELSER_V2_MODEL, null);
+            var elserServiceSettings = new ElserInternalServiceSettings(
+                new ElasticsearchInternalServiceSettings(1, 4, ElserModels.ELSER_V2_MODEL, null, null)
+            );
 
             service.parseRequestConfig(
                 randomInferenceEntityId,
@@ -389,7 +391,9 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
                 )
             );
 
-            var elserServiceSettings = new ElserInternalServiceSettings(1, 4, ElserModels.ELSER_V2_MODEL, null);
+            var elserServiceSettings = new ElserInternalServiceSettings(
+                new ElasticsearchInternalServiceSettings(1, 4, ElserModels.ELSER_V2_MODEL, null, null)
+            );
 
             String criticalWarning =
                 "Putting elasticsearch service inference endpoints (including elser service) without a model_id field is"
@@ -458,7 +462,9 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
             );
             config.put(ModelConfigurations.CHUNKING_SETTINGS, createRandomChunkingSettingsMap());
 
-            var elserServiceSettings = new ElserInternalServiceSettings(1, 4, ElserModels.ELSER_V2_MODEL, null);
+            var elserServiceSettings = new ElserInternalServiceSettings(
+                new ElasticsearchInternalServiceSettings(1, 4, ElserModels.ELSER_V2_MODEL, null, null)
+            );
 
             service.parseRequestConfig(
                 randomInferenceEntityId,
@@ -494,7 +500,9 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
                 )
             );
 
-            var elserServiceSettings = new ElserInternalServiceSettings(1, 4, ElserModels.ELSER_V2_MODEL, null);
+            var elserServiceSettings = new ElserInternalServiceSettings(
+                new ElasticsearchInternalServiceSettings(1, 4, ElserModels.ELSER_V2_MODEL, null, null)
+            );
 
             service.parseRequestConfig(
                 randomInferenceEntityId,
@@ -750,7 +758,16 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
                 TaskType.TEXT_EMBEDDING,
                 settings
             );
-            var elandServiceSettings = new CustomElandInternalTextEmbeddingServiceSettings(1, 4, "invalid", null);
+            var elandServiceSettings = new CustomElandInternalTextEmbeddingServiceSettings(
+                1,
+                4,
+                "invalid",
+                null,
+                null,
+                null,
+                SimilarityMeasure.COSINE,
+                DenseVectorFieldMapper.ElementType.FLOAT
+            );
             assertEquals(
                 new CustomElandEmbeddingModel(
                     randomInferenceEntityId,
@@ -941,7 +958,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
             "foo",
             TaskType.SPARSE_EMBEDDING,
             "elasticsearch",
-            new ElasticsearchInternalServiceSettings(1, 1, "model-id", null),
+            new ElasticsearchInternalServiceSettings(1, 1, "model-id", null, null),
             chunkingSettings
         );
         var service = createService(client);
@@ -1011,7 +1028,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
             "foo",
             TaskType.SPARSE_EMBEDDING,
             "elasticsearch",
-            new ElserInternalServiceSettings(1, 1, "model-id", null),
+            new ElserInternalServiceSettings(new ElasticsearchInternalServiceSettings(1, 1, "model-id", null, null)),
             new ElserMlNodeTaskSettings(),
             chunkingSettings
         );
@@ -1336,11 +1353,20 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
                 randomInferenceEntityId,
                 taskType,
                 ElasticsearchInternalService.NAME,
-                new CustomElandInternalServiceSettings(1, 4, "custom-model", null),
+                new CustomElandInternalServiceSettings(new ElasticsearchInternalServiceSettings(1, 4, "custom-model", null, null)),
                 RerankTaskSettings.DEFAULT_SETTINGS
             );
         } else if (taskType == TaskType.TEXT_EMBEDDING) {
-            var serviceSettings = new CustomElandInternalTextEmbeddingServiceSettings(1, 4, "custom-model", null);
+            var serviceSettings = new CustomElandInternalTextEmbeddingServiceSettings(
+                1,
+                4,
+                "custom-model",
+                null,
+                null,
+                null,
+                SimilarityMeasure.COSINE,
+                DenseVectorFieldMapper.ElementType.FLOAT
+            );
 
             expectedModel = new CustomElandEmbeddingModel(
                 randomInferenceEntityId,
@@ -1354,7 +1380,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
                 randomInferenceEntityId,
                 taskType,
                 ElasticsearchInternalService.NAME,
-                new CustomElandInternalServiceSettings(1, 4, "custom-model", null),
+                new CustomElandInternalServiceSettings(new ElasticsearchInternalServiceSettings(1, 4, "custom-model", null, null)),
                 (ChunkingSettings) null
             );
         }
@@ -1446,6 +1472,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
             4,
             "custom-model",
             null,
+            null,
             1,
             SimilarityMeasure.COSINE,
             DenseVectorFieldMapper.ElementType.FLOAT
@@ -1469,6 +1496,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
                     1,
                     4,
                     "custom-model",
+                    null,
                     null,
                     null,
                     SimilarityMeasure.COSINE,
@@ -1519,7 +1547,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
             EmbeddingRequestChunker.EmbeddingType.SPARSE,
             ElasticsearchInternalService.embeddingTypeFromTaskTypeAndSettings(
                 TaskType.SPARSE_EMBEDDING,
-                new ElasticsearchInternalServiceSettings(1, 1, "foo", null)
+                new ElasticsearchInternalServiceSettings(1, 1, "foo", null, null)
             )
         );
         assertEquals(
@@ -1534,7 +1562,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
             ElasticsearchStatusException.class,
             () -> ElasticsearchInternalService.embeddingTypeFromTaskTypeAndSettings(
                 TaskType.COMPLETION,
-                new ElasticsearchInternalServiceSettings(1, 1, "foo", null)
+                new ElasticsearchInternalServiceSettings(1, 1, "foo", null, null)
             )
         );
         assertThat(e1.getMessage(), containsString("Chunking is not supported for task type [completion]"));
@@ -1543,7 +1571,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
             ElasticsearchStatusException.class,
             () -> ElasticsearchInternalService.embeddingTypeFromTaskTypeAndSettings(
                 TaskType.RERANK,
-                new ElasticsearchInternalServiceSettings(1, 1, "foo", null)
+                new ElasticsearchInternalServiceSettings(1, 1, "foo", null, null)
             )
         );
         assertThat(e2.getMessage(), containsString("Chunking is not supported for task type [rerank]"));

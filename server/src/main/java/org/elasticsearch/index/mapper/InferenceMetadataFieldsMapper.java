@@ -44,7 +44,7 @@ public abstract class InferenceMetadataFieldsMapper extends MetadataFieldMapper 
 
     // Check index version SOURCE_MAPPER_MODE_ATTRIBUTE_NOOP because that index version was added in the same serverless promotion
     // where the new format was enabled by default
-    public static final IndexVersion USE_NEW_FORMAT_BY_DEFAULT = IndexVersions.SOURCE_MAPPER_MODE_ATTRIBUTE_NOOP;
+    public static final IndexVersion USE_NEW_SEMANTIC_TEXT_FORMAT_BY_DEFAULT = IndexVersions.SOURCE_MAPPER_MODE_ATTRIBUTE_NOOP;
 
     public static final String NAME = "_inference_fields";
     public static final String CONTENT_TYPE = "_inference_fields";
@@ -93,7 +93,7 @@ public abstract class InferenceMetadataFieldsMapper extends MetadataFieldMapper 
         var version = IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings);
         if ((version.before(IndexVersions.INFERENCE_METADATA_FIELDS)
             && version.between(IndexVersions.INFERENCE_METADATA_FIELDS_BACKPORT, IndexVersions.UPGRADE_TO_LUCENE_10_0_0) == false)
-            || (version.before(USE_NEW_FORMAT_BY_DEFAULT) && USE_LEGACY_SEMANTIC_TEXT_FORMAT.exists(settings) == false)) {
+            || (version.before(USE_NEW_SEMANTIC_TEXT_FORMAT_BY_DEFAULT) && USE_LEGACY_SEMANTIC_TEXT_FORMAT.exists(settings) == false)) {
             return false;
         }
 

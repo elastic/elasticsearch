@@ -91,6 +91,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Consumer;
+import java.util.function.IntSupplier;
 import java.util.function.LongUnaryOperator;
 import java.util.function.Predicate;
 import java.util.zip.CRC32;
@@ -166,8 +167,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     private final ShardLock shardLock;
     private final OnClose onClose;
 
-    // Keep a reference to the wrapped RefCounter so we can call AbstractRefCounted#refCount()
-    private final AbstractRefCounted innerRefCounter = AbstractRefCounted.of(this::closeInternal); // close us once we are done
+    private final IntSupplier refCountSupplier;
     private final RefCounted refCounter;
     private boolean hasIndexSort;
 
@@ -208,7 +208,10 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         assert shardLock != null;
         assert shardLock.getShardId().equals(shardId);
 
-        this.refCounter = detectLeaks ? LeakTracker.wrap(innerRefCounter) : innerRefCounter;
+        // Close once all references are closed, keep a reference to AbstractRefCounted#refCount in case we wrap it
+        final AbstractRefCounted wrappedRefCounter = AbstractRefCounted.of(this::closeInternal);
+        this.refCountSupplier = wrappedRefCounter::refCount;
+        this.refCounter = detectLeaks ? LeakTracker.wrap(wrappedRefCounter) : wrappedRefCounter;
     }
 
     public Directory directory() {
@@ -252,7 +255,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     }
 
     final void ensureOpen() {
-        if (this.innerRefCounter.refCount() <= 0) {
+        if (refCounter.hasReferences() == false) {
             throw new AlreadyClosedException("store is already closed");
         }
     }
@@ -454,7 +457,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         if (isClosed.compareAndSet(false, true)) {
             // only do this once!
             decRef();
-            logger.debug("store reference count on close: {}", innerRefCounter.refCount());
+            logger.debug("store reference count on close: {}", refCountSupplier.getAsInt());
         }
     }
 
@@ -766,7 +769,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      * Returns the current reference count.
      */
     public int refCount() {
-        return innerRefCounter.refCount();
+        return refCountSupplier.getAsInt();
     }
 
     public void beforeClose() {

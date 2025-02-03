@@ -22,6 +22,13 @@ import org.elasticsearch.xpack.ml.aggs.changepoint.ChangeType;
 import java.util.Deque;
 import java.util.LinkedList;
 
+/**
+ * Find spikes, dips and change point in a list of values.
+ * <p>
+ * Warning: this operator cannot handle large amounts of data! It buffers all
+ * data that is passed to it, runs the change point detector on the data (which
+ * is a compute-heavy process), and then outputs all data with the change points.
+ */
 public class ChangePointOperator implements Operator {
 
     public static final int INPUT_VALUE_COUNT_LIMIT = 1000;
@@ -49,6 +56,8 @@ public class ChangePointOperator implements Operator {
     private boolean finished;
     private Warnings warnings;
 
+    // TODO: make org.elasticsearch.xpack.esql.core.tree.Source available here
+    // (by modularizing esql-core) and use that instead of the individual fields.
     public ChangePointOperator(DriverContext driverContext, int channel, String sourceText, int sourceLine, int sourceColumn) {
         this.driverContext = driverContext;
         this.channel = channel;

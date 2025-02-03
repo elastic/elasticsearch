@@ -31,6 +31,7 @@ public class Warnings {
      * @param sourceText The source text that caused the warning. Same as `source.text()`
      * @return A warnings collector object
      */
+    // TODO: rename to createWarningsTreatedAsNull
     public static Warnings createWarnings(DriverContext.WarningsMode warningsMode, int lineNumber, int columnNumber, String sourceText) {
         return createWarnings(warningsMode, lineNumber, columnNumber, sourceText, "evaluation of [{}] failed, treating result as null");
     }
@@ -62,6 +63,7 @@ public class Warnings {
      * @param sourceText The source text that caused the warning. Same as `source.text()`
      * @return A warnings collector object
      */
+    // TODO: rename to createWarnings
     public static Warnings createOnlyWarnings(
         DriverContext.WarningsMode warningsMode,
         int lineNumber,

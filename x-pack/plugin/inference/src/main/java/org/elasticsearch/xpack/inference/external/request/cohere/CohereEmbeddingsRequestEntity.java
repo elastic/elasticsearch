@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbedd
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsTaskSettings;
 
 import java.io.IOException;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Objects;
 
@@ -26,7 +27,7 @@ public record CohereEmbeddingsRequestEntity(
     List<String> input,
     CohereEmbeddingsTaskSettings taskSettings,
     @Nullable String model,
-    @Nullable CohereEmbeddingType embeddingType
+    @Nullable EnumSet<CohereEmbeddingType> embeddingTypes
 ) implements ToXContentObject {
 
     private static final String SEARCH_DOCUMENT = "search_document";
@@ -54,8 +55,8 @@ public record CohereEmbeddingsRequestEntity(
             builder.field(INPUT_TYPE_FIELD, convertToString(taskSettings.getInputType()));
         }
 
-        if (embeddingType != null) {
-            builder.field(EMBEDDING_TYPES_FIELD, List.of(embeddingType.toRequestString()));
+        if (embeddingTypes != null) {
+            builder.field(EMBEDDING_TYPES_FIELD, embeddingTypes.stream().map(CohereEmbeddingType::toRequestString).toList());
         }
 
         if (taskSettings.getTruncation() != null) {

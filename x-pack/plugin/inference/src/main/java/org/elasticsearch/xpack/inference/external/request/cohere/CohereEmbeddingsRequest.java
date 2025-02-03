@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbedd
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Objects;
 
@@ -30,7 +31,7 @@ public class CohereEmbeddingsRequest extends CohereRequest {
     private final List<String> input;
     private final CohereEmbeddingsTaskSettings taskSettings;
     private final String model;
-    private final CohereEmbeddingType embeddingType;
+    private final EnumSet<CohereEmbeddingType> embeddingTypes;
     private final String inferenceEntityId;
 
     public CohereEmbeddingsRequest(List<String> input, CohereEmbeddingsModel embeddingsModel) {
@@ -40,7 +41,7 @@ public class CohereEmbeddingsRequest extends CohereRequest {
         this.input = Objects.requireNonNull(input);
         taskSettings = embeddingsModel.getTaskSettings();
         model = embeddingsModel.getServiceSettings().getCommonSettings().modelId();
-        embeddingType = embeddingsModel.getServiceSettings().getEmbeddingType();
+        embeddingTypes = embeddingsModel.getServiceSettings().getEmbeddingTypes();
         inferenceEntityId = embeddingsModel.getInferenceEntityId();
     }
 
@@ -49,7 +50,7 @@ public class CohereEmbeddingsRequest extends CohereRequest {
         HttpPost httpPost = new HttpPost(account.uri());
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(
-            Strings.toString(new CohereEmbeddingsRequestEntity(input, taskSettings, model, embeddingType)).getBytes(StandardCharsets.UTF_8)
+            Strings.toString(new CohereEmbeddingsRequestEntity(input, taskSettings, model, embeddingTypes)).getBytes(StandardCharsets.UTF_8)
         );
         httpPost.setEntity(byteEntity);
 

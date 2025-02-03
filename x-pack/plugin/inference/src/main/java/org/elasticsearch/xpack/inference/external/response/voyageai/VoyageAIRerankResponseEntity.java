@@ -37,43 +37,32 @@ public class VoyageAIRerankResponseEntity {
      * Parses the VoyageAI ranked response.
      *
      * For a request like:
-     *     "model": "voyage-reranker-v2-base-multilingual",
+     *     "model": "rerank-2",
      *     "query": "What is the capital of the United States?",
-     *     "top_n": 3,
+     *     "top_k": 2,
      *     "documents": ["Carson City is the capital city of the American state of Nevada.",
      *                   "The Commonwealth of the Northern Mariana ... Its capital is Saipan.",
      *                   "Washington, D.C. (also known as simply Washington or D.C., ... It is a federal district.",
      *                   "Capital punishment (the death penalty) ... As of 2017, capital punishment is legal in 30 of the 50 states."]
      * <p>
      *  The response will look like (without whitespace):
+     * {
+     *   "object": "list",
+     *   "data": [
      *     {
-     *     "id": "1983d114-a6e8-4940-b121-eb4ac3f6f703",
-     *     "results": [
-     *         {
-     *             "document": {
-     *                 "text": "Washington, D.C.  is the capital of the United States. It is a federal district."
-     *             },
-     *             "index": 2,
-     *             "relevance_score": 0.98005307
-     *         },
-     *         {
-     *             "document": {
-     *                 "text": "Capital punishment (the death penalty) As of 2017, capital punishment is legal in 30 of the 50 states."
-     *             },
-     *             "index": 3,
-     *             "relevance_score": 0.27904198
-     *         },
-     *         {
-     *             "document": {
-     *                 "text": "Carson City is the capital city of the American state of Nevada."
-     *             },
-     *             "index": 0,
-     *             "relevance_score": 0.10194652
-     *         }
-     *     ],
-     *     "usage": {"total_tokens": 15}
+     *       "relevance_score": 0.4375,
+     *       "index": 0
+     *     },
+     *     {
+     *       "relevance_score": 0.421875,
+     *       "index": 1
      *     }
-     *
+     *   ],
+     *   "model": "rerank-2",
+     *   "usage": {
+     *     "total_tokens": 26
+     *   }
+     * }
      * @param response the http response from VoyageAI
      * @return the parsed response
      * @throws IOException if there is an error parsing the response
@@ -87,7 +76,7 @@ public class VoyageAIRerankResponseEntity {
             XContentParser.Token token = jsonParser.currentToken();
             ensureExpectedToken(XContentParser.Token.START_OBJECT, token, jsonParser);
 
-            positionParserAtTokenAfterField(jsonParser, "results", FAILED_TO_FIND_FIELD_TEMPLATE);
+            positionParserAtTokenAfterField(jsonParser, "data", FAILED_TO_FIND_FIELD_TEMPLATE);
 
             token = jsonParser.currentToken();
             if (token == XContentParser.Token.START_ARRAY) {
@@ -123,13 +112,8 @@ public class VoyageAIRerankResponseEntity {
                         break;
                     case "document":
                         parser.nextToken(); // move to START_OBJECT; document text is wrapped in an object
-                        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
-                        do {
-                            if (parser.currentToken() == XContentParser.Token.FIELD_NAME && parser.currentName().equals("text")) {
-                                parser.nextToken(); // move to VALUE_STRING
-                                documentText = parser.text();
-                            }
-                        } while (parser.nextToken() != XContentParser.Token.END_OBJECT);
+                        ensureExpectedToken(XContentParser.Token.VALUE_STRING, parser.currentToken(), parser);
+                        documentText = parser.text();
                         parser.nextToken();// move past END_OBJECT
                         // parser should now be at the next FIELD_NAME or END_OBJECT
                         break;

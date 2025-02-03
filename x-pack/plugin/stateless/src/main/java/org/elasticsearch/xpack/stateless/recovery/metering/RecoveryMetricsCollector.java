@@ -41,9 +41,9 @@ public class RecoveryMetricsCollector implements IndexEventListener {
     private static final Logger logger = LogManager.getLogger(RecoveryMetricsCollector.class);
 
     public static final String RECOVERY_TOTAL_COUNT_METRIC = "es.recovery.shard.count.total";
-    public static final String RECOVERY_TOTAL_TIME_METRIC = "es.recovery.shard.total.time";
-    public static final String RECOVERY_INDEX_TIME_METRIC = "es.recovery.shard.index.time";
-    public static final String RECOVERY_TRANSLOG_TIME_METRIC = "es.recovery.shard.translog.time";
+    public static final String RECOVERY_TOTAL_TIME_METRIC_IN_SECONDS = "es.recovery.shard.total.time";
+    public static final String RECOVERY_INDEX_TIME_METRIC_IN_SECONDS = "es.recovery.shard.index.time";
+    public static final String RECOVERY_TRANSLOG_TIME_METRIC_IN_SECONDS = "es.recovery.shard.translog.time";
     public static final String RECOVERY_BYTES_READ_FROM_INDEXING_METRIC = "es.recovery.shard.indexing_node.bytes_read.total";
     public static final String RECOVERY_BYTES_READ_FROM_OBJECT_STORE_METRIC = "es.recovery.shard.object_store.bytes_read.total";
     public static final String RECOVERY_BYTES_WARMED_FROM_INDEXING_METRIC = "es.recovery.shard.indexing_node.bytes_warmed.total";
@@ -66,19 +66,19 @@ public class RecoveryMetricsCollector implements IndexEventListener {
             "unit"
         );
         shardRecoveryTotalTimeMetric = meterRegistry.registerLongHistogram(
-            RECOVERY_TOTAL_TIME_METRIC,
-            "Total elapsed shard recovery time in millis",
-            "milliseconds"
+            RECOVERY_TOTAL_TIME_METRIC_IN_SECONDS,
+            "Total elapsed shard recovery time in seconds",
+            "seconds"
         );
         shardRecoveryIndexTimeMetric = meterRegistry.registerLongHistogram(
-            RECOVERY_INDEX_TIME_METRIC,
-            "Elapsed shard index (stage) recovery time in millis",
-            "milliseconds"
+            RECOVERY_INDEX_TIME_METRIC_IN_SECONDS,
+            "Elapsed shard index (stage) recovery time in seconds",
+            "seconds"
         );
         shardRecoveryTranslogTimeMetric = meterRegistry.registerLongHistogram(
-            RECOVERY_TRANSLOG_TIME_METRIC,
-            "Elapsed shard translog (stage) recovery time in millis",
-            "milliseconds"
+            RECOVERY_TRANSLOG_TIME_METRIC_IN_SECONDS,
+            "Elapsed shard translog (stage) recovery time in seconds",
+            "seconds"
         );
         shardRecoveryTotalBytesReadFromIndexingMetric = meterRegistry.registerLongCounter(
             RECOVERY_BYTES_READ_FROM_INDEXING_METRIC,
@@ -111,9 +111,9 @@ public class RecoveryMetricsCollector implements IndexEventListener {
                 if (recoveryState.getStage() == RecoveryState.Stage.DONE) {
                     shardRecoveryTotalMetric.increment();
                     final Map<String, Object> metricLabels = recoveryMetricLabels(indexShard);
-                    shardRecoveryTotalTimeMetric.record(recoveryState.getTimer().time(), metricLabels);
-                    shardRecoveryIndexTimeMetric.record(recoveryState.getIndex().time(), metricLabels);
-                    shardRecoveryTranslogTimeMetric.record(recoveryState.getTranslog().time(), metricLabels);
+                    shardRecoveryTotalTimeMetric.record(recoveryState.getTimer().time() / 1000, metricLabels);
+                    shardRecoveryIndexTimeMetric.record(recoveryState.getIndex().time() / 1000, metricLabels);
+                    shardRecoveryTranslogTimeMetric.record(recoveryState.getTranslog().time() / 1000, metricLabels);
 
                     final Store store = indexShard.store();
                     // TODO: ideally read/warmed metrics should be emitted right after corresponding operation is finished (ES-8709)

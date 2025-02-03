@@ -18,6 +18,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.core.StringContains.containsString;
 
 public abstract class SemanticMatchTestCase extends ESRestTestCase {
@@ -98,7 +99,12 @@ public abstract class SemanticMatchTestCase extends ESRestTestCase {
                    }
                  }
             """);
-        adminClient().performRequest(request);
+        try {
+            adminClient().performRequest(request);
+        } catch (ResponseException exc) {
+            // in case the removal failed
+            assertThat(exc.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        }
     }
 
     @After

@@ -334,8 +334,6 @@ tests:
 - class: org.elasticsearch.upgrades.VectorSearchIT
   method: testBBQVectorSearch {upgradedNodes=0}
   issue: https://github.com/elastic/elasticsearch/issues/121253
-- class: org.elasticsearch.lucene.FullClusterRestartLuceneIndexCompatibilityIT
-  issue: https://github.com/elastic/elasticsearch/issues/121257
 - class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
   issue: https://github.com/elastic/elasticsearch/issues/121269
 - class: org.elasticsearch.upgrades.VectorSearchIT
@@ -366,23 +364,24 @@ tests:
 - class: org.elasticsearch.xpack.security.profile.ProfileIntegTests
   method: testSuggestProfilesWithHint
   issue: https://github.com/elastic/elasticsearch/issues/121116
-- class: org.elasticsearch.upgrades.AddIndexBlockRollingUpgradeIT
-  method: testAddBlock {upgradedNodes=2}
-  issue: https://github.com/elastic/elasticsearch/issues/121365
-- class: org.elasticsearch.upgrades.AddIndexBlockRollingUpgradeIT
-  method: testAddBlock {upgradedNodes=3}
-  issue: https://github.com/elastic/elasticsearch/issues/121366
-- class: org.elasticsearch.upgrades.AddIndexBlockRollingUpgradeIT
-  method: testAddBlock {upgradedNodes=1}
-  issue: https://github.com/elastic/elasticsearch/issues/121367
 - class: org.elasticsearch.env.NodeEnvironmentTests
   method: testGetBestDowngradeVersion
   issue: https://github.com/elastic/elasticsearch/issues/121316
 - class: org.elasticsearch.ingest.geoip.FullClusterRestartIT
   method: testGeoIpSystemFeaturesMigration {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/121115
-- class: org.elasticsearch.lucene.RollingUpgradeLuceneIndexCompatibilityTestCase
-  issue: https://github.com/elastic/elasticsearch/issues/121423
+- class: org.elasticsearch.index.engine.ShuffleForcedMergePolicyTests
+  method: testDiagnostics
+  issue: https://github.com/elastic/elasticsearch/issues/121336
+- class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
+  method: test {p0=search.vectors/42_knn_search_int4_flat/KNN Vector similarity search only}
+  issue: https://github.com/elastic/elasticsearch/issues/121395
+- class: org.elasticsearch.xpack.security.authc.jwt.JwtRealmSingleNodeTests
+  method: testGrantApiKeyForJWT
+  issue: https://github.com/elastic/elasticsearch/issues/121039
+- class: org.elasticsearch.xpack.sql.qa.single_node.JdbcDocCsvSpecIT
+  method: test {docs.testFilterToday}
+  issue: https://github.com/elastic/elasticsearch/issues/121474
 
 # Examples:
 #

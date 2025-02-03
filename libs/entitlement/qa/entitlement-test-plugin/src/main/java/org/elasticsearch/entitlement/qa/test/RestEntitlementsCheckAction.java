@@ -96,6 +96,9 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
 
     private static final Map<String, CheckAction> checkActions = Stream.concat(
         Stream.<Entry<String, CheckAction>>of(
+            entry("static_reflection", deniedToPlugins(RestEntitlementsCheckAction::staticMethodNeverEntitledViaReflection)),
+            entry("nonstatic_reflection", deniedToPlugins(RestEntitlementsCheckAction::nonstaticMethodNeverEntitledViaReflection)),
+            entry("constructor_reflection", deniedToPlugins(RestEntitlementsCheckAction::constructorNeverEntitledViaReflection)),
             entry("runtime_exit", deniedToPlugins(RestEntitlementsCheckAction::runtimeExit)),
             entry("runtime_halt", deniedToPlugins(RestEntitlementsCheckAction::runtimeHalt)),
             entry("system_exit", deniedToPlugins(RestEntitlementsCheckAction::systemExit)),
@@ -338,6 +341,11 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
         System.exit(123);
     }
 
+    private static void staticMethodNeverEntitledViaReflection() throws Exception {
+        Method systemExit = System.class.getMethod("exit", int.class);
+        systemExit.invoke(null, 123);
+    }
+
     private static void createClassLoader() throws IOException {
         try (var classLoader = new URLClassLoader("test", new URL[0], RestEntitlementsCheckAction.class.getClassLoader())) {
             logger.info("Created URLClassLoader [{}]", classLoader.getName());
@@ -346,6 +354,11 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
 
     private static void processBuilder_start() throws IOException {
         new ProcessBuilder("").start();
+    }
+
+    private static void nonstaticMethodNeverEntitledViaReflection() throws Exception {
+        Method processBuilderStart = ProcessBuilder.class.getMethod("start");
+        processBuilderStart.invoke(new ProcessBuilder(""));
     }
 
     private static void processBuilder_startPipeline() throws IOException {
@@ -384,6 +397,10 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
 
     private static void localeServiceProvider$() {
         new DummyLocaleServiceProvider();
+    }
+
+    private static void constructorNeverEntitledViaReflection() throws Exception {
+        DummyLocaleServiceProvider.class.getConstructor().newInstance();
     }
 
     private static void breakIteratorProvider$() {

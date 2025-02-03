@@ -469,11 +469,8 @@ public final class IndicesPermission {
                     return group.checkSelector(selectorToCheck);
                 }
             }
-            if (indexAbstraction != null && indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM) {
-                return group.checkIndex(name) && group.checkSelector(selector);
-            }
             // TODO assertions around selector here?
-            return group.checkIndex(name) && group.checkSelector(IndexComponentSelector.DATA);
+            return group.checkIndex(name) && group.checkSelector(selector);
         }
 
         /**

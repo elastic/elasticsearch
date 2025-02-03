@@ -145,10 +145,10 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/118217
   # TODO: re-enable after backporting https://github.com/elastic/elasticsearch/pull/119110
 - class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
-  method: test {p0=update/100_synthetic_source/keyword}
+  method: test {yaml=update/100_synthetic_source/keyword}
   # TODO: re-enable after backporting https://github.com/elastic/elasticsearch/pull/119110
 - class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
-  method: test {p0=update/100_synthetic_source/stored text}
+  method: test {yaml=update/100_synthetic_source/stored text}
 - class: org.elasticsearch.xpack.searchablesnapshots.RetrySearchIntegTests
   method: testSearcherId
   issue: https://github.com/elastic/elasticsearch/issues/118374

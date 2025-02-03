@@ -401,7 +401,7 @@ public final class IndicesPermission {
      * Represents the set of data required about an IndexAbstraction (index/alias/datastream) in order to perform authorization on that
      * object (including setting up the necessary data structures for Field and Document Level Security).
      */
-    public static class IndexResource {
+    private static class IndexResource {
         /**
          * The name of the IndexAbstraction on which authorization is being performed
          */

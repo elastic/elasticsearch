@@ -69,6 +69,17 @@ public class FailureStoreSecurityRestIT extends SecurityOnTrialLicenseRestTestCa
 
         expectThrows404(() -> performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/test12::failures/_search")));
         expectThrows404(() -> performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/test2::failures/_search")));
+        expectThrows404(() -> performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/test12::*/_search")));
+
+        expectThrows403(() -> performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/test1::data/_search")));
+        expectThrows403(() -> performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/test1/_search")));
+        expectThrows403(() -> performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/test2::data/_search")));
+        expectThrows403(() -> performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/test2/_search")));
+
+        // empty result
+        assertEmpty(performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/*1::data/_search")));
+        assertEmpty(performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/*1/_search")));
+        assertEmpty(performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/.ds*/_search")));
 
         // user with access to everything
         assertContainsDocIds(adminClient().performRequest(new Request("GET", "/test1::failures/_search")), failedDocId);
@@ -86,6 +97,11 @@ public class FailureStoreSecurityRestIT extends SecurityOnTrialLicenseRestTestCa
         assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(404));
     }
 
+    private static void expectThrows403(ThrowingRunnable get) {
+        var ex = expectThrows(ResponseException.class, get);
+        assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+    }
+
     @SuppressWarnings("unchecked")
     private static void assertContainsDocIds(Response response, String... docIds) throws IOException {
         assertOK(response);
@@ -100,12 +116,15 @@ public class FailureStoreSecurityRestIT extends SecurityOnTrialLicenseRestTestCa
         }
     }
 
-    private static void assert404(Response response) {
-        assertThat(response.getStatusLine().getStatusCode(), equalTo(404));
-    }
-
-    private static void assert403(Response response) {
-        assertThat(response.getStatusLine().getStatusCode(), equalTo(403));
+    private static void assertEmpty(Response response) throws IOException {
+        assertOK(response);
+        final SearchResponse searchResponse = SearchResponseUtils.parseSearchResponse(responseAsParser(response));
+        try {
+            SearchHit[] hits = searchResponse.getHits().getHits();
+            assertThat(hits.length, equalTo(0));
+        } finally {
+            searchResponse.decRef();
+        }
     }
 
     private void createTemplates() throws IOException {
@@ -130,10 +149,10 @@ public class FailureStoreSecurityRestIT extends SecurityOnTrialLicenseRestTestCa
                         }
                     },
                     "data_stream_options": {
-                  "failure_store": {
-                    "enabled": true
-                  }
-                }
+                      "failure_store": {
+                        "enabled": true
+                      }
+                    }
                 }
             }
             """);
@@ -177,8 +196,6 @@ public class FailureStoreSecurityRestIT extends SecurityOnTrialLicenseRestTestCa
 
     private Response performRequest(String user, Request request) throws IOException {
         request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", basicAuthHeaderValue(user, PASSWORD)).build());
-        var response = client().performRequest(request);
-        return response;
+        return client().performRequest(request);
     }
-
 }

@@ -19,7 +19,6 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -50,8 +49,8 @@ public class InferenceBaseRestTest extends ESRestTestCase {
         .setting("xpack.security.enabled", "true")
         .plugin("inference-service-test")
         .user("x_pack_rest_user", "x-pack-test-password")
-        .feature(FeatureFlag.INFERENCE_UNIFIED_API_ENABLED)
         .build();
+
     @ClassRule
     public static MlModelServer mlModelServer = new MlModelServer();
 
@@ -171,20 +170,20 @@ public class InferenceBaseRestTest extends ESRestTestCase {
             """;
     }
 
-    protected void deleteModel(String modelId) throws IOException {
+    static void deleteModel(String modelId) throws IOException {
         var request = new Request("DELETE", "_inference/" + modelId);
         var response = client().performRequest(request);
         assertStatusOkOrCreated(response);
     }
 
-    protected Response deleteModel(String modelId, String queryParams) throws IOException {
+    static Response deleteModel(String modelId, String queryParams) throws IOException {
         var request = new Request("DELETE", "_inference/" + modelId + "?" + queryParams);
         var response = client().performRequest(request);
         assertStatusOkOrCreated(response);
         return response;
     }
 
-    protected void deleteModel(String modelId, TaskType taskType) throws IOException {
+    static void deleteModel(String modelId, TaskType taskType) throws IOException {
         var request = new Request("DELETE", Strings.format("_inference/%s/%s", taskType, modelId));
         var response = client().performRequest(request);
         assertStatusOkOrCreated(response);
@@ -229,13 +228,18 @@ public class InferenceBaseRestTest extends ESRestTestCase {
         assertStatusOkOrCreated(response);
     }
 
-    protected Map<String, Object> putModel(String modelId, String modelConfig, TaskType taskType) throws IOException {
+    static Map<String, Object> putModel(String modelId, String modelConfig, TaskType taskType) throws IOException {
         String endpoint = Strings.format("_inference/%s/%s?error_trace", taskType, modelId);
         return putRequest(endpoint, modelConfig);
     }
 
-    protected Map<String, Object> updateEndpoint(String inferenceID, String modelConfig, TaskType taskType) throws IOException {
+    static Map<String, Object> updateEndpoint(String inferenceID, String modelConfig, TaskType taskType) throws IOException {
         String endpoint = Strings.format("_inference/%s/%s/_update", taskType, inferenceID);
+        return putRequest(endpoint, modelConfig);
+    }
+
+    static Map<String, Object> updateEndpoint(String inferenceID, String modelConfig) throws IOException {
+        String endpoint = Strings.format("_inference/%s/_update", inferenceID);
         return putRequest(endpoint, modelConfig);
     }
 
@@ -265,12 +269,12 @@ public class InferenceBaseRestTest extends ESRestTestCase {
     /**
      * Task type should be in modelConfig
      */
-    protected Map<String, Object> putModel(String modelId, String modelConfig) throws IOException {
+    static Map<String, Object> putModel(String modelId, String modelConfig) throws IOException {
         String endpoint = Strings.format("_inference/%s", modelId);
         return putRequest(endpoint, modelConfig);
     }
 
-    Map<String, Object> putRequest(String endpoint, String body) throws IOException {
+    static Map<String, Object> putRequest(String endpoint, String body) throws IOException {
         var request = new Request("PUT", endpoint);
         request.setJsonEntity(body);
         var response = client().performRequest(request);
@@ -318,18 +322,17 @@ public class InferenceBaseRestTest extends ESRestTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    protected List<Map<String, Object>> getModels(String modelId, TaskType taskType) throws IOException {
+    static List<Map<String, Object>> getModels(String modelId, TaskType taskType) throws IOException {
         var endpoint = Strings.format("_inference/%s/%s", taskType, modelId);
         return (List<Map<String, Object>>) getInternalAsMap(endpoint).get("endpoints");
     }
 
     @SuppressWarnings("unchecked")
-    protected List<Map<String, Object>> getAllModels() throws IOException {
-        var endpoint = Strings.format("_inference/_all");
+    static List<Map<String, Object>> getAllModels() throws IOException {
         return (List<Map<String, Object>>) getInternalAsMap("_inference/_all").get("endpoints");
     }
 
-    private Map<String, Object> getInternalAsMap(String endpoint) throws IOException {
+    private static Map<String, Object> getInternalAsMap(String endpoint) throws IOException {
         var request = new Request("GET", endpoint);
         var response = client().performRequest(request);
         assertStatusOkOrCreated(response);
@@ -357,7 +360,8 @@ public class InferenceBaseRestTest extends ESRestTestCase {
         List<String> input,
         @Nullable Consumer<Response> responseConsumerCallback
     ) throws Exception {
-        var endpoint = Strings.format("_inference/%s/%s/_unified", taskType, modelId);
+        var route = randomBoolean() ? "_stream" : "_unified"; // TODO remove unified route
+        var endpoint = Strings.format("_inference/%s/%s/%s", taskType, modelId, route);
         return callAsyncUnified(endpoint, input, "user", responseConsumerCallback);
     }
 

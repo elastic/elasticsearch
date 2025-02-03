@@ -136,7 +136,8 @@ public class PostWriteRefresh {
             indexShard.getReplicationGroup().getRoutingTable(),
             indexShard.getOperationPrimaryTerm(),
             generation,
-            true
+            true,
+            postWriteRefreshTimeout
         );
         transportService.sendRequest(
             transportService.getLocalNode(),

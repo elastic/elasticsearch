@@ -60,6 +60,7 @@ setup:
           vector: [0.5, 111.3, -13.0, 14.8]
           another_vector: [-0.5, 11.0, 0, 12]
 
+  # For added test reliability, pending the resolution of https://github.com/elastic/elasticsearch/issues/109416.
   - do:
       indices.forcemerge:
         index: hnsw_byte_quantized
@@ -67,6 +68,11 @@ setup:
 
   - do:
       indices.refresh: {}
+
+  - do:
+      indices.forcemerge:
+        index: hnsw_byte_quantized
+        max_num_segments: 1
 
 ---
 "kNN search only":

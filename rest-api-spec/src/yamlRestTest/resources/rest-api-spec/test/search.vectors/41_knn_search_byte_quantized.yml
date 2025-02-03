@@ -67,6 +67,13 @@ setup:
       indices.flush:
         index: hnsw_byte_quantized
 
+  # For added test reliability, pending the resolution of https://github.com/elastic/elasticsearch/issues/109416.
+  - do:
+      indices.forcemerge:
+        index: hnsw_byte_quantized
+        max_num_segments: 1
+  - do:
+      indices.refresh: {}
   - do:
       indices.forcemerge:
         index: hnsw_byte_quantized

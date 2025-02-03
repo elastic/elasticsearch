@@ -57,8 +57,17 @@ setup:
           vector: [0.5, 111.3, -13.0, 14.8, -156.0]
           another_vector: [-0.5, 11.0, 0, 12, 111.0]
 
+  # For added test reliability, pending the resolution of https://github.com/elastic/elasticsearch/issues/109416.
+  - do:
+      indices.forcemerge:
+        index: int8_flat
+        max_num_segments: 1
   - do:
       indices.refresh: {}
+  - do:
+      indices.forcemerge:
+        index: int8_flat
+        max_num_segments: 1
 
 ---
 "kNN search only":

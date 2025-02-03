@@ -183,9 +183,8 @@ public class TransportVersions {
      * We don't care about BwC during initial development. Before this code is merged into main,
      * this variable needs to be changed to a regular transport version following the same rules as above.
      */
-    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA) // change to a v9 version number when bumping to 9.0
     @FixForMultiProject
-    public static final TransportVersion MULTI_PROJECT = def(8_999_999);
+    public static final TransportVersion MULTI_PROJECT = def(9_999_999);
 
     /*
      * STOP! READ THIS FIRST! No, really,

@@ -18,7 +18,7 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * Defines the type of embedding that the cohere api should return for a request.
+ * Defines the type of embedding that the VoyageAI api should return for a request.
  *
  * <p>
  * <a href="https://docs.voyageai.com/reference/embeddings-api">See api docs for details.</a>
@@ -89,7 +89,7 @@ public enum VoyageAIEmbeddingType {
 
             throw new IllegalArgumentException(
                 Strings.format(
-                    "Element type [%s] does not map to a Cohere embedding value, must be one of [%s]",
+                    "Element type [%s] does not map to a VoyageAI embedding value, must be one of [%s]",
                     elementType,
                     String.join(", ", validElementTypes)
                 )

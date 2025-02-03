@@ -131,7 +131,7 @@ public class VoyageAIServiceSettings extends FilteredXContentObject implements S
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.JINA_AI_INTEGRATION_ADDED;
+        return TransportVersions.VOYAGE_AI_INTEGRATION_ADDED;
     }
 
     @Override

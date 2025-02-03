@@ -346,7 +346,7 @@ public class VoyageAIService extends SenderService {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.JINA_AI_INTEGRATION_ADDED;
+        return TransportVersions.VOYAGE_AI_INTEGRATION_ADDED;
     }
 
     public static class Configuration {

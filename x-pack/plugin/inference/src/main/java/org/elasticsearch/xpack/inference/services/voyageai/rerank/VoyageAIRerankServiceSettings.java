@@ -90,7 +90,7 @@ public class VoyageAIRerankServiceSettings extends FilteredXContentObject implem
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.JINA_AI_INTEGRATION_ADDED;
+        return TransportVersions.VOYAGE_AI_INTEGRATION_ADDED;
     }
 
     @Override

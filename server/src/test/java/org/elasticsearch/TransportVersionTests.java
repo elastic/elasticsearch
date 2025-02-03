@@ -16,7 +16,6 @@ import java.lang.reflect.Modifier;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
-import java.util.TreeSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -162,15 +161,15 @@ public class TransportVersionTests extends ESTestCase {
     }
 
     public void testIsPatchFrom() {
-        TransportVersion patchVersion = TransportVersion.fromId(8_800_00_4);
-        assertThat(TransportVersion.fromId(8_799_00_0).isPatchFrom(patchVersion), is(false));
-        assertThat(TransportVersion.fromId(8_799_00_9).isPatchFrom(patchVersion), is(false));
-        assertThat(TransportVersion.fromId(8_800_00_0).isPatchFrom(patchVersion), is(false));
-        assertThat(TransportVersion.fromId(8_800_00_3).isPatchFrom(patchVersion), is(false));
-        assertThat(TransportVersion.fromId(8_800_00_4).isPatchFrom(patchVersion), is(true));
-        assertThat(TransportVersion.fromId(8_800_00_9).isPatchFrom(patchVersion), is(true));
-        assertThat(TransportVersion.fromId(8_800_01_0).isPatchFrom(patchVersion), is(false));
-        assertThat(TransportVersion.fromId(8_801_00_0).isPatchFrom(patchVersion), is(false));
+        TransportVersion patchVersion = TransportVersion.fromId(8_800_0_04);
+        assertThat(TransportVersion.fromId(8_799_0_00).isPatchFrom(patchVersion), is(false));
+        assertThat(TransportVersion.fromId(8_799_0_09).isPatchFrom(patchVersion), is(false));
+        assertThat(TransportVersion.fromId(8_800_0_00).isPatchFrom(patchVersion), is(false));
+        assertThat(TransportVersion.fromId(8_800_0_03).isPatchFrom(patchVersion), is(false));
+        assertThat(TransportVersion.fromId(8_800_0_04).isPatchFrom(patchVersion), is(true));
+        assertThat(TransportVersion.fromId(8_800_0_49).isPatchFrom(patchVersion), is(true));
+        assertThat(TransportVersion.fromId(8_800_1_00).isPatchFrom(patchVersion), is(false));
+        assertThat(TransportVersion.fromId(8_801_0_00).isPatchFrom(patchVersion), is(false));
     }
 
     public void testVersionConstantPresent() {
@@ -188,6 +187,19 @@ public class TransportVersionTests extends ESTestCase {
         assertThat(Collections.max(TransportVersion.getAllVersions()), is(TransportVersion.current()));
     }
 
+    public void testPatchVersionsStillAvailable() {
+        for (TransportVersion tv : TransportVersion.getAllVersions()) {
+            if (tv.onOrAfter(TransportVersions.V_8_9_X) && (tv.id() % 100) > 90) {
+                fail(
+                    "Transport version "
+                        + tv
+                        + " is nearing the limit of available patch numbers."
+                        + " Please inform the Core/Infra team that isPatchFrom may need to be modified"
+                );
+            }
+        }
+    }
+
     public void testToReleaseVersion() {
         assertThat(TransportVersion.current().toReleaseVersion(), endsWith(Version.CURRENT.toString()));
     }
@@ -198,41 +210,5 @@ public class TransportVersionTests extends ESTestCase {
         assertEquals("1000099", TransportVersion.fromId(1_00_00_99).toString());
         assertEquals("2000099", TransportVersion.fromId(2_00_00_99).toString());
         assertEquals("5000099", TransportVersion.fromId(5_00_00_99).toString());
-    }
-
-    /**
-     * Until 9.0 bumps its transport version to 9_000_00_0, all transport changes must be backported to 8.x.
-     * This test ensures transport versions are dense, so that we have confidence backports have not been missed.
-     * Note that it does not ensure patches are not missed, but it should catch the majority of misordered
-     * or missing transport versions.
-     */
-    public void testDenseTransportVersions() {
-        Set<Integer> missingVersions = new TreeSet<>();
-        TransportVersion previous = null;
-        for (var tv : TransportVersion.getAllVersions()) {
-            if (tv.before(TransportVersions.V_8_16_0)) {
-                continue;
-            }
-            if (previous == null) {
-                previous = tv;
-                continue;
-            }
-
-            if (previous.id() + 1000 < tv.id()) {
-                int nextId = previous.id();
-                do {
-                    nextId = (nextId + 1000) / 1000 * 1000;
-                    missingVersions.add(nextId);
-                } while (nextId + 1000 < tv.id());
-            }
-            previous = tv;
-        }
-        if (missingVersions.isEmpty() == false) {
-            StringBuilder msg = new StringBuilder("Missing transport versions:\n");
-            for (Integer id : missingVersions) {
-                msg.append("  " + id + "\n");
-            }
-            fail(msg.toString());
-        }
     }
 }

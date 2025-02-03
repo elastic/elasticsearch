@@ -21,21 +21,26 @@ import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
 import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
+import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
+import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreTestUtils;
 import co.elastic.elasticsearch.stateless.recovery.metering.RecoveryMetricsCollector;
 
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
 import static org.elasticsearch.blobcache.shared.SharedBytes.PAGE_SIZE;
@@ -50,7 +55,15 @@ public class RecoveryMetricsIT extends AbstractStatelessIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return CollectionUtils.appendToCopy(super.nodePlugins(), TestTelemetryPlugin.class);
+        var plugins = new ArrayList<>(super.nodePlugins());
+        plugins.add(TestTelemetryPlugin.class);
+        plugins.add(MockRepository.Plugin.class);
+        return plugins;
+    }
+
+    @Override
+    protected Settings.Builder nodeSettings() {
+        return super.nodeSettings().put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.MOCK);
     }
 
     public void testRecoveryMetricPublicationOnIndexingShardRelocation() throws Exception {
@@ -71,13 +84,15 @@ public class RecoveryMetricsIT extends AbstractStatelessIntegTestCase {
 
         int numDocs = randomIntBetween(100, 1000);
         indexDocs(indexName, numDocs);
-        refresh(indexName);
+        flush(indexName);
 
         final TestTelemetryPlugin plugin = internalCluster().getInstance(PluginsService.class, indexingNode2)
             .filterPlugins(TestTelemetryPlugin.class)
             .findFirst()
             .orElseThrow();
         plugin.resetMeter();
+
+        var latch = delayRecovery(indexingNode2, TimeValue.timeValueSeconds(3L));
 
         // trigger primary relocation from `indexingNode1` to `indexingNode2`
         // hence start recovery of the shard on a new node
@@ -86,9 +101,12 @@ public class RecoveryMetricsIT extends AbstractStatelessIntegTestCase {
                 .prepareUpdateSettings(indexName)
                 .setSettings(Settings.builder().put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name", indexingNode1))
         );
+        safeAwait(latch);
 
         assertBusy(() -> {
-            final List<Measurement> measurements = plugin.getLongHistogramMeasurement(RecoveryMetricsCollector.RECOVERY_TOTAL_TIME_METRIC);
+            final List<Measurement> measurements = plugin.getLongHistogramMeasurement(
+                RecoveryMetricsCollector.RECOVERY_TOTAL_TIME_METRIC_IN_SECONDS
+            );
             assertFalse("Total recovery time metric is not recorded", measurements.isEmpty());
             assertThat(measurements.size(), equalTo(1));
             final Measurement metric = measurements.get(0);
@@ -98,7 +116,9 @@ public class RecoveryMetricsIT extends AbstractStatelessIntegTestCase {
         });
 
         assertBusy(() -> {
-            final List<Measurement> measurements = plugin.getLongHistogramMeasurement(RecoveryMetricsCollector.RECOVERY_INDEX_TIME_METRIC);
+            final List<Measurement> measurements = plugin.getLongHistogramMeasurement(
+                RecoveryMetricsCollector.RECOVERY_INDEX_TIME_METRIC_IN_SECONDS
+            );
             assertFalse("Index recovery time metric is not recorded", measurements.isEmpty());
             assertThat(measurements.size(), equalTo(1));
             final Measurement metric = measurements.get(0);
@@ -109,7 +129,7 @@ public class RecoveryMetricsIT extends AbstractStatelessIntegTestCase {
 
         assertBusy(() -> {
             final List<Measurement> measurements = plugin.getLongHistogramMeasurement(
-                RecoveryMetricsCollector.RECOVERY_TRANSLOG_TIME_METRIC
+                RecoveryMetricsCollector.RECOVERY_TRANSLOG_TIME_METRIC_IN_SECONDS
             );
             assertFalse("Translog recovery time metric is not recorded", measurements.isEmpty());
             assertThat(measurements.size(), equalTo(1));
@@ -137,7 +157,7 @@ public class RecoveryMetricsIT extends AbstractStatelessIntegTestCase {
         // check that a brand new shard went thru `EMPTY_STORE` recovery type
         assertBusy(() -> {
             final List<Measurement> measurements = pluginOnNode1.getLongHistogramMeasurement(
-                RecoveryMetricsCollector.RECOVERY_TOTAL_TIME_METRIC
+                RecoveryMetricsCollector.RECOVERY_TOTAL_TIME_METRIC_IN_SECONDS
             );
             assertFalse("Total recovery time metric is not recorded", measurements.isEmpty());
             assertThat(measurements.size(), equalTo(1));
@@ -170,16 +190,19 @@ public class RecoveryMetricsIT extends AbstractStatelessIntegTestCase {
             .orElseThrow();
         pluginOnNode2.resetMeter();
 
+        var latch = delayRecovery(indexingNode2, TimeValue.timeValueSeconds(3L));
+
         // start recovery of the shard on a new node
         assertAcked(
             admin().indices()
                 .prepareUpdateSettings(indexName)
                 .setSettings(Settings.builder().putNull(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_PREFIX + "._name"))
         );
+        safeAwait(latch);
 
         assertBusy(() -> {
             final List<Measurement> measurements = pluginOnNode2.getLongHistogramMeasurement(
-                RecoveryMetricsCollector.RECOVERY_TOTAL_TIME_METRIC
+                RecoveryMetricsCollector.RECOVERY_TOTAL_TIME_METRIC_IN_SECONDS
             );
             assertFalse("Total recovery time metric is not recorded", measurements.isEmpty());
             assertThat(measurements.size(), equalTo(1));
@@ -191,7 +214,7 @@ public class RecoveryMetricsIT extends AbstractStatelessIntegTestCase {
 
         assertBusy(() -> {
             final List<Measurement> measurements = pluginOnNode2.getLongHistogramMeasurement(
-                RecoveryMetricsCollector.RECOVERY_INDEX_TIME_METRIC
+                RecoveryMetricsCollector.RECOVERY_INDEX_TIME_METRIC_IN_SECONDS
             );
             assertFalse("Index recovery time metric is not recorded", measurements.isEmpty());
             assertThat(measurements.size(), equalTo(1));
@@ -203,7 +226,7 @@ public class RecoveryMetricsIT extends AbstractStatelessIntegTestCase {
 
         assertBusy(() -> {
             final List<Measurement> measurements = pluginOnNode2.getLongHistogramMeasurement(
-                RecoveryMetricsCollector.RECOVERY_TRANSLOG_TIME_METRIC
+                RecoveryMetricsCollector.RECOVERY_TRANSLOG_TIME_METRIC_IN_SECONDS
             );
             assertFalse("Translog recovery time metric is not recorded", measurements.isEmpty());
             assertThat(measurements.size(), equalTo(1));
@@ -222,9 +245,8 @@ public class RecoveryMetricsIT extends AbstractStatelessIntegTestCase {
         createIndex(indexName, indexSettings(1, 0).build());
         ensureGreen(indexName);
 
-        int numDocs = randomIntBetween(100, 1000);
-        indexDocs(indexName, numDocs);
-        refresh(indexName);
+        indexDocs(indexName, 100);
+        flush(indexName);
 
         var searchNode = startSearchNode();
 
@@ -234,11 +256,16 @@ public class RecoveryMetricsIT extends AbstractStatelessIntegTestCase {
             .orElseThrow();
         plugin.resetMeter();
 
+        var latch = delayRecovery(searchNode, TimeValue.timeValueSeconds(3L));
+
         // initiate allocation and shard recovery on `searchNode`
         updateIndexSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1));
+        safeAwait(latch);
 
         assertBusy(() -> {
-            final List<Measurement> measurements = plugin.getLongHistogramMeasurement(RecoveryMetricsCollector.RECOVERY_TOTAL_TIME_METRIC);
+            final List<Measurement> measurements = plugin.getLongHistogramMeasurement(
+                RecoveryMetricsCollector.RECOVERY_TOTAL_TIME_METRIC_IN_SECONDS
+            );
             assertFalse("Total recovery time metric is not recorded", measurements.isEmpty());
             assertThat(measurements.size(), equalTo(1));
             final Measurement metric = measurements.get(0);
@@ -404,5 +431,40 @@ public class RecoveryMetricsIT extends AbstractStatelessIntegTestCase {
 
     private void assertMetricAttributes(Measurement metric, boolean isPrimary) {
         assertThat(metric.attributes().get("primary"), equalTo(isPrimary));
+    }
+
+    /**
+     * Delay shard recoveries on a node by blocking access to the object store, then pausing for the given {@code sleep} time before
+     * unblocking access to the object store.
+     *
+     * @param nodeName  the node's name
+     * @param sleep     the amont of time to sleep before unblocking access to the object store
+     * @return          a {@link CountDownLatch} to wait for the blocking, sleeping and unblocking to be executed. The latch is only
+     *                  completed if all operations were successfully executed.
+     */
+    private static CountDownLatch delayRecovery(String nodeName, TimeValue sleep) {
+        var repository = ObjectStoreTestUtils.getObjectStoreMockRepository(getObjectStoreService(nodeName));
+        repository.setBlockOnAnyFiles();
+        final var latch = new CountDownLatch(1);
+        var thread = new Thread(() -> {
+            boolean success = false;
+            try {
+                assertBusy(() -> assertTrue(repository.blocked()), 30L, TimeUnit.SECONDS);
+                safeSleep(sleep);
+                success = true;
+            } catch (Exception e) {
+                throw new AssertionError(e);
+            } finally {
+                try {
+                    repository.unblock();
+                } finally {
+                    if (success) {
+                        latch.countDown();
+                    }
+                }
+            }
+        });
+        thread.start();
+        return latch;
     }
 }

@@ -1,5 +1,0 @@
-pr: 119449
-summary: Add missing traces ilm policy for OTel traces data streams
-area: Data streams
-type: bug
-issues: []

@@ -56,8 +56,8 @@ import java.util.Set;
 
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.constructFailedToSendRequestMessage;
 import static org.elasticsearch.xpack.inference.external.action.openai.OpenAiActionCreator.COMPLETION_ERROR_PREFIX;
+import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSIONS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
-import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.parsePersistedConfigErrorMsg;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMap;
@@ -415,7 +415,9 @@ public class OpenAiService extends SenderService {
 
                 configurationMap.put(
                     MODEL_ID,
-                    new SettingsConfiguration.Builder().setDescription("The name of the model to use for the inference task.")
+                    new SettingsConfiguration.Builder(SUPPORTED_TASK_TYPES_FOR_SERVICES_API).setDescription(
+                        "The name of the model to use for the inference task."
+                    )
                         .setLabel("Model ID")
                         .setRequired(true)
                         .setSensitive(false)
@@ -426,7 +428,9 @@ public class OpenAiService extends SenderService {
 
                 configurationMap.put(
                     ORGANIZATION,
-                    new SettingsConfiguration.Builder().setDescription("The unique identifier of your organization.")
+                    new SettingsConfiguration.Builder(SUPPORTED_TASK_TYPES_FOR_SERVICES_API).setDescription(
+                        "The unique identifier of your organization."
+                    )
                         .setLabel("Organization ID")
                         .setRequired(false)
                         .setSensitive(false)
@@ -436,29 +440,30 @@ public class OpenAiService extends SenderService {
                 );
 
                 configurationMap.put(
-                    URL,
-                    new SettingsConfiguration.Builder().setDefaultValue("https://api.openai.com/v1/chat/completions")
-                        .setDescription(
-                            "The OpenAI API endpoint URL. For more information on the URL, refer to the "
-                                + "https://platform.openai.com/docs/api-reference."
-                        )
-                        .setLabel("URL")
-                        .setRequired(true)
+                    DIMENSIONS,
+                    new SettingsConfiguration.Builder(EnumSet.of(TaskType.TEXT_EMBEDDING)).setDescription(
+                        "The number of dimensions the resulting embeddings should have. For more information refer to "
+                            + "https://platform.openai.com/docs/api-reference/embeddings/create#embeddings-create-dimensions."
+                    )
+                        .setLabel("Dimensions")
+                        .setRequired(false)
                         .setSensitive(false)
                         .setUpdatable(false)
-                        .setType(SettingsConfigurationFieldType.STRING)
+                        .setType(SettingsConfigurationFieldType.INTEGER)
                         .build()
                 );
 
                 configurationMap.putAll(
                     DefaultSecretSettings.toSettingsConfigurationWithDescription(
                         "The OpenAI API authentication key. For more details about generating OpenAI API keys, "
-                            + "refer to the https://platform.openai.com/account/api-keys."
+                            + "refer to the https://platform.openai.com/account/api-keys.",
+                        SUPPORTED_TASK_TYPES_FOR_SERVICES_API
                     )
                 );
                 configurationMap.putAll(
                     RateLimitSettings.toSettingsConfigurationWithDescription(
-                        "Default number of requests allowed per minute. For text_embedding is 3000. For completion is 500."
+                        "Default number of requests allowed per minute. For text_embedding is 3000. For completion is 500.",
+                        SUPPORTED_TASK_TYPES_FOR_SERVICES_API
                     )
                 );
 

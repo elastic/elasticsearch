@@ -8,15 +8,15 @@
 package org.elasticsearch.compute.operator.lookup;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.compute.data.BasicBlockTests;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.BlockTestUtils;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.test.BlockTestUtils;
 import org.elasticsearch.compute.test.ComputeTestCase;
+import org.elasticsearch.compute.test.RandomBlock;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.test.ListMatcher;
 
@@ -226,8 +226,8 @@ public class RightChunkedLeftJoinTests extends ComputeTestCase {
 
     private void testRandom(BlockFactory factory) {
         int leftSize = between(100, 10000);
-        ElementType[] leftColumns = randomArray(1, 10, ElementType[]::new, BasicBlockTests::randomElementType);
-        ElementType[] rightColumns = randomArray(1, 10, ElementType[]::new, BasicBlockTests::randomElementType);
+        ElementType[] leftColumns = randomArray(1, 10, ElementType[]::new, RandomBlock::randomElementType);
+        ElementType[] rightColumns = randomArray(1, 10, ElementType[]::new, RandomBlock::randomElementType);
 
         RandomPage left = randomPage(factory, leftColumns, leftSize);
         try (RightChunkedLeftJoin join = new RightChunkedLeftJoin(left.page, rightColumns.length)) {
@@ -389,10 +389,10 @@ public class RightChunkedLeftJoinTests extends ComputeTestCase {
         return o;
     }
 
-    record RandomPage(Page page, BasicBlockTests.RandomBlock[] blocks) {};
+    record RandomPage(Page page, RandomBlock[] blocks) {};
 
     RandomPage randomPage(BlockFactory factory, ElementType[] types, int positions, Block... prepend) {
-        BasicBlockTests.RandomBlock[] randomBlocks = new BasicBlockTests.RandomBlock[types.length];
+        RandomBlock[] randomBlocks = new RandomBlock[types.length];
         Block[] blocks = new Block[prepend.length + types.length];
         try {
             for (int c = 0; c < prepend.length; c++) {
@@ -401,16 +401,7 @@ public class RightChunkedLeftJoinTests extends ComputeTestCase {
             for (int c = 0; c < types.length; c++) {
 
                 int min = between(0, 3);
-                randomBlocks[c] = BasicBlockTests.randomBlock(
-                    factory,
-                    types[c],
-                    positions,
-                    randomBoolean(),
-                    min,
-                    between(min, min + 3),
-                    0,
-                    0
-                );
+                randomBlocks[c] = RandomBlock.randomBlock(factory, types[c], positions, randomBoolean(), min, between(min, min + 3), 0, 0);
                 blocks[prepend.length + c] = randomBlocks[c].block();
             }
             Page p = new Page(blocks);

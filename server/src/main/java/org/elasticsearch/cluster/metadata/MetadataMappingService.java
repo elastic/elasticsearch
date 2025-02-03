@@ -56,7 +56,7 @@ public class MetadataMappingService {
     public MetadataMappingService(ClusterService clusterService, IndicesService indicesService) {
         this.clusterService = clusterService;
         this.indicesService = indicesService;
-        taskQueue = clusterService.createTaskQueue("put-mapping", Priority.HIGH, new PutMappingExecutor());
+        this.taskQueue = clusterService.createTaskQueue("put-mapping", Priority.HIGH, new PutMappingExecutor());
     }
 
     record PutMappingClusterStateUpdateTask(PutMappingClusterStateUpdateRequest request, ActionListener<AcknowledgedResponse> listener)

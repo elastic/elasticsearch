@@ -111,6 +111,7 @@ PUT _rollup/job/sensor
 }
 --------------------------------------------------
 // TEST[setup:sensor_index]
+// TEST[warning:The rollup functionality will be removed in Elasticsearch 10.0. See docs for more information.]
 
 This rolls up the `sensor-*` pattern and stores the results in `sensor_rollup`.
 To search this rolled up data, we need to use the `_rollup_search` endpoint.
@@ -133,6 +134,7 @@ GET /sensor_rollup/_rollup_search
 --------------------------------------------------
 // TEST[setup:sensor_prefab_data]
 // TEST[s/_rollup_search/_rollup_search?filter_path=took,timed_out,terminated_early,_shards,hits,aggregations/]
+// TEST[warning:The rollup functionality will be removed in Elasticsearch 10.0. See docs for more information.]
 
 The query is targeting the `sensor_rollup` data, since this contains the rollup
 data as configured in the job. A `max` aggregation has been used on the
@@ -188,6 +190,7 @@ GET sensor_rollup/_rollup_search
 --------------------------------------------------
 // TEST[continued]
 // TEST[catch:/illegal_argument_exception/]
+// TEST[warning:The rollup functionality will be removed in Elasticsearch 10.0. See docs for more information.]
 
 [source,console-result]
 ----
@@ -231,6 +234,7 @@ GET sensor-1,sensor_rollup/_rollup_search <1>
 --------------------------------------------------
 // TEST[continued]
 // TEST[s/_rollup_search/_rollup_search?filter_path=took,timed_out,terminated_early,_shards,hits,aggregations/]
+// TEST[warning:The rollup functionality will be removed in Elasticsearch 10.0. See docs for more information.]
 <1> Note the URI now searches `sensor-1` and `sensor_rollup` at the same time
 
 When the search is executed, the rollup search endpoint does two things:

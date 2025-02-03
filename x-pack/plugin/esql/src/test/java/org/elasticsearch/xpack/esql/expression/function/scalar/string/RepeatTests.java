@@ -122,11 +122,7 @@ public class RepeatTests extends AbstractScalarFunctionTestCase {
                 .withFoldingException(IllegalArgumentException.class, "Number parameter cannot be negative, found [" + number + "]");
         }));
 
-        return parameterSuppliersFromTypedDataWithDefaultChecks(true, cases, (v, p) -> switch (p) {
-            case 0 -> "string";
-            case 1 -> "integer";
-            default -> "";
-        });
+        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, cases);
     }
 
     @Override

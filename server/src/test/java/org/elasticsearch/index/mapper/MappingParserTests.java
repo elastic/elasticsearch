@@ -22,7 +22,6 @@ import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.hamcrest.CoreMatchers;
@@ -327,11 +326,7 @@ public class MappingParserTests extends MapperServiceTestCase {
             IndexVersions.MINIMUM_READONLY_COMPATIBLE,
             IndexVersions.V_8_5_0
         );
-        TransportVersion transportVersion = TransportVersionUtils.randomVersionBetween(
-            random(),
-            TransportVersions.MINIMUM_COMPATIBLE,
-            TransportVersions.V_8_5_0
-        );
+        TransportVersion transportVersion = TransportVersions.V_8_5_0;
         {
             XContentBuilder builder = mapping(b -> b.startObject(" ").field("type", randomFieldType()).endObject());
             MappingParser mappingParser = createMappingParser(Settings.EMPTY, version, transportVersion);

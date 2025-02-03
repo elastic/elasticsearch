@@ -67,6 +67,8 @@ public final class SlmHealthIndicatorService implements HealthIndicatorService {
 
     public static final String DIAGNOSIS_CHECK_RECENTLY_FAILED_SNAPSHOTS_ID = "check_recent_snapshot_failures";
     public static final String DIAGNOSIS_CHECK_RECENTLY_FAILED_SNAPSHOTS_HELP_URL = "https://ela.st/fix-recent-snapshot-failures";
+    public static final String DIAGNOSIS_CHECK_TROUBLESHOOTING_GUIDE = "check_troubleshooting";
+    public static final String DIAGNOSIS_CHECK_TROUBLESHOOTING_GUIDE_HELP_URL = "https://ela.st/troubleshooting";
 
     // Visible for testing
     static Diagnosis.Definition checkRecentlyFailedSnapshots(String causeText, String actionText) {
@@ -79,12 +81,20 @@ public final class SlmHealthIndicatorService implements HealthIndicatorService {
         );
     }
 
+    // Visible for testing
+    static Diagnosis.Definition checkTroubleshootingGuide(String causeText, String actionText) {
+        return new Diagnosis.Definition(
+            NAME,
+            DIAGNOSIS_CHECK_TROUBLESHOOTING_GUIDE,
+            causeText,
+            actionText,
+            DIAGNOSIS_CHECK_TROUBLESHOOTING_GUIDE_HELP_URL
+        );
+    }
+
     public static final String AUTOMATION_DISABLED_IMPACT_ID = "automation_disabled";
     public static final String STALE_SNAPSHOTS_IMPACT_ID = "stale_snapshots";
     public static final String MISSING_SNAPSHOT_IMPACT_ID = "missing_snapshot";
-
-    // TODO: move to SLM policy
-    // private static final TimeValue timeAllowedSinceLastSnapshot = new TimeValue(10, TimeUnit.SECONDS);
 
     private final ClusterService clusterService;
     private volatile long failedSnapshotWarnThreshold;
@@ -284,7 +294,7 @@ public final class SlmHealthIndicatorService implements HealthIndicatorService {
 
         return createIndicator(
             YELLOW,
-            "Encountered [" + unhealthyPolicies.size() + "] unhealthy snapshot lifecycle management policies.",
+            "Encountered [" + unhealthyPolicies.size() + "] unhealthy snapshot lifecycle management policies",
             createDetails(verbose, unhealthyPolicies, slmMetadata, currentMode),
             impacts,
             verbose
@@ -318,16 +328,16 @@ public final class SlmHealthIndicatorService implements HealthIndicatorService {
                 NAME,
                 MISSING_SNAPSHOT_IMPACT_ID,
                 2,
-                "Some snapshot lifecycle policies have not had a snapshot for a long time",
+                "Some snapshot lifecycle policies have not had a snapshot for some time",
                 List.of(ImpactArea.BACKUP)
             )
         );
 
         String unhealthyPolicyCauses = unhealthyPolicies.stream().map(policy -> {
             Long missingStartTime = getMissingSnapshotPeriodStartTime(policy);
-            return "["
+            return "- ["
                 + policy.getId()
-                + "] has not had a snapshot "
+                + "] has not had a snapshot for "
                 + (policy.getPolicy().getTimeAllowedSinceLastSnapshot() != null
                     ? policy.getPolicy().getTimeAllowedSinceLastSnapshot().toHumanReadableString(2)
                     : "")
@@ -347,13 +357,13 @@ public final class SlmHealthIndicatorService implements HealthIndicatorService {
 
         return createIndicator(
             YELLOW,
-            "Encountered [" + unhealthyPolicies.size() + "] unhealthy snapshot lifecycle management policies.",
+            "Encountered [" + unhealthyPolicies.size() + "] unhealthy snapshot lifecycle management policies",
             createDetails(verbose, unhealthyPolicies, slmMetadata, currentMode),
             impacts,
             verbose
                 ? List.of(
                     new Diagnosis(
-                        checkRecentlyFailedSnapshots(cause, action),
+                        checkTroubleshootingGuide(cause, action),
                         List.of(
                             new Diagnosis.Resource(
                                 Diagnosis.Resource.Type.SLM_POLICY,
@@ -378,11 +388,7 @@ public final class SlmHealthIndicatorService implements HealthIndicatorService {
                 ? lastSuccess.getSnapshotStartTimestamp()
                 : lastSuccess.getSnapshotFinishTimestamp();
         }
-        // TODO: handle first snapshot (i.e. no prior success of failure), record first trigger
-        // slm never had a successful snapshot, check for the time of first policy trigger
-        // if (policy.firstTriggerTimestamp != null) {
-        // return policy.firstTriggerTimestamp;
-        // }
+        // SX TODO: handle first snapshot (i.e. no prior success of failure), maybe record the policy first trigger timestamp
 
         // SLM has not been triggered yet
         return null;

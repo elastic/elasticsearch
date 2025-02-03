@@ -309,7 +309,7 @@ public class SnapshotLifecyclePolicyTests extends AbstractXContentSerializingTes
                 "repo",
                 Collections.emptyMap(),
                 SnapshotRetentionConfiguration.EMPTY,
-                null
+                TimeValue.parseTimeValue("1h","timeAllowedSinceLastSnapshot")
             );
             ValidationException e = policy.validate();
             assertThat(e, nullValue());
@@ -328,6 +328,51 @@ public class SnapshotLifecyclePolicyTests extends AbstractXContentSerializingTes
 
             ValidationException e = policy.validate();
             assertThat(e, nullValue());
+        }
+        {
+            SnapshotLifecyclePolicy policy = new SnapshotLifecyclePolicy(
+                "my_policy",
+                "my_snap",
+                "15m",
+                "repo",
+                Collections.emptyMap(),
+                SnapshotRetentionConfiguration.EMPTY,
+                TimeValue.ONE_MINUTE
+            );
+
+            ValidationException e = policy.validate();
+            assertThat(e.validationErrors(), containsInAnyOrder("invalid timeAllowedSinceLastSnapshot [1m]: time is too short, " +
+                "expecting at least more than the interval between snapshots [15m] for schedule [15m]"));
+        }
+        {
+            SnapshotLifecyclePolicy policy = new SnapshotLifecyclePolicy(
+                "my_policy",
+                "my_snap",
+                "0 0 1 * * ?",  // every day
+                "repo",
+                Collections.emptyMap(),
+                SnapshotRetentionConfiguration.EMPTY,
+                TimeValue.parseTimeValue("2d","timeAllowedSinceLastSnapshot")
+            );
+
+            ValidationException e = policy.validate();
+            assertThat(e, nullValue());
+        }
+        {
+            SnapshotLifecyclePolicy policy = new SnapshotLifecyclePolicy(
+                "my_policy",
+                "my_snap",
+                "0 0 1 * * ?",  // every day
+                "repo",
+                Collections.emptyMap(),
+                SnapshotRetentionConfiguration.EMPTY,
+                TimeValue.ONE_MINUTE
+            );
+
+            ValidationException e = policy.validate();
+            assertThat(e.validationErrors(), containsInAnyOrder("invalid timeAllowedSinceLastSnapshot [1m]: time is too short, " +
+                "expecting at least more than the interval between snapshots [1d] for schedule [0 0 1 * * ?]"));
+
         }
     }
 

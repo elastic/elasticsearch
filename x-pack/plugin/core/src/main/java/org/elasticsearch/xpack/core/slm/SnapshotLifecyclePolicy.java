@@ -268,6 +268,7 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
 
         // Schedule validation
         // n.b. there's more validation beyond this in SnapshotLifecycleService#validateMinimumInterval
+        boolean canValidateTimeAllowedSinceLastSnapshot = false;    // true if schedule is syntactically valid
         if (Strings.hasText(schedule) == false) {
             err.addValidationError("invalid schedule [" + schedule + "]: must not be empty");
         } else {
@@ -276,10 +277,31 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
                 if (intervalTimeValue.millis() == 0) {
                     err.addValidationError("invalid schedule [" + schedule + "]: time unit must be at least 1 millisecond");
                 }
+                canValidateTimeAllowedSinceLastSnapshot = true;
             } catch (IllegalArgumentException e1) {
                 if (isCronSchedule(schedule) == false) {
                     err.addValidationError("invalid schedule [" + schedule + "]: must be a valid cron expression or time unit");
+                } else {
+                    canValidateTimeAllowedSinceLastSnapshot = true;
                 }
+            }
+        }
+
+        // validate timeAllowedSinceLastSnapshot if schedule is syntactically valid
+        if (canValidateTimeAllowedSinceLastSnapshot) {
+            TimeValue snapshotInterval = calculateNextInterval(Clock.systemUTC());
+            if (timeAllowedSinceLastSnapshot != null && snapshotInterval.duration() > 0
+                && timeAllowedSinceLastSnapshot.compareTo(snapshotInterval) < 0) {
+                err.addValidationError(
+                    "invalid timeAllowedSinceLastSnapshot ["
+                        + timeAllowedSinceLastSnapshot.getStringRep()
+                        + "]: "
+                        + "time is too short, expecting at least more than the interval between snapshots ["
+                        + snapshotInterval.toHumanReadableString(2)
+                        + "] for schedule ["
+                        + schedule
+                        + "]"
+                );
             }
         }
 
@@ -329,9 +351,7 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
             err.addValidationError("invalid repository name [" + repository + "]: cannot be empty");
         }
 
-        // SX TODO: validate timevalue
-
-        return err.validationErrors().size() == 0 ? null : err;
+        return err.validationErrors().isEmpty() ? null : err;
     }
 
     private Map<String, Object> addPolicyNameToMetadata(final Map<String, Object> metadata) {

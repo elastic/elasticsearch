@@ -653,13 +653,10 @@ public class CompositeRolesStore {
     private static String stripFailuresSuffix(String input) {
         // TODO clean up
         String literalSuffix = "::failures";
-        String regexSuffix = "::failures/";
         if (input.endsWith(literalSuffix)) {
             return input.substring(0, input.length() - literalSuffix.length());
-        } else if (input.endsWith(regexSuffix)) {
-            // TODO need to add back "/" since otherwise we break the regex
-            return input.substring(0, input.length() - regexSuffix.length());
         }
+        // TODO regex handling
         assert false : "unexpected failure index name: " + input;
         return input;
     }

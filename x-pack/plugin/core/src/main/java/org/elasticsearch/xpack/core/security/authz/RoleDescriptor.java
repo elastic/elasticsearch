@@ -1381,9 +1381,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         public static Set<String> filterFailureIndices(Set<String> indices) {
             return indices.stream().filter(index -> {
                 // TODO improve check
-                return index != null
-                    && (index.endsWith("::" + IndexComponentSelector.FAILURES.getKey())
-                        || index.endsWith("::" + IndexComponentSelector.FAILURES.getKey() + "/"));
+                return index != null && index.endsWith("::" + IndexComponentSelector.FAILURES.getKey());
             }).collect(Collectors.toSet());
         }
 

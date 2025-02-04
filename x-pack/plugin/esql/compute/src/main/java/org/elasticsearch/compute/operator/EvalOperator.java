@@ -63,14 +63,9 @@ public class EvalOperator extends AbstractPageMappingOperator {
     public interface ExpressionEvaluator extends Releasable {
 
         /**
-         * Scoring value when an expression does not match (return false)
+         * Scoring value when an expression does not match (return false) or does not contribute to the score
          */
-        double NO_MATCH_SCORE = -1.0;
-
-        /**
-         * Default score for expressions that match (return true) but are not full text functions
-         */
-        double MATCH_SCORE = 0.0;
+        double NO_MATCH_SCORE = 0.0;
 
         /** A Factory for creating ExpressionEvaluators. */
         interface Factory {
@@ -96,10 +91,10 @@ public class EvalOperator extends AbstractPageMappingOperator {
 
         /**
          * Retrieves the score for the expression.
-         * Only expressions that can be scored, or that can combine scores, should override this method
+         * Only expressions that can be scored, or that can combine scores, should override this method.
          */
         default DoubleBlock score(Page page, BlockFactory blockFactory) {
-            return blockFactory.newConstantDoubleBlockWith(MATCH_SCORE, page.getPositionCount());
+            return blockFactory.newConstantDoubleBlockWith(NO_MATCH_SCORE, page.getPositionCount());
         }
     }
 

@@ -14,7 +14,6 @@ import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.DoubleBlock;
-import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.Vector;
@@ -27,10 +26,8 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.evaluator.mapper.ExpressionMapper;
-import org.elasticsearch.xpack.esql.evaluator.predicate.operator.logical.NotEvaluator;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.BinaryLogic;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
@@ -215,43 +212,12 @@ public final class EvalMapper {
             List<ShardContext> shardContexts,
             boolean usesScoring
         ) {
-            record NotScoreEvaluator(Source source, NotEvaluator notEval, ExpressionEvaluator innerEval, DriverContext driverContext)
-                implements
-                    ExpressionEvaluator {
-                @Override
-                public Block eval(Page page) {
-                    return notEval.eval(page);
-                }
-
-                @Override
-                // NotEvaluator is a final, generated class - create this record to override score method
-                public DoubleBlock score(Page page, BlockFactory blockFactory) {
-                    try (DoubleBlock scoreBlock = innerEval.score(page, blockFactory)) {
-                        DoubleVector scoreVector = scoreBlock.asVector();
-                        DoubleVector.Builder result = blockFactory.newDoubleVectorFixedBuilder(page.getPositionCount());
-                        // TODO We could optimize for constant vectors
-                        for (int i = 0; i < scoreVector.getPositionCount(); i++) {
-                            result.appendDouble(scoreVector.getDouble(i) == NO_MATCH_SCORE ? MATCH_SCORE : NO_MATCH_SCORE);
-                        }
-                        return result.build().asBlock();
-                    }
-                }
-
-                @Override
-                public void close() {
-                    Releasables.closeExpectNoException(notEval, innerEval);
-                }
-            }
-
-            return driverContext -> {
-                var expEval = toEvaluator(foldCtx, not.field(), layout, shardContexts, usesScoring);
-                ExpressionEvaluator innerEval = expEval.get(driverContext);
-                NotEvaluator notEvaluator = new NotEvaluator(not.source(), innerEval, driverContext);
-                if (usesScoring) {
-                    return new NotScoreEvaluator(not.source(), notEvaluator, innerEval, driverContext);
-                }
-                return notEvaluator;
-            };
+            var expEval = toEvaluator(foldCtx, not.field(), layout);
+            return dvrCtx -> new org.elasticsearch.xpack.esql.evaluator.predicate.operator.logical.NotEvaluator(
+                not.source(),
+                expEval.get(dvrCtx),
+                dvrCtx
+            );
         }
     }
 
@@ -401,22 +367,6 @@ public final class EvalMapper {
             }
 
             @Override
-            public DoubleBlock score(Page page, BlockFactory blockFactory) {
-                // TODO We could skip re-evaluating the field if we store the result of eval()
-                try (Block fieldBlock = field.eval(page)) {
-                    if (fieldBlock.asVector() != null) {
-                        return driverContext.blockFactory().newConstantDoubleBlockWith(NO_MATCH_SCORE, page.getPositionCount());
-                    }
-                    try (var builder = driverContext.blockFactory().newDoubleVectorFixedBuilder(page.getPositionCount())) {
-                        for (int p = 0; p < page.getPositionCount(); p++) {
-                            builder.appendDouble(p, fieldBlock.isNull(p) ? MATCH_SCORE : NO_MATCH_SCORE);
-                        }
-                        return builder.build().asBlock();
-                    }
-                }
-            }
-
-            @Override
             public void close() {
                 Releasables.closeExpectNoException(field);
             }
@@ -465,22 +415,6 @@ public final class EvalMapper {
                     try (var builder = driverContext.blockFactory().newBooleanVectorFixedBuilder(page.getPositionCount())) {
                         for (int p = 0; p < page.getPositionCount(); p++) {
                             builder.appendBoolean(p, fieldBlock.isNull(p) == false);
-                        }
-                        return builder.build().asBlock();
-                    }
-                }
-            }
-
-            @Override
-            public DoubleBlock score(Page page, BlockFactory blockFactory) {
-                // TODO We could skip re-evaluating the field if we store the result of eval()
-                try (Block fieldBlock = field.eval(page)) {
-                    if (fieldBlock.asVector() != null) {
-                        return driverContext.blockFactory().newConstantDoubleBlockWith(MATCH_SCORE, page.getPositionCount());
-                    }
-                    try (var builder = driverContext.blockFactory().newDoubleVectorFixedBuilder(page.getPositionCount())) {
-                        for (int p = 0; p < page.getPositionCount(); p++) {
-                            builder.appendDouble(p, fieldBlock.isNull(p) ? NO_MATCH_SCORE : MATCH_SCORE);
                         }
                         return builder.build().asBlock();
                     }

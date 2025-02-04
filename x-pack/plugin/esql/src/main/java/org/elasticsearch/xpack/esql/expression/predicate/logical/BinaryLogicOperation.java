@@ -11,8 +11,6 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.PredicateBiFunctio
 
 import java.util.function.BiFunction;
 
-import static org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator.NO_MATCH_SCORE;
-
 public enum BinaryLogicOperation implements PredicateBiFunction<Boolean, Boolean, Boolean> {
 
     AND((l, r) -> {
@@ -23,11 +21,6 @@ public enum BinaryLogicOperation implements PredicateBiFunction<Boolean, Boolean
             return null;
         }
         return Boolean.logicalAnd(l.booleanValue(), r.booleanValue());
-    }, (leftScore, rightScore) -> {
-        if (NO_MATCH_SCORE == leftScore || NO_MATCH_SCORE == rightScore) {
-            return NO_MATCH_SCORE;
-        }
-        return leftScore + rightScore;
     }, "AND"),
     OR((l, r) -> {
         if (Boolean.TRUE.equals(l) || Boolean.TRUE.equals(r)) {
@@ -37,20 +30,13 @@ public enum BinaryLogicOperation implements PredicateBiFunction<Boolean, Boolean
             return null;
         }
         return Boolean.logicalOr(l.booleanValue(), r.booleanValue());
-    }, (leftScore, rightScore) -> {
-        if (NO_MATCH_SCORE == leftScore || NO_MATCH_SCORE == rightScore) {
-            return Math.max(leftScore, rightScore);
-        }
-        return leftScore + rightScore;
     }, "OR");
 
     private final BiFunction<Boolean, Boolean, Boolean> process;
-    private final BiFunction<Double, Double, Double> scoreFunction;
     private final String symbol;
 
-    BinaryLogicOperation(BiFunction<Boolean, Boolean, Boolean> process, BiFunction<Double, Double, Double> scoreFunction, String symbol) {
+    BinaryLogicOperation(BiFunction<Boolean, Boolean, Boolean> process, String symbol) {
         this.process = process;
-        this.scoreFunction = scoreFunction;
         this.symbol = symbol;
     }
 
@@ -65,7 +51,7 @@ public enum BinaryLogicOperation implements PredicateBiFunction<Boolean, Boolean
     }
 
     public Double score(Double leftScore, Double rightScore) {
-        return scoreFunction.apply(leftScore, rightScore);
+        return leftScore + rightScore;
     }
 
     @Override

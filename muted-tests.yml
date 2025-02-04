@@ -209,8 +209,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.CrossClusterAsyncEnrichStopIT
   method: testEnrichAfterStop
   issue: https://github.com/elastic/elasticsearch/issues/120757
-- class: org.elasticsearch.search.fieldcaps.FieldCapabilitiesIT
-  issue: https://github.com/elastic/elasticsearch/issues/120772
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=ml/3rd_party_deployment/Test start deployment fails while model download in progress}
   issue: https://github.com/elastic/elasticsearch/issues/120810
@@ -431,6 +429,18 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.CrossClusterQueryUnavailableRemotesIT
   method: testRemoteOnlyCCSAgainstDisconnectedRemoteWithSkipUnavailableTrue
   issue: https://github.com/elastic/elasticsearch/issues/121578
+- class: org.elasticsearch.xpack.esql.action.CrossClustersCancellationIT
+  method: testTasks
+  issue: https://github.com/elastic/elasticsearch/issues/121626
+- class: org.elasticsearch.xpack.esql.action.CrossClustersCancellationIT
+  method: testCloseSkipUnavailable
+  issue: https://github.com/elastic/elasticsearch/issues/121627
+- class: org.elasticsearch.xpack.esql.action.CrossClustersCancellationIT
+  method: testCancel
+  issue: https://github.com/elastic/elasticsearch/issues/121632
+- class: org.elasticsearch.xpack.esql.action.CrossClustersCancellationIT
+  method: testCancelSkipUnavailable
+  issue: https://github.com/elastic/elasticsearch/issues/121631
 
 # Examples:
 #

@@ -61,7 +61,7 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
     private static final ParseField REPOSITORY = new ParseField("repository");
     private static final ParseField CONFIG = new ParseField("config");
     private static final ParseField RETENTION = new ParseField("retention");
-    private static final ParseField TIME_ALLOWED_SINCE_LAST_SNAPSHOT = new ParseField("time_allowed_since_last_snapshot");
+    private static final ParseField MISSING_SNAPSHOT_UNHEALTHY_THRESHOLD = new ParseField("missing_snapshot_unhealthy_threshold");
     private static final String METADATA_FIELD_NAME = "metadata";
 
     @SuppressWarnings("unchecked")
@@ -87,8 +87,8 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), SnapshotRetentionConfiguration::parse, RETENTION);
         PARSER.declareField(
             ConstructingObjectParser.optionalConstructorArg(),
-            (p, c) -> TimeValue.parseTimeValue(p.text(), TIME_ALLOWED_SINCE_LAST_SNAPSHOT.getPreferredName()),
-            TIME_ALLOWED_SINCE_LAST_SNAPSHOT,
+            (p, c) -> TimeValue.parseTimeValue(p.text(), MISSING_SNAPSHOT_UNHEALTHY_THRESHOLD.getPreferredName()),
+            MISSING_SNAPSHOT_UNHEALTHY_THRESHOLD,
             ObjectParser.ValueType.STRING
         );
     }
@@ -130,7 +130,7 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
         this.repository = in.readString();
         this.configuration = in.readGenericMap();
         this.retentionPolicy = in.readOptionalWriteable(SnapshotRetentionConfiguration::new);
-        this.missingSnapshotUnhealthyThreshold = in.getTransportVersion().onOrAfter(TransportVersions.SLM_TIME_ALLOWED_SINCE_LAST_SNAPSHOT)
+        this.missingSnapshotUnhealthyThreshold = in.getTransportVersion().onOrAfter(TransportVersions.SLM_MISSING_SNAPSHOT_UNHEALTHY_THRESHOLD)
             ? in.readOptionalTimeValue()
             : null;
         this.isCronSchedule = isCronSchedule(schedule);
@@ -394,7 +394,7 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
         out.writeString(this.repository);
         out.writeGenericMap(this.configuration);
         out.writeOptionalWriteable(this.retentionPolicy);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.SLM_TIME_ALLOWED_SINCE_LAST_SNAPSHOT)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.SLM_MISSING_SNAPSHOT_UNHEALTHY_THRESHOLD)) {
             out.writeOptionalTimeValue(this.missingSnapshotUnhealthyThreshold);
         }
     }
@@ -412,7 +412,7 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
             builder.field(RETENTION.getPreferredName(), this.retentionPolicy);
         }
         if (this.missingSnapshotUnhealthyThreshold != null) {
-            builder.field(TIME_ALLOWED_SINCE_LAST_SNAPSHOT.getPreferredName(), this.missingSnapshotUnhealthyThreshold);
+            builder.field(MISSING_SNAPSHOT_UNHEALTHY_THRESHOLD.getPreferredName(), this.missingSnapshotUnhealthyThreshold);
         }
         builder.endObject();
         return builder;

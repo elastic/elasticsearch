@@ -31,6 +31,10 @@ public class Clusters {
     }
 
     public static ElasticsearchCluster localCluster(ElasticsearchCluster remoteCluster) {
+        return localCluster(remoteCluster, true);
+    }
+
+    public static ElasticsearchCluster localCluster(ElasticsearchCluster remoteCluster, Boolean skipUnavailable) {
         return ElasticsearchCluster.local()
             .name(LOCAL_CLUSTER_NAME)
             .distribution(DistributionType.DEFAULT)
@@ -41,6 +45,7 @@ public class Clusters {
             .setting("node.roles", "[data,ingest,master,remote_cluster_client]")
             .setting("cluster.remote.remote_cluster.seeds", () -> "\"" + remoteCluster.getTransportEndpoint(0) + "\"")
             .setting("cluster.remote.connections_per_cluster", "1")
+            .setting("cluster.remote." + REMOTE_CLUSTER_NAME + ".skip_unavailable", skipUnavailable.toString())
             .shared(true)
             .setting("cluster.routing.rebalance.enable", "none")
             .build();

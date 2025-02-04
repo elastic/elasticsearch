@@ -323,17 +323,6 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
                 )
             );
             instruments.add(
-                meterRegistry.registerDoubleGauge(
-                    prefix + THREAD_POOL_METRIC_NAME_UTILISATION,
-                    "percentage of maximum threads active for " + name,
-                    "percent",
-                    () -> new DoubleWithAttributes(
-                        (double) threadPoolExecutor.getActiveCount() / threadPoolExecutor.getMaximumPoolSize(),
-                        at
-                    )
-                )
-            );
-            instruments.add(
                 meterRegistry.registerLongGauge(
                     prefix + THREAD_POOL_METRIC_NAME_LARGEST,
                     "largest pool size for " + name,
@@ -352,6 +341,17 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
             RejectedExecutionHandler rejectedExecutionHandler = threadPoolExecutor.getRejectedExecutionHandler();
             if (rejectedExecutionHandler instanceof EsRejectedExecutionHandler handler) {
                 handler.registerCounter(meterRegistry, prefix + THREAD_POOL_METRIC_NAME_REJECTED, name);
+            }
+
+            if (holder.executor() instanceof EsThreadPoolExecutor esThreadPoolExecutor) {
+                instruments.add(
+                    meterRegistry.registerDoubleGauge(
+                        prefix + THREAD_POOL_METRIC_NAME_UTILISATION,
+                        "percentage of maximum threads active for " + name,
+                        "percent",
+                        () -> new DoubleWithAttributes(esThreadPoolExecutor.getUtilisation(), at)
+                    )
+                );
             }
         }
         return instruments;

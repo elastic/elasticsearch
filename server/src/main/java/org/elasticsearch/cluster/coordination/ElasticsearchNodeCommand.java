@@ -33,6 +33,7 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
@@ -123,13 +124,21 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
         }
 
         String nodeId = nodeMetadata.nodeId();
-        return new PersistedClusterStateService(
+
+        @FixForMultiProject(
+            description = "It's almost certain that we don't support the node related commands in serverless. "
+                + "This annotation can simply be removed once it is confirmed."
+        )
+        final var supportMultipleProjects = false;
+        final var persistedClusterStateService = new PersistedClusterStateService(
             dataPaths,
             nodeId,
             namedXContentRegistry,
             new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-            () -> 0L
+            () -> 0L,
+            supportMultipleProjects
         );
+        return persistedClusterStateService;
     }
 
     public static ClusterState clusterState(Environment environment, PersistedClusterStateService.OnDiskState onDiskState) {

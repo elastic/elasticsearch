@@ -81,6 +81,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -103,6 +104,7 @@ import static org.elasticsearch.gateway.PersistedClusterStateService.MAPPING_TYP
 import static org.elasticsearch.gateway.PersistedClusterStateService.METADATA_DIRECTORY_NAME;
 import static org.elasticsearch.gateway.PersistedClusterStateService.PAGE_FIELD_NAME;
 import static org.elasticsearch.gateway.PersistedClusterStateService.TYPE_FIELD_NAME;
+import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
@@ -115,6 +117,13 @@ import static org.hamcrest.Matchers.startsWith;
 public class PersistedClusterStateServiceTests extends ESTestCase {
 
     private PersistedClusterStateService newPersistedClusterStateService(NodeEnvironment nodeEnvironment) {
+        return newPersistedClusterStateService(nodeEnvironment, randomBoolean());
+    }
+
+    private PersistedClusterStateService newPersistedClusterStateService(
+        NodeEnvironment nodeEnvironment,
+        boolean supportsMultipleProjects
+    ) {
 
         final Settings.Builder settings = Settings.builder();
         if (randomBoolean()) {
@@ -125,7 +134,8 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
             nodeEnvironment,
             xContentRegistry(),
             new ClusterSettings(settings.build(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-            () -> 0L
+            () -> 0L,
+            supportsMultipleProjects
         );
     }
 
@@ -312,7 +322,8 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                 nodeIds[0],
                 xContentRegistry(),
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                () -> 0L
+                () -> 0L,
+                randomBoolean()
             ).loadBestOnDiskState()
         ).getMessage();
         assertThat(message, allOf(containsString("belongs to a node with ID"), containsString(nodeIds[0]), containsString(nodeIds[1])));
@@ -484,7 +495,8 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                 nodeEnvironment,
                 xContentRegistry(),
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                () -> 0L
+                () -> 0L,
+                randomBoolean()
             ) {
                 @Override
                 protected Directory createDirectory(Path path) throws IOException {
@@ -530,7 +542,8 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                 nodeEnvironment,
                 xContentRegistry(),
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                () -> 0L
+                () -> 0L,
+                randomBoolean()
             ) {
                 @Override
                 protected Directory createDirectory(Path path) throws IOException {
@@ -585,7 +598,8 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                 nodeEnvironment,
                 xContentRegistry(),
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                () -> 0L
+                () -> 0L,
+                randomBoolean()
             ) {
                 @Override
                 protected Directory createDirectory(Path path) throws IOException {
@@ -775,7 +789,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
 
     public void testPersistsAndReloadsIndexMetadataIffVersionOrTermChanges() throws IOException {
         try (NodeEnvironment nodeEnvironment = newNodeEnvironment(createDataPaths())) {
-            final PersistedClusterStateService persistedClusterStateService = newPersistedClusterStateService(nodeEnvironment);
+            final PersistedClusterStateService persistedClusterStateService = newPersistedClusterStateService(nodeEnvironment, false);
             final long globalVersion = randomLongBetween(1L, Long.MAX_VALUE);
             final String indexUUID = UUIDs.randomBase64UUID(random());
             final long indexMetadataVersion = randomLongBetween(1L, Long.MAX_VALUE);
@@ -1264,7 +1278,8 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                 nodeEnvironment,
                 xContentRegistry(),
                 clusterSettings,
-                () -> currentTime.getAndAdd(writeDurationMillis.get())
+                () -> currentTime.getAndAdd(writeDurationMillis.get()),
+                randomBoolean()
             );
 
             try (Writer writer = persistedClusterStateService.createWriter()) {
@@ -1782,13 +1797,19 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
     }
 
     public void testDeduplicatedMappings() throws IOException {
+        final var supportsMultipleProjects = randomBoolean();
+        final ProjectId projectId = supportsMultipleProjects ? randomUniqueProjectId() : Metadata.DEFAULT_PROJECT_ID;
+        final ProjectId anotherProjectId = supportsMultipleProjects ? randomUniqueProjectId() : null;
         final Path dataPath = createTempDir();
         try (NodeEnvironment nodeEnvironment = newNodeEnvironment(new Path[] { dataPath })) {
-            final PersistedClusterStateService persistedClusterStateService = newPersistedClusterStateService(nodeEnvironment);
+            final PersistedClusterStateService persistedClusterStateService = newPersistedClusterStateService(
+                nodeEnvironment,
+                supportsMultipleProjects
+            );
             try (Writer writer = persistedClusterStateService.createWriter()) {
 
-                Set<String> hashes;
-                Metadata.Builder metadata;
+                Map<String, Set<String>> hashes;
+                ProjectMetadata.Builder metadata;
                 ClusterState clusterState;
                 ClusterState previousState;
 
@@ -1797,7 +1818,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                 MappingMetadata mapping2 = randomValueOtherThan(mapping1, () -> randomMappingMetadata());
 
                 // build and write a cluster state with metadata that has all indices using a single mapping
-                metadata = Metadata.builder();
+                metadata = ProjectMetadata.builder(projectId);
                 for (int i = between(5, 20); i >= 0; i--) {
                     metadata.put(
                         IndexMetadata.builder("test-" + i)
@@ -1808,17 +1829,48 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                             )
                     );
                 }
-                clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).build();
-                assertThat(clusterState.metadata().getProject().getMappingsByHash().size(), equalTo(1));
+                clusterState = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(metadata).build();
+                // If the cluster supports multi-projects, add another project with the same mappings which should not be affected at all
+                if (anotherProjectId != null) {
+                    var anotherMetadata = ProjectMetadata.builder(anotherProjectId);
+                    for (int i = between(2, 10); i >= 0; i--) {
+                        anotherMetadata.put(
+                            IndexMetadata.builder("test-" + i)
+                                .putMapping(mapping1)
+                                .settings(
+                                    indexSettings(1, 0).put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                                        .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID(random()))
+                                )
+                        );
+                    }
+                    for (int i = between(11, 20); i >= 10; i--) {
+                        anotherMetadata.put(
+                            IndexMetadata.builder("test-" + i)
+                                .putMapping(mapping2)
+                                .settings(
+                                    indexSettings(1, 0).put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                                        .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID(random()))
+                                )
+                        );
+                    }
+                    clusterState = ClusterState.builder(clusterState).putProjectMetadata(anotherMetadata).build();
+                }
+
+                assertThat(clusterState.metadata().getProject(projectId).getMappingsByHash().size(), equalTo(1));
+                if (anotherProjectId != null) {
+                    assertThat(clusterState.metadata().getProject(anotherProjectId).getMappingsByHash().size(), equalTo(2));
+                }
                 writer.writeFullStateAndCommit(0L, clusterState);
 
                 // verify that the on-disk state reflects 1 mapping
                 hashes = loadPersistedMappingHashes(dataPath.resolve(METADATA_DIRECTORY_NAME));
-                assertThat(hashes.size(), equalTo(1));
-                assertThat(clusterState.metadata().getProject().getMappingsByHash().keySet(), equalTo(hashes));
+                Set<String> projectHashes = hashes.get(projectId.id());
+                assertThat(projectHashes.size(), equalTo(1));
+                assertThat(clusterState.metadata().getProject(projectId).getMappingsByHash().keySet(), equalTo(projectHashes));
+                maybeCheckForAnotherProject(anotherProjectId, hashes, clusterState);
 
                 previousState = clusterState;
-                metadata = Metadata.builder(previousState.metadata());
+                metadata = ProjectMetadata.builder(previousState.metadata().getProject(projectId));
 
                 // add a second mapping -- either by adding a new index or changing an existing one
                 if (randomBoolean()) {
@@ -1833,34 +1885,53 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                     );
                 } else {
                     // change an existing index to a different mapping
-                    String index = randomFrom(previousState.metadata().getProject().indices().keySet());
+                    String index = randomFrom(previousState.metadata().getProject(projectId).indices().keySet());
                     metadata.put(IndexMetadata.builder(metadata.get(index)).putMapping(mapping2));
                 }
-                clusterState = ClusterState.builder(previousState).metadata(metadata).build();
-                assertThat(clusterState.metadata().getProject().getMappingsByHash().size(), equalTo(2));
+                clusterState = ClusterState.builder(previousState).putProjectMetadata(metadata).build();
+                assertThat(clusterState.metadata().getProject(projectId).getMappingsByHash().size(), equalTo(2));
                 writer.writeIncrementalStateAndCommit(0L, previousState, clusterState);
 
                 // verify that the on-disk state reflects 2 mappings
                 hashes = loadPersistedMappingHashes(dataPath.resolve(METADATA_DIRECTORY_NAME));
-                assertThat(hashes.size(), equalTo(2));
-                assertThat(clusterState.metadata().getProject().getMappingsByHash().keySet(), equalTo(hashes));
+                projectHashes = hashes.get(projectId.id());
+                assertThat(projectHashes.size(), equalTo(2));
+                assertThat(clusterState.metadata().getProject(projectId).getMappingsByHash().keySet(), equalTo(projectHashes));
+                maybeCheckForAnotherProject(anotherProjectId, hashes, clusterState);
 
                 previousState = clusterState;
-                metadata = Metadata.builder(previousState.metadata());
+                metadata = ProjectMetadata.builder(previousState.metadata().getProject(projectId));
 
                 // update all indices to use the second mapping
-                for (String index : previousState.metadata().getProject().indices().keySet()) {
+                for (String index : previousState.metadata().getProject(projectId).indices().keySet()) {
                     metadata.put(IndexMetadata.builder(metadata.get(index)).putMapping(mapping2));
                 }
-                clusterState = ClusterState.builder(previousState).metadata(metadata).build();
-                assertThat(clusterState.metadata().getProject().getMappingsByHash().size(), equalTo(1));
+                clusterState = ClusterState.builder(previousState).putProjectMetadata(metadata).build();
+                assertThat(clusterState.metadata().getProject(projectId).getMappingsByHash().size(), equalTo(1));
                 writer.writeIncrementalStateAndCommit(0L, previousState, clusterState);
 
                 // verify that the on-disk reflects 1 mapping
                 hashes = loadPersistedMappingHashes(dataPath.resolve(METADATA_DIRECTORY_NAME));
-                assertThat(hashes.size(), equalTo(1));
-                assertThat(clusterState.metadata().getProject().getMappingsByHash().keySet(), equalTo(hashes));
+                projectHashes = hashes.get(projectId.id());
+                assertThat(projectHashes.size(), equalTo(1));
+                assertThat(clusterState.metadata().getProject(projectId).getMappingsByHash().keySet(), equalTo(projectHashes));
+                maybeCheckForAnotherProject(anotherProjectId, hashes, clusterState);
             }
+        }
+    }
+
+    private static void maybeCheckForAnotherProject(
+        ProjectId anotherProjectId,
+        Map<String, Set<String>> hashes,
+        ClusterState clusterState
+    ) {
+        if (anotherProjectId != null) {
+            assertThat(hashes, aMapWithSize(2));
+            final Set<String> anotherProjectHashes = hashes.get(anotherProjectId.id());
+            assertThat(anotherProjectHashes.size(), equalTo(2));
+            assertThat(clusterState.metadata().getProject(anotherProjectId).getMappingsByHash().keySet(), equalTo(anotherProjectHashes));
+        } else {
+            assertThat(hashes, aMapWithSize(1));
         }
     }
 
@@ -1933,14 +2004,15 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
      * Search the underlying persisted state indices for non-deleted mapping_hash documents that represent the
      * first page of data, collecting and returning the distinct mapping_hashes themselves.
      */
-    private static Set<String> loadPersistedMappingHashes(Path metadataDirectory) throws IOException {
-        Set<String> hashes = new HashSet<>();
+    private static Map<String, Set<String>> loadPersistedMappingHashes(Path metadataDirectory) throws IOException {
+        Map<String, Set<String>> hashes = new HashMap<>();
         try (Directory directory = new NIOFSDirectory(metadataDirectory); DirectoryReader reader = DirectoryReader.open(directory)) {
             forEachDocument(reader, Set.of(MAPPING_TYPE_NAME), document -> {
                 int page = document.getField("page").numericValue().intValue();
                 if (page == 0) {
+                    String projectId = document.getField("project_id").stringValue();
                     String hash = document.getField("mapping_hash").stringValue();
-                    assertTrue(hashes.add(hash));
+                    assertTrue(hashes.computeIfAbsent(projectId, ignored -> new HashSet<>()).add(hash));
                 }
             });
         }

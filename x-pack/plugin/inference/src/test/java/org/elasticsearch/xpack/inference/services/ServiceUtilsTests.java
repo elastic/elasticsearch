@@ -818,10 +818,7 @@ public class ServiceUtilsTests extends ESTestCase {
         assertNull(createdEnum);
         assertFalse(validation.validationErrors().isEmpty());
         assertTrue(map.isEmpty());
-        assertThat(
-            validation.validationErrors().get(0),
-            is("[scope] Invalid value empty list. [key] must be a non-empty list")
-        );
+        assertThat(validation.validationErrors().get(0), is("[scope] Invalid value empty list. [key] must be a non-empty list"));
     }
 
     public void testExtractOptionalEnumSet_ReturnsNullAndAddsException_WhenValueIsNotPartOfTheAcceptableValues() {
@@ -838,14 +835,7 @@ public class ServiceUtilsTests extends ESTestCase {
     public void testExtractOptionalEnumSet_ReturnsEnumSet_WhenValuesAreAcceptable() {
         var validation = new ValidationException();
         Map<String, Object> map = modifiableMap(Map.of("key", List.of(InputType.INGEST.toString(), InputType.SEARCH.toString())));
-        var createdEnumSet = extractOptionalEnumSet(
-            map,
-            "key",
-            "scope",
-            InputType::fromString,
-            EnumSet.allOf(InputType.class),
-            validation
-        );
+        var createdEnumSet = extractOptionalEnumSet(map, "key", "scope", InputType::fromString, EnumSet.allOf(InputType.class), validation);
 
         assertThat(createdEnumSet, is(EnumSet.of(InputType.INGEST, InputType.SEARCH)));
         assertTrue(validation.validationErrors().isEmpty());

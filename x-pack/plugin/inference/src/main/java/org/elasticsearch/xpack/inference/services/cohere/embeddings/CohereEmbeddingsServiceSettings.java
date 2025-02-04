@@ -77,7 +77,8 @@ public class CohereEmbeddingsServiceSettings extends FilteredXContentObject impl
                             CohereEmbeddingType::fromString,
                             EnumSet.allOf(CohereEmbeddingType.class),
                             validationException
-                        ), EnumSet.of(CohereEmbeddingType.FLOAT)
+                        ),
+                        EnumSet.of(CohereEmbeddingType.FLOAT)
                     );
                 } else {
                     yield EnumSet.of(embeddingType);
@@ -221,7 +222,11 @@ public class CohereEmbeddingsServiceSettings extends FilteredXContentObject impl
         commonSettings.writeTo(out);
 
         if (out.getTransportVersion().onOrAfter(TransportVersions.COHERE_EMBEDDING_TYPES_SUPPORT_ADDED)) {
-            out.writeEnumSet(EnumSet.copyOf(embeddingTypes.stream().map(t -> CohereEmbeddingType.translateToVersion(t, out.getTransportVersion())).toList()));
+            out.writeEnumSet(
+                EnumSet.copyOf(
+                    embeddingTypes.stream().map(t -> CohereEmbeddingType.translateToVersion(t, out.getTransportVersion())).toList()
+                )
+            );
         } else {
             out.writeEnumSet(EnumSet.of(CohereEmbeddingType.translateToVersion(getFirstEmbeddingType(), out.getTransportVersion())));
         }

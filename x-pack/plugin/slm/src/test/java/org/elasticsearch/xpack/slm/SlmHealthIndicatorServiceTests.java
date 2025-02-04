@@ -612,7 +612,15 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
             "test-policy",
             SnapshotLifecyclePolicyMetadata.builder()
                 .setPolicy(
-                    new SnapshotLifecyclePolicy("policy-id", "test-policy", "", "test-repository", null, null, missingSnapshotUnhealthyThreshold)
+                    new SnapshotLifecyclePolicy(
+                        "policy-id",
+                        "test-policy",
+                        "",
+                        "test-repository",
+                        null,
+                        null,
+                        missingSnapshotUnhealthyThreshold
+                    )
                 )
                 .setVersion(1L)
                 .setModifiedDate(System.currentTimeMillis())

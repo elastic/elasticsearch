@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.rest.job;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
@@ -31,9 +30,7 @@ public class RestPostDataAction extends BaseRestHandler {
     public List<Route> routes() {
         final String msg = "Posting data directly to anomaly detection jobs is deprecated, "
             + "since version 7.11.0, in a future major version it will be compulsory to use a datafeed";
-        return List.of(
-            Route.builder(POST, BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/_data").deprecateAndKeep(msg).build()
-        );
+        return List.of(Route.builder(POST, BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/_data").deprecateAndKeep(msg).build());
     }
 
     @Override

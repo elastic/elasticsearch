@@ -346,8 +346,11 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
             } else if (warnings.size() > 1) {
                 return true;
             }
-            return warnings.get(0).equals("Forcing any buffered data to be processed is deprecated, "
-                + "in a future major version it will be compulsory to use a datafeed") == false;
+            return warnings.get(0)
+                .equals(
+                    "Forcing any buffered data to be processed is deprecated, "
+                        + "in a future major version it will be compulsory to use a datafeed"
+                ) == false;
         }).build();
         Request flushRequest = new Request("POST", "/_ml/anomaly_detectors/" + jobId + "/_flush");
         flushRequest.setOptions(flushOptions);

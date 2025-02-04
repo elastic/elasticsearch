@@ -544,9 +544,7 @@ public class MlJobIT extends ESRestTestCase {
 
         Request flushRequest = new Request("POST", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_flush");
         flushRequest.setOptions(FLUSH_OPTIONS);
-        Response flushResponse = client().performRequest(
-            flushRequest
-        );
+        Response flushResponse = client().performRequest(flushRequest);
         assertThat(entityAsMap(flushResponse), hasEntry("flushed", true));
 
         closeJob(jobId);
@@ -586,9 +584,7 @@ public class MlJobIT extends ESRestTestCase {
 
         Request flushRequest = new Request("POST", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_flush");
         flushRequest.setOptions(FLUSH_OPTIONS);
-        Response flushResponse = client().performRequest(
-            flushRequest
-        );
+        Response flushResponse = client().performRequest(flushRequest);
         assertThat(entityAsMap(flushResponse), hasEntry("flushed", true));
 
         closeJob(jobId);

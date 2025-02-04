@@ -25,3 +25,10 @@ tasks.named('jar').configure {
 tasks.withType(CheckForbiddenApisTask).configureEach {
   enabled = false
 }
+
+spotless {
+  format 'entitlement-bridge', com.diffplug.gradle.spotless.JavaExtension, {
+    target 'src/main/java/org/elasticsearch/entitlement/bridge/EntitlementChecker.java'
+    eclipse().sortMembersEnabled(true)
+  }
+}

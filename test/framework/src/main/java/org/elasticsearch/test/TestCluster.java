@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.IndexTemplateMissingException;
 import org.elasticsearch.repositories.RepositoryMissingException;
@@ -77,7 +78,7 @@ public abstract class TestCluster {
         assertNoTimeout(
             client().admin()
                 .cluster()
-                .health(new ClusterHealthRequest(TEST_REQUEST_TIMEOUT, "_all").waitForNoInitializingShards(true))
+                .health(new ClusterHealthRequest(TimeValue.timeValueMinutes(1), "_all").waitForNoInitializingShards(true))
                 .actionGet()
         );
     }

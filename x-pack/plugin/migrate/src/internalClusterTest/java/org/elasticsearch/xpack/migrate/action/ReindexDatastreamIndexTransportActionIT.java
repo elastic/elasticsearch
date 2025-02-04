@@ -50,7 +50,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.migrate.MigratePlugin;
-import org.elasticsearch.xpack.migrate.ReindexDataStreamPipeline;
+import org.elasticsearch.xpack.migrate.MigrateTemplateRegistry;
 import org.junit.After;
 
 import java.io.IOException;
@@ -73,7 +73,7 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
     private void cleanupCluster() throws Exception {
         clusterAdmin().execute(
             DeletePipelineTransportAction.TYPE,
-            new DeletePipelineRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, ReindexDataStreamPipeline.PIPELINE_NAME)
+            new DeletePipelineRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, MigrateTemplateRegistry.REINDEX_DATA_STREAM_PIPELINE_NAME)
         );
         super.cleanUpCluster();
     }
@@ -167,14 +167,15 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
                         "value": "gorgonzola"
                       }
                     }
-                  ]
+                  ],
+                  "version": 1000
                 }
             """;
 
         PutPipelineRequest putRequest = new PutPipelineRequest(
             TEST_REQUEST_TIMEOUT,
             TEST_REQUEST_TIMEOUT,
-            ReindexDataStreamPipeline.PIPELINE_NAME,
+            MigrateTemplateRegistry.REINDEX_DATA_STREAM_PIPELINE_NAME,
             new BytesArray(customPipeline),
             XContentType.JSON
         );

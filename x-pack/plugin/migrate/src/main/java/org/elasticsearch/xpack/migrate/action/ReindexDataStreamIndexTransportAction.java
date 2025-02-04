@@ -53,7 +53,7 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.deprecation.DeprecatedIndexPredicate;
-import org.elasticsearch.xpack.migrate.ReindexDataStreamPipeline;
+import org.elasticsearch.xpack.migrate.MigrateTemplateRegistry;
 
 import java.util.Locale;
 import java.util.Map;
@@ -156,8 +156,7 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
             return;
         }
         final boolean wasClosed = isClosed(sourceIndex);
-        SubscribableListener.<AcknowledgedResponse>newForked(l -> prepareReindexOperation(l, taskId))
-            .<AcknowledgedResponse>andThen(l -> setBlockWrites(sourceIndexName, l, taskId))
+        SubscribableListener.<AcknowledgedResponse>newForked(l -> setBlockWrites(sourceIndexName, l, taskId))
             .<OpenIndexResponse>andThen(l -> openIndexIfClosed(sourceIndexName, wasClosed, l, taskId))
             .<BroadcastResponse>andThen(l -> refresh(sourceIndexName, l, taskId))
             .<AcknowledgedResponse>andThen(l -> deleteDestIfExists(destIndexName, l, taskId))
@@ -199,14 +198,6 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
 
     private static boolean isClosed(IndexMetadata indexMetadata) {
         return indexMetadata.getState().equals(IndexMetadata.State.CLOSE);
-    }
-
-    private void prepareReindexOperation(ActionListener<AcknowledgedResponse> listener, TaskId parentTaskId) {
-        if (ReindexDataStreamPipeline.exists(clusterService.state())) {
-            listener.onResponse(null);
-        } else {
-            ReindexDataStreamPipeline.create(client, listener, parentTaskId);
-        }
     }
 
     private void setBlockWrites(String sourceIndexName, ActionListener<AcknowledgedResponse> listener, TaskId parentTaskId) {
@@ -281,7 +272,7 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
         logger.debug("Reindex to destination index [{}] from source index [{}]", destIndexName, sourceIndexName);
         var reindexRequest = new ReindexRequest();
         reindexRequest.setSourceIndices(sourceIndexName);
-        reindexRequest.setDestPipeline(ReindexDataStreamPipeline.PIPELINE_NAME);
+        reindexRequest.setDestPipeline(MigrateTemplateRegistry.REINDEX_DATA_STREAM_PIPELINE_NAME);
         reindexRequest.getSearchRequest().allowPartialSearchResults(false);
         reindexRequest.getSearchRequest().source().fetchSource(true);
         reindexRequest.setDestIndex(destIndexName);

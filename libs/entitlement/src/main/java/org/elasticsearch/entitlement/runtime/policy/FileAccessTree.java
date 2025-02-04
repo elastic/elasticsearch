@@ -12,11 +12,12 @@ package org.elasticsearch.entitlement.runtime.policy;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.FileEntitlement;
 
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
+
+import static org.elasticsearch.entitlement.runtime.policy.entitlements.FileEntitlement.normalizePath;
 
 public final class FileAccessTree {
     public static final FileAccessTree EMPTY = new FileAccessTree(List.of());
@@ -28,7 +29,7 @@ public final class FileAccessTree {
         List<String> readPaths = new ArrayList<>();
         List<String> writePaths = new ArrayList<>();
         for (FileEntitlement fileEntitlement : fileEntitlements) {
-            String path = normalizedPath(fileEntitlement);
+            String path = fileEntitlement.path();
             if (fileEntitlement.mode() == FileEntitlement.Mode.READ_WRITE) {
                 writePaths.add(path);
             }
@@ -47,19 +48,11 @@ public final class FileAccessTree {
     }
 
     boolean canRead(Path path) {
-        return checkPath(normalize(path), readPaths);
+        return checkPath(normalizePath(path), readPaths);
     }
 
     boolean canWrite(Path path) {
-        return checkPath(normalize(path), writePaths);
-    }
-
-    private static String normalizedPath(FileEntitlement fileEntitlement) {
-        return normalize(Paths.get(fileEntitlement.path()));
-    }
-
-    private static String normalize(Path path) {
-        return path.toAbsolutePath().normalize().toString().replace('\\', '/');
+        return checkPath(normalizePath(path), writePaths);
     }
 
     private static boolean checkPath(String path, String[] paths) {

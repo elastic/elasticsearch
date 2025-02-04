@@ -12,10 +12,15 @@ package org.elasticsearch.entitlement.runtime.policy.entitlements;
 import org.elasticsearch.entitlement.runtime.policy.ExternalEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.PolicyValidationException;
 
+import java.nio.file.Path;
 import java.nio.file.Paths;
 
 /**
- * Describes a file entitlement with a path and mode.
+ * Describes entitlement to access files at a particular location.
+ *
+ * @param path the location of the files. Will be automatically {@link #normalizePath normalized}.
+ *            For directories, implicitly includes access to all contained files and (recursively) subdirectories.
+ * @param mode the type of operation
  */
 public record FileEntitlement(String path, Mode mode) implements Entitlement {
 
@@ -25,11 +30,14 @@ public record FileEntitlement(String path, Mode mode) implements Entitlement {
     }
 
     public FileEntitlement {
-        path = normalizePath(path);
+        path = normalizePath(Paths.get(path));
     }
 
-    private static String normalizePath(String path) {
-        return Paths.get(path).toAbsolutePath().normalize().toString();
+    /**
+     * @return the "canonical" form of of the given {@code path}, to be used for entitlement checks.
+     */
+    public static String normalizePath(Path path) {
+        return path.toAbsolutePath().normalize().toString().replace('\\', '/');
     }
 
     private static Mode parseMode(String mode) {

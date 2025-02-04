@@ -57,6 +57,7 @@ public class CrossClusterQueryUnavailableRemotesIT extends AbstractCrossClusterT
                 long overallTookMillis = executionInfo.overallTook().millis();
                 assertThat(overallTookMillis, greaterThanOrEqualTo(0L));
                 assertThat(executionInfo.includeCCSMetadata(), equalTo(responseExpectMeta));
+                assertThat(executionInfo.isPartial(), equalTo(true));
 
                 assertThat(executionInfo.clusterAliases(), equalTo(Set.of(REMOTE_CLUSTER_1, REMOTE_CLUSTER_2, LOCAL_CLUSTER)));
 
@@ -109,6 +110,7 @@ public class CrossClusterQueryUnavailableRemotesIT extends AbstractCrossClusterT
                 long overallTookMillis = executionInfo.overallTook().millis();
                 assertThat(overallTookMillis, greaterThanOrEqualTo(0L));
                 assertThat(executionInfo.includeCCSMetadata(), equalTo(responseExpectMeta));
+                assertThat(executionInfo.isPartial(), equalTo(true));
 
                 assertThat(executionInfo.clusterAliases(), equalTo(Set.of(REMOTE_CLUSTER_1, REMOTE_CLUSTER_2, LOCAL_CLUSTER)));
 
@@ -161,6 +163,7 @@ public class CrossClusterQueryUnavailableRemotesIT extends AbstractCrossClusterT
                 long overallTookMillis = executionInfo.overallTook().millis();
                 assertThat(overallTookMillis, greaterThanOrEqualTo(0L));
                 assertThat(executionInfo.includeCCSMetadata(), equalTo(responseExpectMeta));
+                assertThat(executionInfo.isPartial(), equalTo(true));
 
                 assertThat(executionInfo.clusterAliases(), equalTo(Set.of(REMOTE_CLUSTER_1, REMOTE_CLUSTER_2, LOCAL_CLUSTER)));
 
@@ -233,6 +236,7 @@ public class CrossClusterQueryUnavailableRemotesIT extends AbstractCrossClusterT
                 long overallTookMillis = executionInfo.overallTook().millis();
                 assertThat(overallTookMillis, greaterThanOrEqualTo(0L));
                 assertThat(executionInfo.includeCCSMetadata(), equalTo(responseExpectMeta));
+                assertThat(executionInfo.isPartial(), equalTo(true));
 
                 assertThat(executionInfo.clusterAliases(), equalTo(Set.of(REMOTE_CLUSTER_1)));
 
@@ -275,6 +279,7 @@ public class CrossClusterQueryUnavailableRemotesIT extends AbstractCrossClusterT
                 long overallTookMillis = executionInfo.overallTook().millis();
                 assertThat(overallTookMillis, greaterThanOrEqualTo(0L));
                 assertThat(executionInfo.includeCCSMetadata(), equalTo(responseExpectMeta));
+                assertThat(executionInfo.isPartial(), equalTo(true));
 
                 assertThat(executionInfo.clusterAliases(), equalTo(Set.of(REMOTE_CLUSTER_1, REMOTE_CLUSTER_2)));
 

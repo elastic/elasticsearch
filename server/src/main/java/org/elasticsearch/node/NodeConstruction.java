@@ -801,7 +801,9 @@ class NodeConstruction {
             TransportVersion.current(),
             systemIndices.getMappingsVersions()
         );
-        modules.add(loadPersistedClusterStateService(clusterService.getClusterSettings(), threadPool, compatibilityVersions));
+        modules.add(
+            loadPersistedClusterStateService(clusterService.getClusterSettings(), threadPool, compatibilityVersions, projectResolver)
+        );
 
         final MetaStateService metaStateService = new MetaStateService(nodeEnvironment, xContentRegistry);
 
@@ -1559,7 +1561,8 @@ class NodeConstruction {
     private Module loadPersistedClusterStateService(
         ClusterSettings clusterSettings,
         ThreadPool threadPool,
-        CompatibilityVersions compatibilityVersions
+        CompatibilityVersions compatibilityVersions,
+        ProjectResolver projectResolver
     ) {
         var persistedClusterStateServiceFactories = pluginsService.filterPlugins(ClusterCoordinationPlugin.class)
             .map(ClusterCoordinationPlugin::getPersistedClusterStateServiceFactory)
@@ -1574,7 +1577,8 @@ class NodeConstruction {
                     nodeEnvironment,
                     xContentRegistry,
                     clusterSettings,
-                    threadPool.relativeTimeInMillisSupplier()
+                    threadPool.relativeTimeInMillisSupplier(),
+                    projectResolver.supportsMultipleProjects()
                 )
             );
 

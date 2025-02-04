@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.ingest.PipelineConfiguration;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -61,20 +62,19 @@ public class ReindexDataStreamPipeline {
      * Creates a pipeline with the current version's pipeline definition
      * @param client Client used to execute put pipeline
      * @param listener Callback used after pipeline has been created
+     * @param parentTaskId parent task id so that request can be cancelled
      */
-    public static void create(Client client, ActionListener<AcknowledgedResponse> listener) {
+    public static void create(Client client, ActionListener<AcknowledgedResponse> listener, TaskId parentTaskId) {
         final BytesReference pipeline = BytesReference.bytes(currentPipelineDefinition());
-        client.execute(
-            PutPipelineTransportAction.TYPE,
-            new PutPipelineRequest(
-                MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT,
-                MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT,
-                PIPELINE_NAME,
-                pipeline,
-                XContentType.JSON
-            ),
-            listener
+        var putPipelineRequest = new PutPipelineRequest(
+            MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT,
+            MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT,
+            PIPELINE_NAME,
+            pipeline,
+            XContentType.JSON
         );
+        putPipelineRequest.setParentTask(parentTaskId);
+        client.execute(PutPipelineTransportAction.TYPE, putPipelineRequest, listener);
     }
 
     private static XContentBuilder currentPipelineDefinition() {

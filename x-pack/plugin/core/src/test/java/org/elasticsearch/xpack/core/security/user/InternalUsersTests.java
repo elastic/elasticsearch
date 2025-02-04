@@ -31,6 +31,7 @@ import org.elasticsearch.action.datastreams.ModifyDataStreamsAction;
 import org.elasticsearch.action.downsample.DownsampleAction;
 import org.elasticsearch.action.get.TransportGetAction;
 import org.elasticsearch.action.index.TransportIndexAction;
+import org.elasticsearch.action.ingest.PutPipelineTransportAction;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.search.TransportSearchScrollAction;
 import org.elasticsearch.cluster.metadata.DataStream;
@@ -302,7 +303,8 @@ public class InternalUsersTests extends ESTestCase {
 
         final SimpleRole role = getLocalClusterRole(InternalUsers.REINDEX_DATA_STREAM_USER);
 
-        assertThat(role.cluster(), is(ClusterPermission.NONE));
+        assertThat(role.cluster().privileges(), hasSize(1));
+        checkClusterAccess(InternalUsers.REINDEX_DATA_STREAM_USER, role, PutPipelineTransportAction.TYPE.name(), true);
         assertThat(role.runAs(), is(RunAsPermission.NONE));
         assertThat(role.application(), is(ApplicationPermission.NONE));
         assertThat(role.remoteIndices(), is(RemoteIndicesPermission.NONE));

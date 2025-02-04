@@ -25,6 +25,7 @@ import org.elasticsearch.action.datastreams.GetDataStreamAction;
 import org.elasticsearch.action.datastreams.ModifyDataStreamsAction;
 import org.elasticsearch.action.downsample.DownsampleAction;
 import org.elasticsearch.action.index.TransportIndexAction;
+import org.elasticsearch.action.ingest.PutPipelineTransportAction;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.search.TransportSearchScrollAction;
 import org.elasticsearch.index.reindex.ReindexAction;
@@ -196,7 +197,9 @@ public class InternalUsers {
         UsernamesField.REINDEX_DATA_STREAM_NAME,
         new RoleDescriptor(
             UsernamesField.REINDEX_DATA_STREAM_ROLE,
-            new String[] {},
+            new String[] {
+                PutPipelineTransportAction.TYPE.name()
+            },
             new RoleDescriptor.IndicesPrivileges[] {
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices("*")
@@ -225,6 +228,7 @@ public class InternalUsers {
                     .build() },
             null,
             null,
+
             new String[] {},
             MetadataUtils.DEFAULT_RESERVED_METADATA,
             Map.of()

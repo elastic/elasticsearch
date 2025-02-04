@@ -154,7 +154,7 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
             return;
         }
         final boolean wasClosed = isClosed(sourceIndex);
-        SubscribableListener.newForked(this::prepareReindexOperation)
+        SubscribableListener.<AcknowledgedResponse>newForked(l -> prepareReindexOperation(l, taskId))
             .<AcknowledgedResponse>andThen(l -> setBlockWrites(sourceIndexName, l, taskId))
             .<OpenIndexResponse>andThen(l -> openIndexIfClosed(sourceIndexName, wasClosed, l, taskId))
             .<BroadcastResponse>andThen(l -> refresh(sourceIndexName, l, taskId))
@@ -199,11 +199,11 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
         return indexMetadata.getState().equals(IndexMetadata.State.CLOSE);
     }
 
-    private void prepareReindexOperation(ActionListener<AcknowledgedResponse> listener) {
+    private void prepareReindexOperation(ActionListener<AcknowledgedResponse> listener, TaskId parentTaskId) {
         if (ReindexDataStreamPipeline.exists(clusterService.state())) {
             listener.onResponse(null);
         } else {
-            ReindexDataStreamPipeline.create(client, listener);
+            ReindexDataStreamPipeline.create(client, listener, parentTaskId);
         }
     }
 

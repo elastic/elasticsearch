@@ -452,7 +452,7 @@ FROM k8s
 ;
 
 
-reuse column names
+reuse input column names
 required_capability: change_point
 
 FROM k8s
@@ -487,6 +487,79 @@ null               | null
 null               | null
 ;
 
+
+reuse value column name twice
+required_capability: change_point
+
+FROM k8s
+  | STATS count=COUNT() BY @timestamp=BUCKET(@timestamp, 1 MINUTE)
+  | EVAL count=count+CASE(@timestamp=="2024-05-10T00:08:00.000Z", 100, 0)
+  | CHANGE_POINT count ON @timestamp AS count, count
+;
+
+@timestamp:datetime      | count:double           
+2024-05-10T00:00:00.000Z | null                   
+2024-05-10T00:01:00.000Z | null                   
+2024-05-10T00:02:00.000Z | null                   
+2024-05-10T00:03:00.000Z | null                   
+2024-05-10T00:04:00.000Z | null                   
+2024-05-10T00:05:00.000Z | null                   
+2024-05-10T00:06:00.000Z | null                   
+2024-05-10T00:07:00.000Z | null                   
+2024-05-10T00:08:00.000Z | 1.7502597878858522E-193
+2024-05-10T00:09:00.000Z | null                   
+2024-05-10T00:10:00.000Z | null                   
+2024-05-10T00:11:00.000Z | null                   
+2024-05-10T00:12:00.000Z | null                   
+2024-05-10T00:13:00.000Z | null                   
+2024-05-10T00:14:00.000Z | null                   
+2024-05-10T00:15:00.000Z | null                   
+2024-05-10T00:16:00.000Z | null                   
+2024-05-10T00:17:00.000Z | null                   
+2024-05-10T00:18:00.000Z | null                   
+2024-05-10T00:19:00.000Z | null                   
+2024-05-10T00:20:00.000Z | null                   
+2024-05-10T00:21:00.000Z | null                   
+2024-05-10T00:22:00.000Z | null                   
+;
+
+
+rename columns
+required_capability: change_point
+
+FROM k8s
+  | STATS count=COUNT() BY @timestamp=BUCKET(@timestamp, 1 MINUTE)
+  | EVAL count=count+CASE(@timestamp=="2024-05-10T00:08:00.000Z", 100, 0)
+  | RENAME count AS count2, @timestamp AS time2
+  | CHANGE_POINT count2 ON time2 AS type, pvalue
+  | RENAME time2 AS time, count2 AS cnt, type AS kind, pvalue AS significance
+;
+
+time:datetime            | cnt:long | kind:keyword | significance:double    
+2024-05-10T00:00:00.000Z | 4        | null         | null                   
+2024-05-10T00:01:00.000Z | 4        | null         | null                   
+2024-05-10T00:02:00.000Z | 8        | null         | null                   
+2024-05-10T00:03:00.000Z | 8        | null         | null                   
+2024-05-10T00:04:00.000Z | 5        | null         | null                   
+2024-05-10T00:05:00.000Z | 8        | null         | null                   
+2024-05-10T00:06:00.000Z | 10       | null         | null                   
+2024-05-10T00:07:00.000Z | 5        | null         | null                   
+2024-05-10T00:08:00.000Z | 112      | spike        | 1.7502597878858522E-193
+2024-05-10T00:09:00.000Z | 20       | null         | null                   
+2024-05-10T00:10:00.000Z | 5        | null         | null                   
+2024-05-10T00:11:00.000Z | 7        | null         | null                   
+2024-05-10T00:12:00.000Z | 8        | null         | null                   
+2024-05-10T00:13:00.000Z | 9        | null         | null                   
+2024-05-10T00:14:00.000Z | 9        | null         | null                   
+2024-05-10T00:15:00.000Z | 11       | null         | null                   
+2024-05-10T00:16:00.000Z | 7        | null         | null                   
+2024-05-10T00:17:00.000Z | 15       | null         | null                   
+2024-05-10T00:18:00.000Z | 17       | null         | null                   
+2024-05-10T00:19:00.000Z | 5        | null         | null                   
+2024-05-10T00:20:00.000Z | 10       | null         | null                   
+2024-05-10T00:21:00.000Z | 4        | null         | null                   
+2024-05-10T00:22:00.000Z | 9        | null         | null                   
+;
 
 null values
 required_capability: change_point

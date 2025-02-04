@@ -1,0 +1,11 @@
+pr: 121667
+summary: Add deprecation warning for flush API
+area: Machine Learning
+type: deprecation
+issues: []
+deprecation:
+  title: Add deprecation warning for flush API
+  area: Machine Learning
+  details: Please describe the details of this change for the release notes. You can
+    use asciidoc.
+  impact: Please describe the impact of this change to users

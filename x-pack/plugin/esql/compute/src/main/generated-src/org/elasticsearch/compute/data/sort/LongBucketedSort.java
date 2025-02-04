@@ -265,11 +265,7 @@ public class LongBucketedSort implements Releasable {
         long oldMax = values.size();
         assert oldMax % bucketSize == 0;
 
-        long newSizeInBuckets = BigArrays.overSize(
-            bucket + 1,
-            PageCacheRecycler.LONG_PAGE_SIZE,
-            Long.BYTES * bucketSize
-        );
+        long newSizeInBuckets = BigArrays.overSize(bucket + 1, PageCacheRecycler.LONG_PAGE_SIZE, Long.BYTES * bucketSize);
         values = bigArrays.resize(values, newSizeInBuckets * bucketSize);
         // Set the next gather offsets for all newly allocated buckets.
         fillGatherOffsets(oldMax);

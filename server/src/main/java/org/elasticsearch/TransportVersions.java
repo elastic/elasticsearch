@@ -184,7 +184,7 @@ public class TransportVersions {
      * this variable needs to be changed to a regular transport version following the same rules as above.
      */
     @FixForMultiProject
-    public static final TransportVersion MULTI_PROJECT = def(9_999_999);
+    public static final TransportVersion MULTI_PROJECT = def(9_999_990);
 
     /*
      * STOP! READ THIS FIRST! No, really,

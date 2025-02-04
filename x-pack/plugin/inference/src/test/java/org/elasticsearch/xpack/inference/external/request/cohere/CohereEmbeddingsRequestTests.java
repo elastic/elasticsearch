@@ -145,6 +145,53 @@ public class CohereEmbeddingsRequestTests extends ESTestCase {
         );
     }
 
+    public void testCreateRequest_InputTypeSearch_EmbeddingTypeBit_TruncateEnd() throws IOException {
+        var request = createRequest(
+            List.of("abc"),
+            CohereEmbeddingsModelTests.createModel(
+                "url",
+                "secret",
+                new CohereEmbeddingsTaskSettings(InputType.SEARCH, CohereTruncation.END),
+                null,
+                null,
+                "model",
+                CohereEmbeddingType.BIT
+            )
+        );
+
+        var httpRequest = request.createHttpRequest();
+        MatcherAssert.assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
+
+        var httpPost = (HttpPost) httpRequest.httpRequestBase();
+
+        MatcherAssert.assertThat(httpPost.getURI().toString(), is("url"));
+        MatcherAssert.assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
+        MatcherAssert.assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer secret"));
+        MatcherAssert.assertThat(
+            httpPost.getLastHeader(CohereUtils.REQUEST_SOURCE_HEADER).getValue(),
+            is(CohereUtils.ELASTIC_REQUEST_SOURCE)
+        );
+
+        var requestMap = entityAsMap(httpPost.getEntity().getContent());
+        MatcherAssert.assertThat(
+            requestMap,
+            is(
+                Map.of(
+                    "texts",
+                    List.of("abc"),
+                    "model",
+                    "model",
+                    "input_type",
+                    "search_query",
+                    "embedding_types",
+                    List.of("binary"),
+                    "truncate",
+                    "end"
+                )
+            )
+        );
+    }
+
     public void testCreateRequest_TruncateNone() throws IOException {
         var request = createRequest(
             List.of("abc"),

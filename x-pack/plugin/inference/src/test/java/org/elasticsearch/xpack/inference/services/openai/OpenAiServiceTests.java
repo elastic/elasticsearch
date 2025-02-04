@@ -1752,6 +1752,15 @@ public class OpenAiServiceTests extends ESTestCase {
                                     "type": "str",
                                     "supported_task_types": ["text_embedding", "completion", "chat_completion"]
                                 },
+                                "dimensions": {
+                                    "description": "The number of dimensions the resulting embeddings should have. For more information refer to https://platform.openai.com/docs/api-reference/embeddings/create#embeddings-create-dimensions.",
+                                    "label": "Dimensions",
+                                    "required": false,
+                                    "sensitive": false,
+                                    "updatable": false,
+                                    "type": "int",
+                                    "supported_task_types": ["text_embedding"]
+                                },
                                 "organization_id": {
                                     "description": "The unique identifier of your organization.",
                                     "label": "Organization ID",
@@ -1773,16 +1782,6 @@ public class OpenAiServiceTests extends ESTestCase {
                                 "model_id": {
                                     "description": "The name of the model to use for the inference task.",
                                     "label": "Model ID",
-                                    "required": true,
-                                    "sensitive": false,
-                                    "updatable": false,
-                                    "type": "str",
-                                    "supported_task_types": ["text_embedding", "completion", "chat_completion"]
-                                },
-                                "url": {
-                                    "default_value": "https://api.openai.com/v1/chat/completions",
-                                    "description": "The OpenAI API endpoint URL. For more information on the URL, refer to the https://platform.openai.com/docs/api-reference.",
-                                    "label": "URL",
                                     "required": true,
                                     "sensitive": false,
                                     "updatable": false,

@@ -238,7 +238,6 @@ public class PolicyManagerTests extends ESTestCase {
     }
 
     public void testRequestingModuleWithStackWalk() throws IOException, ClassNotFoundException {
-        var agentsClass = new TestAgent();
         var entitlementsClass = makeClassInItsOwnModule();    // A class in the entitlements library itself
         var requestingClass = makeClassInItsOwnModule();      // This guy is always the right answer
         var instrumentedClass = makeClassInItsOwnModule();    // The class that called the check method
@@ -272,7 +271,7 @@ public class PolicyManagerTests extends ESTestCase {
             createEmptyTestServerPolicy(),
             List.of(new CreateClassLoaderEntitlement()),
             Map.of(),
-            c -> "test",
+            c -> c.getPackageName().startsWith(TEST_AGENTS_PACKAGE_NAME) ? null : "test",
             TEST_AGENTS_PACKAGE_NAME,
             NO_ENTITLEMENTS_MODULE
         );
@@ -358,14 +357,23 @@ public class PolicyManagerTests extends ESTestCase {
         );
     }
 
-    private static Class<?> makeClassInItsOwnModule() throws IOException, ClassNotFoundException {
-        final Path home = createTempDir();
-        Path jar = createMockPluginJar(home);
-        var layer = createLayerForJar(jar, "org.example.plugin");
-        return layer.findLoader("org.example.plugin").loadClass("q.B");
+    /**
+     * If the plugin resolver tells us a class is in a plugin, don't conclude that it's in an agent.
+     */
+    public void testPluginResolverOverridesAgents() {
+        var policyManager = new PolicyManager(
+            createEmptyTestServerPolicy(),
+            List.of(new CreateClassLoaderEntitlement()),
+            Map.of(),
+            c -> "test", // Insist that the class is in a plugin
+            TEST_AGENTS_PACKAGE_NAME,
+            NO_ENTITLEMENTS_MODULE
+        );
+        ModuleEntitlements notAgentsEntitlements = policyManager.getEntitlements(TestAgent.class);
+        assertThat(notAgentsEntitlements.hasEntitlement(CreateClassLoaderEntitlement.class), is(false));
     }
 
-    private static Class<?> makeClassInItsOwnUnnamedModule() throws IOException, ClassNotFoundException {
+    private static Class<?> makeClassInItsOwnModule() throws IOException, ClassNotFoundException {
         final Path home = createTempDir();
         Path jar = createMockPluginJar(home);
         var layer = createLayerForJar(jar, "org.example.plugin");

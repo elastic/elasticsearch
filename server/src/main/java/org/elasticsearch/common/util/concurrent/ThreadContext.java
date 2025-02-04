@@ -582,23 +582,6 @@ public final class ThreadContext implements Writeable, TraceContext {
     }
 
     /**
-     * Get a copy of the specified <em>response</em> header.
-     *
-     * @param header The header to get.
-     * @return Never {@code null}.
-     */
-    public Set<String> getResponseHeader(String header) {
-        Map<String, Set<String>> responseHeaders = threadLocal.get().responseHeaders;
-        Set<String> values = responseHeaders.get(header);
-
-        if (values == null) {
-            return Set.of();
-        }
-
-        return Set.copyOf(values);
-    }
-
-    /**
      * Copies all header key, value pairs into the current context
      */
     public void copyHeaders(Iterable<Map.Entry<String, String>> headers) {

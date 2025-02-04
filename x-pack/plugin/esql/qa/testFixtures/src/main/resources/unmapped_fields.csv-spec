@@ -138,6 +138,167 @@ FROM partial_mapping_excluded_source_sample_data
 2024-10-23T12:15:03.360Z | null
 ;
 
+fieldIsNestedAndMapped
+required_capability: unmapped_fields
+FROM addresses
+| INSIST_🐔 city.name
+| KEEP city.name
+| SORT city.name DESC
+;
+
+city.name:keyword
+Tokyo
+San Francisco
+Amsterdam
+;
+
+fieldIsNestedAndUnmapped
+required_capability: unmapped_fields
+FROM partial_mapping_sample_data
+| INSIST_🐔 unmapped.nested
+| KEEP @timestamp, unmapped.nested
+| SORT @timestamp
+;
+
+@timestamp:date          | unmapped.nested:keyword
+2024-10-23T12:15:03.360Z | g
+2024-10-23T12:27:28.948Z | f
+2024-10-23T13:33:34.937Z | e
+2024-10-23T13:51:54.732Z | d
+2024-10-23T13:52:55.015Z | c
+2024-10-23T13:53:55.832Z | b
+2024-10-23T13:55:01.543Z | a
+;
+
+fieldIsNestedAndNonExistent
+required_capability: unmapped_fields
+FROM partial_mapping_sample_data
+| INSIST_🐔 unmapped.nested.nonexistent
+| KEEP @timestamp, unmapped.nested.nonexistent
+| SORT @timestamp
+;
+
+@timestamp:date          | unmapped.nested.nonexistent:keyword
+2024-10-23T12:15:03.360Z | null
+2024-10-23T12:27:28.948Z | null
+2024-10-23T13:33:34.937Z | null
+2024-10-23T13:51:54.732Z | null
+2024-10-23T13:52:55.015Z | null
+2024-10-23T13:53:55.832Z | null
+2024-10-23T13:55:01.543Z | null
+;
+
+#########################
+# Multi-parameter tests #
+#########################
+
+noFieldExistsMultiParametersSingleIndex
+required_capability: unmapped_fields
+FROM partial_mapping_sample_data
+| INSIST_🐔 foo, bar, bazz
+| KEEP @timestamp, foo, bar, bazz
+| SORT @timestamp DESC
+;
+
+@timestamp:date          | foo:keyword | bar:keyword | bazz:keyword
+2024-10-23T13:55:01.543Z | null        | null        | null
+2024-10-23T13:53:55.832Z | null        | null        | null
+2024-10-23T13:52:55.015Z | null        | null        | null
+2024-10-23T13:51:54.732Z | null        | null        | null
+2024-10-23T13:33:34.937Z | null        | null        | null
+2024-10-23T12:27:28.948Z | null        | null        | null
+2024-10-23T12:15:03.360Z | null        | null        | null
+;
+
+mixedFieldsMultiParametersSingleIndex
+required_capability: unmapped_fields
+FROM partial_mapping_sample_data
+| INSIST_🐔 foo, message, unmapped_message
+| KEEP @timestamp, foo, message, unmapped_message
+| SORT @timestamp DESC
+;
+
+@timestamp:date          | foo:keyword | message:keyword        | unmapped_message:keyword
+2024-10-23T13:55:01.543Z | null        | Connected to 10.1.0.1! | Disconnected from 10.1.0.1
+2024-10-23T13:53:55.832Z | null        | Connection error?      | Disconnection error
+2024-10-23T13:52:55.015Z | null        | Connection error?      | Disconnection error
+2024-10-23T13:51:54.732Z | null        | Connection error?      | Disconnection error
+2024-10-23T13:33:34.937Z | null        | 42                     | 43
+2024-10-23T12:27:28.948Z | null        | Connected to 10.1.0.2! | Disconnected from 10.1.0.2
+2024-10-23T12:15:03.360Z | null        | Connected to 10.1.0.3! | Disconnected from 10.1.0.3
+;
+
+repeatedInsistFieldsAreSilentlyIgnored
+required_capability: unmapped_fields
+FROM partial_mapping_sample_data
+| INSIST_🐔 unmapped_message, foo, message, foo, message, unmapped_message
+| KEEP @timestamp, foo, message, unmapped_message
+| SORT @timestamp DESC
+;
+
+@timestamp:date          | foo:keyword | message:keyword        | unmapped_message:keyword
+2024-10-23T13:55:01.543Z | null        | Connected to 10.1.0.1! | Disconnected from 10.1.0.1
+2024-10-23T13:53:55.832Z | null        | Connection error?      | Disconnection error
+2024-10-23T13:52:55.015Z | null        | Connection error?      | Disconnection error
+2024-10-23T13:51:54.732Z | null        | Connection error?      | Disconnection error
+2024-10-23T13:33:34.937Z | null        | 42                     | 43
+2024-10-23T12:27:28.948Z | null        | Connected to 10.1.0.2! | Disconnected from 10.1.0.2
+2024-10-23T12:15:03.360Z | null        | Connected to 10.1.0.3! | Disconnected from 10.1.0.3
+;
+
+mixedFieldsMultiParametersMultiIndex
+required_capability: unmapped_fields
+required_capability: index_metadata_field
+FROM partial_mapping_sample_data, sample_data METADATA _index
+| INSIST_🐔 foo, message, unmapped_message
+| KEEP _index, @timestamp, foo, message, unmapped_message
+| SORT @timestamp DESC
+;
+
+_index:keyword              | @timestamp:datetime      | foo:keyword | message:keyword        | unmapped_message:keyword  
+partial_mapping_sample_data | 2024-10-23T13:55:01.543Z | null        | Connected to 10.1.0.1! | Disconnected from 10.1.0.1
+partial_mapping_sample_data | 2024-10-23T13:53:55.832Z | null        | Connection error?      | Disconnection error       
+partial_mapping_sample_data | 2024-10-23T13:52:55.015Z | null        | Connection error?      | Disconnection error       
+partial_mapping_sample_data | 2024-10-23T13:51:54.732Z | null        | Connection error?      | Disconnection error       
+partial_mapping_sample_data | 2024-10-23T13:33:34.937Z | null        | 42                     | 43                        
+partial_mapping_sample_data | 2024-10-23T12:27:28.948Z | null        | Connected to 10.1.0.2! | Disconnected from 10.1.0.2
+partial_mapping_sample_data | 2024-10-23T12:15:03.360Z | null        | Connected to 10.1.0.3! | Disconnected from 10.1.0.3
+sample_data                 | 2023-10-23T13:55:01.543Z | null        | Connected to 10.1.0.1  | null                      
+sample_data                 | 2023-10-23T13:53:55.832Z | null        | Connection error       | null                      
+sample_data                 | 2023-10-23T13:52:55.015Z | null        | Connection error       | null                      
+sample_data                 | 2023-10-23T13:51:54.732Z | null        | Connection error       | null                      
+sample_data                 | 2023-10-23T13:33:34.937Z | null        | Disconnected           | null                      
+sample_data                 | 2023-10-23T12:27:28.948Z | null        | Connected to 10.1.0.2  | null                      
+sample_data                 | 2023-10-23T12:15:03.360Z | null        | Connected to 10.1.0.3  | null
+;
+
+insistOnTopOfInsistMultiIndex
+required_capability: unmapped_fields
+required_capability: index_metadata_field
+FROM partial_mapping_sample_data, sample_data METADATA _index
+| INSIST_🐔 foo, message
+| INSIST_🐔 unmapped_message
+| KEEP _index, @timestamp, foo, message, unmapped_message
+| SORT @timestamp DESC
+;
+
+_index:keyword              | @timestamp:datetime      | foo:keyword | message:keyword        | unmapped_message:keyword  
+partial_mapping_sample_data | 2024-10-23T13:55:01.543Z | null        | Connected to 10.1.0.1! | Disconnected from 10.1.0.1
+partial_mapping_sample_data | 2024-10-23T13:53:55.832Z | null        | Connection error?      | Disconnection error       
+partial_mapping_sample_data | 2024-10-23T13:52:55.015Z | null        | Connection error?      | Disconnection error       
+partial_mapping_sample_data | 2024-10-23T13:51:54.732Z | null        | Connection error?      | Disconnection error       
+partial_mapping_sample_data | 2024-10-23T13:33:34.937Z | null        | 42                     | 43                        
+partial_mapping_sample_data | 2024-10-23T12:27:28.948Z | null        | Connected to 10.1.0.2! | Disconnected from 10.1.0.2
+partial_mapping_sample_data | 2024-10-23T12:15:03.360Z | null        | Connected to 10.1.0.3! | Disconnected from 10.1.0.3
+sample_data                 | 2023-10-23T13:55:01.543Z | null        | Connected to 10.1.0.1  | null                      
+sample_data                 | 2023-10-23T13:53:55.832Z | null        | Connection error       | null                      
+sample_data                 | 2023-10-23T13:52:55.015Z | null        | Connection error       | null                      
+sample_data                 | 2023-10-23T13:51:54.732Z | null        | Connection error       | null                      
+sample_data                 | 2023-10-23T13:33:34.937Z | null        | Disconnected           | null                      
+sample_data                 | 2023-10-23T12:27:28.948Z | null        | Connected to 10.1.0.2  | null                      
+sample_data                 | 2023-10-23T12:15:03.360Z | null        | Connected to 10.1.0.3  | null
+;
+
 #####################
 # Multi index tests #
 #####################
@@ -152,20 +313,20 @@ FROM partial_mapping_sample_data, sample_data METADATA _index
 ;
 
 _index:keyword              | @timestamp:date          | foo:keyword
-partial_mapping_sample_data | 2024-10-23T13:55:01.543Z | null       
-partial_mapping_sample_data | 2024-10-23T13:53:55.832Z | null       
-partial_mapping_sample_data | 2024-10-23T13:52:55.015Z | null       
-partial_mapping_sample_data | 2024-10-23T13:51:54.732Z | null       
-partial_mapping_sample_data | 2024-10-23T13:33:34.937Z | null       
-partial_mapping_sample_data | 2024-10-23T12:27:28.948Z | null       
-partial_mapping_sample_data | 2024-10-23T12:15:03.360Z | null       
-sample_data                 | 2023-10-23T13:55:01.543Z | null       
-sample_data                 | 2023-10-23T13:53:55.832Z | null       
-sample_data                 | 2023-10-23T13:52:55.015Z | null       
-sample_data                 | 2023-10-23T13:51:54.732Z | null       
-sample_data                 | 2023-10-23T13:33:34.937Z | null       
-sample_data                 | 2023-10-23T12:27:28.948Z | null       
-sample_data                 | 2023-10-23T12:15:03.360Z | null  
+partial_mapping_sample_data | 2024-10-23T13:55:01.543Z | null
+partial_mapping_sample_data | 2024-10-23T13:53:55.832Z | null
+partial_mapping_sample_data | 2024-10-23T13:52:55.015Z | null
+partial_mapping_sample_data | 2024-10-23T13:51:54.732Z | null
+partial_mapping_sample_data | 2024-10-23T13:33:34.937Z | null
+partial_mapping_sample_data | 2024-10-23T12:27:28.948Z | null
+partial_mapping_sample_data | 2024-10-23T12:15:03.360Z | null
+sample_data                 | 2023-10-23T13:55:01.543Z | null
+sample_data                 | 2023-10-23T13:53:55.832Z | null
+sample_data                 | 2023-10-23T13:52:55.015Z | null
+sample_data                 | 2023-10-23T13:51:54.732Z | null
+sample_data                 | 2023-10-23T13:33:34.937Z | null
+sample_data                 | 2023-10-23T12:27:28.948Z | null
+sample_data                 | 2023-10-23T12:15:03.360Z | null
 ;
 
 fieldIsUnmappedMultiIndex
@@ -312,19 +473,19 @@ FROM partial_mapping_sample_data,partial_mapping_no_source_sample_data METADATA 
 ;
 
 _index:keyword                        | @timestamp:date          | message:keyword
-partial_mapping_no_source_sample_data | 2024-10-23T12:15:03.360Z | null                  
-partial_mapping_no_source_sample_data | 2024-10-23T12:27:28.948Z | null                  
-partial_mapping_no_source_sample_data | 2024-10-23T13:33:34.937Z | null                  
-partial_mapping_no_source_sample_data | 2024-10-23T13:51:54.732Z | null                  
-partial_mapping_no_source_sample_data | 2024-10-23T13:52:55.015Z | null                  
-partial_mapping_no_source_sample_data | 2024-10-23T13:53:55.832Z | null                  
+partial_mapping_no_source_sample_data | 2024-10-23T12:15:03.360Z | null
+partial_mapping_no_source_sample_data | 2024-10-23T12:27:28.948Z | null
+partial_mapping_no_source_sample_data | 2024-10-23T13:33:34.937Z | null
+partial_mapping_no_source_sample_data | 2024-10-23T13:51:54.732Z | null
+partial_mapping_no_source_sample_data | 2024-10-23T13:52:55.015Z | null
+partial_mapping_no_source_sample_data | 2024-10-23T13:53:55.832Z | null
 partial_mapping_no_source_sample_data | 2024-10-23T13:55:01.543Z | null
 partial_mapping_sample_data           | 2024-10-23T12:15:03.360Z | Connected to 10.1.0.3!
 partial_mapping_sample_data           | 2024-10-23T12:27:28.948Z | Connected to 10.1.0.2!
-partial_mapping_sample_data           | 2024-10-23T13:33:34.937Z | 42                    
-partial_mapping_sample_data           | 2024-10-23T13:51:54.732Z | Connection error?     
-partial_mapping_sample_data           | 2024-10-23T13:52:55.015Z | Connection error?     
-partial_mapping_sample_data           | 2024-10-23T13:53:55.832Z | Connection error?     
+partial_mapping_sample_data           | 2024-10-23T13:33:34.937Z | 42
+partial_mapping_sample_data           | 2024-10-23T13:51:54.732Z | Connection error?
+partial_mapping_sample_data           | 2024-10-23T13:52:55.015Z | Connection error?
+partial_mapping_sample_data           | 2024-10-23T13:53:55.832Z | Connection error?
 partial_mapping_sample_data           | 2024-10-23T13:55:01.543Z | Connected to 10.1.0.1!
 ;
 

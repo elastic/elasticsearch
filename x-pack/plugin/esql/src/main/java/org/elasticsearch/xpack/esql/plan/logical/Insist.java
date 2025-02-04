@@ -18,12 +18,12 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-public class Insist extends UnaryPlan {
-    private final Attribute insistedAttribute;
+public class Insist extends UnaryPlan implements SurrogateLogicalPlan {
+    private final List<Attribute> insistedAttributes;
 
-    public Insist(Source source, Attribute insistedAttribute, LogicalPlan child) {
+    public Insist(Source source, List<Attribute> insistedAttributes, LogicalPlan child) {
         super(source, child);
-        this.insistedAttribute = insistedAttribute;
+        this.insistedAttributes = insistedAttributes;
     }
 
     private @Nullable List<Attribute> lazyOutput = null;
@@ -37,27 +37,27 @@ public class Insist extends UnaryPlan {
     }
 
     private List<Attribute> computeOutput() {
-        return NamedExpressions.mergeOutputAttributes(List.of(insistedAttribute), child().output());
+        return NamedExpressions.mergeOutputAttributes(insistedAttributes, child().output());
     }
 
-    public Attribute attribute() {
-        return insistedAttribute;
+    public List<Attribute> insistedAttributes() {
+        return insistedAttributes;
     }
 
     @Override
     public Insist replaceChild(LogicalPlan newChild) {
-        return new Insist(source(), insistedAttribute, newChild);
+        return new Insist(source(), insistedAttributes, newChild);
     }
 
     @Override
     public boolean expressionsResolved() {
         // Like EsqlProject, we allow unsupported attributes to flow through the engine.
-        return attribute().resolved() || attribute() instanceof UnsupportedAttribute;
+        return insistedAttributes().stream().allMatch(a -> a.resolved() || a instanceof UnsupportedAttribute);
     }
 
     @Override
     protected NodeInfo<? extends LogicalPlan> info() {
-        return NodeInfo.create(this, Insist::new, insistedAttribute, child());
+        return NodeInfo.create(this, Insist::new, insistedAttributes, child());
     }
 
     @Override
@@ -72,15 +72,20 @@ public class Insist extends UnaryPlan {
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), Objects.hashCode(insistedAttribute));
+        return Objects.hash(super.hashCode(), Objects.hashCode(insistedAttributes));
     }
 
     @Override
     public boolean equals(Object obj) {
-        return super.equals(obj) && ((Insist) obj).insistedAttribute.equals(insistedAttribute);
+        return super.equals(obj) && Objects.equals(((Insist) obj).insistedAttributes, insistedAttributes);
     }
 
-    public LogicalPlan withAttribute(Attribute attribute) {
-        return new Insist(source(), attribute, child());
+    @Override
+    public LogicalPlan surrogate() {
+        return new Project(source(), child(), output());
+    }
+
+    public Insist withAttributes(List<Attribute> attributes) {
+        return new Insist(source(), attributes, child());
     }
 }

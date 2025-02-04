@@ -5712,8 +5712,8 @@ public class EsqlBaseParser extends ParserConfig {
   @SuppressWarnings("CheckReturnValue")
   public static class InsistCommandContext extends ParserRuleContext {
     public TerminalNode DEV_INSIST() { return getToken(EsqlBaseParser.DEV_INSIST, 0); }
-    public IdentifierContext identifier() {
-      return getRuleContext(IdentifierContext.class,0);
+    public QualifiedNamePatternsContext qualifiedNamePatterns() {
+      return getRuleContext(QualifiedNamePatternsContext.class,0);
     }
     @SuppressWarnings("this-escape")
     public InsistCommandContext(ParserRuleContext parent, int invokingState) {
@@ -5744,7 +5744,7 @@ public class EsqlBaseParser extends ParserConfig {
       setState(647);
       match(DEV_INSIST);
       setState(648);
-      identifier();
+      qualifiedNamePatterns();
       }
     }
     catch (RecognitionException re) {
@@ -6247,13 +6247,13 @@ public class EsqlBaseParser extends ParserConfig {
     "\u0282\u0280\u0001\u0000\u0000\u0000\u0282\u0283\u0001\u0000\u0000\u0000"+
     "\u0283\u0081\u0001\u0000\u0000\u0000\u0284\u0282\u0001\u0000\u0000\u0000"+
     "\u0285\u0286\u0003\u0010\b\u0000\u0286\u0083\u0001\u0000\u0000\u0000\u0287"+
-    "\u0288\u0005\u0013\u0000\u0000\u0288\u0289\u0003@ \u0000\u0289\u0085\u0001"+
-    "\u0000\u0000\u0000=\u0091\u009a\u00af\u00bb\u00c4\u00cc\u00d1\u00d9\u00db"+
-    "\u00e0\u00e7\u00ec\u00f1\u00fb\u0101\u0109\u010b\u0116\u011d\u0128\u012d"+
-    "\u012f\u013b\u014e\u0154\u015e\u0162\u0167\u0175\u017e\u0182\u0186\u018d"+
-    "\u0191\u0198\u019e\u01a5\u01ad\u01b5\u01bd\u01ce\u01d9\u01e4\u01e9\u01ed"+
-    "\u01f2\u01fd\u0202\u0206\u0214\u021f\u022d\u0238\u023b\u0240\u0256\u025e"+
-    "\u0261\u0266\u0273\u0282";
+    "\u0288\u0005\u0013\u0000\u0000\u0288\u0289\u0003>\u001f\u0000\u0289\u0085"+
+    "\u0001\u0000\u0000\u0000=\u0091\u009a\u00af\u00bb\u00c4\u00cc\u00d1\u00d9"+
+    "\u00db\u00e0\u00e7\u00ec\u00f1\u00fb\u0101\u0109\u010b\u0116\u011d\u0128"+
+    "\u012d\u012f\u013b\u014e\u0154\u015e\u0162\u0167\u0175\u017e\u0182\u0186"+
+    "\u018d\u0191\u0198\u019e\u01a5\u01ad\u01b5\u01bd\u01ce\u01d9\u01e4\u01e9"+
+    "\u01ed\u01f2\u01fd\u0202\u0206\u0214\u021f\u022d\u0238\u023b\u0240\u0256"+
+    "\u025e\u0261\u0266\u0273\u0282";
   public static final ATN _ATN =
     new ATNDeserializer().deserialize(_serializedATN.toCharArray());
   static {

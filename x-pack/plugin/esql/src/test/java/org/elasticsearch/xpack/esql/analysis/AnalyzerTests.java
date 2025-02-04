@@ -90,6 +90,7 @@ import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.tsdbIndexR
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
@@ -2609,15 +2610,22 @@ public class AnalyzerTests extends ESTestCase {
         assertEquals(DataType.DOUBLE, ee.dataType());
     }
 
-    public void testResolveInsist_fieldExists_insistIsExpunged() {
+    public void testResolveInsist_fieldExists_insistedOutputContainsNoUnmappedFields() {
         assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
 
         LogicalPlan plan = analyze("FROM test | INSIST_🐔 emp_no");
 
         assertThat(plan.output().getLast().name(), is("emp_no"));
+        assertThat(
+            plan.output()
+                .stream()
+                .filter(a -> a instanceof FieldAttribute fa && fa.field() instanceof PotentiallyUnmappedKeywordEsField)
+                .toList(),
+            is(empty())
+        );
     }
 
-    public void testResolveInsist_fieldDoesNotExist_updatesRelationWithNewField() {
+    public void testResolveInsist_fieldDoesNotExist_createsUnmappedField() {
         assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
 
         LogicalPlan plan = analyze("FROM test | INSIST_🐔 foo");
@@ -2626,11 +2634,11 @@ public class AnalyzerTests extends ESTestCase {
         var insist = as(limit.child(), Insist.class);
         assertThat(insist.output(), hasSize(analyze("FROM test").output().size() + 1));
         var expectedAttribute = new FieldAttribute(Source.EMPTY, "foo", new PotentiallyUnmappedKeywordEsField("foo"));
-        assertThat(insist.attribute(), is(expectedAttribute));
+        assertThat(insist.insistedAttributes(), is(List.of(expectedAttribute)));
         assertThat(insist.output().getLast(), is(expectedAttribute));
     }
 
-    public void testResolveInsist_multiIndexFieldPartiallyMappedWithSingleKeywordType_updatesRelationWithNewField() {
+    public void testResolveInsist_multiIndexFieldPartiallyMappedWithSingleKeywordType_createsUnmappedField() {
         assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
 
         IndexResolution resolution = IndexResolver.mergedMappings(
@@ -2710,11 +2718,11 @@ public class AnalyzerTests extends ESTestCase {
                 List.of()
             )
         );
-        VerificationException e = expectThrows(VerificationException.class, () -> analyze("""
-            FROM multi_index
-            | INSIST_🐔 message
-            | EVAL message = message :: keyword
-            """, analyzer(resolution, TEST_VERIFIER)));
+        VerificationException e = expectThrows(
+            VerificationException.class,
+            () -> analyze("FROM multi_index | INSIST_🐔 message | EVAL message = message :: keyword", analyzer(resolution, TEST_VERIFIER))
+        );
+        // This isn't the most informative error, but it'll do for now.
         assertThat(
             e.getMessage(),
             containsString("EVAL does not support type [unsupported] as the return data type of expression [message]")

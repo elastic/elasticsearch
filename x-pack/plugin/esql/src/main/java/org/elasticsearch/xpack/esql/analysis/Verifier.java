@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equ
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Insist;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
@@ -96,6 +97,7 @@ public class Verifier {
 
             checkOperationsOnUnsignedLong(p, failures);
             checkBinaryComparison(p, failures);
+            checkInsist(p, failures);
         });
 
         if (failures.hasFailures() == false) {
@@ -230,6 +232,12 @@ public class Verifier {
                 failures.add(f);
             }
         });
+    }
+
+    private static void checkInsist(LogicalPlan p, Failures failures) {
+        if (p instanceof Insist i && (false == (i.child() instanceof EsRelation || i.child() instanceof Insist))) {
+            failures.add(fail(i, "[insist] can only be used after [from] or [insist] commands, but was [{}]", i.child().sourceText()));
+        }
     }
 
     private void licenseCheck(LogicalPlan plan, Failures failures) {

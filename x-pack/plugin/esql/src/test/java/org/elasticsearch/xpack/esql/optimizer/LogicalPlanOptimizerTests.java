@@ -45,7 +45,7 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.operator.compariso
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
-import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
+import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.Order;
@@ -158,6 +158,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.getFieldAttribute;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.localSource;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.singleValue;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.NO_FIELDS;
@@ -188,6 +189,7 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -283,22 +285,13 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         );
 
         var multiIndexMapping = loadMapping("mapping-basic.json");
-        multiIndexMapping.put(
-            "multi_type_with_keyword",
-            new InvalidMappedField("multi_type_with_keyword", Map.of("long", Set.of("test1"), "keyword", Set.of("test2")))
-        );
         multiIndexMapping.put("partial_type_keyword", new EsField("partial_type_keyword", KEYWORD, emptyMap(), true));
-        multiIndexMapping.put("partial_type_long", new EsField("partial_type_long", LONG, emptyMap(), true));
-        multiIndexMapping.put(
-            "multi_type_without_keyword",
-            new InvalidMappedField("multi_type_without_keyword", Map.of("long", Set.of("test1"), "date", Set.of("test2")))
-        );
         var multiIndex = IndexResolution.valid(
             new EsIndex(
                 "multi_index",
                 multiIndexMapping,
                 Map.of("test1", IndexMode.STANDARD, "test2", IndexMode.STANDARD),
-                Set.of("partial_type_keyword", "multi_type_without_keyword", "multi_type_with_keyword", "partial_type_long")
+                Set.of("partial_type_keyword")
             )
         );
         multiIndexAnalyzer = new Analyzer(
@@ -2964,20 +2957,55 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         );
     }
 
-    private static Attribute getAttribute(List<Attribute> attributes, String name) {
-        return attributes.stream().filter(attr -> attr.name().equals(name)).findFirst().get();
-    }
-
-    public void testResolveInsist_multiIndexFieldPartiallyExistsWithMultiTypesWithCast_castsAreNotSupported() {
+    public void testInsist_fieldExists_noUnmappedFieldsAnywhere() {
         assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
 
-        VerificationException e = expectThrows(VerificationException.class, () -> planMultiIndex("""
-            FROM multi_index |
-            INSIST_🐔 multi_type_without_keyword |
-            EVAL multi_type_without_keyword = multi_type_without_keyword :: DATETIME"""));
-        String msg = "Cannot use field [multi_type_without_keyword] due to ambiguities caused by INSIST. "
-            + "Unmapped fields are treated as KEYWORD in unmapped indices, but field is mapped to another type";
-        assertThat(e.getMessage(), containsString(msg));
+        LogicalPlan plan = analyze("FROM test | INSIST_🐔 emp_no");
+
+        plan.forEachExpressionDown(
+            FieldAttribute.class,
+            fa -> { assertThat(fa.field(), not(instanceOf(PotentiallyUnmappedKeywordEsField.class))); }
+        );
+    }
+
+    public void testInsist_fieldDoesNotExist_createsUnmappedFieldInRelation() {
+        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+
+        LogicalPlan plan = optimizedPlan("FROM test | INSIST_🐔 foo");
+
+        System.out.println(plan);
+        var project = as(plan, Project.class);
+        var limit = as(project.child(), Limit.class);
+        var relation = as(limit.child(), EsRelation.class);
+        assertPartialTypeKeyword(relation, "foo");
+    }
+
+    public void testInsist_multiIndexFieldPartiallyExistsAndIsKeyword_castsAreNotSupported() {
+        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+
+        var plan = planMultiIndex("FROM multi_index | INSIST_🐔 partial_type_keyword");
+        var project = as(plan, Project.class);
+        var limit = as(project.child(), Limit.class);
+        var relation = as(limit.child(), EsRelation.class);
+
+        assertPartialTypeKeyword(relation, "partial_type_keyword");
+    }
+
+    public void testInsist_multipleInsistClauses_insistsAreFolded() {
+        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+
+        var plan = planMultiIndex("FROM multi_index | INSIST_🐔 partial_type_keyword | INSIST_🐔 foo");
+        var project = as(plan, Project.class);
+        var limit = as(project.child(), Limit.class);
+        var relation = as(limit.child(), EsRelation.class);
+
+        assertPartialTypeKeyword(relation, "partial_type_keyword");
+        assertPartialTypeKeyword(relation, "foo");
+    }
+
+    private static void assertPartialTypeKeyword(EsRelation relation, String name) {
+        var attribute = (FieldAttribute) singleValue(relation.output().stream().filter(attr -> attr.name().equals(name)).toList());
+        assertThat(attribute.field(), instanceOf(PotentiallyUnmappedKeywordEsField.class));
     }
 
     public void testSimplifyLikeNoWildcard() {

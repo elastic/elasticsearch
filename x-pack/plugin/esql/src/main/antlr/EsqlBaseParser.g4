@@ -341,6 +341,6 @@ joinPredicate
     ;
 
 insistCommand
-    : DEV_INSIST identifier
+    : DEV_INSIST qualifiedNamePatterns
     ;
 

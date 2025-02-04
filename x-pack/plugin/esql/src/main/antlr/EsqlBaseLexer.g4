@@ -86,7 +86,7 @@ JOIN_LOOKUP : 'lookup'        -> pushMode(JOIN_MODE);
 // main section while preserving alphabetical order:
 // MYCOMMAND : 'mycommand' -> ...
 DEV_INLINESTATS : {this.isDevVersion()}? 'inlinestats'   -> pushMode(EXPRESSION_MODE);
-DEV_INSIST :      {this.isDevVersion()}? 'insist_🐔'      -> pushMode(EXPRESSION_MODE);
+DEV_INSIST :      {this.isDevVersion()}? 'insist_🐔'      -> pushMode(PROJECT_MODE);
 DEV_LOOKUP :      {this.isDevVersion()}? 'lookup_🐔'      -> pushMode(LOOKUP_MODE);
 DEV_METRICS :     {this.isDevVersion()}? 'metrics'       -> pushMode(METRICS_MODE);
 // list of all JOIN commands
@@ -310,7 +310,7 @@ FROM_WS
     ;
 
 //
-// DROP, KEEP
+// DROP, KEEP, INSIST
 //
 mode PROJECT_MODE;
 PROJECT_PIPE : PIPE -> type(PIPE), popMode;

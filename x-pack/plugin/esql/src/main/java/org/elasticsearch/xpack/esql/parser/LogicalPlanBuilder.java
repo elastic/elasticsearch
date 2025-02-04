@@ -43,7 +43,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
-import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
@@ -290,12 +289,20 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     public PlanFactory visitInsistCommand(EsqlBaseParser.InsistCommandContext ctx) {
         var source = source(ctx);
-        return input -> {
-            if (input instanceof EsRelation || input instanceof UnresolvedRelation) {
-                return new Insist(source, new UnresolvedAttribute(source, visitIdentifier(ctx.identifier())), input);
+        List<NamedExpression> fields = visitQualifiedNamePatterns(ctx.qualifiedNamePatterns(), ne -> {
+            Source neSource = ne.source();
+            if (ne instanceof UnresolvedStar) {
+                throw new ParsingException(neSource, "Cannot specify [*] with INSIST", neSource.text());
             }
-            throw new ParsingException(source, "INSIST command can only be applied on top of a FROM command.");
-        };
+            if (ne instanceof UnresolvedNamePattern) {
+                throw new ParsingException(neSource, "Cannot use wildcards ([*]) with INSIST", neSource.text());
+            }
+        });
+        return input -> new Insist(
+            source,
+            fields.stream().map(ne -> (Attribute) new UnresolvedAttribute(ne.source(), ne.name())).toList(),
+            input
+        );
     }
 
     @Override

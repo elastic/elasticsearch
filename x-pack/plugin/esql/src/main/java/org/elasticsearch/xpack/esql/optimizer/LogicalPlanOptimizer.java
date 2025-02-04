@@ -20,9 +20,9 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.CombineProjections;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ConstantFolding;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ConvertStringToByteRef;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ExtractAggregateCommonFilter;
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.FoldInsist;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.FoldNull;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.LiteralsOnTheRight;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.MergeUnmappedFields;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PartiallyFoldCase;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PropagateEmptyRelation;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PropagateEquals;
@@ -156,7 +156,6 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
     protected static Batch<LogicalPlan> operators() {
         return new Batch<>(
             "Operator Optimization",
-            new FoldInsist(),
             new CombineProjections(),
             new CombineEvals(),
             new PruneEmptyPlans(),
@@ -197,6 +196,6 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
     }
 
     protected static Batch<LogicalPlan> cleanup() {
-        return new Batch<>("Clean Up", new ReplaceLimitAndSortAsTopN(), new ReplaceRowAsLocalRelation());
+        return new Batch<>("Clean Up", new ReplaceLimitAndSortAsTopN(), new ReplaceRowAsLocalRelation(), new MergeUnmappedFields());
     }
 }

@@ -685,15 +685,17 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         private LogicalPlan resolveInsist(Insist insist, List<Attribute> childrenOutput, IndexResolution indexResolution) {
-            return insist.withAttribute(resolveInsistAttribute(insist, childrenOutput, indexResolution));
+            return insist.withAttributes(
+                insist.insistedAttributes().stream().map(a -> resolveInsistAttribute(a, childrenOutput, indexResolution)).toList()
+            );
         }
 
-        private Attribute resolveInsistAttribute(Insist insist, List<Attribute> childrenOutput, IndexResolution indexResolution) {
-            assert insist.attribute() instanceof UnresolvedAttribute : "INSIST should be unresolved at this point";
-            Attribute resolvedCol = maybeResolveAttribute((UnresolvedAttribute) insist.attribute(), childrenOutput);
+        private Attribute resolveInsistAttribute(Attribute attribute, List<Attribute> childrenOutput, IndexResolution indexResolution) {
+            assert attribute instanceof UnresolvedAttribute : "INSIST should be unresolved at this point";
+            Attribute resolvedCol = maybeResolveAttribute((UnresolvedAttribute) attribute, childrenOutput);
             // Field isn't mapped anywhere.
             if (resolvedCol instanceof UnresolvedAttribute) {
-                return insistKeyword(insist);
+                return insistKeyword(attribute);
             }
 
             assert resolvedCol instanceof FieldAttribute : "Resolved INSIST attribute should resolve to a field attribute";
@@ -702,31 +704,23 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // Field is partially unmapped.
             if (indexResolution.get().isPartiallyUnmappedField(name)) {
                 return field.getDataType() == KEYWORD
-                    ? insistKeyword(insist)
-                    : invalidInsistAttribute(insist, (FieldAttribute) resolvedCol);
+                    ? insistKeyword(attribute)
+                    : invalidInsistAttribute(attribute, (FieldAttribute) resolvedCol);
             }
 
             // Field is mapped everywhere; we can safely ignore the INSIST command.
             return resolvedCol;
         }
 
-        private static EsRelation mergeInsist(Insist insist, Function<List<Attribute>, List<Attribute>> updateAttributes) {
-            assert insist.child() instanceof EsRelation : "INSIST should be on top of a relation (see LogicalPlanBuilder)";
-            var relation = (EsRelation) insist.child();
-            var newOutput = updateAttributes.apply(relation.output());
-            return relation.withAttributes(newOutput);
-        }
-
-        private static FieldAttribute invalidInsistAttribute(Insist insist, FieldAttribute fa) {
+        private static FieldAttribute invalidInsistAttribute(Attribute attribute, FieldAttribute fa) {
             String name = fa.name();
             var messageFormat = "Cannot use field [%s] due to ambiguities caused by INSIST. "
                 + "Unmapped fields are treated as KEYWORD in unmapped indices, but field is mapped to another type";
-            return new FieldAttribute(insist.source(), name, new InvalidMappedField(name, Strings.format(messageFormat, name)));
+            return new FieldAttribute(attribute.source(), name, new InvalidMappedField(name, Strings.format(messageFormat, name)));
         }
 
-        private static FieldAttribute insistKeyword(Insist insist) {
-            String name = insist.attribute().name();
-            return new FieldAttribute(insist.source(), name, new PotentiallyUnmappedKeywordEsField(name));
+        private static FieldAttribute insistKeyword(Attribute attribute) {
+            return new FieldAttribute(attribute.source(), attribute.name(), new PotentiallyUnmappedKeywordEsField(attribute.name()));
         }
 
         private Attribute maybeResolveAttribute(UnresolvedAttribute ua, List<Attribute> childrenOutput) {

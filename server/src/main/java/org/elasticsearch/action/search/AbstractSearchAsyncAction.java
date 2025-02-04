@@ -42,8 +42,6 @@ import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.transport.Transport;
 
-import java.lang.invoke.MethodHandles;
-import java.lang.invoke.VarHandle;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -98,19 +96,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     protected final GroupShardsIterator<SearchShardIterator> toSkipShardsIts;
     protected final GroupShardsIterator<SearchShardIterator> shardsIts;
     private final SearchShardIterator[] shardIterators;
-
-    private static final VarHandle OUTSTANDING_SHARDS;
-
-    static {
-        try {
-            OUTSTANDING_SHARDS = MethodHandles.lookup().findVarHandle(AbstractSearchAsyncAction.class, "outstandingShards", int.class);
-        } catch (Exception e) {
-            throw new ExceptionInInitializerError(e);
-        }
-    }
-
-    @SuppressWarnings("unused") // only accessed via #OUTSTANDING_SHARDS
-    private int outstandingShards;
+    private final AtomicInteger outstandingShards;
     private final int maxConcurrentRequestsPerNode;
     private final Map<String, PendingExecutions> pendingExecutionsPerNode = new ConcurrentHashMap<>();
     private final boolean throttleConcurrentRequests;
@@ -151,7 +137,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         }
         this.toSkipShardsIts = new GroupShardsIterator<>(toSkipIterators);
         this.shardsIts = new GroupShardsIterator<>(iterators);
-        OUTSTANDING_SHARDS.setRelease(this, shardsIts.size());
+        outstandingShards = new AtomicInteger(shardsIts.size());
         this.shardIterators = iterators.toArray(new SearchShardIterator[0]);
         // we later compute the shard index based on the natural order of the shards
         // that participate in the search request. This means that this number is
@@ -458,7 +444,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             performPhaseOnShard(shardIndex, shardIt, nextShard);
         } else {
             // count down outstanding shards, we're done with this shard as there's no more copies to try
-            final int outstanding = (int) OUTSTANDING_SHARDS.getAndAdd(this, -1);
+            final int outstanding = outstandingShards.getAndDecrement();
             assert outstanding > 0 : "outstanding: " + outstanding;
             if (outstanding == 1) {
                 onPhaseDone();
@@ -558,7 +544,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     }
 
     private void successfulShardExecution() {
-        final int outstanding = (int) OUTSTANDING_SHARDS.getAndAdd(this, -1);
+        final int outstanding = outstandingShards.getAndDecrement();
         assert outstanding > 0 : "outstanding: " + outstanding;
         if (outstanding == 1) {
             onPhaseDone();

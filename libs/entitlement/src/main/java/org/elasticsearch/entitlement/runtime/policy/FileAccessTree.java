@@ -11,8 +11,8 @@ package org.elasticsearch.entitlement.runtime.policy;
 
 import org.elasticsearch.entitlement.runtime.policy.entitlements.FileEntitlement;
 
-import java.io.File;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -55,7 +55,7 @@ public final class FileAccessTree {
     }
 
     private static String normalizedPath(FileEntitlement fileEntitlement) {
-        return normalize(new File(fileEntitlement.path()).toPath());
+        return normalize(Paths.get(fileEntitlement.path()));
     }
 
     private static String normalize(Path path) {

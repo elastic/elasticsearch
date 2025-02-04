@@ -25,7 +25,6 @@ import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.injection.guice.Inject;
@@ -46,7 +45,6 @@ public class TransportPublishHeapMemoryMetrics extends TransportMasterNodeAction
         final ClusterService clusterService,
         final ThreadPool threadPool,
         final ActionFilters actionFilters,
-        final IndexNameExpressionResolver indexNameExpressionResolver,
         final MemoryMetricsService memoryMetricsService
     ) {
         super(
@@ -56,7 +54,6 @@ public class TransportPublishHeapMemoryMetrics extends TransportMasterNodeAction
             threadPool,
             actionFilters,
             PublishHeapMemoryMetricsRequest::new,
-            indexNameExpressionResolver,
             in -> ActionResponse.Empty.INSTANCE,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );

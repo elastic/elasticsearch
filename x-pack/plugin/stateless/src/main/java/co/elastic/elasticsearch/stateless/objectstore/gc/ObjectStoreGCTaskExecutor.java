@@ -34,6 +34,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -111,7 +112,7 @@ public class ObjectStoreGCTaskExecutor extends PersistentTasksExecutor<ObjectSto
             ObjectStoreGCTask.TASK_NAME,
             ObjectStoreGCTask.TASK_NAME,
             new ObjectStoreGCTaskParams(),
-            null,
+            TimeValue.THIRTY_SECONDS /* TODO should this be configurable? longer by default? infinite? */,
             ActionListener.wrap(r -> logger.debug("Created the blob store gc task executor"), e -> {
                 if (ExceptionsHelper.unwrapCause(e) instanceof ResourceAlreadyExistsException == false) {
                     logger.error("Failed to create the blob store gc task", e);

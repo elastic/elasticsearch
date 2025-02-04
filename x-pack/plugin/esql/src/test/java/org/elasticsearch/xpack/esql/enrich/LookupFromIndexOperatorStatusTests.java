@@ -57,10 +57,10 @@ public class LookupFromIndexOperatorStatusTests extends AbstractWireSerializingT
         String json = Strings.toString(status, true, true);
         assertThat(json, equalTo("""
             {
+              "process_nanos" : 10000,
+              "process_time" : "10micros",
               "received_pages" : 100,
               "completed_pages" : 50,
-              "total_time_in_millis" : 10000,
-              "total_time" : "10s",
               "emitted_pages" : 88,
               "total_terms" : 120
             }"""));

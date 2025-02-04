@@ -15,7 +15,6 @@ import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.index.mapper.MapperService;
@@ -84,8 +83,8 @@ public class LuceneSyntheticSourceChangesSnapshot extends SearchBasedChangesSnap
         this.maxMemorySizeInBytes = maxMemorySizeInBytes > 0 ? maxMemorySizeInBytes : 1;
         this.sourceLoader = mapperService.mappingLookup().newSourceLoader(null, SourceFieldMetrics.NOOP);
         Set<String> storedFields = sourceLoader.requiredStoredFields();
-        String codec = EngineConfig.INDEX_CODEC_SETTING.get(mapperService.getIndexSettings().getSettings());
-        boolean shouldForceSequentialReader = CodecService.BEST_COMPRESSION_CODEC.equals(codec);
+        // If more than a few ops are requested let's enforce a sequential reader. Typically, thousands of ops may be requested.
+        boolean shouldForceSequentialReader = toSeqNo - fromSeqNo > 10;
         this.storedFieldLoader = StoredFieldLoader.create(false, storedFields, shouldForceSequentialReader);
         this.lastSeenSeqNo = fromSeqNo - 1;
     }

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.results;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xpack.core.inference.results.InferenceByteEmbedding;
 import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingByteResults;
 import org.elasticsearch.xpack.core.ml.inference.results.MlTextEmbeddingResults;
 
@@ -23,7 +24,7 @@ import static org.hamcrest.Matchers.is;
 public class InferenceTextEmbeddingByteResultsTests extends AbstractWireSerializingTestCase<InferenceTextEmbeddingByteResults> {
     public static InferenceTextEmbeddingByteResults createRandomResults() {
         int embeddings = randomIntBetween(1, 10);
-        List<InferenceTextEmbeddingByteResults.InferenceByteEmbedding> embeddingResults = new ArrayList<>(embeddings);
+        List<InferenceByteEmbedding> embeddingResults = new ArrayList<>(embeddings);
 
         for (int i = 0; i < embeddings; i++) {
             embeddingResults.add(createRandomEmbedding());
@@ -32,7 +33,7 @@ public class InferenceTextEmbeddingByteResultsTests extends AbstractWireSerializ
         return new InferenceTextEmbeddingByteResults(embeddingResults);
     }
 
-    private static InferenceTextEmbeddingByteResults.InferenceByteEmbedding createRandomEmbedding() {
+    private static InferenceByteEmbedding createRandomEmbedding() {
         int columns = randomIntBetween(1, 10);
         byte[] bytes = new byte[columns];
 
@@ -40,13 +41,11 @@ public class InferenceTextEmbeddingByteResultsTests extends AbstractWireSerializ
             bytes[i] = randomByte();
         }
 
-        return new InferenceTextEmbeddingByteResults.InferenceByteEmbedding(bytes);
+        return new InferenceByteEmbedding(bytes);
     }
 
     public void testToXContent_CreatesTheRightFormatForASingleEmbedding() throws IOException {
-        var entity = new InferenceTextEmbeddingByteResults(
-            List.of(new InferenceTextEmbeddingByteResults.InferenceByteEmbedding(new byte[] { (byte) 23 }))
-        );
+        var entity = new InferenceTextEmbeddingByteResults(List.of(new InferenceByteEmbedding(new byte[] { (byte) 23 })));
 
         String xContentResult = Strings.toString(entity, true, true);
         assertThat(xContentResult, is("""
@@ -63,10 +62,7 @@ public class InferenceTextEmbeddingByteResultsTests extends AbstractWireSerializ
 
     public void testToXContent_CreatesTheRightFormatForMultipleEmbeddings() throws IOException {
         var entity = new InferenceTextEmbeddingByteResults(
-            List.of(
-                new InferenceTextEmbeddingByteResults.InferenceByteEmbedding(new byte[] { (byte) 23 }),
-                new InferenceTextEmbeddingByteResults.InferenceByteEmbedding(new byte[] { (byte) 24 })
-            )
+            List.of(new InferenceByteEmbedding(new byte[] { (byte) 23 }), new InferenceByteEmbedding(new byte[] { (byte) 24 }))
         );
 
         String xContentResult = Strings.toString(entity, true, true);
@@ -90,8 +86,8 @@ public class InferenceTextEmbeddingByteResultsTests extends AbstractWireSerializ
     public void testTransformToCoordinationFormat() {
         var results = new InferenceTextEmbeddingByteResults(
             List.of(
-                new InferenceTextEmbeddingByteResults.InferenceByteEmbedding(new byte[] { (byte) 23, (byte) 24 }),
-                new InferenceTextEmbeddingByteResults.InferenceByteEmbedding(new byte[] { (byte) 25, (byte) 26 })
+                new InferenceByteEmbedding(new byte[] { (byte) 23, (byte) 24 }),
+                new InferenceByteEmbedding(new byte[] { (byte) 25, (byte) 26 })
             )
         ).transformToCoordinationFormat();
 
@@ -124,7 +120,7 @@ public class InferenceTextEmbeddingByteResultsTests extends AbstractWireSerializ
             int end = randomInt(instance.embeddings().size() - 1);
             return new InferenceTextEmbeddingByteResults(instance.embeddings().subList(0, end));
         } else {
-            List<InferenceTextEmbeddingByteResults.InferenceByteEmbedding> embeddings = new ArrayList<>(instance.embeddings());
+            List<InferenceByteEmbedding> embeddings = new ArrayList<>(instance.embeddings());
             embeddings.add(createRandomEmbedding());
             return new InferenceTextEmbeddingByteResults(embeddings);
         }
@@ -133,9 +129,7 @@ public class InferenceTextEmbeddingByteResultsTests extends AbstractWireSerializ
     public static Map<String, Object> buildExpectationByte(List<List<Byte>> embeddings) {
         return Map.of(
             InferenceTextEmbeddingByteResults.TEXT_EMBEDDING_BYTES,
-            embeddings.stream()
-                .map(embedding -> Map.of(InferenceTextEmbeddingByteResults.InferenceByteEmbedding.EMBEDDING, embedding))
-                .toList()
+            embeddings.stream().map(embedding -> Map.of(InferenceByteEmbedding.EMBEDDING, embedding)).toList()
         );
     }
 }

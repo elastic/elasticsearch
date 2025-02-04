@@ -44,13 +44,13 @@ final class TransportHandshaker {
      * ignores the body of the request. After the handshake, the OutboundHandler uses the min(local,remote) protocol version for all later
      * messages.
      *
-     * This version supports two handshake protocols, v7170099 and v8800000, which respectively have the same message structure
-     * as the transport protocols of v7.17.0, and v8.18.0. This node only sends v8800000 requests, but it can send a valid response
-     * to any v7170099 requests that it receives.
+     * This version supports two handshake protocols, v7170099 and v8800000, which respectively have the same message structure as the
+     * transport protocols of v7.17.0, and v8.18.0. This node only sends v8800000 requests, but it can send a valid response to any v7170099
+     * requests that it receives.
      *
      * Note that these are not really TransportVersion constants as used elsewhere in ES, they're independent things that just happen to be
-     * stored in the same location in the message header and which roughly match the same ID numbering scheme. Older versions of ES did
-     * rely on them matching the real transport protocol (which itself matched the release version numbers), but these days that's no longer
+     * stored in the same location in the message header and which roughly match the same ID numbering scheme. Older versions of ES did rely
+     * on them matching the real transport protocol (which itself matched the release version numbers), but these days that's no longer
      * true.
      *
      * Here are some example messages, broken down to show their structure. See TransportHandshakerRawMessageTests for supporting tests.

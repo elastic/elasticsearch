@@ -55,7 +55,7 @@ public class PolicyParserTests extends ESTestCase {
             .parsePolicy();
         Policy expected = new Policy(
             "test-policy.yaml",
-            List.of(new Scope("entitlement-module-name", List.of(new FileEntitlement("test/path/to/file", "read_write"))))
+            List.of(new Scope("entitlement-module-name", List.of(FileEntitlement.create("test/path/to/file", "read_write"))))
         );
         assertEquals(expected, parsedPolicy);
     }
@@ -65,7 +65,7 @@ public class PolicyParserTests extends ESTestCase {
             .parsePolicy();
         Policy expected = new Policy(
             "test-policy.yaml",
-            List.of(new Scope("entitlement-module-name", List.of(new FileEntitlement("test/path/to/file", "read_write"))))
+            List.of(new Scope("entitlement-module-name", List.of(FileEntitlement.create("test/path/to/file", "read_write"))))
         );
         assertEquals(expected, parsedPolicy);
     }

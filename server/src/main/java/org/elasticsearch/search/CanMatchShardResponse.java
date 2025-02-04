@@ -11,7 +11,6 @@ package org.elasticsearch.search;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.search.sort.MinAndMax;
 
 import java.io.IOException;
@@ -19,11 +18,12 @@ import java.io.IOException;
 /**
  * Shard-level response for can-match requests
  */
-public final class CanMatchShardResponse implements Writeable {
+public final class CanMatchShardResponse extends SearchPhaseResult {
     private final boolean canMatch;
     private final MinAndMax<?> estimatedMinAndMax;
 
     public CanMatchShardResponse(StreamInput in) throws IOException {
+        super(in);
         this.canMatch = in.readBoolean();
         estimatedMinAndMax = in.readOptionalWriteable(MinAndMax::new);
     }

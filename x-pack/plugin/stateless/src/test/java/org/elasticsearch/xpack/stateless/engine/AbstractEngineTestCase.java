@@ -26,6 +26,7 @@ import co.elastic.elasticsearch.stateless.cache.reader.CacheBlobReaderService;
 import co.elastic.elasticsearch.stateless.cache.reader.MutableObjectStoreUploadTracker;
 import co.elastic.elasticsearch.stateless.commits.BlobLocation;
 import co.elastic.elasticsearch.stateless.commits.ClosedShardService;
+import co.elastic.elasticsearch.stateless.commits.HollowShardsService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.commits.VirtualBatchedCompoundCommit;
 import co.elastic.elasticsearch.stateless.engine.translog.TranslogRecoveryMetrics;
@@ -178,7 +179,13 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
 
     protected IndexEngine newIndexEngine(final EngineConfig indexConfig, final TranslogReplicator translogReplicator) {
         StatelessCommitService commitService = mockCommitService(indexConfig.getIndexSettings().getNodeSettings());
-        return newIndexEngine(indexConfig, translogReplicator, mock(ObjectStoreService.class), commitService);
+        return newIndexEngine(
+            indexConfig,
+            translogReplicator,
+            mock(ObjectStoreService.class),
+            commitService,
+            mock(HollowShardsService.class)
+        );
     }
 
     protected static StatelessCommitService mockCommitService(Settings settings) {
@@ -201,13 +208,15 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
         final EngineConfig indexConfig,
         final TranslogReplicator translogReplicator,
         final ObjectStoreService objectStoreService,
-        final StatelessCommitService commitService
+        final StatelessCommitService commitService,
+        final HollowShardsService hollowShardsService
     ) {
         return newIndexEngine(
             indexConfig,
             translogReplicator,
             objectStoreService,
             commitService,
+            hollowShardsService,
             mock(SharedBlobCacheWarmingService.class),
             DocumentParsingProvider.EMPTY_INSTANCE,
             new IndexEngine.EngineMetrics(TranslogRecoveryMetrics.NOOP, MergeMetrics.NOOP)
@@ -219,6 +228,7 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
         TranslogReplicator translogReplicator,
         ObjectStoreService objectStoreService,
         StatelessCommitService commitService,
+        HollowShardsService hollowShardsService,
         SharedBlobCacheWarmingService sharedBlobCacheWarmingService,
         DocumentParsingProvider documentParsingProvider,
         IndexEngine.EngineMetrics engineMetrics
@@ -228,6 +238,7 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             translogReplicator,
             objectStoreService::getTranslogBlobContainer,
             commitService,
+            hollowShardsService,
             sharedBlobCacheWarmingService,
             RefreshThrottler.Noop::new,
             commitService.getIndexEngineLocalReaderListenerForShard(indexConfig.getShardId()),

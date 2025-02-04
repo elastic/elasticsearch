@@ -17,7 +17,6 @@
 
 package co.elastic.elasticsearch.stateless.recovery;
 
-import co.elastic.elasticsearch.serverless.constants.ServerlessTransportVersions;
 import co.elastic.elasticsearch.stateless.IndexShardCacheWarmer;
 import co.elastic.elasticsearch.stateless.commits.HollowShardsService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
@@ -272,14 +271,6 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
         }).delegateFailureAndWrap((listener0, preFlushResult) -> {
             final var initialFlushDuration = getTimeSince(beforeInitialFlush);
             final long beforeAcquiringPermits = threadPool.relativeTimeInMillis();
-            Releasable primaryPermits;
-            if (engine instanceof HollowIndexEngine hollowIndexEngine) {
-                assert hollowIndexEngine.arePrimaryPermitsHeld() : "Hollow index engine must hold primary permits before relocation";
-                primaryPermits = hollowIndexEngine.handOffPrimaryPermits();
-            } else {
-                primaryPermits = null;
-            }
-            logger.debug("[{}] acquiring all primary operation permits {} {}", request.shardId(), engine, primaryPermits);
             indexShard.relocated(request.targetNode().getId(), request.targetAllocationId(), (primaryContext, handoffResultListener) -> {
                 threadDumpListener.onResponse(null);
                 logShardStats("obtained primary context", indexShard, engine);
@@ -289,13 +280,24 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
                 // Do not wait on flush durability as we will wait at the stateless commit service level for the upload
                 final long beforeFinalFlush = threadPool.relativeTimeInMillis();
 
+                final var shardId = indexShard.shardId();
                 if (engine instanceof IndexEngine indexEngine) {
                     if (hollowShardsService.isHollowableIndexShard(indexShard, false)) {
-                        logger.debug("Flushing hollowable shard {}", indexShard.shardId());
-                        indexEngine.flushHollow(ActionListener.noop());
+                        // Resetting the IndexEngine hollows the shard and switches to a HollowIndexEngine
+                        logger.debug(() -> "hollowing index engine for shard " + shardId);
+                        // The blocker will be removed when the source shard is successfully relocated and closed,
+                        // or will remain in place if the relocation fails until the shard is unhollowed.
+                        hollowShardsService.installIngestionBlocker(indexShard);
+                        indexShard.resetEngine();
                     } else {
                         indexEngine.flush(false, true, ActionListener.noop());
                     }
+                } else if (engine instanceof HollowIndexEngine) {
+                    hollowShardsService.assertIngestionBlocked(
+                        indexShard.shardId(),
+                        true,
+                        "hollow shard " + shardId + " should have an ingestion blocker"
+                    );
                 }
                 logShardStats("flush after acquiring primary context completed", indexShard, engine);
                 long lastFlushedGeneration = engine.getLastCommittedSegmentInfos().getGeneration();
@@ -386,7 +388,9 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
                         try {
                             handoffCompleteListener.onFailure(e);
                             // TODO ES-10573
-                            // Switch to a hollow engine in case of a relocation failure
+                            // In case the source IndexEngine was switched to a HollowIndexEngine, check if there was any lingering
+                            // ingestion in order to initiate unhollowing which will remove the ingestion blocker and switch back
+                            // to an IndexEngine.
                         } finally {
                             handoffResultListener.onFailure(e);
                         }
@@ -417,7 +421,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
                         new ActionListenerResponseHandler<>(finalHandoffListener, in -> TransportResponse.Empty.INSTANCE, recoveryExecutor)
                     );
                 }), recoveryExecutor, threadContext);
-            }, listener0, primaryPermits);
+            }, listener0);
         }), recoveryExecutor, threadContext);
     }
 
@@ -559,11 +563,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
             shardId = new ShardId(in);
             primaryContext = new ReplicationTracker.PrimaryContext(in);
             retentionLeases = new RetentionLeases(in);
-            if (in.getTransportVersion().onOrAfter(ServerlessTransportVersions.PRIMARY_RELOCATION_SEARCH_NODES)) {
-                searchNodesPerCommit = in.readMap(PrimaryTermAndGeneration::new, in0 -> in0.readCollectionAsSet(StreamInput::readString));
-            } else {
-                searchNodesPerCommit = Map.of();
-            }
+            searchNodesPerCommit = in.readMap(PrimaryTermAndGeneration::new, in0 -> in0.readCollectionAsSet(StreamInput::readString));
         }
 
         @Override
@@ -573,13 +573,11 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
             shardId.writeTo(out);
             primaryContext.writeTo(out);
             retentionLeases.writeTo(out);
-            if (out.getTransportVersion().onOrAfter(ServerlessTransportVersions.PRIMARY_RELOCATION_SEARCH_NODES)) {
-                out.writeMap(
-                    searchNodesPerCommit,
-                    (out0, v) -> v.writeTo(out0),
-                    (out0, v) -> out0.writeCollection(v, StreamOutput::writeString)
-                );
-            }
+            out.writeMap(
+                searchNodesPerCommit,
+                (out0, v) -> v.writeTo(out0),
+                (out0, v) -> out0.writeCollection(v, StreamOutput::writeString)
+            );
         }
 
         public long recoveryId() {

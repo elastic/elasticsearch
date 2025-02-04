@@ -20,6 +20,7 @@ package co.elastic.elasticsearch.stateless.engine;
 import co.elastic.elasticsearch.stateless.Stateless;
 import co.elastic.elasticsearch.stateless.action.GetVirtualBatchedCompoundCommitChunkRequest;
 import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService;
+import co.elastic.elasticsearch.stateless.commits.HollowShardsService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.commits.VirtualBatchedCompoundCommit;
 import co.elastic.elasticsearch.stateless.engine.translog.TranslogRecoveryMetrics;
@@ -287,7 +288,8 @@ public class IndexEngineTests extends AbstractEngineTestCase {
                 ),
                 translogReplicator,
                 mock(ObjectStoreService.class),
-                commitService
+                commitService,
+                mock(HollowShardsService.class)
             )
         ) {
             final var initialGen = engine.getCurrentGeneration();
@@ -343,7 +345,8 @@ public class IndexEngineTests extends AbstractEngineTestCase {
                 indexConfig(Settings.EMPTY, nodeSettings, () -> 1L, NoMergePolicy.INSTANCE),
                 translogReplicator,
                 mock(ObjectStoreService.class),
-                commitService
+                commitService,
+                mock(HollowShardsService.class)
             )
         ) {
             final long primaryTerm = randomLongBetween(1, 42);
@@ -399,6 +402,7 @@ public class IndexEngineTests extends AbstractEngineTestCase {
                 mockTranslogReplicator,
                 mock(ObjectStoreService.class),
                 mockCommitService,
+                mock(HollowShardsService.class),
                 mock(SharedBlobCacheWarmingService.class),
                 documentParsingProvider,
                 new IndexEngine.EngineMetrics(TranslogRecoveryMetrics.NOOP, MergeMetrics.NOOP)
@@ -448,6 +452,7 @@ public class IndexEngineTests extends AbstractEngineTestCase {
                 mockTranslogReplicator,
                 mock(ObjectStoreService.class),
                 mockCommitService,
+                mock(HollowShardsService.class),
                 mock(SharedBlobCacheWarmingService.class),
                 documentParsingProvider,
                 new IndexEngine.EngineMetrics(TranslogRecoveryMetrics.NOOP, MergeMetrics.NOOP)

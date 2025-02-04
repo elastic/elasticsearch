@@ -108,7 +108,6 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-import static co.elastic.elasticsearch.serverless.constants.ServerlessTransportVersions.COMMIT_NOTIFICATION_TRANSPORT_ACTION_SPLIT;
 import static java.util.Objects.requireNonNull;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
@@ -603,7 +602,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 }
                 virtualBcc = commitState.appendCommit(reference);
                 virtualBcc.addNotifiedSearchNodeIds(
-                    shardRoutingTable.map(e -> e.unpromotableShards())
+                    shardRoutingTable.map(e -> e.assignedUnpromotableShards())
                         .orElse(List.of())
                         .stream()
                         .map(shardRouting -> shardRouting.currentNodeId())
@@ -1178,7 +1177,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             primaryTermAndGenToBlobReference.put(recoveryBCCBlob.getPrimaryTermAndGeneration(), recoveryBCCBlob);
 
             var currentUnpromotableShardAssignedNodes = shardRoutingFinder.apply(shardId)
-                .map(IndexShardRoutingTable::unpromotableShards)
+                .map(IndexShardRoutingTable::assignedUnpromotableShards)
                 .orElse(List.of())
                 .stream()
                 .map(ShardRouting::currentNodeId)
@@ -1852,7 +1851,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             var notificationCommitBCCDependencies = resolveReferencedBCCsForCommit(notificationCommitGeneration);
             Optional<IndexShardRoutingTable> shardRoutingTable = shardRoutingFinder.apply(uploadedBcc.shardId());
             Optional<Set<String>> optCurrentRoutingNodesWithAssignedSearchShards = shardRoutingTable.map(
-                routingTable -> routingTable.unpromotableShards()
+                routingTable -> routingTable.assignedUnpromotableShards()
                     .stream()
                     .filter(ShardRouting::assignedToNode)
                     .map(ShardRouting::currentNodeId)
@@ -2841,50 +2840,10 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
         try {
-            if (clusterService.state().getMinTransportVersion().before(COMMIT_NOTIFICATION_TRANSPORT_ACTION_SPLIT)) {
-                if (event.routingTableChanged()) {
-                    var localRoutingNode = event.state().getRoutingNodes().node(event.state().nodes().getLocalNodeId());
-
-                    if (localRoutingNode == null) {
-                        return;
-                    }
-
-                    // Check if any of the shards on this node are affected by the routing table change.
-                    for (ShardRouting shardRouting : localRoutingNode) {
-                        if (shardRouting.primary() == false) {
-                            continue;
-                        }
-                        var shardId = shardRouting.shardId();
-
-                        var shardCommitState = shardsCommitsStates.get(shardId);
-                        // shardsCommitsStates not registered yet
-                        if (shardCommitState == null) {
-                            continue;
-                        }
-
-                        if (event.indexRoutingTableChanged(shardId.getIndex())) {
-                            var currentShardRoutingTable = event.state().routingTable().shardRoutingTable(shardId);
-
-                            // If the routing for any of the shard copies changed, update the shard commit tracking.
-                            if (event.previousState().routingTable().hasIndex(shardId.getIndex())
-                                && event.previousState().routingTable().shardRoutingTable(shardId) != currentShardRoutingTable) {
-                                var currentUnpromotableShards = currentShardRoutingTable.unpromotableShards();
-                                var currentUnpromotableShardAssignedNodes = currentUnpromotableShards.stream()
-                                    .filter(ShardRouting::assignedToNode)
-                                    .map(ShardRouting::currentNodeId)
-                                    .collect(Collectors.toSet());
-                                shardCommitState.updateUnpromotableShardAssignedNodes(currentUnpromotableShardAssignedNodes);
-                                return;
-                            }
-                        }
-                    }
-                }
-            } else {
-                if (event.nodesDelta().removed()) {
-                    var removedNodeIds = event.nodesDelta().removedNodes().stream().map(node -> node.getId()).collect(Collectors.toSet());
-                    for (var shardCommitState : shardsCommitsStates.values()) {
-                        shardCommitState.onRemoveNodesFromCluster(removedNodeIds);
-                    }
+            if (event.nodesDelta().removed()) {
+                var removedNodeIds = event.nodesDelta().removedNodes().stream().map(node -> node.getId()).collect(Collectors.toSet());
+                for (var shardCommitState : shardsCommitsStates.values()) {
+                    shardCommitState.onRemoveNodesFromCluster(removedNodeIds);
                 }
             }
         } finally {

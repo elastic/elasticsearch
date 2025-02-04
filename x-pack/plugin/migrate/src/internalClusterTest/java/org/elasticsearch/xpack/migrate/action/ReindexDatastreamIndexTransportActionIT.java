@@ -24,12 +24,17 @@ import org.elasticsearch.action.admin.indices.template.put.TransportPutComposabl
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.ingest.DeletePipelineRequest;
+import org.elasticsearch.action.ingest.DeletePipelineTransportAction;
+import org.elasticsearch.action.ingest.PutPipelineRequest;
+import org.elasticsearch.action.ingest.PutPipelineTransportAction;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.cluster.metadata.Template;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
@@ -38,12 +43,15 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.ingest.common.IngestCommonPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.migrate.MigratePlugin;
+import org.elasticsearch.xpack.migrate.MigrateTemplateRegistry;
+import org.junit.After;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -56,19 +64,27 @@ import static java.lang.Boolean.parseBoolean;
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.DEFAULT_TIMESTAMP_FIELD;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
+    @After
+    private void cleanupCluster() throws Exception {
+        clusterAdmin().execute(
+            DeletePipelineTransportAction.TYPE,
+            new DeletePipelineRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, MigrateTemplateRegistry.REINDEX_DATA_STREAM_PIPELINE_NAME)
+        );
+        super.cleanUpCluster();
+    }
 
     private static final String MAPPING = """
         {
           "_doc":{
             "dynamic":"strict",
             "properties":{
-              "foo1":{
-                "type":"text"
-              }
+              "foo1": {"type":"text"},
+              "@timestamp": {"type":"date"}
             }
           }
         }
@@ -76,7 +92,116 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(MigratePlugin.class, ReindexPlugin.class, MockTransportService.TestPlugin.class, DataStreamsPlugin.class);
+        return List.of(
+            MigratePlugin.class,
+            ReindexPlugin.class,
+            MockTransportService.TestPlugin.class,
+            DataStreamsPlugin.class,
+            IngestCommonPlugin.class
+        );
+    }
+
+    private static String DATA_STREAM_MAPPING = """
+            {
+                "dynamic": true,
+                "_data_stream_timestamp": {
+                    "enabled": true
+                },
+                "properties": {
+                    "@timestamp": {"type":"date"}
+                }
+            }
+        """;
+
+    public void testTimestamp0AddedIfMissing() {
+        var sourceIndex = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
+        indicesAdmin().create(new CreateIndexRequest(sourceIndex)).actionGet();
+
+        // add doc without timestamp
+        addDoc(sourceIndex, "{\"foo\":\"baz\"}");
+
+        // add timestamp to source mapping
+        indicesAdmin().preparePutMapping(sourceIndex).setSource(DATA_STREAM_MAPPING, XContentType.JSON).get();
+
+        // call reindex
+        var destIndex = client().execute(ReindexDataStreamIndexAction.INSTANCE, new ReindexDataStreamIndexAction.Request(sourceIndex))
+            .actionGet()
+            .getDestIndex();
+
+        assertResponse(prepareSearch(destIndex), response -> {
+            Map<String, Object> sourceAsMap = response.getHits().getAt(0).getSourceAsMap();
+            assertEquals(Integer.valueOf(0), sourceAsMap.get(DEFAULT_TIMESTAMP_FIELD));
+        });
+    }
+
+    public void testTimestampNotAddedIfExists() {
+        var sourceIndex = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
+        indicesAdmin().create(new CreateIndexRequest(sourceIndex)).actionGet();
+
+        // add doc with timestamp
+        String time = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(System.currentTimeMillis());
+        var doc = String.format(Locale.ROOT, "{\"%s\":\"%s\"}", DEFAULT_TIMESTAMP_FIELD, time);
+        addDoc(sourceIndex, doc);
+
+        // add timestamp to source mapping
+        indicesAdmin().preparePutMapping(sourceIndex).setSource(DATA_STREAM_MAPPING, XContentType.JSON).get();
+
+        // call reindex
+        var destIndex = client().execute(ReindexDataStreamIndexAction.INSTANCE, new ReindexDataStreamIndexAction.Request(sourceIndex))
+            .actionGet()
+            .getDestIndex();
+
+        assertResponse(prepareSearch(destIndex), response -> {
+            Map<String, Object> sourceAsMap = response.getHits().getAt(0).getSourceAsMap();
+            assertEquals(time, sourceAsMap.get(DEFAULT_TIMESTAMP_FIELD));
+        });
+    }
+
+    public void testCustomReindexPipeline() {
+        String customPipeline = """
+                {
+                  "processors": [
+                    {
+                      "set": {
+                        "field": "cheese",
+                        "value": "gorgonzola"
+                      }
+                    }
+                  ],
+                  "version": 1000
+                }
+            """;
+
+        PutPipelineRequest putRequest = new PutPipelineRequest(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            MigrateTemplateRegistry.REINDEX_DATA_STREAM_PIPELINE_NAME,
+            new BytesArray(customPipeline),
+            XContentType.JSON
+        );
+
+        clusterAdmin().execute(PutPipelineTransportAction.TYPE, putRequest).actionGet();
+
+        var sourceIndex = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
+        indicesAdmin().create(new CreateIndexRequest(sourceIndex)).actionGet();
+
+        // add doc with timestamp
+        String time = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(System.currentTimeMillis());
+        var doc = String.format(Locale.ROOT, "{\"%s\":\"%s\"}", DEFAULT_TIMESTAMP_FIELD, time);
+        addDoc(sourceIndex, doc);
+
+        // add timestamp to source mapping
+        indicesAdmin().preparePutMapping(sourceIndex).setSource(DATA_STREAM_MAPPING, XContentType.JSON).get();
+
+        String destIndex = client().execute(ReindexDataStreamIndexAction.INSTANCE, new ReindexDataStreamIndexAction.Request(sourceIndex))
+            .actionGet()
+            .getDestIndex();
+
+        assertResponse(prepareSearch(destIndex), response -> {
+            Map<String, Object> sourceAsMap = response.getHits().getAt(0).getSourceAsMap();
+            assertEquals("gorgonzola", sourceAsMap.get("cheese"));
+            assertEquals(time, sourceAsMap.get(DEFAULT_TIMESTAMP_FIELD));
+        });
     }
 
     public void testDestIndexDeletedIfExists() throws Exception {
@@ -200,7 +325,7 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
         assertEquals(refreshInterval, settingsResponse.getSetting(destIndex, IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey()));
     }
 
-    public void testMappingsAddedToDestIndex() throws Exception {
+    public void testMappingsAddedToDestIndex() {
         var sourceIndex = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
         indicesAdmin().create(new CreateIndexRequest(sourceIndex).mapping(MAPPING)).actionGet();
 
@@ -474,12 +599,9 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
         return DateFormatter.forPattern(FormatNames.STRICT_DATE_OPTIONAL_TIME.getName()).format(instant);
     }
 
-    private static String getIndexUUID(String index) {
-        return indicesAdmin().getIndex(new GetIndexRequest().indices(index))
-            .actionGet()
-            .getSettings()
-            .get(index)
-            .get(IndexMetadata.SETTING_INDEX_UUID);
+    void addDoc(String index, String doc) {
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.add(new IndexRequest(index).opType(DocWriteRequest.OpType.CREATE).source(doc, XContentType.JSON));
+        client().bulk(bulkRequest).actionGet();
     }
-
 }

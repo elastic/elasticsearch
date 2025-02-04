@@ -22,7 +22,7 @@ public class ExistsQuery extends Query {
 
     @Override
     public QueryBuilder asBuilder() {
-        return existsQuery(name).boost(0.0f);
+        return existsQuery(name);
     }
 
     @Override

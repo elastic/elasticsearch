@@ -86,7 +86,7 @@ public class RangeQuery extends Query {
             queryBuilder.timeZone(zoneId.getId());
         }
 
-        return queryBuilder.boost(0.0f);
+        return queryBuilder;
     }
 
     @Override

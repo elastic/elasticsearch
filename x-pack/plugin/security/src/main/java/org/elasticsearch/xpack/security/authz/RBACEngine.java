@@ -876,7 +876,6 @@ public class RBACEngine implements AuthorizationEngine {
             // TODO: can this be done smarter? I think there are usually more indices/aliases in the cluster then indices defined a roles?
             if (includeDataStreams) {
                 for (IndexAbstraction indexAbstraction : lookup.values()) {
-                    // TODO this can be cleaned up and optimized to avoid two full predicate checks
                     final boolean dataAccess = predicate.test(indexAbstraction, IndexComponentSelector.DATA.getKey());
                     // TODO should we still add data stream if it only has failure access?
                     final boolean failureAccess = indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM
@@ -891,7 +890,6 @@ public class RBACEngine implements AuthorizationEngine {
                             }
                             if (failureAccess) {
                                 for (Index index : ((DataStream) indexAbstraction).getFailureIndices()) {
-                                    // failure indices are still accessed as "data"
                                     indicesAndAliases.add(index.getName());
                                 }
                             }

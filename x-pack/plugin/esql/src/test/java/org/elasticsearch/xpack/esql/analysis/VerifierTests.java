@@ -2009,10 +2009,7 @@ public class VerifierTests extends ESTestCase {
             "1:17: change point key [location] must be sortable",
             error("FROM airports | CHANGE_POINT scalerank ON location", airports)
         );
-        assertEquals(
-            "1:17: change point value [name] must be numeric",
-            error("FROM airports | CHANGE_POINT name ON scalerank", airports)
-        );
+        assertEquals("1:17: change point value [name] must be numeric", error("FROM airports | CHANGE_POINT name ON scalerank", airports));
         assertEquals(
             "1:17: change point value [location] must be numeric",
             error("FROM airports | CHANGE_POINT location ON scalerank", airports)

@@ -41,8 +41,6 @@ import org.elasticsearch.xpack.esql.planner.Layout;
 
 import java.util.List;
 
-import static org.elasticsearch.compute.lucene.LuceneQueryExpressionEvaluator.NO_MATCH_SCORE;
-
 public final class EvalMapper {
 
     private static final List<ExpressionMapper<?>> MAPPERS = List.of(
@@ -192,13 +190,7 @@ public final class EvalMapper {
                             for (int p = 0; p < positionCount; p++) {
                                 double l = lhs.getDouble(p);
                                 double r = rhs.getDouble(p);
-                                if (l == NO_MATCH_SCORE) {
-                                    result.appendDouble(p, r);
-                                } else if (r == NO_MATCH_SCORE) {
-                                    result.appendDouble(p, l);
-                                } else {
-                                    result.appendDouble(p, l + r);
-                                }
+                                result.appendDouble(bl.function().score(l, r));
                             }
                             return result.build().asBlock();
                         }
@@ -239,7 +231,7 @@ public final class EvalMapper {
                         DoubleVector.Builder result = blockFactory.newDoubleVectorFixedBuilder(page.getPositionCount());
                         // TODO We could optimize for constant vectors
                         for (int i = 0; i < scoreVector.getPositionCount(); i++) {
-                            result.appendDouble(scoreVector.getDouble(i) == NO_MATCH_SCORE ? 0.0 : NO_MATCH_SCORE);
+                            result.appendDouble(scoreVector.getDouble(i) == NO_MATCH_SCORE ? MATCH_SCORE : NO_MATCH_SCORE);
                         }
                         return result.build().asBlock();
                     }
@@ -409,6 +401,22 @@ public final class EvalMapper {
             }
 
             @Override
+            public DoubleBlock score(Page page, BlockFactory blockFactory) {
+                // TODO We could skip re-evaluating the field if we store the result of eval()
+                try (Block fieldBlock = field.eval(page)) {
+                    if (fieldBlock.asVector() != null) {
+                        return driverContext.blockFactory().newConstantDoubleBlockWith(NO_MATCH_SCORE, page.getPositionCount());
+                    }
+                    try (var builder = driverContext.blockFactory().newDoubleVectorFixedBuilder(page.getPositionCount())) {
+                        for (int p = 0; p < page.getPositionCount(); p++) {
+                            builder.appendDouble(p, fieldBlock.isNull(p) ? MATCH_SCORE : NO_MATCH_SCORE);
+                        }
+                        return builder.build().asBlock();
+                    }
+                }
+            }
+
+            @Override
             public void close() {
                 Releasables.closeExpectNoException(field);
             }
@@ -457,6 +465,22 @@ public final class EvalMapper {
                     try (var builder = driverContext.blockFactory().newBooleanVectorFixedBuilder(page.getPositionCount())) {
                         for (int p = 0; p < page.getPositionCount(); p++) {
                             builder.appendBoolean(p, fieldBlock.isNull(p) == false);
+                        }
+                        return builder.build().asBlock();
+                    }
+                }
+            }
+
+            @Override
+            public DoubleBlock score(Page page, BlockFactory blockFactory) {
+                // TODO We could skip re-evaluating the field if we store the result of eval()
+                try (Block fieldBlock = field.eval(page)) {
+                    if (fieldBlock.asVector() != null) {
+                        return driverContext.blockFactory().newConstantDoubleBlockWith(MATCH_SCORE, page.getPositionCount());
+                    }
+                    try (var builder = driverContext.blockFactory().newDoubleVectorFixedBuilder(page.getPositionCount())) {
+                        for (int p = 0; p < page.getPositionCount(); p++) {
+                            builder.appendDouble(p, fieldBlock.isNull(p) ? NO_MATCH_SCORE : MATCH_SCORE);
                         }
                         return builder.build().asBlock();
                     }

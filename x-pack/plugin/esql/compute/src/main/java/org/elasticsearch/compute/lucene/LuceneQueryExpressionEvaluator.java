@@ -45,8 +45,6 @@ import java.io.UncheckedIOException;
  */
 public class LuceneQueryExpressionEvaluator implements EvalOperator.ExpressionEvaluator {
 
-    public static final float NO_MATCH_SCORE = -1.0F;
-
     public record ShardConfig(Query query, IndexSearcher searcher) {}
 
     private final BlockFactory blockFactory;
@@ -181,8 +179,7 @@ public class LuceneQueryExpressionEvaluator implements EvalOperator.ExpressionEv
     }
 
     @Override
-    public void close() {
-    }
+    public void close() {}
 
     private ShardState shardState(int shard) throws IOException {
         if (shard >= perShardState.length) {

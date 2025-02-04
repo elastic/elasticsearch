@@ -335,15 +335,9 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/117805
 - class: org.elasticsearch.xpack.security.authc.ldap.UserAttributeGroupsResolverTests
   issue: https://github.com/elastic/elasticsearch/issues/116537
-- class: org.elasticsearch.xpack.esql.plugin.ClusterRequestTests
-  method: testFallbackIndicesOptions
-  issue: https://github.com/elastic/elasticsearch/issues/117937
 - class: org.elasticsearch.repositories.s3.RepositoryS3EcsCredentialsRestIT
   method: testNonexistentBucketReadonlyFalse
   issue: https://github.com/elastic/elasticsearch/issues/118225
-- class: org.elasticsearch.xpack.esql.action.EsqlActionTaskIT
-  method: testCancelRequestWhenFailingFetchingPages
-  issue: https://github.com/elastic/elasticsearch/issues/118213
 - class: org.elasticsearch.reservedstate.service.RepositoriesFileSettingsIT
   method: testSettingsApplied
   issue: https://github.com/elastic/elasticsearch/issues/116694
@@ -365,9 +359,6 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=synonyms/90_synonyms_reloading_for_synset/Reload analyzers for specific synonym set}
   issue: https://github.com/elastic/elasticsearch/issues/116777
-- class: org.elasticsearch.search.fieldcaps.FieldCapabilitiesIT
-  method: testRelocation
-  issue: https://github.com/elastic/elasticsearch/issues/119280
 - class: org.elasticsearch.xpack.esql.action.EsqlNodeFailureIT
   method: testFailureLoadingFields
   issue: https://github.com/elastic/elasticsearch/issues/118000
@@ -508,8 +499,6 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=search.highlight/30_max_analyzed_offset/Plain highlighter with max_analyzed_offset < 0 should FAIL}
   issue: https://github.com/elastic/elasticsearch/issues/121359
-- class: org.elasticsearch.xpack.esql.action.CrossClusterAsyncQueryIT
-  issue: https://github.com/elastic/elasticsearch/issues/121143
 - class: org.elasticsearch.upgrades.VectorSearchIT
   method: testBBQVectorSearch {upgradedNodes=2}
   issue: https://github.com/elastic/elasticsearch/issues/121272
@@ -556,3 +545,9 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/121179
 - class: org.elasticsearch.xpack.application.CohereServiceUpgradeIT
   issue: https://github.com/elastic/elasticsearch/issues/121537
+- class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
+  method: test {yaml=reference/snapshot-restore/apis/get-snapshot-api/line_488}
+  issue: https://github.com/elastic/elasticsearch/issues/121611
+- class: org.elasticsearch.xpack.security.profile.ProfileIntegTests
+  method: testUpdateProfileData
+  issue: https://github.com/elastic/elasticsearch/issues/121108

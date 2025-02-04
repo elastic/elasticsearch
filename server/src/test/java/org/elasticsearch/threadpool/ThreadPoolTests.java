@@ -530,12 +530,12 @@ public class ThreadPoolTests extends ESTestCase {
             meterRegistry.getRecorder().collect();
             final long afterMetricsCollectedNanos = System.nanoTime();
 
-            // Calculate lower bound on utilisation metric
+            // Calculate upper bound on utilisation metric
             final long minimumPollIntervalNanos = beforeMetricsCollectedNanos - afterPreviousCollectNanos;
             final long minimumMaxExecutionTimeNanos = minimumPollIntervalNanos * threadPoolInfo.getMax();
             final double maximumUtilisation = (double) maxDurationNanos / minimumMaxExecutionTimeNanos;
 
-            // Calculate upper bound on utilisation metric
+            // Calculate lower bound on utilisation metric
             final long maximumPollIntervalNanos = afterMetricsCollectedNanos - beforePreviousCollectNanos;
             final long maximumMaxExecutionTimeNanos = maximumPollIntervalNanos * threadPoolInfo.getMax();
             final double minimumUtilisation = (double) minimumDurationNanos.get() / maximumMaxExecutionTimeNanos;

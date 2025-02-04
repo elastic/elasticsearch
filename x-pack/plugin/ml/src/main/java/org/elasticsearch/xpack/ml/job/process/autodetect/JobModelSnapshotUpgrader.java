@@ -12,6 +12,8 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -19,12 +21,17 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
+import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.output.FlushAcknowledgement;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.job.snapshot.upgrade.SnapshotUpgradeState;
 import org.elasticsearch.xpack.core.ml.job.snapshot.upgrade.SnapshotUpgradeTaskState;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -151,6 +158,61 @@ public final class JobModelSnapshotUpgrader {
             return;
         }
         executor.execute();
+
+        // If there are two snapshot model_size_stats documents in the results indices with the same snapshot id,
+        // remove the old one. This can happen when the result index has been rolled over and the write alias is
+        // pointing to the new index.
+        removeObsoleteSnapshotSizeStatsDoc();
+    }
+
+    private void removeObsoleteSnapshotSizeStatsDoc() {
+        String snapshotDocId = jobId + "_model_snapshot_" + snapshotId;
+        client.prepareSearch(AnomalyDetectorsIndex.jobResultsIndexPattern())
+            .setQuery(QueryBuilders.constantScoreQuery(QueryBuilders.termQuery("_id", snapshotDocId)))
+            .setSize(2)
+            .addSort(ModelSnapshot.MIN_VERSION.getPreferredName(), org.elasticsearch.search.sort.SortOrder.ASC)
+            .execute(ActionListener.wrap(searchResponse -> {
+                if (searchResponse.getHits().getTotalHits().value > 1) {
+                    deleteOlderSnapshotDoc(searchResponse);
+                }
+            }, e -> {
+                logger.warn(
+                    () -> format(
+                        "[%s] [%s] failed to search for snapshot [%s] result documents",
+                        jobId,
+                        snapshotId,
+                        ModelSizeStats.RESULT_TYPE_FIELD.getPreferredName()
+                    ),
+                    e
+                );
+            }));
+    }
+
+    private void deleteOlderSnapshotDoc(SearchResponse searchResponse) {
+        SearchHit firstHit = searchResponse.getHits().getAt(0);
+        client.prepareDelete().setIndex(firstHit.getIndex()).setId(firstHit.getId()).execute(ActionListener.wrap(deleteResponse -> {
+            if (deleteResponse.getResult() == DocWriteResponse.Result.DELETED == false) {
+                logger.warn(
+                    () -> format(
+                        "[%s] [%s] failed to delete old snapshot [%s] result document, document not found",
+                        jobId,
+                        snapshotId,
+                        ModelSizeStats.RESULT_TYPE_FIELD.getPreferredName()
+                    )
+                );
+            }
+        }, e -> {
+            logger.warn(
+                () -> format(
+                    "[%s] [%s] failed to delete old snapshot [%s] result document",
+                    jobId,
+                    snapshotId,
+                    ModelSizeStats.RESULT_TYPE_FIELD.getPreferredName()
+                ),
+                e
+            );
+        }));
+
     }
 
     void setTaskToFailed(String reason, ActionListener<PersistentTask<?>> listener) {

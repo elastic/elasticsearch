@@ -43,6 +43,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
@@ -152,6 +153,25 @@ public class RemoveRefreshClusterBlockService implements ClusterStateListener {
                         null
                     );
                 }
+            }
+        }
+
+        if (event.routingTableChanged()) {
+            Set<Index> blocksToRemove = new HashSet<>();
+            for (String blockedIndex : blockedIndices) {
+                if (event.indexRoutingTableChanged(blockedIndex)) {
+                    var indexRoutingTable = event.state().routingTable().index(blockedIndex);
+                    if (indexRoutingTable.readyForSearch()) {
+                        blocksToRemove.add(indexRoutingTable.getIndex());
+                    }
+                }
+            }
+            if (blocksToRemove.isEmpty() == false) {
+                updateClusterStateTaskQueue.submitTask(
+                    "remove-refresh-blocks-for-indices-ready-for-search",
+                    new RemoveRefreshBlockClusterStateUpdateTask(Collections.unmodifiableSet(blocksToRemove)),
+                    null
+                );
             }
         }
 

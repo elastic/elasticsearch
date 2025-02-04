@@ -60,7 +60,7 @@ import static org.hamcrest.Matchers.notNullValue;
 
 public class BlockRefreshUponIndexCreationIT extends AbstractStatelessIntegTestCase {
 
-    public void testIndexCreatedWithRefreshBlock() {
+    public void testIndexCreatedWithRefreshBlock() throws Exception {
         startMasterAndIndexNode(useRefreshBlockSetting(true));
 
         int nbReplicas = randomIntBetween(0, 3);
@@ -75,7 +75,7 @@ public class BlockRefreshUponIndexCreationIT extends AbstractStatelessIntegTestC
         if (0 < nbReplicas) {
             startSearchNodes(nbReplicas);
             ensureGreen(indexName);
-            assertThat(clusterBlocks().hasIndexBlock(indexName, IndexMetadata.INDEX_REFRESH_BLOCK), equalTo(false));
+            assertBusy(() -> assertThat(clusterBlocks().hasIndexBlock(indexName, IndexMetadata.INDEX_REFRESH_BLOCK), equalTo(false)));
         }
     }
 
@@ -135,7 +135,7 @@ public class BlockRefreshUponIndexCreationIT extends AbstractStatelessIntegTestC
         delayedCommitRegistration.run();
 
         ensureYellowAndNoInitializingShards(indexName);
-        assertThat(clusterBlocks().hasIndexBlock(indexName, IndexMetadata.INDEX_REFRESH_BLOCK), equalTo(false));
+        assertBusy(() -> assertThat(clusterBlocks().hasIndexBlock(indexName, IndexMetadata.INDEX_REFRESH_BLOCK), equalTo(false)));
 
         assertResponse(client().prepareSearch(indexName).setQuery(new MatchAllQueryBuilder()), ElasticsearchAssertions::assertNoFailures);
 

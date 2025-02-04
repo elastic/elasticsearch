@@ -22,6 +22,7 @@ import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -49,13 +50,19 @@ public abstract class MultipleProjectsClientYamlSuiteTestCase extends ESClientYa
      */
     protected static final String PASS = Objects.requireNonNull(System.getProperty("tests.rest.cluster.password", "test-password"));
 
-    // The active project-id is slightly longer, and has a fixed suffix so that it's easier to pick in error messages etc.
-    private final String activeProject = randomAlphaOfLength(8).toLowerCase(Locale.ROOT) + "00active";
-    private final Set<String> extraProjects = randomSet(1, 3, () -> randomAlphaOfLength(12).toLowerCase(Locale.ROOT));
-    private boolean projectsConfigured = false;
+    private static String activeProject;
+    private static Set<String> extraProjects;
+    private static boolean projectsConfigured = false;
 
     public MultipleProjectsClientYamlSuiteTestCase(ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
+    }
+
+    @BeforeClass
+    public static void initializeProjectIds() {
+        // The active project-id is slightly longer, and has a fixed suffix so that it's easier to pick in error messages etc.
+        activeProject = randomAlphaOfLength(8).toLowerCase(Locale.ROOT) + "00active";
+        extraProjects = randomSet(1, 3, () -> randomAlphaOfLength(12).toLowerCase(Locale.ROOT));
     }
 
     @Override
@@ -111,16 +118,22 @@ public abstract class MultipleProjectsClientYamlSuiteTestCase extends ESClientYa
         var response = responseAsMap(adminClient().performRequest(request));
         ObjectPath state = new ObjectPath(response);
 
-        assertThat(
-            "Project [" + projectId + "] should not have indices",
-            ((Map<?, ?>) state.evaluate("metadata.indices")).keySet(),
-            empty()
-        );
-        assertThat(
-            "Project [" + projectId + "] should not have routing entries",
-            ((Map<?, ?>) state.evaluate("routing_table.indices")).keySet(),
-            empty()
-        );
+        final var indexNames = ((Map<?, ?>) state.evaluate("metadata.indices")).keySet();
+        final var routingTableEntries = ((Map<?, ?>) state.evaluate("routing_table.indices")).keySet();
+        if (indexNames.isEmpty() == false || routingTableEntries.isEmpty() == false) {
+            // Only the default project is allowed to have the security index after tests complete.
+            // The security index could show up in the indices, routing table, or both.
+            // If that happens, we need to check that it hasn't been modified by any leaking API calls.
+            if (projectId.equals(Metadata.DEFAULT_PROJECT_ID.id())
+                && (indexNames.isEmpty() || (indexNames.size() == 1 && indexNames.contains(".security-7")))
+                && (routingTableEntries.isEmpty() || (routingTableEntries.size() == 1 && routingTableEntries.contains(".security-7")))) {
+                checkSecurityIndex();
+            } else {
+                // If there are any other indices or if this is for a non-default project, we fail the test.
+                assertThat("Project [" + projectId + "] should not have indices", indexNames, empty());
+                assertThat("Project [" + projectId + "] should not have routing entries", routingTableEntries, empty());
+            }
+        }
         assertThat(
             "Project [" + projectId + "] should not have graveyard entries",
             state.evaluate("metadata.index-graveyard.tombstones"),
@@ -168,6 +181,27 @@ public abstract class MultipleProjectsClientYamlSuiteTestCase extends ESClientYa
         } else if (projectId.equals(Metadata.DEFAULT_PROJECT_ID.id())) {
             fail("Expected default project to have standard ILM policies, but was null");
         }
+    }
+
+    private void checkSecurityIndex() throws IOException {
+        final Request request = new Request("GET", "/_security/_query/role");
+        request.setJsonEntity("""
+            {
+              "query": {
+                "bool": {
+                  "must_not": {
+                    "term": {
+                      "metadata._reserved": true
+                    }
+                  }
+                }
+              }
+            }""");
+        request.setOptions(
+            request.getOptions().toBuilder().addHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER, Metadata.DEFAULT_PROJECT_ID.id()).build()
+        );
+        final var response = responseAsMap(adminClient().performRequest(request));
+        assertThat("Security index should not contain any non-reserved roles", (Collection<?>) response.get("roles"), empty());
     }
 
     private void assertProjectIds(RestClient client, List<String> expectedProjects) throws IOException {

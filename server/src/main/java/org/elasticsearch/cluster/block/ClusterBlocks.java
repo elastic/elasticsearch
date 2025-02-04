@@ -188,6 +188,10 @@ public class ClusterBlocks implements Diffable<ClusterBlocks> {
         return clusterBlocks.contains(block);
     }
 
+    public boolean hasIndexBlockLevel(ProjectId projectId, String index, ClusterBlockLevel level) {
+        return blocksForIndex(projectId, level, index).isEmpty() == false;
+    }
+
     public boolean hasIndexBlockWithId(ProjectId projectId, String index, int blockId) {
         return getIndexBlockWithId(projectId, index, blockId) != null;
     }
@@ -653,6 +657,14 @@ public class ClusterBlocks implements Diffable<ClusterBlocks> {
                 return false;
             }
             return indices.getOrDefault(index, Set.of()).contains(block);
+        }
+
+        public boolean hasIndexBlockLevel(ProjectId projectId, String index, ClusterBlockLevel level) {
+            final var indices = projects.get(projectId);
+            if (indices == null) {
+                return false;
+            }
+            return indices.getOrDefault(index, Set.of()).stream().anyMatch(clusterBlock -> clusterBlock.contains(level));
         }
 
         public Builder removeIndexBlock(ProjectId projectId, String index, ClusterBlock block) {

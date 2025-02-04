@@ -38,6 +38,7 @@ tasks.named("yamlRestTest").configure {
     '^enrich/30_tsdb_index/*',
     '^enrich/40_synthetic_source/*',
     '^enrich/50_data_stream/*',
+    '^esql/46_downsample/*',
     '^esql/60_enrich/*',
     '^esql/60_usage/*',
     '^esql/61_enrich_ip/*',

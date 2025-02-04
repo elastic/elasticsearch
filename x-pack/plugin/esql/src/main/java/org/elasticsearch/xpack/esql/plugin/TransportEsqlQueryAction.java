@@ -53,7 +53,6 @@ import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.EsqlSession.PlanRunner;
-import org.elasticsearch.xpack.esql.session.QueryBuilderResolver;
 import org.elasticsearch.xpack.esql.session.Result;
 
 import java.io.IOException;
@@ -81,8 +80,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     private final LookupFromIndexService lookupFromIndexService;
     private final AsyncTaskManagementService<EsqlQueryRequest, EsqlQueryResponse, EsqlQueryTask> asyncTaskManagementService;
     private final RemoteClusterService remoteClusterService;
-    private final QueryBuilderResolver queryBuilderResolver;
     private final UsageService usageService;
+    private final TransportActionServices services;
     // Listeners for active async queries, key being the async task execution ID
     private final Map<String, EsqlQueryListener> asyncListeners = ConcurrentCollections.newConcurrentMap();
 
@@ -153,8 +152,16 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             bigArrays
         );
         this.remoteClusterService = transportService.getRemoteClusterService();
-        this.queryBuilderResolver = new QueryBuilderResolver(searchService, clusterService, transportService, indexNameExpressionResolver);
         this.usageService = usageService;
+
+        this.services = new TransportActionServices(
+            transportService,
+            searchService,
+            exchangeService,
+            clusterService,
+            indexNameExpressionResolver,
+            usageService
+        );
     }
 
     @Override
@@ -258,8 +265,18 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             executionInfo,
             remoteClusterService,
             planRunner,
-            queryBuilderResolver,
+            services,
             ActionListener.wrap(result -> {
+                // If we had any skipped or partial clusters, the result is partial
+                if (executionInfo.getClusters()
+                    .values()
+                    .stream()
+                    .anyMatch(
+                        c -> c.getStatus() == EsqlExecutionInfo.Cluster.Status.SKIPPED
+                            || c.getStatus() == EsqlExecutionInfo.Cluster.Status.PARTIAL
+                    )) {
+                    executionInfo.markAsPartial();
+                }
                 recordCCSTelemetry(task, executionInfo, request, null);
                 listener.onResponse(toResponse(task, request, configuration, result));
             }, ex -> {

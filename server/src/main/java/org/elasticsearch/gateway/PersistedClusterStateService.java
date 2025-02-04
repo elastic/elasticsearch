@@ -28,6 +28,8 @@ import org.apache.lucene.index.SerialMergeScheduler;
 import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TieredMergePolicy;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
@@ -190,14 +192,24 @@ public class PersistedClusterStateService {
     private final ByteSizeValue documentPageSize;
 
     private volatile TimeValue slowWriteLoggingThreshold;
+    // Whether the cluster has multi-project mode enabled, see also ProjectResolver#supportsMultipleProjects
+    private final boolean supportsMultipleProjects;
 
     public PersistedClusterStateService(
         NodeEnvironment nodeEnvironment,
         NamedXContentRegistry namedXContentRegistry,
         ClusterSettings clusterSettings,
-        LongSupplier relativeTimeMillisSupplier
+        LongSupplier relativeTimeMillisSupplier,
+        boolean supportsMultipleProjects
     ) {
-        this(nodeEnvironment.nodeDataPaths(), nodeEnvironment.nodeId(), namedXContentRegistry, clusterSettings, relativeTimeMillisSupplier);
+        this(
+            nodeEnvironment.nodeDataPaths(),
+            nodeEnvironment.nodeId(),
+            namedXContentRegistry,
+            clusterSettings,
+            relativeTimeMillisSupplier,
+            supportsMultipleProjects
+        );
     }
 
     public PersistedClusterStateService(
@@ -205,7 +217,8 @@ public class PersistedClusterStateService {
         String nodeId,
         NamedXContentRegistry namedXContentRegistry,
         ClusterSettings clusterSettings,
-        LongSupplier relativeTimeMillisSupplier
+        LongSupplier relativeTimeMillisSupplier,
+        boolean supportsMultipleProjects
     ) {
         this.dataPaths = dataPaths;
         this.nodeId = nodeId;
@@ -213,6 +226,7 @@ public class PersistedClusterStateService {
             .withRegistry(namedXContentRegistry);
         this.relativeTimeMillisSupplier = relativeTimeMillisSupplier;
         this.slowWriteLoggingThreshold = clusterSettings.get(SLOW_WRITE_LOGGING_THRESHOLD);
+        this.supportsMultipleProjects = supportsMultipleProjects;
         clusterSettings.addSettingsUpdateConsumer(SLOW_WRITE_LOGGING_THRESHOLD, this::setSlowWriteLoggingThreshold);
         this.documentPageSize = clusterSettings.get(DOCUMENT_PAGE_SIZE);
     }
@@ -239,7 +253,7 @@ public class PersistedClusterStateService {
 
                 final IndexWriter indexWriter = createIndexWriter(directory, false);
                 closeables.add(indexWriter);
-                metadataIndexWriters.add(new MetadataIndexWriter(path, directory, indexWriter));
+                metadataIndexWriters.add(new MetadataIndexWriter(path, directory, indexWriter, supportsMultipleProjects));
             }
             success = true;
         } finally {
@@ -808,12 +822,14 @@ public class PersistedClusterStateService {
         private final Path path;
         private final Directory directory;
         private final IndexWriter indexWriter;
+        private final boolean supportsMultipleProjects;
 
-        MetadataIndexWriter(Path path, Directory directory, IndexWriter indexWriter) {
+        MetadataIndexWriter(Path path, Directory directory, IndexWriter indexWriter, boolean supportsMultipleProjects) {
             this.path = path;
             this.directory = directory;
             this.indexWriter = indexWriter;
             this.logger = Loggers.getLogger(MetadataIndexWriter.class, directory.toString());
+            this.supportsMultipleProjects = supportsMultipleProjects;
         }
 
         void deleteAll() throws IOException {
@@ -831,9 +847,26 @@ public class PersistedClusterStateService {
             indexWriter.deleteDocuments(new Term(INDEX_UUID_FIELD_NAME, indexUUID));
         }
 
-        public void deleteMappingMetadata(String mappingHash) throws IOException {
-            this.logger.trace("removing mapping metadata for [{}]", mappingHash);
-            indexWriter.deleteDocuments(new Term(MAPPING_HASH_FIELD_NAME, mappingHash));
+        public void deleteMappingMetadata(ProjectId projectId, String mappingHash) throws IOException {
+            this.logger.trace("removing mapping metadata for [{}] on project [{}]", mappingHash, projectId);
+
+            if (supportsMultipleProjects) {
+                // For the time-being, different projects can have the same mapping and the deduplication is per project.
+                // Therefore, we must ensure the unused mapping is deleted for only the relevant project by adding project-id
+                // to the query for deletion.
+                // https://elasticco.atlassian.net/browse/ES-10605 tracks the future work for deduplicating mappings across projects
+                final BooleanQuery matchProjectIdAndMappingHashKey = new BooleanQuery.Builder().add(
+                    new TermQuery(new Term(PROJECT_ID_FIELD_NAME, projectId.id())),
+                    BooleanClause.Occur.MUST
+                ).add(new TermQuery(new Term(MAPPING_HASH_FIELD_NAME, mappingHash)), BooleanClause.Occur.MUST).build();
+                indexWriter.deleteDocuments(matchProjectIdAndMappingHashKey);
+            } else {
+                // Stateful clusters or serverless clusters with multi-projects disabled have either just the mapping metadata (BWC)
+                // or the mapping metadata for a single default project. For both cases, the unused mapping metadata
+                // can be removed based on its hash since project-id does not come into play at all.
+                assert Metadata.DEFAULT_PROJECT_ID.equals(projectId) : "expected default project id, got " + projectId;
+                indexWriter.deleteDocuments(new Term(MAPPING_HASH_FIELD_NAME, mappingHash));
+            }
         }
 
         void flush() throws IOException {
@@ -1060,15 +1093,16 @@ public class PersistedClusterStateService {
             int numIndicesUnchanged = 0;
 
             for (ProjectMetadata project : metadata.projects().values()) {
-                ProjectMetadata previousProject = previouslyWrittenMetadata.projects().get(project.id());
+                final ProjectId projectId = project.id();
+                ProjectMetadata previousProject = previouslyWrittenMetadata.projects().get(projectId);
                 // If there's no previous project, this project is new so we add all indices and mappings.
                 if (previousProject == null) {
                     for (final var entry : project.getMappingsByHash().entrySet()) {
-                        addMappingDocuments(project.id(), entry.getKey(), entry.getValue());
+                        addMappingDocuments(projectId, entry.getKey(), entry.getValue());
                         numMappingsAdded++;
                     }
                     for (IndexMetadata indexMetadata : project.indices().values()) {
-                        addIndexMetadataDocuments(project.id(), indexMetadata);
+                        addIndexMetadataDocuments(projectId, indexMetadata);
                         numIndicesAdded++;
                     }
                     continue;
@@ -1077,7 +1111,7 @@ public class PersistedClusterStateService {
                 final var previousMappingHashes = new HashSet<>(previousProject.getMappingsByHash().keySet());
                 for (final var entry : project.getMappingsByHash().entrySet()) {
                     if (previousMappingHashes.remove(entry.getKey()) == false) {
-                        addMappingDocuments(project.id(), entry.getKey(), entry.getValue());
+                        addMappingDocuments(projectId, entry.getKey(), entry.getValue());
                         numMappingsAdded++;
                     } else {
                         logger.trace("no action required for mapping [{}]", entry.getKey());
@@ -1088,7 +1122,7 @@ public class PersistedClusterStateService {
                 // Remove unused mappings.
                 for (final var unusedMappingHash : previousMappingHashes) {
                     for (MetadataIndexWriter metadataIndexWriter : metadataIndexWriters) {
-                        metadataIndexWriter.deleteMappingMetadata(unusedMappingHash);
+                        metadataIndexWriter.deleteMappingMetadata(projectId, unusedMappingHash);
                         numMappingsRemoved++;
                     }
                 }
@@ -1122,7 +1156,7 @@ public class PersistedClusterStateService {
                             metadataIndexWriter.deleteIndexMetadata(indexMetadata.getIndexUUID());
                         }
 
-                        addIndexMetadataDocuments(project.id(), indexMetadata);
+                        addIndexMetadataDocuments(projectId, indexMetadata);
                     } else {
                         numIndicesUnchanged++;
                         logger.trace("no action required for index [{}]", indexMetadata.getIndex());
@@ -1146,7 +1180,7 @@ public class PersistedClusterStateService {
                 }
                 for (final var unusedMappingHash : removedProject.getMappingsByHash().keySet()) {
                     for (MetadataIndexWriter metadataIndexWriter : metadataIndexWriters) {
-                        metadataIndexWriter.deleteMappingMetadata(unusedMappingHash);
+                        metadataIndexWriter.deleteMappingMetadata(removedProject.id(), unusedMappingHash);
                         numMappingsRemoved++;
                     }
                 }
@@ -1182,7 +1216,7 @@ public class PersistedClusterStateService {
         }
 
         private void addMappingDocuments(ProjectId projectId, String key, MappingMetadata mappingMetadata) throws IOException {
-            logger.trace("writing mapping metadata with hash [{}]", key);
+            logger.trace("writing mapping metadata with hash [{}] on project [{}]", key, projectId);
             writePages(
                 (builder, params) -> builder.field("content", mappingMetadata.source().compressed()),
                 (((bytesRef, pageIndex, isLastPage) -> {
@@ -1192,7 +1226,7 @@ public class PersistedClusterStateService {
                     document.add(new StoredField(PAGE_FIELD_NAME, pageIndex));
                     document.add(new StoredField(LAST_PAGE_FIELD_NAME, lastPageValue(isLastPage)));
                     document.add(new StoredField(DATA_FIELD_NAME, bytesRef));
-                    document.add(new StoredField(PROJECT_ID_FIELD_NAME, projectId.id()));
+                    document.add(new StringField(PROJECT_ID_FIELD_NAME, projectId.id(), Field.Store.YES));
                     for (MetadataIndexWriter metadataIndexWriter : metadataIndexWriters) {
                         metadataIndexWriter.indexWriter.addDocument(document);
                     }
@@ -1203,7 +1237,7 @@ public class PersistedClusterStateService {
         private void addIndexMetadataDocuments(ProjectId projectId, IndexMetadata indexMetadata) throws IOException {
             final String indexUUID = indexMetadata.getIndexUUID();
             assert indexUUID.equals(IndexMetadata.INDEX_UUID_NA_VALUE) == false;
-            logger.trace("updating metadata for [{}]", indexMetadata.getIndex());
+            logger.trace("updating metadata for [{}] on project [{}]", indexMetadata.getIndex(), projectId);
             writePages(indexMetadata, ((bytesRef, pageIndex, isLastPage) -> {
                 final Document document = new Document();
                 document.add(new StringField(TYPE_FIELD_NAME, INDEX_TYPE_NAME, Field.Store.NO));
@@ -1211,7 +1245,7 @@ public class PersistedClusterStateService {
                 document.add(new StoredField(PAGE_FIELD_NAME, pageIndex));
                 document.add(new StoredField(LAST_PAGE_FIELD_NAME, lastPageValue(isLastPage)));
                 document.add(new StoredField(DATA_FIELD_NAME, bytesRef));
-                document.add(new StoredField(PROJECT_ID_FIELD_NAME, projectId.id()));
+                document.add(new StringField(PROJECT_ID_FIELD_NAME, projectId.id(), Field.Store.YES));
                 for (MetadataIndexWriter metadataIndexWriter : metadataIndexWriters) {
                     metadataIndexWriter.indexWriter.addDocument(document);
                 }

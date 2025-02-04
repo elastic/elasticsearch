@@ -139,7 +139,7 @@ public class FileSettingsServiceTests extends ESTestCase {
                 List.of()
             )
         );
-        healthIndicatorService = spy(new FileSettingsHealthIndicatorService());
+        healthIndicatorService = spy(new FileSettingsHealthIndicatorService(Settings.EMPTY));
         fileSettingsService = spy(new FileSettingsService(clusterService, controller, env, healthIndicatorService));
         watchedFile = fileSettingsService.watchedFile();
     }

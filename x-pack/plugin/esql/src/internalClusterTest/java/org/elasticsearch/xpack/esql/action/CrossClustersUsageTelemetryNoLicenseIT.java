@@ -23,7 +23,7 @@ public class CrossClustersUsageTelemetryNoLicenseIT extends AbstractCrossCluster
     protected Collection<Class<? extends Plugin>> nodePlugins(String clusterAlias) {
         List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins(clusterAlias));
         plugins.add(EsqlPluginWithNonEnterpriseOrExpiredLicense.class);
-        plugins.add(CrossClustersQueryIT.InternalExchangePlugin.class);
+        plugins.add(CrossClusterQueryIT.InternalExchangePlugin.class);
         return plugins;
     }
 

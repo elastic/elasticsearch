@@ -756,7 +756,7 @@ public final class RestoreService implements ClusterStateApplier {
             .map(systemIndices::getFeature)
             .filter(Objects::nonNull) // Features that aren't present on this node will be warned about in `getFeatureStatesToRestore`
             .flatMap(feature -> feature.getIndexDescriptors().stream())
-            .flatMap(descriptor -> descriptor.getMatchingIndices(currentState.metadata()).stream())
+            .flatMap(descriptor -> descriptor.getMatchingIndices(currentState.metadata().getProject()).stream())
             .map(indexName -> {
                 assert currentState.metadata().getProject().hasIndex(indexName)
                     : "index [" + indexName + "] not found in metadata but must be present";

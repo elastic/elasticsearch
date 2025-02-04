@@ -54,6 +54,10 @@ public interface DataSourceHandler {
         return null;
     }
 
+    default DataSourceResponse.RepeatingWrapper handle(DataSourceRequest.RepeatingWrapper request) {
+        return null;
+    }
+
     default DataSourceResponse.ChildFieldGenerator handle(DataSourceRequest.ChildFieldGenerator request) {
         return null;
     }

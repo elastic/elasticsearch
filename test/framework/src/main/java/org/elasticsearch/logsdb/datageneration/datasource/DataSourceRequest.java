@@ -85,6 +85,12 @@ public interface DataSourceRequest<TResponse extends DataSourceResponse> {
         }
     }
 
+    record RepeatingWrapper() implements DataSourceRequest<DataSourceResponse.RepeatingWrapper> {
+        public DataSourceResponse.RepeatingWrapper accept(DataSourceHandler handler) {
+            return handler.handle(this);
+        }
+    }
+
     record ChildFieldGenerator(DataGeneratorSpecification specification)
         implements
             DataSourceRequest<DataSourceResponse.ChildFieldGenerator> {

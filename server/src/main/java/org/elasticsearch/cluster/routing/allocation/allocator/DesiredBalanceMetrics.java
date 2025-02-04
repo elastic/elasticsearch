@@ -11,6 +11,7 @@ package org.elasticsearch.cluster.routing.allocation.allocator;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationStatsAndWeightsCalculator.NodeAllocationStatsAndWeight;
+import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.telemetry.metric.DoubleWithAttributes;
 import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
@@ -28,17 +29,28 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 public class DesiredBalanceMetrics {
 
+    /**
+     * @param unassignedShards Shards that are not assigned to any node.
+     * @param totalAllocations Shards that are assigned to a node.
+     * @param undesiredAllocationsExcludingShuttingDownNodes Shards that are assigned to a node but must move to alleviate a resource
+     *                                                       constraint per the {@link AllocationDeciders}. Excludes shards that must move
+     *                                                       because of a node shutting down.
+     */
     public record AllocationStats(long unassignedShards, long totalAllocations, long undesiredAllocationsExcludingShuttingDownNodes) {}
 
     public record NodeWeightStats(long shardCount, double diskUsageInBytes, double writeLoad, double nodeWeight) {}
 
-    public static final DesiredBalanceMetrics NOOP = new DesiredBalanceMetrics(MeterRegistry.NOOP);
-
+    // Reconciliation metrics.
+    /** See {@link #unassignedShards} */
     public static final String UNASSIGNED_SHARDS_METRIC_NAME = "es.allocator.desired_balance.shards.unassigned.current";
+    /** See {@link #totalAllocations} */
     public static final String TOTAL_SHARDS_METRIC_NAME = "es.allocator.desired_balance.shards.current";
+    /** See {@link #undesiredAllocationsExcludingShuttingDownNodes} */
     public static final String UNDESIRED_ALLOCATION_COUNT_METRIC_NAME = "es.allocator.desired_balance.allocations.undesired.current";
+    /** {@link #UNDESIRED_ALLOCATION_COUNT_METRIC_NAME} / {@link #TOTAL_SHARDS_METRIC_NAME} */
     public static final String UNDESIRED_ALLOCATION_RATIO_METRIC_NAME = "es.allocator.desired_balance.allocations.undesired.ratio";
 
+    // Desired balance node metrics.
     public static final String DESIRED_BALANCE_NODE_WEIGHT_METRIC_NAME = "es.allocator.desired_balance.allocations.node_weight.current";
     public static final String DESIRED_BALANCE_NODE_SHARD_COUNT_METRIC_NAME =
         "es.allocator.desired_balance.allocations.node_shard_count.current";
@@ -47,6 +59,7 @@ public class DesiredBalanceMetrics {
     public static final String DESIRED_BALANCE_NODE_DISK_USAGE_METRIC_NAME =
         "es.allocator.desired_balance.allocations.node_disk_usage_bytes.current";
 
+    // Node weight metrics.
     public static final String CURRENT_NODE_WEIGHT_METRIC_NAME = "es.allocator.allocations.node.weight.current";
     public static final String CURRENT_NODE_SHARD_COUNT_METRIC_NAME = "es.allocator.allocations.node.shard_count.current";
     public static final String CURRENT_NODE_WRITE_LOAD_METRIC_NAME = "es.allocator.allocations.node.write_load.current";
@@ -59,6 +72,7 @@ public class DesiredBalanceMetrics {
     public static final AllocationStats EMPTY_ALLOCATION_STATS = new AllocationStats(-1, -1, -1);
 
     private volatile boolean nodeIsMaster = false;
+
     /**
      * Number of unassigned shards during last reconciliation
      */
@@ -70,9 +84,10 @@ public class DesiredBalanceMetrics {
     private volatile long totalAllocations;
 
     /**
-     * Number of assigned shards during last reconciliation that are not allocated on desired node and need to be moved
+     * Number of assigned shards during last reconciliation that are not allocated on a desired node and need to be moved.
+     * This excludes shards that must be reassigned due to a shutting down node.
      */
-    private volatile long undesiredAllocations;
+    private volatile long undesiredAllocationsExcludingShuttingDownNodes;
 
     private final AtomicReference<Map<DiscoveryNode, NodeWeightStats>> weightStatsPerNodeRef = new AtomicReference<>(Map.of());
     private final AtomicReference<Map<DiscoveryNode, NodeAllocationStatsAndWeight>> allocationStatsPerNodeRef = new AtomicReference<>(
@@ -89,7 +104,7 @@ public class DesiredBalanceMetrics {
         if (allocationStats != EMPTY_ALLOCATION_STATS) {
             this.unassignedShards = allocationStats.unassignedShards;
             this.totalAllocations = allocationStats.totalAllocations;
-            this.undesiredAllocations = allocationStats.undesiredAllocationsExcludingShuttingDownNodes;
+            this.undesiredAllocationsExcludingShuttingDownNodes = allocationStats.undesiredAllocationsExcludingShuttingDownNodes;
         }
         weightStatsPerNodeRef.set(weightStatsPerNode);
         allocationStatsPerNodeRef.set(nodeAllocationStats);
@@ -107,7 +122,7 @@ public class DesiredBalanceMetrics {
             UNDESIRED_ALLOCATION_COUNT_METRIC_NAME,
             "Total number of shards allocated on undesired nodes excluding shutting down nodes",
             "{shard}",
-            this::getUndesiredAllocationsMetrics
+            this::getUndesiredAllocationsExcludingShuttingDownNodesMetrics
         );
         meterRegistry.registerDoublesGauge(
             UNDESIRED_ALLOCATION_RATIO_METRIC_NAME,
@@ -115,6 +130,7 @@ public class DesiredBalanceMetrics {
             "1",
             this::getUndesiredAllocationsRatioMetrics
         );
+
         meterRegistry.registerDoublesGauge(
             DESIRED_BALANCE_NODE_WEIGHT_METRIC_NAME,
             "Weight of nodes in the computed desired balance",
@@ -133,17 +149,18 @@ public class DesiredBalanceMetrics {
             "bytes",
             this::getDesiredBalanceNodeDiskUsageMetrics
         );
-        meterRegistry.registerDoublesGauge(
-            CURRENT_NODE_WEIGHT_METRIC_NAME,
-            "The weight of nodes based on the current allocation state",
-            "unit",
-            this::getCurrentNodeWeightMetrics
-        );
         meterRegistry.registerLongsGauge(
             DESIRED_BALANCE_NODE_SHARD_COUNT_METRIC_NAME,
             "Shard count of nodes in the computed desired balance",
             "unit",
             this::getDesiredBalanceNodeShardCountMetrics
+        );
+
+        meterRegistry.registerDoublesGauge(
+            CURRENT_NODE_WEIGHT_METRIC_NAME,
+            "The weight of nodes based on the current allocation state",
+            "unit",
+            this::getCurrentNodeWeightMetrics
         );
         meterRegistry.registerDoublesGauge(
             CURRENT_NODE_WRITE_LOAD_METRIC_NAME,
@@ -194,7 +211,7 @@ public class DesiredBalanceMetrics {
     }
 
     public long undesiredAllocations() {
-        return undesiredAllocations;
+        return undesiredAllocationsExcludingShuttingDownNodes;
     }
 
     private List<LongWithAttributes> getUnassignedShardsMetrics() {
@@ -330,8 +347,8 @@ public class DesiredBalanceMetrics {
         return getIfPublishing(totalAllocations);
     }
 
-    private List<LongWithAttributes> getUndesiredAllocationsMetrics() {
-        return getIfPublishing(undesiredAllocations);
+    private List<LongWithAttributes> getUndesiredAllocationsExcludingShuttingDownNodesMetrics() {
+        return getIfPublishing(undesiredAllocationsExcludingShuttingDownNodes);
     }
 
     private List<LongWithAttributes> getIfPublishing(long value) {
@@ -344,7 +361,7 @@ public class DesiredBalanceMetrics {
     private List<DoubleWithAttributes> getUndesiredAllocationsRatioMetrics() {
         if (nodeIsMaster) {
             var total = totalAllocations;
-            var undesired = undesiredAllocations;
+            var undesired = undesiredAllocationsExcludingShuttingDownNodes;
             return List.of(new DoubleWithAttributes(total != 0 ? (double) undesired / total : 0.0));
         }
         return List.of();
@@ -357,7 +374,7 @@ public class DesiredBalanceMetrics {
     public void zeroAllMetrics() {
         unassignedShards = 0;
         totalAllocations = 0;
-        undesiredAllocations = 0;
+        undesiredAllocationsExcludingShuttingDownNodes = 0;
         weightStatsPerNodeRef.set(Map.of());
         allocationStatsPerNodeRef.set(Map.of());
     }

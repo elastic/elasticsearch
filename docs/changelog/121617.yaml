@@ -1,0 +1,5 @@
+pr: 121617
+summary: Add pipeline to clean docs during data stream reindex
+area: Data streams
+type: bug
+issues: []

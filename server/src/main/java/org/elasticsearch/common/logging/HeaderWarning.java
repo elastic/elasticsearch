@@ -426,10 +426,4 @@ public class HeaderWarning {
             }
         }
     }
-
-    static void addRawWarning(Set<ThreadContext> threadContexts, String warningHeader) {
-        for (ThreadContext threadContext : threadContexts) {
-            threadContext.addResponseHeader("Warning", warningHeader);
-        }
-    }
 }

@@ -1027,7 +1027,7 @@ public class MetadataIndexStateService {
         final boolean markVerified
     ) {
         final ClusterBlocks.Builder blocks = ClusterBlocks.builder(currentState.blocks());
-        final Metadata.Builder metadata = Metadata.builder(currentState.metadata());
+        final ProjectMetadata.Builder metadata = ProjectMetadata.builder(currentState.metadata().getProject(projectId));
 
         final Set<String> effectivelyBlockedIndices = new HashSet<>();
         Map<Index, AddBlockResult> blockingResults = new HashMap<>(verifyResult);
@@ -1091,7 +1091,7 @@ public class MetadataIndexStateService {
         }
         logger.info("completed adding [index.blocks.{}] block to indices {}", block.name, effectivelyBlockedIndices);
         return Tuple.tuple(
-            ClusterState.builder(currentState).metadata(metadata).blocks(blocks).build(),
+            ClusterState.builder(currentState).putProjectMetadata(metadata).blocks(blocks).build(),
             List.copyOf(blockingResults.values())
         );
     }

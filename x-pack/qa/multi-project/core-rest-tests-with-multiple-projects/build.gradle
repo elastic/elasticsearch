@@ -42,7 +42,6 @@ tasks.named("yamlRestTest").configure {
     '^data_stream/40_supported_apis/Verify shard stores api', // uses _shard_stores API
     '^health/10_basic/*',
     '^health/40_diagnosis/*',
-    '^indices.blocks/*/*',
     '^indices.get_alias/10_basic/Get alias against closed indices', // Does NOT work with security enabled, see also core-rest-tests-with-security
     '^indices.recovery/*/*',
     '^indices.resolve_cluster/*/*',

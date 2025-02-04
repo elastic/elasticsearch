@@ -55,7 +55,6 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.inference.InferencePlugin.INFERENCE_API_FEATURE;
-import static org.elasticsearch.xpack.inference.common.InferenceAPIClusterAwareRateLimitingFeature.INFERENCE_API_CLUSTER_AWARE_RATE_LIMITING_FEATURE_FLAG;
 import static org.elasticsearch.xpack.inference.telemetry.InferenceStats.modelAttributes;
 import static org.elasticsearch.xpack.inference.telemetry.InferenceStats.responseAttributes;
 
@@ -188,10 +187,6 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
     }
 
     private NodeRoutingDecision determineRouting(String serviceName, Request request, UnparsedModel unparsedModel) {
-        if (INFERENCE_API_CLUSTER_AWARE_RATE_LIMITING_FEATURE_FLAG.isEnabled() == false) {
-            return NodeRoutingDecision.handleLocally();
-        }
-
         var modelTaskType = unparsedModel.taskType();
 
         // Rerouting not supported or request was already rerouted
@@ -305,7 +300,7 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
     }
 
     private void inferOnService(Model model, Request request, InferenceService service, ActionListener<InferenceServiceResults> listener) {
-        if (request.isStreaming() == false || service.canStream(request.getTaskType())) {
+        if (request.isStreaming() == false || service.canStream(model.getTaskType())) {
             doInference(model, request, service, listener);
         } else {
             listener.onFailure(unsupportedStreamingTaskException(request, service));

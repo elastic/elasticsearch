@@ -529,7 +529,8 @@ public class CountedKeywordFieldMapper extends FieldMapper {
         @Override
         public BytesRef binaryValue() {
             try {
-                int bytesSize = (counts.size() + 1) * 5;
+                int maxBytesPerVInt = 5;
+                int bytesSize = (counts.size() + 1) * maxBytesPerVInt;
                 BytesStreamOutput out = new BytesStreamOutput(bytesSize);
                 int countsArr[] = new int[counts.size()];
                 int i = 0;

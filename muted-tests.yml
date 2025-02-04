@@ -307,9 +307,6 @@ tests:
   method: "builds distribution from branches via archives extractedAssemble [bwcDistVersion: 8.2.1, bwcProject: bugfix, expectedAssembleTaskName:
     extractedAssemble, #2]"
   issue: https://github.com/elastic/elasticsearch/issues/119871
-- class: org.elasticsearch.xpack.sql.qa.single_node.JdbcDocCsvSpecIT
-  method: test {docs.testFilterToday}
-  issue: https://github.com/elastic/elasticsearch/issues/121474
 
 # Examples:
 #

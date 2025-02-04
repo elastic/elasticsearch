@@ -52,9 +52,10 @@ import javax.net.ssl.SSLSocketFactory;
  * <p>
  * A bit like Mockito but way more painful.
  */
-public class DummyImplementations {
+class DummyImplementations {
 
-    public static class DummyLocaleServiceProvider extends LocaleServiceProvider {
+    static class DummyLocaleServiceProvider extends LocaleServiceProvider {
+
         @Override
         public Locale[] getAvailableLocales() {
             throw unexpected();

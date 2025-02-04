@@ -24,9 +24,7 @@ import org.elasticsearch.health.GetHealthAction;
 import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.HealthStatus;
-import org.elasticsearch.health.SimpleHealthIndicatorDetails;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
-import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
@@ -63,7 +61,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
@@ -224,8 +221,14 @@ public class SLMHealthBlockedSnapshotIT extends AbstractSnapshotIntegTestCase {
         indicesAdmin().refresh(new RefreshRequest(idxName)).actionGet();
     }
 
-    private void putSnapshotPolicy(String policyName, String snapshotNamePattern, String schedule, String repoId, String indexPattern,
-                                   TimeValue timeAllowedSineLastSnapshot) {
+    private void putSnapshotPolicy(
+        String policyName,
+        String snapshotNamePattern,
+        String schedule,
+        String repoId,
+        String indexPattern,
+        TimeValue timeAllowedSineLastSnapshot
+    ) {
         Map<String, Object> snapConfig = new HashMap<>();
         snapConfig.put("indices", Collections.singletonList(indexPattern));
         snapConfig.put("ignore_unavailable", false);
@@ -263,8 +266,10 @@ public class SLMHealthBlockedSnapshotIT extends AbstractSnapshotIntegTestCase {
             HealthIndicatorResult slmIndicator = health.findIndicator(SlmHealthIndicatorService.NAME);
             assertThat(slmIndicator.status(), equalTo(HealthStatus.YELLOW));
             assertThat(slmIndicator.impacts().size(), equalTo(1));
-            List<HealthIndicatorImpact> missingSnapshotPolicies = slmIndicator.impacts().stream()
-                .filter(impact -> SlmHealthIndicatorService.MISSING_SNAPSHOT_IMPACT_ID.equals(impact.id())).toList();
+            List<HealthIndicatorImpact> missingSnapshotPolicies = slmIndicator.impacts()
+                .stream()
+                .filter(impact -> SlmHealthIndicatorService.MISSING_SNAPSHOT_IMPACT_ID.equals(impact.id()))
+                .toList();
             assertThat(missingSnapshotPolicies.size(), equalTo(numUnhealthyPolicy));
         });
     }

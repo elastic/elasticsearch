@@ -349,7 +349,6 @@ public class ModelRegistry {
         }));
     }
 
-    // TODO should we add a lock on the default model id so we can't attempt to delete it while we're adding it?
     private void storeDefaultEndpoint(Model preconfigured, Runnable runAfter) {
         var responseListener = ActionListener.<Boolean>wrap(success -> {
             logger.debug("Added default inference endpoint [{}]", preconfigured.getInferenceEntityId());

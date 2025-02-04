@@ -226,8 +226,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         }
 
         doAnswer(invocation -> {
-            @SuppressWarnings("unchecked")
-            var listener = (ActionListener<List<Model>>) invocation.getArguments()[0];
+            ActionListener<List<Model>> listener = invocation.getArgument(0);
             listener.onResponse(defaultConfigs);
             return Void.TYPE;
         }).when(service).defaultConfigs(any());
@@ -371,8 +370,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         }
 
         doAnswer(invocation -> {
-            @SuppressWarnings("unchecked")
-            var listener = (ActionListener<List<Model>>) invocation.getArguments()[0];
+            ActionListener<List<Model>> listener = invocation.getArgument(0);
             listener.onResponse(defaultConfigs);
             return Void.TYPE;
         }).when(service).defaultConfigs(any());
@@ -437,8 +435,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         }
 
         doAnswer(invocation -> {
-            @SuppressWarnings("unchecked")
-            var listener = (ActionListener<List<Model>>) invocation.getArguments()[0];
+            ActionListener<List<Model>> listener = invocation.getArgument(0);
             listener.onResponse(defaultConfigs);
             return Void.TYPE;
         }).when(service).defaultConfigs(any());
@@ -480,8 +477,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         }
 
         doAnswer(invocation -> {
-            @SuppressWarnings("unchecked")
-            var listener = (ActionListener<List<Model>>) invocation.getArguments()[0];
+            ActionListener<List<Model>> listener = invocation.getArgument(0);
             listener.onResponse(defaultConfigs);
             return Void.TYPE;
         }).when(service).defaultConfigs(any());
@@ -525,8 +521,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         );
 
         doAnswer(invocation -> {
-            @SuppressWarnings("unchecked")
-            var listener = (ActionListener<List<Model>>) invocation.getArguments()[0];
+            ActionListener<List<Model>> listener = invocation.getArgument(0);
             listener.onResponse(defaultConfigs);
             return Void.TYPE;
         }).when(service).defaultConfigs(any());
@@ -579,8 +574,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         defaultIds.add(new InferenceService.DefaultConfigId("default-chat", MinimalServiceSettings.completion(), service));
 
         doAnswer(invocation -> {
-            @SuppressWarnings("unchecked")
-            var listener = (ActionListener<List<Model>>) invocation.getArguments()[0];
+            ActionListener<List<Model>> listener = invocation.getArgument(0);
             listener.onResponse(List.of(defaultSparse, defaultChat, defaultText));
             return Void.TYPE;
         }).when(service).defaultConfigs(any());

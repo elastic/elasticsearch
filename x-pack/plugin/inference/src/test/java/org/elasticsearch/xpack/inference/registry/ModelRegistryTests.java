@@ -28,6 +28,7 @@ import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnparsedModel;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchResponseUtils;
@@ -308,6 +309,25 @@ public class ModelRegistryTests extends ESTestCase {
 
         assertTrue(listener.actionGet(TIMEOUT));
         verify(client, times(0)).execute(any(), any(), any());
+    }
+
+    public void testDeleteModels_Returns_ConflictException_WhenModelIsBeingAdded() {
+        var client = mockClient();
+
+        var registry = new ModelRegistry(client);
+        var model = TestModel.createRandomInstance();
+        var newModel = TestModel.createRandomInstance();
+        registry.updateModelTransaction(newModel, model, new PlainActionFuture<>());
+
+        var listener = new PlainActionFuture<Boolean>();
+
+        registry.deleteModels(Set.of(newModel.getInferenceEntityId()), listener);
+        var exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
+        assertThat(
+            exception.getMessage(),
+            containsString("are currently being updated, please wait until after they are finished updating to delete.")
+        );
+        assertThat(exception.status(), is(RestStatus.CONFLICT));
     }
 
     public void testIdMatchedDefault() {

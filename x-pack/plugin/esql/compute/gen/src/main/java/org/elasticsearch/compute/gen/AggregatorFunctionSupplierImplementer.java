@@ -33,6 +33,7 @@ import static org.elasticsearch.compute.gen.Types.AGGREGATOR_FUNCTION_SUPPLIER;
 import static org.elasticsearch.compute.gen.Types.DRIVER_CONTEXT;
 import static org.elasticsearch.compute.gen.Types.LIST_INTEGER;
 import static org.elasticsearch.compute.gen.Types.STRING;
+import static org.elasticsearch.compute.gen.Types.WARNINGS;
 
 /**
  * Implements "AggregationFunctionSupplier" from a class annotated with both
@@ -140,7 +141,8 @@ public class AggregatorFunctionSupplierImplementer {
         if (hasWarnings) {
             builder.addStatement(
                 "var warnings = Warnings.createWarnings(driverContext.warningsMode(), "
-                    + "warningsLineNumber, warningsColumnNumber, warningsSourceText)"
+                    + "warningsLineNumber, warningsColumnNumber, warningsSourceText)",
+                WARNINGS
             );
         }
 
@@ -165,7 +167,8 @@ public class AggregatorFunctionSupplierImplementer {
         if (hasWarnings) {
             builder.addStatement(
                 "var warnings = Warnings.createWarnings(driverContext.warningsMode(), "
-                    + "warningsLineNumber, warningsColumnNumber, warningsSourceText)"
+                    + "warningsLineNumber, warningsColumnNumber, warningsSourceText)",
+                WARNINGS
             );
         }
 

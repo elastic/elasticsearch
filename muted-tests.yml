@@ -215,8 +215,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.CrossClusterAsyncEnrichStopIT
   method: testEnrichAfterStop
   issue: https://github.com/elastic/elasticsearch/issues/120757
-- class: org.elasticsearch.search.fieldcaps.FieldCapabilitiesIT
-  issue: https://github.com/elastic/elasticsearch/issues/120772
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=ml/3rd_party_deployment/Test start deployment fails while model download in progress}
   issue: https://github.com/elastic/elasticsearch/issues/120810

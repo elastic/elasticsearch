@@ -283,10 +283,10 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
             assertThat(values.get(2).get(0), equalTo(2));
 
             // Matches full text query and non pushable query
-            assertThat((Double) values.get(0).get(1), greaterThan(0.0));
-            assertThat((Double) values.get(1).get(1), greaterThan(0.0));
+            assertThat((Double) values.get(0).get(1), greaterThan(1.0));
+            assertThat((Double) values.get(1).get(1), greaterThan(1.0));
             // Matches just non pushable query
-            assertThat((Double) values.get(2).get(1), equalTo(0.0));
+            assertThat((Double) values.get(2).get(1), equalTo(1.0));
         }
     }
 
@@ -308,11 +308,11 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
             assertThat(values.get(1).get(0), equalTo(6));
 
             // Matches the full text query and a two pushable query
-            assertThat((Double) values.get(0).get(1), greaterThan(1.0));
-            assertThat((Double) values.get(0).get(1), lessThan(2.0));
+            assertThat((Double) values.get(0).get(1), greaterThan(2.0));
+            assertThat((Double) values.get(0).get(1), lessThan(3.0));
             // Matches just the match function
-            assertThat((Double) values.get(1).get(1), lessThan(1.0));
-            assertThat((Double) values.get(1).get(1), greaterThan(0.0));
+            assertThat((Double) values.get(1).get(1), lessThan(2.0));
+            assertThat((Double) values.get(1).get(1), greaterThan(1.0));
         }
     }
 
@@ -334,10 +334,10 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
             assertThat(values.get(1).get(0), equalTo(4));
             assertThat(values.get(2).get(0), equalTo(5));
 
-            // Matches NOT gets 0.0
-            assertThat((Double) values.get(0).get(1), equalTo(0.0));
-            assertThat((Double) values.get(1).get(1), equalTo(0.0));
-            assertThat((Double) values.get(2).get(1), equalTo(0.0));
+            // Matches NOT gets 0.0 and default score is 1.0
+            assertThat((Double) values.get(0).get(1), equalTo(1.0));
+            assertThat((Double) values.get(1).get(1), equalTo(1.0));
+            assertThat((Double) values.get(2).get(1), equalTo(1.0));
         }
     }
 
@@ -357,8 +357,8 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
 
             assertThat(values.get(0).get(0), equalTo(4));
 
-            // Non pushable query gets score of 0.0
-            assertThat((Double) values.get(0).get(1), equalTo(0.0));
+            // Non pushable query gets score of 0.0, summed with 1.0 coming from Lucene
+            assertThat((Double) values.get(0).get(1), equalTo(1.0));
         }
     }
 

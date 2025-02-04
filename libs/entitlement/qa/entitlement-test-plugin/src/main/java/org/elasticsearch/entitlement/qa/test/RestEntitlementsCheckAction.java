@@ -48,6 +48,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -82,11 +83,8 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
         }
     }
 
-    private static final Map<String, CheckAction> checkActions = Stream.concat(
+    private static final Map<String, CheckAction> checkActions = Stream.of(
         Stream.<Entry<String, CheckAction>>of(
-            entry("static_reflection", deniedToPlugins(RestEntitlementsCheckAction::staticMethodNeverEntitledViaReflection)),
-            entry("nonstatic_reflection", deniedToPlugins(RestEntitlementsCheckAction::nonstaticMethodNeverEntitledViaReflection)),
-            entry("constructor_reflection", deniedToPlugins(RestEntitlementsCheckAction::constructorNeverEntitledViaReflection)),
             entry("create_classloader", forPlugins(RestEntitlementsCheckAction::createClassLoader)),
             entry("processBuilder_start", deniedToPlugins(RestEntitlementsCheckAction::processBuilder_start)),
             entry("processBuilder_startPipeline", deniedToPlugins(RestEntitlementsCheckAction::processBuilder_startPipeline)),
@@ -201,8 +199,11 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
             entry("symbol_lookup_name", new CheckAction(VersionSpecificNativeChecks::symbolLookupWithName, false, 22)),
             entry("symbol_lookup_path", new CheckAction(VersionSpecificNativeChecks::symbolLookupWithPath, false, 22))
         ),
-        getTestEntries(FileCheckActions.class)
+        getTestEntries(FileCheckActions.class),
+        getTestEntries(SpiActions.class),
+        getTestEntries(SystemActions.class)
     )
+        .flatMap(Function.identity())
         .filter(entry -> entry.getValue().fromJavaVersion() == null || Runtime.version().feature() >= entry.getValue().fromJavaVersion())
         .collect(Collectors.toUnmodifiableMap(Entry::getKey, Entry::getValue));
 
@@ -294,11 +295,6 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
         HttpsURLConnection.setDefaultSSLSocketFactory(new DummyImplementations.DummySSLSocketFactory());
     }
 
-    private static void staticMethodNeverEntitledViaReflection() throws Exception {
-        Method systemExit = System.class.getMethod("exit", int.class);
-        systemExit.invoke(null, 123);
-    }
-
     private static void createClassLoader() throws IOException {
         try (var classLoader = new URLClassLoader("test", new URL[0], RestEntitlementsCheckAction.class.getClassLoader())) {
             logger.info("Created URLClassLoader [{}]", classLoader.getName());
@@ -307,11 +303,6 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
 
     private static void processBuilder_start() throws IOException {
         new ProcessBuilder("").start();
-    }
-
-    private static void nonstaticMethodNeverEntitledViaReflection() throws Exception {
-        Method processBuilderStart = ProcessBuilder.class.getMethod("start");
-        processBuilderStart.invoke(new ProcessBuilder(""));
     }
 
     private static void processBuilder_startPipeline() throws IOException {
@@ -324,10 +315,6 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
 
     private static void thread$$setDefaultUncaughtExceptionHandler() {
         Thread.setDefaultUncaughtExceptionHandler(Thread.getDefaultUncaughtExceptionHandler());
-    }
-
-    private static void constructorNeverEntitledViaReflection() throws Exception {
-        DummyLocaleServiceProvider.class.getConstructor().newInstance();
     }
 
     private static void logManager$() {

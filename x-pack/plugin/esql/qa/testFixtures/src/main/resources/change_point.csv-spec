@@ -362,6 +362,23 @@ emp_no:integer | salary:integer | type:keyword | pvalue:double
 ;
 
 
+where with shadowing
+required_capability: change_point
+
+FROM employees
+  | KEEP emp_no, salary
+  | EVAL salary=CASE(emp_no==10015, -1000000, salary)
+  | WHERE emp_no < 10025
+  | CHANGE_POINT salary ON emp_no AS type, emp_no
+  | WHERE emp_no IS NOT NULL
+  | RENAME emp_no AS pvalue
+;
+
+salary:integer | type:keyword | pvalue:double
+-1000000       | dip          | 0.0          
+;
+
+
 stats after change point
 required_capability: change_point
 
@@ -673,7 +690,7 @@ height:double | salary:integer                      | type:keyword | pvalue:doub
 ;
 
 
-too much data (change inside limit)
+too much data (change point inside limit)
 required_capability: change_point
 
 ROW key1=["A","B","C","D","E","F","G","H","I","J","K","L","M"], 
@@ -697,7 +714,7 @@ I42         | 1000          | step_change  | 0.0
 ;
 
 
-too much data (change outside limit)
+too much data (change point outside limit)
 required_capability: change_point
 
 ROW key1=["A","B","C","D","E","F","G","H","I","J","K","L","M"], 
@@ -779,4 +796,44 @@ time:integer | val:integer | type:keyword | pvalue:double
 23           | 8           | null         | null                   
 24           | 9           | null         | null                   
 25           | 10          | null         | null               
+;
+
+
+values null column
+required_capability: change_point
+
+ROW time=[7,13,12,17,14,5,16,10,19,18,20,2,3,21,25,4,22,15,6,23,9,11,1,8,24], values=NULL::INTEGER
+  | MV_EXPAND time
+  | CHANGE_POINT values ON time
+;
+
+warning:Line 3:3: warnings during evaluation of [CHANGE_POINT values ON time]. Only first 20 failures recorded.
+warning:Line 3:3: java.lang.IllegalArgumentException: values contain nulls; treating them as zeroes
+
+time:integer | values:integer | type:keyword | pvalue:double
+1            | null           | null         | null         
+2            | null           | null         | null         
+3            | null           | null         | null         
+4            | null           | null         | null         
+5            | null           | null         | null         
+6            | null           | null         | null         
+7            | null           | null         | null         
+8            | null           | null         | null         
+9            | null           | null         | null         
+10           | null           | null         | null         
+11           | null           | null         | null         
+12           | null           | null         | null         
+13           | null           | null         | null         
+14           | null           | null         | null         
+15           | null           | null         | null         
+16           | null           | null         | null         
+17           | null           | null         | null         
+18           | null           | null         | null         
+19           | null           | null         | null         
+20           | null           | null         | null         
+21           | null           | null         | null         
+22           | null           | null         | null         
+23           | null           | null         | null         
+24           | null           | null         | null         
+25           | null           | null         | null         
 ;

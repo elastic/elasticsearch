@@ -26,6 +26,11 @@ import java.util.stream.IntStream;
 /**
  * Aggregates the top N IP values per bucket.
  * See {@link BucketedSort} for more information.
+ * <p>
+ *     This is substantially different from {@link BytesRefBucketedSort} because
+ *     this takes advantage of IPs having a fixed length and allocates a dense
+ *     storage for them.
+ * </p>
  */
 public class IpBucketedSort implements Releasable {
     private static final int IP_LENGTH = 16; // Bytes. It's ipv6.

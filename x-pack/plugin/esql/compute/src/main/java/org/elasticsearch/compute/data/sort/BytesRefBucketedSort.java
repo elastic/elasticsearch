@@ -31,6 +31,11 @@ import java.util.stream.LongStream;
 /**
  * Aggregates the top N variable length {@link BytesRef} values per bucket.
  * See {@link BucketedSort} for more information.
+ * <p>
+ *     This is substantially different from {@link IpBucketedSort} because
+ *     this has to handle variable length byte strings. To do that it allocates
+ *     a heap of {@link BreakingBytesRefBuilder}s.
+ * </p>
  */
 public class BytesRefBucketedSort implements Releasable {
     private final BucketedSortCommon common;

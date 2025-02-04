@@ -26,6 +26,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -38,6 +39,7 @@ import java.util.function.Function;
 public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndexOperator.OngoingJoin> {
     public record Factory(
         String sessionId,
+        Configuration configuration,
         CancellableTask parentTask,
         int maxOutstandingRequests,
         int inputChannel,
@@ -67,6 +69,7 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
         public Operator get(DriverContext driverContext) {
             return new LookupFromIndexOperator(
                 sessionId,
+                configuration,
                 driverContext,
                 parentTask,
                 maxOutstandingRequests,
@@ -83,6 +86,7 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
 
     private final LookupFromIndexService lookupService;
     private final String sessionId;
+    private final Configuration configuration;
     private final CancellableTask parentTask;
     private final int inputChannel;
     private final DataType inputDataType;
@@ -102,6 +106,7 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
 
     public LookupFromIndexOperator(
         String sessionId,
+        Configuration configuration,
         DriverContext driverContext,
         CancellableTask parentTask,
         int maxOutstandingRequests,
@@ -115,6 +120,7 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
     ) {
         super(driverContext, maxOutstandingRequests);
         this.sessionId = sessionId;
+        this.configuration = configuration;
         this.parentTask = parentTask;
         this.inputChannel = inputChannel;
         this.lookupService = lookupService;
@@ -131,6 +137,7 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
         totalTerms += inputBlock.getTotalValueCount();
         LookupFromIndexService.Request request = new LookupFromIndexService.Request(
             sessionId,
+            configuration,
             lookupIndex,
             inputDataType,
             matchField,

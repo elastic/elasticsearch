@@ -173,6 +173,7 @@ public class TransportVersions {
     public static final TransportVersion INFERENCE_REQUEST_ADAPTIVE_RATE_LIMITING = def(8_839_00_0);
     public static final TransportVersion ML_INFERENCE_IBM_WATSONX_RERANK_ADDED = def(8_840_00_0);
     public static final TransportVersion ELASTICSEARCH_9_0 = def(9_000_00_0);
+    public static final TransportVersion ESQL_LOOKUP_JOIN_CONFIGURATION_IN_REQUEST = def(9_001_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

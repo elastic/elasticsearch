@@ -46,6 +46,7 @@ import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
+import org.elasticsearch.xpack.esql.ConfigurationTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -214,6 +215,7 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
             final String finalNodeWithShard = nodeWithShard;
             LookupFromIndexOperator.Factory lookup = new LookupFromIndexOperator.Factory(
                 "test",
+                ConfigurationTestUtils.randomConfiguration(),
                 parentTask,
                 QueryPragmas.ENRICH_MAX_WORKERS.get(Settings.EMPTY),
                 1,

@@ -2426,7 +2426,6 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         // did not match the requested pattern and the request does not support data streams
         final AuthorizedIndices authorizedIndices = buildAuthorizedIndices(user, GetAliasesAction.NAME, request);
         final Map<String, String> all = authorizedIndices.all().get();
-        System.out.println("all: " + all);
         assertThat(all.keySet(), hasItem(dataStreamName));
         assertThat(authorizedIndices.check(dataStreamName), is(true));
         DataStream dataStream = metadata.dataStreams().get(dataStreamName);

@@ -938,6 +938,7 @@ public final class IndicesPermission {
         }
 
         boolean isTotal() {
+            // TODO add selector?
             return allowRestrictedIndices
                 && indexNameMatcher.isTotal()
                 && privilege == IndexPrivilege.ALL
@@ -947,6 +948,7 @@ public final class IndicesPermission {
 
         @Override
         public String toString() {
+            // TODO add selector?
             return "Group{"
                 + "privilege="
                 + privilege

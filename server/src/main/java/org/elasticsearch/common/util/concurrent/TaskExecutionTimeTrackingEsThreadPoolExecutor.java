@@ -33,8 +33,8 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
     private final boolean trackOngoingTasks;
     // The set of currently running tasks and the timestamp of when they started execution in the Executor.
     private final Map<Runnable, Long> ongoingTasks = new ConcurrentHashMap<>();
-    private long lastPollTime = System.nanoTime();
-    private long lastTotalExecutionTime = 0;
+    private volatile long lastPollTime = System.nanoTime();
+    private volatile long lastTotalExecutionTime = 0;
 
     TaskExecutionTimeTrackingEsThreadPoolExecutor(
         String name,

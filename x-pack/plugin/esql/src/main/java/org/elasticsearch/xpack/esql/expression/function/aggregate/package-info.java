@@ -115,44 +115,41 @@
  *     Annotate it with {@link org.elasticsearch.compute.ann.Aggregator} and {@link org.elasticsearch.compute.ann.GroupingAggregator}
  *     The first one is responsible for an entire data set aggregation, while the second one is responsible for grouping within buckets.
  * </p>
- * <p>
- *     Before you start implementing it, please note that:
- *     <ul>
- *         <li>All methods must be public static</li>
- *         <li>
- *             combine, combineStates, combineIntermediate, evaluateFinal methods (see below) could be omitted and generated automatically
- *             when both input type I and mutable accumulator state SS and GS are primitive (DOUBLE, INT).
- *         </li>
- *         <li>TBD explain {@code IntermediateState}</li>
- *         <li>TBD explain special internal state `seen`</li>
- *     </ul>
- * </p>
- * <p>
- *     Aggregation expects:
- *     <ul>
- *         <li>type SS (a mutable state used to accumulate result of the aggregation) to be public, not inner and implements {@link org.elasticsearch.compute.aggregation.AggregatorState}</li>
- *         <li>type I (input to your aggregation function), usually primitive types and {@link org.apache.lucene.util.BytesRef}</li>
- *         <li>{@code SS init()} or {@code SS initSingle()} returns empty initialized aggregation state</li>
- *         <li>{@code void combine(SS state, I input)} or {@code SS combine(SS state, I input)} adds input entry to the aggregation state</li>
- *         <li>{@code void combineIntermediate(SS state, intermediate states)} adds serialized aggregation state to the current aggregation state (used to combine results across different nodes)</li>
- *         <li>{@code Block evaluateFinal(SS state, BigArrays? DriverContext?)} converts the inner state of the aggregation to the result column</li>
- *     </ul>
- * </p>
- * <p>
- *     Grouping aggregation expects:
- *     <ul>
- *         <li>type GS (a mutable state used to accumulate result of the grouping aggregation) to be public, not inner and implements {@link org.elasticsearch.compute.aggregation.GroupingAggregatorState}</li>
- *         <li>type I (input to your aggregation function), usually primitive types and {@link org.apache.lucene.util.BytesRef}</li>
- *         <li>{@code GS init()} or {@code GS initGrouping()} returns empty initialized grouping aggregation state</li>
- *         <li>{@code void combine(GS state, int groupId, T input)} adds input entry to the corresponding group (bucket) of the grouping aggregation state</li>
- *         <li>{@code void combineStates(GS targetState, int targetGroupId, GS otherState, int otherGroupId)} merges other grouped aggregation state into the first one</li>
- *         <li>{@code void combineIntermediate(GS current, int groupId, intermediate states)} adds serialized aggregation state to the current grouped aggregation state (used to combine results across different nodes)</li>
- *         <li>{@code Block evaluateFinal(GS state, IntVectorSelected, BigArrays? DriverContext?)} converts the inner state of the grouping aggregation to the result column</li>
- *     </ul>
- * </p>
- * <p>
- *
- * </p>
+ * <h4>Before you start implementing it, please note that:</h4>
+ * <ul>
+ *     <li>All methods must be public static</li>
+ *     <li>
+ *         init, initSingle, initGrouping could declare optional BigArrays, DriverContext arguments that are going to be injected automatically.
+ *         It is also possible to declare any number of arbitrary arguments that must be provided via generated Supplier.
+ *     </li>
+ *     <li>
+ *         combine, combineStates, combineIntermediate, evaluateFinal methods (see below) could be omitted and generated automatically
+ *         when both input type I and mutable accumulator state SS and GS are primitive (DOUBLE, INT).
+ *     </li>
+ *     <li>
+ *     </li>
+ *     <li>TBD explain {@code IntermediateState}</li>
+ *     <li>TBD explain special internal state `seen`</li>
+ * </ul>
+ * <h4>Aggregation expects:</h4>
+ * <ul>
+ *     <li>type SS (a mutable state used to accumulate result of the aggregation) to be public, not inner and implements {@link org.elasticsearch.compute.aggregation.AggregatorState}</li>
+ *     <li>type I (input to your aggregation function), usually primitive types and {@link org.apache.lucene.util.BytesRef}</li>
+ *     <li>{@code SS init()} or {@code SS initSingle()} returns empty initialized aggregation state</li>
+ *     <li>{@code void combine(SS state, I input)} or {@code SS combine(SS state, I input)} adds input entry to the aggregation state</li>
+ *     <li>{@code void combineIntermediate(SS state, intermediate states)} adds serialized aggregation state to the current aggregation state (used to combine results across different nodes)</li>
+ *     <li>{@code Block evaluateFinal(SS state, DriverContext)} converts the inner state of the aggregation to the result column</li>
+ * </ul>
+ * <h4>Grouping aggregation expects:</h4>
+ * <ul>
+ *     <li>type GS (a mutable state used to accumulate result of the grouping aggregation) to be public, not inner and implements {@link org.elasticsearch.compute.aggregation.GroupingAggregatorState}</li>
+ *     <li>type I (input to your aggregation function), usually primitive types and {@link org.apache.lucene.util.BytesRef}</li>
+ *     <li>{@code GS init()} or {@code GS initGrouping()} returns empty initialized grouping aggregation state</li>
+ *     <li>{@code void combine(GS state, int groupId, T input)} adds input entry to the corresponding group (bucket) of the grouping aggregation state</li>
+ *     <li>{@code void combineStates(GS targetState, int targetGroupId, GS otherState, int otherGroupId)} merges other grouped aggregation state into the first one</li>
+ *     <li>{@code void combineIntermediate(GS current, int groupId, intermediate states)} adds serialized aggregation state to the current grouped aggregation state (used to combine results across different nodes)</li>
+ *     <li>{@code Block evaluateFinal(GS state, IntVectorSelected, DriverContext)} converts the inner state of the grouping aggregation to the result column</li>
+ * </ul>
  * <ol>
  *     <li>
  *         Copy an existing aggregator to use as a base. You'll usually make one per type. Check other classes to see the naming pattern.

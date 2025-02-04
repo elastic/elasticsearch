@@ -11,6 +11,7 @@ package org.elasticsearch.logsdb.datageneration.datasource;
 
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.HashSet;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.IntStream;
@@ -26,6 +27,11 @@ public class DefaultWrappersHandler implements DataSourceHandler {
         return new DataSourceResponse.ArrayWrapper(wrapInArray());
     }
 
+    @Override
+    public DataSourceResponse.RepeatingWrapper handle(DataSourceRequest.RepeatingWrapper ignored) {
+        return new DataSourceResponse.RepeatingWrapper(repeatValues());
+    }
+
     private static Function<Supplier<Object>, Supplier<Object>> injectNulls() {
         // Inject some nulls but majority of data should be non-null (as it likely is in reality).
         return (values) -> () -> ESTestCase.randomDouble() <= 0.05 ? null : values.get();
@@ -39,6 +45,21 @@ public class DefaultWrappersHandler implements DataSourceHandler {
             }
 
             return values.get();
+        };
+    }
+
+    private static Function<Supplier<Object>, Supplier<Object>> repeatValues() {
+        return (values) -> {
+            HashSet<Object> previousValues = new HashSet<>();
+            return () -> {
+                if (previousValues.size() > 0 && ESTestCase.randomBoolean()) {
+                    return ESTestCase.randomFrom(previousValues);
+                } else {
+                    var value = values.get();
+                    previousValues.add(value);
+                    return value;
+                }
+            };
         };
     }
 }

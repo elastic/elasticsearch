@@ -1197,7 +1197,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                         SystemIndices.Feature::getName,
                         feature -> feature.getIndexDescriptors()
                             .stream()
-                            .flatMap(descriptor -> descriptor.getMatchingIndices(metadata).stream())
+                            .flatMap(descriptor -> descriptor.getMatchingIndices(metadata.getProject()).stream())
                             .collect(toSet())
                     )
                 );

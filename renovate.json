@@ -7,8 +7,21 @@
   "schedule": [
     "after 1pm on tuesday"
   ],
-  "labels": [">non-issue", ":Delivery/Packaging", "Team:Delivery", "auto-merge-without-approval"],
-  "baseBranches": ["main", "8.x", "8.17", "8.16"],
+  "labels": [
+    ">non-issue",
+    ":Delivery/Packaging",
+    "Team:Delivery",
+    "auto-merge-without-approval"
+  ],
+  "baseBranches": [
+    "main",
+    "8.16",
+    "9.0",
+    "8.18",
+    "8.17",
+    "8.x",
+    "7.17"
+  ],
   "packageRules": [
     {
       "groupName": "wolfi (versioned)",

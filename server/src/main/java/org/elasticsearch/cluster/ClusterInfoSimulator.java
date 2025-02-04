@@ -108,10 +108,7 @@ public class ClusterInfoSimulator {
                 if (shouldReserveSpaceForInitializingShard(shard, allocation.metadata())) {
                     modifyDiskUsage(shard.currentNodeId(), -size);
                 }
-                shardSizes.put(
-                    shardIdentifierFromRouting(shard),
-                    allocation.metadata().getProject().getIndexSafe(shard.index()).ignoreDiskWatermarks() ? 0 : size
-                );
+                shardSizes.put(shardIdentifierFromRouting(shard), project.getIndexSafe(shard.index()).ignoreDiskWatermarks() ? 0 : size);
             }
         }
     }

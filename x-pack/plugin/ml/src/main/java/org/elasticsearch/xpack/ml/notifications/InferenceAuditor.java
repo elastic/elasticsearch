@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.ml.notifications;
 
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.xpack.core.ml.notifications.InferenceAuditMessage;
 
@@ -14,8 +15,13 @@ public class InferenceAuditor extends AbstractMlAuditor<InferenceAuditMessage> {
 
     private final boolean includeNodeInfo;
 
-    public InferenceAuditor(Client client, ClusterService clusterService, boolean includeNodeInfo) {
-        super(client, InferenceAuditMessage::new, clusterService);
+    public InferenceAuditor(
+        Client client,
+        ClusterService clusterService,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        boolean includeNodeInfo
+    ) {
+        super(client, InferenceAuditMessage::new, clusterService, indexNameExpressionResolver);
         this.includeNodeInfo = includeNodeInfo;
     }
 

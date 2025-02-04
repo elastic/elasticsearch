@@ -224,7 +224,15 @@ public class ComputeService {
                 ) {
                     runCompute(
                         rootTask,
-                        new ComputeContext(sessionId, LOCAL_CLUSTER, List.of(), configuration, foldContext, exchangeSource, null),
+                        new ComputeContext(
+                            sessionId,
+                            LOCAL_CLUSTER,
+                            List.of(),
+                            configuration,
+                            foldContext,
+                            exchangeSource::createExchangeSource,
+                            null
+                        ),
                         coordinatorPlan,
                         localListener.acquireCompute()
                     );
@@ -268,6 +276,7 @@ public class ComputeService {
                         exchangeSource,
                         cluster,
                         cancelQueryOnFailure,
+                        execInfo,
                         computeListener.acquireCompute().map(r -> {
                             updateExecutionInfo(execInfo, cluster.clusterAlias(), r);
                             return r.getProfiles();
@@ -301,11 +310,10 @@ public class ComputeService {
         } else {
             // if the cluster is an older version and does not send back took time, then calculate it here on the coordinator
             // and leave shard info unset, so it is not shown in the CCS metadata section of the JSON response
-            var tookTime = TimeValue.timeValueNanos(System.nanoTime() - executionInfo.getRelativeStartNanos());
             executionInfo.swapCluster(
                 clusterAlias,
                 (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setStatus(runningToSuccess.apply(v.getStatus()))
-                    .setTook(tookTime)
+                    .setTook(executionInfo.tookSoFar())
                     .build()
             );
         }
@@ -372,11 +380,12 @@ public class ComputeService {
                 blockFactory,
                 clusterService.getSettings(),
                 context.configuration(),
-                context.exchangeSource(),
-                context.exchangeSink(),
+                context.exchangeSourceSupplier(),
+                context.exchangeSinkSupplier(),
                 enrichLookupService,
                 lookupFromIndexService,
-                new EsPhysicalOperationProviders(context.foldCtx(), contexts, searchService.getIndicesService().getAnalysis())
+                new EsPhysicalOperationProviders(context.foldCtx(), contexts, searchService.getIndicesService().getAnalysis()),
+                contexts
             );
 
             LOGGER.debug("Received physical plan:\n{}", plan);

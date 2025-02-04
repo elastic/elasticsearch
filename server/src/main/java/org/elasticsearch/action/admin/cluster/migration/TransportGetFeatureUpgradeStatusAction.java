@@ -158,7 +158,7 @@ public class TransportGetFeatureUpgradeStatusAction extends TransportMasterNodeA
 
         return feature.getIndexDescriptors()
             .stream()
-            .flatMap(descriptor -> descriptor.getMatchingIndices(state.metadata()).stream())
+            .flatMap(descriptor -> descriptor.getMatchingIndices(state.metadata().getProject()).stream())
             .sorted(String::compareTo)
             .map(index -> state.metadata().getProject().index(index))
             .map(

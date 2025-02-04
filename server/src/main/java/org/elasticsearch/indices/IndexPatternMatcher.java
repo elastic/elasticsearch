@@ -10,6 +10,7 @@
 package org.elasticsearch.indices;
 
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 
 import java.util.List;
 
@@ -32,8 +33,8 @@ public interface IndexPatternMatcher {
      * This cannot be done via {@link org.elasticsearch.cluster.metadata.IndexNameExpressionResolver} because that class can only handle
      * simple wildcard expressions, but system index name patterns may use full Lucene regular expression syntax,
      *
-     * @param metadata The current metadata to get the list of matching indices from
+     * @param project The current metadata to get the list of matching indices from
      * @return A list of index names that match this descriptor
      */
-    List<String> getMatchingIndices(Metadata metadata);
+    List<String> getMatchingIndices(ProjectMetadata project);
 }

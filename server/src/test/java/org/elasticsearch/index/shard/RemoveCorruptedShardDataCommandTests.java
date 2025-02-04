@@ -152,7 +152,8 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
                     nodeId,
                     xContentRegistry(),
                     new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                    () -> 0L
+                    () -> 0L,
+                    randomBoolean()
                 ).createWriter()
             ) {
                 writer.writeFullStateAndCommit(1L, clusterState);

@@ -3889,6 +3889,11 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             logSnapshotFailure("create", snapshot, e);
             listener.onFailure(e);
         }
+
+        @Override
+        public String toString() {
+            return "CreateSnapshotTask{repository=" + repository.getMetadata().name() + ", snapshot=" + snapshot + '}';
+        }
     }
 
     private static void logSnapshotFailure(String operation, Snapshot snapshot, Exception e) {
@@ -4067,11 +4072,11 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
 
                 Set<String> featureSystemIndices = feature.getIndexDescriptors()
                     .stream()
-                    .flatMap(descriptor -> descriptor.getMatchingIndices(currentState.metadata()).stream())
+                    .flatMap(descriptor -> descriptor.getMatchingIndices(currentState.metadata().getProject()).stream())
                     .collect(Collectors.toSet());
                 Set<String> featureAssociatedIndices = feature.getAssociatedIndexDescriptors()
                     .stream()
-                    .flatMap(descriptor -> descriptor.getMatchingIndices(currentState.metadata()).stream())
+                    .flatMap(descriptor -> descriptor.getMatchingIndices(currentState.metadata().getProject()).stream())
                     .collect(Collectors.toSet());
 
                 Set<String> featureSystemDataStreams = new HashSet<>();

@@ -13,6 +13,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.xpack.core.enrich.action.EnrichStatsAction;
 import org.elasticsearch.xpack.core.enrich.action.EnrichStatsAction.Response.CoordinatorStats;
 import org.elasticsearch.xpack.core.enrich.action.EnrichStatsAction.Response.ExecutingPolicy;
@@ -21,9 +23,10 @@ import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.monitoring.BaseCollectorTestCase;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
-import static org.elasticsearch.xpack.enrich.action.EnrichStatsResponseTests.randomTaskInfo;
 import static org.elasticsearch.xpack.monitoring.MonitoringTestUtils.randomMonitoringNode;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -152,6 +155,36 @@ public class EnrichStatsCollectorTests extends BaseCollectorTestCase {
 
     private EnrichStatsCollector createCollector(ClusterService clusterService, XPackLicenseState licenseState, Client client) {
         return new EnrichStatsCollector(clusterService, licenseState, client);
+    }
+
+    public static TaskInfo randomTaskInfo() {
+        String nodeId = randomAlphaOfLength(5);
+        TaskId taskId = new TaskId(nodeId, randomLong());
+        String type = randomAlphaOfLength(5);
+        String action = randomAlphaOfLength(5);
+        String description = randomAlphaOfLength(5);
+        long startTime = randomLong();
+        long runningTimeNanos = randomNonNegativeLong();
+        boolean cancellable = randomBoolean();
+        boolean cancelled = cancellable && randomBoolean();
+        TaskId parentTaskId = TaskId.EMPTY_TASK_ID;
+        Map<String, String> headers = randomBoolean()
+            ? Collections.emptyMap()
+            : Collections.singletonMap(randomAlphaOfLength(5), randomAlphaOfLength(5));
+        return new TaskInfo(
+            taskId,
+            type,
+            nodeId,
+            action,
+            description,
+            null,
+            startTime,
+            runningTimeNanos,
+            cancellable,
+            cancelled,
+            parentTaskId,
+            headers
+        );
     }
 
 }

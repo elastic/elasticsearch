@@ -290,7 +290,7 @@ public class DataStreamDeprecationCheckerTests extends ESTestCase {
                 + "OK to remain read-only after upgrade",
             false,
             ofEntries(
-                entry("reindex_required", true),
+                entry("reindex_required", false),
                 entry("total_backing_indices", oldIndexCount + newIndexCount),
                 entry("ignored_indices_requiring_upgrade_count", expectedIndices.size()),
                 entry("ignored_indices_requiring_upgrade", expectedIndices)

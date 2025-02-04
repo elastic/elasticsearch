@@ -33,7 +33,7 @@ public class NotQuery extends Query {
 
     @Override
     public QueryBuilder asBuilder() {
-        return boolQuery().mustNot(child.asBuilder());
+        return boolQuery().mustNot(child.asBuilder()).boost(0.0f);
     }
 
     @Override

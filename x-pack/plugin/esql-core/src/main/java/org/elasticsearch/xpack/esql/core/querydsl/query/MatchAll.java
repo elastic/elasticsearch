@@ -18,7 +18,7 @@ public class MatchAll extends Query {
 
     @Override
     public QueryBuilder asBuilder() {
-        return matchAllQuery();
+        return matchAllQuery().boost(0.0f);
     }
 
     @Override

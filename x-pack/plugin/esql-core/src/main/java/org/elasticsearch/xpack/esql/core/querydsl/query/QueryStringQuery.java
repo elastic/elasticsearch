@@ -65,7 +65,7 @@ public class QueryStringQuery extends Query {
 
     @Override
     public QueryBuilder asBuilder() {
-        final QueryStringQueryBuilder queryBuilder = QueryBuilders.queryStringQuery(query);
+        final QueryStringQueryBuilder queryBuilder = QueryBuilders.queryStringQuery(query).boost(0.0f);
         queryBuilder.fields(fields);
         options.forEach((k, v) -> {
             if (BUILDER_APPLIERS.containsKey(k)) {

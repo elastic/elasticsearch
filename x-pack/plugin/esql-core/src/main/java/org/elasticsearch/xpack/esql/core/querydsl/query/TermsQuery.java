@@ -27,7 +27,7 @@ public class TermsQuery extends Query {
 
     @Override
     public QueryBuilder asBuilder() {
-        return termsQuery(term, values);
+        return termsQuery(term, values).boost(0.0f);
     }
 
     @Override

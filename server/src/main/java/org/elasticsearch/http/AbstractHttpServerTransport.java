@@ -38,6 +38,7 @@ import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -486,7 +487,12 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
                 try {
                     populatePerRequestThreadContext(restRequest, threadContext);
                 } catch (Exception e) {
-                    dispatcher.dispatchBadRequest(channel, threadContext, e);
+                    try {
+                        channel.sendResponse(new RestResponse(channel, e));
+                    } catch (Exception inner) {
+                        inner.addSuppressed(e);
+                        logger.error(() -> "failed to send failure response for uri [" + restRequest.uri() + "]", inner);
+                    }
                     return;
                 }
                 dispatcher.dispatchRequest(restRequest, channel, threadContext);

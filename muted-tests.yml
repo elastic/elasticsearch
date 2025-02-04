@@ -394,9 +394,6 @@ tests:
 - class: org.elasticsearch.xpack.security.profile.ProfileIntegTests
   method: testSuggestProfilesWithHint
   issue: https://github.com/elastic/elasticsearch/issues/121116
-- class: org.elasticsearch.xpack.sql.qa.single_node.JdbcDocCsvSpecIT
-  method: test {docs.testFilterToday}
-  issue: https://github.com/elastic/elasticsearch/issues/121474
 - class: org.elasticsearch.xpack.security.profile.ProfileIntegTests
   method: testSuggestProfileWithData
   issue: https://github.com/elastic/elasticsearch/issues/121258

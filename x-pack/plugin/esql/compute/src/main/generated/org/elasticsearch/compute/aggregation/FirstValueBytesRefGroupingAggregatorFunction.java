@@ -18,6 +18,8 @@ import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 
@@ -27,17 +29,18 @@ import org.elasticsearch.compute.operator.DriverContext;
  */
 public final class FirstValueBytesRefGroupingAggregatorFunction implements GroupingAggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
-      new IntermediateStateDesc("first", ElementType.BYTES_REF),
+      new IntermediateStateDesc("value", ElementType.BYTES_REF),
+      new IntermediateStateDesc("by", ElementType.LONG),
       new IntermediateStateDesc("seen", ElementType.BOOLEAN)  );
 
-  private final FirstValueBytesRefAggregator.GroupingState state;
+  private final FirstValueBytesRefAggregator.FirstValueLongGroupingState state;
 
   private final List<Integer> channels;
 
   private final DriverContext driverContext;
 
   public FirstValueBytesRefGroupingAggregatorFunction(List<Integer> channels,
-      FirstValueBytesRefAggregator.GroupingState state, DriverContext driverContext) {
+      FirstValueBytesRefAggregator.FirstValueLongGroupingState state, DriverContext driverContext) {
     this.channels = channels;
     this.state = state;
     this.driverContext = driverContext;
@@ -168,21 +171,26 @@ public final class FirstValueBytesRefGroupingAggregatorFunction implements Group
   public void addIntermediateInput(int positionOffset, IntVector groups, Page page) {
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
     assert channels.size() == intermediateBlockCount();
-    Block firstUncast = page.getBlock(channels.get(0));
-    if (firstUncast.areAllValuesNull()) {
+    Block valueUncast = page.getBlock(channels.get(0));
+    if (valueUncast.areAllValuesNull()) {
       return;
     }
-    BytesRefVector first = ((BytesRefBlock) firstUncast).asVector();
-    Block seenUncast = page.getBlock(channels.get(1));
+    BytesRefVector value = ((BytesRefBlock) valueUncast).asVector();
+    Block byUncast = page.getBlock(channels.get(1));
+    if (byUncast.areAllValuesNull()) {
+      return;
+    }
+    LongVector by = ((LongBlock) byUncast).asVector();
+    Block seenUncast = page.getBlock(channels.get(2));
     if (seenUncast.areAllValuesNull()) {
       return;
     }
     BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
-    assert first.getPositionCount() == seen.getPositionCount();
+    assert value.getPositionCount() == by.getPositionCount() && value.getPositionCount() == seen.getPositionCount();
     BytesRef scratch = new BytesRef();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = groups.getInt(groupPosition);
-      FirstValueBytesRefAggregator.combineIntermediate(state, groupId, first.getBytesRef(groupPosition + positionOffset, scratch), seen.getBoolean(groupPosition + positionOffset));
+      FirstValueBytesRefAggregator.combineIntermediate(state, groupId, value.getBytesRef(groupPosition + positionOffset, scratch), by.getLong(groupPosition + positionOffset), seen.getBoolean(groupPosition + positionOffset));
     }
   }
 
@@ -191,7 +199,7 @@ public final class FirstValueBytesRefGroupingAggregatorFunction implements Group
     if (input.getClass() != getClass()) {
       throw new IllegalArgumentException("expected " + getClass() + "; got " + input.getClass());
     }
-    FirstValueBytesRefAggregator.GroupingState inState = ((FirstValueBytesRefGroupingAggregatorFunction) input).state;
+    FirstValueBytesRefAggregator.FirstValueLongGroupingState inState = ((FirstValueBytesRefGroupingAggregatorFunction) input).state;
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
     FirstValueBytesRefAggregator.combineStates(state, groupId, inState, position);
   }

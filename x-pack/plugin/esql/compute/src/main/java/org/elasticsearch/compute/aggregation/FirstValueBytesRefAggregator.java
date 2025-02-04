@@ -17,131 +17,164 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
-@Aggregator({ @IntermediateState(name = "first", type = "BYTES_REF"), @IntermediateState(name = "seen", type = "BOOLEAN") })
+@Aggregator({
+    @IntermediateState(name = "value", type = "BYTES_REF"),
+    @IntermediateState(name = "by", type = "LONG"),
+    @IntermediateState(name = "seen", type = "BOOLEAN")
+})
 @GroupingAggregator
 public class FirstValueBytesRefAggregator {
 
-    public static FirstValueBytesRefAggregator.SingleState initSingle(DriverContext driverContext) {
-        return new FirstValueBytesRefAggregator.SingleState(driverContext.breaker());
+    // single
+
+    public static FirstValueLongSingleState initSingle(DriverContext driverContext) {
+        return new FirstValueLongSingleState(driverContext.breaker());
     }
 
-    public static void combine(FirstValueBytesRefAggregator.SingleState state, BytesRef value) {
-        state.add(value);
+    public static void combine(FirstValueLongSingleState state, BytesRef value) {
+        state.add(value, /*TODO get timestamp value*/ 0L);
     }
 
-    public static void combineIntermediate(FirstValueBytesRefAggregator.SingleState state, BytesRef value, boolean seen) {
+    public static void combineIntermediate(FirstValueLongSingleState current, BytesRef value, long by, boolean seen) {
+        current.combine(value, by, seen);
+    }
+
+    public static Block evaluateFinal(FirstValueLongSingleState state, DriverContext driverContext) {
+        return state.toFinal(driverContext);
+    }
+
+    // grouping
+
+    public static FirstValueLongGroupingState initGrouping(DriverContext driverContext) {
+        return new FirstValueLongGroupingState(driverContext.bigArrays(), driverContext.breaker());
+    }
+
+    public static void combine(FirstValueLongGroupingState state, int groupId, BytesRef value) {
+        state.add(groupId, value, /*TODO get timestamp value*/ 0L);
+    }
+
+    public static  void combineIntermediate(FirstValueLongGroupingState current, int groupId, BytesRef value, long by, boolean seen) {
         if (seen) {
-            combine(state, value);
+            current.add(groupId, value, by);
         }
     }
 
-    public static Block evaluateFinal(FirstValueBytesRefAggregator.SingleState state, DriverContext driverContext) {
-        return state.toBlock(driverContext);
-    }
-
-    public static FirstValueBytesRefAggregator.GroupingState initGrouping(DriverContext driverContext) {
-        return new FirstValueBytesRefAggregator.GroupingState(driverContext.bigArrays(), driverContext.breaker());
-    }
-
-    public static void combine(FirstValueBytesRefAggregator.GroupingState state, int groupId, BytesRef value) {
-        state.add(groupId, value);
-    }
-
-    public static void combineIntermediate(FirstValueBytesRefAggregator.GroupingState state, int groupId, BytesRef value, boolean seen) {
-        if (seen) {
-            state.add(groupId, value);
+    public static void combineStates(FirstValueLongGroupingState state, int groupId, FirstValueLongGroupingState otherState, int otherGroupId) {
+        if (otherState.byState.hasValue(otherGroupId)) {
+            state.add(groupId, otherState.valueState.get(otherGroupId), otherState.byState.get(otherGroupId));
         }
     }
 
-    public static void combineStates(
-        FirstValueBytesRefAggregator.GroupingState state,
-        int groupId,
-        FirstValueBytesRefAggregator.GroupingState otherState,
-        int otherGroupId
-    ) {
-        state.combine(groupId, otherState, otherGroupId);
+    public static Block evaluateFinal(FirstValueLongGroupingState state, IntVector selected, DriverContext driverContext) {
+        return state.toFinal(driverContext, selected);
     }
 
-    public static Block evaluateFinal(FirstValueBytesRefAggregator.GroupingState state, IntVector selected, DriverContext driverContext) {
-        return state.toBlock(selected, driverContext);
-    }
+    public static class FirstValueLongSingleState implements AggregatorState {
 
-    public static class GroupingState implements Releasable {
-        private final BytesRefArrayState internalState;
+        private final BreakingBytesRefBuilder value;
+        private long by = Long.MIN_VALUE;
+        private boolean seen = false;
 
-        private GroupingState(BigArrays bigArrays, CircuitBreaker breaker) {
-            this.internalState = new BytesRefArrayState(bigArrays, breaker, "max_bytes_ref_grouping_aggregator");
+        public FirstValueLongSingleState(CircuitBreaker breaker) {
+            this.value = new BreakingBytesRefBuilder(breaker, "first_value_bytes_ref_aggregator");
         }
 
-        public void add(int groupId, BytesRef value) {
-            if (internalState.hasValue(groupId) == false) {
-                internalState.set(groupId, value);
+        public void add(BytesRef value, long by) {
+            if (seen == false || by < this.by) {
+                this.seen = true;
+                this.value.grow(value.length);
+                this.value.setLength(value.length);
+                System.arraycopy(value.bytes, value.offset, this.value.bytes(), 0, value.length);
+                this.by = by;
             }
         }
 
-        public void combine(int groupId, FirstValueBytesRefAggregator.GroupingState otherState, int otherGroupId) {
-            if (otherState.internalState.hasValue(otherGroupId)) {
-                add(groupId, otherState.internalState.get(otherGroupId));
+        public void combine(BytesRef value, long by, boolean seen) {
+            if (this.seen == false || (seen && by < this.by)) {
+                this.seen = true;
+                this.value.grow(value.length);
+                this.value.setLength(value.length);
+                System.arraycopy(value.bytes, value.offset, this.value.bytes(), 0, value.length);
+                this.by = by;
             }
         }
 
-        void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
-            internalState.toIntermediate(blocks, offset, selected, driverContext);
+        @Override
+        public void toIntermediate(Block[] blocks, int offset, DriverContext driverContext) {
+            blocks[offset] = driverContext.blockFactory().newConstantBytesRefBlockWith(value.bytesRefView(), 1);
+            blocks[offset + 1] = driverContext.blockFactory().newConstantLongBlockWith(by, 1);
+            blocks[offset + 2] = driverContext.blockFactory().newConstantBooleanBlockWith(seen, 1);
         }
 
-        Block toBlock(IntVector selected, DriverContext driverContext) {
-            return internalState.toValuesBlock(selected, driverContext);
+        public Block toFinal(DriverContext driverContext) {
+            return seen
+                ? driverContext.blockFactory().newConstantBytesRefBlockWith(value.bytesRefView(), 1)
+                : driverContext.blockFactory().newConstantNullBlock(1);
+        }
+
+        @Override
+        public void close() {
+            Releasables.close(value);
+        }
+    }
+
+    public static class FirstValueLongGroupingState implements GroupingAggregatorState {
+
+        private final BytesRefArrayState valueState;
+        private final LongArrayState byState;
+
+        public FirstValueLongGroupingState(BigArrays bigArrays, CircuitBreaker breaker) {
+            this.valueState = new BytesRefArrayState(bigArrays, breaker, "first_value_bytes_ref_grouping_aggregator");
+            this.byState = new LongArrayState(bigArrays, Long.MIN_VALUE);
+        }
+
+        public void add(int groupId, BytesRef value, long byTimestamp) {
+            if (byState.hasValue(groupId) == false || byTimestamp < byState.getOrDefault(groupId)) {
+                valueState.set(groupId, value);
+                byState.set(groupId, byTimestamp);
+            }
         }
 
         void enableGroupIdTracking(SeenGroupIds seen) {
-            internalState.enableGroupIdTracking(seen);
+            valueState.enableGroupIdTracking(seen);
+            byState.enableGroupIdTracking(seen);
+        }
+
+        @Override
+        public void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
+            valueState.toIntermediate(blocks, offset, selected, driverContext);
+            byState.toIntermediate(blocks, offset + 1, selected, driverContext);
+        }
+
+        public Block toFinal(DriverContext driverContext, IntVector selected) {
+            if (byState.trackingGroupIds()) {
+                try (var builder = driverContext.blockFactory().newBytesRefBlockBuilder(selected.getPositionCount())) {
+                    for (int i = 0; i < selected.getPositionCount(); i++) {
+                        int group = selected.getInt(i);
+                        if (byState.hasValue(group)) {
+                            builder.appendBytesRef(valueState.get(group));
+                        } else {
+                            builder.appendNull();
+                        }
+                    }
+                    return builder.build();
+                }
+            } else {
+                try (var builder = driverContext.blockFactory().newBytesRefVectorBuilder(selected.getPositionCount())) {
+                    for (int i = 0; i < selected.getPositionCount(); i++) {
+                        int group = selected.getInt(i);
+                        builder.appendBytesRef(valueState.get(group));
+                    }
+                    return builder.build().asBlock();
+                }
+            }
         }
 
         @Override
         public void close() {
-            Releasables.close(internalState);
-        }
-    }
-
-    public static class SingleState implements Releasable {
-        private final BreakingBytesRefBuilder internalState;
-        private boolean seen;
-
-        private SingleState(CircuitBreaker breaker) {
-            this.internalState = new BreakingBytesRefBuilder(breaker, "max_bytes_ref_aggregator");
-            this.seen = false;
-        }
-
-        public void add(BytesRef value) {
-            if (seen == false) {
-                seen = true;
-
-                internalState.grow(value.length);
-                internalState.setLength(value.length);
-
-                System.arraycopy(value.bytes, value.offset, internalState.bytes(), 0, value.length);
-            }
-        }
-
-        void toIntermediate(Block[] blocks, int offset, DriverContext driverContext) {
-            blocks[offset] = driverContext.blockFactory().newConstantBytesRefBlockWith(internalState.bytesRefView(), 1);
-            blocks[offset + 1] = driverContext.blockFactory().newConstantBooleanBlockWith(seen, 1);
-        }
-
-        Block toBlock(DriverContext driverContext) {
-            if (seen == false) {
-                return driverContext.blockFactory().newConstantNullBlock(1);
-            }
-
-            return driverContext.blockFactory().newConstantBytesRefBlockWith(internalState.bytesRefView(), 1);
-        }
-
-        @Override
-        public void close() {
-            Releasables.close(internalState);
+            Releasables.close(valueState, byState);
         }
     }
 }

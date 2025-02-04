@@ -16,6 +16,8 @@ import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 
@@ -25,17 +27,18 @@ import org.elasticsearch.compute.operator.DriverContext;
  */
 public final class FirstValueBytesRefAggregatorFunction implements AggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
-      new IntermediateStateDesc("first", ElementType.BYTES_REF),
+      new IntermediateStateDesc("value", ElementType.BYTES_REF),
+      new IntermediateStateDesc("by", ElementType.LONG),
       new IntermediateStateDesc("seen", ElementType.BOOLEAN)  );
 
   private final DriverContext driverContext;
 
-  private final FirstValueBytesRefAggregator.SingleState state;
+  private final FirstValueBytesRefAggregator.FirstValueLongSingleState state;
 
   private final List<Integer> channels;
 
   public FirstValueBytesRefAggregatorFunction(DriverContext driverContext, List<Integer> channels,
-      FirstValueBytesRefAggregator.SingleState state) {
+      FirstValueBytesRefAggregator.FirstValueLongSingleState state) {
     this.driverContext = driverContext;
     this.channels = channels;
     this.state = state;
@@ -134,20 +137,26 @@ public final class FirstValueBytesRefAggregatorFunction implements AggregatorFun
   public void addIntermediateInput(Page page) {
     assert channels.size() == intermediateBlockCount();
     assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size();
-    Block firstUncast = page.getBlock(channels.get(0));
-    if (firstUncast.areAllValuesNull()) {
+    Block valueUncast = page.getBlock(channels.get(0));
+    if (valueUncast.areAllValuesNull()) {
       return;
     }
-    BytesRefVector first = ((BytesRefBlock) firstUncast).asVector();
-    assert first.getPositionCount() == 1;
-    Block seenUncast = page.getBlock(channels.get(1));
+    BytesRefVector value = ((BytesRefBlock) valueUncast).asVector();
+    assert value.getPositionCount() == 1;
+    Block byUncast = page.getBlock(channels.get(1));
+    if (byUncast.areAllValuesNull()) {
+      return;
+    }
+    LongVector by = ((LongBlock) byUncast).asVector();
+    assert by.getPositionCount() == 1;
+    Block seenUncast = page.getBlock(channels.get(2));
     if (seenUncast.areAllValuesNull()) {
       return;
     }
     BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
     assert seen.getPositionCount() == 1;
     BytesRef scratch = new BytesRef();
-    FirstValueBytesRefAggregator.combineIntermediate(state, first.getBytesRef(0, scratch), seen.getBoolean(0));
+    FirstValueBytesRefAggregator.combineIntermediate(state, value.getBytesRef(0, scratch), by.getLong(0), seen.getBoolean(0));
   }
 
   @Override

@@ -212,7 +212,7 @@ public final class EvalMapper {
             List<ShardContext> shardContexts,
             boolean usesScoring
         ) {
-            var expEval = toEvaluator(foldCtx, not.field(), layout);
+            var expEval = toEvaluator(foldCtx, not.field(), layout, shardContexts, usesScoring);
             return dvrCtx -> new org.elasticsearch.xpack.esql.evaluator.predicate.operator.logical.NotEvaluator(
                 not.source(),
                 expEval.get(dvrCtx),

@@ -179,7 +179,12 @@ public class LuceneQueryExpressionEvaluator implements EvalOperator.ExpressionEv
     }
 
     @Override
-    public void close() {}
+    public void close() {
+        if ((scoreVector != null) && scoreVector.isReleased() == false) {
+            // Scores may not be retrieved calling score(), for example with NOT. Try to free up the score vector
+            Releasables.closeExpectNoException(scoreVector);
+        }
+    }
 
     private ShardState shardState(int shard) throws IOException {
         if (shard >= perShardState.length) {

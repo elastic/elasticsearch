@@ -175,10 +175,10 @@ public class AllocationFailuresResetOnShutdownIT extends ESIntegTestCase {
 
         prepareCreate("index1", indexSettings(1, 0)).execute();
 
-        // await all relocation attempts are exhausted
+        // await all allocation attempts are exhausted
         var maxAttempts = MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY.get(Settings.EMPTY);
         ensureRed("index1");
-        {
+        assertBusy(() -> {
             var state = safeGet(clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).execute()).getState();
             var index = state.getRoutingTable().index("index1");
             assertNotNull(index);
@@ -186,7 +186,7 @@ public class AllocationFailuresResetOnShutdownIT extends ESIntegTestCase {
             assertNotNull(shard);
             assertNotNull(shard.unassignedInfo());
             assertThat(maxAttempts, equalTo(shard.unassignedInfo().failedAllocations()));
-        }
+        });
 
         failAllocation.set(false);
 
@@ -240,13 +240,13 @@ public class AllocationFailuresResetOnShutdownIT extends ESIntegTestCase {
         // await all allocation attempts are exhausted
         var maxAttempts = MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY.get(Settings.EMPTY);
         ensureRed("index1");
-        {
+        assertBusy(() -> {
             var state = safeGet(clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).execute()).getState();
             var shard = state.getRoutingTable().index("index1").shard(0).primaryShard();
             assertNotNull(shard);
             assertNotNull(shard.unassignedInfo());
             assertThat(maxAttempts, equalTo(shard.unassignedInfo().failedAllocations()));
-        }
+        });
 
         failAllocation.set(false);
 

@@ -13,15 +13,13 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 
 import java.lang.reflect.Modifier;
-import java.util.Collections;
-import java.util.List;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
@@ -69,13 +67,11 @@ public class TransportVersionTests extends ESTestCase {
     public void testStaticTransportVersionChecks() {
         assertThat(
             TransportVersions.collectAllVersionIdsDefinedInClass(CorrectFakeVersion.class),
-            equalTo(
-                List.of(
-                    CorrectFakeVersion.V_0_000_002,
-                    CorrectFakeVersion.V_0_000_003,
-                    CorrectFakeVersion.V_0_000_004,
-                    CorrectFakeVersion.V_0_00_01
-                )
+            contains(
+                CorrectFakeVersion.V_0_000_002,
+                CorrectFakeVersion.V_0_000_003,
+                CorrectFakeVersion.V_0_000_004,
+                CorrectFakeVersion.V_0_00_01
             )
         );
         AssertionError e = expectThrows(
@@ -161,15 +157,15 @@ public class TransportVersionTests extends ESTestCase {
     }
 
     public void testIsPatchFrom() {
-        TransportVersion patchVersion = TransportVersion.fromId(8_800_00_4);
-        assertThat(TransportVersion.fromId(8_799_00_0).isPatchFrom(patchVersion), is(false));
-        assertThat(TransportVersion.fromId(8_799_00_9).isPatchFrom(patchVersion), is(false));
-        assertThat(TransportVersion.fromId(8_800_00_0).isPatchFrom(patchVersion), is(false));
-        assertThat(TransportVersion.fromId(8_800_00_3).isPatchFrom(patchVersion), is(false));
-        assertThat(TransportVersion.fromId(8_800_00_4).isPatchFrom(patchVersion), is(true));
-        assertThat(TransportVersion.fromId(8_800_00_9).isPatchFrom(patchVersion), is(true));
-        assertThat(TransportVersion.fromId(8_800_01_0).isPatchFrom(patchVersion), is(false));
-        assertThat(TransportVersion.fromId(8_801_00_0).isPatchFrom(patchVersion), is(false));
+        TransportVersion patchVersion = TransportVersion.fromId(8_800_0_04);
+        assertThat(TransportVersion.fromId(8_799_0_00).isPatchFrom(patchVersion), is(false));
+        assertThat(TransportVersion.fromId(8_799_0_09).isPatchFrom(patchVersion), is(false));
+        assertThat(TransportVersion.fromId(8_800_0_00).isPatchFrom(patchVersion), is(false));
+        assertThat(TransportVersion.fromId(8_800_0_03).isPatchFrom(patchVersion), is(false));
+        assertThat(TransportVersion.fromId(8_800_0_04).isPatchFrom(patchVersion), is(true));
+        assertThat(TransportVersion.fromId(8_800_0_49).isPatchFrom(patchVersion), is(true));
+        assertThat(TransportVersion.fromId(8_800_1_00).isPatchFrom(patchVersion), is(false));
+        assertThat(TransportVersion.fromId(8_801_0_00).isPatchFrom(patchVersion), is(false));
     }
 
     public void testVersionConstantPresent() {
@@ -184,7 +180,20 @@ public class TransportVersionTests extends ESTestCase {
     }
 
     public void testCURRENTIsLatest() {
-        assertThat(Collections.max(TransportVersion.getAllVersions()), is(TransportVersion.current()));
+        assertThat(TransportVersion.getAllVersions().getLast(), is(TransportVersion.current()));
+    }
+
+    public void testPatchVersionsStillAvailable() {
+        for (TransportVersion tv : TransportVersion.getAllVersions()) {
+            if (tv.onOrAfter(TransportVersions.V_8_9_X) && (tv.id() % 100) > 90) {
+                fail(
+                    "Transport version "
+                        + tv
+                        + " is nearing the limit of available patch numbers."
+                        + " Please inform the Core/Infra team that isPatchFrom may need to be modified"
+                );
+            }
+        }
     }
 
     public void testToReleaseVersion() {

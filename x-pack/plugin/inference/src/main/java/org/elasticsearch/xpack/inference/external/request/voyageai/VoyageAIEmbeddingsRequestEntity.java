@@ -56,8 +56,8 @@ public record VoyageAIEmbeddingsRequestEntity(
             builder.field(TRUNCATION_FIELD, taskSettings.getTruncation());
         }
 
-        if(taskSettings.getOutputDimension() != null) {
-            builder.field(OUTPUT_DIMENSION, taskSettings.getOutputDimension());
+        if(serviceSettings.dimensions() != null) {
+            builder.field(OUTPUT_DIMENSION, serviceSettings.dimensions());
         }
 
         if(serviceSettings.getEmbeddingType() != null) {

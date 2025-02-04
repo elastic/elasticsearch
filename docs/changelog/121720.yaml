@@ -1,0 +1,6 @@
+pr: 121720
+summary: Fix - Requesting `_inference_fields` when using legacy format causes shard
+  failure
+area: Relevance
+type: bug
+issues: []

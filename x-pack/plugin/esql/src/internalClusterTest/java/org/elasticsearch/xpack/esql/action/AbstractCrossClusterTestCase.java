@@ -18,6 +18,7 @@ import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.AbstractMultiClustersTestCase;
+import org.elasticsearch.test.FailingFieldPlugin;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -63,6 +64,7 @@ public abstract class AbstractCrossClusterTestCase extends AbstractMultiClusters
         plugins.add(CrossClusterAsyncQueryIT.InternalExchangePlugin.class);
         plugins.add(SimplePauseFieldPlugin.class);
         plugins.add(FailingPauseFieldPlugin.class);
+        plugins.add(FailingFieldPlugin.class);
         plugins.add(CrossClusterAsyncQueryIT.CountingPauseFieldPlugin.class);
         return plugins;
     }

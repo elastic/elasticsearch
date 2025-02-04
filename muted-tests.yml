@@ -347,6 +347,9 @@ tests:
 - class: org.elasticsearch.xpack.security.profile.ProfileIntegTests
   method: testActivateProfile
   issue: https://github.com/elastic/elasticsearch/issues/121151
+- class: org.elasticsearch.xpack.security.profile.ProfileIntegTests
+  method: testHasPrivileges
+  issue: https://github.com/elastic/elasticsearch/issues/121346
 
 # Examples:
 #

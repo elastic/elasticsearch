@@ -83,7 +83,13 @@ public class LuceneSyntheticSourceChangesSnapshot extends SearchBasedChangesSnap
         this.maxMemorySizeInBytes = maxMemorySizeInBytes > 0 ? maxMemorySizeInBytes : 1;
         this.sourceLoader = mapperService.mappingLookup().newSourceLoader(null, SourceFieldMetrics.NOOP);
         Set<String> storedFields = sourceLoader.requiredStoredFields();
+
         // If more than a few ops are requested let's enforce a sequential reader. Typically, thousands of ops may be requested.
+        // Given how LuceneSyntheticSourceChangesSnapshot accesses stored field, it should always benefit from using sequential reader.
+        //
+        // A sequential reader decompresses a block eagerly, so that increasing adjacent doc ids can access stored fields without
+        // compressing on each StoredFields#document(docId) invocation. The only downside is the last few operations in the request
+        // seq_no range are at the beginning of a block, which means stored fields for many docs are being decompressed that isn't used.
         boolean shouldForceSequentialReader = toSeqNo - fromSeqNo > 10;
         this.storedFieldLoader = StoredFieldLoader.create(false, storedFields, shouldForceSequentialReader);
         this.lastSeenSeqNo = fromSeqNo - 1;

@@ -175,8 +175,7 @@ public class TransportVersions {
     public static final TransportVersion COHERE_BIT_EMBEDDING_TYPE_SUPPORT_ADDED_BACKPORT_8_X = def(8_840_0_01);
     public static final TransportVersion ELASTICSEARCH_9_0 = def(9_000_0_00);
     public static final TransportVersion COHERE_BIT_EMBEDDING_TYPE_SUPPORT_ADDED = def(9_001_0_00);
-    public static final TransportVersion SLM_TIME_ALLOWED_SINCE_LAST_SNAPSHOT = def(9_002_0_00);  // SX TODO: update version
-
+    public static final TransportVersion SLM_TIME_ALLOWED_SINCE_LAST_SNAPSHOT = def(9_002_0_00);
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _

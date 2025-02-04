@@ -54,7 +54,7 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
     private final Map<String, Object> configuration;
     private final SnapshotRetentionConfiguration retentionPolicy;
     private final boolean isCronSchedule;
-    private final TimeValue timeAllowedSinceLastSnapshot;
+    private final TimeValue missingSnapshotUnhealthyThreshold;
 
     private static final ParseField NAME = new ParseField("name");
     private static final ParseField SCHEDULE = new ParseField("schedule");
@@ -74,8 +74,8 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
             String repo = (String) a[2];
             Map<String, Object> config = (Map<String, Object>) a[3];
             SnapshotRetentionConfiguration retention = (SnapshotRetentionConfiguration) a[4];
-            TimeValue timeAllowedSinceLastSnapshot = (TimeValue) a[5];
-            return new SnapshotLifecyclePolicy(id, name, schedule, repo, config, retention, timeAllowedSinceLastSnapshot);
+            TimeValue missingSnapshotUnhealthyThreshold = (TimeValue) a[5];
+            return new SnapshotLifecyclePolicy(id, name, schedule, repo, config, retention, missingSnapshotUnhealthyThreshold);
         }
     );
 
@@ -111,7 +111,7 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
         final String repository,
         @Nullable final Map<String, Object> configuration,
         @Nullable final SnapshotRetentionConfiguration retentionPolicy,
-        @Nullable final TimeValue timeAllowedSinceLastSnapshot
+        @Nullable final TimeValue missingSnapshotUnhealthyThreshold
     ) {
         this.id = Objects.requireNonNull(id, "policy id is required");
         this.name = Objects.requireNonNull(name, "policy snapshot name is required");
@@ -119,7 +119,7 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
         this.repository = Objects.requireNonNull(repository, "policy snapshot repository is required");
         this.configuration = configuration;
         this.retentionPolicy = retentionPolicy;
-        this.timeAllowedSinceLastSnapshot = timeAllowedSinceLastSnapshot;
+        this.missingSnapshotUnhealthyThreshold = missingSnapshotUnhealthyThreshold;
         this.isCronSchedule = isCronSchedule(schedule);
     }
 
@@ -130,7 +130,7 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
         this.repository = in.readString();
         this.configuration = in.readGenericMap();
         this.retentionPolicy = in.readOptionalWriteable(SnapshotRetentionConfiguration::new);
-        this.timeAllowedSinceLastSnapshot = in.getTransportVersion().onOrAfter(TransportVersions.SLM_TIME_ALLOWED_SINCE_LAST_SNAPSHOT)
+        this.missingSnapshotUnhealthyThreshold = in.getTransportVersion().onOrAfter(TransportVersions.SLM_TIME_ALLOWED_SINCE_LAST_SNAPSHOT)
             ? in.readOptionalTimeValue()
             : null;
         this.isCronSchedule = isCronSchedule(schedule);
@@ -163,8 +163,8 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
     }
 
     @Nullable
-    public TimeValue getTimeAllowedSinceLastSnapshot() {
-        return this.timeAllowedSinceLastSnapshot;
+    public TimeValue getMissingSnapshotUnhealthyThreshold() {
+        return this.missingSnapshotUnhealthyThreshold;
     }
 
     boolean isCronSchedule() {
@@ -268,7 +268,7 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
 
         // Schedule validation
         // n.b. there's more validation beyond this in SnapshotLifecycleService#validateMinimumInterval
-        boolean canValidateTimeAllowedSinceLastSnapshot = false;    // true if schedule is syntactically valid
+        boolean canValidateMissingSnapshotUnhealthyThreshold = false;    // true if schedule is syntactically valid
         if (Strings.hasText(schedule) == false) {
             err.addValidationError("invalid schedule [" + schedule + "]: must not be empty");
         } else {
@@ -277,25 +277,25 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
                 if (intervalTimeValue.millis() == 0) {
                     err.addValidationError("invalid schedule [" + schedule + "]: time unit must be at least 1 millisecond");
                 }
-                canValidateTimeAllowedSinceLastSnapshot = true;
+                canValidateMissingSnapshotUnhealthyThreshold = true;
             } catch (IllegalArgumentException e1) {
                 if (isCronSchedule(schedule) == false) {
                     err.addValidationError("invalid schedule [" + schedule + "]: must be a valid cron expression or time unit");
                 } else {
-                    canValidateTimeAllowedSinceLastSnapshot = true;
+                    canValidateMissingSnapshotUnhealthyThreshold = true;
                 }
             }
         }
 
-        // validate timeAllowedSinceLastSnapshot if schedule is syntactically valid
-        if (canValidateTimeAllowedSinceLastSnapshot) {
+        // validate missingSnapshotUnhealthyThreshold if schedule is syntactically valid
+        if (canValidateMissingSnapshotUnhealthyThreshold) {
             TimeValue snapshotInterval = calculateNextInterval(Clock.systemUTC());
-            if (timeAllowedSinceLastSnapshot != null
+            if (missingSnapshotUnhealthyThreshold != null
                 && snapshotInterval.duration() > 0
-                && timeAllowedSinceLastSnapshot.compareTo(snapshotInterval) < 0) {
+                && missingSnapshotUnhealthyThreshold.compareTo(snapshotInterval) < 0) {
                 err.addValidationError(
-                    "invalid timeAllowedSinceLastSnapshot ["
-                        + timeAllowedSinceLastSnapshot.getStringRep()
+                    "invalid missingSnapshotUnhealthyThreshold ["
+                        + missingSnapshotUnhealthyThreshold.getStringRep()
                         + "]: "
                         + "time is too short, expecting at least more than the interval between snapshots ["
                         + snapshotInterval.toHumanReadableString(2)
@@ -395,7 +395,7 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
         out.writeGenericMap(this.configuration);
         out.writeOptionalWriteable(this.retentionPolicy);
         if (out.getTransportVersion().onOrAfter(TransportVersions.SLM_TIME_ALLOWED_SINCE_LAST_SNAPSHOT)) {
-            out.writeOptionalTimeValue(this.timeAllowedSinceLastSnapshot);
+            out.writeOptionalTimeValue(this.missingSnapshotUnhealthyThreshold);
         }
     }
 
@@ -411,8 +411,8 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
         if (this.retentionPolicy != null) {
             builder.field(RETENTION.getPreferredName(), this.retentionPolicy);
         }
-        if (this.timeAllowedSinceLastSnapshot != null) {
-            builder.field(TIME_ALLOWED_SINCE_LAST_SNAPSHOT.getPreferredName(), this.timeAllowedSinceLastSnapshot);
+        if (this.missingSnapshotUnhealthyThreshold != null) {
+            builder.field(TIME_ALLOWED_SINCE_LAST_SNAPSHOT.getPreferredName(), this.missingSnapshotUnhealthyThreshold);
         }
         builder.endObject();
         return builder;
@@ -420,7 +420,7 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, name, schedule, repository, configuration, retentionPolicy, timeAllowedSinceLastSnapshot);
+        return Objects.hash(id, name, schedule, repository, configuration, retentionPolicy, missingSnapshotUnhealthyThreshold);
     }
 
     @Override
@@ -439,7 +439,7 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
             && Objects.equals(repository, other.repository)
             && Objects.equals(configuration, other.configuration)
             && Objects.equals(retentionPolicy, other.retentionPolicy)
-            && Objects.equals(timeAllowedSinceLastSnapshot, other.timeAllowedSinceLastSnapshot);
+            && Objects.equals(missingSnapshotUnhealthyThreshold, other.missingSnapshotUnhealthyThreshold);
     }
 
     @Override

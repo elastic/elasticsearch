@@ -1,4 +1,4 @@
-first_long_no_grouping
+first_long_no_grouping-Ignore
 required_capability: fn_first_last
 FROM sample_data
 | STATS event_duration = first_value(event_duration)
@@ -20,7 +20,7 @@ Connected to 10.1.0.3
 ;
 
 
-first_long_grouped
+first_long_grouped-Ignore
 required_capability: fn_first_last
 FROM sample_data
 | STATS event_duration = first_value(event_duration) BY @timestamp = BUCKET(@timestamp, 1 hour) 

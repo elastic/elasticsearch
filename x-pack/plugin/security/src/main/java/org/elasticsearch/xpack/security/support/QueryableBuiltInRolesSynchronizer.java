@@ -28,7 +28,6 @@ import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.component.LifecycleListener;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
@@ -99,13 +98,6 @@ public final class QueryableBuiltInRolesSynchronizer implements ClusterStateList
             );
         }
     }
-
-    public static final Setting<Boolean> QUERYABLE_BUILT_IN_ROLES_ENABLED_SETTING = Setting.boolSetting(
-        "xpack.security.queryable_built_in_roles.enabled",
-        true,
-        Setting.Property.NodeScope,
-        Setting.Property.Filtered
-    );
 
     public static final NodeFeature QUERYABLE_BUILT_IN_ROLES_FEATURE = new NodeFeature("security.queryable_built_in_roles");
 

@@ -113,6 +113,6 @@ public class OrderBy extends UnaryPlan implements PostAnalysisVerificationAware,
 
     @Override
     public void postOptimizationVerification(Failures failures) {
-        failures.add(fail(this, "The query cannot be executed because it would require unbounded sort"));
+        failures.add(fail(this, "Unbounded sort not supported yet, please add a limit"));
     }
 }

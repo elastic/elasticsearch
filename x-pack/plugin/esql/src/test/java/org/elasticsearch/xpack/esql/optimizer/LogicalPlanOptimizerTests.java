@@ -2219,8 +2219,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
      *  \_TopN[[Order[salary{f}#12,ASC,LAST]],5[INTEGER]]
      *    \_Eval[[100[INTEGER] AS b]]
      *      \_MvExpand[first_name{f}#11]
-     *        \_TopN[[Order[first_name{f}#11,ASC,LAST]],10000[INTEGER]]
-     *          \_EsRelation[employees][emp_no{f}#10, first_name{f}#11, salary{f}#12]
+     *        \_EsRelation[employees][emp_no{f}#10, first_name{f}#11, salary{f}#12]
      */
     public void testPushDownLimit_PastEvalAndMvExpand() {
         LogicalPlan plan = optimizedPlan("""
@@ -2238,10 +2237,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(orderNames(topN), contains("salary"));
         var eval = as(topN.child(), Eval.class);
         var mvExp = as(eval.child(), MvExpand.class);
-        topN = as(mvExp.child(), TopN.class);
-        assertThat(topN.limit().fold(FoldContext.small()), equalTo(10000));
-        assertThat(orderNames(topN), contains("first_name"));
-        as(topN.child(), EsRelation.class);
+        as(mvExp.child(), EsRelation.class);
     }
 
     /**
@@ -7455,8 +7451,19 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         as(eval.child(), EsRelation.class);
     }
 
-    public void testUnboundedSort() throws Exception {
-        String query = """
+    /**
+     * TopN[[Order[emp_no{f}#15,ASC,LAST]],1000[INTEGER]]
+     * \_Filter[emp_no{f}#15 > 1[INTEGER]]
+     *   \_MvExpand[foo{r}#10,foo{r}#29]
+     *     \_Eval[[CONCAT(language_name{r}#28,[66 6f 6f][KEYWORD]) AS foo]]
+     *       \_MvExpand[language_name{f}#27,language_name{r}#28]
+     *         \_Join[LEFT,[language_code{r}#3],[language_code{r}#3],[language_code{f}#26]]
+     *           |_Eval[[1[INTEGER] AS language_code]]
+     *           | \_EsRelation[test][_meta_field{f}#21, emp_no{f}#15, first_name{f}#16, ..]
+     *           \_EsRelation[languages_lookup][LOOKUP][language_code{f}#26, language_name{f}#27]
+     */
+    public void testEvalLookupMultipleSorts() {
+        var plan = optimizedPlan("""
               FROM test
             | EVAL language_code = 1
             | LOOKUP JOIN languages_lookup ON language_code
@@ -7466,9 +7473,16 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             | MV_EXPAND foo
             | WHERE emp_no > 1
             | SORT emp_no
-            """;
+            """);
 
-        var e = expectThrows(VerificationException.class, () -> plan(query));
-        assertThat(e.getMessage(), is("Found 1 problem\nline 4:3: The query cannot be executed because it would require unbounded sort"));
+        var topN = as(plan, TopN.class);
+        var filter = as(topN.child(), Filter.class);
+        var mvExpand = as(filter.child(), MvExpand.class);
+        var eval = as(mvExpand.child(), Eval.class);
+        mvExpand = as(eval.child(), MvExpand.class);
+        var join = as(mvExpand.child(), Join.class);
+        eval = as(join.left(), Eval.class);
+        as(eval.child(), EsRelation.class);
+
     }
 }

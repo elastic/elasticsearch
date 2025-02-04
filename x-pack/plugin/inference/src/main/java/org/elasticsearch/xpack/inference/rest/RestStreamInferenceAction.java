@@ -9,12 +9,17 @@ package org.elasticsearch.xpack.inference.rest;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.core.inference.action.UnifiedCompletionAction;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
@@ -49,5 +54,33 @@ public class RestStreamInferenceAction extends BaseInferenceAction {
     @Override
     protected ActionListener<InferenceAction.Response> listener(RestChannel channel) {
         return new ServerSentEventsRestActionListener(channel, threadPool);
+    }
+
+    @Override
+    protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
+        var params = parseParams(restRequest);
+        var inferTimeout = parseTimeout(restRequest);
+
+        if (params.taskType() == TaskType.CHAT_COMPLETION) {
+            UnifiedCompletionAction.Request request;
+            try (var parser = restRequest.contentParser()) {
+                request = UnifiedCompletionAction.Request.parseRequest(params.inferenceEntityId(), params.taskType(), inferTimeout, parser);
+            }
+
+            return channel -> client.execute(
+                UnifiedCompletionAction.INSTANCE,
+                request,
+                new ServerSentEventsRestActionListener(channel, threadPool)
+            );
+        } else {
+            InferenceAction.Request.Builder requestBuilder;
+            try (var parser = restRequest.contentParser()) {
+                requestBuilder = InferenceAction.Request.parseRequest(params.inferenceEntityId(), params.taskType(), parser);
+            }
+
+            requestBuilder.setInferenceTimeout(inferTimeout);
+            var request = prepareInferenceRequest(requestBuilder);
+            return channel -> client.execute(InferenceAction.INSTANCE, request, listener(channel));
+        }
     }
 }

@@ -412,7 +412,12 @@ public class EsqlCapabilities {
         /**
          * Fix pushdown of LIMIT past MV_EXPAND
          */
-        ADD_LIMIT_INSIDE_MV_EXPAND;
+        ADD_LIMIT_INSIDE_MV_EXPAND,
+
+        /**
+         * Fix for https://github.com/elastic/elasticsearch/issues/117054
+         */
+        FIX_NESTED_FIELDS_NAME_CLASH_IN_INDEXRESOLVER;
 
         private final boolean enabled;
 

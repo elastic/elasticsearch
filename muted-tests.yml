@@ -268,9 +268,6 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=nodes.stats/11_indices_metrics/indices mappings exact count test for indices level}
   issue: https://github.com/elastic/elasticsearch/issues/120950
-- class: org.elasticsearch.xpack.shutdown.AllocationFailuresResetOnShutdownIT
-  method: testResetAllocationFailuresOnNodeShutdown
-  issue: https://github.com/elastic/elasticsearch/issues/121129
 - class: org.elasticsearch.xpack.security.authc.jwt.JwtRealmSingleNodeTests
   method: testActivateProfileForJWT
   issue: https://github.com/elastic/elasticsearch/issues/120983
@@ -441,6 +438,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.CrossClustersCancellationIT
   method: testCancelSkipUnavailable
   issue: https://github.com/elastic/elasticsearch/issues/121631
+- class: org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT
+  method: test {p0=mixed_cluster/110_enrich/Enrich stats query smoke test for mixed cluster}
+  issue: https://github.com/elastic/elasticsearch/issues/121642
 
 # Examples:
 #

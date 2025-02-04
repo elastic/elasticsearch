@@ -35,14 +35,7 @@ public class LogstashUsageTransportAction extends XPackUsageFeatureTransportActi
         IndexNameExpressionResolver indexNameExpressionResolver,
         XPackLicenseState licenseState
     ) {
-        super(
-            XPackUsageFeatureAction.LOGSTASH.name(),
-            transportService,
-            clusterService,
-            threadPool,
-            actionFilters,
-            indexNameExpressionResolver
-        );
+        super(XPackUsageFeatureAction.LOGSTASH.name(), transportService, clusterService, threadPool, actionFilters);
         this.licenseState = licenseState;
     }
 

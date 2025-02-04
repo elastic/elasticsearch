@@ -143,6 +143,23 @@ public class ModelLoaderUtilsTests extends ESTestCase {
         assertThat(finalRange.numParts(), is(1));
     }
 
+    public void testSplitIntoRanges_numRangesSmallerThanNumStreams() {
+        long totalSize = 2_142;
+        int numStreams = 10;
+        int chunkSize = 1_000;
+        var ranges = ModelLoaderUtils.split(totalSize, numStreams, chunkSize);
+        assertThat(ranges.toString(), ranges, hasSize(3));
+        assertThat(ranges.get(0).rangeStart(), is(0L));
+        assertThat(ranges.get(0).rangeEnd(), is(999L));
+        assertThat(ranges.get(0).numParts(), is(1));
+        assertThat(ranges.get(1).rangeStart(), is(1000L));
+        assertThat(ranges.get(1).rangeEnd(), is(1999L));
+        assertThat(ranges.get(1).numParts(), is(1));
+        assertThat(ranges.get(2).rangeStart(), is(2000L));
+        assertThat(ranges.get(2).rangeEnd(), is(2141L));
+        assertThat(ranges.get(2).numParts(), is(1));
+    }
+
     public void testRangeRequestBytesRange() {
         long start = randomLongBetween(0, 2 << 10);
         long end = randomLongBetween(start + 1, 2 << 11);

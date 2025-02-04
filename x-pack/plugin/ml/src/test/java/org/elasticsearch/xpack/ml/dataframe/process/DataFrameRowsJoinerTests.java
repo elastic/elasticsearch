@@ -326,6 +326,7 @@ public class DataFrameRowsJoinerTests extends ESTestCase {
     private static DataFrameDataExtractor.Row newRow(SearchHit hit, String[] values, boolean isTraining, int checksum) {
         DataFrameDataExtractor.Row row = mock(DataFrameDataExtractor.Row.class);
         when(row.getHit()).thenReturn(hit);
+        when(row.getSource()).thenReturn(hit.getSourceAsMap());
         when(row.getValues()).thenReturn(values);
         when(row.isTraining()).thenReturn(isTraining);
         when(row.getChecksum()).thenReturn(checksum);

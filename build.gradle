@@ -293,22 +293,57 @@ allprojects {
     }
   }
 
+  ext.withReleaseBuild = { Closure config ->
+    if(buildParams.snapshotBuild == false) {
+      config.call()
+    }
+  }
+
   plugins.withId('lifecycle-base') {
     if (project.path.startsWith(":x-pack:")) {
       if (project.path.contains("security") || project.path.contains(":ml")) {
-        tasks.register('checkPart4') { dependsOn 'check' }
+        tasks.register('checkPart4') {
+          dependsOn 'check'
+          withReleaseBuild {
+            dependsOn 'assemble'
+          }
+        }
       } else if (project.path == ":x-pack:plugin" || project.path.contains("ql") || project.path.contains("smoke-test")) {
-        tasks.register('checkPart3') { dependsOn 'check' }
+        tasks.register('checkPart3') {
+          dependsOn 'check'
+          withReleaseBuild {
+            dependsOn 'assemble'
+          }
+        }
       } else if (project.path.contains("multi-node")) {
-        tasks.register('checkPart5') { dependsOn 'check' }
+        tasks.register('checkPart5') {
+          dependsOn 'check'
+          withReleaseBuild {
+            dependsOn 'assemble'
+          }
+        }
       } else {
-        tasks.register('checkPart2') { dependsOn 'check' }
+        tasks.register('checkPart2') {
+          dependsOn 'check'
+          withReleaseBuild {
+            dependsOn 'assemble'
+          }
+        }
       }
     } else {
-      tasks.register('checkPart1') { dependsOn 'check' }
+      tasks.register('checkPart1') {
+        dependsOn 'check'
+        withReleaseBuild {
+          dependsOn 'assemble'
+        }
+      }
     }
-
-    tasks.register('functionalTests') { dependsOn 'check' }
+    tasks.register('functionalTests') {
+      dependsOn 'check'
+      withReleaseBuild {
+        dependsOn 'assemble'
+      }
+    }
   }
 
   /*

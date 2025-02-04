@@ -11,13 +11,13 @@ package org.elasticsearch.entitlement.runtime.policy;
 
 import org.elasticsearch.entitlement.runtime.policy.entitlements.FileEntitlement;
 
-import java.io.File;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
+import static org.elasticsearch.core.PathUtils.getDefaultFileSystem;
 import static org.elasticsearch.entitlement.runtime.policy.entitlements.FileEntitlement.normalizePath;
 
 public final class FileAccessTree {
@@ -63,7 +63,7 @@ public final class FileAccessTree {
         int ndx = Arrays.binarySearch(paths, path);
         if (ndx < -1) {
             String maybeParent = paths[-ndx - 2];
-            return path.startsWith(maybeParent) && path.charAt(maybeParent.length()) == File.separatorChar;
+            return path.startsWith(maybeParent + getDefaultFileSystem().getSeparator());
         }
         return ndx >= 0;
     }

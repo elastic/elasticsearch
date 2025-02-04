@@ -17,10 +17,16 @@ import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.health.GetHealthAction;
+import org.elasticsearch.health.HealthIndicatorImpact;
+import org.elasticsearch.health.HealthIndicatorResult;
+import org.elasticsearch.health.HealthStatus;
+import org.elasticsearch.health.SimpleHealthIndicatorDetails;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
@@ -37,6 +43,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
+import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy;
 import org.elasticsearch.xpack.core.slm.SnapshotRetentionConfiguration;
 import org.elasticsearch.xpack.core.slm.action.ExecuteSnapshotLifecycleAction;
@@ -56,6 +63,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
@@ -76,11 +84,28 @@ public class SLMHealthBlockedSnapshotIT extends AbstractSnapshotIntegTestCase {
         );
     }
 
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put(LifecycleSettings.LIFECYCLE_HISTORY_INDEX_ENABLED, false)
+            .put(LifecycleSettings.SLM_MINIMUM_INTERVAL, TimeValue.timeValueSeconds(1L))    // use a small value to allow frequent snapshot
+            .build();
+    }
+
     public static class TestDelayedRepoPlugin extends Plugin implements RepositoryPlugin {
 
         // Use static vars since instantiated by plugin system
         private static final AtomicBoolean doDelay = new AtomicBoolean(true);
         private static final CountDownLatch delayedRepoLatch = new CountDownLatch(1);
+
+        static void enable() {
+            doDelay.set(true);
+        }
+
+        static void disable() {
+            doDelay.set(false);
+        }
 
         static void removeDelay() {
             delayedRepoLatch.countDown();
@@ -98,10 +123,12 @@ public class SLMHealthBlockedSnapshotIT extends AbstractSnapshotIntegTestCase {
             return Map.of(
                 TestDelayedRepo.TYPE,
                 metadata -> new TestDelayedRepo(metadata, env, namedXContentRegistry, clusterService, bigArrays, recoverySettings, () -> {
-                    try {
-                        assertTrue(delayedRepoLatch.await(1, TimeUnit.MINUTES));
-                    } catch (InterruptedException e) {
-                        throw new RuntimeException(e);
+                    if (doDelay.get()) {
+                        try {
+                            assertTrue(delayedRepoLatch.await(1, TimeUnit.MINUTES));
+                        } catch (InterruptedException e) {
+                            throw new RuntimeException(e);
+                        }
                     }
                 })
             );
@@ -132,56 +159,54 @@ public class SLMHealthBlockedSnapshotIT extends AbstractSnapshotIntegTestCase {
         }
     }
 
-    public void test1() throws Exception {
-        final String idxName = "test-idx";
+    public void test() throws Exception {
         final String repoName = "test-repo";
-        final String policyName = "test-policy";
 
         internalCluster().startMasterOnlyNodes(1);
         final String masterNode = internalCluster().getMasterName();
         final String dataNode = internalCluster().startDataOnlyNode();
         ensureStableCluster(2);
 
-        createRandomIndex(idxName, dataNode);
         createRepository(repoName, TestDelayedRepo.TYPE);
-        createSnapshotPolicy(policyName, "snap", NEVER_EXECUTE_CRON_SCHEDULE, repoName, idxName);
+
+        String idxName = "test-index";
+        String policyHealthy = "policy-health";
+        String policyHealthyBelowThreshold = "policy-health-below-threshold";
+        String policyUnhealthy = "policy-unhealthy";
+
+        List<String> policyNames = List.of(policyHealthy, policyHealthyBelowThreshold, policyUnhealthy);
+        List<String> policyNamesUnhealthy = List.of(policyUnhealthy);
+
+        createRandomIndex(idxName, dataNode);
+        putSnapshotPolicy(policyHealthy, "snap", NEVER_EXECUTE_CRON_SCHEDULE, repoName, idxName, null);
+        putSnapshotPolicy(policyHealthyBelowThreshold, "snap", NEVER_EXECUTE_CRON_SCHEDULE, repoName, idxName, TimeValue.ONE_HOUR);
+        putSnapshotPolicy(policyUnhealthy, "snap", NEVER_EXECUTE_CRON_SCHEDULE, repoName, idxName, TimeValue.ZERO);
 
         ensureGreen();
 
-        // trigger SLM multiple times at the same time
-        // TODO: trigger different SLM policies
-        List<String> snapshots = new ArrayList<>();
-        for (int i = 0; i < 10; i++) {
-            snapshots.add(executePolicy(masterNode, policyName));
-        }
+        // allow snapshots to run
+        TestDelayedRepoPlugin.disable();
 
-        // check SLM indicator
-        GetHealthAction.Response response = client().execute(GetHealthAction.INSTANCE, new GetHealthAction.Request(true, 1000)).get();
+        // create a successful snapshot, so there's baseline time to check against missing snapshot threshold
+        List<String> firstSnapshots = executePolicies(masterNode, policyNames);
+        waitForSnapshotsAndClusterState(repoName, firstSnapshots);
 
-        // remove delay from snapshotA allowing it to finish
+        // block snapshot execution, create second set of snapshots, assert YELLOW health
+        TestDelayedRepoPlugin.enable();
+        List<String> secondSnapshots = executePolicies(masterNode, policyNames);
+        assertSlmYellowMissingSnapshot(policyNamesUnhealthy.size());
+
+        // resume snapshot execution
         TestDelayedRepoPlugin.removeDelay();
+        waitForSnapshotsAndClusterState(repoName, secondSnapshots);
 
-        GetSnapshotsResponse getSnapshotsResponse = admin().cluster().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, repoName).get();
-
-        Thread.sleep(10000);
-
-        GetSnapshotsResponse getSnapshotsResponse1 = admin().cluster().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, repoName).get();
-
-        // GetSnapshotsResponse getSnapshotsResponse1 = client().execute(TransportGetSnapshotsAction.TYPE, new
-        // GetSnapshotsRequest(TEST_REQUEST_TIMEOUT)).get();
-
-        waitForSnapshot(repoName, snapshots.get(0));
-
-        // for (String snapshot : snapshots) {
-        // waitForSnapshot(repoName, snapshot);
-        // }
-
-        // assert snapshots are successful
+        // increase policy threshold, assert GREEN health
+        putSnapshotPolicy(policyUnhealthy, "snap", NEVER_EXECUTE_CRON_SCHEDULE, repoName, idxName, TimeValue.ONE_HOUR);
         assertBusy(() -> {
-            for (String snapshot : snapshots) {
-                assertSnapshotSuccess(repoName, snapshot);
-            }
-        }, 1, TimeUnit.MINUTES);
+            GetHealthAction.Request getHealthRequest = new GetHealthAction.Request(true, 1000);
+            GetHealthAction.Response health = admin().cluster().execute(GetHealthAction.INSTANCE, getHealthRequest).get();
+            assertThat(health.getStatus(), equalTo(HealthStatus.GREEN));
+        });
     }
 
     private void createRandomIndex(String idxName, String dataNodeName) throws InterruptedException {
@@ -199,7 +224,8 @@ public class SLMHealthBlockedSnapshotIT extends AbstractSnapshotIntegTestCase {
         indicesAdmin().refresh(new RefreshRequest(idxName)).actionGet();
     }
 
-    private void createSnapshotPolicy(String policyName, String snapshotNamePattern, String schedule, String repoId, String indexPattern) {
+    private void putSnapshotPolicy(String policyName, String snapshotNamePattern, String schedule, String repoId, String indexPattern,
+                                   TimeValue timeAllowedSineLastSnapshot) {
         Map<String, Object> snapConfig = new HashMap<>();
         snapConfig.put("indices", Collections.singletonList(indexPattern));
         snapConfig.put("ignore_unavailable", false);
@@ -211,7 +237,8 @@ public class SLMHealthBlockedSnapshotIT extends AbstractSnapshotIntegTestCase {
             schedule,
             repoId,
             snapConfig,
-            SnapshotRetentionConfiguration.EMPTY
+            SnapshotRetentionConfiguration.EMPTY,
+            timeAllowedSineLastSnapshot
         );
 
         PutSnapshotLifecycleAction.Request putLifecycle = new PutSnapshotLifecycleAction.Request(
@@ -228,6 +255,28 @@ public class SLMHealthBlockedSnapshotIT extends AbstractSnapshotIntegTestCase {
         }
     }
 
+    private void assertSlmYellowMissingSnapshot(int numUnhealthyPolicy) throws Exception {
+        assertBusy(() -> {
+            GetHealthAction.Request getHealthRequest = new GetHealthAction.Request(true, 1000);
+            GetHealthAction.Response health = admin().cluster().execute(GetHealthAction.INSTANCE, getHealthRequest).get();
+            assertThat(health.getStatus(), equalTo(HealthStatus.YELLOW));
+            HealthIndicatorResult slmIndicator = health.findIndicator(SlmHealthIndicatorService.NAME);
+            assertThat(slmIndicator.status(), equalTo(HealthStatus.YELLOW));
+            assertThat(slmIndicator.impacts().size(), equalTo(1));
+            List<HealthIndicatorImpact> missingSnapshotPolicies = slmIndicator.impacts().stream()
+                .filter(impact -> SlmHealthIndicatorService.MISSING_SNAPSHOT_IMPACT_ID.equals(impact.id())).toList();
+            assertThat(missingSnapshotPolicies.size(), equalTo(numUnhealthyPolicy));
+        });
+    }
+
+    private List<String> executePolicies(String node, List<String> policies) throws Exception {
+        List<String> snapshots = new ArrayList<>();
+        for (String policyName : policies) {
+            snapshots.add(executePolicy(node, policyName));
+        }
+        return snapshots;
+    }
+
     /**
      * Execute the given policy and return the generated snapshot name
      */
@@ -239,6 +288,13 @@ public class SLMHealthBlockedSnapshotIT extends AbstractSnapshotIntegTestCase {
         );
         ExecuteSnapshotLifecycleAction.Response resp = client(node).execute(ExecuteSnapshotLifecycleAction.INSTANCE, executeReq).get();
         return resp.getSnapshotName();
+    }
+
+    private void waitForSnapshotsAndClusterState(String repo, List<String> snapshots) throws Exception {
+        for (String snapshot : snapshots) {
+            waitForSnapshot(repo, snapshot);
+        }
+        assertBusy(() -> assertTrue(SnapshotsInProgress.get(internalCluster().clusterService().state()).isEmpty()));
     }
 
     private void waitForSnapshot(String repo, String snapshotName) throws Exception {

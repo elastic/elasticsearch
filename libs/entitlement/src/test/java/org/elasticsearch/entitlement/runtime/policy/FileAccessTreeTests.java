@@ -13,6 +13,7 @@ import org.elasticsearch.entitlement.runtime.policy.entitlements.FileEntitlement
 import org.elasticsearch.test.ESTestCase;
 import org.junit.BeforeClass;
 
+import java.io.File;
 import java.nio.file.Path;
 import java.util.List;
 
@@ -87,14 +88,18 @@ public class FileAccessTreeTests extends ESTestCase {
         assertThat(tree.canRead(path("")), is(false));
     }
 
-    public void testSlashesAreInterchangeable() {
-        var tree = FileAccessTree.of(List.of(entitlement("a/b", "read"), entitlement("m\\n", "read")));
-        assertThat(tree.canRead(path("a/b")), is(true));
-        assertThat(tree.canRead(path("a\\b")), is(true));
-        assertThat(tree.canRead(path("m/n")), is(true));
-        assertThat(tree.canRead(path("m\\n")), is(true));
+    public void testForwardSlashes() {
+        var tree = FileAccessTree.of(List.of(entitlement("a/b", "read"), entitlement("m" + File.separatorChar + "n", "read")));
 
-        // Backslash shouldn't be treated as an escape
+        // Native separators work
+        assertThat(tree.canRead(path("a" + File.separatorChar + "b")), is(true));
+        assertThat(tree.canRead(path("m" + File.separatorChar + "n")), is(true));
+
+        // Forward slashes also work
+        assertThat(tree.canRead(path("a/b")), is(true));
+        assertThat(tree.canRead(path("m/n")), is(true));
+
+        // In case the native separator is a backslash, don't treat that as an escape
         assertThat(tree.canRead(path("m\n")), is(false));
     }
 

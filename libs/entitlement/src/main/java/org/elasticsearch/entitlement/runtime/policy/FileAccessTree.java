@@ -11,6 +11,7 @@ package org.elasticsearch.entitlement.runtime.policy;
 
 import org.elasticsearch.entitlement.runtime.policy.entitlements.FileEntitlement;
 
+import java.io.File;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -62,7 +63,7 @@ public final class FileAccessTree {
         int ndx = Arrays.binarySearch(paths, path);
         if (ndx < -1) {
             String maybeParent = paths[-ndx - 2];
-            return path.startsWith(maybeParent) && path.charAt(maybeParent.length()) == '/';
+            return path.startsWith(maybeParent) && path.charAt(maybeParent.length()) == File.separatorChar;
         }
         return ndx >= 0;
     }

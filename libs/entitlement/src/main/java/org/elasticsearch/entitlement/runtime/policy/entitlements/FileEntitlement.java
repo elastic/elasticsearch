@@ -34,10 +34,13 @@ public record FileEntitlement(String path, Mode mode) implements Entitlement {
     }
 
     /**
-     * @return the "canonical" form of of the given {@code path}, to be used for entitlement checks.
+     * @return the "canonical" form of the given {@code path}, to be used for entitlement checks.
      */
     public static String normalizePath(Path path) {
-        return path.toAbsolutePath().normalize().toString().replace('\\', '/');
+        // Note that toAbsolutePath produces paths separated by File.separator,
+        // so on Windows, if the given path uses forward slashes, this consistently
+        // converts it to backslashes.
+        return path.toAbsolutePath().normalize().toString();
     }
 
     private static Mode parseMode(String mode) {

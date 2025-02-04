@@ -13,10 +13,10 @@ import org.elasticsearch.entitlement.runtime.policy.entitlements.FileEntitlement
 import org.elasticsearch.test.ESTestCase;
 import org.junit.BeforeClass;
 
-import java.io.File;
 import java.nio.file.Path;
 import java.util.List;
 
+import static org.elasticsearch.core.PathUtils.getDefaultFileSystem;
 import static org.hamcrest.Matchers.is;
 
 public class FileAccessTreeTests extends ESTestCase {
@@ -89,11 +89,12 @@ public class FileAccessTreeTests extends ESTestCase {
     }
 
     public void testForwardSlashes() {
-        var tree = FileAccessTree.of(List.of(entitlement("a/b", "read"), entitlement("m" + File.separatorChar + "n", "read")));
+        String sep = getDefaultFileSystem().getSeparator();
+        var tree = FileAccessTree.of(List.of(entitlement("a/b", "read"), entitlement("m" + sep + "n", "read")));
 
         // Native separators work
-        assertThat(tree.canRead(path("a" + File.separatorChar + "b")), is(true));
-        assertThat(tree.canRead(path("m" + File.separatorChar + "n")), is(true));
+        assertThat(tree.canRead(path("a" + sep + "b")), is(true));
+        assertThat(tree.canRead(path("m" + sep + "n")), is(true));
 
         // Forward slashes also work
         assertThat(tree.canRead(path("a/b")), is(true));

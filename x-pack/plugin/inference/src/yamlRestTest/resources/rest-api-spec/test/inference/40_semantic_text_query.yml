@@ -1003,3 +1003,60 @@ setup:
   - length: { aggregations.agg_ids.buckets: 1 }
   - match: { aggregations.agg_ids.buckets.0.key: "doc_1" }
   - match: { aggregations.agg_ids.buckets.0.doc_count: 1 }
+
+---
+"Query _inference_fields with semantic_text legacy format":
+  - do:
+      inference.put:
+        task_type: sparse_embedding
+        inference_id: sparse-inference-id
+        body: >
+          {
+            "service": "test_service",
+            "service_settings": {
+              "model": "my_model",
+              "api_key": "abc64"
+            },
+            "task_settings": {
+            }
+          }
+
+  - do:
+      indices.create:
+        index: test-index
+        body:
+          settings:
+            index:
+              mapping:
+                semantic_text:
+                  use_legacy_format: true
+          mappings:
+            properties:
+              inference_field:
+                type: semantic_text
+                inference_id: sparse-inference-id
+              source_field:
+                type: text
+                copy_to: inference_field
+
+  - do:
+      index:
+        index: test-index
+        id: doc_1
+        body:
+          inference_field: "test value",
+          source_field: "source value"
+        refresh: true
+
+  - do:
+      search:
+        index: test-index
+        body:
+          fields: [ _inference_fields ]
+          query:
+            match_all: { }
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.total.relation: eq }
+  - match: { hits.hits.0._source.source_field: "source value" }
+  - match: { hits.hits.0._source.inference_field.text: "test value" }

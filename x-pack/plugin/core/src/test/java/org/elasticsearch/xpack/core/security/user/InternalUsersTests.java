@@ -31,7 +31,6 @@ import org.elasticsearch.action.datastreams.ModifyDataStreamsAction;
 import org.elasticsearch.action.downsample.DownsampleAction;
 import org.elasticsearch.action.get.TransportGetAction;
 import org.elasticsearch.action.index.TransportIndexAction;
-import org.elasticsearch.action.ingest.PutPipelineTransportAction;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.search.TransportSearchScrollAction;
 import org.elasticsearch.cluster.metadata.DataStream;

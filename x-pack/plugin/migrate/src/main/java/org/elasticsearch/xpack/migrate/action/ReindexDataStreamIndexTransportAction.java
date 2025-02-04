@@ -54,6 +54,7 @@ import org.elasticsearch.xpack.core.deprecation.DeprecatedIndexPredicate;
 
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.APIBlock.WRITE;
 
@@ -341,6 +342,7 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
         TaskId parentTaskId
     ) {
         AddIndexBlockRequest addIndexBlockRequest = new AddIndexBlockRequest(block, index);
+        addIndexBlockRequest.markVerified(false);
         addIndexBlockRequest.setParentTask(parentTaskId);
         client.admin().indices().execute(TransportAddIndexBlockAction.TYPE, addIndexBlockRequest, listener);
     }
@@ -366,26 +368,24 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
     ) {
         if (Assertions.ENABLED) {
             logger.debug("Comparing source [{}] and dest [{}] doc counts", sourceIndexName, destIndexName);
-            client.execute(
-                RefreshAction.INSTANCE,
-                new RefreshRequest(destIndexName),
-                listener.delegateFailureAndWrap((delegate, ignored) -> {
-                    getIndexDocCount(sourceIndexName, parentTaskId, delegate.delegateFailureAndWrap((delegate1, sourceCount) -> {
-                        getIndexDocCount(destIndexName, parentTaskId, delegate1.delegateFailureAndWrap((delegate2, destCount) -> {
-                            assert sourceCount == destCount
-                                : String.format(
-                                    Locale.ROOT,
-                                    "source index [%s] has %d docs and dest [%s] has %d docs",
-                                    sourceIndexName,
-                                    sourceCount,
-                                    destIndexName,
-                                    destCount
-                                );
-                            delegate2.onResponse(null);
-                        }));
+            RefreshRequest refreshRequest = new RefreshRequest(destIndexName);
+            refreshRequest.setParentTask(parentTaskId);
+            client.execute(RefreshAction.INSTANCE, refreshRequest, listener.delegateFailureAndWrap((delegate, ignored) -> {
+                getIndexDocCount(sourceIndexName, parentTaskId, delegate.delegateFailureAndWrap((delegate1, sourceCount) -> {
+                    getIndexDocCount(destIndexName, parentTaskId, delegate1.delegateFailureAndWrap((delegate2, destCount) -> {
+                        assert Objects.equals(sourceCount, destCount)
+                            : String.format(
+                                Locale.ROOT,
+                                "source index [%s] has %d docs and dest [%s] has %d docs",
+                                sourceIndexName,
+                                sourceCount,
+                                destIndexName,
+                                destCount
+                            );
+                        delegate2.onResponse(null);
                     }));
-                })
-            );
+                }));
+            }));
         } else {
             listener.onResponse(null);
         }

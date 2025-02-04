@@ -18,13 +18,13 @@ import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 
 import static java.util.Map.entry;
 import static java.util.Map.ofEntries;
-import static org.elasticsearch.xpack.deprecation.DeprecationInfoAction.filterChecks;
 
 /**
  * Checks the data streams for deprecation warnings.
@@ -44,10 +44,24 @@ public class DataStreamDeprecationChecker implements ResourceDeprecationChecker 
 
     /**
      * @param clusterState The cluster state provided for the checker
+     * @param request not used yet in these checks
+     * @param precomputedData not used yet in these checks
      * @return the name of the data streams that have violated the checks with their respective warnings.
      */
     @Override
-    public Map<String, List<DeprecationIssue>> check(ClusterState clusterState, DeprecationInfoAction.Request request) {
+    public Map<String, List<DeprecationIssue>> check(
+        ClusterState clusterState,
+        DeprecationInfoAction.Request request,
+        TransportDeprecationInfoAction.PrecomputedData precomputedData
+    ) {
+        return check(clusterState);
+    }
+
+    /**
+     * @param clusterState The cluster state provided for the checker
+     * @return the name of the data streams that have violated the checks with their respective warnings.
+     */
+    public Map<String, List<DeprecationIssue>> check(ClusterState clusterState) {
         List<String> dataStreamNames = indexNameExpressionResolver.dataStreamNames(
             clusterState,
             IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN
@@ -58,7 +72,10 @@ public class DataStreamDeprecationChecker implements ResourceDeprecationChecker 
         Map<String, List<DeprecationIssue>> dataStreamIssues = new HashMap<>();
         for (String dataStreamName : dataStreamNames) {
             DataStream dataStream = clusterState.metadata().dataStreams().get(dataStreamName);
-            List<DeprecationIssue> issuesForSingleDataStream = filterChecks(DATA_STREAM_CHECKS, c -> c.apply(dataStream, clusterState));
+            List<DeprecationIssue> issuesForSingleDataStream = DATA_STREAM_CHECKS.stream()
+                .map(c -> c.apply(dataStream, clusterState))
+                .filter(Objects::nonNull)
+                .toList();
             if (issuesForSingleDataStream.isEmpty() == false) {
                 dataStreamIssues.put(dataStreamName, issuesForSingleDataStream);
             }
@@ -102,7 +119,7 @@ public class DataStreamDeprecationChecker implements ResourceDeprecationChecker 
                     + "OK to remain read-only after upgrade",
                 false,
                 ofEntries(
-                    entry("reindex_required", true),
+                    entry("reindex_required", false),
                     entry("total_backing_indices", backingIndices.size()),
                     entry("ignored_indices_requiring_upgrade_count", ignoredIndices.size()),
                     entry("ignored_indices_requiring_upgrade", ignoredIndices)

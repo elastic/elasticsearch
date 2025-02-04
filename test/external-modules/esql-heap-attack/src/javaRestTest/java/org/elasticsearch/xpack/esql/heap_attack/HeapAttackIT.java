@@ -615,7 +615,6 @@ public class HeapAttackIT extends ESRestTestCase {
         assertMap(map, matchesMap().entry("columns", columns));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/106683")
     public void testFetchTooManyMvLongs() throws IOException {
         initMvLongsIndex(500, 100, 1000);
         assertCircuitBreaks(() -> fetchMvLongs());
@@ -636,7 +635,8 @@ public class HeapAttackIT extends ESRestTestCase {
 
     public void testLookupExplosionManyMatches() throws IOException {
         assertCircuitBreaks(() -> {
-            Map<?, ?> result = lookupExplosion(1500, 10000);
+            // 1500, 10000 is enough locally, but some CI machines need more.
+            Map<?, ?> result = lookupExplosion(2000, 10000);
             logger.error("should have failed but got {}", result);
         });
     }
@@ -664,7 +664,8 @@ public class HeapAttackIT extends ESRestTestCase {
 
     public void testLookupExplosionBigStringManyMatches() throws IOException {
         assertCircuitBreaks(() -> {
-            Map<?, ?> result = lookupExplosionBigString(500, 1);
+            // 500, 1 is enough to make it fail locally but some CI needs more
+            Map<?, ?> result = lookupExplosionBigString(800, 1);
             logger.error("should have failed but got {}", result);
         });
     }

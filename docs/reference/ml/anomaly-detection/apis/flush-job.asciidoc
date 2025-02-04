@@ -5,6 +5,8 @@
 <titleabbrev>Flush jobs</titleabbrev>
 ++++
 
+deprecated::[9.1.0, "Forcing any buffered data to be processed is deprecated, in a future major version a <<ml-api-datafeed-endpoint,{dfeed}>> will be required."]
+
 .New API reference
 [sidebar]
 --
@@ -21,7 +23,7 @@ Forces any buffered data to be processed by the job.
 [[ml-flush-job-prereqs]]
 == {api-prereq-title}
 
-Requires the `manage_ml` cluster privilege. This privilege is included in the 
+Requires the `manage_ml` cluster privilege. This privilege is included in the
 `machine_learning_admin` built-in role.
 
 [[ml-flush-job-desc]]

@@ -50,6 +50,6 @@ public class MigrateTemplateRegistry extends IndexTemplateRegistry {
 
     @Override
     protected String getOrigin() {
-        return ClientHelper.MIGRATE_ORIGIN;
+        return ClientHelper.STACK_ORIGIN;
     }
 }

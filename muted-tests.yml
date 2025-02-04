@@ -371,9 +371,6 @@ tests:
 - class: org.elasticsearch.xpack.security.authc.jwt.JwtRealmSingleNodeTests
   method: testGrantApiKeyForJWT
   issue: https://github.com/elastic/elasticsearch/issues/121039
-- class: org.elasticsearch.xpack.sql.qa.single_node.JdbcDocCsvSpecIT
-  method: test {docs.testFilterToday}
-  issue: https://github.com/elastic/elasticsearch/issues/121474
 
 # Examples:
 #

@@ -1,7 +1,7 @@
-"Downsample index":
+"downsample aggregate field":
   - requires:
-      cluster_features: ["gte_v8.13.0"]
-      reason: _tsid hashing introduced in 8.13
+      cluster_features: ["data_stream.downsample.default_aggregate_metric_fix"]
+      reason: "#119696 fixed"
 
   - do:
       indices.create:

@@ -140,7 +140,7 @@ public class AggregatorFunctionSupplierImplementer {
 
         if (hasWarnings) {
             builder.addStatement(
-                "var warnings = Warnings.createWarnings(driverContext.warningsMode(), "
+                "var warnings = $T.createWarnings(driverContext.warningsMode(), "
                     + "warningsLineNumber, warningsColumnNumber, warningsSourceText)",
                 WARNINGS
             );
@@ -166,7 +166,7 @@ public class AggregatorFunctionSupplierImplementer {
 
         if (hasWarnings) {
             builder.addStatement(
-                "var warnings = Warnings.createWarnings(driverContext.warningsMode(), "
+                "var warnings = $T.createWarnings(driverContext.warningsMode(), "
                     + "warningsLineNumber, warningsColumnNumber, warningsSourceText)",
                 WARNINGS
             );

@@ -15,6 +15,7 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.license.XPackLicenseState;
@@ -25,6 +26,7 @@ import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
+import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo.Cluster;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.TableInfo;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
@@ -35,11 +37,12 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
-class EsqlSessionCCSUtils {
+public class EsqlCCSUtils {
 
-    private EsqlSessionCCSUtils() {}
+    private EsqlCCSUtils() {}
 
     static Map<String, FieldCapabilitiesFailure> determineUnavailableRemoteClusters(List<FieldCapabilitiesFailure> failures) {
         Map<String, FieldCapabilitiesFailure> unavailableRemotes = new HashMap<>();
@@ -171,16 +174,7 @@ class EsqlSessionCCSUtils {
                 entry.getValue().getException()
             );
             if (skipUnavailable) {
-                execInfo.swapCluster(
-                    clusterAlias,
-                    (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setStatus(EsqlExecutionInfo.Cluster.Status.SKIPPED)
-                        .setTotalShards(0)
-                        .setSuccessfulShards(0)
-                        .setSkippedShards(0)
-                        .setFailedShards(0)
-                        .setFailures(List.of(new ShardSearchFailure(e)))
-                        .build()
-                );
+                markClusterWithFinalStateAndNoShards(execInfo, clusterAlias, EsqlExecutionInfo.Cluster.Status.SKIPPED, e);
             } else {
                 throw e;
             }
@@ -337,5 +331,61 @@ class EsqlSessionCCSUtils {
                 }
             }
         }
+    }
+
+    /**
+     * Mark cluster with a final status (success or failure).
+     * Most metrics are set to 0 if not set yet, except for "took" which is set to the total time taken so far.
+     * The status must be the final status of the cluster, not RUNNING.
+     */
+    public static void markClusterWithFinalStateAndNoShards(
+        EsqlExecutionInfo executionInfo,
+        String clusterAlias,
+        Cluster.Status status,
+        @Nullable Exception ex
+    ) {
+        assert status != Cluster.Status.RUNNING : "status must be a final state, not RUNNING";
+        executionInfo.swapCluster(clusterAlias, (k, v) -> {
+            Cluster.Builder builder = new Cluster.Builder(v).setStatus(status)
+                .setTook(executionInfo.tookSoFar())
+                .setTotalShards(Objects.requireNonNullElse(v.getTotalShards(), 0))
+                .setSuccessfulShards(Objects.requireNonNullElse(v.getTotalShards(), 0))
+                .setSkippedShards(Objects.requireNonNullElse(v.getTotalShards(), 0))
+                .setFailedShards(Objects.requireNonNullElse(v.getTotalShards(), 0));
+            if (ex != null) {
+                builder.setFailures(List.of(new ShardSearchFailure(ex)));
+            }
+            return builder.build();
+        });
+    }
+
+    /**
+     * We will ignore the error if it's remote unavailable and the cluster is marked to skip unavailable.
+     */
+    public static boolean shouldIgnoreRuntimeError(EsqlExecutionInfo executionInfo, String clusterAlias, Exception e) {
+        if (executionInfo.isSkipUnavailable(clusterAlias) == false) {
+            return false;
+        }
+
+        return ExceptionsHelper.isRemoteUnavailableException(e);
+    }
+
+    /**
+     * Wrap a listener so that it will skip errors that are ignorable
+     */
+    public static <T> ActionListener<T> skipUnavailableListener(
+        ActionListener<T> delegate,
+        EsqlExecutionInfo executionInfo,
+        String clusterAlias,
+        EsqlExecutionInfo.Cluster.Status status
+    ) {
+        return delegate.delegateResponse((l, e) -> {
+            if (shouldIgnoreRuntimeError(executionInfo, clusterAlias, e)) {
+                markClusterWithFinalStateAndNoShards(executionInfo, clusterAlias, status, e);
+                l.onResponse(null);
+            } else {
+                l.onFailure(e);
+            }
+        });
     }
 }

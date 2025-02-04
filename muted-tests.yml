@@ -283,6 +283,18 @@ tests:
 - class: org.elasticsearch.discovery.ClusterDisruptionIT
   method: testAckedIndexing
   issue: https://github.com/elastic/elasticsearch/issues/117024
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {date.IN operator with null in list, finds match SYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/121594
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {date.IN operator with null in list, finds match ASYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/121594
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {date.Implicit casting strings to dates for IN operator SYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/121594
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {date.Implicit casting strings to dates for IN operator ASYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/121594
 
 # Examples:
 #

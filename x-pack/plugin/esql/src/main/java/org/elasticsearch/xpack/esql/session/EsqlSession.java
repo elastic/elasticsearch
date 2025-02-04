@@ -334,11 +334,18 @@ public class EsqlSession {
             // resolve the main indices
             preAnalyzeIndices(preAnalysis.indices, executionInfo, result, requestFilter, l);
         }).<PreAnalysisResult>andThen((l, result) -> {
-            // TODO in follow-PR (for skip_unavailable handling of missing concrete indexes) add some tests for
-            // invalid index resolution to updateExecutionInfo
             if (result.indices.isValid()) {
-                // CCS indices and skip_unavailable cluster values can stop the analysis right here
-                if (analyzeCCSIndices(executionInfo, targetClusters, unresolvedPolicies, result, logicalPlanListener, l)) return;
+                int numClustersToQuery = ccsAnalysisOfIndexResolution(result.indices, executionInfo);
+                if (numClustersToQuery == 0) {
+                    // for a CCS, if all clusters have been marked as SKIPPED, send a sentinel Exception to the LogicalPlan ActionListener
+                    logicalPlanListener.onFailure(new NoClustersToSearchException());
+                    return; // no clusters to search, return early
+                } else {
+                    // TODO: I'm not sure this is right since if this executes it calls
+                    // preAnalysisResultListener.map(enrichResolution -> result.withEnrichResolution(enrichResolution))
+                    // so does that mean we should NOT call l.onResponse(result); on line 351 below??
+                    attemptSecondEnrichPolicyResolutionIfNeeded(targetClusters, unresolvedPolicies, result, l);
+                }
             }
             // whatever tuple we have here (from CCS-special handling or from the original pre-analysis), pass it on to the next step
             l.onResponse(result);
@@ -421,7 +428,7 @@ public class EsqlSession {
                             0,
                             0,
                             List.of(new ShardSearchFailure(unavailableClusters.get(k))),
-                            new TimeValue(0)
+                            TimeValue.ZERO
                         );
                     } else {
                         return new EsqlExecutionInfo.Cluster(clusterAlias, indexExpr, executionInfo.isSkipUnavailable(clusterAlias));
@@ -455,42 +462,50 @@ public class EsqlSession {
         }
     }
 
-    private boolean analyzeCCSIndices(
-        EsqlExecutionInfo executionInfo,
+    /**
+     *
+     * @param indexResolution
+     * @param executionInfo
+     * @return
+     */
+    private int ccsAnalysisOfIndexResolution(IndexResolution indexResolution, EsqlExecutionInfo executionInfo) {
+        EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolution);
+        EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.unavailableClusters());
+
+        if (executionInfo.isCrossClusterSearch()) {
+            return (int) executionInfo.getClusterStates(EsqlExecutionInfo.Cluster.Status.RUNNING).count();
+        } else {
+            return 1; // local cluster
+        }
+    }
+
+    /**
+     *
+     * @param targetClusters
+     * @param unresolvedPolicies
+     * @param result
+     * @param preAnalysisResultListener
+     */
+    private void attemptSecondEnrichPolicyResolutionIfNeeded(
         Set<String> targetClusters,
         Set<EnrichPolicyResolver.UnresolvedPolicy> unresolvedPolicies,
         PreAnalysisResult result,
-        ActionListener<LogicalPlan> logicalPlanListener,
-        ActionListener<PreAnalysisResult> l
+        ActionListener<PreAnalysisResult> preAnalysisResultListener
     ) {
         IndexResolution indexResolution = result.indices;
-        EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolution);
-        EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.unavailableClusters());
-        if (executionInfo.isCrossClusterSearch()
-            && executionInfo.getClusterStates(EsqlExecutionInfo.Cluster.Status.RUNNING).findAny().isEmpty()) {
-            // for a CCS, if all clusters have been marked as SKIPPED, nothing to search so send a sentinel Exception
-            // to let the LogicalPlanActionListener decide how to proceed
-            logicalPlanListener.onFailure(new NoClustersToSearchException());
-            return true;
-        }
-
         Set<String> newClusters = enrichPolicyResolver.groupIndicesPerCluster(
             indexResolution.get().concreteIndices().toArray(String[]::new)
         ).keySet();
         // If new clusters appear when resolving the main indices, we need to resolve the enrich policies again
         // or exclude main concrete indices. Since this is rare, it's simpler to resolve the enrich policies again.
         // TODO: add a test for this
-        if (targetClusters.containsAll(newClusters) == false
-            // do not bother with a re-resolution if only remotes were requested and all were offline
-            && executionInfo.getClusterStates(EsqlExecutionInfo.Cluster.Status.RUNNING).findAny().isPresent()) {
+        if (targetClusters.containsAll(newClusters) == false) {
             enrichPolicyResolver.resolvePolicies(
                 newClusters,
                 unresolvedPolicies,
-                l.map(enrichResolution -> result.withEnrichResolution(enrichResolution))
+                preAnalysisResultListener.map(enrichResolution -> result.withEnrichResolution(enrichResolution))
             );
-            return true;
         }
-        return false;
     }
 
     private static void analyzeAndMaybeRetry(

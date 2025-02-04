@@ -463,15 +463,17 @@ public class EsqlSession {
     }
 
     /**
-     *
-     * @param indexResolution
-     * @param executionInfo
-     * @return
+     * Updates EsqlExecutionInfo with information about unvailable clusters and clusters
+     * with no matching indices based on the IndexResolution created from the field-caps response.
+     * @param indexResolution IndexResolution after a field-caps call
+     * @param executionInfo {@link EsqlExecutionInfo} for this ES|QL search
+     * @return count of number of clusters to be searched. If count == 0, then this was a cross-cluster
+     *         search where there are no viable clusters to be searched, either due to being unavailable or
+     *         having no matching indices or some combination of those two.
      */
     private int ccsAnalysisOfIndexResolution(IndexResolution indexResolution, EsqlExecutionInfo executionInfo) {
         EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolution);
         EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.unavailableClusters());
-
         if (executionInfo.isCrossClusterSearch()) {
             return (int) executionInfo.getClusterStates(EsqlExecutionInfo.Cluster.Status.RUNNING).count();
         } else {
@@ -479,13 +481,6 @@ public class EsqlSession {
         }
     }
 
-    /**
-     *
-     * @param targetClusters
-     * @param unresolvedPolicies
-     * @param result
-     * @param preAnalysisResultListener
-     */
     private void attemptSecondEnrichPolicyResolutionIfNeeded(
         Set<String> targetClusters,
         Set<EnrichPolicyResolver.UnresolvedPolicy> unresolvedPolicies,

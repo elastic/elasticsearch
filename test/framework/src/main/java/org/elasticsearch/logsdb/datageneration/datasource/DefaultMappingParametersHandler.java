@@ -33,6 +33,7 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
             case KEYWORD -> keywordMapping(request, map);
             case LONG, INTEGER, SHORT, BYTE, DOUBLE, FLOAT, HALF_FLOAT, UNSIGNED_LONG -> plain(map);
             case SCALED_FLOAT -> scaledFloatMapping(map);
+            case COUNTED_KEYWORD -> plain(Map.of("index", ESTestCase.randomBoolean()));
         });
     }
 

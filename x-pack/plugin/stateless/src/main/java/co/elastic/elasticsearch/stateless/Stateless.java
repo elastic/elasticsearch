@@ -19,7 +19,7 @@
 
 package co.elastic.elasticsearch.stateless;
 
-import co.elastic.elasticsearch.serverless.codec.Elasticsearch900Lucene100CompletionPostingsFormat;
+import co.elastic.elasticsearch.serverless.codec.ElasticsearchCompletionPostingsFormat;
 import co.elastic.elasticsearch.serverless.constants.ProjectType;
 import co.elastic.elasticsearch.serverless.constants.ServerlessSharedSettings;
 import co.elastic.elasticsearch.stateless.action.TransportFetchShardCommitsInUseAction;
@@ -96,6 +96,7 @@ import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 import co.elastic.elasticsearch.stateless.objectstore.gc.ObjectStoreGCTask;
 import co.elastic.elasticsearch.stateless.objectstore.gc.ObjectStoreGCTaskExecutor;
 import co.elastic.elasticsearch.stateless.recovery.RecoveryCommitRegistrationHandler;
+import co.elastic.elasticsearch.stateless.recovery.RemoveRefreshClusterBlockService;
 import co.elastic.elasticsearch.stateless.recovery.TransportRegisterCommitForRecoveryAction;
 import co.elastic.elasticsearch.stateless.recovery.TransportSendRecoveryCommitRegistrationAction;
 import co.elastic.elasticsearch.stateless.recovery.TransportStatelessPrimaryRelocationAction;
@@ -327,6 +328,7 @@ public class Stateless extends Plugin
 
     private final boolean hasSearchRole;
     private final boolean hasIndexRole;
+    private final boolean hasMasterRole;
     private final ProjectType projectType;
     private final StatelessIndexSettingProvider statelessIndexSettingProvider;
 
@@ -350,6 +352,7 @@ public class Stateless extends Plugin
         sharedCacheMmapExplicitlySet = SharedBlobCacheService.SHARED_CACHE_MMAP.exists(settings);
         hasSearchRole = DiscoveryNode.hasRole(settings, DiscoveryNodeRole.SEARCH_ROLE);
         hasIndexRole = DiscoveryNode.hasRole(settings, DiscoveryNodeRole.INDEX_ROLE);
+        hasMasterRole = DiscoveryNode.isMasterNode(settings);
         projectType = PROJECT_TYPE.get(settings);
         this.statelessIndexSettingProvider = new StatelessIndexSettingProvider(projectType);
     }
@@ -537,10 +540,10 @@ public class Stateless extends Plugin
         var hollowShardsService = setAndGet(this.hollowShardsService, new HollowShardsService(settings, clusterService));
         components.add(hollowShardsService);
         if (hasIndexRole) {
-            Elasticsearch900Lucene100CompletionPostingsFormat.configureFSTOnHeap(false);
+            ElasticsearchCompletionPostingsFormat.configureFSTOnHeap(false);
         } else if (hasSearchRole) {
-            Elasticsearch900Lucene100CompletionPostingsFormat.configureFSTOnHeap(
-                Elasticsearch900Lucene100CompletionPostingsFormat.COMPLETION_FST_ON_HEAP.get(settings)
+            ElasticsearchCompletionPostingsFormat.configureFSTOnHeap(
+                ElasticsearchCompletionPostingsFormat.COMPLETION_FST_ON_HEAP.get(settings)
             );
         }
 
@@ -647,6 +650,9 @@ public class Stateless extends Plugin
         components.add(setAndGet(recoveryMetricsCollector, new RecoveryMetricsCollector(services.telemetryProvider())));
         documentParsingProvider.set(services.documentParsingProvider());
         skipMerges.set(new ShouldSkipMerges(indicesService));
+        if (hasMasterRole && USE_INDEX_REFRESH_BLOCK_SETTING.get(settings)) {
+            components.add(new RemoveRefreshClusterBlockService(settings, clusterService, threadPool));
+        }
         return components;
     }
 
@@ -983,7 +989,8 @@ public class Stateless extends Plugin
             HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED,
             HollowShardsService.SETTING_HOLLOW_INGESTION_DS_NON_WRITE_TTL,
             HollowShardsService.SETTING_HOLLOW_INGESTION_TTL,
-            USE_INDEX_REFRESH_BLOCK_SETTING
+            USE_INDEX_REFRESH_BLOCK_SETTING,
+            RemoveRefreshClusterBlockService.EXPIRE_AFTER_SETTING
         );
     }
 
@@ -994,6 +1001,7 @@ public class Stateless extends Plugin
         // register an IndexCommitListener so that stateless is notified of newly created commits on "index" nodes
         if (hasIndexRole) {
 
+            indexModule.addIndexOperationListener(new StatelessIndexingOperationListener(hollowShardsService.get()));
             indexModule.addIndexEventListener(shardsMappingSizeCollector.get());
 
             indexModule.addIndexEventListener(new IndexEventListener() {
@@ -1059,6 +1067,7 @@ public class Stateless extends Plugin
                     if (indexShard != null) {
                         statelessCommitService.unregisterCommitNotificationSuccessListener(shardId);
                         statelessCommitService.closeShard(shardId);
+                        hollowShardsService.get().uninstallIngestionBlocker(indexShard);
                     }
                 }
 
@@ -1119,7 +1128,8 @@ public class Stateless extends Plugin
                 objectStoreService.get(),
                 localTranslogReplicator,
                 recoveryCommitRegistrationHandler.get(),
-                sharedBlobCacheWarmingService.get()
+                sharedBlobCacheWarmingService.get(),
+                hollowShardsService.get()
             )
         );
         indexModule.addIndexEventListener(recoveryMetricsCollector.get());
@@ -1130,6 +1140,7 @@ public class Stateless extends Plugin
         TranslogReplicator translogReplicator,
         Function<String, BlobContainer> translogBlobContainer,
         StatelessCommitService statelessCommitService,
+        HollowShardsService hollowShardsService,
         SharedBlobCacheWarmingService sharedBlobCacheWarmingService,
         RefreshThrottler.Factory refreshThrottlerFactory,
         DocumentParsingProvider documentParsingProvider,
@@ -1140,6 +1151,7 @@ public class Stateless extends Plugin
             translogReplicator,
             translogBlobContainer,
             statelessCommitService,
+            hollowShardsService,
             sharedBlobCacheWarmingService,
             refreshThrottlerFactory,
             statelessCommitService.getIndexEngineLocalReaderListenerForShard(engineConfig.getShardId()),
@@ -1211,13 +1223,14 @@ public class Stateless extends Plugin
                 }
                 if (IndexEngine.isLastCommitHollow(segmentCommitInfos)) {
                     logger.info("--> Using hollow engine for shard {}", config.getShardId());
-                    return new HollowIndexEngine(config, getCommitService());
+                    return new HollowIndexEngine(config, getCommitService(), hollowShardsService.get());
                 }
                 return newIndexEngine(
                     newConfig,
                     translogReplicator.get(),
                     getObjectStoreService()::getTranslogBlobContainer,
                     getCommitService(),
+                    hollowShardsService.get(),
                     sharedBlobCacheWarmingService.get(),
                     refreshThrottlingService.get().createRefreshThrottlerFactory(indexSettings),
                     documentParsingProvider.get(),

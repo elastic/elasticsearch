@@ -136,7 +136,7 @@ public class TransportRegisterCommitForRecoveryAction extends HandledTransportAc
 
     private boolean isSearchShardInRoutingTable(ClusterState state, ShardId shardId, String nodeId) {
         final ProjectMetadata projectMetadata = state.metadata().projectFor(shardId.getIndex()); // can throw IndexNotFoundException
-        for (var shardRouting : state.routingTable(projectMetadata.id()).shardRoutingTable(shardId).unpromotableShards()) {
+        for (var shardRouting : state.routingTable(projectMetadata.id()).shardRoutingTable(shardId).assignedUnpromotableShards()) {
             if (shardRouting.currentNodeId().equals(nodeId)) {
                 return true;
             }

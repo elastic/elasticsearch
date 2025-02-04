@@ -40,8 +40,6 @@ import org.elasticsearch.core.Nullable;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static co.elastic.elasticsearch.serverless.constants.ServerlessTransportVersions.COMMIT_NOTIFICATION_TRANSPORT_ACTION_SPLIT;
-
 /**
  * Handles communication with the search nodes about what stateless commits are available (new commits) and still in use (old commits).
  * Sends requests at the shard level.
@@ -85,16 +83,12 @@ public class StatelessCommitNotificationPublisher {
     ) {
         assert uploadedBcc != null;
         assert (shardRoutingTable == null && currentRoutingNodesWithAssignedSearchShards.isEmpty())
-            || shardRoutingTable.unpromotableShards()
+            || shardRoutingTable.assignedUnpromotableShards()
                 .stream()
                 .filter(ShardRouting::assignedToNode)
                 .map(ShardRouting::currentNodeId)
                 .collect(Collectors.toSet())
                 .equals(currentRoutingNodesWithAssignedSearchShards);
-
-        if (clusterService.state().getMinTransportVersion().before(COMMIT_NOTIFICATION_TRANSPORT_ACTION_SPLIT)) {
-            assert currentRoutingNodesWithAssignedSearchShards.equals(allSearchNodesRetainingCommits);
-        }
 
         Set<String> oldSearchNodesRetainingCommits = Sets.difference(
             allSearchNodesRetainingCommits,

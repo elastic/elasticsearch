@@ -17,6 +17,7 @@
 
 package co.elastic.elasticsearch.stateless.engine;
 
+import co.elastic.elasticsearch.stateless.commits.HollowShardsService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 
 import org.apache.lucene.tests.util.LuceneTestCase;
@@ -38,7 +39,13 @@ public class HollowIndexEngineTests extends EngineTestCase {
         try (Store store = createStore()) {
             EngineConfig config = config(defaultSettings, store, createTempDir(), newMergePolicy(), null, null, globalCheckpoint::get);
             store.createEmpty();
-            try (var hollowIndexEngine = new HollowIndexEngine(config, Mockito.mock(StatelessCommitService.class))) {
+            try (
+                var hollowIndexEngine = new HollowIndexEngine(
+                    config,
+                    Mockito.mock(StatelessCommitService.class),
+                    Mockito.mock(HollowShardsService.class)
+                )
+            ) {
                 var exception = LuceneTestCase.TEST_ASSERTS_ENABLED ? AssertionError.class : UnsupportedOperationException.class;
                 expectThrows(exception, () -> hollowIndexEngine.index(null));
                 expectThrows(exception, () -> hollowIndexEngine.delete(null));

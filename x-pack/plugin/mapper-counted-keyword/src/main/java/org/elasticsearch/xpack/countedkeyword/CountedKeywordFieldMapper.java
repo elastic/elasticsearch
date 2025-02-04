@@ -200,6 +200,8 @@ public class CountedKeywordFieldMapper extends FieldMapper {
         }
     }
 
+    // Test change
+
     static class CountedKeywordSortedBinaryDocValues extends AbstractSortedSetDocValues {
         private final SortedSetDocValues dvValues;
         private final BinaryDocValues dvCounts;

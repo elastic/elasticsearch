@@ -9,7 +9,6 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -22,7 +21,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -242,7 +240,7 @@ public class IndexAbstractionResolverTests extends ESTestCase {
             expressions,
             indicesOptions,
             metadata,
-            () -> mask.get().stream().collect(Collectors.toMap(key -> key, key -> IndexComponentSelector.ALL_APPLICABLE.getKey())),
+            mask,
             (idx, selector) -> true,
             true
         );

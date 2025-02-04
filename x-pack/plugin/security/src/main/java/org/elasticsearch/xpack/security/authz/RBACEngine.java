@@ -872,53 +872,44 @@ public class RBACEngine implements AuthorizationEngine {
         final boolean includeDataStreams = (request instanceof IndicesRequest) && ((IndicesRequest) request).includeDataStreams();
         return new AuthorizedIndices(() -> {
             Consumer<Collection<String>> timeChecker = timerSupplier.get();
-            Map<String, String> indicesAndAliasesWithSelectors = new HashMap<>();
+            Set<String> indicesAndAliases = new HashSet<>();
             // TODO: can this be done smarter? I think there are usually more indices/aliases in the cluster then indices defined a roles?
             if (includeDataStreams) {
                 for (IndexAbstraction indexAbstraction : lookup.values()) {
                     // TODO this can be cleaned up and optimized to avoid two full predicate checks
                     final boolean dataAccess = predicate.test(indexAbstraction, IndexComponentSelector.DATA.getKey());
-                    final boolean failureAccess = predicate.test(indexAbstraction, IndexComponentSelector.FAILURES.getKey());
-                    if (indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM) {
-                        // add data stream and its backing indices for any authorized data streams
-                        if (dataAccess) {
-                            for (Index index : indexAbstraction.getIndices()) {
-                                indicesAndAliasesWithSelectors.put(index.getName(), IndexComponentSelector.DATA.getKey());
-                            }
-                        }
-                        if (failureAccess) {
-                            for (Index index : ((DataStream) indexAbstraction).getFailureIndices()) {
-                                // failure indices are still accessed as "data"
-                                indicesAndAliasesWithSelectors.put(index.getName(), IndexComponentSelector.DATA.getKey());
-                            }
-                        }
-                    }
+                    // TODO should we still add data stream if it only has failure access?
+                    final boolean failureAccess = indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM
+                        && predicate.test(indexAbstraction, IndexComponentSelector.FAILURES.getKey());
                     if (dataAccess || failureAccess) {
-                        if (dataAccess && failureAccess) {
-                            indicesAndAliasesWithSelectors.put(indexAbstraction.getName(), IndexComponentSelector.ALL_APPLICABLE.getKey());
-                        } else if (dataAccess) {
-                            indicesAndAliasesWithSelectors.put(indexAbstraction.getName(), IndexComponentSelector.DATA.getKey());
-                        } else {
-                            indicesAndAliasesWithSelectors.put(indexAbstraction.getName(), IndexComponentSelector.FAILURES.getKey());
+                        indicesAndAliases.add(indexAbstraction.getName());
+                        if (indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM) {
+                            if (dataAccess) {
+                                for (Index index : indexAbstraction.getIndices()) {
+                                    indicesAndAliases.add(index.getName());
+                                }
+                            }
+                            if (failureAccess) {
+                                for (Index index : ((DataStream) indexAbstraction).getFailureIndices()) {
+                                    // failure indices are still accessed as "data"
+                                    indicesAndAliases.add(index.getName());
+                                }
+                            }
                         }
+
                     }
-                    // TODO do we need this?
-                    // else if (indexAbstraction.isConcreteFailureIndexOfDataStream()
-                    // && predicate.test(indexAbstraction.getParentDataStream(), IndexComponentSelector.FAILURES.getKey())) {
-                    // indicesAndAliasesWithSelectors.put(indexAbstraction.getName(), IndexComponentSelector.DATA.getKey());
-                    // }
                 }
             } else {
                 // TODO do we still need to handle failure indices here?
                 for (IndexAbstraction indexAbstraction : lookup.values()) {
                     if (indexAbstraction.getType() != IndexAbstraction.Type.DATA_STREAM
                         && predicate.test(indexAbstraction, IndexComponentSelector.DATA.getKey())) {
-                        indicesAndAliasesWithSelectors.put(indexAbstraction.getName(), IndexComponentSelector.DATA.getKey());
+                        indicesAndAliases.add(indexAbstraction.getName());
                     }
                 }
             }
-            timeChecker.accept(indicesAndAliasesWithSelectors.keySet());
-            return indicesAndAliasesWithSelectors;
+            timeChecker.accept(indicesAndAliases);
+            return indicesAndAliases;
         }, (name, selector) -> {
             final IndexAbstraction indexAbstraction = lookup.get(name);
             if (indexAbstraction == null) {
@@ -930,6 +921,10 @@ public class RBACEngine implements AuthorizationEngine {
                 // We check the parent data stream first if there is one. For testing requested indices, this is most likely
                 // more efficient than checking the index name first because we recommend grant privileges over data stream
                 // instead of backing indices.
+                if (indexAbstraction.isConcreteFailureIndexOfDataStream()
+                    && predicate.test(indexAbstraction.getParentDataStream(), IndexComponentSelector.FAILURES.getKey())) {
+                    return true;
+                }
                 return (indexAbstraction.getParentDataStream() != null && predicate.test(indexAbstraction.getParentDataStream(), selector))
                     || predicate.test(indexAbstraction, selector);
             }
@@ -1058,25 +1053,16 @@ public class RBACEngine implements AuthorizationEngine {
 
     static final class AuthorizedIndices implements AuthorizationEngine.AuthorizedIndices {
 
-        private final CachedSupplier<Map<String, String>> allAuthorizedAndAvailableWithSelectors;
+        private final CachedSupplier<Set<String>> allAuthorizedAndAvailableWithSelectors;
         private final BiPredicate<String, String> isAuthorizedPredicate;
 
-        AuthorizedIndices(
-            Supplier<Map<String, String>> allAuthorizedAndAvailableWithSelectors,
-            BiPredicate<String, String> isAuthorizedPredicate
-        ) {
-            this.allAuthorizedAndAvailableWithSelectors = CachedSupplier.wrap(allAuthorizedAndAvailableWithSelectors);
+        AuthorizedIndices(Supplier<Set<String>> allAuthorizedAndAvailable, BiPredicate<String, String> isAuthorizedPredicate) {
+            this.allAuthorizedAndAvailableWithSelectors = CachedSupplier.wrap(allAuthorizedAndAvailable);
             this.isAuthorizedPredicate = Objects.requireNonNull(isAuthorizedPredicate);
         }
 
-        // TODO remove me
         @Override
-        public Supplier<Set<String>> allLegacy() {
-            return () -> allAuthorizedAndAvailableWithSelectors.get().keySet();
-        }
-
-        @Override
-        public Supplier<Map<String, String>> all() {
+        public Supplier<Set<String>> all() {
             return allAuthorizedAndAvailableWithSelectors;
         }
 

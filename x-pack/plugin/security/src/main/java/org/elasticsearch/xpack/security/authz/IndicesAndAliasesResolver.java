@@ -322,7 +322,7 @@ class IndicesAndAliasesResolver {
                     );
                 }
                 if (indicesOptions.expandWildcardExpressions()) {
-                    for (String authorizedIndex : authorizedIndices.allLegacy().get()) {
+                    for (String authorizedIndex : authorizedIndices.all().get()) {
                         if (IndexAbstractionResolver.isIndexVisible(
                             "*",
                             allIndicesPatternSelector,
@@ -388,7 +388,7 @@ class IndicesAndAliasesResolver {
             if (aliasesRequest.expandAliasesWildcards()) {
                 List<String> aliases = replaceWildcardsWithAuthorizedAliases(
                     aliasesRequest.aliases(),
-                    loadAuthorizedAliases(authorizedIndices.allLegacy(), metadata)
+                    loadAuthorizedAliases(authorizedIndices.all(), metadata)
                 );
                 aliasesRequest.replaceAliases(aliases.toArray(new String[aliases.size()]));
             }

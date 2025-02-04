@@ -42,11 +42,11 @@ import java.util.Objects;
  *     ]
  * }
  */
-public record InferenceTextEmbeddingByteResults(List<InferenceByteEmbedding> embeddings) implements InferenceServiceResults, TextEmbedding {
-    public static final String NAME = "text_embedding_service_byte_results";
-    public static final String TEXT_EMBEDDING_BYTES = "text_embedding_bytes";
+public record InferenceTextEmbeddingBitResults(List<InferenceByteEmbedding> embeddings) implements InferenceServiceResults, TextEmbedding {
+    public static final String NAME = "text_embedding_service_bit_results";
+    public static final String TEXT_EMBEDDING_BITS = "text_embedding_bits";
 
-    public InferenceTextEmbeddingByteResults(StreamInput in) throws IOException {
+    public InferenceTextEmbeddingBitResults(StreamInput in) throws IOException {
         this(in.readCollectionAsList(InferenceByteEmbedding::new));
     }
 
@@ -57,7 +57,7 @@ public record InferenceTextEmbeddingByteResults(List<InferenceByteEmbedding> emb
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-        return ChunkedToXContentHelper.array(TEXT_EMBEDDING_BYTES, embeddings.iterator());
+        return ChunkedToXContentHelper.array(TEXT_EMBEDDING_BITS, embeddings.iterator());
     }
 
     @Override
@@ -73,7 +73,7 @@ public record InferenceTextEmbeddingByteResults(List<InferenceByteEmbedding> emb
     @Override
     public List<? extends InferenceResults> transformToCoordinationFormat() {
         return embeddings.stream()
-            .map(embedding -> new MlTextEmbeddingResults(TEXT_EMBEDDING_BYTES, embedding.toDoubleArray(), false))
+            .map(embedding -> new MlTextEmbeddingResults(TEXT_EMBEDDING_BITS, embedding.toDoubleArray(), false))
             .toList();
     }
 
@@ -89,7 +89,7 @@ public record InferenceTextEmbeddingByteResults(List<InferenceByteEmbedding> emb
 
     public Map<String, Object> asMap() {
         Map<String, Object> map = new LinkedHashMap<>();
-        map.put(TEXT_EMBEDDING_BYTES, embeddings);
+        map.put(TEXT_EMBEDDING_BITS, embeddings);
 
         return map;
     }
@@ -98,7 +98,7 @@ public record InferenceTextEmbeddingByteResults(List<InferenceByteEmbedding> emb
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        InferenceTextEmbeddingByteResults that = (InferenceTextEmbeddingByteResults) o;
+        InferenceTextEmbeddingBitResults that = (InferenceTextEmbeddingBitResults) o;
         return Objects.equals(embeddings, that.embeddings);
     }
 

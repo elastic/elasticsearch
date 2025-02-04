@@ -119,7 +119,7 @@ public class DataStreamDeprecationChecker implements ResourceDeprecationChecker 
                     + "OK to remain read-only after upgrade",
                 false,
                 ofEntries(
-                    entry("reindex_required", true),
+                    entry("reindex_required", false),
                     entry("total_backing_indices", backingIndices.size()),
                     entry("ignored_indices_requiring_upgrade_count", ignoredIndices.size()),
                     entry("ignored_indices_requiring_upgrade", ignoredIndices)

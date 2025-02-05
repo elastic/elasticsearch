@@ -524,9 +524,6 @@ tests:
 - class: org.elasticsearch.xpack.ml.packageloader.action.ModelLoaderUtilsTests
   method: testSplitIntoRanges
   issue: https://github.com/elastic/elasticsearch/issues/121799
-- class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackIT
-  method: testLookupExplosionBigStringManyMatches
-  issue: https://github.com/elastic/elasticsearch/issues/121465
 - class: org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilderTests
   method: testInvalidMaxAnalyzedOffset
   issue: https://github.com/elastic/elasticsearch/issues/121361

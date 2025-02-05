@@ -38,6 +38,7 @@ public class FailureStoreSecurityRestIT extends SecurityOnTrialLicenseRestTestCa
     @SuppressWarnings("unchecked")
     public void testFailureStoreAccess() throws IOException {
         // TODO test API keys
+        // TODO test role with access to concrete failure index
         String dataAccessRole = "data_access";
         String failureStoreAccessRole = "failure_store_access";
 
@@ -112,15 +113,14 @@ public class FailureStoreSecurityRestIT extends SecurityOnTrialLicenseRestTestCa
         assertEmpty(performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/test1/_search?ignore_unavailable=true")));
         assertEmpty(performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/test2::data/_search?ignore_unavailable=true")));
         assertEmpty(performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/test2/_search?ignore_unavailable=true")));
-        // TODO fix this
         assertEmpty(
             performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/" + dataIndexName + "/_search?ignore_unavailable=true"))
         );
 
-        // assertEmpty(performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/*1::data/_search")));
-        // assertEmpty(performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/*1/_search")));
-        // TODO is this correct?
         assertEmpty(performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/.ds*/_search")));
+        // TODO is this correct?
+        expectThrows403(() -> performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/*1::data/_search")));
+        expectThrows403(() -> performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/*1/_search")));
 
         // user with access to data index
         assertContainsDocIds(performRequest(DATA_ACCESS_USER, new Request("GET", "/test1/_search")), successDocId);
@@ -141,9 +141,9 @@ public class FailureStoreSecurityRestIT extends SecurityOnTrialLicenseRestTestCa
         expectThrows403(() -> performRequest(DATA_ACCESS_USER, new Request("GET", "/test1::failures/_search")));
         expectThrows403(() -> performRequest(DATA_ACCESS_USER, new Request("GET", "/test2::failures/_search")));
         expectThrows403(() -> performRequest(DATA_ACCESS_USER, new Request("GET", "/" + failureIndexName + "/_search")));
-        // TODO is this correct?
         assertEmpty(performRequest(DATA_ACCESS_USER, new Request("GET", "/.fs*/_search")));
-        // assertEmpty(performRequest(DATA_ACCESS_USER, new Request("GET", "/*1::failures/_search")));
+        // TODO is this correct?
+        expectThrows403(() -> performRequest(DATA_ACCESS_USER, new Request("GET", "/*1::failures/_search")));
 
         // user with access to everything
         assertContainsDocIds(adminClient().performRequest(new Request("GET", "/test1::failures/_search")), failedDocId);

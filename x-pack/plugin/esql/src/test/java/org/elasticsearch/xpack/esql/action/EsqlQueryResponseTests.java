@@ -723,6 +723,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 new EsqlQueryResponse.Profile(
                     List.of(
                         new DriverProfile(
+                            "test",
                             1723489812649L,
                             1723489819929L,
                             20021,

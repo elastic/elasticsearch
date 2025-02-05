@@ -44,14 +44,14 @@ public class MockPluginsService extends PluginsService {
     public MockPluginsService(Settings settings, Environment environment, Collection<Class<? extends Plugin>> classpathPlugins) {
         super(
             settings,
-            environment.configFile(),
+            environment.configDir(),
             new PluginsLoader(Collections.emptySet(), Collections.emptySet(), Collections.emptyMap())
         );
 
         List<LoadedPlugin> pluginsLoaded = new ArrayList<>();
 
         for (Class<? extends Plugin> pluginClass : classpathPlugins) {
-            Plugin plugin = loadPlugin(pluginClass, settings, environment.configFile());
+            Plugin plugin = loadPlugin(pluginClass, settings, environment.configDir());
             PluginDescriptor pluginInfo = new PluginDescriptor(
                 pluginClass.getName(),
                 "classpath plugin",

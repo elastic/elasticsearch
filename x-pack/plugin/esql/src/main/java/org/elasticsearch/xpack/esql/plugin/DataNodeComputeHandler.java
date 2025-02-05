@@ -288,6 +288,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                 }
                 var computeContext = new ComputeContext(
                     sessionId,
+                    "data",
                     clusterAlias,
                     searchContexts,
                     configuration,
@@ -431,6 +432,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     task,
                     new ComputeContext(
                         request.sessionId(),
+                        "node_reduce",
                         request.clusterAlias(),
                         List.of(),
                         request.configuration(),

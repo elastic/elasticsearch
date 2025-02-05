@@ -330,6 +330,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
             releasables.add(outputOperator);
             Driver driver = new Driver(
                 "enrich-lookup:" + request.sessionId,
+                "enrich",
                 System.currentTimeMillis(),
                 System.nanoTime(),
                 driverContext,

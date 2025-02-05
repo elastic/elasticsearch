@@ -65,6 +65,7 @@ public class CountDistinctIntAggregatorFunctionTests extends AggregatorFunctionT
         BlockFactory blockFactory = driverContext.blockFactory();
         try (
             Driver d = new Driver(
+                "test",
                 driverContext,
                 new CannedSourceOperator(Iterators.single(new Page(blockFactory.newDoubleArrayVector(new double[] { 1.0 }, 1).asBlock()))),
                 List.of(simple().get(driverContext)),

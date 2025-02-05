@@ -7581,7 +7581,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             List.of()
         );
 
-        return planner.plan(FoldContext.small(), plan);
+        return planner.plan("test", FoldContext.small(), plan);
     }
 
     private List<Set<String>> findFieldNamesInLookupJoinDescription(LocalExecutionPlanner.LocalExecutionPlan physicalOperations) {

@@ -53,6 +53,7 @@ public class SumFloatAggregatorFunctionTests extends AggregatorFunctionTestCase 
         List<Page> results = new ArrayList<>();
         try (
             Driver d = new Driver(
+                "test",
                 driverContext,
                 new SequenceFloatBlockSourceOperator(driverContext.blockFactory(), Stream.of(Float.MAX_VALUE - 1, 2f)),
                 List.of(simple().get(driverContext)),
@@ -71,6 +72,7 @@ public class SumFloatAggregatorFunctionTests extends AggregatorFunctionTestCase 
         List<Page> results = new ArrayList<>();
         try (
             Driver d = new Driver(
+                "test",
                 driverContext,
                 new SequenceFloatBlockSourceOperator(
                     driverContext.blockFactory(),
@@ -100,6 +102,7 @@ public class SumFloatAggregatorFunctionTests extends AggregatorFunctionTestCase 
         driverContext = driverContext();
         try (
             Driver d = new Driver(
+                "test",
                 driverContext,
                 new SequenceFloatBlockSourceOperator(driverContext.blockFactory(), Stream.of(values)),
                 List.of(simple().get(driverContext)),
@@ -122,6 +125,7 @@ public class SumFloatAggregatorFunctionTests extends AggregatorFunctionTestCase 
         driverContext = driverContext();
         try (
             Driver d = new Driver(
+                "test",
                 driverContext,
                 new SequenceFloatBlockSourceOperator(driverContext.blockFactory(), Stream.of(largeValues)),
                 List.of(simple().get(driverContext)),
@@ -141,6 +145,7 @@ public class SumFloatAggregatorFunctionTests extends AggregatorFunctionTestCase 
         driverContext = driverContext();
         try (
             Driver d = new Driver(
+                "test",
                 driverContext,
                 new SequenceFloatBlockSourceOperator(driverContext.blockFactory(), Stream.of(largeValues)),
                 List.of(simple().get(driverContext)),

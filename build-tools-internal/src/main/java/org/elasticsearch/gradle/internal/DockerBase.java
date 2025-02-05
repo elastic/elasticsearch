@@ -26,7 +26,10 @@ public enum DockerBase {
         "-wolfi",
         "apk"
     ),
-    FIPS("docker.elastic.co/wolfi/chainguard-base-fips:sha256-fd36e5503e6cc4245a6e06c816973c0fc5372ab8fba1b618f09061f3029a473c", "-fips", "apk"),
+    // for testing on aarch64
+    FIPS("docker.elastic.co/wolfi/chainguard-base:latest@sha256:bd401704a162a7937cd1015f755ca9da9aba0fdf967fc6bf90bf8d3f6b2eb557", "-fips", "apk"),
+
+    //    FIPS("docker.elastic.co/wolfi/chainguard-base-fips:sha256-fd36e5503e6cc4245a6e06c816973c0fc5372ab8fba1b618f09061f3029a473c", "-fips", "apk"),
     // spotless:on
     // Based on WOLFI above, with more extras. We don't set a base image because
     // we programmatically extend from the wolfi image.

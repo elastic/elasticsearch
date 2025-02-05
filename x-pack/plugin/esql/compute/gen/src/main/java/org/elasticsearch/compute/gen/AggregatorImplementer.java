@@ -310,8 +310,8 @@ public class AggregatorImplementer {
         builder.beginControlFlow("if (mask.allTrue())");
         {
             builder.addComment("No masking");
-            builder.addStatement("$T block = page.getBlock(channels.get(0))", blockType(valueType(init, combine)));
-            builder.addStatement("$T vector = block.asVector()", vectorType(valueType(init, combine)));
+            builder.addStatement("$T block = page.getBlock(channels.get(0))", blockType(aggParam.type));
+            builder.addStatement("$T vector = block.asVector()", vectorType(aggParam.type));
             builder.beginControlFlow("if (vector != null)");
             builder.addStatement("addRawVector(vector)");
             builder.nextControlFlow("else");
@@ -322,8 +322,8 @@ public class AggregatorImplementer {
         builder.endControlFlow();
 
         builder.addComment("Some positions masked away, others kept");
-        builder.addStatement("$T block = page.getBlock(channels.get(0))", blockType(valueType(init, combine)));
-        builder.addStatement("$T vector = block.asVector()", vectorType(valueType(init, combine)));
+        builder.addStatement("$T block = page.getBlock(channels.get(0))", blockType(aggParam.type));
+        builder.addStatement("$T vector = block.asVector()", vectorType(aggParam.type));
         builder.beginControlFlow("if (vector != null)");
         builder.addStatement("addRawVector(vector, mask)");
         builder.nextControlFlow("else");
@@ -334,7 +334,7 @@ public class AggregatorImplementer {
 
     private MethodSpec addRawVector(boolean masked) {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("addRawVector");
-        builder.addModifiers(Modifier.PRIVATE).addParameter(vectorType(valueType(init, combine)), "vector");
+        builder.addModifiers(Modifier.PRIVATE).addParameter(vectorType(aggParam.type), "vector");
         if (masked) {
             builder.addParameter(BOOLEAN_VECTOR, "mask");
         }
@@ -364,7 +364,7 @@ public class AggregatorImplementer {
 
     private MethodSpec addRawBlock(boolean masked) {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("addRawBlock");
-        builder.addModifiers(Modifier.PRIVATE).addParameter(blockType(valueType(init, combine)), "block");
+        builder.addModifiers(Modifier.PRIVATE).addParameter(blockType(aggParam.type), "block");
         if (masked) {
             builder.addParameter(BOOLEAN_VECTOR, "mask");
         }

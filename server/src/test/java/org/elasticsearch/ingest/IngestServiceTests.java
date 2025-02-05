@@ -1769,6 +1769,7 @@ public class IngestServiceTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         final BiConsumer<Thread, Exception> completionHandler = mock(BiConsumer.class);
         ingestService.executeBulkRequest(
+            DEFAULT_PROJECT_ID,
             1,
             List.of(indexRequest),
             indexReq -> {},

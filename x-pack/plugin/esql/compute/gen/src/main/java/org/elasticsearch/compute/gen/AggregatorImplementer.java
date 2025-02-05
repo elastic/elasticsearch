@@ -85,7 +85,7 @@ public class AggregatorImplementer {
         this.warnExceptions = warnExceptions;
 
         this.init = findRequiredMethod(declarationType, new String[] { "init", "initSingle" }, e -> true);
-        this.aggState = AggregationState.create(elements, init.getReturnType(), warnExceptions.isEmpty()  == false, false);
+        this.aggState = AggregationState.create(elements, init.getReturnType(), warnExceptions.isEmpty() == false, false);
 
         this.combine = findRequiredMethod(declarationType, new String[] { "combine" }, e -> {
             if (e.getParameters().size() == 0) {
@@ -630,10 +630,7 @@ public class AggregatorImplementer {
     public record AggregationParameter(TypeName type, boolean isArray) {
 
         public static AggregationParameter create(TypeMirror mirror) {
-            return new AggregationParameter(
-                TypeName.get(mirror),
-                Objects.equals(mirror.getKind(), TypeKind.ARRAY)
-            );
+            return new AggregationParameter(TypeName.get(mirror), Objects.equals(mirror.getKind(), TypeKind.ARRAY));
         }
 
         public boolean isBytesRef() {

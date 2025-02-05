@@ -129,13 +129,13 @@ public class Types {
     }
 
     private static final Map<String, TypeDef> TYPES = Stream.of(
-            TypeDef.of(TypeName.BOOLEAN, "BOOLEAN", "BooleanBlock", "BooleanVector"),
-            TypeDef.of(TypeName.INT, "INT", "IntBlock", "IntVector"),
-            TypeDef.of(TypeName.LONG, "LONG", "LongBlock", "LongVector"),
-            TypeDef.of(TypeName.FLOAT, "FLOAT", "FloatBlock", "FloatVector"),
-            TypeDef.of(TypeName.DOUBLE, "DOUBLE", "DoubleBlock", "DoubleVector"),
-            TypeDef.of(BYTES_REF, "BYTES_REF", "BytesRefBlock", "BytesRefVector")
-        )
+        TypeDef.of(TypeName.BOOLEAN, "BOOLEAN", "BooleanBlock", "BooleanVector"),
+        TypeDef.of(TypeName.INT, "INT", "IntBlock", "IntVector"),
+        TypeDef.of(TypeName.LONG, "LONG", "LongBlock", "LongVector"),
+        TypeDef.of(TypeName.FLOAT, "FLOAT", "FloatBlock", "FloatVector"),
+        TypeDef.of(TypeName.DOUBLE, "DOUBLE", "DoubleBlock", "DoubleVector"),
+        TypeDef.of(BYTES_REF, "BYTES_REF", "BytesRefBlock", "BytesRefVector")
+    )
         .flatMap(def -> Stream.of(def.type.toString(), def.type + "[]", def.alias).map(alias -> Map.entry(alias, def)))
         .collect(toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
 

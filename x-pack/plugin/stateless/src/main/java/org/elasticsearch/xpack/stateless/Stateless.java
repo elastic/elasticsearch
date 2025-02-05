@@ -537,7 +537,10 @@ public class Stateless extends Plugin
 
         // We need to inject HollowShardsService into TransportStatelessPrimaryRelocationAction via DI, so it has to be
         // available on all nodes despite being useful only on indexing nodes
-        var hollowShardsService = setAndGet(this.hollowShardsService, new HollowShardsService(settings, clusterService));
+        var hollowShardsService = setAndGet(
+            this.hollowShardsService,
+            new HollowShardsService(settings, clusterService, indicesService, indexShardCacheWarmer, threadPool)
+        );
         components.add(hollowShardsService);
         if (hasIndexRole) {
             ElasticsearchCompletionPostingsFormat.configureFSTOnHeap(false);
@@ -1067,7 +1070,7 @@ public class Stateless extends Plugin
                     if (indexShard != null) {
                         statelessCommitService.unregisterCommitNotificationSuccessListener(shardId);
                         statelessCommitService.closeShard(shardId);
-                        hollowShardsService.get().uninstallIngestionBlocker(indexShard);
+                        hollowShardsService.get().removeHollowShard(indexShard);
                     }
                 }
 
@@ -1221,7 +1224,13 @@ public class Stateless extends Plugin
                 } catch (IOException e) {
                     throw new EngineCreationFailureException(config.getShardId(), "failed to read last segments info", e);
                 }
-                if (IndexEngine.isLastCommitHollow(segmentCommitInfos)) {
+
+                // When recovering a hollow commit, or when relocation hollows a hollowable shard, the shard is not yet marked hollow
+                // in the HollowShardService, and we want to use (or reset the engine to) the HollowIndexEngine. When unhollowing
+                // a hollow shard, the shard is marked hollow in the HollowShardService and we would like to reset the engine to
+                // the IndexEngine in order to flush a new blob and complete unhollowing.
+                if (hollowShardsService.get().isHollowShard(config.getShardId()) == false
+                    && IndexEngine.isLastCommitHollow(segmentCommitInfos)) {
                     logger.info("--> Using hollow engine for shard {}", config.getShardId());
                     return new HollowIndexEngine(config, getCommitService(), hollowShardsService.get());
                 }

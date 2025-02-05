@@ -27,6 +27,6 @@ tasks.named("yamlRestTest").configure {
   systemProperty 'tests.rest.blacklist', [
     'cat.templates/10_basic/No templates',
     'cat.templates/10_basic/Sort templates',
-    'cat.templates/10_basic/Multiple template'
+    'cat.templates/10_basic/Multiple template',
   ].join(',')
 }

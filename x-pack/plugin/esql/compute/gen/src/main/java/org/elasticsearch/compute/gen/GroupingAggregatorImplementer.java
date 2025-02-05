@@ -22,8 +22,8 @@ import org.elasticsearch.compute.gen.AggregatorImplementer.AggregationState;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 import java.util.function.Consumer;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import javax.lang.model.element.ExecutableElement;
@@ -54,6 +54,8 @@ import static org.elasticsearch.compute.gen.Types.LONG_VECTOR;
 import static org.elasticsearch.compute.gen.Types.PAGE;
 import static org.elasticsearch.compute.gen.Types.SEEN_GROUP_IDS;
 import static org.elasticsearch.compute.gen.Types.WARNINGS;
+import static org.elasticsearch.compute.gen.Types.blockType;
+import static org.elasticsearch.compute.gen.Types.vectorType;
 
 /**
  * Implements "GroupingAggregationFunction" from a class containing static methods
@@ -72,8 +74,6 @@ public class GroupingAggregatorImplementer {
     private final ExecutableElement combineStates;
     private final ExecutableElement evaluateFinal;
     private final ExecutableElement combineIntermediate;
-    @Deprecated
-    private final TypeName stateType;
     private final List<Parameter> createParameters;
     private final ClassName implementation;
     private final List<AggregatorImplementer.IntermediateStateDesc> intermediateState;
@@ -93,16 +93,14 @@ public class GroupingAggregatorImplementer {
         this.warnExceptions = warnExceptions;
 
         this.init = findRequiredMethod(declarationType, new String[] { "init", "initGrouping" }, e -> true);
-        this.aggState = AggregationState.create(elements, init.getReturnType(), warnExceptions);
-
-        this.stateType = choseStateType();
+        this.aggState = AggregationState.create(elements, init.getReturnType(), warnExceptions.size() > 0, true);
 
         this.combine = findRequiredMethod(declarationType, new String[] { "combine" }, e -> {
             if (e.getParameters().size() == 0) {
                 return false;
             }
             TypeName firstParamType = TypeName.get(e.getParameters().get(0).asType());
-            return firstParamType.isPrimitive() || firstParamType.toString().equals(stateType.toString());
+            return Objects.equals(firstParamType.toString(), aggState.declaredType().toString());
         });
         // TODO support multiple parameters
         this.aggParam = AggregationParameter.create(combine.getParameters().get(combine.getParameters().size() - 1).asType());
@@ -135,18 +133,6 @@ public class GroupingAggregatorImplementer {
         return createParameters;
     }
 
-    private TypeName choseStateType() {
-        TypeName initReturn = TypeName.get(init.getReturnType());
-        if (false == initReturn.isPrimitive()) {
-            return initReturn;
-        }
-        String simpleName = capitalize(initReturn.toString());
-        if (warnExceptions.isEmpty()) {
-            return ClassName.get("org.elasticsearch.compute.aggregation", simpleName + "ArrayState");
-        }
-        return ClassName.get("org.elasticsearch.compute.aggregation", simpleName + "FallibleArrayState");
-    }
-
     public JavaFile sourceFile() {
         JavaFile.Builder builder = JavaFile.builder(implementation.packageName(), type());
         builder.addFileComment("""
@@ -168,7 +154,7 @@ public class GroupingAggregatorImplementer {
                 .initializer(initInterState())
                 .build()
         );
-        builder.addField(stateType, "state", Modifier.PRIVATE, Modifier.FINAL);
+        builder.addField(aggState.type(), "state", Modifier.PRIVATE, Modifier.FINAL);
         if (warnExceptions.isEmpty() == false) {
             builder.addField(WARNINGS, "warnings", Modifier.PRIVATE, Modifier.FINAL);
         }
@@ -184,10 +170,10 @@ public class GroupingAggregatorImplementer {
         builder.addMethod(intermediateStateDesc());
         builder.addMethod(intermediateBlockCount());
         builder.addMethod(prepareProcessPage());
-        builder.addMethod(addRawInputLoop(INT_VECTOR, Types.blockType(AggregatorImplementer.valueType(init, combine))));
-        builder.addMethod(addRawInputLoop(INT_VECTOR, Types.vectorType(AggregatorImplementer.valueType(init, combine))));
-        builder.addMethod(addRawInputLoop(INT_BLOCK, Types.blockType(AggregatorImplementer.valueType(init, combine))));
-        builder.addMethod(addRawInputLoop(INT_BLOCK, Types.vectorType(AggregatorImplementer.valueType(init, combine))));
+        builder.addMethod(addRawInputLoop(INT_VECTOR, blockType(aggParam.type())));
+        builder.addMethod(addRawInputLoop(INT_VECTOR, vectorType(aggParam.type())));
+        builder.addMethod(addRawInputLoop(INT_BLOCK, blockType(aggParam.type())));
+        builder.addMethod(addRawInputLoop(INT_BLOCK, vectorType(aggParam.type())));
         builder.addMethod(selectedMayContainUnseenGroups());
         builder.addMethod(addIntermediateInput());
         builder.addMethod(addIntermediateRowInput());
@@ -234,16 +220,16 @@ public class GroupingAggregatorImplementer {
             .map(p -> TypeName.get(p.asType()).equals(BIG_ARRAYS) ? "driverContext.bigArrays()" : p.getSimpleName().toString())
             .collect(joining(", "));
         CodeBlock.Builder builder = CodeBlock.builder();
-        if (init.getReturnType().toString().equals(stateType.toString())) {
-            builder.add("$T.$L($L)", declarationType, init.getSimpleName(), initParametersCall);
-        } else {
+        if (aggState.declaredType().isPrimitive()) {
             builder.add(
                 "new $T(driverContext.bigArrays(), $T.$L($L))",
-                stateType,
+                aggState.type(),
                 declarationType,
                 init.getSimpleName(),
                 initParametersCall
             );
+        } else {
+            builder.add("$T.$L($L)", declarationType, init.getSimpleName(), initParametersCall);
         }
         return builder.build();
     }
@@ -267,7 +253,7 @@ public class GroupingAggregatorImplementer {
             builder.addParameter(WARNINGS, "warnings");
         }
         builder.addParameter(LIST_INTEGER, "channels");
-        builder.addParameter(stateType, "state");
+        builder.addParameter(aggState.type(), "state");
         builder.addParameter(DRIVER_CONTEXT, "driverContext");
         if (warnExceptions.isEmpty() == false) {
             builder.addStatement("this.warnings = warnings");
@@ -305,8 +291,8 @@ public class GroupingAggregatorImplementer {
         builder.addAnnotation(Override.class).addModifiers(Modifier.PUBLIC).returns(GROUPING_AGGREGATOR_FUNCTION_ADD_INPUT);
         builder.addParameter(SEEN_GROUP_IDS, "seenGroupIds").addParameter(PAGE, "page");
 
-        builder.addStatement("$T valuesBlock = page.getBlock(channels.get(0))", Types.blockType(AggregatorImplementer.valueType(init, combine)));
-        builder.addStatement("$T valuesVector = valuesBlock.asVector()", Types.vectorType(AggregatorImplementer.valueType(init, combine)));
+        builder.addStatement("$T valuesBlock = page.getBlock(channels.get(0))", blockType(aggParam.type()));
+        builder.addStatement("$T valuesVector = valuesBlock.asVector()", vectorType(aggParam.type()));
         if (includeTimestampVector) {
             builder.addStatement("$T timestampsBlock = page.getBlock(channels.get(1))", LONG_BLOCK);
             builder.addStatement("$T timestampsVector = timestampsBlock.asVector()", LONG_VECTOR);
@@ -543,7 +529,7 @@ public class GroupingAggregatorImplementer {
         builder.beginControlFlow("for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++)");
         {
             builder.addStatement("int groupId = groups.getInt(groupPosition)");
-            if (hasPrimitiveState()) {
+            if (aggState.declaredType().isPrimitive()) {
                 if (warnExceptions.isEmpty()) {
                     assert intermediateState.size() == 2;
                     assert intermediateState.get(1).name().equals("seen");
@@ -605,7 +591,7 @@ public class GroupingAggregatorImplementer {
             builder.addStatement("throw new IllegalArgumentException($S + getClass() + $S + input.getClass())", "expected ", "; got ");
         }
         builder.endControlFlow();
-        builder.addStatement("$T inState = (($T) input).state", stateType, implementation);
+        builder.addStatement("$T inState = (($T) input).state", aggState.type(), implementation);
         builder.addStatement("state.enableGroupIdTracking(new $T.Empty())", SEEN_GROUP_IDS);
         combineStates(builder);
         return builder.build();
@@ -656,13 +642,4 @@ public class GroupingAggregatorImplementer {
         builder.addStatement("state.close()");
         return builder.build();
     }
-
-    private static final Pattern PRIMITIVE_STATE_PATTERN = Pattern.compile(
-        "org.elasticsearch.compute.aggregation.(Boolean|Int|Long|Double|Float)(Fallible)?ArrayState"
-    );
-
-    private boolean hasPrimitiveState() {
-        return PRIMITIVE_STATE_PATTERN.matcher(stateType.toString()).matches();
-    }
-
 }

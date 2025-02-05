@@ -1592,7 +1592,7 @@ public class Setting<T> implements ToXContentObject {
         Validator<Boolean> validator,
         Property... properties
     ) {
-        return new Setting<>(key, defaultValueFn, booleanParser(key, properties), validator, properties);
+        return new Setting<>(key, defaultValueFn, b -> parseBoolean(b, key, isFiltered(properties)), validator, properties);
     }
 
     public static Setting<Boolean> boolSetting(String key, Function<Settings, String> defaultValueFn, Property... properties) {

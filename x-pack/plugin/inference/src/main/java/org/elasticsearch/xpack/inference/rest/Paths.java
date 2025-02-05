@@ -30,7 +30,8 @@ public final class Paths {
         + TASK_TYPE_OR_INFERENCE_ID
         + "}/{"
         + INFERENCE_ID
-        + "}/" + STREAM_SUFFIX;
+        + "}/"
+        + STREAM_SUFFIX;
 
     private Paths() {
 

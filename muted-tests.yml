@@ -217,9 +217,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/120810
 - class: org.elasticsearch.indices.mapping.UpdateMappingIntegrationIT
   issue: https://github.com/elastic/elasticsearch/issues/116126
-- class: org.elasticsearch.xpack.test.rest.XPackRestIT
-  method: test {p0=ml/inference_crud/*}
-  issue: https://github.com/elastic/elasticsearch/issues/120816
 - class: org.elasticsearch.xpack.security.authc.service.ServiceAccountIT
   method: testAuthenticateShouldNotFallThroughInCaseOfFailure
   issue: https://github.com/elastic/elasticsearch/issues/120902
@@ -292,6 +289,10 @@ tests:
   method: testCrossClusterAsyncQueryStop
   issue: https://github.com/elastic/elasticsearch/issues/121249
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
+  method: test {p0=transform/*}
+  issue: https://github.com/elastic/elasticsearch/issues/120816
+- class: org.elasticsearch.xpack.test.rest.XPackRestIT
+  method: test {p0=ml/*}
   issue: https://github.com/elastic/elasticsearch/issues/120816
 - class: org.elasticsearch.upgrades.VectorSearchIT
   method: testBBQVectorSearch {upgradedNodes=0}
@@ -318,8 +319,6 @@ tests:
 - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
   method: test {yaml=reference/index-modules/slowlog/line_102}
   issue: https://github.com/elastic/elasticsearch/issues/121288
-- class: org.elasticsearch.xpack.inference.common.InferenceServiceNodeLocalRateLimitCalculatorTests
-  issue: https://github.com/elastic/elasticsearch/issues/121294
 - class: org.elasticsearch.xpack.security.profile.ProfileIntegTests
   method: testSuggestProfilesWithHint
   issue: https://github.com/elastic/elasticsearch/issues/121116

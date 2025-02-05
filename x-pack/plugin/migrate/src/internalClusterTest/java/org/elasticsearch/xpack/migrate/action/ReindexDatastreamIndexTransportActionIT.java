@@ -74,7 +74,7 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
         clusterAdmin().execute(
             DeletePipelineTransportAction.TYPE,
             new DeletePipelineRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, MigrateTemplateRegistry.REINDEX_DATA_STREAM_PIPELINE_NAME)
-        );
+        ).actionGet();
         super.cleanUpCluster();
     }
 

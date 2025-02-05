@@ -23,8 +23,6 @@ import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.NotMasterException;
-import org.elasticsearch.cluster.block.ClusterBlock;
-import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -75,7 +73,6 @@ import java.util.Set;
 
 import static org.apache.logging.log4j.Level.DEBUG;
 import static org.apache.logging.log4j.Level.ERROR;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_REFRESH_BLOCK;
 import static org.elasticsearch.cluster.service.MasterService.isPublishFailureException;
 import static org.elasticsearch.core.Strings.format;
 
@@ -627,7 +624,6 @@ public class ShardStateAction {
             List<TaskContext<StartedShardUpdateTask>> tasksToBeApplied = new ArrayList<>();
             List<ShardRouting> shardRoutingsToBeApplied = new ArrayList<>(batchExecutionContext.taskContexts().size());
             Set<ShardRouting> seenShardRoutings = new HashSet<>(); // to prevent duplicates
-            Set<Index> indicesWithUnpromotableShardsStarted = null;
             final Map<Index, ClusterStateTimeRanges> updatedTimestampRanges = new HashMap<>();
             final ClusterState initialState = batchExecutionContext.initialState();
             for (var taskContext : batchExecutionContext.taskContexts()) {
@@ -751,14 +747,6 @@ public class ShardStateAction {
                                     new ClusterStateTimeRanges(newTimestampMillisRange, newEventIngestedMillisRange)
                                 );
                             }
-
-                            if (matched.isPromotableToPrimary() == false
-                                && initialState.blocks().hasIndexBlock(projectId, index.getName(), INDEX_REFRESH_BLOCK)) {
-                                if (indicesWithUnpromotableShardsStarted == null) {
-                                    indicesWithUnpromotableShardsStarted = new HashSet<>();
-                                }
-                                indicesWithUnpromotableShardsStarted.add(index);
-                            }
                         }
                     }
                 }
@@ -785,10 +773,7 @@ public class ShardStateAction {
                     maybeUpdatedState = ClusterState.builder(maybeUpdatedState).metadata(metadataBuilder).build();
                 }
 
-                maybeUpdatedState = maybeRemoveIndexRefreshBlocks(maybeUpdatedState, indicesWithUnpromotableShardsStarted);
-
                 assert assertStartedIndicesHaveCompleteTimestampRanges(maybeUpdatedState);
-                assert assertRefreshBlockIsNotPresentWhenTheIndexIsSearchable(maybeUpdatedState);
 
                 for (final var taskContext : tasksToBeApplied) {
                     final var task = taskContext.getTask();
@@ -802,37 +787,6 @@ public class ShardStateAction {
             }
 
             return maybeUpdatedState;
-        }
-
-        private static ClusterState maybeRemoveIndexRefreshBlocks(
-            ClusterState clusterState,
-            @Nullable Set<Index> indicesWithUnpromotableShardsStarted
-        ) {
-            // The provided cluster state must include the newly STARTED unpromotable shards
-            if (indicesWithUnpromotableShardsStarted == null) {
-                return clusterState;
-            }
-
-            ClusterBlocks.Builder clusterBlocksBuilder = null;
-            for (Index indexWithUnpromotableShardsStarted : indicesWithUnpromotableShardsStarted) {
-                String indexName = indexWithUnpromotableShardsStarted.getName();
-                var projectId = clusterState.metadata().projectFor(indexWithUnpromotableShardsStarted).id();
-                assert clusterState.blocks().hasIndexBlock(projectId, indexName, INDEX_REFRESH_BLOCK) : indexWithUnpromotableShardsStarted;
-
-                var indexRoutingTable = clusterState.routingTable(projectId).index(indexWithUnpromotableShardsStarted);
-                if (indexRoutingTable.readyForSearch()) {
-                    if (clusterBlocksBuilder == null) {
-                        clusterBlocksBuilder = ClusterBlocks.builder(clusterState.blocks());
-                    }
-                    clusterBlocksBuilder.removeIndexBlock(projectId, indexName, INDEX_REFRESH_BLOCK);
-                }
-            }
-
-            if (clusterBlocksBuilder == null) {
-                return clusterState;
-            }
-
-            return ClusterState.builder(clusterState).blocks(clusterBlocksBuilder).build();
         }
 
         private static boolean assertStartedIndicesHaveCompleteTimestampRanges(ClusterState clusterState) {
@@ -855,18 +809,6 @@ public class ShardStateAction {
                             + clusterState.metadata().getProject(projectId).index(cursor.getKey()).getEventIngestedRange()
                             + " for "
                             + cursor.getValue().prettyPrint();
-                }
-            }
-            return true;
-        }
-
-        private static boolean assertRefreshBlockIsNotPresentWhenTheIndexIsSearchable(ClusterState clusterState) {
-            for (var projectId : clusterState.metadata().projects().keySet()) {
-                for (Map.Entry<String, Set<ClusterBlock>> indexBlock : clusterState.blocks().indices(projectId).entrySet()) {
-                    if (indexBlock.getValue().contains(INDEX_REFRESH_BLOCK)) {
-                        assert clusterState.routingTable(projectId).index(indexBlock.getKey()).readyForSearch() == false
-                            : "Index [" + indexBlock.getKey() + "] is searchable but has an INDEX_REFRESH_BLOCK";
-                    }
                 }
             }
             return true;

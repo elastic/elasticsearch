@@ -285,12 +285,14 @@ public class BytesRefBucketedSort implements Releasable {
         long oldMax = values.size();
         assert oldMax % common.bucketSize == 0;
 
-        long newSizeInBuckets = BigArrays.overSize(
-            bucket + 1,
+        long newSize = BigArrays.overSize(
+            ((long) bucket + 1) * common.bucketSize,
             PageCacheRecycler.OBJECT_PAGE_SIZE,
-            RamUsageEstimator.NUM_BYTES_OBJECT_REF * common.bucketSize
+            RamUsageEstimator.NUM_BYTES_OBJECT_REF
         );
-        values = common.bigArrays.resize(values, newSizeInBuckets * common.bucketSize);
+        // Round up to the next full bucket.
+        newSize = (newSize + common.bucketSize - 1) / common.bucketSize;
+        values = common.bigArrays.resize(values, newSize * common.bucketSize);
         // Set the next gather offsets for all newly allocated buckets.
         fillGatherOffsets(oldMax);
     }

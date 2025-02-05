@@ -265,8 +265,10 @@ public class FloatBucketedSort implements Releasable {
         long oldMax = values.size();
         assert oldMax % bucketSize == 0;
 
-        long newSizeInBuckets = BigArrays.overSize(bucket + 1, PageCacheRecycler.FLOAT_PAGE_SIZE, Float.BYTES * bucketSize);
-        values = bigArrays.resize(values, newSizeInBuckets * bucketSize);
+        long newSize = BigArrays.overSize(((long) bucket + 1) * bucketSize, PageCacheRecycler.FLOAT_PAGE_SIZE, Float.BYTES);
+        // Round up to the next full bucket.
+        newSize = (newSize + bucketSize - 1) / bucketSize;
+        values = bigArrays.resize(values, newSize * bucketSize);
         // Set the next gather offsets for all newly allocated buckets.
         fillGatherOffsets(oldMax);
     }

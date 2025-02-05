@@ -24,22 +24,26 @@ import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObjec
 
 import java.io.IOException;
 import java.util.EnumSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalEnum;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalEnumSet;
 
 public class CohereEmbeddingsServiceSettings extends FilteredXContentObject implements ServiceSettings {
     public static final String NAME = "cohere_embeddings_service_settings";
 
     static final String EMBEDDING_TYPE = "embedding_type";
 
+    static final String EMBEDDING_TYPES = "embedding_types";
+
     public static CohereEmbeddingsServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         ValidationException validationException = new ValidationException();
         var commonServiceSettings = CohereServiceSettings.fromMap(map, context);
 
-        CohereEmbeddingType embeddingTypes = parseEmbeddingType(map, context, validationException);
+        EnumSet<CohereEmbeddingType> embeddingTypes = parseEmbeddingTypes(map, context, validationException);
 
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;
@@ -48,33 +52,52 @@ public class CohereEmbeddingsServiceSettings extends FilteredXContentObject impl
         return new CohereEmbeddingsServiceSettings(commonServiceSettings, embeddingTypes);
     }
 
-    static CohereEmbeddingType parseEmbeddingType(
+    static EnumSet<CohereEmbeddingType> parseEmbeddingTypes(
         Map<String, Object> map,
         ConfigurationParseContext context,
         ValidationException validationException
     ) {
         return switch (context) {
-            case REQUEST -> Objects.requireNonNullElse(
-                extractOptionalEnum(
+            case REQUEST -> {
+                var embeddingType = extractOptionalEnum(
                     map,
                     EMBEDDING_TYPE,
                     ModelConfigurations.SERVICE_SETTINGS,
                     CohereEmbeddingType::fromString,
                     EnumSet.allOf(CohereEmbeddingType.class),
                     validationException
-                ),
-                CohereEmbeddingType.FLOAT
-            );
+                );
+
+                if (embeddingType == null) {
+                    yield Objects.requireNonNullElse(
+                        extractOptionalEnumSet(
+                            map,
+                            EMBEDDING_TYPES,
+                            ModelConfigurations.SERVICE_SETTINGS,
+                            CohereEmbeddingType::fromString,
+                            EnumSet.allOf(CohereEmbeddingType.class),
+                            validationException
+                        ),
+                        EnumSet.of(CohereEmbeddingType.FLOAT)
+                    );
+                } else {
+                    yield EnumSet.of(embeddingType);
+                }
+            }
             case PERSISTENT -> {
-                var embeddingType = ServiceUtils.extractOptionalString(
+                var persistedEmbeddingType = ServiceUtils.extractOptionalString(
                     map,
                     EMBEDDING_TYPE,
                     ModelConfigurations.SERVICE_SETTINGS,
                     validationException
                 );
-                yield fromCohereOrDenseVectorEnumValues(embeddingType, validationException);
+                var embeddingType = fromCohereOrDenseVectorEnumValues(persistedEmbeddingType, validationException);
+                if (embeddingType == null) {
+                    yield EnumSet.of(CohereEmbeddingType.FLOAT);
+                } else {
+                    yield EnumSet.of(embeddingType);
+                }
             }
-
         };
     }
 
@@ -108,16 +131,22 @@ public class CohereEmbeddingsServiceSettings extends FilteredXContentObject impl
     }
 
     private final CohereServiceSettings commonSettings;
-    private final CohereEmbeddingType embeddingType;
+    private final EnumSet<CohereEmbeddingType> embeddingTypes;
 
-    public CohereEmbeddingsServiceSettings(CohereServiceSettings commonSettings, CohereEmbeddingType embeddingType) {
+    public CohereEmbeddingsServiceSettings(CohereServiceSettings commonSettings, EnumSet<CohereEmbeddingType> embeddingTypes) {
         this.commonSettings = commonSettings;
-        this.embeddingType = Objects.requireNonNull(embeddingType);
+        this.embeddingTypes = Objects.requireNonNull(embeddingTypes);
     }
 
     public CohereEmbeddingsServiceSettings(StreamInput in) throws IOException {
-        commonSettings = new CohereServiceSettings(in);
-        embeddingType = Objects.requireNonNullElse(in.readOptionalEnum(CohereEmbeddingType.class), CohereEmbeddingType.FLOAT);
+        this.commonSettings = new CohereServiceSettings(in);
+
+        if (in.getTransportVersion().onOrAfter(TransportVersions.COHERE_EMBEDDING_TYPES_SUPPORT_ADDED)) {
+            this.embeddingTypes = in.readEnumSet(CohereEmbeddingType.class);
+        } else {
+            var embeddingType = Objects.requireNonNullElse(in.readOptionalEnum(CohereEmbeddingType.class), CohereEmbeddingType.FLOAT);
+            this.embeddingTypes = EnumSet.of(embeddingType);
+        }
     }
 
     public CohereServiceSettings getCommonSettings() {
@@ -140,12 +169,23 @@ public class CohereEmbeddingsServiceSettings extends FilteredXContentObject impl
     }
 
     public CohereEmbeddingType getEmbeddingType() {
-        return embeddingType;
+        return getFirstEmbeddingType();
     }
 
+    public EnumSet<CohereEmbeddingType> getEmbeddingTypes() {
+        return embeddingTypes;
+    }
+
+    // What to return when we have multiple embedding types?
+    // For now, default to float
     @Override
     public DenseVectorFieldMapper.ElementType elementType() {
-        return embeddingType == null ? DenseVectorFieldMapper.ElementType.FLOAT : embeddingType.toElementType();
+        // ugly
+        return embeddingTypes.size() > 1 ? DenseVectorFieldMapper.ElementType.FLOAT : getFirstEmbeddingType().toElementType();
+    }
+
+    public List<DenseVectorFieldMapper.ElementType> elementTypes() {
+        return embeddingTypes.stream().map(CohereEmbeddingType::toElementType).toList();
     }
 
     @Override
@@ -158,7 +198,7 @@ public class CohereEmbeddingsServiceSettings extends FilteredXContentObject impl
         builder.startObject();
 
         commonSettings.toXContentFragment(builder, params);
-        builder.field(EMBEDDING_TYPE, elementType());
+        builder.field(EMBEDDING_TYPES, elementTypes());
 
         builder.endObject();
         return builder;
@@ -167,7 +207,7 @@ public class CohereEmbeddingsServiceSettings extends FilteredXContentObject impl
     @Override
     protected XContentBuilder toXContentFragmentOfExposedFields(XContentBuilder builder, Params params) throws IOException {
         commonSettings.toXContentFragmentOfExposedFields(builder, params);
-        builder.field(EMBEDDING_TYPE, elementType());
+        builder.field(EMBEDDING_TYPES, elementTypes());
 
         return builder;
     }
@@ -180,7 +220,16 @@ public class CohereEmbeddingsServiceSettings extends FilteredXContentObject impl
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         commonSettings.writeTo(out);
-        out.writeOptionalEnum(CohereEmbeddingType.translateToVersion(embeddingType, out.getTransportVersion()));
+
+        if (out.getTransportVersion().onOrAfter(TransportVersions.COHERE_EMBEDDING_TYPES_SUPPORT_ADDED)) {
+            out.writeEnumSet(
+                EnumSet.copyOf(
+                    embeddingTypes.stream().map(t -> CohereEmbeddingType.translateToVersion(t, out.getTransportVersion())).toList()
+                )
+            );
+        } else {
+            out.writeEnumSet(EnumSet.of(CohereEmbeddingType.translateToVersion(getFirstEmbeddingType(), out.getTransportVersion())));
+        }
     }
 
     @Override
@@ -188,11 +237,15 @@ public class CohereEmbeddingsServiceSettings extends FilteredXContentObject impl
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         CohereEmbeddingsServiceSettings that = (CohereEmbeddingsServiceSettings) o;
-        return Objects.equals(commonSettings, that.commonSettings) && Objects.equals(embeddingType, that.embeddingType);
+        return Objects.equals(commonSettings, that.commonSettings) && Objects.equals(embeddingTypes, that.embeddingTypes);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(commonSettings, embeddingType);
+        return Objects.hash(commonSettings, embeddingTypes);
+    }
+
+    private CohereEmbeddingType getFirstEmbeddingType() {
+        return embeddingTypes.toArray(CohereEmbeddingType[]::new)[0];
     }
 }

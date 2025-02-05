@@ -200,9 +200,10 @@ public class PolicyManager {
 
         throw new NotEntitledException(
             Strings.format(
-                "Not entitled: caller [%s], module [%s], operation [%s]",
-                callerClass,
-                requestingClass.getModule() == null ? "<none>" : requestingClass.getModule().getName(),
+                "Not entitled: component [%s], module [%s], class [%s], operation [%s]",
+                getEntitlements(requestingClass).componentName(),
+                requestingClass.getModule().getName(),
+                requestingClass,
                 operationDescription.get()
             )
         );
@@ -256,9 +257,10 @@ public class PolicyManager {
         if (entitlements.fileAccess().canRead(path) == false) {
             throw new NotEntitledException(
                 Strings.format(
-                    "Not entitled: caller [%s], module [%s], entitlement [file], operation [read], path [%s]",
-                    callerClass,
+                    "Not entitled: component [%s], module [%s], class [%s], entitlement [file], operation [read], path [%s]",
+                    entitlements.componentName(),
                     requestingClass.getModule(),
+                    requestingClass,
                     path
                 )
             );
@@ -280,9 +282,10 @@ public class PolicyManager {
         if (entitlements.fileAccess().canWrite(path) == false) {
             throw new NotEntitledException(
                 Strings.format(
-                    "Not entitled: caller [%s], module [%s], entitlement [file], operation [write], path [%s]",
-                    callerClass,
+                    "Not entitled: component [%s], module [%s], class [%s], entitlement [file], operation [write], path [%s]",
+                    entitlements.componentName(),
                     requestingClass.getModule(),
+                    requestingClass,
                     path
                 )
             );
@@ -316,30 +319,33 @@ public class PolicyManager {
         }
 
         var classEntitlements = getEntitlements(requestingClass);
-        if (classEntitlements.hasEntitlement(InboundNetworkEntitlement.class) == false) {
-            throw new NotEntitledException(
-                Strings.format(
-                    "Missing entitlement: class [%s], module [%s], entitlement [inbound_network]",
-                    requestingClass,
-                    requestingClass.getModule().getName()
-                )
-            );
-        }
+        checkFlagEntitlement(classEntitlements, InboundNetworkEntitlement.class, requestingClass);
+        checkFlagEntitlement(classEntitlements, OutboundNetworkEntitlement.class, requestingClass);
+    }
 
-        if (classEntitlements.hasEntitlement(OutboundNetworkEntitlement.class) == false) {
+    private static void checkFlagEntitlement(
+        ModuleEntitlements classEntitlements,
+        Class<? extends Entitlement> entitlementClass,
+        Class<?> requestingClass
+    ) {
+        if (classEntitlements.hasEntitlement(entitlementClass) == false) {
             throw new NotEntitledException(
                 Strings.format(
-                    "Missing entitlement: class [%s], module [%s], entitlement [outbound_network]",
+                    "Not entitled: component [%s], module [%s], class [%s], entitlement [%s]",
+                    classEntitlements.componentName(),
+                    requestingClass.getModule().getName(),
                     requestingClass,
-                    requestingClass.getModule().getName()
+                    PolicyParser.getEntitlementTypeName(entitlementClass)
                 )
             );
         }
         logger.debug(
             () -> Strings.format(
-                "Entitled: class [%s], module [%s], entitlements [inbound_network, outbound_network]",
+                "Entitled: component [%s], module [%s], class [%s], entitlement [%s]",
+                classEntitlements.componentName(),
+                requestingClass.getModule().getName(),
                 requestingClass,
-                requestingClass.getModule().getName()
+                PolicyParser.getEntitlementTypeName(entitlementClass)
             )
         );
     }
@@ -354,9 +360,10 @@ public class PolicyManager {
         if (entitlements.getEntitlements(WriteSystemPropertiesEntitlement.class).anyMatch(e -> e.properties().contains(property))) {
             logger.debug(
                 () -> Strings.format(
-                    "Entitled: class [%s], module [%s], entitlement [write_system_properties], property [%s]",
-                    requestingClass,
+                    "Entitled: component [%s], module [%s], class [%s], entitlement [write_system_properties], property [%s]",
+                    entitlements.componentName(),
                     requestingClass.getModule().getName(),
+                    requestingClass,
                     property
                 )
             );
@@ -364,9 +371,10 @@ public class PolicyManager {
         }
         throw new NotEntitledException(
             Strings.format(
-                "Missing entitlement: class [%s], module [%s], entitlement [write_system_properties], property [%s]",
-                requestingClass,
+                "Not entitled: component [%s], module [%s], class [%s], entitlement [write_system_properties], property [%s]",
+                entitlements.componentName(),
                 requestingClass.getModule().getName(),
+                requestingClass,
                 property
             )
         );
@@ -377,28 +385,7 @@ public class PolicyManager {
         if (isTriviallyAllowed(requestingClass)) {
             return;
         }
-
-        ModuleEntitlements entitlements = getEntitlements(requestingClass);
-        if (entitlements.hasEntitlement(entitlementClass)) {
-            logger.debug(
-                () -> Strings.format(
-                    "Entitled: class [%s], module [%s], entitlement [%s]",
-                    requestingClass,
-                    requestingClass.getModule().getName(),
-                    PolicyParser.getEntitlementTypeName(entitlementClass)
-                )
-            );
-        } else {
-            throw new NotEntitledException(
-                Strings.format(
-                    "Missing entitlement [%s]: component[%s], module [%s], class [%s]",
-                    PolicyParser.getEntitlementTypeName(entitlementClass),
-                    entitlements.componentName(),
-                    requestingClass.getModule().getName(),
-                    requestingClass
-                )
-            );
-        }
+        checkFlagEntitlement(getEntitlements(requestingClass), entitlementClass, requestingClass);
     }
 
     ModuleEntitlements getEntitlements(Class<?> requestingClass) {

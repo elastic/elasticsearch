@@ -41,6 +41,9 @@ public class MergeTracking {
     private final Set<OnGoingMerge> onGoingMerges = ConcurrentCollections.newConcurrentSet();
     private final Set<OnGoingMerge> readOnlyOnGoingMerges = Collections.unmodifiableSet(onGoingMerges);
 
+    private final Set<OnGoingMerge> queuedMerges = ConcurrentCollections.newConcurrentSet();
+    private final Set<OnGoingMerge> readOnlyQueuedMerges = Collections.unmodifiableSet(queuedMerges);
+
     public MergeTracking(Logger logger, DoubleSupplier mbPerSecAutoThrottle) {
         this.logger = logger;
         this.mbPerSecAutoThrottle = mbPerSecAutoThrottle;
@@ -50,6 +53,18 @@ public class MergeTracking {
         return readOnlyOnGoingMerges;
     }
 
+    public Set<OnGoingMerge> queuedMerges() {
+        return readOnlyQueuedMerges;
+    }
+
+    public void markMergeQueued(OnGoingMerge merge) {
+        queuedMerges.add(merge);
+    }
+
+    public void unmarkMergeQueued(OnGoingMerge merge) {
+        queuedMerges.remove(merge);
+    }
+
     public void mergeStarted(OnGoingMerge onGoingMerge) {
         MergePolicy.OneMerge merge = onGoingMerge.getMerge();
         int totalNumDocs = merge.totalNumDocs();
@@ -57,6 +72,7 @@ public class MergeTracking {
         currentMerges.inc();
         currentMergesNumDocs.inc(totalNumDocs);
         currentMergesSizeInBytes.inc(totalSizeInBytes);
+        unmarkMergeQueued(onGoingMerge);
         onGoingMerges.add(onGoingMerge);
 
         if (logger.isTraceEnabled()) {

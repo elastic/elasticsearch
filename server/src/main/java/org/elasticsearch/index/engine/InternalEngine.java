@@ -3006,6 +3006,14 @@ public class InternalEngine extends Engine {
         return mergeScheduler.stats();
     }
 
+    public boolean hasQueuedOrOnGoingMerges() {
+        return hasQueuedMerges() || mergeScheduler.onGoingMerges().isEmpty() == false;
+    }
+
+    public boolean hasQueuedMerges() {
+        return mergeScheduler.queuedMerges().isEmpty() == false;
+    }
+
     protected LocalCheckpointTracker getLocalCheckpointTracker() {
         return localCheckpointTracker;
     }

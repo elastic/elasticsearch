@@ -59,6 +59,11 @@ public class ElasticsearchConcurrentMergeScheduler extends ConcurrentMergeSchedu
         return mergeTracking.onGoingMerges();
     }
 
+    @Override
+    public Set<OnGoingMerge> queuedMerges() {
+        return mergeTracking.queuedMerges();
+    }
+
     /** We're currently only interested in messages with this prefix. */
     private static final String MERGE_THREAD_MESSAGE_PREFIX = "merge thread";
 

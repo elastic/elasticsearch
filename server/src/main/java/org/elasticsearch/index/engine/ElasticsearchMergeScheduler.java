@@ -19,6 +19,8 @@ public interface ElasticsearchMergeScheduler {
 
     Set<OnGoingMerge> onGoingMerges();
 
+    Set<OnGoingMerge> queuedMerges();
+
     MergeStats stats();
 
     void refreshConfig();

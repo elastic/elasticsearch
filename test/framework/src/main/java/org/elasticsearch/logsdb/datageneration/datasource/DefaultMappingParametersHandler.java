@@ -11,7 +11,6 @@ package org.elasticsearch.logsdb.datageneration.datasource;
 
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
-import org.elasticsearch.logsdb.datageneration.fields.DynamicMapping;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashMap;
@@ -34,6 +33,7 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
             case KEYWORD -> keywordMapping(request, map);
             case LONG, INTEGER, SHORT, BYTE, DOUBLE, FLOAT, HALF_FLOAT, UNSIGNED_LONG -> plain(map);
             case SCALED_FLOAT -> scaledFloatMapping(map);
+            case COUNTED_KEYWORD -> plain(Map.of("index", ESTestCase.randomBoolean()));
         });
     }
 
@@ -50,11 +50,7 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
             // We only add copy_to to keywords because we get into trouble with numeric fields that are copied to dynamic fields.
             // If first copied value is numeric, dynamic field is created with numeric field type and then copy of text values fail.
             // Actual value being copied does not influence the core logic of copy_to anyway.
-            //
-            // TODO
-            // We don't use copy_to on fields that are inside an object with dynamic: strict
-            // because we'll hit https://github.com/elastic/elasticsearch/issues/113049.
-            if (request.dynamicMapping() != DynamicMapping.FORBIDDEN && ESTestCase.randomDouble() <= 0.05) {
+            if (ESTestCase.randomDouble() <= 0.05) {
                 var options = request.eligibleCopyToFields()
                     .stream()
                     .filter(f -> f.equals(request.fieldName()) == false)
@@ -67,6 +63,9 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
 
             if (ESTestCase.randomDouble() <= 0.2) {
                 injected.put("ignore_above", ESTestCase.randomIntBetween(1, 100));
+            }
+            if (ESTestCase.randomDouble() <= 0.2) {
+                injected.put("null_value", ESTestCase.randomAlphaOfLengthBetween(0, 10));
             }
 
             return injected;

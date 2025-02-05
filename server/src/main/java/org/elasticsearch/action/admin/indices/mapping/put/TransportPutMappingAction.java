@@ -36,7 +36,6 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -53,6 +52,7 @@ public class TransportPutMappingAction extends AcknowledgedTransportMasterNodeAc
     private static final Logger logger = LogManager.getLogger(TransportPutMappingAction.class);
 
     private final MetadataMappingService metadataMappingService;
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final RequestValidators<PutMappingRequest> requestValidators;
     private final SystemIndices systemIndices;
 
@@ -74,10 +74,10 @@ public class TransportPutMappingAction extends AcknowledgedTransportMasterNodeAc
             threadPool,
             actionFilters,
             PutMappingRequest::new,
-            indexNameExpressionResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.metadataMappingService = metadataMappingService;
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.requestValidators = Objects.requireNonNull(requestValidators);
         this.systemIndices = systemIndices;
     }
@@ -125,7 +125,7 @@ public class TransportPutMappingAction extends AcknowledgedTransportMasterNodeAc
 
             performMappingUpdate(concreteIndices, request, listener, metadataMappingService, false);
         } catch (IndexNotFoundException ex) {
-            logger.debug(() -> "failed to put mappings on indices [" + Arrays.asList(request.indices() + "]"), ex);
+            logger.debug(() -> "failed to put mappings on indices " + Arrays.toString(request.indices()), ex);
             throw ex;
         }
     }
@@ -161,25 +161,21 @@ public class TransportPutMappingAction extends AcknowledgedTransportMasterNodeAc
         MetadataMappingService metadataMappingService,
         boolean autoUpdate
     ) {
-        final ActionListener<AcknowledgedResponse> wrappedListener = listener.delegateResponse((l, e) -> {
-            logger.debug(() -> "failed to put mappings on indices [" + Arrays.asList(concreteIndices) + "]", e);
+        ActionListener.run(listener.delegateResponse((l, e) -> {
+            logger.debug(() -> "failed to put mappings on indices " + Arrays.toString(concreteIndices), e);
             l.onFailure(e);
-        });
-        final PutMappingClusterStateUpdateRequest updateRequest;
-        try {
-            updateRequest = new PutMappingClusterStateUpdateRequest(
-                request.masterNodeTimeout(),
-                request.ackTimeout(),
-                request.source(),
-                autoUpdate,
-                concreteIndices
-            );
-        } catch (IOException e) {
-            wrappedListener.onFailure(e);
-            return;
-        }
-
-        metadataMappingService.putMapping(updateRequest, wrappedListener);
+        }),
+            wrappedListener -> metadataMappingService.putMapping(
+                new PutMappingClusterStateUpdateRequest(
+                    request.masterNodeTimeout(),
+                    request.ackTimeout(),
+                    request.source(),
+                    autoUpdate,
+                    concreteIndices
+                ),
+                wrappedListener
+            )
+        );
     }
 
     static String checkForFailureStoreViolations(ClusterState clusterState, Index[] concreteIndices, PutMappingRequest request) {

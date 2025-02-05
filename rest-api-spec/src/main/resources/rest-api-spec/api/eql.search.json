@@ -45,7 +45,7 @@
       "allow_partial_search_results": {
         "type":"boolean",
         "description":"Control whether the query should keep running in case of shard failures, and return partial results",
-        "default":false
+        "default":true
       },
       "allow_partial_sequence_results": {
         "type":"boolean",

@@ -34,7 +34,6 @@ import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.replication.PendingReplicationActions;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
@@ -450,6 +449,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public BulkOperationListener getBulkOperationListener() {
         return this.bulkOperationListener;
+    }
+
+    public IndexingOperationListener getIndexingOperationListener() {
+        return this.indexingOperationListeners;
     }
 
     public ShardIndexWarmerService warmerService() {
@@ -3206,7 +3209,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             try {
                 doCheckIndex();
             } catch (IOException e) {
-                store.markStoreCorrupted(e);
+                if (ExceptionsHelper.unwrap(e, AlreadyClosedException.class) != null) {
+                    // Cache-based read operations on Lucene files can throw an AlreadyClosedException wrapped into an IOException in case
+                    // of evictions. We don't want to mark the store as corrupted for this.
+                } else {
+                    store.markStoreCorrupted(e);
+                }
                 throw e;
             } finally {
                 store.decRef();
@@ -3585,19 +3593,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     ) {
         verifyNotClosed();
         assert shardRouting.primary() : "acquirePrimaryOperationPermit should only be called on primary shard: " + shardRouting;
-
-        ActionListener<Releasable> onPermitAcquiredWrapped = onPermitAcquired.delegateFailureAndWrap((delegate, releasable) -> {
-            final ActionListener<Releasable> wrappedListener = indexShardOperationPermits.wrapContextPreservingActionListener(
-                delegate,
-                executorOnDelay,
-                forceExecution
-            );
-            try (var listeners = new RefCountingListener(wrappedListener.map(unused -> releasable))) {
-                indexEventListener.onAcquirePrimaryOperationPermit(this, () -> listeners.acquire());
-            }
-        });
-
-        indexShardOperationPermits.acquire(wrapPrimaryOperationPermitListener(onPermitAcquiredWrapped), executorOnDelay, forceExecution);
+        indexShardOperationPermits.acquire(wrapPrimaryOperationPermitListener(onPermitAcquired), executorOnDelay, forceExecution);
     }
 
     public boolean isPrimaryMode() {
@@ -4304,6 +4300,35 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 callingThread = null;
             }
             refreshMetric.inc(System.nanoTime() - currentRefreshStartTime);
+        }
+    }
+
+    /**
+     * Reset the current engine to a new one.
+     *
+     * Calls {@link Engine#prepareForEngineReset()} on the current engine, then closes it, and loads a new engine without
+     * doing any translog recovery.
+     *
+     * In general, resetting the engine should be done with care, to consider any in-progress operations and listeners.
+     * At the moment, this is implemented in serverless for a special case that ensures the engine is prepared for reset.
+     */
+    public void resetEngine() {
+        assert Thread.holdsLock(mutex) == false : "resetting engine under mutex";
+        assert waitForEngineOrClosedShardListeners.isDone();
+        try {
+            synchronized (engineMutex) {
+                final var currentEngine = getEngine();
+                currentEngine.prepareForEngineReset();
+                var engineConfig = newEngineConfig(replicationTracker);
+                verifyNotClosed();
+                IOUtils.close(currentEngine);
+                var newEngine = createEngine(engineConfig);
+                currentEngineReference.set(newEngine);
+                onNewEngine(newEngine);
+            }
+            onSettingsChanged();
+        } catch (Exception e) {
+            failShard("unable to reset engine", e);
         }
     }
 

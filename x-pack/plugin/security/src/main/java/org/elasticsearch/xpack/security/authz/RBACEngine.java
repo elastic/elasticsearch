@@ -1051,17 +1051,17 @@ public class RBACEngine implements AuthorizationEngine {
 
     static final class AuthorizedIndices implements AuthorizationEngine.AuthorizedIndices {
 
-        private final CachedSupplier<Set<String>> allAuthorizedAndAvailableWithSelectors;
+        private final CachedSupplier<Set<String>> allAuthorizedAndAvailable;
         private final BiPredicate<String, String> isAuthorizedPredicate;
 
         AuthorizedIndices(Supplier<Set<String>> allAuthorizedAndAvailable, BiPredicate<String, String> isAuthorizedPredicate) {
-            this.allAuthorizedAndAvailableWithSelectors = CachedSupplier.wrap(allAuthorizedAndAvailable);
+            this.allAuthorizedAndAvailable = CachedSupplier.wrap(allAuthorizedAndAvailable);
             this.isAuthorizedPredicate = Objects.requireNonNull(isAuthorizedPredicate);
         }
 
         @Override
         public Supplier<Set<String>> all() {
-            return allAuthorizedAndAvailableWithSelectors;
+            return allAuthorizedAndAvailable;
         }
 
         @Override

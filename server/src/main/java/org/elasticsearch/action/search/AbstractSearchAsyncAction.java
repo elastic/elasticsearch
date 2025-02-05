@@ -444,9 +444,9 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             performPhaseOnShard(shardIndex, shardIt, nextShard);
         } else {
             // count down outstanding shards, we're done with this shard as there's no more copies to try
-            final int outstanding = outstandingShards.getAndDecrement();
-            assert outstanding > 0 : "outstanding: " + outstanding;
-            if (outstanding == 1) {
+            final int outstanding = outstandingShards.decrementAndGet();
+            assert outstanding >= 0 : "outstanding: " + outstanding;
+            if (outstanding == 0) {
                 onPhaseDone();
             }
         }
@@ -544,9 +544,9 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     }
 
     private void successfulShardExecution() {
-        final int outstanding = outstandingShards.getAndDecrement();
-        assert outstanding > 0 : "outstanding: " + outstanding;
-        if (outstanding == 1) {
+        final int outstanding = outstandingShards.decrementAndGet();
+        assert outstanding >= 0 : "outstanding: " + outstanding;
+        if (outstanding == 0) {
             onPhaseDone();
         }
     }

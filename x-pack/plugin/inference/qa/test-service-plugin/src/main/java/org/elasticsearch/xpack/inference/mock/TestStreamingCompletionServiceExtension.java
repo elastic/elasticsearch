@@ -11,7 +11,6 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.ValidationException;
-import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.LazyInitializable;
@@ -159,14 +158,8 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
         }
 
         private ChunkedToXContent completionChunk(String delta) {
-            return params -> Iterators.concat(
-                ChunkedToXContentHelper.startObject(),
-                ChunkedToXContentHelper.startArray(COMPLETION),
-                ChunkedToXContentHelper.startObject(),
-                ChunkedToXContentHelper.field("delta", delta),
-                ChunkedToXContentHelper.endObject(),
-                ChunkedToXContentHelper.endArray(),
-                ChunkedToXContentHelper.endObject()
+            return params -> ChunkedToXContentHelper.chunk(
+                (b, p) -> b.startObject().startArray(COMPLETION).startObject().field("delta", delta).endObject().endArray().endObject()
             );
         }
 
@@ -206,20 +199,20 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
         }
          */
         private ChunkedToXContent unifiedCompletionChunk(String delta) {
-            return params -> Iterators.concat(
-                ChunkedToXContentHelper.startObject(),
-                ChunkedToXContentHelper.field("id", "id"),
-                ChunkedToXContentHelper.startArray("choices"),
-                ChunkedToXContentHelper.startObject(),
-                ChunkedToXContentHelper.startObject("delta"),
-                ChunkedToXContentHelper.field("content", delta),
-                ChunkedToXContentHelper.endObject(),
-                ChunkedToXContentHelper.field("index", 0),
-                ChunkedToXContentHelper.endObject(),
-                ChunkedToXContentHelper.endArray(),
-                ChunkedToXContentHelper.field("model", "gpt-4o-2024-08-06"),
-                ChunkedToXContentHelper.field("object", "chat.completion.chunk"),
-                ChunkedToXContentHelper.endObject()
+            return params -> ChunkedToXContentHelper.chunk(
+                (b, p) -> b.startObject()
+                    .field("id", "id")
+                    .startArray("choices")
+                    .startObject()
+                    .startObject("delta")
+                    .field("content", delta)
+                    .endObject()
+                    .field("index", 0)
+                    .endObject()
+                    .endArray()
+                    .field("model", "gpt-4o-2024-08-06")
+                    .field("object", "chat.completion.chunk")
+                    .endObject()
             );
         }
 

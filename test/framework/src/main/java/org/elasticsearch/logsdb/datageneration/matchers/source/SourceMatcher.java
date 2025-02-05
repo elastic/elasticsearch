@@ -57,7 +57,11 @@ public class SourceMatcher extends GenericEqualsMatcher<List<Map<String, Object>
             "scaled_float",
             new FieldSpecificMatcher.ScaledFloatMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings),
             "unsigned_long",
-            new FieldSpecificMatcher.UnsignedLongMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings)
+            new FieldSpecificMatcher.UnsignedLongMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings),
+            "counted_keyword",
+            new FieldSpecificMatcher.CountedKeywordMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings),
+            "keyword",
+            new FieldSpecificMatcher.KeywordMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings)
         );
         this.dynamicFieldMatcher = new DynamicFieldMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings);
     }
@@ -100,17 +104,8 @@ public class SourceMatcher extends GenericEqualsMatcher<List<Map<String, Object>
             var actualValues = actual.get(name);
             var expectedValues = expectedFieldEntry.getValue();
 
-            // There are cases when field values are stored in ignored source
-            // so we try to match them as is first and then apply field specific matcher.
-            // This is temporary, we should be able to tell when source is exact using mappings.
-            // See #111916.
-            var genericMatchResult = matchWithGenericMatcher(actualValues, expectedValues);
-            if (genericMatchResult.isMatch()) {
-                continue;
-            }
-
-            var matchIncludingFieldSpecificMatchers = matchWithFieldSpecificMatcher(name, actualValues, expectedValues).orElse(
-                genericMatchResult
+            var matchIncludingFieldSpecificMatchers = matchWithFieldSpecificMatcher(name, actualValues, expectedValues).orElseGet(
+                () -> matchWithGenericMatcher(actualValues, expectedValues)
             );
             if (matchIncludingFieldSpecificMatchers.isMatch() == false) {
                 var message = "Source documents don't match for field [" + name + "]: " + matchIncludingFieldSpecificMatchers.getMessage();
@@ -159,10 +154,6 @@ public class SourceMatcher extends GenericEqualsMatcher<List<Map<String, Object>
             }
         }
 
-        if (sourceMatchesExactly(expectedFieldMapping, expectedValues)) {
-            return Optional.empty();
-        }
-
         var fieldSpecificMatcher = fieldSpecificMatchers.get(actualFieldType);
         if (fieldSpecificMatcher == null) {
             return Optional.empty();
@@ -175,13 +166,6 @@ public class SourceMatcher extends GenericEqualsMatcher<List<Map<String, Object>
             expectedFieldMapping.mappingParameters()
         );
         return Optional.of(matched);
-    }
-
-    // Checks for scenarios when source is stored exactly and therefore can be compared without special logic.
-    private boolean sourceMatchesExactly(MappingTransforms.FieldMapping mapping, List<Object> expectedValues) {
-        return mapping.parentMappingParameters().stream().anyMatch(m -> m.getOrDefault("enabled", "true").equals("false"))
-            || mapping.mappingParameters().getOrDefault("synthetic_source_keep", "none").equals("all")
-            || expectedValues.size() > 1 && mapping.mappingParameters().getOrDefault("synthetic_source_keep", "none").equals("arrays");
     }
 
     private MatchResult matchWithGenericMatcher(List<Object> actualValues, List<Object> expectedValues) {

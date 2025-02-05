@@ -9,12 +9,21 @@
 
 package org.elasticsearch.entitlement.runtime.api;
 
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.entitlement.bridge.EntitlementChecker;
 import org.elasticsearch.entitlement.runtime.policy.PolicyManager;
 
+import java.io.File;
 import java.io.InputStream;
 import java.io.PrintStream;
 import java.io.PrintWriter;
+import java.lang.foreign.AddressLayout;
+import java.lang.foreign.Arena;
+import java.lang.foreign.FunctionDescriptor;
+import java.lang.foreign.Linker;
+import java.lang.foreign.MemoryLayout;
+import java.lang.foreign.MemorySegment;
+import java.lang.invoke.MethodHandle;
 import java.net.ContentHandlerFactory;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
@@ -44,11 +53,17 @@ import java.nio.channels.CompletionHandler;
 import java.nio.channels.DatagramChannel;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
+import java.nio.charset.Charset;
+import java.nio.file.OpenOption;
+import java.nio.file.Path;
+import java.nio.file.attribute.UserPrincipal;
+import java.nio.file.spi.FileSystemProvider;
 import java.security.cert.CertStoreParameters;
 import java.util.List;
 import java.util.Locale;
 import java.util.Properties;
 import java.util.TimeZone;
+import java.util.function.Consumer;
 
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.HttpsURLConnection;
@@ -60,6 +75,7 @@ import javax.net.ssl.SSLSocketFactory;
  * API methods for managing the checks.
  * The trampoline module loads this object via SPI.
  */
+@SuppressForbidden(reason = "Explicitly checking APIs that are forbidden")
 public class ElasticsearchEntitlementChecker implements EntitlementChecker {
 
     private final PolicyManager policyManager;
@@ -67,6 +83,11 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     public ElasticsearchEntitlementChecker(PolicyManager policyManager) {
         this.policyManager = policyManager;
     }
+
+    /// /////////////////
+    //
+    // Exit the JVM process
+    //
 
     @Override
     public void check$java_lang_Runtime$exit(Class<?> callerClass, Runtime runtime, int status) {
@@ -83,6 +104,11 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
         policyManager.checkExitVM(callerClass);
     }
 
+    /// /////////////////
+    //
+    // create class loaders
+    //
+
     @Override
     public void check$java_lang_ClassLoader$(Class<?> callerClass) {
         policyManager.checkCreateClassLoader(callerClass);
@@ -95,21 +121,6 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
 
     @Override
     public void check$java_lang_ClassLoader$(Class<?> callerClass, String name, ClassLoader parent) {
-        policyManager.checkCreateClassLoader(callerClass);
-    }
-
-    @Override
-    public void check$java_security_SecureClassLoader$(Class<?> callerClass) {
-        policyManager.checkCreateClassLoader(callerClass);
-    }
-
-    @Override
-    public void check$java_security_SecureClassLoader$(Class<?> callerClass, ClassLoader parent) {
-        policyManager.checkCreateClassLoader(callerClass);
-    }
-
-    @Override
-    public void check$java_security_SecureClassLoader$(Class<?> callerClass, String name, ClassLoader parent) {
         policyManager.checkCreateClassLoader(callerClass);
     }
 
@@ -145,6 +156,55 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     }
 
     @Override
+    public void check$java_security_SecureClassLoader$(Class<?> callerClass) {
+        policyManager.checkCreateClassLoader(callerClass);
+    }
+
+    @Override
+    public void check$java_security_SecureClassLoader$(Class<?> callerClass, ClassLoader parent) {
+        policyManager.checkCreateClassLoader(callerClass);
+    }
+
+    @Override
+    public void check$java_security_SecureClassLoader$(Class<?> callerClass, String name, ClassLoader parent) {
+        policyManager.checkCreateClassLoader(callerClass);
+    }
+
+    /// /////////////////
+    //
+    // "setFactory" methods
+    //
+
+    @Override
+    public void check$javax_net_ssl_HttpsURLConnection$setSSLSocketFactory(
+        Class<?> callerClass,
+        HttpsURLConnection connection,
+        SSLSocketFactory sf
+    ) {
+        policyManager.checkSetHttpsConnectionProperties(callerClass);
+    }
+
+    @Override
+    public void check$javax_net_ssl_HttpsURLConnection$$setDefaultSSLSocketFactory(Class<?> callerClass, SSLSocketFactory sf) {
+        policyManager.checkChangeJVMGlobalState(callerClass);
+    }
+
+    @Override
+    public void check$javax_net_ssl_HttpsURLConnection$$setDefaultHostnameVerifier(Class<?> callerClass, HostnameVerifier hv) {
+        policyManager.checkChangeJVMGlobalState(callerClass);
+    }
+
+    @Override
+    public void check$javax_net_ssl_SSLContext$$setDefault(Class<?> callerClass, SSLContext context) {
+        policyManager.checkChangeJVMGlobalState(callerClass);
+    }
+
+    /// /////////////////
+    //
+    // Process creation
+    //
+
+    @Override
     public void check$java_lang_ProcessBuilder$start(Class<?> callerClass, ProcessBuilder processBuilder) {
         policyManager.checkStartProcess(callerClass);
     }
@@ -153,6 +213,31 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     public void check$java_lang_ProcessBuilder$$startPipeline(Class<?> callerClass, List<ProcessBuilder> builders) {
         policyManager.checkStartProcess(callerClass);
     }
+
+    /// /////////////////
+    //
+    // System Properties and similar
+    //
+
+    @Override
+    public void check$java_lang_System$$clearProperty(Class<?> callerClass, String key) {
+        policyManager.checkWriteProperty(callerClass, key);
+    }
+
+    @Override
+    public void check$java_lang_System$$setProperties(Class<?> callerClass, Properties props) {
+        policyManager.checkChangeJVMGlobalState(callerClass);
+    }
+
+    @Override
+    public void check$java_lang_System$$setProperty(Class<?> callerClass, String key, String value) {
+        policyManager.checkWriteProperty(callerClass, key);
+    }
+
+    /// /////////////////
+    //
+    // JVM-wide state changes
+    //
 
     @Override
     public void check$java_lang_System$$setIn(Class<?> callerClass, InputStream in) {
@@ -211,21 +296,6 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
 
     @Override
     public void check$java_lang_Thread$$setDefaultUncaughtExceptionHandler(Class<?> callerClass, Thread.UncaughtExceptionHandler ueh) {
-        policyManager.checkChangeJVMGlobalState(callerClass);
-    }
-
-    @Override
-    public void check$java_lang_System$$clearProperty(Class<?> callerClass, String key) {
-        policyManager.checkWriteProperty(callerClass, key);
-    }
-
-    @Override
-    public void check$java_lang_System$$setProperty(Class<?> callerClass, String key, String value) {
-        policyManager.checkWriteProperty(callerClass, key);
-    }
-
-    @Override
-    public void check$java_lang_System$$setProperties(Class<?> callerClass, Properties props) {
         policyManager.checkChangeJVMGlobalState(callerClass);
     }
 
@@ -344,29 +414,10 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
         policyManager.checkChangeJVMGlobalState(callerClass);
     }
 
-    @Override
-    public void check$javax_net_ssl_HttpsURLConnection$setSSLSocketFactory(
-        Class<?> callerClass,
-        HttpsURLConnection connection,
-        SSLSocketFactory sf
-    ) {
-        policyManager.checkSetHttpsConnectionProperties(callerClass);
-    }
-
-    @Override
-    public void check$javax_net_ssl_HttpsURLConnection$$setDefaultSSLSocketFactory(Class<?> callerClass, SSLSocketFactory sf) {
-        policyManager.checkChangeJVMGlobalState(callerClass);
-    }
-
-    @Override
-    public void check$javax_net_ssl_HttpsURLConnection$$setDefaultHostnameVerifier(Class<?> callerClass, HostnameVerifier hv) {
-        policyManager.checkChangeJVMGlobalState(callerClass);
-    }
-
-    @Override
-    public void check$javax_net_ssl_SSLContext$$setDefault(Class<?> callerClass, SSLContext context) {
-        policyManager.checkChangeJVMGlobalState(callerClass);
-    }
+    /// /////////////////
+    //
+    // Network access
+    //
 
     @Override
     public void check$java_net_ProxySelector$$setDefault(Class<?> callerClass, ProxySelector ps) {
@@ -752,6 +803,7 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
 
     @Override
     public void check$java_lang_Runtime$load(Class<?> callerClass, Runtime that, String filename) {
+        // TODO: check filesystem entitlement READ
         policyManager.checkLoadingNativeLibraries(callerClass);
     }
 
@@ -762,11 +814,161 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
 
     @Override
     public void check$java_lang_System$$load(Class<?> callerClass, String filename) {
+        // TODO: check filesystem entitlement READ
         policyManager.checkLoadingNativeLibraries(callerClass);
     }
 
     @Override
     public void check$java_lang_System$$loadLibrary(Class<?> callerClass, String libname) {
         policyManager.checkLoadingNativeLibraries(callerClass);
+    }
+
+    @Override
+    public void check$jdk_internal_foreign_layout_ValueLayouts$OfAddressImpl$withTargetLayout(
+        Class<?> callerClass,
+        AddressLayout that,
+        MemoryLayout memoryLayout
+    ) {
+        policyManager.checkLoadingNativeLibraries(callerClass);
+    }
+
+    @Override
+    public void check$jdk_internal_foreign_abi_AbstractLinker$downcallHandle(
+        Class<?> callerClass,
+        Linker that,
+        FunctionDescriptor function,
+        Linker.Option... options
+    ) {
+        policyManager.checkLoadingNativeLibraries(callerClass);
+    }
+
+    @Override
+    public void check$jdk_internal_foreign_abi_AbstractLinker$downcallHandle(
+        Class<?> callerClass,
+        Linker that,
+        MemorySegment address,
+        FunctionDescriptor function,
+        Linker.Option... options
+    ) {
+        policyManager.checkLoadingNativeLibraries(callerClass);
+    }
+
+    @Override
+    public void check$jdk_internal_foreign_abi_AbstractLinker$upcallStub(
+        Class<?> callerClass,
+        Linker that,
+        MethodHandle target,
+        FunctionDescriptor function,
+        Arena arena,
+        Linker.Option... options
+    ) {
+        policyManager.checkLoadingNativeLibraries(callerClass);
+    }
+
+    @Override
+    public void check$jdk_internal_foreign_AbstractMemorySegmentImpl$reinterpret(Class<?> callerClass, MemorySegment that, long newSize) {
+        policyManager.checkLoadingNativeLibraries(callerClass);
+    }
+
+    @Override
+    public void check$jdk_internal_foreign_AbstractMemorySegmentImpl$reinterpret(
+        Class<?> callerClass,
+        MemorySegment that,
+        long newSize,
+        Arena arena,
+        Consumer<MemorySegment> cleanup
+    ) {
+        policyManager.checkLoadingNativeLibraries(callerClass);
+    }
+
+    @Override
+    public void check$jdk_internal_foreign_AbstractMemorySegmentImpl$reinterpret(
+        Class<?> callerClass,
+        MemorySegment that,
+        Arena arena,
+        Consumer<MemorySegment> cleanup
+    ) {
+        policyManager.checkLoadingNativeLibraries(callerClass);
+    }
+
+    @Override
+    public void check$java_lang_foreign_SymbolLookup$$libraryLookup(Class<?> callerClass, String name, Arena arena) {
+        policyManager.checkLoadingNativeLibraries(callerClass);
+    }
+
+    @Override
+    public void check$java_lang_foreign_SymbolLookup$$libraryLookup(Class<?> callerClass, Path path, Arena arena) {
+        // TODO: check filesystem entitlement READ
+        policyManager.checkLoadingNativeLibraries(callerClass);
+    }
+
+    @Override
+    public void check$java_lang_ModuleLayer$Controller$enableNativeAccess(
+        Class<?> callerClass,
+        ModuleLayer.Controller that,
+        Module target
+    ) {
+        policyManager.checkLoadingNativeLibraries(callerClass);
+    }
+
+    /// /////////////////
+    //
+    // File access
+    //
+
+    // old io (ie File)
+
+    @Override
+    public void check$java_io_FileOutputStream$(Class<?> callerClass, String name) {
+        policyManager.checkFileWrite(callerClass, new File(name));
+    }
+
+    @Override
+    public void check$java_io_FileOutputStream$(Class<?> callerClass, String name, boolean append) {
+        policyManager.checkFileWrite(callerClass, new File(name));
+    }
+
+    @Override
+    public void check$java_io_FileOutputStream$(Class<?> callerClass, File file) {
+        policyManager.checkFileWrite(callerClass, file);
+    }
+
+    @Override
+    public void check$java_io_FileOutputStream$(Class<?> callerClass, File file, boolean append) {
+        policyManager.checkFileWrite(callerClass, file);
+    }
+
+    @Override
+    public void check$java_util_Scanner$(Class<?> callerClass, File source) {
+        policyManager.checkFileRead(callerClass, source);
+    }
+
+    @Override
+    public void check$java_util_Scanner$(Class<?> callerClass, File source, String charsetName) {
+        policyManager.checkFileRead(callerClass, source);
+    }
+
+    @Override
+    public void check$java_util_Scanner$(Class<?> callerClass, File source, Charset charset) {
+        policyManager.checkFileRead(callerClass, source);
+    }
+
+    // nio
+
+    @Override
+    public void check$java_nio_file_Files$$probeContentType(Class<?> callerClass, Path path) {
+        policyManager.checkFileRead(callerClass, path);
+    }
+
+    @Override
+    public void check$java_nio_file_Files$$setOwner(Class<?> callerClass, Path path, UserPrincipal principal) {
+        policyManager.checkFileWrite(callerClass, path);
+    }
+
+    // file system providers
+
+    @Override
+    public void checkNewInputStream(Class<?> callerClass, FileSystemProvider that, Path path, OpenOption... options) {
+        // TODO: policyManger.checkFileSystemRead(path);
     }
 }

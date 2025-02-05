@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.migrate.action;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
@@ -19,18 +20,25 @@ import org.elasticsearch.cluster.ClusterStateAckListener;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.SimpleBatchedAckListenerTaskExecutor;
 import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.MetadataDataStreamsService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.cluster.action.MigrateToDataTiersAction;
+
+import java.util.HashMap;
 
 public class CopyIndexMetadataTransportAction extends TransportMasterNodeAction<CopyIndexMetadataAction.Request, AcknowledgedResponse> {
     private static final Logger logger = LogManager.getLogger(CopyIndexMetadataTransportAction.class);
@@ -87,7 +95,27 @@ public class CopyIndexMetadataTransportAction extends TransportMasterNodeAction<
     }
 
     static ClusterState applyUpdate(ClusterState state, UpdateIndexMetadataTask updateTask) {
-        return null;
+
+        IndexMetadata sourceMetadata = state.metadata().index(updateTask.sourceIndex);
+        if (sourceMetadata == null) {
+            throw new IndexNotFoundException(updateTask.sourceIndex);
+        }
+
+        IndexMetadata destMetadata = state.metadata().index(updateTask.destIndex);
+        if (destMetadata == null) {
+            throw new IndexNotFoundException(updateTask.destIndex);
+        }
+
+        IndexMetadata newDestMetadata = IndexMetadata.builder(destMetadata)
+            .putRolloverInfos(sourceMetadata.getRolloverInfos())
+            .putLifecycleState(sourceMetadata.getLifecycleExecutionState())
+            .build();
+
+        var indices = new HashMap<>(state.metadata().indices());
+        indices.put(updateTask.destIndex, newDestMetadata);
+
+        Metadata newMetadata = Metadata.builder(state.metadata()).indices(indices).build();
+        return ClusterState.builder(state).metadata(newMetadata).build();
     }
 
     static class UpdateIndexMetadataTask extends AckedBatchedClusterStateUpdateTask {

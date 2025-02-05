@@ -37,7 +37,6 @@ public class CopyIndexMetadataAction extends ActionType<AcknowledgedResponse> {
             this.destIndex = destIndex;
         }
 
-        // @SuppressWarnings("unchecked")
         public Request(StreamInput in) throws IOException {
             super(in);
             this.sourceIndex = in.readString();

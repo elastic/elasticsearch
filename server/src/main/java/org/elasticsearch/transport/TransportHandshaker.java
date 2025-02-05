@@ -11,7 +11,6 @@ package org.elasticsearch.transport;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -19,7 +18,10 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.metrics.CounterMetric;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.EOFException;
@@ -157,6 +159,8 @@ final class TransportHandshaker {
      * [3] Parent task ID should be empty; see org.elasticsearch.tasks.TaskId.writeTo for its structure.
      */
 
+    private static final Logger logger = LogManager.getLogger(TransportHandshaker.class);
+
     static final TransportVersion V7_HANDSHAKE_VERSION = TransportVersion.fromId(6_08_00_99);
     static final TransportVersion V8_HANDSHAKE_VERSION = TransportVersion.fromId(7_17_00_99);
     static final TransportVersion V9_HANDSHAKE_VERSION = TransportVersion.fromId(8_800_00_0);
@@ -195,7 +199,7 @@ final class TransportHandshaker {
         ActionListener<TransportVersion> listener
     ) {
         numHandshakes.inc();
-        final HandshakeResponseHandler handler = new HandshakeResponseHandler(requestId, listener);
+        final HandshakeResponseHandler handler = new HandshakeResponseHandler(requestId, channel, listener);
         pendingHandshakes.put(requestId, handler);
         channel.addCloseListener(
             ActionListener.running(() -> handler.handleLocalException(new TransportException("handshake failed because connection reset")))
@@ -221,9 +225,9 @@ final class TransportHandshaker {
     }
 
     void handleHandshake(TransportChannel channel, long requestId, StreamInput stream) throws IOException {
+        final HandshakeRequest handshakeRequest;
         try {
-            // Must read the handshake request to exhaust the stream
-            new HandshakeRequest(stream);
+            handshakeRequest = new HandshakeRequest(stream);
         } catch (Exception e) {
             assert ignoreDeserializationErrors : e;
             throw e;
@@ -242,7 +246,42 @@ final class TransportHandshaker {
             assert ignoreDeserializationErrors : exception;
             throw exception;
         }
+        ensureCompatibleVersion(version, handshakeRequest.transportVersion, handshakeRequest.releaseVersion, channel);
         channel.sendResponse(new HandshakeResponse(this.version, Build.current().version()));
+    }
+
+    static void ensureCompatibleVersion(
+        TransportVersion localTransportVersion,
+        TransportVersion remoteTransportVersion,
+        String releaseVersion,
+        Object channel
+    ) {
+        if (TransportVersion.isCompatible(remoteTransportVersion)) {
+            if (remoteTransportVersion.onOrAfter(localTransportVersion)) {
+                // Remote is newer than us, so we will be using our transport protocol and it's up to the other end to decide whether it
+                // knows how to do that.
+                return;
+            }
+            if (remoteTransportVersion.isKnown()) {
+                // Remote is older than us, so we will be using its transport protocol, which we can only do if and only if its protocol
+                // version is known to us.
+                return;
+            }
+        }
+
+        final var message = Strings.format(
+            """
+                Rejecting unreadable transport handshake from remote node with version [%s/%s] received on [%s] since this node has \
+                version [%s/%s] which has an incompatible wire format.""",
+            releaseVersion,
+            remoteTransportVersion,
+            channel,
+            Build.current().version(),
+            localTransportVersion
+        );
+        logger.warn(message);
+        throw new IllegalStateException(message);
+
     }
 
     TransportResponseHandler<HandshakeResponse> removeHandlerForHandshake(long requestId) {
@@ -260,11 +299,13 @@ final class TransportHandshaker {
     private class HandshakeResponseHandler implements TransportResponseHandler<HandshakeResponse> {
 
         private final long requestId;
+        private final TcpChannel channel;
         private final ActionListener<TransportVersion> listener;
         private final AtomicBoolean isDone = new AtomicBoolean(false);
 
-        private HandshakeResponseHandler(long requestId, ActionListener<TransportVersion> listener) {
+        private HandshakeResponseHandler(long requestId, TcpChannel channel, ActionListener<TransportVersion> listener) {
             this.requestId = requestId;
+            this.channel = channel;
             this.listener = listener;
         }
 
@@ -281,20 +322,13 @@ final class TransportHandshaker {
         @Override
         public void handleResponse(HandshakeResponse response) {
             if (isDone.compareAndSet(false, true)) {
-                TransportVersion responseVersion = response.transportVersion;
-                if (TransportVersion.isCompatible(responseVersion) == false) {
-                    listener.onFailure(
-                        new IllegalStateException(
-                            "Received message from unsupported version: ["
-                                + responseVersion
-                                + "] minimal compatible version is: ["
-                                + TransportVersions.MINIMUM_COMPATIBLE
-                                + "]"
-                        )
-                    );
-                } else {
-                    listener.onResponse(TransportVersion.min(TransportHandshaker.this.version, response.getTransportVersion()));
-                }
+                ActionListener.completeWith(listener, () -> {
+                    ensureCompatibleVersion(version, response.getTransportVersion(), response.getReleaseVersion(), channel);
+                    final var resultVersion = TransportVersion.min(TransportHandshaker.this.version, response.getTransportVersion());
+                    assert TransportVersion.current().before(version) // simulating a newer-version transport service for test purposes
+                        || resultVersion.isKnown() : "negotiated unknown version " + resultVersion;
+                    return resultVersion;
+                });
             }
         }
 

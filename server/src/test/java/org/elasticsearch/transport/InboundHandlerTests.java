@@ -290,7 +290,9 @@ public class InboundHandlerTests extends ESTestCase {
             );
             BytesStreamOutput byteData = new BytesStreamOutput();
             TaskId.EMPTY_TASK_ID.writeTo(byteData);
+            // simulate bytes of a transport handshake: vInt transport version then release version string
             TransportVersion.writeVersion(remoteVersion, byteData);
+            byteData.writeString(randomIdentifier());
             final InboundMessage requestMessage = new InboundMessage(
                 requestHeader,
                 ReleasableBytesReference.wrap(byteData.bytes()),

@@ -31,11 +31,12 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.lucene.LuceneQueryExpressionEvaluator.ShardConfig;
 import org.elasticsearch.compute.lucene.LuceneQueryScoreEvaluator.DenseCollector;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.compute.operator.ScoreOperator;
 import org.elasticsearch.compute.operator.ShuffleDocsOperator;
 import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.compute.test.OperatorTestCase;
@@ -192,10 +193,10 @@ public class LuceneQueryScoreEvaluatorTests extends ComputeTestCase {
         BlockFactory blockFactory = driverContext.blockFactory();
         return withReader(values, reader -> {
             IndexSearcher searcher = new IndexSearcher(reader);
-            LuceneQueryScoreEvaluator.ShardConfig shard = new LuceneQueryScoreEvaluator.ShardConfig(searcher.rewrite(query), searcher);
+            ShardConfig shard = new ShardConfig(searcher.rewrite(query), searcher);
             LuceneQueryScoreEvaluator luceneQueryEvaluator = new LuceneQueryScoreEvaluator(
                 blockFactory,
-                new LuceneQueryScoreEvaluator.ShardConfig[] { shard }
+                new ShardConfig[] { shard }
 
             );
 
@@ -219,7 +220,7 @@ public class LuceneQueryScoreEvaluatorTests extends ComputeTestCase {
                     0
                 )
             );
-            operators.add(new EvalOperator(blockFactory, luceneQueryEvaluator));
+            operators.add(new ScoreOperator(blockFactory, luceneQueryEvaluator));
             List<Page> results = new ArrayList<>();
             Driver driver = new Driver(
                 driverContext,

@@ -23,11 +23,14 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DocVector;
+import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.lucene.LuceneQueryExpressionEvaluator.ShardConfig;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.operator.ScoreOperator;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
@@ -41,11 +44,10 @@ import java.io.UncheckedIOException;
  * {@link LuceneSourceOperator} or the like, but sometimes this isn't possible. So
  * this evaluator is here to save the day.
  */
-public class LuceneQueryScoreEvaluator implements EvalOperator.ExpressionEvaluator {
+public class LuceneQueryScoreEvaluator implements ScoreOperator.ExpressionScorer {
 
     public static final double NO_MATCH_SCORE = 0.0;
 
-    public record ShardConfig(Query query, IndexSearcher searcher) {}
 
     private final BlockFactory blockFactory;
     private final ShardConfig[] shards;
@@ -58,7 +60,7 @@ public class LuceneQueryScoreEvaluator implements EvalOperator.ExpressionEvaluat
     }
 
     @Override
-    public Block eval(Page page) {
+    public DoubleBlock score(Page page) {
         // Lucene based operators retrieve DocVectors as first block
         Block block = page.getBlock(0);
         assert block instanceof DocBlock : "LuceneQueryExpressionEvaluator expects DocBlock as input";
@@ -179,8 +181,8 @@ public class LuceneQueryScoreEvaluator implements EvalOperator.ExpressionEvaluat
         private SegmentState[] perSegmentState = EMPTY_SEGMENT_STATES;
 
         ShardState(ShardConfig config) throws IOException {
-            weight = config.searcher.createWeight(config.query, ScoreMode.COMPLETE, 1.0f);
-            searcher = config.searcher;
+            weight = config.searcher().createWeight(config.query(), ScoreMode.COMPLETE, 1.0f);
+            searcher = config.searcher();
         }
 
         SegmentState segmentState(int segment) throws IOException {
@@ -351,7 +353,7 @@ public class LuceneQueryScoreEvaluator implements EvalOperator.ExpressionEvaluat
         }
     }
 
-    public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    public static class Factory implements ScoreOperator.ExpressionScorer.Factory {
         private final ShardConfig[] shardConfigs;
 
         public Factory(ShardConfig[] shardConfigs) {
@@ -359,7 +361,7 @@ public class LuceneQueryScoreEvaluator implements EvalOperator.ExpressionEvaluat
         }
 
         @Override
-        public EvalOperator.ExpressionEvaluator get(DriverContext context) {
+        public ScoreOperator.ExpressionScorer get(DriverContext context) {
             return new LuceneQueryScoreEvaluator(context.blockFactory(), shardConfigs);
         }
     }

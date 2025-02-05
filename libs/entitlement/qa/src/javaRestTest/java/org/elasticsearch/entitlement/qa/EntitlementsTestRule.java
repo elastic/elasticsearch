@@ -33,12 +33,7 @@ class EntitlementsTestRule implements TestRule {
 
     // entitlements that test methods may use, see EntitledActions
     private static final PolicyBuilder ENTITLED_POLICY = (builder, tempDir) -> {
-        builder.value(
-            Map.of(
-                "write_system_properties",
-                Map.of("properties", List.of("org.elasticsearch.entitlement.qa.selfTest"))
-            )
-        );
+        builder.value(Map.of("write_system_properties", Map.of("properties", List.of("org.elasticsearch.entitlement.qa.selfTest"))));
         builder.value(Map.of("file", Map.of("path", tempDir.resolve("read_dir"), "mode", "read")));
         builder.value(Map.of("file", Map.of("path", tempDir.resolve("read_write_dir"), "mode", "read_write")));
         builder.value(Map.of("file", Map.of("path", tempDir.resolve("read_file"), "mode", "read")));
@@ -67,9 +62,7 @@ class EntitlementsTestRule implements TestRule {
             }
         };
         cluster = ElasticsearchCluster.local()
-            .module("entitled", spec ->
-                buildEntitlements(spec, "org.elasticsearch.entitlement.qa.entitled", ENTITLED_POLICY)
-            )
+            .module("entitled", spec -> buildEntitlements(spec, "org.elasticsearch.entitlement.qa.entitled", ENTITLED_POLICY))
             .module("entitlement-test-plugin", spec -> setupEntitlements(spec, modular, policyBuilder))
             .systemProperty("es.entitlements.enabled", "true")
             .systemProperty("es.entitlements.testdir", () -> testDir.getRoot().getAbsolutePath())

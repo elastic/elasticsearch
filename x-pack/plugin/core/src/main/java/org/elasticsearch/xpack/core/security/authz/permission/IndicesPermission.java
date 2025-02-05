@@ -25,8 +25,6 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
@@ -57,7 +55,6 @@ import static java.util.Collections.unmodifiableMap;
 public final class IndicesPermission {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(IndicesPermission.class);
-    private static final Logger logger = LogManager.getLogger(IndicesPermission.class);
 
     public static final IndicesPermission NONE = new IndicesPermission(new RestrictedIndices(Automatons.EMPTY), Group.EMPTY_ARRAY);
 

@@ -2206,7 +2206,7 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
     }
 
     public void testSingleDeepIgnoredField() throws IOException {
-        DocumentMapper documentMapper = createSytheticSourceMapperService(mapping(b -> {
+        DocumentMapper documentMapper = createMapperService(syntheticSourceMapping(b -> {
             b.startObject("top");
             b.startObject("properties");
             {

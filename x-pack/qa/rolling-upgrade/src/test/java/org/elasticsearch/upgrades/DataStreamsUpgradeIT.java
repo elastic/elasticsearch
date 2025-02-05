@@ -195,7 +195,7 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
             createDataStreamFromNonDataStreamIndices(dataStreamFromNonDataStreamIndices);
         } else if (CLUSTER_TYPE == ClusterType.UPGRADED) {
             upgradeDataStream(dataStreamName, numRollovers, numRollovers + 1, 0);
-            upgradeDataStream(dataStreamFromNonDataStreamIndices, 0, 0, 1);
+            upgradeDataStream(dataStreamFromNonDataStreamIndices, 0, 1, 0);
         }
     }
 

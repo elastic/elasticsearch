@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.external.elastic;
 
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults;
 import org.elasticsearch.xpack.core.inference.results.UnifiedChatCompletionException;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
@@ -15,11 +16,14 @@ import org.elasticsearch.xpack.inference.external.http.retry.ErrorResponse;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseParser;
 import org.elasticsearch.xpack.inference.external.openai.OpenAiUnifiedStreamingProcessor;
 import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.response.elastic.ElasticInferenceServiceErrorResponseEntity;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEventParser;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEventProcessor;
 
 import java.util.Locale;
 import java.util.concurrent.Flow;
+
+import static org.elasticsearch.core.Strings.format;
 
 public class ElasticInferenceServiceUnifiedChatCompletionResponseHandler extends ElasticInferenceServiceResponseHandler {
     public ElasticInferenceServiceUnifiedChatCompletionResponseHandler(String requestType, ResponseParser parseFunction) {
@@ -29,7 +33,8 @@ public class ElasticInferenceServiceUnifiedChatCompletionResponseHandler extends
     @Override
     public InferenceServiceResults parseResult(Request request, Flow.Publisher<HttpResult> flow) {
         var serverSentEventProcessor = new ServerSentEventProcessor(new ServerSentEventParser());
-        var openAiProcessor = new OpenAiUnifiedStreamingProcessor(); // EIS uses the unified API spec
+        // EIS uses the unified API spec
+        var openAiProcessor = new OpenAiUnifiedStreamingProcessor((m, e) -> buildMidStreamError(request, m, e));
 
         flow.subscribe(serverSentEventProcessor);
         serverSentEventProcessor.subscribe(openAiProcessor);
@@ -50,6 +55,32 @@ public class ElasticInferenceServiceUnifiedChatCompletionResponseHandler extends
             );
         } else {
             return super.buildError(message, request, result, errorResponse);
+        }
+    }
+
+    private static Exception buildMidStreamError(Request request, String message, Exception e) {
+        var errorResponse = ElasticInferenceServiceErrorResponseEntity.fromString(message);
+        if (errorResponse.errorStructureFound()) {
+            return new UnifiedChatCompletionException(
+                RestStatus.INTERNAL_SERVER_ERROR,
+                format(
+                    "%s for request from inference entity id [%s]. Error message: [%s]",
+                    SERVER_ERROR_OBJECT,
+                    request.getInferenceEntityId(),
+                    errorResponse.getErrorMessage()
+                ),
+                "error",
+                "stream_error"
+            );
+        } else if (e != null) {
+            return UnifiedChatCompletionException.fromThrowable(e);
+        } else {
+            return new UnifiedChatCompletionException(
+                RestStatus.INTERNAL_SERVER_ERROR,
+                format("%s for request from inference entity id [%s]", SERVER_ERROR_OBJECT, request.getInferenceEntityId()),
+                "error",
+                "stream_error"
+            );
         }
     }
 }

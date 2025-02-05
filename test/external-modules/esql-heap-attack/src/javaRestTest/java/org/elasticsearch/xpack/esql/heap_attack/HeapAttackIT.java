@@ -216,11 +216,10 @@ public class HeapAttackIT extends ESRestTestCase {
         while (attempt <= MAX_ATTEMPTS) {
             try {
                 Map<String, Object> response = tryBreaking.attempt(attempt);
-                logger.error("{}: should circuit broken but got {}", attempt, response);
+                logger.warn("{}: should circuit broken but got {}", attempt, response);
                 attempt++;
             } catch (ResponseException e) {
                 Map<?, ?> map = responseAsMap(e.getResponse());
-                logger.info("expected circuit breaker {}", map);
                 assertMap(map, responseMatcher);
                 return;
             }

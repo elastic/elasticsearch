@@ -306,9 +306,7 @@ public class EmbeddingRequestChunker {
                     sendResponse();
                 }
             } else {
-                onFailure(
-                    unexpectedResultTypeException(inferenceServiceResults.getWriteableName(), InferenceTextEmbeddingBitResults.NAME)
-                );
+                onFailure(unexpectedResultTypeException(inferenceServiceResults.getWriteableName(), InferenceTextEmbeddingBitResults.NAME));
             }
         }
 

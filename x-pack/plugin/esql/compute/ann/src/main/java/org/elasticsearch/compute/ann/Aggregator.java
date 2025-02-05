@@ -37,11 +37,6 @@ import java.lang.annotation.Target;
  *     are ever collected.
  * </p>
  * <p>
- *     The generation code will also look for a method called {@code combineValueCount}
- *     which is called once per received block with a count of values. NOTE: We may
- *     not need this after we convert AVG into a composite operation.
- * </p>
- * <p>
  *     The generation code also looks for the optional methods {@code combineIntermediate}
  *     and {@code evaluateFinal} which are used to combine intermediate states and
  *     produce the final output. If the first is missing then the generated code will

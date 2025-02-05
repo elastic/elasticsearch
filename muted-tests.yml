@@ -153,9 +153,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/118914
 - class: org.elasticsearch.xpack.security.authc.ldap.ActiveDirectoryRunAsIT
   issue: https://github.com/elastic/elasticsearch/issues/115727
-- class: org.elasticsearch.xpack.esql.action.EsqlNodeFailureIT
-  method: testFailureLoadingFields
-  issue: https://github.com/elastic/elasticsearch/issues/118000
 - class: org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapperTests
   method: testCartesianBoundsBlockLoader
   issue: https://github.com/elastic/elasticsearch/issues/119201
@@ -347,6 +344,15 @@ tests:
 - class: org.elasticsearch.xpack.security.profile.ProfileIntegTests
   method: testActivateProfile
   issue: https://github.com/elastic/elasticsearch/issues/121151
+- class: org.elasticsearch.xpack.security.profile.ProfileIntegTests
+  method: testHasPrivileges
+  issue: https://github.com/elastic/elasticsearch/issues/121346
+- class: org.elasticsearch.xpack.security.profile.ProfileIntegTests
+  method: testSuggestProfileWithData
+  issue: https://github.com/elastic/elasticsearch/issues/121258
+- class: org.elasticsearch.search.CrossClusterSearchUnavailableClusterIT
+  method: testSearchSkipUnavailable
+  issue: https://github.com/elastic/elasticsearch/issues/121497
 
 # Examples:
 #

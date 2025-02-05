@@ -27,7 +27,7 @@ public class MvAppendErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new MvAppend(source, args.get(0), args.get(1));
+        return new MvAppend(source, args.get(0), args.subList(1, args.size()));
     }
 
     @Override

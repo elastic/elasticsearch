@@ -398,8 +398,11 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testInlineStatsWithGroups() {
         var query = "inlinestats b = min(a) by c, d.e";
         if (Build.current().isSnapshot() == false) {
-            var e = expectThrows(ParsingException.class, () -> processingCommand(query));
-            assertThat(e.getMessage(), containsString("line 1:13: mismatched input 'inlinestats' expecting {"));
+            expectThrows(
+                ParsingException.class,
+                containsString("line 1:13: mismatched input 'inlinestats' expecting {"),
+                () -> processingCommand(query)
+            );
             return;
         }
         assertEquals(
@@ -424,8 +427,11 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testInlineStatsWithoutGroups() {
         var query = "inlinestats min(a), c = 1";
         if (Build.current().isSnapshot() == false) {
-            var e = expectThrows(ParsingException.class, () -> processingCommand(query));
-            assertThat(e.getMessage(), containsString("line 1:13: mismatched input 'inlinestats' expecting {"));
+            expectThrows(
+                ParsingException.class,
+                containsString("line 1:13: mismatched input 'inlinestats' expecting {"),
+                () -> processingCommand(query)
+            );
             return;
         }
         assertEquals(
@@ -858,16 +864,17 @@ public class StatementParserTests extends AbstractStatementParserTests {
             Tuple.tuple("a/*hi*/", "a"),
             Tuple.tuple("explain [ frm a ]", "frm")
         )) {
-            ParsingException pe = expectThrows(ParsingException.class, () -> statement(queryWithUnexpectedCmd.v1()));
-            assertThat(
-                pe.getMessage(),
+            expectThrows(
+                ParsingException.class,
                 allOf(
                     containsString("mismatched input '" + queryWithUnexpectedCmd.v2() + "'"),
                     containsString("'explain'"),
                     containsString("'from'"),
                     containsString("'row'")
-                )
+                ),
+                () -> statement(queryWithUnexpectedCmd.v1())
             );
+
         }
     }
 
@@ -882,15 +889,15 @@ public class StatementParserTests extends AbstractStatementParserTests {
             Tuple.tuple("from a | a/*hi*/", "a"),
             Tuple.tuple("explain [ from a | evl b = c ]", "evl")
         )) {
-            ParsingException pe = expectThrows(ParsingException.class, () -> statement(queryWithUnexpectedCmd.v1()));
-            assertThat(
-                pe.getMessage(),
+            expectThrows(
+                ParsingException.class,
                 allOf(
                     containsString("mismatched input '" + queryWithUnexpectedCmd.v2() + "'"),
                     containsString("'eval'"),
                     containsString("'stats'"),
                     containsString("'where'")
-                )
+                ),
+                () -> statement(queryWithUnexpectedCmd.v1())
             );
         }
     }
@@ -981,10 +988,10 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertEquals("%{WORD:foo}", grok.parser().pattern());
         assertEquals(List.of(referenceAttribute("foo", KEYWORD)), grok.extractedFields());
 
-        ParsingException pe = expectThrows(ParsingException.class, () -> statement("row a = \"foo bar\" | grok a \"%{_invalid_:x}\""));
-        assertThat(
-            pe.getMessage(),
-            containsString("Invalid pattern [%{_invalid_:x}] for grok: Unable to find pattern [_invalid_] in Grok's pattern dictionary")
+        expectThrows(
+            ParsingException.class,
+            containsString("Invalid pattern [%{_invalid_:x}] for grok: Unable to find pattern [_invalid_] in Grok's pattern dictionary"),
+            () -> statement("row a = \"foo bar\" | grok a \"%{_invalid_:x}\"")
         );
 
         cmd = processingCommand("grok a \"%{WORD:foo} %{WORD:foo}\"");
@@ -1110,8 +1117,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     public void testUsageOfProject() {
         String query = "from test | project foo, bar";
-        ParsingException e = expectThrows(ParsingException.class, "Expected syntax error for " + query, () -> statement(query));
-        assertThat(e.getMessage(), containsString("mismatched input 'project' expecting"));
+        expectThrows(ParsingException.class, containsString("mismatched input 'project' expecting"), () -> statement(query));
     }
 
     public void testInputParams() {
@@ -2046,8 +2052,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     private void assertStringAsIndexPattern(String string, String statement) {
         if (Build.current().isSnapshot() == false && statement.contains("METRIC")) {
-            var e = expectThrows(ParsingException.class, () -> statement(statement));
-            assertThat(e.getMessage(), containsString("mismatched input 'METRICS' expecting {"));
+            expectThrows(ParsingException.class, containsString("mismatched input 'METRICS' expecting {"), () -> statement(statement));
             return;
         }
         LogicalPlan from = statement(statement);
@@ -2058,8 +2063,11 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     private void assertStringAsLookupIndexPattern(String string, String statement) {
         if (Build.current().isSnapshot() == false) {
-            var e = expectThrows(ParsingException.class, () -> statement(statement));
-            assertThat(e.getMessage(), containsString("line 1:14: LOOKUP_🐔 is in preview and only available in SNAPSHOT build"));
+            expectThrows(
+                ParsingException.class,
+                containsString("line 1:14: LOOKUP_🐔 is in preview and only available in SNAPSHOT build"),
+                () -> statement(statement)
+            );
             return;
         }
         var plan = statement(statement);
@@ -2126,8 +2134,11 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testLookup() {
         String query = "ROW a = 1 | LOOKUP_🐔 t ON j";
         if (Build.current().isSnapshot() == false) {
-            var e = expectThrows(ParsingException.class, () -> statement(query));
-            assertThat(e.getMessage(), containsString("line 1:13: mismatched input 'LOOKUP_🐔' expecting {"));
+            expectThrows(
+                ParsingException.class,
+                containsString("line 1:13: mismatched input 'LOOKUP_🐔' expecting {"),
+                () -> statement(query)
+            );
             return;
         }
         var plan = statement(query);

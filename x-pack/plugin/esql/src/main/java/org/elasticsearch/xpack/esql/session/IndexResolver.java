@@ -148,7 +148,7 @@ public class IndexResolver {
             }
         }
 
-        Map<String, FieldCapabilitiesFailure> unavailableRemotes = EsqlSessionCCSUtils.determineUnavailableRemoteClusters(
+        Map<String, FieldCapabilitiesFailure> unavailableRemotes = EsqlCCSUtils.determineUnavailableRemoteClusters(
             fieldCapsResponse.getFailures()
         );
 

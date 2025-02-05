@@ -78,7 +78,6 @@ public class AggregatorImplementer {
     private final List<TypeMirror> warnExceptions;
     private final ExecutableElement init;
     private final ExecutableElement combine;
-    private final ExecutableElement combineValueCount;
     private final ExecutableElement combineIntermediate;
     private final ExecutableElement evaluateFinal;
     private final ClassName implementation;
@@ -115,7 +114,6 @@ public class AggregatorImplementer {
             TypeName firstParamType = TypeName.get(e.getParameters().get(0).asType());
             return firstParamType.isPrimitive() || firstParamType.toString().equals(stateType.toString());
         });
-        this.combineValueCount = findMethod(declarationType, "combineValueCount");
         this.combineIntermediate = findMethod(declarationType, "combineIntermediate");
         this.evaluateFinal = findMethod(declarationType, "evaluateFinal");
         this.createParameters = init.getParameters()
@@ -415,9 +413,6 @@ public class AggregatorImplementer {
             combineRawInput(builder, "vector");
         }
         builder.endControlFlow();
-        if (combineValueCount != null) {
-            builder.addStatement("$T.combineValueCount(state, vector.getPositionCount())", declarationType);
-        }
         return builder.build();
     }
 
@@ -459,9 +454,6 @@ public class AggregatorImplementer {
             }
         }
         builder.endControlFlow();
-        if (combineValueCount != null) {
-            builder.addStatement("$T.combineValueCount(state, block.getTotalValueCount())", declarationType);
-        }
         return builder.build();
     }
 

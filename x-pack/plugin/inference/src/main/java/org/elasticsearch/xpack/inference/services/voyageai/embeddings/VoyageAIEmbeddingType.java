@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.voyageai.embeddings;
 
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 
@@ -36,18 +34,29 @@ public enum VoyageAIEmbeddingType {
     /**
      * This is a synonym for INT8
      */
-    BYTE(DenseVectorFieldMapper.ElementType.BYTE, RequestConstants.INT8);
+    BYTE(DenseVectorFieldMapper.ElementType.BYTE, RequestConstants.INT8),
+    /**
+     * Use this when you want to get back binary embeddings. Valid only for v3 models.
+     */
+    BIT(DenseVectorFieldMapper.ElementType.BIT, RequestConstants.BIT),
+    /**
+     * This is a synonym for BIT
+     */
+    BINARY(DenseVectorFieldMapper.ElementType.BIT, RequestConstants.BIT);
 
     private static final class RequestConstants {
         private static final String FLOAT = "float";
         private static final String INT8 = "int8";
+        private static final String BIT = "binary";
     }
 
     private static final Map<DenseVectorFieldMapper.ElementType, VoyageAIEmbeddingType> ELEMENT_TYPE_TO_VOYAGE_EMBEDDING = Map.of(
         DenseVectorFieldMapper.ElementType.FLOAT,
         FLOAT,
         DenseVectorFieldMapper.ElementType.BYTE,
-        BYTE
+        BYTE,
+        DenseVectorFieldMapper.ElementType.BIT,
+        BIT
     );
     static final EnumSet<DenseVectorFieldMapper.ElementType> SUPPORTED_ELEMENT_TYPES = EnumSet.copyOf(
         ELEMENT_TYPE_TO_VOYAGE_EMBEDDING.keySet()

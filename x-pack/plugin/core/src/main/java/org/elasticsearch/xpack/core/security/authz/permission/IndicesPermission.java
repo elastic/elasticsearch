@@ -40,7 +40,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -849,7 +848,7 @@ public final class IndicesPermission {
         public static final Group[] EMPTY_ARRAY = new Group[0];
         // TODO this is just a hack to avoid implementing a new field in this POC; this would be set via allow_failure_store_access on
         // the role descriptor
-        private static final String FAILURE_STORE_ACCESS_MARKER = ".failure_store_access_marker";
+        public static final String FAILURE_STORE_ACCESS_MARKER = ".failure_store_access_marker";
 
         private final IndexPrivilege privilege;
         private final Predicate<String> actionMatcher;
@@ -911,102 +910,6 @@ public final class IndicesPermission {
 
         private static boolean allowFailureStoreAccess(String... indices) {
             return Arrays.stream(indices).anyMatch(index -> index.equals("*") || index.equals(FAILURE_STORE_ACCESS_MARKER));
-        }
-
-        // TODO: [Jake] ensure this javadoc is still correct before merging (some minor details are wrong, but the gist is correct)
-        /**
-         * This method looks for any index patterns in this group that have all the following characteristics:
-         * <ul>
-         *     <li>Index pattern has a trailing wildcard, i.e., {@code name*}</li>
-         *     <li>Index pattern is a regular expression, i.e. {@code /name.*fooba[r]+/}</li>
-         *     <li>Index pattern is not {@code "*"}.</li>
-         * </ul>
-         *
-         * If all of these conditions are met, then the pattern is transformed into a regular expression to exclude failures.
-         * For example:
-         * <ul>
-         *     <li>{@code name*} becomes {@code /(name.*)&~(name.*::failures)/}</li>
-         *     <li>{@code /name.*fooba[r]+/} becomes {@code /(name.*fooba[r]+)&~(name.*fooba[r]+::failures)/}</li>
-         *     <li>{@code na*e} remains {@code na*e} (Lucene regular expressions are always begin/end anchored)</li>
-         * </ul>
-         *
-         * Only the {@code ::failures} selector on non-regular expressions is allowed in the role definition
-         * (ensured by create-time validation).
-         *
-         * @param indexPatterns the index patterns for this group that have been resolved to only contain the
-         *                      {@code ::failures} selector or no selector at all
-         * @return a {@code String[]} of the transformed and/or non-transformed index patterns for this group
-         *         that will be used for authorization purposes
-         */
-        static String[] maybeAddFailureExclusions(final String[] indexPatterns) {
-            // TODO: [Jake] use trace logging !
-            logger.error(() -> String.format(Locale.ROOT, "original indices: %s", Arrays.toString(indexPatterns)));
-            String[] indexPatternsWithExclusions = new String[indexPatterns.length];
-            for (int i = 0; i < indexPatterns.length; i++) {
-                assert indexPatterns[i].endsWith("::data") == false : "Data selector is not allowed in this context";
-                assert indexPatterns[i].endsWith("::*") == false : "All selector is not allowed in this context";
-                if (indexPatterns[i].equals("*") == false
-                    && (indexPatterns[i].endsWith("*") || Automatons.isLuceneRegex(indexPatterns[i]))) {
-                    indexPatternsWithExclusions[i] = convertToExcludeFailures(indexPatterns[i]);
-                } else {
-                    indexPatternsWithExclusions[i] = indexPatterns[i];
-                }
-            }
-            logger.error(() -> String.format(Locale.ROOT, "after failure exclusions: %s", Arrays.toString(indexPatternsWithExclusions)));
-            return indexPatternsWithExclusions;
-        }
-
-        static String convertToExcludeFailures(String indexPattern) {
-            assert indexPattern != "*" : "* is a special case and should never exclude failures";
-            assert indexPattern.endsWith("*") || Automatons.isLuceneRegex(indexPattern)
-                : "Only patterns with a trailing wildcard " + "or regular expressions should explicitly exclude failures";
-            StringBuilder sb = new StringBuilder();
-            if (indexPattern.endsWith("*")) {
-                String inny = globToRegex(indexPattern);
-                return sb.append("/(").append(inny).append(")&~(").append(inny).append("::failures)/").toString();
-            } else if (Automatons.isLuceneRegex(indexPattern)) {
-                String inny = indexPattern.substring(1, indexPattern.length() - 1);
-                return sb.append("/(").append(inny).append(")&~((").append(inny).append(")::failures)/").toString();
-            } else {
-                throw new IllegalArgumentException("Unexpected index pattern: " + indexPattern); // should never happen
-            }
-        }
-
-        private static String globToRegex(String glob) {
-            StringBuilder sb = new StringBuilder();
-            for (int i = 0; i < glob.length(); i++) {
-                char c = glob.charAt(i);
-                switch (c) {
-                    case '*':
-                        sb.append(".*");
-                        break;
-                    case '?':
-                        sb.append('.');
-                        break;
-                    case '.':
-                    case '(':
-                    case ')':
-                    case '[':
-                    case ']':
-                    case '{':
-                    case '}':
-                    case '\\':
-                    case '\"':
-                    case '|':
-                    case '+':
-                    case '#':
-                    case '@':
-                    case '<':
-                    case '>':
-                    case '~':
-                        sb.append('\\').append(c);
-                        break;
-                    default:
-                        sb.append(c);
-                        break;
-                }
-            }
-            return sb.toString();
         }
 
         public IndexPrivilege privilege() {

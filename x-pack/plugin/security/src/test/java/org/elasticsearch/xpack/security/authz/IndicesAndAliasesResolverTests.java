@@ -104,6 +104,7 @@ import java.util.Set;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.newInstance;
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
+import static org.elasticsearch.xpack.core.security.authz.permission.IndicesPermission.Group.FAILURE_STORE_ACCESS_MARKER;
 import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.RESTRICTED_INDICES;
 import static org.elasticsearch.xpack.security.authz.AuthorizedIndicesTests.getRequestInfo;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
@@ -334,10 +335,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
                 "data_stream_test2",
                 null,
                 new IndicesPrivileges[] {
-                    IndicesPrivileges.builder()
-                        .indices(otherDataStreamName + "*", otherDataStreamName + "*::failures")
-                        .privileges("all")
-                        .build() },
+                    IndicesPrivileges.builder().indices(otherDataStreamName + "*", FAILURE_STORE_ACCESS_MARKER).privileges("all").build() },
                 null
             )
         );
@@ -346,7 +344,8 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             new RoleDescriptor(
                 "data_stream_test3",
                 null,
-                new IndicesPrivileges[] { IndicesPrivileges.builder().indices("logs*", "logs*::failures").privileges("all").build() },
+                new IndicesPrivileges[] {
+                    IndicesPrivileges.builder().indices("logs*", FAILURE_STORE_ACCESS_MARKER).privileges("all").build() },
                 null
             )
         );

@@ -98,7 +98,7 @@ public abstract class DocumentParserContext {
         }
 
         @Override
-        public ArrayOffsetContext getOffSetContext() {
+        public FieldArrayContext getOffSetContext() {
             return in.getOffSetContext();
         }
 
@@ -166,7 +166,7 @@ public abstract class DocumentParserContext {
     private final SeqNoFieldMapper.SequenceIDFields seqID;
     private final Set<String> fieldsAppliedFromTemplates;
 
-    private ArrayOffsetContext arrayOffsetContext;
+    private FieldArrayContext fieldArrayContext;
 
     /**
      * Fields that are copied from values of other fields via copy_to.
@@ -488,16 +488,16 @@ public abstract class DocumentParserContext {
     }
 
     public void processArrayOffsets(DocumentParserContext context) throws IOException {
-        if (arrayOffsetContext != null) {
-            arrayOffsetContext.processArrayOffsets(context);
+        if (fieldArrayContext != null) {
+            fieldArrayContext.addToLuceneDocument(context);
         }
     }
 
-    public ArrayOffsetContext getOffSetContext() {
-        if (arrayOffsetContext == null) {
-            arrayOffsetContext = new ArrayOffsetContext();
+    public FieldArrayContext getOffSetContext() {
+        if (fieldArrayContext == null) {
+            fieldArrayContext = new FieldArrayContext();
         }
-        return arrayOffsetContext;
+        return fieldArrayContext;
     }
 
     private XContentParser.Token token;

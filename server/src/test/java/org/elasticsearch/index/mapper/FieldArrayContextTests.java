@@ -16,10 +16,10 @@ import java.io.IOException;
 
 import static org.elasticsearch.index.mapper.SortedSetWithOffsetsDocValuesSyntheticFieldLoaderLayer.parseOffsetArray;
 
-public class ArrayOffsetContextTests extends ESTestCase {
+public class FieldArrayContextTests extends ESTestCase {
 
     public void testOffsets() throws IOException {
-        var context = new ArrayOffsetContext();
+        var context = new FieldArrayContext();
         context.recordOffset("field", "a");
         context.recordOffset("field", "a");
         context.recordOffset("field", "b");
@@ -28,7 +28,7 @@ public class ArrayOffsetContextTests extends ESTestCase {
         context.recordOffset("field", "b");
 
         var parserContext = new TestDocumentParserContext();
-        context.processArrayOffsets(parserContext);
+        context.addToLuceneDocument(parserContext);
 
         var binaryDocValues = parserContext.doc().getField("field");
         int[] offsetToOrd = parseOffsetArray(new ByteArrayStreamInput(binaryDocValues.binaryValue().bytes));
@@ -36,7 +36,7 @@ public class ArrayOffsetContextTests extends ESTestCase {
     }
 
     public void testOffsetsWithNull() throws IOException {
-        var context = new ArrayOffsetContext();
+        var context = new FieldArrayContext();
         context.recordNull("field");
         context.recordOffset("field", "a");
         context.recordOffset("field", "b");
@@ -45,7 +45,7 @@ public class ArrayOffsetContextTests extends ESTestCase {
         context.recordOffset("field", "b");
 
         var parserContext = new TestDocumentParserContext();
-        context.processArrayOffsets(parserContext);
+        context.addToLuceneDocument(parserContext);
 
         var binaryDocValues = parserContext.doc().getField("field");
         int[] offsetToOrd = parseOffsetArray(new ByteArrayStreamInput(binaryDocValues.binaryValue().bytes));
@@ -53,11 +53,11 @@ public class ArrayOffsetContextTests extends ESTestCase {
     }
 
     public void testEmptyOffset() throws IOException {
-        var context = new ArrayOffsetContext();
+        var context = new FieldArrayContext();
         context.maybeRecordEmptyArray("field");
 
         var parserContext = new TestDocumentParserContext();
-        context.processArrayOffsets(parserContext);
+        context.addToLuceneDocument(parserContext);
 
         var binaryDocValues = parserContext.doc().getField("field");
         int[] offsetToOrd = parseOffsetArray(new ByteArrayStreamInput(binaryDocValues.binaryValue().bytes));

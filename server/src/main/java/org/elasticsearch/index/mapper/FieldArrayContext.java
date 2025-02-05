@@ -20,7 +20,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
-public class ArrayOffsetContext {
+public class FieldArrayContext {
 
     private final Map<String, Offsets> offsetsPerField = new HashMap<>();
 
@@ -41,7 +41,7 @@ public class ArrayOffsetContext {
         offsetsPerField.computeIfAbsent(field, k -> new Offsets());
     }
 
-    void processArrayOffsets(DocumentParserContext context) throws IOException {
+    void addToLuceneDocument(DocumentParserContext context) throws IOException {
         for (var entry : offsetsPerField.entrySet()) {
             var fieldName = entry.getKey();
             var offset = entry.getValue();
@@ -70,11 +70,13 @@ public class ArrayOffsetContext {
         }
     }
 
-    static class Offsets {
+    private static class Offsets {
 
-        public int currentOffset;
-        public final Map<String, List<Integer>> valueToOffsets = new TreeMap<>();
-        public final List<Integer> nullValueOffsets = new ArrayList<>(2);
+        int currentOffset;
+        // Need to use TreeMap here, so that we maintain the order in which each value (with offset) gets inserted,
+        // (which is in the same order was document gets parsed) so we store offsets in right order.
+        final Map<String, List<Integer>> valueToOffsets = new TreeMap<>();
+        final List<Integer> nullValueOffsets = new ArrayList<>(2);
 
     }
 

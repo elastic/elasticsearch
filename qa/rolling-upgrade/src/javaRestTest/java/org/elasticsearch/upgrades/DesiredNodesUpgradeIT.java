@@ -82,8 +82,7 @@ public class DesiredNodesUpgradeIT extends AbstractRollingUpgradeTestCase {
                         Settings.builder().put(NODE_NAME_SETTING.getKey(), nodeName).build(),
                         randomDoubleProcessorCount(),
                         ByteSizeValue.ofGb(randomIntBetween(10, 24)),
-                        ByteSizeValue.ofGb(randomIntBetween(128, 256)),
-                        null
+                        ByteSizeValue.ofGb(randomIntBetween(128, 256))
                     )
                 )
                 .toList();
@@ -94,8 +93,7 @@ public class DesiredNodesUpgradeIT extends AbstractRollingUpgradeTestCase {
                     Settings.builder().put(NODE_NAME_SETTING.getKey(), nodeName).build(),
                     new DesiredNode.ProcessorsRange(minProcessors, minProcessors + randomIntBetween(10, 20)),
                     ByteSizeValue.ofGb(randomIntBetween(10, 24)),
-                    ByteSizeValue.ofGb(randomIntBetween(128, 256)),
-                    null
+                    ByteSizeValue.ofGb(randomIntBetween(128, 256))
                 );
             }).toList();
         }

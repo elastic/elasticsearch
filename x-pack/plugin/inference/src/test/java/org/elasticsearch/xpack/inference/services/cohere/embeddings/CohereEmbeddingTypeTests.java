@@ -50,9 +50,16 @@ public class CohereEmbeddingTypeTests extends ESTestCase {
         );
     }
 
-    public void testTranslateToVersion_ReturnsInt8_WhenVersionIsBeforeBitEnumAddition_WhenSpecifyingBit() {
+    public void testTranslateToVersion_ReturnsInt8_WhenVersionIsBeforeBitEnumAdditionPatch_WhenSpecifyingBit() {
         assertThat(
             CohereEmbeddingType.translateToVersion(CohereEmbeddingType.BIT, new TransportVersion(8_840_0_00)),
+            is(CohereEmbeddingType.INT8)
+        );
+    }
+
+    public void testTranslateToVersion_ReturnsInt8_WhenVersionIsBeforeBitEnumAddition_WhenSpecifyingBit() {
+        assertThat(
+            CohereEmbeddingType.translateToVersion(CohereEmbeddingType.BIT, new TransportVersion(9_000_0_00)),
             is(CohereEmbeddingType.INT8)
         );
     }
@@ -60,6 +67,16 @@ public class CohereEmbeddingTypeTests extends ESTestCase {
     public void testTranslateToVersion_ReturnsBit_WhenVersionOnBitEnumAddition_WhenSpecifyingBit() {
         assertThat(
             CohereEmbeddingType.translateToVersion(CohereEmbeddingType.BIT, TransportVersions.COHERE_BIT_EMBEDDING_TYPE_SUPPORT_ADDED),
+            is(CohereEmbeddingType.BIT)
+        );
+    }
+
+    public void testTranslateToVersion_ReturnsBit_WhenVersionOnBitEnumAdditionPatch_WhenSpecifyingBit() {
+        assertThat(
+            CohereEmbeddingType.translateToVersion(
+                CohereEmbeddingType.BIT,
+                TransportVersions.COHERE_BIT_EMBEDDING_TYPE_SUPPORT_ADDED_BACKPORT_8_X
+            ),
             is(CohereEmbeddingType.BIT)
         );
     }

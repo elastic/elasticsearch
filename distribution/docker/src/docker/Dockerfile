@@ -151,31 +151,31 @@ COPY fips/resources/fips_java.policy /usr/share/elasticsearch/config/fips_java.p
 
 WORKDIR /usr/share/elasticsearch/config
 # Add fips specific configuration
-RUN cat <<EOF >> /usr/share/elasticsearch/config/elasticsearch.yml
-xpack.security.autoconfiguration.enabled: false
-xpack.security.authc.api_key.cache.hash_algo: "ssha256"
-xpack.security.authc.reserved_realm.enabled: false
-xpack.security.authc.password_hashing.algorithm: pbkdf2_stretch
-xpack.security.enabled: true
-xpack.security.enrollment.enabled: false
-xpack.security.fips_mode.enabled: true
-xpack.security.fips_mode.required_providers: ["BCFIPS", "BCJSSE"]
-xpack.security.http.ssl.enabled: true
-xpack.security.http.ssl.key: node1.key
-xpack.security.http.ssl.certificate: node1.crt
-xpack.security.http.ssl.certificate_authorities: node1.crt
-xpack.security.transport.ssl.enabled: true
-xpack.security.transport.ssl.certificate: node1.crt
-xpack.security.transport.ssl.certificate_authorities: node1.crt
-xpack.security.transport.ssl.key: node1.key
-logger.org.elasticsearch.xpack.security: trace
-discovery.seed_hosts: []
-node.name: node1
-cluster.initial_master_nodes: ["node1"]
-EOF
+##RUN cat <<EOF >> /usr/share/elasticsearch/config/elasticsearch.yml
+#xpack.security.autoconfiguration.enabled: false
+#xpack.security.authc.api_key.cache.hash_algo: "ssha256"
+#xpack.security.authc.reserved_realm.enabled: false
+#xpack.security.authc.password_hashing.algorithm: pbkdf2_stretch
+#xpack.security.enabled: true
+#xpack.security.enrollment.enabled: false
+#xpack.security.fips_mode.enabled: true
+#xpack.security.fips_mode.required_providers: ["BCFIPS", "BCJSSE"]
+#xpack.security.http.ssl.enabled: true
+#xpack.security.http.ssl.key: node1.key
+#xpack.security.http.ssl.certificate: node1.crt
+#xpack.security.http.ssl.certificate_authorities: node1.crt
+#xpack.security.transport.ssl.enabled: true
+#xpack.security.transport.ssl.certificate: node1.crt
+#xpack.security.transport.ssl.certificate_authorities: node1.crt
+#xpack.security.transport.ssl.key: node1.key
+#logger.org.elasticsearch.xpack.security: trace
+#discovery.seed_hosts: []
+#node.name: node1
+#cluster.initial_master_nodes: ["node1"]
+#EOF
 
-# Add fips specific JVM options
-# TODO tweak this to not use hard coded password
+## Add fips specific JVM options
+## TODO tweak this to not use hard coded password
 RUN cat <<EOF > /usr/share/elasticsearch/config/jvm.options.d/fips.options
 -Djavax.net.ssl.keyStoreType=BCFKS
 -Djavax.net.ssl.keyStorePassword=3xtral0ngf1pSc0mpl1antpassw0rd
@@ -344,23 +344,23 @@ COPY --from=builder --chown=0:0 /opt /opt
 USER 1000:0
 ENV ES_PLUGIN_ARCHIVE_DIR /opt/plugins/archive
 
-
-RUN cat <<EOF > instance.yml
-instances:
-    - name: "node1"
-      dns:
-      - "node1.local"
-      cn:
-      - "node1.elasticsearch.cluster"
-EOF
+#
+#RUN cat <<EOF > instance.yml
+#instances:
+#    - name: "node1"
+#      dns:
+#      - "node1.local"
+#      cn:
+#      - "node1.elasticsearch.cluster"
+#EOF
 USER root
 
 WORKDIR /usr/share/elasticsearch
 
-RUN bin/elasticsearch-certutil cert --in instance.yml --self-signed --pem --out certificate-bundle.zip
-RUN unzip certificate-bundle.zip
-RUN cp node1/node1.crt config
-RUN cp node1/node1.key config
+#RUN bin/elasticsearch-certutil cert --in instance.yml --self-signed --pem --out certificate-bundle.zip
+#RUN unzip certificate-bundle.zip
+#RUN cp node1/node1.crt config
+#RUN cp node1/node1.key config
 
 COPY --from=builder --chown=0:0 /fips/libs/*.jar /usr/share/elasticsearch/lib/
 

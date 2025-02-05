@@ -59,8 +59,8 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentSubParser;
 import org.elasticsearch.xpack.aggregatemetric.aggregations.support.AggregateMetricsValuesSourceType;
-import org.elasticsearch.xpack.aggregatemetric.fielddata.IndexAggregateDoubleMetricFieldData;
-import org.elasticsearch.xpack.aggregatemetric.fielddata.LeafAggregateDoubleMetricFieldData;
+import org.elasticsearch.xpack.aggregatemetric.fielddata.IndexAggregateMetricDoubleFieldData;
+import org.elasticsearch.xpack.aggregatemetric.fielddata.LeafAggregateMetricDoubleFieldData;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -78,15 +78,15 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
 /** A {@link FieldMapper} for a field containing aggregate metrics such as min/max/value_count etc. */
-public class AggregateDoubleMetricFieldMapper extends FieldMapper {
+public class AggregateMetricDoubleFieldMapper extends FieldMapper {
 
-    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(AggregateDoubleMetricFieldMapper.class);
+    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(AggregateMetricDoubleFieldMapper.class);
 
     public static final String CONTENT_TYPE = "aggregate_metric_double";
     public static final String SUBFIELD_SEPARATOR = ".";
 
-    private static AggregateDoubleMetricFieldMapper toType(FieldMapper in) {
-        return (AggregateDoubleMetricFieldMapper) in;
+    private static AggregateMetricDoubleFieldMapper toType(FieldMapper in) {
+        return (AggregateMetricDoubleFieldMapper) in;
     }
 
     /**
@@ -97,7 +97,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
      * @return the name of the subfield
      */
     public static String subfieldName(String fieldName, Metric metric) {
-        return fieldName + AggregateDoubleMetricFieldMapper.SUBFIELD_SEPARATOR + metric.name();
+        return fieldName + AggregateMetricDoubleFieldMapper.SUBFIELD_SEPARATOR + metric.name();
     }
 
     /**
@@ -150,7 +150,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
 
         /**
          * Parameter that marks this field as a time series metric defining its time series metric type.
-         * For {@link AggregateDoubleMetricFieldMapper} fields gauge, counter and summary metric types are
+         * For {@link AggregateMetricDoubleFieldMapper} fields gauge, counter and summary metric types are
          * supported.
          */
         private final Parameter<MetricType> timeSeriesMetric;
@@ -194,7 +194,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
         }
 
         @Override
-        public AggregateDoubleMetricFieldMapper build(MapperBuilderContext context) {
+        public AggregateMetricDoubleFieldMapper build(MapperBuilderContext context) {
             if (multiFieldsBuilder.hasMultiFields()) {
                 DEPRECATION_LOGGER.warn(
                     DeprecationCategory.MAPPINGS,
@@ -261,7 +261,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                     throw new IllegalArgumentException("Duplicate keys " + l + "and " + r + ".");
                 }, () -> new EnumMap<>(Metric.class)));
 
-            AggregateDoubleMetricFieldType metricFieldType = new AggregateDoubleMetricFieldType(
+            AggregateMetricDoubleFieldType metricFieldType = new AggregateMetricDoubleFieldType(
                 context.buildFullName(leafName()),
                 meta.getValue(),
                 timeSeriesMetric.getValue()
@@ -269,7 +269,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
             metricFieldType.setMetricFields(metricFields);
             metricFieldType.setDefaultMetric(defaultMetric.getValue());
 
-            return new AggregateDoubleMetricFieldMapper(leafName(), metricFieldType, metricMappers, builderParams(this, context), this);
+            return new AggregateMetricDoubleFieldMapper(leafName(), metricFieldType, metricMappers, builderParams(this, context), this);
         }
     }
 
@@ -278,7 +278,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
         notInMultiFields(CONTENT_TYPE)
     );
 
-    public static final class AggregateDoubleMetricFieldType extends SimpleMappedFieldType {
+    public static final class AggregateMetricDoubleFieldType extends SimpleMappedFieldType {
 
         private EnumMap<Metric, NumberFieldMapper.NumberFieldType> metricFields;
 
@@ -286,11 +286,11 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
 
         private final MetricType metricType;
 
-        public AggregateDoubleMetricFieldType(String name) {
+        public AggregateMetricDoubleFieldType(String name) {
             this(name, Collections.emptyMap(), null);
         }
 
-        public AggregateDoubleMetricFieldType(String name, Map<String, String> meta, MetricType metricType) {
+        public AggregateMetricDoubleFieldType(String name, Map<String, String> meta, MetricType metricType) {
             super(name, true, false, true, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, meta);
             this.metricType = metricType;
         }
@@ -326,7 +326,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
 
         public void addMetricField(Metric m, NumberFieldMapper.NumberFieldType subfield) {
             if (metricFields == null) {
-                metricFields = new EnumMap<>(AggregateDoubleMetricFieldMapper.Metric.class);
+                metricFields = new EnumMap<>(AggregateMetricDoubleFieldMapper.Metric.class);
             }
 
             if (name() == null) {
@@ -408,13 +408,13 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
-            return (cache, breakerService) -> new IndexAggregateDoubleMetricFieldData(
+            return (cache, breakerService) -> new IndexAggregateMetricDoubleFieldData(
                 name(),
                 AggregateMetricsValuesSourceType.AGGREGATE_METRIC
             ) {
                 @Override
-                public LeafAggregateDoubleMetricFieldData load(LeafReaderContext context) {
-                    return new LeafAggregateDoubleMetricFieldData() {
+                public LeafAggregateMetricDoubleFieldData load(LeafReaderContext context) {
+                    return new LeafAggregateMetricDoubleFieldData() {
                         @Override
                         public SortedNumericDoubleValues getAggregateMetricValues(final Metric metric) {
                             try {
@@ -476,7 +476,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                 }
 
                 @Override
-                public LeafAggregateDoubleMetricFieldData loadDirect(LeafReaderContext context) {
+                public LeafAggregateMetricDoubleFieldData loadDirect(LeafReaderContext context) {
                     return load(context);
                 }
 
@@ -677,7 +677,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
 
     private final IndexMode indexMode;
 
-    private AggregateDoubleMetricFieldMapper(
+    private AggregateMetricDoubleFieldMapper(
         String simpleName,
         MappedFieldType mappedFieldType,
         EnumMap<Metric, NumberFieldMapper> metricFieldMappers,
@@ -705,8 +705,8 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
     }
 
     @Override
-    public AggregateDoubleMetricFieldType fieldType() {
-        return (AggregateDoubleMetricFieldType) super.fieldType();
+    public AggregateMetricDoubleFieldType fieldType() {
+        return (AggregateMetricDoubleFieldType) super.fieldType();
     }
 
     @Override

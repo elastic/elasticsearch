@@ -7,20 +7,14 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.search.aggregations;
+package org.elasticsearch.action.admin.indices.analyze;
 
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.io.stream.StreamInput;
+import java.util.Set;
 
-import java.io.IOException;
+public final class AnalyzeCapabilities {
+    private AnalyzeCapabilities() {}
 
-public class InvalidAggregationPathException extends ElasticsearchException {
+    private static final String WRONG_CUSTOM_ANALYZER_RETURNS_400_CAPABILITY = "wrong_custom_analyzer_returns_400";
 
-    public InvalidAggregationPathException(String msg) {
-        super(msg);
-    }
-
-    public InvalidAggregationPathException(StreamInput in) throws IOException {
-        super(in);
-    }
+    public static final Set<String> CAPABILITIES = Set.of(WRONG_CUSTOM_ANALYZER_RETURNS_400_CAPABILITY);
 }

@@ -160,10 +160,7 @@ public class TransportHandshakerTests extends ESTestCase {
         assertFalse(versionFuture.isDone());
 
         final var handshakeResponse = new TransportHandshaker.HandshakeResponse(
-            randomValueOtherThanMany(
-                v -> TransportVersion.isKnownVersionId(v.id()),
-                TransportHandshakerTests::getRandomIncompatibleTransportVersion
-            ),
+            getRandomIncompatibleTransportVersion(),
             randomIdentifier()
         );
 
@@ -191,16 +188,14 @@ public class TransportHandshakerTests extends ESTestCase {
     }
 
     private static TransportVersion getRandomIncompatibleTransportVersion() {
-        return new TransportVersion(
-            randomBoolean()
-                // either older than MINIMUM_COMPATIBLE
-                ? between(1, TransportVersions.MINIMUM_COMPATIBLE.id() - 1)
-                // or between MINIMUM_COMPATIBLE and current but not known
-                : randomValueOtherThanMany(
-                    TransportVersion::isKnownVersionId,
-                    () -> between(TransportVersions.MINIMUM_COMPATIBLE.id(), TransportVersion.current().id())
-                )
-        );
+        return randomBoolean()
+            // either older than MINIMUM_COMPATIBLE
+            ? new TransportVersion(between(1, TransportVersions.MINIMUM_COMPATIBLE.id() - 1))
+            // or between MINIMUM_COMPATIBLE and current but not known
+            : randomValueOtherThanMany(
+                TransportVersion::isKnown,
+                () -> new TransportVersion(between(TransportVersions.MINIMUM_COMPATIBLE.id(), TransportVersion.current().id()))
+            );
     }
 
     public void testHandshakeResponseFromNewerNode() throws Exception {

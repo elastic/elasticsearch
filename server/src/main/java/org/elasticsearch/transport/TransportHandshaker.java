@@ -226,7 +226,7 @@ final class TransportHandshaker {
                 // knows how to do that.
                 return;
             }
-            if (TransportVersion.isKnownVersionId(remoteTransportVersion.id())) {
+            if (remoteTransportVersion.isKnown()) {
                 // Remote is older than us, so we will be using its transport protocol, which we can only do if and only if its protocol
                 // version is known to us.
                 return;
@@ -290,7 +290,7 @@ final class TransportHandshaker {
                     ensureCompatibleVersion(version, response.getTransportVersion(), response.getReleaseVersion(), channel);
                     final var resultVersion = TransportVersion.min(TransportHandshaker.this.version, response.getTransportVersion());
                     assert TransportVersion.current().before(version) // simulating a newer-version transport service for test purposes
-                        || TransportVersion.isKnownVersionId(resultVersion.id()) : "negotiated unknown version " + resultVersion;
+                        || resultVersion.isKnown() : "negotiated unknown version " + resultVersion;
                     return resultVersion;
                 });
             }

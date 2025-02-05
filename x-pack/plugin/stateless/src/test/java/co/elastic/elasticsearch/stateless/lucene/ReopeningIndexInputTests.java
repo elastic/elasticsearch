@@ -261,7 +261,7 @@ public class ReopeningIndexInputTests extends ESIndexInputTestCase {
             )
         ) {
             final var indexDirectory = node.indexingDirectory;
-            final var indexPath = node.environment.dataFiles()[0].resolve(node.shardId.getIndex().getUUID()).resolve("0").resolve("index");
+            final var indexPath = node.environment.dataDirs()[0].resolve(node.shardId.getIndex().getUUID()).resolve("0").resolve("index");
 
             final byte[] bytes = randomByteArrayOfLength(4096);
             try (IndexOutput output = indexDirectory.createOutput(fileName, IOContext.DEFAULT)) {
@@ -356,7 +356,7 @@ public class ReopeningIndexInputTests extends ESIndexInputTestCase {
             )
         ) {
             final var indexDirectory = node.indexingDirectory;
-            final var indexPath = node.environment.dataFiles()[0].resolve(node.shardId.getIndex().getUUID()).resolve("0").resolve("index");
+            final var indexPath = node.environment.dataDirs()[0].resolve(node.shardId.getIndex().getUUID()).resolve("0").resolve("index");
 
             final byte[] bytes = randomByteArrayOfLength(4096);
             try (IndexOutput output = indexDirectory.createOutput(fileName, IOContext.DEFAULT)) {

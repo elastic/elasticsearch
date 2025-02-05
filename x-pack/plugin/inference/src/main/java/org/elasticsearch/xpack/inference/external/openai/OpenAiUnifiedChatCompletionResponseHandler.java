@@ -90,7 +90,7 @@ public class OpenAiUnifiedChatCompletionResponseHandler extends OpenAiChatComple
                 restStatus,
                 format("%s for request from inference entity id [%s]", SERVER_ERROR_OBJECT, request.getInferenceEntityId()),
                 errorResponse != null ? errorResponse.getClass().getSimpleName() : "unknown",
-                "streaming_error"
+                "stream_error"
             );
         }
     }

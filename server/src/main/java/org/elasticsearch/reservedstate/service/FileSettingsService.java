@@ -89,7 +89,7 @@ public class FileSettingsService extends MasterNodeFileWatchingService implement
         Environment environment,
         FileSettingsHealthIndicatorService healthIndicatorService
     ) {
-        super(clusterService, environment.configFile().toAbsolutePath().resolve(OPERATOR_DIRECTORY));
+        super(clusterService, environment.configDir().toAbsolutePath().resolve(OPERATOR_DIRECTORY).resolve(SETTINGS_FILE_NAME));
         this.watchedFile = watchedFileDir().resolve(SETTINGS_FILE_NAME);
         this.stateService = stateService;
         this.healthIndicatorService = healthIndicatorService;

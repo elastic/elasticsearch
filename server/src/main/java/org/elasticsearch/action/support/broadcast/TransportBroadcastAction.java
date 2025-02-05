@@ -22,7 +22,6 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -36,6 +35,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.Transports;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReferenceArray;
@@ -110,7 +110,7 @@ public abstract class TransportBroadcastAction<
      * on the first shard in it. If the operation fails, it will be retried on the next shard in the iterator.
      */
     @FixForMultiProject // add ProjectMetadata to this method
-    protected abstract GroupShardsIterator<ShardIterator> shards(ClusterState clusterState, Request request, String[] concreteIndices);
+    protected abstract List<ShardIterator> shards(ClusterState clusterState, Request request, String[] concreteIndices);
 
     protected abstract ClusterBlockException checkGlobalBlock(ClusterState state, Request request);
 
@@ -123,7 +123,7 @@ public abstract class TransportBroadcastAction<
         final ActionListener<Response> listener;
         final ClusterState clusterState;
         final DiscoveryNodes nodes;
-        final GroupShardsIterator<ShardIterator> shardsIts;
+        final List<ShardIterator> shardsIts;
         final int expectedOps;
         final AtomicInteger counterOps = new AtomicInteger();
         // ShardResponse or Exception

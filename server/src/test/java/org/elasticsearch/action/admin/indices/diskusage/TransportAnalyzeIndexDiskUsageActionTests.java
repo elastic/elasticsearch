@@ -20,7 +20,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
-import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.PlainShardIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -306,7 +305,7 @@ public class TransportAnalyzeIndexDiskUsageActionTests extends ESTestCase {
             }
         ) {
             @Override
-            protected GroupShardsIterator<ShardIterator> shards(
+            protected List<ShardIterator> shards(
                 ClusterState clusterState,
                 AnalyzeIndexDiskUsageRequest request,
                 String[] concreteIndices
@@ -315,7 +314,7 @@ public class TransportAnalyzeIndexDiskUsageActionTests extends ESTestCase {
                 for (Map.Entry<ShardId, List<ShardRouting>> e : targetShards.entrySet()) {
                     shardIterators.add(new PlainShardIterator(e.getKey(), e.getValue()));
                 }
-                return new GroupShardsIterator<>(shardIterators);
+                return shardIterators;
             }
         };
     }

@@ -34,8 +34,8 @@ import javax.lang.model.type.TypeMirror;
 import javax.lang.model.util.Elements;
 
 import static java.util.stream.Collectors.joining;
-import static org.elasticsearch.compute.gen.Methods.findMethod;
 import static org.elasticsearch.compute.gen.Methods.findRequiredMethod;
+import static org.elasticsearch.compute.gen.Methods.requireMethod;
 import static org.elasticsearch.compute.gen.Methods.vectorAccessorName;
 import static org.elasticsearch.compute.gen.Types.AGGREGATOR_FUNCTION;
 import static org.elasticsearch.compute.gen.Types.BIG_ARRAYS;
@@ -78,8 +78,6 @@ public class AggregatorImplementer {
     private final List<TypeMirror> warnExceptions;
     private final ExecutableElement init;
     private final ExecutableElement combine;
-    private final ExecutableElement combineIntermediate;
-    private final ExecutableElement evaluateFinal;
     private final ClassName implementation;
     private final TypeName stateType;
     private final boolean stateTypeHasSeen;
@@ -114,8 +112,6 @@ public class AggregatorImplementer {
             TypeName firstParamType = TypeName.get(e.getParameters().get(0).asType());
             return firstParamType.isPrimitive() || firstParamType.toString().equals(stateType.toString());
         });
-        this.combineIntermediate = findMethod(declarationType, "combineIntermediate");
-        this.evaluateFinal = findMethod(declarationType, "evaluateFinal");
         this.createParameters = init.getParameters()
             .stream()
             .map(Parameter::from)
@@ -198,9 +194,7 @@ public class AggregatorImplementer {
     }
 
     public static String firstUpper(String s) {
-        String head = s.toString().substring(0, 1).toUpperCase(Locale.ROOT);
-        String tail = s.toString().substring(1);
-        return head + tail;
+        return Character.toUpperCase(s.charAt(0)) + s.substring(1);
     }
 
     public JavaFile sourceFile() {
@@ -526,12 +520,7 @@ public class AggregatorImplementer {
             interState.assignToVariable(builder, i);
             builder.addStatement("assert $L.getPositionCount() == 1", interState.name());
         }
-        if (combineIntermediate != null) {
-            if (intermediateState.stream().map(IntermediateStateDesc::elementType).anyMatch(n -> n.equals("BYTES_REF"))) {
-                builder.addStatement("$T scratch = new $T()", BYTES_REF, BYTES_REF);
-            }
-            builder.addStatement("$T.combineIntermediate(state, " + intermediateStateRowAccess() + ")", declarationType);
-        } else if (hasPrimitiveState()) {
+        if (hasPrimitiveState()) {
             if (warnExceptions.isEmpty()) {
                 assert intermediateState.size() == 2;
                 assert intermediateState.get(1).name().equals("seen");
@@ -547,7 +536,6 @@ public class AggregatorImplementer {
                 }
                 builder.nextControlFlow("else if (seen.getBoolean(0))");
             }
-
             warningsBlock(builder, () -> {
                 var state = intermediateState.get(0);
                 var s = "state.$L($T.combine(state.$L(), " + state.name() + "." + vectorAccessorName(state.elementType()) + "(0)))";
@@ -556,32 +544,39 @@ public class AggregatorImplementer {
             });
             builder.endControlFlow();
         } else {
-            throw new IllegalArgumentException("Don't know how to combine intermediate input. Define combineIntermediate");
+            requireMethod(
+                declarationType,
+                "combineIntermediate",
+                "void",
+                Stream.concat(Stream.of(stateType.toString()), intermediateState.stream().map(intermediateStateDesc -> {
+                    var type = Types.fromString(intermediateStateDesc.elementType());
+                    return intermediateStateDesc.block ? blockType(type).toString() : type.toString();
+                })).toArray(String[]::new)
+            );
+            if (intermediateState.stream().map(IntermediateStateDesc::elementType).anyMatch(n -> n.equals("BYTES_REF"))) {
+                builder.addStatement("$T scratch = new $T()", BYTES_REF, BYTES_REF);
+            }
+            builder.addStatement(
+                "$T.combineIntermediate(state, " + intermediateState.stream().map(desc -> desc.access("0")).collect(joining(", ")) + ")",
+                declarationType
+            );
         }
         return builder.build();
     }
 
-    String intermediateStateRowAccess() {
-        return intermediateState.stream().map(desc -> desc.access("0")).collect(joining(", "));
-    }
-
     private String primitiveStateMethod() {
-        switch (stateType.toString()) {
-            case "org.elasticsearch.compute.aggregation.BooleanState", "org.elasticsearch.compute.aggregation.BooleanFallibleState":
-                return "booleanValue";
-            case "org.elasticsearch.compute.aggregation.IntState", "org.elasticsearch.compute.aggregation.IntFallibleState":
-                return "intValue";
-            case "org.elasticsearch.compute.aggregation.LongState", "org.elasticsearch.compute.aggregation.LongFallibleState":
-                return "longValue";
-            case "org.elasticsearch.compute.aggregation.DoubleState", "org.elasticsearch.compute.aggregation.DoubleFallibleState":
-                return "doubleValue";
-            case "org.elasticsearch.compute.aggregation.FloatState", "org.elasticsearch.compute.aggregation.FloatFallibleState":
-                return "floatValue";
-            default:
-                throw new IllegalArgumentException(
-                    "don't know how to fetch primitive values from " + stateType + ". define combineIntermediate."
-                );
-        }
+        return switch (stateType.toString()) {
+            case "org.elasticsearch.compute.aggregation.BooleanState", "org.elasticsearch.compute.aggregation.BooleanFallibleState" ->
+                "booleanValue";
+            case "org.elasticsearch.compute.aggregation.IntState", "org.elasticsearch.compute.aggregation.IntFallibleState" -> "intValue";
+            case "org.elasticsearch.compute.aggregation.LongState", "org.elasticsearch.compute.aggregation.LongFallibleState" ->
+                "longValue";
+            case "org.elasticsearch.compute.aggregation.DoubleState", "org.elasticsearch.compute.aggregation.DoubleFallibleState" ->
+                "doubleValue";
+            case "org.elasticsearch.compute.aggregation.FloatState", "org.elasticsearch.compute.aggregation.FloatFallibleState" ->
+                "floatValue";
+            default -> throw new IllegalArgumentException("don't know how to fetch primitive values from " + stateType + ".");
+        };
     }
 
     private MethodSpec evaluateIntermediate() {
@@ -611,9 +606,15 @@ public class AggregatorImplementer {
             builder.addStatement("return");
             builder.endControlFlow();
         }
-        if (evaluateFinal == null) {
+        if (hasPrimitiveState()) {
             primitiveStateToResult(builder);
         } else {
+            requireMethod(
+                declarationType,
+                "evaluateFinal",
+                "org.elasticsearch.compute.data.Block",
+                new String[] { stateType.toString(), "org.elasticsearch.compute.operator.DriverContext" }
+            );
             builder.addStatement("blocks[offset] = $T.evaluateFinal(state, driverContext)", declarationType);
         }
         return builder.build();

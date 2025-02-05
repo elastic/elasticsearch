@@ -138,12 +138,21 @@ public class Types {
     static final ClassName RELEASABLE = ClassName.get("org.elasticsearch.core", "Releasable");
     static final ClassName RELEASABLES = ClassName.get("org.elasticsearch.core", "Releasables");
 
+    static TypeName fromString(String type) {
+        return switch (type) {
+            case "boolean", "BOOLEAN" -> TypeName.BOOLEAN;
+            case "int", "INT" -> TypeName.INT;
+            case "long", "LONG" -> TypeName.LONG;
+            case "float", "FLOAT" -> TypeName.FLOAT;
+            case "double", "DOUBLE" -> TypeName.DOUBLE;
+            case "org.apache.lucene.util.BytesRef", "BYTES_REF" -> BYTES_REF;
+            default -> throw new IllegalArgumentException("unknown type [" + type + "]");
+        };
+    }
+
     static ClassName blockType(TypeName elementType) {
         if (elementType.equals(TypeName.BOOLEAN)) {
             return BOOLEAN_BLOCK;
-        }
-        if (elementType.equals(BYTES_REF)) {
-            return BYTES_REF_BLOCK;
         }
         if (elementType.equals(TypeName.INT)) {
             return INT_BLOCK;
@@ -151,8 +160,14 @@ public class Types {
         if (elementType.equals(TypeName.LONG)) {
             return LONG_BLOCK;
         }
+        if (elementType.equals(TypeName.FLOAT)) {
+            return FLOAT_BLOCK;
+        }
         if (elementType.equals(TypeName.DOUBLE)) {
             return DOUBLE_BLOCK;
+        }
+        if (elementType.equals(BYTES_REF)) {
+            return BYTES_REF_BLOCK;
         }
         throw new IllegalArgumentException("unknown block type for [" + elementType + "]");
     }

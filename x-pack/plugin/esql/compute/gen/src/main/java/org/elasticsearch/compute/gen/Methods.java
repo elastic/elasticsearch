@@ -10,7 +10,10 @@ package org.elasticsearch.compute.gen;
 import com.squareup.javapoet.TypeName;
 
 import java.util.Arrays;
+import java.util.List;
+import java.util.Objects;
 import java.util.function.Predicate;
+import java.util.stream.Stream;
 
 import javax.lang.model.element.Element;
 import javax.lang.model.element.ExecutableElement;
@@ -21,6 +24,7 @@ import javax.lang.model.type.DeclaredType;
 import javax.lang.model.type.TypeMirror;
 import javax.lang.model.util.ElementFilter;
 
+import static java.util.stream.Collectors.joining;
 import static org.elasticsearch.compute.gen.Types.BOOLEAN_BLOCK;
 import static org.elasticsearch.compute.gen.Types.BOOLEAN_BLOCK_BUILDER;
 import static org.elasticsearch.compute.gen.Types.BOOLEAN_VECTOR;
@@ -49,6 +53,7 @@ import static org.elasticsearch.compute.gen.Types.LONG_VECTOR_FIXED_BUILDER;
  * Finds declared methods for the code generator.
  */
 public class Methods {
+
     static ExecutableElement findRequiredMethod(TypeElement declarationType, String[] names, Predicate<ExecutableElement> filter) {
         ExecutableElement result = findMethod(names, filter, declarationType, superClassOf(declarationType));
         if (result == null) {
@@ -95,14 +100,31 @@ public class Methods {
         return null;
     }
 
-    /**
-     * Returns the arguments of a method after applying a filter.
-     */
-    static VariableElement[] findMethodArguments(ExecutableElement method, Predicate<VariableElement> filter) {
-        if (method.getParameters().isEmpty()) {
-            return new VariableElement[0];
+    static void requireMethod(TypeElement element, String name, String returnType, String... parameterTypes) {
+        var method = findMethod(new String[] { name }, e -> true, element, superClassOf(element));
+        if (method == null || isNotSame(method.getReturnType(), returnType) || isNotSame(method.getParameters(), parameterTypes)) {
+            throw new IllegalArgumentException("Requires method " + signature(element, name, returnType, parameterTypes));
         }
-        return method.getParameters().stream().filter(filter).toArray(VariableElement[]::new);
+    }
+
+    private static boolean isNotSame(TypeMirror type, String required) {
+        return Objects.equals(type.toString(), required) == false;
+    }
+
+    private static boolean isNotSame(List<? extends VariableElement> types, String[] required) {
+        if (types.size() != required.length) {
+            return true;
+        }
+        for (int i = 0; i < types.size(); i++) {
+            if (isNotSame(types.get(i).asType(), required[i])) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static String signature(TypeElement element, String name, String returnType, String[] parameterTypes) {
+        return "public static " + returnType + " " + element + "#" + name + Stream.of(parameterTypes).collect(joining(", ", "(", ")"));
     }
 
     /**

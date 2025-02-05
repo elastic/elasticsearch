@@ -37,7 +37,7 @@ import java.util.Objects;
 import java.util.Set;
 
 public abstract class SenderService implements InferenceService {
-    protected static final Set<TaskType> COMPLETION_ONLY = EnumSet.of(TaskType.COMPLETION, TaskType.ANY);
+    protected static final Set<TaskType> COMPLETION_ONLY = EnumSet.of(TaskType.COMPLETION);
     private final Sender sender;
     private final ServiceComponents serviceComponents;
 
@@ -47,7 +47,7 @@ public abstract class SenderService implements InferenceService {
         this.serviceComponents = Objects.requireNonNull(serviceComponents);
     }
 
-    protected Sender getSender() {
+    public Sender getSender() {
         return sender;
     }
 

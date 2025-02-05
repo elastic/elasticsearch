@@ -16,7 +16,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.UpdateForV9;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
@@ -39,8 +39,8 @@ public class TransportHandshakerTests extends ESTestCase {
     private TestThreadPool threadPool;
     private TransportHandshaker.HandshakeRequestSender requestSender;
 
-    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA)
-    private static final TransportVersion HANDSHAKE_REQUEST_VERSION = TransportHandshaker.V8_HANDSHAKE_VERSION;
+    @UpdateForV10(owner = UpdateForV10.Owner.CORE_INFRA) // new handshake version required in v10
+    private static final TransportVersion HANDSHAKE_REQUEST_VERSION = TransportHandshaker.V9_HANDSHAKE_VERSION;
 
     @Override
     public void setUp() throws Exception {
@@ -133,10 +133,8 @@ public class TransportHandshakerTests extends ESTestCase {
 
         verify(requestSender).sendRequest(node, channel, reqId, HANDSHAKE_REQUEST_VERSION);
 
-        TransportHandshaker.HandshakeRequest handshakeRequest = new TransportHandshaker.HandshakeRequest(
-            TransportVersion.current(),
-            randomIdentifier()
-        );
+        final var buildVersion = randomIdentifier();
+        final var handshakeRequest = new TransportHandshaker.HandshakeRequest(TransportVersion.current(), buildVersion);
         BytesStreamOutput currentHandshakeBytes = new BytesStreamOutput();
         currentHandshakeBytes.setTransportVersion(HANDSHAKE_REQUEST_VERSION);
         handshakeRequest.writeTo(currentHandshakeBytes);
@@ -145,17 +143,27 @@ public class TransportHandshakerTests extends ESTestCase {
         BytesStreamOutput futureHandshake = new BytesStreamOutput();
         TaskId.EMPTY_TASK_ID.writeTo(lengthCheckingHandshake);
         TaskId.EMPTY_TASK_ID.writeTo(futureHandshake);
+        final var extraDataSize = between(0, 1024);
         try (BytesStreamOutput internalMessage = new BytesStreamOutput()) {
             Version.writeVersion(Version.CURRENT, internalMessage);
+            internalMessage.writeString(buildVersion);
             lengthCheckingHandshake.writeBytesReference(internalMessage.bytes());
-            internalMessage.write(new byte[1024]);
+            internalMessage.write(new byte[extraDataSize]);
             futureHandshake.writeBytesReference(internalMessage.bytes());
         }
         StreamInput futureHandshakeStream = futureHandshake.bytes().streamInput();
         // We check that the handshake we serialize for this test equals the actual request.
         // Otherwise, we need to update the test.
         assertEquals(currentHandshakeBytes.bytes().length(), lengthCheckingHandshake.bytes().length());
-        assertEquals(1031, futureHandshakeStream.available());
+        final var expectedInternalMessageSize = 4 /* transport version id */
+            + (1 + buildVersion.length()) /* length prefixed release version string */
+            + extraDataSize;
+        assertEquals(
+            1 /* EMPTY_TASK_ID */
+                + (expectedInternalMessageSize < 0x80 ? 1 : 2) /* internalMessage size vInt */
+                + expectedInternalMessageSize /* internalMessage */,
+            futureHandshakeStream.available()
+        );
         final PlainActionFuture<TransportResponse> responseFuture = new PlainActionFuture<>();
         final TestTransportChannel channel = new TestTransportChannel(responseFuture);
         handshaker.handleHandshake(channel, reqId, futureHandshakeStream);
@@ -164,43 +172,6 @@ public class TransportHandshakerTests extends ESTestCase {
         TransportHandshaker.HandshakeResponse response = (TransportHandshaker.HandshakeResponse) responseFuture.actionGet();
 
         assertEquals(TransportVersion.current(), response.getTransportVersion());
-    }
-
-    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA) // v7 handshakes are not supported in v9
-    public void testReadV7HandshakeRequest() throws IOException {
-        final var transportVersion = TransportVersionUtils.randomCompatibleVersion(random());
-
-        final var requestPayloadStreamOutput = new BytesStreamOutput();
-        requestPayloadStreamOutput.setTransportVersion(TransportHandshaker.V7_HANDSHAKE_VERSION);
-        requestPayloadStreamOutput.writeVInt(transportVersion.id());
-
-        final var requestBytesStreamOutput = new BytesStreamOutput();
-        requestBytesStreamOutput.setTransportVersion(TransportHandshaker.V7_HANDSHAKE_VERSION);
-        TaskId.EMPTY_TASK_ID.writeTo(requestBytesStreamOutput);
-        requestBytesStreamOutput.writeBytesReference(requestPayloadStreamOutput.bytes());
-
-        final var requestBytesStream = requestBytesStreamOutput.bytes().streamInput();
-        requestBytesStream.setTransportVersion(TransportHandshaker.V7_HANDSHAKE_VERSION);
-        final var handshakeRequest = new TransportHandshaker.HandshakeRequest(requestBytesStream);
-
-        assertEquals(transportVersion, handshakeRequest.transportVersion);
-        assertEquals(transportVersion.toReleaseVersion(), handshakeRequest.releaseVersion);
-    }
-
-    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA) // v7 handshakes are not supported in v9
-    public void testReadV7HandshakeResponse() throws IOException {
-        final var transportVersion = TransportVersionUtils.randomCompatibleVersion(random());
-
-        final var responseBytesStreamOutput = new BytesStreamOutput();
-        responseBytesStreamOutput.setTransportVersion(TransportHandshaker.V7_HANDSHAKE_VERSION);
-        responseBytesStreamOutput.writeVInt(transportVersion.id());
-
-        final var responseBytesStream = responseBytesStreamOutput.bytes().streamInput();
-        responseBytesStream.setTransportVersion(TransportHandshaker.V7_HANDSHAKE_VERSION);
-        final var handshakeResponse = new TransportHandshaker.HandshakeResponse(responseBytesStream);
-
-        assertEquals(transportVersion, handshakeResponse.getTransportVersion());
-        assertEquals(transportVersion.toReleaseVersion(), handshakeResponse.getReleaseVersion());
     }
 
     public void testReadV8HandshakeRequest() throws IOException {

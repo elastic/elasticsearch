@@ -185,7 +185,7 @@ class Elasticsearch {
 
         nodeEnv.validateNativesConfig(); // temporary directories are important for JNA
         initializeNatives(
-            nodeEnv.tmpFile(),
+            nodeEnv.tmpDir(),
             BootstrapSettings.MEMORY_LOCK_SETTING.get(args.nodeSettings()),
             true, // always install system call filters, not user-configurable since 8.0.0
             BootstrapSettings.CTRLHANDLER_SETTING.get(args.nodeSettings())
@@ -217,8 +217,8 @@ class Elasticsearch {
         );
 
         // load the plugin Java modules and layers now for use in entitlements
-        var modulesBundles = PluginsLoader.loadModulesBundles(nodeEnv.modulesFile());
-        var pluginsBundles = PluginsLoader.loadPluginsBundles(nodeEnv.pluginsFile());
+        var modulesBundles = PluginsLoader.loadModulesBundles(nodeEnv.modulesDir());
+        var pluginsBundles = PluginsLoader.loadPluginsBundles(nodeEnv.pluginsDir());
 
         final PluginsLoader pluginsLoader;
 
@@ -239,9 +239,9 @@ class Elasticsearch {
             EntitlementBootstrap.bootstrap(
                 pluginPolicies,
                 pluginsResolver::resolveClassToPluginName,
-                nodeEnv.dataFiles(),
-                nodeEnv.configFile(),
-                nodeEnv.tmpFile()
+                nodeEnv.dataDirs(),
+                nodeEnv.configDir(),
+                nodeEnv.tmpDir()
             );
         } else if (RuntimeVersionFeature.isSecurityManagerAvailable()) {
             // no need to explicitly enable native access for legacy code

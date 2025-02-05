@@ -16,6 +16,7 @@ import org.junit.BeforeClass;
 import java.nio.file.Path;
 import java.util.List;
 
+import static org.elasticsearch.core.PathUtils.getDefaultFileSystem;
 import static org.hamcrest.Matchers.is;
 
 public class FileAccessTreeTests extends ESTestCase {
@@ -41,7 +42,9 @@ public class FileAccessTreeTests extends ESTestCase {
         var tree = FileAccessTree.of(List.of(entitlement("foo", "read")));
         assertThat(tree.canRead(path("foo")), is(true));
         assertThat(tree.canRead(path("foo/subdir")), is(true));
+        assertThat(tree.canRead(path("food")), is(false));
         assertThat(tree.canWrite(path("foo")), is(false));
+        assertThat(tree.canWrite(path("food")), is(false));
 
         assertThat(tree.canRead(path("before")), is(false));
         assertThat(tree.canRead(path("later")), is(false));
@@ -51,7 +54,9 @@ public class FileAccessTreeTests extends ESTestCase {
         var tree = FileAccessTree.of(List.of(entitlement("foo", "read_write")));
         assertThat(tree.canWrite(path("foo")), is(true));
         assertThat(tree.canWrite(path("foo/subdir")), is(true));
+        assertThat(tree.canWrite(path("food")), is(false));
         assertThat(tree.canRead(path("foo")), is(true));
+        assertThat(tree.canRead(path("food")), is(false));
 
         assertThat(tree.canWrite(path("before")), is(false));
         assertThat(tree.canWrite(path("later")), is(false));
@@ -83,8 +88,24 @@ public class FileAccessTreeTests extends ESTestCase {
         assertThat(tree.canRead(path("")), is(false));
     }
 
+    public void testForwardSlashes() {
+        String sep = getDefaultFileSystem().getSeparator();
+        var tree = FileAccessTree.of(List.of(entitlement("a/b", "read"), entitlement("m" + sep + "n", "read")));
+
+        // Native separators work
+        assertThat(tree.canRead(path("a" + sep + "b")), is(true));
+        assertThat(tree.canRead(path("m" + sep + "n")), is(true));
+
+        // Forward slashes also work
+        assertThat(tree.canRead(path("a/b")), is(true));
+        assertThat(tree.canRead(path("m/n")), is(true));
+
+        // In case the native separator is a backslash, don't treat that as an escape
+        assertThat(tree.canRead(path("m\n")), is(false));
+    }
+
     FileEntitlement entitlement(String path, String mode) {
         Path p = path(path);
-        return new FileEntitlement(p.toString(), mode);
+        return FileEntitlement.create(p.toString(), mode);
     }
 }

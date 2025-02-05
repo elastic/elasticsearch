@@ -238,6 +238,11 @@ public class InferenceBaseRestTest extends ESRestTestCase {
         return putRequest(endpoint, modelConfig);
     }
 
+    static Map<String, Object> updateEndpoint(String inferenceID, String modelConfig) throws IOException {
+        String endpoint = Strings.format("_inference/%s/_update", inferenceID);
+        return putRequest(endpoint, modelConfig);
+    }
+
     protected Map<String, Object> putPipeline(String pipelineId, String modelId) throws IOException {
         String endpoint = Strings.format("_ingest/pipeline/%s", pipelineId);
         String body = """
@@ -355,7 +360,8 @@ public class InferenceBaseRestTest extends ESRestTestCase {
         List<String> input,
         @Nullable Consumer<Response> responseConsumerCallback
     ) throws Exception {
-        var endpoint = Strings.format("_inference/%s/%s/_unified", taskType, modelId);
+        var route = randomBoolean() ? "_stream" : "_unified"; // TODO remove unified route
+        var endpoint = Strings.format("_inference/%s/%s/%s", taskType, modelId, route);
         return callAsyncUnified(endpoint, input, "user", responseConsumerCallback);
     }
 

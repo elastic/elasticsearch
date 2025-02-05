@@ -510,7 +510,8 @@ public class StatelessPersistedStateTests extends ESTestCase {
             () -> fakeStatelessNode.electionStrategy,
             () -> fakeStatelessNode.objectStoreService,
             fakeStatelessNode.threadPool,
-            CompatibilityVersionsUtils.staticCurrent()
+            CompatibilityVersionsUtils.staticCurrent(),
+            ESTestCase::randomBoolean
         );
         final var persistedState = statelessPersistedClusterStateService.createPersistedState(Settings.EMPTY, fakeStatelessNode.node);
         return new PersistedStateTestContext(
@@ -531,7 +532,8 @@ public class StatelessPersistedStateTests extends ESTestCase {
             () -> fakeStatelessNode.electionStrategy,
             () -> objectStoreService,
             fakeStatelessNode.threadPool,
-            CompatibilityVersionsUtils.staticCurrent()
+            CompatibilityVersionsUtils.staticCurrent(),
+            ESTestCase::randomBoolean
         );
         final var persistedState = statelessPersistedClusterStateService.createPersistedState(Settings.EMPTY, fakeStatelessNode.node);
         return new PersistedStateTestContext(

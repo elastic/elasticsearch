@@ -313,7 +313,8 @@ public class StatelessCoordinationTests extends AtomicRegisterCoordinatorTests {
                     () -> statelessNode.electionStrategy,
                     () -> statelessNode.objectStoreService,
                     threadPool,
-                    CompatibilityVersionsUtils.staticCurrent()
+                    CompatibilityVersionsUtils.staticCurrent(),
+                    ESTestCase::randomBoolean
                 ) {
                     @Override
                     protected Executor getClusterStateUploadsThreadPool() {

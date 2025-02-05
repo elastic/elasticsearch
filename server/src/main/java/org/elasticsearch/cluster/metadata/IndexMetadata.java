@@ -2083,11 +2083,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             return this;
         }
 
-        public Builder putLifecycleState(LifecycleExecutionState lifecycleExecutionState) {
-            this.lifecycleExecutionState = lifecycleExecutionState;
-            return this;
-        }
-
         public long version() {
             return this.version;
         }

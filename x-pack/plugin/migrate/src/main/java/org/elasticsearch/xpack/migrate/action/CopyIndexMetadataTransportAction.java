@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.migrate.action;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
@@ -22,15 +21,14 @@ import org.elasticsearch.cluster.SimpleBatchedAckListenerTaskExecutor;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.metadata.MetadataDataStreamsService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
@@ -44,15 +42,14 @@ public class CopyIndexMetadataTransportAction extends TransportMasterNodeAction<
     private static final Logger logger = LogManager.getLogger(CopyIndexMetadataTransportAction.class);
     private final ClusterStateTaskExecutor<UpdateIndexMetadataTask> executor;
     private final MasterServiceTaskQueue<UpdateIndexMetadataTask> taskQueue;
-    private final ClusterService clusterService;
+    private static final String DATA_STREAM_LIFECYCLE_CUSTOM_INDEX_METADATA_KEY = "data_stream_lifecycle";
 
     @Inject
     public CopyIndexMetadataTransportAction(
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,
-        ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        ActionFilters actionFilters
     ) {
         super(
             MigrateToDataTiersAction.NAME,
@@ -64,8 +61,6 @@ public class CopyIndexMetadataTransportAction extends TransportMasterNodeAction<
             AcknowledgedResponse::readFrom,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
-
-        this.clusterService = clusterService;
         this.executor = new SimpleBatchedAckListenerTaskExecutor<>() {
             @Override
             public Tuple<ClusterState, ClusterStateAckListener> executeTask(UpdateIndexMetadataTask task, ClusterState clusterState) {
@@ -81,7 +76,7 @@ public class CopyIndexMetadataTransportAction extends TransportMasterNodeAction<
         CopyIndexMetadataAction.Request request,
         ClusterState state,
         ActionListener<AcknowledgedResponse> listener
-    ) throws Exception {
+    ) {
         taskQueue.submitTask(
             "migrate-copy-index-metadata",
             new UpdateIndexMetadataTask(request.sourceIndex(), request.destIndex(), request.ackTimeout(), listener),
@@ -94,7 +89,7 @@ public class CopyIndexMetadataTransportAction extends TransportMasterNodeAction<
         return null;
     }
 
-    static ClusterState applyUpdate(ClusterState state, UpdateIndexMetadataTask updateTask) {
+    private static ClusterState applyUpdate(ClusterState state, UpdateIndexMetadataTask updateTask) {
 
         IndexMetadata sourceMetadata = state.metadata().index(updateTask.sourceIndex);
         if (sourceMetadata == null) {
@@ -107,8 +102,15 @@ public class CopyIndexMetadataTransportAction extends TransportMasterNodeAction<
         }
 
         IndexMetadata newDestMetadata = IndexMetadata.builder(destMetadata)
+            .putCustom(
+                LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY,
+                sourceMetadata.getCustomData(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY)
+            )
+            .putCustom(
+                DATA_STREAM_LIFECYCLE_CUSTOM_INDEX_METADATA_KEY,
+                sourceMetadata.getCustomData(DATA_STREAM_LIFECYCLE_CUSTOM_INDEX_METADATA_KEY)
+            )
             .putRolloverInfos(sourceMetadata.getRolloverInfos())
-            .putLifecycleState(sourceMetadata.getLifecycleExecutionState())
             .build();
 
         var indices = new HashMap<>(state.metadata().indices());

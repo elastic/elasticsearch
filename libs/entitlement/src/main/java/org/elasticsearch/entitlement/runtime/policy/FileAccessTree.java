@@ -18,7 +18,6 @@ import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.core.PathUtils.getDefaultFileSystem;
-import static org.elasticsearch.entitlement.runtime.policy.entitlements.FileEntitlement.normalizePath;
 
 public final class FileAccessTree {
     public static final FileAccessTree EMPTY = new FileAccessTree(List.of());
@@ -30,7 +29,7 @@ public final class FileAccessTree {
         List<String> readPaths = new ArrayList<>();
         List<String> writePaths = new ArrayList<>();
         for (FileEntitlement fileEntitlement : fileEntitlements) {
-            String path = fileEntitlement.path();
+            String path = normalizePath(Path.of(fileEntitlement.path()));
             if (fileEntitlement.mode() == FileEntitlement.Mode.READ_WRITE) {
                 writePaths.add(path);
             }
@@ -54,6 +53,16 @@ public final class FileAccessTree {
 
     boolean canWrite(Path path) {
         return checkPath(normalizePath(path), writePaths);
+    }
+
+    /**
+     * @return the "canonical" form of the given {@code path}, to be used for entitlement checks.
+     */
+    static String normalizePath(Path path) {
+        // Note that toAbsolutePath produces paths separated by the default file separator,
+        // so on Windows, if the given path uses forward slashes, this consistently
+        // converts it to backslashes.
+        return path.toAbsolutePath().normalize().toString();
     }
 
     private static boolean checkPath(String path, String[] paths) {

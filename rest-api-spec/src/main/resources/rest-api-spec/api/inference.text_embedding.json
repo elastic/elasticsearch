@@ -7,14 +7,20 @@
     "stability": "stable",
     "visibility": "public",
     "headers": {
-      "accept": ["application/json"],
-      "content_type": ["application/json"]
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
     },
     "url": {
       "paths": [
         {
           "path": "/_inference/text_embedding/{inference_id}",
-          "methods": ["POST"],
+          "methods": [
+            "POST"
+          ],
           "parts": {
             "inference_id": {
               "type": "string",

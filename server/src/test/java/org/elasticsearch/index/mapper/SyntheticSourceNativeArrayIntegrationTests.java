@@ -77,7 +77,7 @@ public class SyntheticSourceNativeArrayIntegrationTests extends ESSingleNodeTest
             new Object[] { "123", "1234", "12345" },
             new Object[] { null, null, null, "blabla" },
             new Object[] { "1", "2", "3", "blabla" } };
-        verifySyntheticArray(arrayValues, mapping, 4, "_id", "_recovery_source", "field._original");
+        verifySyntheticArray(arrayValues, mapping, 4, "_id", "field._original");
     }
 
     public void testSynthesizeObjectArray() throws Exception {
@@ -100,7 +100,7 @@ public class SyntheticSourceNativeArrayIntegrationTests extends ESSingleNodeTest
             .endObject()
             .endObject()
             .endObject();
-        verifySyntheticArray(arrays, mapping, null, "_id", "_recovery_source");
+        verifySyntheticArray(arrays, mapping, null, "_id");
     }
 
     private void verifySyntheticArray(Object[][] arrays, XContentBuilder mapping, Integer ignoreAbove, String... expectedStoredFields)
@@ -221,7 +221,7 @@ public class SyntheticSourceNativeArrayIntegrationTests extends ESSingleNodeTest
                 var document = reader.storedFields().document(i);
                 // Verify that there is ignored source because of leaf array being wrapped by object array:
                 List<String> storedFieldNames = document.getFields().stream().map(IndexableField::name).toList();
-                assertThat(storedFieldNames, contains("_id", "_recovery_source", "_ignored_source"));
+                assertThat(storedFieldNames, contains("_id", "_ignored_source"));
 
                 // Verify that there is no offset field:
                 LeafReader leafReader = reader.leaves().get(0).reader();

@@ -7,8 +7,11 @@
 
 package org.elasticsearch.compute.operator;
 
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -42,8 +45,25 @@ public class ScoreOperator extends AbstractPageMappingOperator {
 
     @Override
     protected Page process(Page page) {
-        DoubleBlock block = scorer.score(page);
-        return page.appendBlock(block);
+        assert page.getBlockCount() >= 2 : "Expected at least 2 blocks, got " + page.getBlockCount();
+        assert page.getBlock(0).asVector() instanceof DocVector : "Expected a DocVector, got " + page.getBlock(0).asVector();
+        assert page.getBlock(1).asVector() instanceof DoubleVector : "Expected a DoubleVector, got " + page.getBlock(1).asVector();
+
+        Block[] blocks = new Block[page.getBlockCount()];
+        blocks[0] = page.getBlock(0);
+        try (DoubleBlock evalScores = scorer.score(page); DoubleBlock existingScores = page.getBlock(1)) {
+            // TODO Optimize for constant zero scores?
+            int rowCount = page.getPositionCount();
+            DoubleVector.Builder builder = blockFactory.newDoubleVectorFixedBuilder(rowCount);
+            for (int i = 0; i < rowCount; i++) {
+                builder.appendDouble(existingScores.getDouble(i) + evalScores.getDouble(i));
+            }
+            blocks[1] = builder.build().asBlock();
+        }
+        for (int i = 2; i < blocks.length; i++) {
+            blocks[i] = page.getBlock(i);
+        }
+        return new Page(blocks);
     }
 
     @Override

@@ -2973,7 +2973,6 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         LogicalPlan plan = optimizedPlan("FROM test | INSIST_🐔 foo");
 
-        System.out.println(plan);
         var project = as(plan, Project.class);
         var limit = as(project.child(), Limit.class);
         var relation = as(limit.child(), EsRelation.class);

@@ -93,7 +93,7 @@ public class GroupingAggregatorImplementer {
         this.warnExceptions = warnExceptions;
 
         this.init = findRequiredMethod(declarationType, new String[] { "init", "initGrouping" }, e -> true);
-        this.aggState = AggregationState.create(elements, init.getReturnType(), warnExceptions.size() > 0, true);
+        this.aggState = AggregationState.create(elements, init.getReturnType(), warnExceptions.isEmpty() == false, true);
 
         this.combine = findRequiredMethod(declarationType, new String[] { "combine" }, e -> {
             if (e.getParameters().size() == 0) {

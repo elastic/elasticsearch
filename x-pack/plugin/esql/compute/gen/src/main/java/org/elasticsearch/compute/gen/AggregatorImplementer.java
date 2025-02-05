@@ -85,7 +85,7 @@ public class AggregatorImplementer {
         this.warnExceptions = warnExceptions;
 
         this.init = findRequiredMethod(declarationType, new String[] { "init", "initSingle" }, e -> true);
-        this.aggState = AggregationState.create(elements, init.getReturnType(), warnExceptions.size() > 0, false);
+        this.aggState = AggregationState.create(elements, init.getReturnType(), warnExceptions.isEmpty()  == false, false);
 
         this.combine = findRequiredMethod(declarationType, new String[] { "combine" }, e -> {
             if (e.getParameters().size() == 0) {

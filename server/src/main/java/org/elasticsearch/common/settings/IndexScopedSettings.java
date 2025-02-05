@@ -42,6 +42,7 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.IndicesRequestCache;
 import org.elasticsearch.indices.ShardLimitValidator;
 
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
@@ -226,7 +227,15 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         Store.FORCE_RAM_TERM_DICT
     );
 
-    public static final IndexScopedSettings DEFAULT_SCOPED_SETTINGS = new IndexScopedSettings(Settings.EMPTY, BUILT_IN_INDEX_SETTINGS);
+    public static final IndexScopedSettings DEFAULT_SCOPED_SETTINGS = IndexSettings.DOC_VALUES_SPARSE_INDEX.isEnabled()
+        ? includeExtraSettings()
+        : new IndexScopedSettings(Settings.EMPTY, BUILT_IN_INDEX_SETTINGS);
+
+    private static IndexScopedSettings includeExtraSettings() {
+        final Set<Setting<?>> settings = new HashSet<>(BUILT_IN_INDEX_SETTINGS);
+        settings.add(IndexSettings.USE_DOC_VALUES_SPARSE_INDEX);
+        return new IndexScopedSettings(Settings.EMPTY, settings);
+    }
 
     public IndexScopedSettings(Settings settings, Set<Setting<?>> settingsSet) {
         super(settings, settingsSet, Property.IndexScope);

@@ -57,6 +57,7 @@ import java.util.function.Function;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 import static org.apache.lucene.tests.analysis.BaseTokenStreamTestCase.assertTokenStreamContents;
+import static org.elasticsearch.index.IndexSettings.DOC_VALUES_SPARSE_INDEX;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -772,13 +773,36 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         assertScriptDocValues(mapper, "foo", equalTo(List.of("foo")));
     }
 
-    public void testFieldTypeWithSkipDocValues_LogsDbMode() throws IOException {
-        assumeTrue("Needs feature flag to be enabled", FieldMapper.DOC_VALUES_SPARSE_INDEX.isEnabled());
+    public void testFieldTypeWithSkipDocValues_LogsDbModeDisabledSetting() throws IOException {
+        assumeTrue("Needs feature flag to be enabled", DOC_VALUES_SPARSE_INDEX.isEnabled());
 
         final MapperService mapperService = createMapperService(
             Settings.builder()
                 .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.name())
                 .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), "host.name")
+                .put(IndexSettings.USE_DOC_VALUES_SPARSE_INDEX.getKey(), false)
+                .build(),
+            mapping(b -> {
+                b.startObject("host.name");
+                b.field("type", "keyword");
+                b.endObject();
+            })
+        );
+
+        final KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("host.name");
+        assertTrue(mapper.fieldType().hasDocValues());
+        assertTrue(mapper.fieldType().isIndexed());
+        assertFalse(mapper.fieldType().hasDocValuesSparseIndex());
+    }
+
+    public void testFieldTypeWithSkipDocValues_LogsDbMode() throws IOException {
+        assumeTrue("Needs feature flag to be enabled", DOC_VALUES_SPARSE_INDEX.isEnabled());
+
+        final MapperService mapperService = createMapperService(
+            Settings.builder()
+                .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.name())
+                .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), "host.name")
+                .put(IndexSettings.USE_DOC_VALUES_SPARSE_INDEX.getKey(), true)
                 .build(),
             mapping(b -> {
                 b.startObject("host.name");
@@ -794,12 +818,13 @@ public class KeywordFieldMapperTests extends MapperTestCase {
     }
 
     public void testFieldTypeDefault_StandardMode() throws IOException {
-        assumeTrue("Needs feature flag to be enabled", FieldMapper.DOC_VALUES_SPARSE_INDEX.isEnabled());
+        assumeTrue("Needs feature flag to be enabled", DOC_VALUES_SPARSE_INDEX.isEnabled());
 
         final MapperService mapperService = createMapperService(
             Settings.builder()
                 .put(IndexSettings.MODE.getKey(), IndexMode.STANDARD.name())
                 .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), "host.name")
+                .put(IndexSettings.USE_DOC_VALUES_SPARSE_INDEX.getKey(), true)
                 .build(),
             mapping(b -> {
                 b.startObject("host.name");
@@ -815,12 +840,13 @@ public class KeywordFieldMapperTests extends MapperTestCase {
     }
 
     public void testFieldTypeDefault_NonMatchingFieldName() throws IOException {
-        assumeTrue("Needs feature flag to be enabled", FieldMapper.DOC_VALUES_SPARSE_INDEX.isEnabled());
+        assumeTrue("Needs feature flag to be enabled", DOC_VALUES_SPARSE_INDEX.isEnabled());
 
         final MapperService mapperService = createMapperService(
             Settings.builder()
                 .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.name())
                 .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), "hostname")
+                .put(IndexSettings.USE_DOC_VALUES_SPARSE_INDEX.getKey(), true)
                 .build(),
             mapping(b -> {
                 b.startObject("hostname");
@@ -836,12 +862,13 @@ public class KeywordFieldMapperTests extends MapperTestCase {
     }
 
     public void testFieldTypeDefault_ConfiguredIndexed() throws IOException {
-        assumeTrue("Needs feature flag to be enabled", FieldMapper.DOC_VALUES_SPARSE_INDEX.isEnabled());
+        assumeTrue("Needs feature flag to be enabled", DOC_VALUES_SPARSE_INDEX.isEnabled());
 
         final MapperService mapperService = createMapperService(
             Settings.builder()
                 .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.name())
                 .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), "host.name")
+                .put(IndexSettings.USE_DOC_VALUES_SPARSE_INDEX.getKey(), true)
                 .build(),
             mapping(b -> {
                 b.startObject("host.name");
@@ -858,12 +885,13 @@ public class KeywordFieldMapperTests extends MapperTestCase {
     }
 
     public void testFieldTypeDefault_ConfiguredDocValues() throws IOException {
-        assumeTrue("Needs feature flag to be enabled", FieldMapper.DOC_VALUES_SPARSE_INDEX.isEnabled());
+        assumeTrue("Needs feature flag to be enabled", DOC_VALUES_SPARSE_INDEX.isEnabled());
 
         final MapperService mapperService = createMapperService(
             Settings.builder()
                 .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.name())
                 .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), "host.name")
+                .put(IndexSettings.USE_DOC_VALUES_SPARSE_INDEX.getKey(), true)
                 .build(),
             mapping(b -> {
                 b.startObject("host.name");
@@ -880,10 +908,13 @@ public class KeywordFieldMapperTests extends MapperTestCase {
     }
 
     public void testFieldTypeDefault_LogsDbMode_NonSortField() throws IOException {
-        assumeTrue("Needs feature flag to be enabled", FieldMapper.DOC_VALUES_SPARSE_INDEX.isEnabled());
+        assumeTrue("Needs feature flag to be enabled", DOC_VALUES_SPARSE_INDEX.isEnabled());
 
         final MapperService mapperService = createMapperService(
-            Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.name()).build(),
+            Settings.builder()
+                .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.name())
+                .put(IndexSettings.USE_DOC_VALUES_SPARSE_INDEX.getKey(), true)
+                .build(),
             mapping(b -> {
                 b.startObject("host.name");
                 b.field("type", "keyword");
@@ -898,12 +929,13 @@ public class KeywordFieldMapperTests extends MapperTestCase {
     }
 
     public void testFieldTypeWithSkipDocValues_IndexedFalseDocValuesTrue() throws IOException {
-        assumeTrue("Needs feature flag to be enabled", FieldMapper.DOC_VALUES_SPARSE_INDEX.isEnabled());
+        assumeTrue("Needs feature flag to be enabled", DOC_VALUES_SPARSE_INDEX.isEnabled());
 
         final MapperService mapperService = createMapperService(
             Settings.builder()
                 .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.name())
                 .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), "host.name")
+                .put(IndexSettings.USE_DOC_VALUES_SPARSE_INDEX.getKey(), true)
                 .build(),
             mapping(b -> {
                 b.startObject("host.name");
@@ -921,12 +953,13 @@ public class KeywordFieldMapperTests extends MapperTestCase {
     }
 
     public void testFieldTypeDefault_IndexedFalseDocValuesFalse() throws IOException {
-        assumeTrue("Needs feature flag to be enabled", FieldMapper.DOC_VALUES_SPARSE_INDEX.isEnabled());
+        assumeTrue("Needs feature flag to be enabled", DOC_VALUES_SPARSE_INDEX.isEnabled());
 
         final MapperService mapperService = createMapperService(
             Settings.builder()
                 .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.name())
                 .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), "host.name")
+                .put(IndexSettings.USE_DOC_VALUES_SPARSE_INDEX.getKey(), true)
                 .build(),
             mapping(b -> {
                 b.startObject("host.name");

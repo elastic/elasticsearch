@@ -24,6 +24,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
@@ -683,6 +684,14 @@ public final class IndexSettings {
         Property.Final
     );
 
+    public static final FeatureFlag DOC_VALUES_SPARSE_INDEX = new FeatureFlag("doc_values_sparse_index");
+    public static final Setting<Boolean> USE_DOC_VALUES_SPARSE_INDEX = Setting.boolSetting(
+        "index.mapping.use_doc_values_sparse_index",
+        false,
+        Property.IndexScope,
+        Property.Final
+    );
+
     /**
      * The {@link IndexMode "mode"} of the index.
      */
@@ -904,6 +913,7 @@ public final class IndexSettings {
     private final SourceFieldMapper.Mode indexMappingSourceMode;
     private final boolean recoverySourceEnabled;
     private final boolean recoverySourceSyntheticEnabled;
+    private final boolean useDocValuesSparseIndex;
 
     /**
      * The maximum number of refresh listeners allows on this shard.
@@ -1084,6 +1094,7 @@ public final class IndexSettings {
         indexMappingSourceMode = scopedSettings.get(INDEX_MAPPER_SOURCE_MODE_SETTING);
         recoverySourceEnabled = RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.get(nodeSettings);
         recoverySourceSyntheticEnabled = scopedSettings.get(RECOVERY_USE_SYNTHETIC_SOURCE_SETTING);
+        useDocValuesSparseIndex = DOC_VALUES_SPARSE_INDEX.isEnabled() && scopedSettings.get(USE_DOC_VALUES_SPARSE_INDEX);
         if (recoverySourceSyntheticEnabled) {
             if (DiscoveryNode.isStateless(settings)) {
                 throw new IllegalArgumentException("synthetic recovery source is only allowed in stateful");
@@ -1801,6 +1812,10 @@ public final class IndexSettings {
      */
     public boolean isRecoverySourceSyntheticEnabled() {
         return recoverySourceSyntheticEnabled;
+    }
+
+    public boolean useDocValuesSparseIndex() {
+        return useDocValuesSparseIndex;
     }
 
     /**

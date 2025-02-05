@@ -511,14 +511,6 @@ tests:
 - class: org.elasticsearch.xpack.ml.integration.ClassificationIT
   method: testDeleteExpiredData_RemovesUnusedState
   issue: https://github.com/elastic/elasticsearch/issues/116234
-- class: org.elasticsearch.xpack.inference.action.TransportInferenceActionTests
-  method: testRerouting_ToOtherNode
-  issue: https://github.com/elastic/elasticsearch/issues/121293
-- class: org.elasticsearch.xpack.inference.action.TransportInferenceActionTests
-  method: testRerouting_HandlesTransportException_FromOtherNode
-  issue: https://github.com/elastic/elasticsearch/issues/121292
-- class: org.elasticsearch.xpack.inference.common.InferenceServiceNodeLocalRateLimitCalculatorTests
-  issue: https://github.com/elastic/elasticsearch/issues/121294
 - class: org.elasticsearch.xpack.security.profile.ProfileIntegTests
   method: testGetProfiles
   issue: https://github.com/elastic/elasticsearch/issues/121101

@@ -108,8 +108,7 @@ abstract class AbstractHDRPercentilesAggregator extends NumericMetricsAggregator
         if (bucketOrd >= states.size()) {
             return null;
         }
-        final DoubleHistogram state = states.get(bucketOrd);
-        return state;
+        return states.get(bucketOrd);
     }
 
     @Override

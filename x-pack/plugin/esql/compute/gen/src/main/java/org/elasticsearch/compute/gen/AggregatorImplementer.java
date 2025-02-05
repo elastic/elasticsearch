@@ -175,7 +175,7 @@ public class AggregatorImplementer {
             case "double" -> DOUBLE_BLOCK;
             case "float" -> FLOAT_BLOCK;
             case "long" -> LONG_BLOCK;
-            case "int", "int[]" -> INT_BLOCK;
+            case "int" -> INT_BLOCK;
             case "org.apache.lucene.util.BytesRef" -> BYTES_REF_BLOCK;
             default -> throw new IllegalArgumentException("unknown block type for " + valueType(init, combine));
         };
@@ -187,7 +187,7 @@ public class AggregatorImplementer {
             case "double" -> DOUBLE_VECTOR;
             case "float" -> FLOAT_VECTOR;
             case "long" -> LONG_VECTOR;
-            case "int", "int[]" -> INT_VECTOR;
+            case "int" -> INT_VECTOR;
             case "org.apache.lucene.util.BytesRef" -> BYTES_REF_VECTOR;
             default -> throw new IllegalArgumentException("unknown vector type for " + valueType(init, combine));
         };

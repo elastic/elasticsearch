@@ -238,7 +238,7 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
                     }
                 }
             };
-            boolean deniedToPlugins = testAnnotation.expectedAccess() == PLUGINS;
+            boolean deniedToPlugins = testAnnotation.expectedAccess() != PLUGINS;
             Integer fromJavaVersion = testAnnotation.fromJavaVersion() == -1 ? null : testAnnotation.fromJavaVersion();
             entries.add(entry(method.getName(), new CheckAction(runnable, deniedToPlugins, fromJavaVersion)));
         }

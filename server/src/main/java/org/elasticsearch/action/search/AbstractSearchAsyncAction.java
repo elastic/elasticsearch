@@ -24,7 +24,6 @@ import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.util.Countable;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.Releasable;
@@ -163,18 +162,6 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         // at the end of the search
         addReleasable(resultConsumer);
         this.clusters = clusters;
-    }
-
-    // we need to add 1 for non-active partition, since we count it in the total. This means for each shard in the iterator we sum up
-    // it's number of active shards but use 1 as the default if no replica of a shard is active at this point.
-    // on a per shards level we use shardIt.remaining() to increment the totalOps pointer but add 1 for the current shard result
-    // we process hence we add one for the non-active partition here.
-    private static int totalSizeWith1ForEmpty(List<? extends Countable> iterators) {
-        int size = 0;
-        for (Countable shard : iterators) {
-            size += Math.max(1, shard.size());
-        }
-        return size;
     }
 
     protected void notifyListShards(

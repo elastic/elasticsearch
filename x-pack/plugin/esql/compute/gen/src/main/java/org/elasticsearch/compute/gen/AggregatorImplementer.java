@@ -41,24 +41,13 @@ import static org.elasticsearch.compute.gen.Types.AGGREGATOR_FUNCTION;
 import static org.elasticsearch.compute.gen.Types.BIG_ARRAYS;
 import static org.elasticsearch.compute.gen.Types.BLOCK;
 import static org.elasticsearch.compute.gen.Types.BLOCK_ARRAY;
-import static org.elasticsearch.compute.gen.Types.BOOLEAN_BLOCK;
 import static org.elasticsearch.compute.gen.Types.BOOLEAN_VECTOR;
 import static org.elasticsearch.compute.gen.Types.BYTES_REF;
-import static org.elasticsearch.compute.gen.Types.BYTES_REF_BLOCK;
-import static org.elasticsearch.compute.gen.Types.BYTES_REF_VECTOR;
-import static org.elasticsearch.compute.gen.Types.DOUBLE_BLOCK;
-import static org.elasticsearch.compute.gen.Types.DOUBLE_VECTOR;
 import static org.elasticsearch.compute.gen.Types.DRIVER_CONTEXT;
 import static org.elasticsearch.compute.gen.Types.ELEMENT_TYPE;
-import static org.elasticsearch.compute.gen.Types.FLOAT_BLOCK;
-import static org.elasticsearch.compute.gen.Types.FLOAT_VECTOR;
 import static org.elasticsearch.compute.gen.Types.INTERMEDIATE_STATE_DESC;
-import static org.elasticsearch.compute.gen.Types.INT_BLOCK;
-import static org.elasticsearch.compute.gen.Types.INT_VECTOR;
 import static org.elasticsearch.compute.gen.Types.LIST_AGG_FUNC_DESC;
 import static org.elasticsearch.compute.gen.Types.LIST_INTEGER;
-import static org.elasticsearch.compute.gen.Types.LONG_BLOCK;
-import static org.elasticsearch.compute.gen.Types.LONG_VECTOR;
 import static org.elasticsearch.compute.gen.Types.PAGE;
 import static org.elasticsearch.compute.gen.Types.WARNINGS;
 import static org.elasticsearch.compute.gen.Types.blockType;
@@ -153,44 +142,18 @@ public class AggregatorImplementer {
             return combine.getParameters().get(combine.getParameters().size() - 1).asType().toString();
         }
         String initReturn = init.getReturnType().toString();
-        switch (initReturn) {
-            case "double":
-                return "double";
-            case "float":
-                return "float";
-            case "long":
-                return "long";
-            case "int":
-                return "int";
-            case "boolean":
-                return "boolean";
-            default:
-                throw new IllegalArgumentException("unknown primitive type for " + initReturn);
+        if (Types.isPrimitive(initReturn)) {
+            return initReturn;
         }
+        throw new IllegalArgumentException("unknown primitive type for " + initReturn);
     }
 
     static ClassName valueBlockType(ExecutableElement init, ExecutableElement combine) {
-        return switch (valueType(init, combine)) {
-            case "boolean" -> BOOLEAN_BLOCK;
-            case "double" -> DOUBLE_BLOCK;
-            case "float" -> FLOAT_BLOCK;
-            case "long" -> LONG_BLOCK;
-            case "int", "int[]" -> INT_BLOCK;
-            case "org.apache.lucene.util.BytesRef" -> BYTES_REF_BLOCK;
-            default -> throw new IllegalArgumentException("unknown block type for " + valueType(init, combine));
-        };
+        return Types.blockType(valueType(init, combine));
     }
 
     static ClassName valueVectorType(ExecutableElement init, ExecutableElement combine) {
-        return switch (valueType(init, combine)) {
-            case "boolean" -> BOOLEAN_VECTOR;
-            case "double" -> DOUBLE_VECTOR;
-            case "float" -> FLOAT_VECTOR;
-            case "long" -> LONG_VECTOR;
-            case "int", "int[]" -> INT_VECTOR;
-            case "org.apache.lucene.util.BytesRef" -> BYTES_REF_VECTOR;
-            default -> throw new IllegalArgumentException("unknown vector type for " + valueType(init, combine));
-        };
+        return Types.vectorType(valueType(init, combine));
     }
 
     public static String capitalize(String s) {

@@ -83,6 +83,7 @@ public class StatsAggregatorTests extends AggregatorTestCase {
             true,
             false,
             true,
+            false,
             DateFormatter.forPattern("epoch_millis"),
             DateFieldMapper.Resolution.MILLISECONDS,
             null,

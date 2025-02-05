@@ -2683,6 +2683,6 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
     }
 
     private boolean runFailureStore() {
-        return DataStream.isFailureStoreFeatureFlagEnabled() && Boolean.TRUE;// && randomBoolean();
+        return DataStream.isFailureStoreFeatureFlagEnabled() && randomBoolean();
     }
 }

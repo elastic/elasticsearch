@@ -108,19 +108,12 @@ public final class IndicesPermission {
      * @return A matcher that will match all non-restricted index names in the ordinaryIndices
      * collection and all index names in the restrictedIndices collection.
      */
-    private StringMatcher indexMatcher(
-        Collection<String> ordinaryIndices,
-        Collection<String> restrictedIndices,
-        boolean allowFailureStoreAccess
-    ) {
+    private StringMatcher indexMatcher(Collection<String> ordinaryIndices, Collection<String> restrictedIndices) {
         StringMatcher matcher;
         if (ordinaryIndices.isEmpty()) {
             matcher = StringMatcher.of(restrictedIndices);
         } else {
             matcher = StringMatcher.of(ordinaryIndices);
-            if (false == allowFailureStoreAccess) {
-                matcher = matcher.and("<not-failure-store>", name -> name.endsWith("::failure") == false);
-            }
             if (this.restrictedIndices != null) {
                 matcher = matcher.and("<not-restricted>", name -> this.restrictedIndices.isRestricted(name) == false);
             }
@@ -151,13 +144,19 @@ public final class IndicesPermission {
         final Set<String> ordinaryIndices = new HashSet<>();
         final Set<String> ordinaryIndicesWithFailureStoreAccess = new HashSet<>();
         final Set<String> restrictedIndices = new HashSet<>();
+        final Set<String> restrictedIndicesWithFailureStoreAccess = new HashSet<>();
+
         final Set<String> grantMappingUpdatesOnIndices = new HashSet<>();
         final Set<String> grantMappingUpdatesOnRestrictedIndices = new HashSet<>();
         final boolean isMappingUpdateAction = isMappingUpdateAction(action);
         for (final Group group : groups) {
             if (group.actionMatcher.test(action)) {
                 if (group.allowRestrictedIndices) {
-                    restrictedIndices.addAll(Arrays.asList(group.indices()));
+                    if (group.allowFailureStoreAccess) {
+                        restrictedIndicesWithFailureStoreAccess.addAll(Arrays.asList(group.indices()));
+                    } else {
+                        restrictedIndices.addAll(Arrays.asList(group.indices()));
+                    }
                 } else {
                     if (group.allowFailureStoreAccess) {
                         ordinaryIndicesWithFailureStoreAccess.addAll(Arrays.asList(group.indices()));
@@ -175,15 +174,12 @@ public final class IndicesPermission {
                 }
             }
         }
-        final StringMatcher nameMatcher = indexMatcher(ordinaryIndices, restrictedIndices, false);
-        // TODO restricted indices
-        final StringMatcher nameMatcherWithFailureAccess = indexMatcher(ordinaryIndicesWithFailureStoreAccess, restrictedIndices, true);
-        final StringMatcher bwcSpecialCaseMatcher = indexMatcher(
-            grantMappingUpdatesOnIndices,
-            grantMappingUpdatesOnRestrictedIndices,
-            false
-        );
-        return new IsResourceAuthorizedPredicate(nameMatcher, nameMatcherWithFailureAccess, bwcSpecialCaseMatcher);
+        final StringMatcher nameMatcher = indexMatcher(ordinaryIndices, restrictedIndices).and(
+            "<not-failure-store>",
+            name -> name.endsWith("::failures") == false
+        ).or(indexMatcher(ordinaryIndicesWithFailureStoreAccess, restrictedIndicesWithFailureStoreAccess));
+        final StringMatcher bwcSpecialCaseMatcher = indexMatcher(grantMappingUpdatesOnIndices, grantMappingUpdatesOnRestrictedIndices);
+        return new IsResourceAuthorizedPredicate(nameMatcher, bwcSpecialCaseMatcher);
     }
 
     /**
@@ -193,30 +189,18 @@ public final class IndicesPermission {
     public static class IsResourceAuthorizedPredicate {
 
         private final BiPredicate<String, IndexAbstraction> biPredicate;
-        private final BiPredicate<String, IndexAbstraction> failureAccessBiPredicate;
 
         // public for tests
-        public IsResourceAuthorizedPredicate(
-            StringMatcher resourceNameMatcher,
-            StringMatcher resourceNameWithFailureAccessMatcher,
-            StringMatcher additionalNonDatastreamNameMatcher
-        ) {
+        public IsResourceAuthorizedPredicate(StringMatcher resourceNameMatcher, StringMatcher additionalNonDatastreamNameMatcher) {
             this((String name, @Nullable IndexAbstraction indexAbstraction) -> {
                 assert indexAbstraction == null || name.equals(indexAbstraction.getName());
                 return resourceNameMatcher.test(name)
                     || (isPartOfDatastream(indexAbstraction) == false && additionalNonDatastreamNameMatcher.test(name));
-            }, (String name, @Nullable IndexAbstraction indexAbstraction) -> {
-                assert indexAbstraction == null || name.equals(indexAbstraction.getName());
-                return resourceNameWithFailureAccessMatcher.test(name);
             });
         }
 
-        private IsResourceAuthorizedPredicate(
-            BiPredicate<String, IndexAbstraction> biPredicate,
-            BiPredicate<String, IndexAbstraction> failureAccessBiPredicate
-        ) {
+        private IsResourceAuthorizedPredicate(BiPredicate<String, IndexAbstraction> biPredicate) {
             this.biPredicate = biPredicate;
-            this.failureAccessBiPredicate = failureAccessBiPredicate;
         }
 
         /**
@@ -225,10 +209,7 @@ public final class IndicesPermission {
          * authorization tests of that other instance and this one.
          */
         public final IsResourceAuthorizedPredicate and(IsResourceAuthorizedPredicate other) {
-            return new IsResourceAuthorizedPredicate(
-                this.biPredicate.and(other.biPredicate),
-                this.failureAccessBiPredicate.and(other.failureAccessBiPredicate)
-            );
+            return new IsResourceAuthorizedPredicate(this.biPredicate.and(other.biPredicate));
         }
 
         /**
@@ -247,8 +228,7 @@ public final class IndicesPermission {
          * Returns {@code true} if access to the given resource is authorized or {@code false} otherwise.
          */
         public boolean test(String name, @Nullable IndexAbstraction indexAbstraction) {
-            // TODO clean up
-            return biPredicate.test(name, indexAbstraction) || failureAccessBiPredicate.test(name, indexAbstraction);
+            return biPredicate.test(name, indexAbstraction);
         }
 
         /**
@@ -258,7 +238,7 @@ public final class IndicesPermission {
         public final boolean testDataStreamForFailureAccess(IndexAbstraction indexAbstraction) {
             // TODO clean up
             assert indexAbstraction != null && indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM;
-            return failureAccessBiPredicate.test(
+            return biPredicate.test(
                 IndexNameExpressionResolver.combineSelector(indexAbstraction.getName(), IndexComponentSelector.FAILURES),
                 null
             );
@@ -414,7 +394,7 @@ public final class IndicesPermission {
         private final IndexAbstraction indexAbstraction;
 
         private IndexResource(String name, @Nullable IndexAbstraction abstraction, @Nullable IndexComponentSelector selector) {
-            // assert name != null : "Resource name cannot be null";
+            assert name != null : "Resource name cannot be null";
             // assert abstraction == null || abstraction.getName().equals(name)
             // : "Index abstraction has unexpected name [" + abstraction.getName() + "] vs [" + name + "]";
             // assert abstraction == null
@@ -426,6 +406,9 @@ public final class IndicesPermission {
             // + "] applied to abstraction of type ["
             // + abstraction.getType()
             // + "]";
+            var tuple = IndexNameExpressionResolver.splitSelectorExpression(name);
+            assert tuple.v2() == null || tuple.v2().equals(IndexComponentSelector.FAILURES.getKey())
+                : "Unexpected selector [" + tuple.v2() + "] in index name [" + name + "]";
             this.name = name;
             this.indexAbstraction = abstraction;
             this.selector = selector;

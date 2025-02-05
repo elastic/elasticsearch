@@ -142,8 +142,6 @@ tasks.named("yamlRestTest").configure {
     '^security/authz/60_resolve_index/*',
     '^security/authz/80_downsample/*',
     '^security/settings/10_update_security_settings/*',
-    '^set_security_user/10_small_users_one_index/*',
-    '^set_security_user/20_api_key/*',
     '^snapshot/10_basic/*',
     '^snapshot/20_operator_privileges_disabled/*',
     '^spatial/50_feature_usage/*',

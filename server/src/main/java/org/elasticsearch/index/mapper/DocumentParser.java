@@ -769,8 +769,12 @@ public final class DocumentParser {
             }
             previousToken = token;
         }
-        if (mapper != null && previousToken == XContentParser.Token.START_ARRAY) {
-            mapper.handleEmptyArray(context);
+        if (mapper != null
+            && mapper.supportStoringArrayOffsets(context)
+            && previousToken == XContentParser.Token.START_ARRAY
+            && context.isImmediateParentAnArray()
+            && context.getRecordedSource() == false) {
+            context.getOffSetContext().maybeRecordEmptyArray(mapper.getOffsetFieldName());
         }
         context.setImmediateXContentParent(token);
         if (elements <= 1 && canRemoveSingleLeafElement) {

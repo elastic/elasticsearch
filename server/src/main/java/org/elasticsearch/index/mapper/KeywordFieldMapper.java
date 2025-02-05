@@ -1114,10 +1114,9 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
     }
 
-    public void handleEmptyArray(DocumentParserContext context) {
-        if (offsetsFieldName != null && context.isImmediateParentAnArray() && context.getRecordedSource() == false) {
-            context.getOffSetContext().maybeRecordEmptyArray(offsetsFieldName);
-        }
+    @Override
+    public String getOffsetFieldName() {
+        return offsetsFieldName;
     }
 
     protected void parseCreateField(DocumentParserContext context) throws IOException {

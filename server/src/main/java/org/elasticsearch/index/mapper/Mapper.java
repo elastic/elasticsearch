@@ -213,9 +213,18 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
      */
     public abstract int getTotalFieldsCount();
 
+    /**
+     * @return whether this mapper support storing leaf array elements natively when synthetic source is enabled.
+     */
     public boolean supportStoringArrayOffsets(DocumentParserContext context) {
         return false;
     }
 
-    public void handleEmptyArray(DocumentParserContext context) {}
+    /**
+     * @return the offset field name use the store offsets iff {@link #supportStoringArrayOffsets(DocumentParserContext)} returns
+     * <code>true</code>.
+     */
+    public String getOffsetFieldName() {
+        return null;
+    }
 }

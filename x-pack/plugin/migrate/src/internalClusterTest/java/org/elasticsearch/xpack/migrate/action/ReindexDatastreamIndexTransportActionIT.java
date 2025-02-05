@@ -73,7 +73,7 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
     private void cleanupCluster() throws Exception {
         clusterAdmin().execute(
             DeletePipelineTransportAction.TYPE,
-            new DeletePipelineRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, MigrateTemplateRegistry.REINDEX_DATA_STREAM_PIPELINE_NAME)
+            new DeletePipelineRequest(MigrateTemplateRegistry.REINDEX_DATA_STREAM_PIPELINE_NAME)
         );
         super.cleanUpCluster();
     }
@@ -173,8 +173,6 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
             """;
 
         PutPipelineRequest putRequest = new PutPipelineRequest(
-            TEST_REQUEST_TIMEOUT,
-            TEST_REQUEST_TIMEOUT,
             MigrateTemplateRegistry.REINDEX_DATA_STREAM_PIPELINE_NAME,
             new BytesArray(customPipeline),
             XContentType.JSON

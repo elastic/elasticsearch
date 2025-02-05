@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
@@ -16,18 +14,12 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.NamedExpressions;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
 public class ChangePointExec extends UnaryExec {
-    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
-        PhysicalPlan.class,
-        "ChangePointExec",
-        ChangePointExec::new
-    );
 
     private final NamedExpression value;
     private final NamedExpression key;
@@ -51,25 +43,14 @@ public class ChangePointExec extends UnaryExec {
         this.targetPvalue = targetPvalue;
     }
 
-    private ChangePointExec(StreamInput in) throws IOException {
-        this(
-            Source.readFrom((PlanStreamInput) in),
-            in.readNamedWriteable(PhysicalPlan.class),
-            in.readNamedWriteable(NamedExpression.class),
-            in.readNamedWriteable(NamedExpression.class),
-            in.readNamedWriteable(Attribute.class),
-            in.readNamedWriteable(Attribute.class)
-        );
-    }
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        throw new UnsupportedOperationException("ChangePoint should run on the coordinating node, so never be serialized.");
+        throw new UnsupportedOperationException("not serialized");
     }
 
     @Override
     public String getWriteableName() {
-        return ENTRY.name;
+        throw new UnsupportedOperationException("not serialized");
     }
 
     @Override
@@ -113,22 +94,15 @@ public class ChangePointExec extends UnaryExec {
 
     @Override
     public int hashCode() {
-        return Objects.hash(value, key, targetType, targetPvalue, child());
+        return Objects.hash(super.hashCode(), value, key, targetType, targetPvalue);
     }
 
     @Override
-    public boolean equals(Object obj) {
-        if (this == obj) {
-            return true;
-        }
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-        ChangePointExec other = (ChangePointExec) obj;
-        return Objects.equals(child(), other.child())
-            && Objects.equals(value, other.value)
-            && Objects.equals(key, other.key)
-            && Objects.equals(targetType, other.targetType)
-            && Objects.equals(targetPvalue, other.targetPvalue);
+    public boolean equals(Object other) {
+        return super.equals(other)
+            && Objects.equals(value, ((ChangePointExec) other).value)
+            && Objects.equals(key, ((ChangePointExec) other).key)
+            && Objects.equals(targetType, ((ChangePointExec) other).targetType)
+            && Objects.equals(targetPvalue, ((ChangePointExec) other).targetPvalue);
     }
 }

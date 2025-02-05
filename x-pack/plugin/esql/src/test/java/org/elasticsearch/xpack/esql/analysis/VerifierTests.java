@@ -2005,6 +2005,8 @@ public class VerifierTests extends ESTestCase {
 
     public void testChangePoint() {
         var airports = AnalyzerTestUtils.analyzer(loadMapping("mapping-airports.json", "airports"));
+        assertEquals("1:30: Unknown column [blahblah]", error("FROM airports | CHANGE_POINT blahblah ON scalerank", airports));
+        assertEquals("1:43: Unknown column [blahblah]", error("FROM airports | CHANGE_POINT scalerank ON blahblah", airports));
         assertEquals(
             "1:17: change point key [location] must be sortable",
             error("FROM airports | CHANGE_POINT scalerank ON location", airports)

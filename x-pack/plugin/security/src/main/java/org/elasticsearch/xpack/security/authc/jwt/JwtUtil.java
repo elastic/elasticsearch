@@ -338,7 +338,7 @@ public class JwtUtil {
     }
 
     public static Path resolvePath(final Environment environment, final String jwkSetPath) {
-        final Path directoryPath = environment.configFile();
+        final Path directoryPath = environment.configDir();
         return directoryPath.resolve(jwkSetPath);
     }
 

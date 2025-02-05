@@ -9,8 +9,6 @@
 
 package org.elasticsearch.rest.action.search;
 
-import org.elasticsearch.Build;
-
 import java.util.HashSet;
 import java.util.Set;
 
@@ -42,7 +40,7 @@ public final class SearchCapabilities {
 
     private static final String RANDOM_SAMPLER_WITH_SCORED_SUBAGGS = "random_sampler_with_scored_subaggs";
     private static final String OPTIMIZED_SCALAR_QUANTIZATION_BBQ = "optimized_scalar_quantization_bbq";
-    private static final String KNN_QUANTIZED_VECTOR_RESCORE = "knn_quantized_vector_rescore";
+    private static final String KNN_QUANTIZED_VECTOR_RESCORE_OVERSAMPLE = "knn_quantized_vector_rescore_oversample";
 
     private static final String HIGHLIGHT_MAX_ANALYZED_OFFSET_DEFAULT = "highlight_max_analyzed_offset_default";
 
@@ -57,12 +55,10 @@ public final class SearchCapabilities {
         capabilities.add(NESTED_RETRIEVER_INNER_HITS_SUPPORT);
         capabilities.add(RANDOM_SAMPLER_WITH_SCORED_SUBAGGS);
         capabilities.add(OPTIMIZED_SCALAR_QUANTIZATION_BBQ);
-        capabilities.add(KNN_QUANTIZED_VECTOR_RESCORE);
+        capabilities.add(KNN_QUANTIZED_VECTOR_RESCORE_OVERSAMPLE);
         capabilities.add(MOVING_FN_RIGHT_MATH);
         capabilities.add(K_DEFAULT_TO_SIZE);
-        if (Build.current().isSnapshot()) {
-            capabilities.add(KQL_QUERY_SUPPORTED);
-        }
+        capabilities.add(KQL_QUERY_SUPPORTED);
         capabilities.add(HIGHLIGHT_MAX_ANALYZED_OFFSET_DEFAULT);
         CAPABILITIES = Set.copyOf(capabilities);
     }

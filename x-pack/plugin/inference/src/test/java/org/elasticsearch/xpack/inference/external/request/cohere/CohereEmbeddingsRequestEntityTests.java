@@ -72,6 +72,38 @@ public class CohereEmbeddingsRequestEntityTests extends ESTestCase {
             {"texts":["abc"],"model":"model","input_type":"search_query","embedding_types":["int8"],"truncate":"none"}"""));
     }
 
+    public void testXContent_InputTypeSearch_EmbeddingTypesBinary_TruncateNone() throws IOException {
+        var entity = new CohereEmbeddingsRequestEntity(
+            List.of("abc"),
+            new CohereEmbeddingsTaskSettings(InputType.SEARCH, CohereTruncation.NONE),
+            "model",
+            CohereEmbeddingType.BINARY
+        );
+
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        entity.toXContent(builder, null);
+        String xContentResult = Strings.toString(builder);
+
+        MatcherAssert.assertThat(xContentResult, is("""
+            {"texts":["abc"],"model":"model","input_type":"search_query","embedding_types":["binary"],"truncate":"none"}"""));
+    }
+
+    public void testXContent_InputTypeSearch_EmbeddingTypesBit_TruncateNone() throws IOException {
+        var entity = new CohereEmbeddingsRequestEntity(
+            List.of("abc"),
+            new CohereEmbeddingsTaskSettings(InputType.SEARCH, CohereTruncation.NONE),
+            "model",
+            CohereEmbeddingType.BIT
+        );
+
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        entity.toXContent(builder, null);
+        String xContentResult = Strings.toString(builder);
+
+        MatcherAssert.assertThat(xContentResult, is("""
+            {"texts":["abc"],"model":"model","input_type":"search_query","embedding_types":["binary"],"truncate":"none"}"""));
+    }
+
     public void testXContent_WritesNoOptionalFields_WhenTheyAreNotDefined() throws IOException {
         var entity = new CohereEmbeddingsRequestEntity(List.of("abc"), CohereEmbeddingsTaskSettings.EMPTY_SETTINGS, null, null);
 
@@ -84,7 +116,10 @@ public class CohereEmbeddingsRequestEntityTests extends ESTestCase {
     }
 
     public void testConvertToString_ThrowsAssertionFailure_WhenInputTypeIsUnspecified() {
-        var thrownException = expectThrows(AssertionError.class, () -> CohereEmbeddingsRequestEntity.covertToString(InputType.UNSPECIFIED));
+        var thrownException = expectThrows(
+            AssertionError.class,
+            () -> CohereEmbeddingsRequestEntity.convertToString(InputType.UNSPECIFIED)
+        );
         MatcherAssert.assertThat(thrownException.getMessage(), is("received invalid input type value [unspecified]"));
     }
 }

@@ -40,15 +40,7 @@ public class UnifiedChatInput extends InferenceInputs {
 
     private static List<UnifiedCompletionRequest.Message> convertToMessages(List<String> inputs, String roleValue) {
         return inputs.stream()
-            .map(
-                value -> new UnifiedCompletionRequest.Message(
-                    new UnifiedCompletionRequest.ContentString(value),
-                    roleValue,
-                    null,
-                    null,
-                    null
-                )
-            )
+            .map(value -> new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString(value), roleValue, null, null))
             .toList();
     }
 

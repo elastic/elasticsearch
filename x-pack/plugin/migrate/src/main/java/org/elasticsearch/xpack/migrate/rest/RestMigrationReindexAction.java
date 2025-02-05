@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.migrate.rest;
 
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
@@ -17,16 +18,12 @@ import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.migrate.action.ReindexDataStreamAction;
-import org.elasticsearch.xpack.migrate.action.ReindexDataStreamAction.ReindexDataStreamResponse;
 
 import java.io.IOException;
-import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
-import static org.elasticsearch.xpack.migrate.action.ReindexDataStreamAction.REINDEX_DATA_STREAM_FEATURE_FLAG;
 
 public class RestMigrationReindexAction extends BaseRestHandler {
     public static final String MIGRATION_REINDEX_CAPABILITY = "migration_reindex";
@@ -56,21 +53,17 @@ public class RestMigrationReindexAction extends BaseRestHandler {
 
     @Override
     public Set<String> supportedCapabilities() {
-        Set<String> capabilities = new HashSet<>();
-        if (REINDEX_DATA_STREAM_FEATURE_FLAG.isEnabled()) {
-            capabilities.add(MIGRATION_REINDEX_CAPABILITY);
-        }
-        return Collections.unmodifiableSet(capabilities);
+        return Set.of(MIGRATION_REINDEX_CAPABILITY);
     }
 
-    static class ReindexDataStreamRestToXContentListener extends RestBuilderListener<ReindexDataStreamResponse> {
+    static class ReindexDataStreamRestToXContentListener extends RestBuilderListener<AcknowledgedResponse> {
 
         ReindexDataStreamRestToXContentListener(RestChannel channel) {
             super(channel);
         }
 
         @Override
-        public RestResponse buildResponse(ReindexDataStreamResponse response, XContentBuilder builder) throws Exception {
+        public RestResponse buildResponse(AcknowledgedResponse response, XContentBuilder builder) throws Exception {
             response.toXContent(builder, channel.request());
             return new RestResponse(RestStatus.OK, builder);
         }

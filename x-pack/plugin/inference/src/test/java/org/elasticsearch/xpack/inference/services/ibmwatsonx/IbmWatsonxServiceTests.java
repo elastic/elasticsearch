@@ -50,6 +50,7 @@ import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.embeddings.IbmWatsonxEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.embeddings.IbmWatsonxEmbeddingsModelTests;
+import org.elasticsearch.xpack.inference.services.ibmwatsonx.rerank.IbmWatsonxRerankModel;
 import org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionModelTests;
 import org.hamcrest.MatcherAssert;
 import org.hamcrest.Matchers;
@@ -133,6 +134,42 @@ public class IbmWatsonxServiceTests extends ESTestCase {
             service.parseRequestConfig(
                 "id",
                 TaskType.TEXT_EMBEDDING,
+                getRequestConfigMap(
+                    new HashMap<>(
+                        Map.of(
+                            ServiceFields.MODEL_ID,
+                            modelId,
+                            IbmWatsonxServiceFields.PROJECT_ID,
+                            projectId,
+                            ServiceFields.URL,
+                            url,
+                            IbmWatsonxServiceFields.API_VERSION,
+                            apiVersion
+                        )
+                    ),
+                    new HashMap<>(Map.of()),
+                    getSecretSettingsMap(apiKey)
+                ),
+                modelListener
+            );
+        }
+    }
+
+    public void testParseRequestConfig_CreatesAIbmWatsonxRerankModel() throws IOException {
+        try (var service = createIbmWatsonxService()) {
+            ActionListener<Model> modelListener = ActionListener.wrap(model -> {
+                assertThat(model, instanceOf(IbmWatsonxRerankModel.class));
+
+                var rerankModel = (IbmWatsonxRerankModel) model;
+                assertThat(rerankModel.getServiceSettings().modelId(), is(modelId));
+                assertThat(rerankModel.getServiceSettings().projectId(), is(projectId));
+                assertThat(rerankModel.getServiceSettings().apiVersion(), is(apiVersion));
+                assertThat(rerankModel.getSecretSettings().apiKey().toString(), is(apiKey));
+            }, e -> fail("Model parsing should have succeeded, but failed: " + e.getMessage()));
+
+            service.parseRequestConfig(
+                "id",
+                TaskType.RERANK,
                 getRequestConfigMap(
                     new HashMap<>(
                         Map.of(
@@ -925,7 +962,7 @@ public class IbmWatsonxServiceTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var service = new IbmWatsonxServiceWithoutAuth(senderFactory, createWithEmptySettings(threadPool))) {
-            var model = OpenAiChatCompletionModelTests.createChatCompletionModel(
+            var model = OpenAiChatCompletionModelTests.createCompletionModel(
                 randomAlphaOfLength(10),
                 randomAlphaOfLength(10),
                 randomAlphaOfLength(10),
@@ -985,7 +1022,8 @@ public class IbmWatsonxServiceTests extends ESTestCase {
                                "required": true,
                                "sensitive": false,
                                "updatable": false,
-                               "type": "str"
+                               "type": "str",
+                               "supported_task_types": ["text_embedding"]
                            },
                            "model_id": {
                                "description": "The name of the model to use for the inference task.",
@@ -993,7 +1031,8 @@ public class IbmWatsonxServiceTests extends ESTestCase {
                                "required": true,
                                "sensitive": false,
                                "updatable": false,
-                               "type": "str"
+                               "type": "str",
+                               "supported_task_types": ["text_embedding"]
                            },
                            "api_version": {
                                "description": "The IBM Watsonx API version ID to use.",
@@ -1001,7 +1040,8 @@ public class IbmWatsonxServiceTests extends ESTestCase {
                                "required": true,
                                "sensitive": false,
                                "updatable": false,
-                               "type": "str"
+                               "type": "str",
+                               "supported_task_types": ["text_embedding"]
                            },
                            "max_input_tokens": {
                                "description": "Allows you to specify the maximum number of tokens per input.",
@@ -1009,7 +1049,8 @@ public class IbmWatsonxServiceTests extends ESTestCase {
                                "required": false,
                                "sensitive": false,
                                "updatable": false,
-                               "type": "int"
+                               "type": "int",
+                               "supported_task_types": ["text_embedding"]
                            },
                            "url": {
                                "description": "",
@@ -1017,7 +1058,8 @@ public class IbmWatsonxServiceTests extends ESTestCase {
                                "required": true,
                                "sensitive": false,
                                "updatable": false,
-                               "type": "str"
+                               "type": "str",
+                               "supported_task_types": ["text_embedding"]
                            }
                        }
                    }

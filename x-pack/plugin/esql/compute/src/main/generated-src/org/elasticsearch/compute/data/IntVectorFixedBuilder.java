@@ -13,9 +13,9 @@ import org.apache.lucene.util.RamUsageEstimator;
  * Builder for {@link IntVector}s that never grows. Prefer this to
  * {@link IntVectorBuilder} if you know the precise size up front because
  * it's faster.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-VectorFixedBuilder.java.st} instead.
  */
-final class IntVectorFixedBuilder implements IntVector.FixedBuilder {
+public final class IntVectorFixedBuilder implements IntVector.FixedBuilder {
     private final BlockFactory blockFactory;
     private final int[] values;
     private final long preAdjustedBytes;
@@ -84,7 +84,7 @@ final class IntVectorFixedBuilder implements IntVector.FixedBuilder {
         }
     }
 
-    boolean isReleased() {
+    public boolean isReleased() {
         return closed;
     }
 }

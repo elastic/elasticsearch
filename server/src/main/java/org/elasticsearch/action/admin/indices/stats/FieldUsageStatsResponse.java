@@ -50,9 +50,9 @@ public class FieldUsageStatsResponse extends ChunkedBroadcastResponse {
         return Iterators.flatMap(
             stats.entrySet().stream().sorted(Map.Entry.comparingByKey()).iterator(),
             entry -> Iterators.concat(
-                ChunkedToXContentHelper.singleChunk((builder, p) -> builder.startObject(entry.getKey()).startArray("shards")),
+                ChunkedToXContentHelper.chunk((builder, p) -> builder.startObject(entry.getKey()).startArray("shards")),
                 entry.getValue().iterator(),
-                ChunkedToXContentHelper.singleChunk((builder, p) -> builder.endArray().endObject())
+                ChunkedToXContentHelper.chunk((builder, p) -> builder.endArray().endObject())
             )
         );
     }

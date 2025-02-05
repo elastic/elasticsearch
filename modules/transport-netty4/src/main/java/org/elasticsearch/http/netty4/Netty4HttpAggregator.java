@@ -11,13 +11,10 @@ package org.elasticsearch.http.netty4;
 
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.http.FullHttpRequest;
-import io.netty.handler.codec.http.FullHttpResponse;
-import io.netty.handler.codec.http.HttpContent;
 import io.netty.handler.codec.http.HttpObject;
 import io.netty.handler.codec.http.HttpObjectAggregator;
 import io.netty.handler.codec.http.HttpRequest;
-import io.netty.handler.codec.http.HttpResponseStatus;
-import io.netty.handler.codec.http.HttpUtil;
+import io.netty.handler.codec.http.HttpRequestDecoder;
 
 import org.elasticsearch.http.HttpPreRequest;
 import org.elasticsearch.http.netty4.internal.HttpHeadersAuthenticatorUtils;
@@ -27,18 +24,19 @@ import java.util.function.Predicate;
 /**
  * A wrapper around {@link HttpObjectAggregator}. Provides optional content aggregation based on
  * predicate. {@link HttpObjectAggregator} also handles Expect: 100-continue and oversized content.
- * Unfortunately, Netty does not provide handlers for oversized messages beyond HttpObjectAggregator.
+ * Provides content size handling for non-aggregated requests too.
  */
 public class Netty4HttpAggregator extends HttpObjectAggregator {
     private static final Predicate<HttpPreRequest> IGNORE_TEST = (req) -> req.uri().startsWith("/_test/request-stream") == false;
 
     private final Predicate<HttpPreRequest> decider;
+    private final Netty4HttpContentSizeHandler streamContentSizeHandler;
     private boolean aggregating = true;
-    private boolean ignoreContentAfterContinueResponse = false;
 
-    public Netty4HttpAggregator(int maxContentLength, Predicate<HttpPreRequest> decider) {
+    public Netty4HttpAggregator(int maxContentLength, Predicate<HttpPreRequest> decider, HttpRequestDecoder decoder) {
         super(maxContentLength);
         this.decider = decider;
+        this.streamContentSizeHandler = new Netty4HttpContentSizeHandler(decoder, maxContentLength);
     }
 
     @Override
@@ -51,34 +49,7 @@ public class Netty4HttpAggregator extends HttpObjectAggregator {
         if (aggregating || msg instanceof FullHttpRequest) {
             super.channelRead(ctx, msg);
         } else {
-            handle(ctx, (HttpObject) msg);
-        }
-    }
-
-    private void handle(ChannelHandlerContext ctx, HttpObject msg) {
-        if (msg instanceof HttpRequest request) {
-            var continueResponse = newContinueResponse(request, maxContentLength(), ctx.pipeline());
-            if (continueResponse != null) {
-                // there are 3 responses expected: 100, 413, 417
-                // on 100 we pass request further and reply to client to continue
-                // on 413/417 we ignore following content
-                ctx.writeAndFlush(continueResponse);
-                var resp = (FullHttpResponse) continueResponse;
-                if (resp.status() != HttpResponseStatus.CONTINUE) {
-                    ignoreContentAfterContinueResponse = true;
-                    return;
-                }
-                HttpUtil.set100ContinueExpected(request, false);
-            }
-            ignoreContentAfterContinueResponse = false;
-            ctx.fireChannelRead(msg);
-        } else {
-            var httpContent = (HttpContent) msg;
-            if (ignoreContentAfterContinueResponse) {
-                httpContent.release();
-            } else {
-                ctx.fireChannelRead(msg);
-            }
+            streamContentSizeHandler.channelRead(ctx, msg);
         }
     }
 }

@@ -49,6 +49,7 @@ public class Equals extends EsqlBinaryComparison implements Negatable<EsqlBinary
     );
 
     @FunctionInfo(
+        operator = "==",
         returnType = { "boolean" },
         description = "Check if two fields are equal. "
             + "If either field is <<esql-multivalued-fields,multivalued>> then the result is `null`.",

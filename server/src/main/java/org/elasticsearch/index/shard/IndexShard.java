@@ -451,6 +451,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return this.bulkOperationListener;
     }
 
+    public IndexingOperationListener getIndexingOperationListener() {
+        return this.indexingOperationListeners;
+    }
+
     public ShardIndexWarmerService warmerService() {
         return this.shardWarmerService;
     }
@@ -1488,7 +1492,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * @return true the shard has a translog.
+     * @return true the shard has a translog. In the case there is no translog, the shard is not writeable.
      */
     public boolean hasTranslog() {
         return translogConfig.hasTranslog();
@@ -3205,7 +3209,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             try {
                 doCheckIndex();
             } catch (IOException e) {
-                store.markStoreCorrupted(e);
+                if (ExceptionsHelper.unwrap(e, AlreadyClosedException.class) != null) {
+                    // Cache-based read operations on Lucene files can throw an AlreadyClosedException wrapped into an IOException in case
+                    // of evictions. We don't want to mark the store as corrupted for this.
+                } else {
+                    store.markStoreCorrupted(e);
+                }
                 throw e;
             } finally {
                 store.decRef();
@@ -3572,7 +3581,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * Acquire a primary operation permit whenever the shard is ready for indexing. If a permit is directly available, the provided
      * ActionListener will be called on the calling thread. During relocation hand-off, permit acquisition can be delayed. The provided
      * ActionListener will then be called using the provided executor.
-     *
      */
     public void acquirePrimaryOperationPermit(ActionListener<Releasable> onPermitAcquired, Executor executorOnDelay) {
         acquirePrimaryOperationPermit(onPermitAcquired, executorOnDelay, false);
@@ -4292,6 +4300,35 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 callingThread = null;
             }
             refreshMetric.inc(System.nanoTime() - currentRefreshStartTime);
+        }
+    }
+
+    /**
+     * Reset the current engine to a new one.
+     *
+     * Calls {@link Engine#prepareForEngineReset()} on the current engine, then closes it, and loads a new engine without
+     * doing any translog recovery.
+     *
+     * In general, resetting the engine should be done with care, to consider any in-progress operations and listeners.
+     * At the moment, this is implemented in serverless for a special case that ensures the engine is prepared for reset.
+     */
+    public void resetEngine() {
+        assert Thread.holdsLock(mutex) == false : "resetting engine under mutex";
+        assert waitForEngineOrClosedShardListeners.isDone();
+        try {
+            synchronized (engineMutex) {
+                final var currentEngine = getEngine();
+                currentEngine.prepareForEngineReset();
+                var engineConfig = newEngineConfig(replicationTracker);
+                verifyNotClosed();
+                IOUtils.close(currentEngine);
+                var newEngine = createEngine(engineConfig);
+                currentEngineReference.set(newEngine);
+                onNewEngine(newEngine);
+            }
+            onSettingsChanged();
+        } catch (Exception e) {
+            failShard("unable to reset engine", e);
         }
     }
 

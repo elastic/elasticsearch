@@ -20,12 +20,13 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.predicate.Predicates;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.core.util.Queries;
+import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
@@ -58,13 +59,13 @@ import java.util.function.Function;
 
 import static java.util.Arrays.asList;
 import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.DOC_VALUES;
+import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.EXTRACT_SPATIAL_BOUNDS;
 import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.NONE;
 import static org.elasticsearch.xpack.esql.core.util.Queries.Clause.FILTER;
 import static org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushFiltersToSource.canPushToSource;
+import static org.elasticsearch.xpack.esql.planner.TranslatorHandler.TRANSLATOR_HANDLER;
 
 public class PlannerUtils {
-
-    public static final EsqlTranslatorHandler TRANSLATOR_HANDLER = new EsqlTranslatorHandler();
 
     public static Tuple<PhysicalPlan, PhysicalPlan> breakPlanBetweenCoordinatorAndDataNode(PhysicalPlan plan, Configuration config) {
         var dataNodePlan = new Holder<PhysicalPlan>();
@@ -109,7 +110,7 @@ public class PlannerUtils {
             return Set.of();
         }
         var indices = new LinkedHashSet<String>();
-        forEachFromRelation(plan, relation -> indices.addAll(relation.index().concreteIndices()));
+        forEachFromRelation(plan, relation -> indices.addAll(relation.concreteIndices()));
         return indices;
     }
 
@@ -121,7 +122,7 @@ public class PlannerUtils {
             return Strings.EMPTY_ARRAY;
         }
         var indices = new LinkedHashSet<String>();
-        forEachFromRelation(plan, relation -> indices.addAll(asList(Strings.commaDelimitedListToStringArray(relation.index().name()))));
+        forEachFromRelation(plan, relation -> indices.addAll(asList(Strings.commaDelimitedListToStringArray(relation.indexPattern()))));
         return indices.toArray(String[]::new);
     }
 
@@ -145,7 +146,7 @@ public class PlannerUtils {
     }
 
     /**
-     * Similar to {@link Node#forEachUp(Consumer)}, but with a custom callback to get the node children.
+     * Similar to {@link Node#forEachUp(Class, Consumer)}, but with a custom callback to get the node children.
      */
     private static <T extends Node<T>, E extends T> void forEachUpWithChildren(
         T node,
@@ -159,13 +160,18 @@ public class PlannerUtils {
         }
     }
 
-    public static PhysicalPlan localPlan(List<SearchExecutionContext> searchContexts, Configuration configuration, PhysicalPlan plan) {
-        return localPlan(configuration, plan, SearchContextStats.from(searchContexts));
+    public static PhysicalPlan localPlan(
+        List<SearchExecutionContext> searchContexts,
+        Configuration configuration,
+        FoldContext foldCtx,
+        PhysicalPlan plan
+    ) {
+        return localPlan(configuration, foldCtx, plan, SearchContextStats.from(searchContexts));
     }
 
-    public static PhysicalPlan localPlan(Configuration configuration, PhysicalPlan plan, SearchStats searchStats) {
-        final var logicalOptimizer = new LocalLogicalPlanOptimizer(new LocalLogicalOptimizerContext(configuration, searchStats));
-        var physicalOptimizer = new LocalPhysicalPlanOptimizer(new LocalPhysicalOptimizerContext(configuration, searchStats));
+    public static PhysicalPlan localPlan(Configuration configuration, FoldContext foldCtx, PhysicalPlan plan, SearchStats searchStats) {
+        final var logicalOptimizer = new LocalLogicalPlanOptimizer(new LocalLogicalOptimizerContext(configuration, foldCtx, searchStats));
+        var physicalOptimizer = new LocalPhysicalPlanOptimizer(new LocalPhysicalOptimizerContext(configuration, foldCtx, searchStats));
 
         return localPlan(plan, logicalOptimizer, physicalOptimizer);
     }
@@ -186,7 +192,14 @@ public class PlannerUtils {
             if (filter != null) {
                 physicalFragment = physicalFragment.transformUp(
                     EsSourceExec.class,
-                    query -> new EsSourceExec(Source.EMPTY, query.index(), query.output(), filter, query.indexMode())
+                    query -> new EsSourceExec(
+                        Source.EMPTY,
+                        query.indexPattern(),
+                        query.indexMode(),
+                        query.indexNameWithModes(),
+                        query.output(),
+                        filter
+                    )
                 );
             }
             var localOptimized = physicalOptimizer.localOptimize(physicalFragment);
@@ -278,8 +291,8 @@ public class PlannerUtils {
             case DOC_DATA_TYPE -> ElementType.DOC;
             case TSID_DATA_TYPE -> ElementType.BYTES_REF;
             case GEO_POINT, CARTESIAN_POINT -> fieldExtractPreference == DOC_VALUES ? ElementType.LONG : ElementType.BYTES_REF;
-            case GEO_SHAPE, CARTESIAN_SHAPE -> ElementType.BYTES_REF;
-            case PARTIAL_AGG -> ElementType.COMPOSITE;
+            case GEO_SHAPE, CARTESIAN_SHAPE -> fieldExtractPreference == EXTRACT_SPATIAL_BOUNDS ? ElementType.INT : ElementType.BYTES_REF;
+            case PARTIAL_AGG, AGGREGATE_METRIC_DOUBLE -> ElementType.COMPOSITE;
             case SHORT, BYTE, DATE_PERIOD, TIME_DURATION, OBJECT, FLOAT, HALF_FLOAT, SCALED_FLOAT -> throw EsqlIllegalArgumentException
                 .illegalDataType(dataType);
         };
@@ -294,11 +307,4 @@ public class PlannerUtils {
         new NoopCircuitBreaker("noop-esql-breaker"),
         BigArrays.NON_RECYCLING_INSTANCE
     );
-
-    /**
-     * Returns DOC_VALUES if the given boolean is set.
-     */
-    public static MappedFieldType.FieldExtractPreference extractPreference(boolean hasPreference) {
-        return hasPreference ? DOC_VALUES : NONE;
-    }
 }

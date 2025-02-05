@@ -160,7 +160,7 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
                     }
                     if (o.operator().equals("ExchangeSinkOperator")) {
                         ExchangeSinkOperator.Status oStatus = (ExchangeSinkOperator.Status) o.status();
-                        assertThat(oStatus.pagesAccepted(), greaterThanOrEqualTo(0));
+                        assertThat(oStatus.pagesReceived(), greaterThanOrEqualTo(0));
                         exchangeSinks++;
                     }
                 }
@@ -362,7 +362,8 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
                     "task cancelled",
                     "request cancelled test cancel",
                     "parent task was cancelled [test cancel]",
-                    "cancelled on failure"
+                    "cancelled on failure",
+                    "task cancelled [cancelled on failure]"
                 )
             )
         );
@@ -461,7 +462,9 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
             }
             Exception failure = expectThrows(Exception.class, () -> future.actionGet().close());
             EsqlTestUtils.assertEsqlFailure(failure);
-            assertThat(failure.getMessage(), containsString("failed to fetch pages"));
+            Throwable cause = ExceptionsHelper.unwrap(failure, IOException.class);
+            assertNotNull(cause);
+            assertThat(cause.getMessage(), containsString("failed to fetch pages"));
             // If we proceed without waiting for pages, we might cancel the main request before starting the data-node request.
             // As a result, the exchange sinks on data-nodes won't be removed until the inactive_timeout elapses, which is
             // longer than the assertBusy timeout.

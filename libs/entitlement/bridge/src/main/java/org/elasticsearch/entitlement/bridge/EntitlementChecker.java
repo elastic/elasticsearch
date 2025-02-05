@@ -81,7 +81,7 @@ public interface EntitlementChecker {
 
     /// /////////////////
     //
-    // ClassLoader ctor
+    // create class loaders
     //
 
     void check$java_lang_ClassLoader$(Class<?> callerClass);
@@ -89,22 +89,6 @@ public interface EntitlementChecker {
     void check$java_lang_ClassLoader$(Class<?> callerClass, ClassLoader parent);
 
     void check$java_lang_ClassLoader$(Class<?> callerClass, String name, ClassLoader parent);
-
-    /// /////////////////
-    //
-    // SecureClassLoader ctor
-    //
-
-    void check$java_security_SecureClassLoader$(Class<?> callerClass);
-
-    void check$java_security_SecureClassLoader$(Class<?> callerClass, ClassLoader parent);
-
-    void check$java_security_SecureClassLoader$(Class<?> callerClass, String name, ClassLoader parent);
-
-    /// /////////////////
-    //
-    // URLClassLoader constructors
-    //
 
     void check$java_net_URLClassLoader$(Class<?> callerClass, URL[] urls);
 
@@ -115,6 +99,12 @@ public interface EntitlementChecker {
     void check$java_net_URLClassLoader$(Class<?> callerClass, String name, URL[] urls, ClassLoader parent);
 
     void check$java_net_URLClassLoader$(Class<?> callerClass, String name, URL[] urls, ClassLoader parent, URLStreamHandlerFactory factory);
+
+    void check$java_security_SecureClassLoader$(Class<?> callerClass);
+
+    void check$java_security_SecureClassLoader$(Class<?> callerClass, ClassLoader parent);
+
+    void check$java_security_SecureClassLoader$(Class<?> callerClass, String name, ClassLoader parent);
 
     /// /////////////////
     //
@@ -143,6 +133,8 @@ public interface EntitlementChecker {
     // System Properties and similar
     //
 
+    void check$java_lang_System$$setProperties(Class<?> callerClass, Properties props);
+
     void check$java_lang_System$$setProperty(Class<?> callerClass, String key, String value);
 
     void check$java_lang_System$$clearProperty(Class<?> callerClass, String key);
@@ -152,33 +144,33 @@ public interface EntitlementChecker {
     // JVM-wide state changes
     //
 
-    void check$java_lang_System$$setIn(Class<?> callerClass, InputStream in);
-
-    void check$java_lang_System$$setOut(Class<?> callerClass, PrintStream out);
+    void check$com_sun_tools_jdi_VirtualMachineManagerImpl$$virtualMachineManager(Class<?> callerClass);
 
     void check$java_lang_System$$setErr(Class<?> callerClass, PrintStream err);
 
-    void check$java_lang_System$$setProperties(Class<?> callerClass, Properties props);
+    void check$java_lang_System$$setIn(Class<?> callerClass, InputStream in);
+
+    void check$java_lang_System$$setOut(Class<?> callerClass, PrintStream out);
 
     void check$java_lang_Runtime$addShutdownHook(Class<?> callerClass, Runtime runtime, Thread hook);
 
     void check$java_lang_Runtime$removeShutdownHook(Class<?> callerClass, Runtime runtime, Thread hook);
 
-    void check$jdk_tools_jlink_internal_Jlink$(Class<?> callerClass);
-
-    void check$jdk_tools_jlink_internal_Main$$run(Class<?> callerClass, PrintWriter out, PrintWriter err, String... args);
-
-    void check$jdk_vm_ci_services_JVMCIServiceLocator$$getProviders(Class<?> callerClass, Class<?> service);
-
-    void check$jdk_vm_ci_services_Services$$load(Class<?> callerClass, Class<?> service);
-
-    void check$jdk_vm_ci_services_Services$$loadSingle(Class<?> callerClass, Class<?> service, boolean required);
-
-    void check$com_sun_tools_jdi_VirtualMachineManagerImpl$$virtualMachineManager(Class<?> callerClass);
-
     void check$java_lang_Thread$$setDefaultUncaughtExceptionHandler(Class<?> callerClass, Thread.UncaughtExceptionHandler ueh);
 
-    void check$java_util_spi_LocaleServiceProvider$(Class<?> callerClass);
+    void check$java_net_DatagramSocket$$setDatagramSocketImplFactory(Class<?> callerClass, DatagramSocketImplFactory fac);
+
+    void check$java_net_HttpURLConnection$$setFollowRedirects(Class<?> callerClass, boolean set);
+
+    void check$java_net_ServerSocket$$setSocketFactory(Class<?> callerClass, SocketImplFactory fac);
+
+    void check$java_net_Socket$$setSocketImplFactory(Class<?> callerClass, SocketImplFactory fac);
+
+    void check$java_net_URL$$setURLStreamHandlerFactory(Class<?> callerClass, URLStreamHandlerFactory fac);
+
+    void check$java_net_URLConnection$$setFileNameMap(Class<?> callerClass, FileNameMap map);
+
+    void check$java_net_URLConnection$$setContentHandlerFactory(Class<?> callerClass, ContentHandlerFactory fac);
 
     void check$java_text_spi_BreakIteratorProvider$(Class<?> callerClass);
 
@@ -200,6 +192,8 @@ public interface EntitlementChecker {
 
     void check$java_util_spi_LocaleNameProvider$(Class<?> callerClass);
 
+    void check$java_util_spi_LocaleServiceProvider$(Class<?> callerClass);
+
     void check$java_util_spi_TimeZoneNameProvider$(Class<?> callerClass);
 
     void check$java_util_logging_LogManager$(Class<?> callerClass);
@@ -210,19 +204,15 @@ public interface EntitlementChecker {
 
     void check$java_util_TimeZone$$setDefault(Class<?> callerClass, TimeZone zone);
 
-    void check$java_net_DatagramSocket$$setDatagramSocketImplFactory(Class<?> callerClass, DatagramSocketImplFactory fac);
+    void check$jdk_tools_jlink_internal_Jlink$(Class<?> callerClass);
 
-    void check$java_net_HttpURLConnection$$setFollowRedirects(Class<?> callerClass, boolean set);
+    void check$jdk_tools_jlink_internal_Main$$run(Class<?> callerClass, PrintWriter out, PrintWriter err, String... args);
 
-    void check$java_net_ServerSocket$$setSocketFactory(Class<?> callerClass, SocketImplFactory fac);
+    void check$jdk_vm_ci_services_JVMCIServiceLocator$$getProviders(Class<?> callerClass, Class<?> service);
 
-    void check$java_net_Socket$$setSocketImplFactory(Class<?> callerClass, SocketImplFactory fac);
+    void check$jdk_vm_ci_services_Services$$load(Class<?> callerClass, Class<?> service);
 
-    void check$java_net_URL$$setURLStreamHandlerFactory(Class<?> callerClass, URLStreamHandlerFactory fac);
-
-    void check$java_net_URLConnection$$setFileNameMap(Class<?> callerClass, FileNameMap map);
-
-    void check$java_net_URLConnection$$setContentHandlerFactory(Class<?> callerClass, ContentHandlerFactory fac);
+    void check$jdk_vm_ci_services_Services$$loadSingle(Class<?> callerClass, Class<?> service, boolean required);
 
     /// /////////////////
     //
@@ -231,10 +221,6 @@ public interface EntitlementChecker {
     void check$java_net_ProxySelector$$setDefault(Class<?> callerClass, ProxySelector ps);
 
     void check$java_net_ResponseCache$$setDefault(Class<?> callerClass, ResponseCache rc);
-
-    void check$java_net_spi_InetAddressResolverProvider$(Class<?> callerClass);
-
-    void check$java_net_spi_URLStreamHandlerProvider$(Class<?> callerClass);
 
     void check$java_net_URL$(Class<?> callerClass, String protocol, String host, int port, String file, URLStreamHandler handler);
 
@@ -246,13 +232,13 @@ public interface EntitlementChecker {
 
     void check$java_net_DatagramSocket$connect(Class<?> callerClass, DatagramSocket that, SocketAddress addr);
 
-    void check$java_net_DatagramSocket$send(Class<?> callerClass, DatagramSocket that, DatagramPacket p);
-
-    void check$java_net_DatagramSocket$receive(Class<?> callerClass, DatagramSocket that, DatagramPacket p);
-
     void check$java_net_DatagramSocket$joinGroup(Class<?> callerClass, DatagramSocket that, SocketAddress addr, NetworkInterface ni);
 
     void check$java_net_DatagramSocket$leaveGroup(Class<?> callerClass, DatagramSocket that, SocketAddress addr, NetworkInterface ni);
+
+    void check$java_net_DatagramSocket$receive(Class<?> callerClass, DatagramSocket that, DatagramPacket p);
+
+    void check$java_net_DatagramSocket$send(Class<?> callerClass, DatagramSocket that, DatagramPacket p);
 
     void check$java_net_MulticastSocket$joinGroup(Class<?> callerClass, MulticastSocket that, InetAddress addr);
 
@@ -263,6 +249,10 @@ public interface EntitlementChecker {
     void check$java_net_MulticastSocket$leaveGroup(Class<?> callerClass, MulticastSocket that, SocketAddress addr, NetworkInterface ni);
 
     void check$java_net_MulticastSocket$send(Class<?> callerClass, MulticastSocket that, DatagramPacket p, byte ttl);
+
+    void check$java_net_spi_InetAddressResolverProvider$(Class<?> callerClass);
+
+    void check$java_net_spi_URLStreamHandlerProvider$(Class<?> callerClass);
 
     // Binding/connecting ctor
     void check$java_net_ServerSocket$(Class<?> callerClass, int port);
@@ -495,24 +485,26 @@ public interface EntitlementChecker {
     // File access
     //
 
+    // old io (ie File)
+    void check$java_io_FileOutputStream$(Class<?> callerClass, File file);
+
+    void check$java_io_FileOutputStream$(Class<?> callerClass, File file, boolean append);
+
+    void check$java_io_FileOutputStream$(Class<?> callerClass, String name);
+
+    void check$java_io_FileOutputStream$(Class<?> callerClass, String name, boolean append);
+
     void check$java_util_Scanner$(Class<?> callerClass, File source);
 
     void check$java_util_Scanner$(Class<?> callerClass, File source, String charsetName);
 
     void check$java_util_Scanner$(Class<?> callerClass, File source, Charset charset);
 
-    void check$java_io_FileOutputStream$(Class<?> callerClass, String name);
-
-    void check$java_io_FileOutputStream$(Class<?> callerClass, String name, boolean append);
-
-    void check$java_io_FileOutputStream$(Class<?> callerClass, File file);
-
-    void check$java_io_FileOutputStream$(Class<?> callerClass, File file, boolean append);
-
+    // nio
     void check$java_nio_file_Files$$probeContentType(Class<?> callerClass, Path path);
 
     void check$java_nio_file_Files$$setOwner(Class<?> callerClass, Path path, UserPrincipal principal);
 
-    // hand-wired methods
+    // file system providers
     void checkNewInputStream(Class<?> callerClass, FileSystemProvider that, Path path, OpenOption... options);
 }

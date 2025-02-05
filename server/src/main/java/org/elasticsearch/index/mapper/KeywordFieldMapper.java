@@ -67,6 +67,7 @@ import org.elasticsearch.search.runtime.StringScriptFieldRegexpQuery;
 import org.elasticsearch.search.runtime.StringScriptFieldTermQuery;
 import org.elasticsearch.search.runtime.StringScriptFieldWildcardQuery;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -74,6 +75,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -738,8 +740,52 @@ public final class KeywordFieldMapper extends FieldMapper {
             if (isStored()) {
                 return new BlockStoredFieldsReader.BytesFromBytesRefsBlockLoader(name());
             }
+
+            if (isSyntheticSource) {
+                return new FallbackSyntheticSourceBlockLoader(fallbackSyntheticSourceBlockLoaderReader(), name()) {
+                    @Override
+                    public Builder builder(BlockFactory factory, int expectedCount) {
+                        return factory.bytesRefs(expectedCount);
+                    }
+                };
+            }
+
             SourceValueFetcher fetcher = sourceValueFetcher(blContext.sourcePaths(name()));
             return new BlockSourceReader.BytesRefsBlockLoader(fetcher, sourceBlockLoaderLookup(blContext));
+        }
+
+        private FallbackSyntheticSourceBlockLoader.Reader<?> fallbackSyntheticSourceBlockLoaderReader() {
+            var nullValueBytes = nullValue != null ? new BytesRef(nullValue) : null;
+            return new FallbackSyntheticSourceBlockLoader.ReaderWithNullValueSupport<>(nullValueBytes) {
+                @Override
+                public void convertValue(Object value, List<BytesRef> accumulator) {
+                    String stringValue = ((BytesRef) value).utf8ToString();
+                    String adjusted = applyIgnoreAboveAndNormalizer(stringValue);
+                    if (adjusted != null) {
+                        // TODO what if the value didn't change?
+                        accumulator.add(new BytesRef(adjusted));
+                    }
+                }
+
+                @Override
+                public void parseNonNullValue(XContentParser parser, List<BytesRef> accumulator) throws IOException {
+                    assert parser.currentToken() == XContentParser.Token.VALUE_STRING : "Unexpected token " + parser.currentToken();
+
+                    var value = applyIgnoreAboveAndNormalizer(parser.text());
+                    if (value != null) {
+                        accumulator.add(new BytesRef(value));
+                    }
+                }
+
+                @Override
+                public void writeToBlock(List<BytesRef> values, BlockLoader.Builder blockBuilder) {
+                    var bytesRefBuilder = (BlockLoader.BytesRefBuilder) blockBuilder;
+
+                    for (var value : values) {
+                        bytesRefBuilder.appendBytesRef(value);
+                    }
+                }
+            };
         }
 
         private BlockSourceReader.LeafIteratorLookup sourceBlockLoaderLookup(BlockLoaderContext blContext) {
@@ -821,13 +867,17 @@ public final class KeywordFieldMapper extends FieldMapper {
                 @Override
                 protected String parseSourceValue(Object value) {
                     String keywordValue = value.toString();
-                    if (keywordValue.length() > ignoreAbove) {
-                        return null;
-                    }
-
-                    return normalizeValue(normalizer(), name(), keywordValue);
+                    return applyIgnoreAboveAndNormalizer(keywordValue);
                 }
             };
+        }
+
+        private String applyIgnoreAboveAndNormalizer(String value) {
+            if (value.length() > ignoreAbove) {
+                return null;
+            }
+
+            return normalizeValue(normalizer(), name(), value);
         }
 
         @Override

@@ -61,7 +61,7 @@ public class OpenAiUnifiedStreamingProcessor extends DelegatingProcessor<Deque<S
 
     private final BiFunction<String, Exception, Exception> errorParser;
     private final Deque<StreamingUnifiedChatCompletionResults.ChatCompletionChunk> buffer = new LinkedBlockingDeque<>();
-    private volatile boolean previousEventWasNotError = true;
+    private volatile boolean previousEventWasError = false;
 
     public OpenAiUnifiedStreamingProcessor(BiFunction<String, Exception, Exception> errorParser) {
         this.errorParser = errorParser;
@@ -83,18 +83,18 @@ public class OpenAiUnifiedStreamingProcessor extends DelegatingProcessor<Deque<S
         var results = new ArrayDeque<StreamingUnifiedChatCompletionResults.ChatCompletionChunk>(item.size());
         for (var event : item) {
             if (ServerSentEventField.EVENT == event.name() && "error".equals(event.value())) {
-                previousEventWasNotError = false;
+                previousEventWasError = true;
             } else if (ServerSentEventField.DATA == event.name() && event.hasValue()) {
-                if (previousEventWasNotError) {
-                    try {
-                        var delta = parse(parserConfig, event);
-                        delta.forEachRemaining(results::offer);
-                    } catch (Exception e) {
-                        logger.warn("Failed to parse event from inference provider: {}", event);
-                        throw errorParser.apply(event.value(), e);
-                    }
-                } else {
+                if (previousEventWasError) {
                     throw errorParser.apply(event.value(), null);
+                }
+
+                try {
+                    var delta = parse(parserConfig, event);
+                    delta.forEachRemaining(results::offer);
+                } catch (Exception e) {
+                    logger.warn("Failed to parse event from inference provider: {}", event);
+                    throw errorParser.apply(event.value(), e);
                 }
             }
         }

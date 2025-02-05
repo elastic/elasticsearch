@@ -68,11 +68,10 @@ public class OpenAiUnifiedChatCompletionResponseHandler extends OpenAiChatComple
     }
 
     private static Exception buildMidStreamError(Request request, String message, Exception e) {
-        var restStatus = RestStatus.OK;
         var errorResponse = OpenAiErrorResponse.fromString(message);
         if (errorResponse instanceof OpenAiErrorResponse oer) {
             return new UnifiedChatCompletionException(
-                restStatus,
+                RestStatus.INTERNAL_SERVER_ERROR,
                 format(
                     "%s for request from inference entity id [%s]. Error message: [%s]",
                     SERVER_ERROR_OBJECT,
@@ -87,7 +86,7 @@ public class OpenAiUnifiedChatCompletionResponseHandler extends OpenAiChatComple
             return UnifiedChatCompletionException.fromThrowable(e);
         } else {
             return new UnifiedChatCompletionException(
-                restStatus,
+                RestStatus.INTERNAL_SERVER_ERROR,
                 format("%s for request from inference entity id [%s]", SERVER_ERROR_OBJECT, request.getInferenceEntityId()),
                 errorResponse != null ? errorResponse.getClass().getSimpleName() : "unknown",
                 "stream_error"

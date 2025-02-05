@@ -179,7 +179,6 @@ public class TransportVersions {
 
     public static final TransportVersion REMOVE_DESIRED_NODE_VERSION = def(9_004_0_00);
 
-
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _

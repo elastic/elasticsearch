@@ -42,6 +42,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Objects;
 import java.util.concurrent.Executor;
+import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
@@ -65,9 +66,10 @@ public class StatelessPersistedClusterStateService extends PersistedClusterState
         Supplier<StatelessElectionStrategy> electionStrategySupplier,
         Supplier<ObjectStoreService> objectStoreServiceSupplier,
         ThreadPool threadPool,
-        CompatibilityVersions compatibilityVersions
+        CompatibilityVersions compatibilityVersions,
+        BooleanSupplier supportsMultipleProjects
     ) {
-        super(nodeEnvironment, namedXContentRegistry, clusterSettings, relativeTimeMillisSupplier);
+        super(nodeEnvironment, namedXContentRegistry, clusterSettings, relativeTimeMillisSupplier, supportsMultipleProjects);
         this.objectStoreServiceSupplier = objectStoreServiceSupplier;
         this.threadPool = threadPool;
         this.nodeEnvironment = nodeEnvironment;

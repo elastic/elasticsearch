@@ -143,6 +143,7 @@ import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingRoleStrategy;
@@ -322,6 +323,7 @@ public class Stateless extends Plugin
     private final SetOnce<BlobCacheMetrics> blobCacheMetrics = new SetOnce<>();
     private final SetOnce<IndicesService> indicesService = new SetOnce<>();
     private final SetOnce<Predicate<ShardId>> skipMerges = new SetOnce<>();
+    private final SetOnce<ProjectResolver> projectResolver = new SetOnce<>();
     private final boolean sharedCachedSettingExplicitlySet;
 
     private final boolean sharedCacheMmapExplicitlySet;
@@ -449,6 +451,7 @@ public class Stateless extends Plugin
 
     @Override
     public Collection<Object> createComponents(PluginServices services) {
+        this.projectResolver.set(services.projectResolver());
         Client client = services.client();
         ClusterService clusterService = services.clusterService();
         ThreadPool threadPool = setAndGet(this.threadPool, services.threadPool());
@@ -1429,7 +1432,8 @@ public class Stateless extends Plugin
                     electionStrategy::get,
                     objectStoreService::get,
                     threadPool,
-                    compatibilityVersions
+                    compatibilityVersions,
+                    () -> projectResolver.get().supportsMultipleProjects()
                 )
         );
     }

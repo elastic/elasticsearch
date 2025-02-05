@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.SimpleBatchedExecutor;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
@@ -36,6 +37,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.gateway.GatewayService;
@@ -113,7 +115,9 @@ public class RemoveRefreshClusterBlockService implements ClusterStateListener {
         if (event.localNodeMaster() == false || event.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
             return;
         }
-        var blockedIndices = event.state().blocks().indices(ClusterBlockLevel.REFRESH).keySet();
+        @FixForMultiProject(description = "we may want to loop through all active projects")
+        final var projectId = Metadata.DEFAULT_PROJECT_ID;
+        var blockedIndices = event.state().blocks().indices(projectId, ClusterBlockLevel.REFRESH).keySet();
         if (blockedIndices.isEmpty()) {
             return;
         }
@@ -124,12 +128,12 @@ public class RemoveRefreshClusterBlockService implements ClusterStateListener {
             scheduleExpiration = addRefreshBlockExpirationEntry(event.state(), blockedIndices);
 
         } else if (event.metadataChanged()) {
-            var previousBlockedIndices = event.previousState().blocks().indices(ClusterBlockLevel.REFRESH).keySet();
+            var previousBlockedIndices = event.previousState().blocks().indices(projectId, ClusterBlockLevel.REFRESH).keySet();
 
             var newBlockedIndices = Sets.difference(blockedIndices, previousBlockedIndices);
             if (newBlockedIndices.isEmpty() == false) {
                 logger.debug("Found [{}] new indices with refresh block: {}", newBlockedIndices.size(), newBlockedIndices);
-                assert newBlockedIndices.stream().allMatch(index -> event.previousState().metadata().hasIndex(index) == false);
+                assert newBlockedIndices.stream().allMatch(index -> event.previousState().metadata().getProject().hasIndex(index) == false);
                 scheduleExpiration = addRefreshBlockExpirationEntry(event.state(), newBlockedIndices);
             }
 
@@ -137,7 +141,7 @@ public class RemoveRefreshClusterBlockService implements ClusterStateListener {
                 logger.debug("Found [{}] existing indices with refresh block, checking replicas", previousBlockedIndices.size());
                 Set<Index> blocksToRemove = null;
                 for (var previous : previousBlockedIndices) {
-                    var indexMetadata = event.state().metadata().index(previous);
+                    var indexMetadata = event.state().metadata().getProject().index(previous);
                     if (indexMetadata != null && indexMetadata.getNumberOfReplicas() == 0) {
                         logger.debug("Found index {} with refresh block but no replicas, removing block", indexMetadata.getIndex());
                         if (blocksToRemove == null) {
@@ -159,7 +163,7 @@ public class RemoveRefreshClusterBlockService implements ClusterStateListener {
         if (event.routingTableChanged()) {
             Set<Index> blocksToRemove = new HashSet<>();
             for (String blockedIndex : blockedIndices) {
-                if (event.indexRoutingTableChanged(blockedIndex)) {
+                if (event.indexRoutingTableChanged(event.state().metadata().getProject().index(blockedIndex).getIndex())) {
                     var indexRoutingTable = event.state().routingTable().index(blockedIndex);
                     if (indexRoutingTable.readyForSearch()) {
                         blocksToRemove.add(indexRoutingTable.getIndex());
@@ -185,7 +189,7 @@ public class RemoveRefreshClusterBlockService implements ClusterStateListener {
 
         boolean scheduleExpiration = false;
         for (var index : indices) {
-            var indexMetadata = clusterState.metadata().index(index);
+            var indexMetadata = clusterState.metadata().getProject().index(index);
             assert clusterState.blocks().hasIndexBlock(index, IndexMetadata.INDEX_REFRESH_BLOCK) : index;
 
             refreshBlocks.add(new RefreshBlockExpiration(indexMetadata.getIndex(), timestampInMillis));
@@ -324,7 +328,9 @@ public class RemoveRefreshClusterBlockService implements ClusterStateListener {
                     updatedBlocks = ClusterBlocks.builder(currentState.blocks());
                 }
                 logger.trace("{} Removing expired refresh block from cluster state", index);
-                updatedBlocks.removeIndexBlock(index.getName(), IndexMetadata.INDEX_REFRESH_BLOCK);
+                @FixForMultiProject
+                final var projectId = Metadata.DEFAULT_PROJECT_ID;
+                updatedBlocks.removeIndexBlock(projectId, index.getName(), IndexMetadata.INDEX_REFRESH_BLOCK);
             }
             if (updatedBlocks != null) {
                 return ClusterState.builder(currentState).blocks(updatedBlocks).build();

@@ -956,6 +956,11 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     // nio
 
     @Override
+    public void check$java_nio_file_Files$$getOwner(Class<?> callerClass, Path path) {
+        policyManager.checkFileRead(callerClass, path);
+    }
+
+    @Override
     public void check$java_nio_file_Files$$probeContentType(Class<?> callerClass, Path path) {
         policyManager.checkFileRead(callerClass, path);
     }

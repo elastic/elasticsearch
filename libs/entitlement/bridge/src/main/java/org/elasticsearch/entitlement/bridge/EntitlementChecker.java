@@ -501,6 +501,8 @@ public interface EntitlementChecker {
     void check$java_util_Scanner$(Class<?> callerClass, File source, Charset charset);
 
     // nio
+    void check$java_nio_file_Files$$getOwner(Class<?> callerClass, Path path);
+
     void check$java_nio_file_Files$$probeContentType(Class<?> callerClass, Path path);
 
     void check$java_nio_file_Files$$setOwner(Class<?> callerClass, Path path, UserPrincipal principal);

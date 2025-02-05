@@ -489,10 +489,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         private boolean indexSortConfigByHostName(final IndexSortConfig indexSortConfig) {
-            if (indexSortConfig == null) {
-                return false;
-            }
-            return Arrays.stream(indexSortConfig.getFieldSortSpecs()).anyMatch(fieldSortSpec -> HOST_NAME.equals(fieldSortSpec.getField()));
+            return indexSortConfig != null && indexSortConfig.hasIndexSort() && indexSortConfig.hasSortOnFiled(HOST_NAME);
         }
     }
 

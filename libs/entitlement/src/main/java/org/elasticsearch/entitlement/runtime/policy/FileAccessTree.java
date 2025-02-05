@@ -21,16 +21,7 @@ import static org.elasticsearch.core.PathUtils.getDefaultFileSystem;
 
 public final class FileAccessTree {
     public static final FileAccessTree EMPTY = new FileAccessTree(List.of());
-    private static final char FILE_SEPARATOR;
-
-    static {
-        String separator = getDefaultFileSystem().getSeparator();
-        if (separator.length() == 1) {
-            FILE_SEPARATOR = separator.charAt(0);
-        } else {
-            throw new IllegalStateException("Multi-character file separator not supported: [" + separator + "]");
-        }
-    }
+    private static final String FILE_SEPARATOR = getDefaultFileSystem().getSeparator();
 
     private final String[] readPaths;
     private final String[] writePaths;
@@ -82,7 +73,7 @@ public final class FileAccessTree {
         int ndx = Arrays.binarySearch(paths, path);
         if (ndx < -1) {
             String maybeParent = paths[-ndx - 2];
-            return path.startsWith(maybeParent) && path.charAt(maybeParent.length()) == FILE_SEPARATOR;
+            return path.startsWith(maybeParent) && path.startsWith(FILE_SEPARATOR, maybeParent.length());
         }
         return ndx >= 0;
     }

@@ -33,8 +33,6 @@ import javax.lang.model.util.Elements;
 
 import static java.util.stream.Collectors.joining;
 import static org.elasticsearch.compute.gen.AggregatorImplementer.firstUpper;
-import static org.elasticsearch.compute.gen.AggregatorImplementer.valueBlockType;
-import static org.elasticsearch.compute.gen.AggregatorImplementer.valueVectorType;
 import static org.elasticsearch.compute.gen.Methods.findMethod;
 import static org.elasticsearch.compute.gen.Methods.findRequiredMethod;
 import static org.elasticsearch.compute.gen.Methods.vectorAccessorName;
@@ -180,10 +178,10 @@ public class GroupingAggregatorImplementer {
         builder.addMethod(intermediateStateDesc());
         builder.addMethod(intermediateBlockCount());
         builder.addMethod(prepareProcessPage());
-        builder.addMethod(addRawInputLoop(INT_VECTOR, valueBlockType(init, combine)));
-        builder.addMethod(addRawInputLoop(INT_VECTOR, valueVectorType(init, combine)));
-        builder.addMethod(addRawInputLoop(INT_BLOCK, valueBlockType(init, combine)));
-        builder.addMethod(addRawInputLoop(INT_BLOCK, valueVectorType(init, combine)));
+        builder.addMethod(addRawInputLoop(INT_VECTOR, Types.blockType(AggregatorImplementer.valueType(init, combine))));
+        builder.addMethod(addRawInputLoop(INT_VECTOR, Types.vectorType(AggregatorImplementer.valueType(init, combine))));
+        builder.addMethod(addRawInputLoop(INT_BLOCK, Types.blockType(AggregatorImplementer.valueType(init, combine))));
+        builder.addMethod(addRawInputLoop(INT_BLOCK, Types.vectorType(AggregatorImplementer.valueType(init, combine))));
         builder.addMethod(selectedMayContainUnseenGroups());
         builder.addMethod(addIntermediateInput());
         builder.addMethod(addIntermediateRowInput());
@@ -301,8 +299,8 @@ public class GroupingAggregatorImplementer {
         builder.addAnnotation(Override.class).addModifiers(Modifier.PUBLIC).returns(GROUPING_AGGREGATOR_FUNCTION_ADD_INPUT);
         builder.addParameter(SEEN_GROUP_IDS, "seenGroupIds").addParameter(PAGE, "page");
 
-        builder.addStatement("$T valuesBlock = page.getBlock(channels.get(0))", valueBlockType(init, combine));
-        builder.addStatement("$T valuesVector = valuesBlock.asVector()", valueVectorType(init, combine));
+        builder.addStatement("$T valuesBlock = page.getBlock(channels.get(0))", Types.blockType(AggregatorImplementer.valueType(init, combine)));
+        builder.addStatement("$T valuesVector = valuesBlock.asVector()", Types.vectorType(AggregatorImplementer.valueType(init, combine)));
         if (includeTimestampVector) {
             builder.addStatement("$T timestampsBlock = page.getBlock(channels.get(1))", LONG_BLOCK);
             builder.addStatement("$T timestampsVector = timestampsBlock.asVector()", LONG_VECTOR);

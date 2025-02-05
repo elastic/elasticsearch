@@ -688,7 +688,7 @@ public final class IndexSettings {
     public static final FeatureFlag DOC_VALUES_SPARSE_INDEX = new FeatureFlag("doc_values_sparse_index");
     public static final Setting<Boolean> USE_DOC_VALUES_SPARSE_INDEX = Setting.boolSetting(
         "index.mapping.use_doc_values_sparse_index",
-        false,
+        IndexSettings.DOC_VALUES_SPARSE_INDEX.isEnabled(),
         Property.IndexScope,
         Property.Final
     );

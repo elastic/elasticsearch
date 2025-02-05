@@ -1007,21 +1007,6 @@ setup:
 ---
 "Querying_inference_fields with semantic_text legacy format":
   - do:
-      inference.put:
-        task_type: sparse_embedding
-        inference_id: sparse-inference-id
-        body: >
-          {
-            "service": "test_service",
-            "service_settings": {
-              "model": "my_model",
-              "api_key": "abc64"
-            },
-            "task_settings": {
-            }
-          }
-
-  - do:
       indices.create:
         index: test-index
         body:

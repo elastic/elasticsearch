@@ -67,7 +67,7 @@ public class RestUnifiedCompletionInferenceActionTests extends RestActionTestCas
             """;
 
         RestRequest inferenceRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
-            .withPath("_inference/chat_completion/test/_stream")
+            .withPath("_inference/chat_completion/test/_unified")
             .withContent(new BytesArray(requestBody), XContentType.JSON)
             .build();
 

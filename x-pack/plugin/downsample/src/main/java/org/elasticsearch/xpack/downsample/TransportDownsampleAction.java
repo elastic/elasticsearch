@@ -788,10 +788,8 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         } else {
             var supported = getSupportedMetrics(metricType, fieldProperties);
 
-            String[] supportedMetricsArray = supported.supportedMetrics.toArray(String[]::new);
-
             builder.field("type", AggregateMetricDoubleFieldMapper.CONTENT_TYPE)
-                .array(AggregateMetricDoubleFieldMapper.Names.METRICS, supportedMetricsArray)
+                .stringListField(AggregateMetricDoubleFieldMapper.Names.METRICS, supported.supportedMetrics)
                 .field(AggregateMetricDoubleFieldMapper.Names.DEFAULT_METRIC, supported.defaultMetric)
                 .field(TIME_SERIES_METRIC_PARAM, metricType);
         }

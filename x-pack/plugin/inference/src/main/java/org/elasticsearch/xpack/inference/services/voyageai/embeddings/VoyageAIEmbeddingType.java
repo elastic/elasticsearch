@@ -102,20 +102,4 @@ public enum VoyageAIEmbeddingType {
     public DenseVectorFieldMapper.ElementType toElementType() {
         return elementType;
     }
-
-    /**
-     * Returns an embedding type that is known based on the transport version provided. If the embedding type enum was not yet
-     * introduced it will be defaulted INT8.
-     *
-     * @param embeddingType the value to translate if necessary
-     * @param version the version that dictates the translation
-     * @return the embedding type that is known to the version passed in
-     */
-    public static VoyageAIEmbeddingType translateToVersion(VoyageAIEmbeddingType embeddingType, TransportVersion version) {
-        if (version.before(TransportVersions.V_8_14_0) && embeddingType == BYTE) {
-            return INT8;
-        }
-
-        return embeddingType;
-    }
 }

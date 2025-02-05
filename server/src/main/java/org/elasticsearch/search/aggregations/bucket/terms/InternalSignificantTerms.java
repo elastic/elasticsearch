@@ -72,7 +72,7 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
         /**
          * Read from a stream.
          */
-        protected Bucket(StreamInput in, DocValueFormat format) {
+        protected Bucket(DocValueFormat format) {
             this.format = format;
         }
 

@@ -396,6 +396,8 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/121465
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
   issue: https://github.com/elastic/elasticsearch/issues/121411
+- class: org.elasticsearch.xpack.migrate.action.ReindexDatastreamIndexTransportActionIT
+  issue: https://github.com/elastic/elasticsearch/issues/121737
 
 # Examples:
 #

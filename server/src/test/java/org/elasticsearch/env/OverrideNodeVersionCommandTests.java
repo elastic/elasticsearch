@@ -53,7 +53,7 @@ public class OverrideNodeVersionCommandTests extends ESTestCase {
                     xContentRegistry(),
                     new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
                     () -> 0L,
-                    randomBoolean()
+                    ESTestCase::randomBoolean
                 ).createWriter()
             ) {
                 writer.writeFullStateAndCommit(
@@ -80,7 +80,7 @@ public class OverrideNodeVersionCommandTests extends ESTestCase {
                     xContentRegistry(),
                     new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
                     () -> 0L,
-                    randomBoolean()
+                    ESTestCase::randomBoolean
                 ).loadBestOnDiskState().metadata.persistentSettings()
             )
         );

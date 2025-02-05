@@ -53,6 +53,7 @@ import org.elasticsearch.index.translog.TestTranslog;
 import org.elasticsearch.index.translog.TranslogCorruptedException;
 import org.elasticsearch.test.CorruptionUtils;
 import org.elasticsearch.test.DummyShardLock;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -153,7 +154,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
                     xContentRegistry(),
                     new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
                     () -> 0L,
-                    randomBoolean()
+                    ESTestCase::randomBoolean
                 ).createWriter()
             ) {
                 writer.writeFullStateAndCommit(1L, clusterState);

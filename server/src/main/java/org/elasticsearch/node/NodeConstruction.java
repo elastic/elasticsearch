@@ -1578,7 +1578,7 @@ class NodeConstruction {
                     xContentRegistry,
                     clusterSettings,
                     threadPool.relativeTimeInMillisSupplier(),
-                    projectResolver.supportsMultipleProjects()
+                    projectResolver::supportsMultipleProjects
                 )
             );
 

@@ -136,7 +136,7 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
             namedXContentRegistry,
             new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
             () -> 0L,
-            supportMultipleProjects
+            () -> supportMultipleProjects
         );
         return persistedClusterStateService;
     }

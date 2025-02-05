@@ -322,7 +322,7 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
             xContentRegistry(),
             new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
             () -> 0L,
-            randomBoolean()
+            ESTestCase::randomBoolean
         );
         final ClusterState state = createClusterState(
             randomNonNegativeLong(),
@@ -354,7 +354,7 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
                     xContentRegistry(),
                     new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
                     () -> 0L,
-                    randomBoolean()
+                    ESTestCase::randomBoolean
                 );
                 final PersistedClusterStateService.OnDiskState onDiskState = newPersistedClusterStateService.loadBestOnDiskState();
                 assertFalse(onDiskState.empty());
@@ -396,7 +396,7 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
                 xContentRegistry(),
                 new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
                 () -> 0L,
-                randomBoolean()
+                ESTestCase::randomBoolean
             );
             gateway.start(
                 settings,
@@ -522,7 +522,7 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
             xContentRegistry(),
             new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
             () -> 0L,
-            randomBoolean()
+            ESTestCase::randomBoolean
         ) {
             @Override
             protected Directory createDirectory(Path path) {
@@ -616,7 +616,7 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
                     xContentRegistry(),
                     new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
                     () -> 0L,
-                    randomBoolean()
+                    ESTestCase::randomBoolean
                 ) {
                     @Override
                     CheckedBiConsumer<Path, DirectoryReader, IOException> getAssertOnCommit() {
@@ -667,7 +667,7 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
                         xContentRegistry(),
                         new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
                         () -> 0L,
-                        randomBoolean()
+                        ESTestCase::randomBoolean
                     ),
                     currentTerm,
                     state
@@ -723,7 +723,7 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
                     xContentRegistry(),
                     new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
                     () -> 0L,
-                    randomBoolean()
+                    ESTestCase::randomBoolean
                 );
                 final PersistedClusterStateService.OnDiskState onDiskState = newPersistedClusterStateService.loadBestOnDiskState();
                 assertFalse("loaded state from " + path, onDiskState.empty());

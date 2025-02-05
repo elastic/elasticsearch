@@ -88,6 +88,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.IntPredicate;
 import java.util.stream.Collectors;
@@ -117,12 +118,12 @@ import static org.hamcrest.Matchers.startsWith;
 public class PersistedClusterStateServiceTests extends ESTestCase {
 
     private PersistedClusterStateService newPersistedClusterStateService(NodeEnvironment nodeEnvironment) {
-        return newPersistedClusterStateService(nodeEnvironment, randomBoolean());
+        return newPersistedClusterStateService(nodeEnvironment, ESTestCase::randomBoolean);
     }
 
     private PersistedClusterStateService newPersistedClusterStateService(
         NodeEnvironment nodeEnvironment,
-        boolean supportsMultipleProjects
+        BooleanSupplier supportsMultipleProjects
     ) {
 
         final Settings.Builder settings = Settings.builder();
@@ -323,7 +324,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                 xContentRegistry(),
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
                 () -> 0L,
-                randomBoolean()
+                ESTestCase::randomBoolean
             ).loadBestOnDiskState()
         ).getMessage();
         assertThat(message, allOf(containsString("belongs to a node with ID"), containsString(nodeIds[0]), containsString(nodeIds[1])));
@@ -496,7 +497,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                 xContentRegistry(),
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
                 () -> 0L,
-                randomBoolean()
+                ESTestCase::randomBoolean
             ) {
                 @Override
                 protected Directory createDirectory(Path path) throws IOException {
@@ -543,7 +544,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                 xContentRegistry(),
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
                 () -> 0L,
-                randomBoolean()
+                ESTestCase::randomBoolean
             ) {
                 @Override
                 protected Directory createDirectory(Path path) throws IOException {
@@ -599,7 +600,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                 xContentRegistry(),
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
                 () -> 0L,
-                randomBoolean()
+                ESTestCase::randomBoolean
             ) {
                 @Override
                 protected Directory createDirectory(Path path) throws IOException {
@@ -789,7 +790,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
 
     public void testPersistsAndReloadsIndexMetadataIffVersionOrTermChanges() throws IOException {
         try (NodeEnvironment nodeEnvironment = newNodeEnvironment(createDataPaths())) {
-            final PersistedClusterStateService persistedClusterStateService = newPersistedClusterStateService(nodeEnvironment, false);
+            final PersistedClusterStateService persistedClusterStateService = newPersistedClusterStateService(nodeEnvironment, () -> false);
             final long globalVersion = randomLongBetween(1L, Long.MAX_VALUE);
             final String indexUUID = UUIDs.randomBase64UUID(random());
             final long indexMetadataVersion = randomLongBetween(1L, Long.MAX_VALUE);
@@ -1279,7 +1280,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                 xContentRegistry(),
                 clusterSettings,
                 () -> currentTime.getAndAdd(writeDurationMillis.get()),
-                randomBoolean()
+                ESTestCase::randomBoolean
             );
 
             try (Writer writer = persistedClusterStateService.createWriter()) {
@@ -1804,7 +1805,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
         try (NodeEnvironment nodeEnvironment = newNodeEnvironment(new Path[] { dataPath })) {
             final PersistedClusterStateService persistedClusterStateService = newPersistedClusterStateService(
                 nodeEnvironment,
-                supportsMultipleProjects
+                () -> supportsMultipleProjects
             );
             try (Writer writer = persistedClusterStateService.createWriter()) {
 

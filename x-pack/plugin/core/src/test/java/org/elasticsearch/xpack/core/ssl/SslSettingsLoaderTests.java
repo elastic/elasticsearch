@@ -347,10 +347,7 @@ public class SslSettingsLoaderTests extends ESTestCase {
         SslConfiguration sslConfiguration = getSslConfiguration(settings);
         assertThat(sslConfiguration.keyConfig(), instanceOf(StoreKeyConfig.class));
         StoreKeyConfig ksKeyInfo = (StoreKeyConfig) sslConfiguration.keyConfig();
-        assertThat(
-            ksKeyInfo,
-            equalTo(new StoreKeyConfig(path, PASSWORD, type, null, KEYPASS, KEY_MGR_ALGORITHM, environment.configDir()))
-        );
+        assertThat(ksKeyInfo, equalTo(new StoreKeyConfig(path, PASSWORD, type, null, KEYPASS, KEY_MGR_ALGORITHM, environment.configDir())));
     }
 
     public void testThatEmptySettingsAreEqual() {

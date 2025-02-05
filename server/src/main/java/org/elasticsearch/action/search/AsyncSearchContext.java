@@ -20,7 +20,6 @@ import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
@@ -75,8 +74,8 @@ public abstract class AsyncSearchContext<Result extends SearchPhaseResult> {
     protected final SearchTransportService searchTransportService;
     protected final Executor executor;
 
-    protected final GroupShardsIterator<SearchShardIterator> toSkipShardsIts;
-    protected final GroupShardsIterator<SearchShardIterator> shardsIts;
+    protected final List<SearchShardIterator> toSkipShardsIts;
+    protected final List<SearchShardIterator> shardsIts;
     protected final SearchShardIterator[] shardIterators;
 
     protected final SetOnce<AtomicArray<ShardSearchFailure>> shardFailures = new SetOnce<>();
@@ -104,7 +103,7 @@ public abstract class AsyncSearchContext<Result extends SearchPhaseResult> {
         SearchTransportService searchTransportService,
         Executor executor,
         BiFunction<String, String, Transport.Connection> nodeIdToConnection,
-        GroupShardsIterator<SearchShardIterator> shardsIts,
+        List<SearchShardIterator> shardsIts,
         Map<String, AliasFilter> aliasFilter,
         Map<String, Float> concreteIndexBoosts,
         TransportSearchAction.SearchTimeProvider timeProvider,
@@ -120,9 +119,9 @@ public abstract class AsyncSearchContext<Result extends SearchPhaseResult> {
                 iterators.add(iterator);
             }
         }
-        this.toSkipShardsIts = new GroupShardsIterator<>(toSkipIterators);
+        this.toSkipShardsIts = toSkipIterators;
         this.successfulOps.setRelease(toSkipIterators.size());
-        this.shardsIts = new GroupShardsIterator<>(iterators);
+        this.shardsIts = iterators;
 
         this.shardIterators = iterators.toArray(new SearchShardIterator[0]);
         // we later compute the shard index based on the natural order of the shards
@@ -155,8 +154,8 @@ public abstract class AsyncSearchContext<Result extends SearchPhaseResult> {
         SearchSourceBuilder sourceBuilder
     ) {
         progressListener.notifyListShards(
-            SearchProgressListener.buildSearchShards(this.shardsIts),
-            SearchProgressListener.buildSearchShards(toSkipShardsIts),
+            SearchProgressListener.buildSearchShardsFromIter(this.shardsIts),
+            SearchProgressListener.buildSearchShardsFromIter(toSkipShardsIts),
             clusters,
             sourceBuilder == null || sourceBuilder.size() > 0,
             timeProvider

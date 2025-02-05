@@ -26,7 +26,6 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -110,7 +109,7 @@ public class SearchQueryThenFetchAsyncAction<Result extends SearchPhaseResult> e
         SearchPhaseResults<Result> resultConsumer,
         SearchRequest request,
         ActionListener<SearchResponse> listener,
-        GroupShardsIterator<SearchShardIterator> shardsIts,
+        List<SearchShardIterator> shardsIts,
         TransportSearchAction.SearchTimeProvider timeProvider,
         ClusterState clusterState,
         SearchTask task,

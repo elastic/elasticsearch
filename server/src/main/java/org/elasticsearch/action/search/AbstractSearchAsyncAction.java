@@ -19,7 +19,6 @@ import org.elasticsearch.action.search.TransportSearchAction.SearchTimeProvider;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.util.Maps;
@@ -33,6 +32,7 @@ import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.transport.Transport;
 
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -47,9 +47,9 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.core.Strings.format;
 
 /**
- * This is an abstract base class that encapsulates the logic to fan out to all shards in provided {@link GroupShardsIterator}
+ * This is an abstract base class that encapsulates the logic to fan out to all shards in provided {@link List<SearchShardIterator>}
  * and collect the results. If a shard request returns a failure this class handles the advance to the next replica of the shard until
- * the shards replica iterator is exhausted. Each shard is referenced by position in the {@link GroupShardsIterator} which is later
+ * the shards replica iterator is exhausted. Each shard is referenced by position in the {@link List<SearchShardIterator>} which is later
  * referred to as the {@code shardIndex}.
  * The fan out and collect algorithm is traditionally used as the initial phase which can either be a query execution or collection of
  * distributed frequencies
@@ -77,7 +77,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         Executor executor,
         SearchRequest request,
         ActionListener<SearchResponse> listener,
-        GroupShardsIterator<SearchShardIterator> shardsIts,
+        List<SearchShardIterator> shardsIts,
         SearchTimeProvider timeProvider,
         ClusterState clusterState,
         SearchTask task,
@@ -119,14 +119,14 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             + "]. Consider using `allow_partial_search_results` setting to bypass this error.";
     }
 
-    protected void doCheckNoMissingShards(String phaseName, SearchRequest request, GroupShardsIterator<SearchShardIterator> shardsIts) {
+    protected void doCheckNoMissingShards(String phaseName, SearchRequest request, List<SearchShardIterator> shardsIts) {
         doCheckNoMissingShards(phaseName, request, shardsIts, this::missingShardsErrorMessage);
     }
 
     protected static void doCheckNoMissingShards(
         String phaseName,
         SearchRequest request,
-        GroupShardsIterator<SearchShardIterator> shardsIts,
+        List<SearchShardIterator> shardsIts,
         Function<StringBuilder, String> makeErrorMessage
     ) {
         assert request.allowPartialSearchResults() != null : "SearchRequest missing setting for allowPartialSearchResults";

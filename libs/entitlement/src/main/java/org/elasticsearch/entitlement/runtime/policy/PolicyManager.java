@@ -50,9 +50,9 @@ import static java.util.stream.Collectors.toUnmodifiableMap;
 public class PolicyManager {
     private static final Logger logger = LogManager.getLogger(PolicyManager.class);
 
-    public static final String UNKNOWN_COMPONENT_NAME = "(unknown)";
-    public static final String SERVER_COMPONENT_NAME = "(server)";
-    public static final String APM_AGENT_COMPONENT_NAME = "(APM agent)";
+    static final String UNKNOWN_COMPONENT_NAME = "(unknown)";
+    static final String SERVER_COMPONENT_NAME = "(server)";
+    static final String APM_AGENT_COMPONENT_NAME = "(APM agent)";
 
     /**
      * @param componentName the plugin name; or else one of the special component names

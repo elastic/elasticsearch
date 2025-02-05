@@ -142,11 +142,6 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
 
     record LookupIdx(String idxName, String key, String keyType) {}
 
-    /**
-     * index name, index key
-     * <p>
-     * Returns only indexes with a keyword key
-     */
     private List<LookupIdx> lookupIndices() {
         List<LookupIdx> result = new ArrayList<>();
         // we don't have key info from the dataset loader, let's hardcode it for now

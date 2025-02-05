@@ -6,15 +6,15 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.UpdateForV9;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ContextParser;
 import org.elasticsearch.xcontent.ObjectParser.ValueType;
@@ -34,7 +34,7 @@ import java.util.TreeMap;
  * particular point in the lifecycle of an index.
  */
 public class Phase implements ToXContentObject, Writeable {
-    private static final Logger logger = LogManager.getLogger(Phase.class);
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(Phase.class);
 
     public static final ParseField MIN_AGE = new ParseField("min_age");
     public static final ParseField ACTIONS_FIELD = new ParseField("actions");
@@ -51,19 +51,12 @@ public class Phase implements ToXContentObject, Writeable {
         return new Phase(name, (TimeValue) a[0], map);
     });
     static {
-        PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(), (ContextParser<String, Object>) (p, c) -> {
-            // In earlier versions it was possible to create a Phase with a negative `min_age` which would then cause errors
-            // when the phase is read from the cluster state during startup (even before negative timevalues were strictly
-            // disallowed) so this is a hack to treat negative `min_age`s as 0 to prevent those errors.
-            // They will be saved as `0` so this hack can be removed once we no longer have to read cluster states from 7.x.
-            @UpdateForV9(owner = UpdateForV9.Owner.DATA_MANAGEMENT) // remove this hack now that we don't have to read 7.x cluster states
-            final String timeValueString = p.text();
-            if (timeValueString.startsWith("-")) {
-                logger.warn("phase has negative min_age value of [{}] - this will be treated as a min_age of 0", timeValueString);
-                return TimeValue.ZERO;
-            }
-            return TimeValue.parseTimeValue(timeValueString, MIN_AGE.getPreferredName());
-        }, MIN_AGE, ValueType.VALUE);
+        PARSER.declareField(
+            ConstructingObjectParser.optionalConstructorArg(),
+            (ContextParser<String, Object>) (p, c) -> TimeValue.parseTimeValue(p.text(), MIN_AGE.getPreferredName()),
+            MIN_AGE,
+            ValueType.VALUE
+        );
         PARSER.declareNamedObjects(
             ConstructingObjectParser.constructorArg(),
             (p, c, n) -> p.namedObject(LifecycleAction.class, n, null),
@@ -181,6 +174,22 @@ public class Phase implements ToXContentObject, Writeable {
     @Override
     public String toString() {
         return Strings.toString(this, true, true);
+    }
+
+    @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
+    public boolean maybeAddDeprecationWarningForFreezeAction(String policyName) {
+        if (getActions().containsKey(FreezeAction.NAME)) {
+            deprecationLogger.warn(
+                DeprecationCategory.OTHER,
+                "ilm_freeze_action_deprecation",
+                "The freeze action in ILM is deprecated and will be removed in a future version;"
+                    + " this action is already a noop so it can be safely removed. Please remove the freeze action from the '"
+                    + policyName
+                    + "' policy."
+            );
+            return true;
+        }
+        return false;
     }
 
 }

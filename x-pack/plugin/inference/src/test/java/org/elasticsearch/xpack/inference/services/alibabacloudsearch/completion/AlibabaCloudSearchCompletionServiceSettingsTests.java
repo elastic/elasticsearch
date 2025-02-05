@@ -8,9 +8,7 @@
 package org.elasticsearch.xpack.inference.services.alibabacloudsearch.completion;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.AlibabaCloudSearchServiceSettings;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.AlibabaCloudSearchServiceSettingsTests;
 import org.hamcrest.MatcherAssert;
@@ -29,10 +27,6 @@ public class AlibabaCloudSearchCompletionServiceSettingsTests extends AbstractWi
     }
 
     public void testFromMap() {
-        var url = "https://www.abc.com";
-        var similarity = SimilarityMeasure.DOT_PRODUCT.toString();
-        var dims = 1536;
-        var maxInputTokens = 512;
         var model = "model";
         var host = "host";
         var workspaceName = "default";
@@ -40,14 +34,6 @@ public class AlibabaCloudSearchCompletionServiceSettingsTests extends AbstractWi
         var serviceSettings = AlibabaCloudSearchCompletionServiceSettings.fromMap(
             new HashMap<>(
                 Map.of(
-                    ServiceFields.URL,
-                    url,
-                    ServiceFields.SIMILARITY,
-                    similarity,
-                    ServiceFields.DIMENSIONS,
-                    dims,
-                    ServiceFields.MAX_INPUT_TOKENS,
-                    maxInputTokens,
                     AlibabaCloudSearchServiceSettings.HOST,
                     host,
                     AlibabaCloudSearchServiceSettings.SERVICE_ID,

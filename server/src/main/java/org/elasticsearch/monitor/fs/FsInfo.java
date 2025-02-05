@@ -102,14 +102,14 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
         }
 
         public void setEffectiveWatermarks(final DiskThresholdSettings masterThresholdSettings, boolean isDedicatedFrozenNode) {
-            lowWatermarkFreeSpace = masterThresholdSettings.getFreeBytesThresholdLowStage(new ByteSizeValue(total, ByteSizeUnit.BYTES));
-            highWatermarkFreeSpace = masterThresholdSettings.getFreeBytesThresholdHighStage(new ByteSizeValue(total, ByteSizeUnit.BYTES));
+            lowWatermarkFreeSpace = masterThresholdSettings.getFreeBytesThresholdLowStage(ByteSizeValue.of(total, ByteSizeUnit.BYTES));
+            highWatermarkFreeSpace = masterThresholdSettings.getFreeBytesThresholdHighStage(ByteSizeValue.of(total, ByteSizeUnit.BYTES));
             floodStageWatermarkFreeSpace = masterThresholdSettings.getFreeBytesThresholdFloodStage(
-                new ByteSizeValue(total, ByteSizeUnit.BYTES)
+                ByteSizeValue.of(total, ByteSizeUnit.BYTES)
             );
             if (isDedicatedFrozenNode) {
                 frozenFloodStageWatermarkFreeSpace = masterThresholdSettings.getFreeBytesThresholdFrozenFloodStage(
-                    new ByteSizeValue(total, ByteSizeUnit.BYTES)
+                    ByteSizeValue.of(total, ByteSizeUnit.BYTES)
                 );
             }
         }

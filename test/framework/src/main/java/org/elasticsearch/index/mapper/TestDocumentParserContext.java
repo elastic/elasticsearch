@@ -70,7 +70,6 @@ public class TestDocumentParserContext extends DocumentParserContext {
                 }
             ),
             source,
-            DocumentParser.Listeners.NOOP,
             mappingLookup.getMapping().getRoot(),
             ObjectMapper.Dynamic.getRootDynamic(mappingLookup)
         );

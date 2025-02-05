@@ -43,14 +43,7 @@ public class EsqlUsageTransportAction extends XPackUsageFeatureTransportAction {
         IndexNameExpressionResolver indexNameExpressionResolver,
         Client client
     ) {
-        super(
-            XPackUsageFeatureAction.ESQL.name(),
-            transportService,
-            clusterService,
-            threadPool,
-            actionFilters,
-            indexNameExpressionResolver
-        );
+        super(XPackUsageFeatureAction.ESQL.name(), transportService, clusterService, threadPool, actionFilters);
         this.client = client;
     }
 

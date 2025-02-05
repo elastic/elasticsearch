@@ -62,6 +62,7 @@ public class TransportGetDataStreamsAction extends TransportMasterNodeReadAction
     GetDataStreamAction.Response> {
 
     private static final Logger LOGGER = LogManager.getLogger(TransportGetDataStreamsAction.class);
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final SystemIndices systemIndices;
     private final ClusterSettings clusterSettings;
     private final DataStreamGlobalRetentionSettings globalRetentionSettings;
@@ -87,10 +88,10 @@ public class TransportGetDataStreamsAction extends TransportMasterNodeReadAction
             threadPool,
             actionFilters,
             GetDataStreamAction.Request::new,
-            indexNameExpressionResolver,
             GetDataStreamAction.Response::new,
             transportService.getThreadPool().executor(ThreadPool.Names.MANAGEMENT)
         );
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.systemIndices = systemIndices;
         this.globalRetentionSettings = globalRetentionSettings;
         clusterSettings = clusterService.getClusterSettings();
@@ -207,8 +208,8 @@ public class TransportGetDataStreamsAction extends TransportMasterNodeReadAction
             Map<Index, IndexProperties> backingIndicesSettingsValues = new HashMap<>();
             Metadata metadata = state.getMetadata();
             collectIndexSettingsValues(dataStream, backingIndicesSettingsValues, metadata, dataStream.getIndices());
-            if (DataStream.isFailureStoreFeatureFlagEnabled() && dataStream.getFailureIndices().getIndices().isEmpty() == false) {
-                collectIndexSettingsValues(dataStream, backingIndicesSettingsValues, metadata, dataStream.getFailureIndices().getIndices());
+            if (DataStream.isFailureStoreFeatureFlagEnabled() && dataStream.getFailureIndices().isEmpty() == false) {
+                collectIndexSettingsValues(dataStream, backingIndicesSettingsValues, metadata, dataStream.getFailureIndices());
             }
 
             GetDataStreamAction.Response.TimeSeries timeSeries = null;

@@ -13,12 +13,17 @@ import fixture.geoip.GeoIpHttpFixture;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 
 import org.apache.http.util.EntityUtils;
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.client.Request;
-import org.elasticsearch.core.UpdateForV9;
+import org.elasticsearch.client.RequestOptions;
+import org.elasticsearch.client.Response;
+import org.elasticsearch.client.WarningsHandler;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
+import org.elasticsearch.test.cluster.util.Version;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.upgrades.FullClusterRestartUpgradeStatus;
 import org.elasticsearch.upgrades.ParameterizedFullClusterRestartTestCase;
@@ -27,30 +32,45 @@ import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Base64;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
-import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.is;
 
-@UpdateForV9(owner = UpdateForV9.Owner.DATA_MANAGEMENT)
-@LuceneTestCase.AwaitsFix(bugUrl = "we need to figure out the index migrations here for 9.0")
 public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCase {
 
     private static final boolean useFixture = Boolean.getBoolean("geoip_use_service") == false;
 
-    private static GeoIpHttpFixture fixture = new GeoIpHttpFixture(useFixture);
+    private static final GeoIpHttpFixture fixture = new GeoIpHttpFixture(useFixture);
 
-    private static ElasticsearchCluster cluster = ElasticsearchCluster.local()
+    // e.g. use ./gradlew -Dtests.jvm.argline="-Dgeoip_test_with_security=false" ":modules:ingest-geoip:qa:full-cluster-restart:check"
+    // to set this to false, if you so desire
+    private static final boolean useSecurity = Boolean.parseBoolean(System.getProperty("geoip_test_with_security", "true"));
+
+    private static final ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
-        .version(getOldClusterTestVersion())
+        .version(Version.fromString(OLD_CLUSTER_VERSION))
         .nodes(2)
-        .setting("indices.memory.shard_inactive_time", "60m")
-        .setting("xpack.security.enabled", "false")
         .setting("ingest.geoip.downloader.endpoint", () -> fixture.getAddress(), s -> useFixture)
+        .setting("xpack.security.enabled", useSecurity ? "true" : "false")
         .feature(FeatureFlag.TIME_SERIES_MODE)
         .build();
+
+    @Override
+    protected Settings restClientSettings() {
+        Settings settings = super.restClientSettings();
+        if (useSecurity) {
+            String token = "Basic " + Base64.getEncoder().encodeToString("test_user:x-pack-test-password".getBytes(StandardCharsets.UTF_8));
+            settings = Settings.builder().put(settings).put(ThreadContext.PREFIX + ".Authorization", token).build();
+        }
+        return settings;
+    }
 
     @ClassRule
     public static TestRule ruleChain = RuleChain.outerRule(fixture).around(cluster);
@@ -65,6 +85,9 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
     }
 
     public void testGeoIpSystemFeaturesMigration() throws Exception {
+        final List<String> maybeSecurityIndex = useSecurity ? List.of(".security-7") : List.of();
+        final List<String> maybeSecurityIndexReindexed = useSecurity ? List.of(".security-7-reindexed-for-10") : List.of();
+
         if (isRunningAgainstOldCluster()) {
             Request enableDownloader = new Request("PUT", "/_cluster/settings");
             enableDownloader.setJsonEntity("""
@@ -91,14 +114,27 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
             assertBusy(() -> testDatabasesLoaded(), 30, TimeUnit.SECONDS);
 
             // the geoip index should be created
-            assertBusy(() -> testCatIndices(".geoip_databases"));
+            assertBusy(() -> testCatIndices(List.of(".geoip_databases"), maybeSecurityIndex));
             assertBusy(() -> testIndexGeoDoc());
+
+            // before the upgrade, Kibana should work
+            assertBusy(() -> testGetStarAsKibana(List.of("my-index-00001"), maybeSecurityIndex));
         } else {
+            // after the upgrade, but before the migration, Kibana should work
+            assertBusy(() -> testGetStarAsKibana(List.of("my-index-00001"), maybeSecurityIndex));
+
+            // migrate the system features and give the cluster a moment to settle
             Request migrateSystemFeatures = new Request("POST", "/_migration/system_features");
             assertOK(client().performRequest(migrateSystemFeatures));
+            ensureHealth(request -> request.addParameter("wait_for_status", "yellow"));
 
-            assertBusy(() -> testCatIndices(".geoip_databases-reindexed-for-8", "my-index-00001"));
+            assertBusy(() -> testCatIndices(List.of(".geoip_databases-reindexed-for-10", "my-index-00001"), maybeSecurityIndexReindexed));
             assertBusy(() -> testIndexGeoDoc());
+
+            // after the migration, Kibana should work
+            if (useSecurity == false) { // BUT IT DOESN'T if security is enabled
+                assertBusy(() -> testGetStarAsKibana(List.of("my-index-00001"), maybeSecurityIndexReindexed));
+            }
 
             Request disableDownloader = new Request("PUT", "/_cluster/settings");
             disableDownloader.setJsonEntity("""
@@ -107,7 +143,7 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
             assertOK(client().performRequest(disableDownloader));
 
             // the geoip index should be deleted
-            assertBusy(() -> testCatIndices("my-index-00001"));
+            assertBusy(() -> testCatIndices(List.of("my-index-00001"), maybeSecurityIndexReindexed));
 
             Request enableDownloader = new Request("PUT", "/_cluster/settings");
             enableDownloader.setJsonEntity("""
@@ -119,7 +155,7 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
             assertBusy(() -> testDatabasesLoaded(), 30, TimeUnit.SECONDS);
 
             // the geoip index should be recreated
-            assertBusy(() -> testCatIndices(".geoip_databases", "my-index-00001"));
+            assertBusy(() -> testCatIndices(List.of(".geoip_databases", "my-index-00001"), maybeSecurityIndexReindexed));
             assertBusy(() -> testIndexGeoDoc());
         }
     }
@@ -151,11 +187,17 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
         }
     }
 
-    private void testCatIndices(String... indexNames) throws IOException {
+    private void testCatIndices(List<String> indexNames, @Nullable List<String> additionalIndexNames) throws IOException {
         Request catIndices = new Request("GET", "_cat/indices/*?s=index&h=index&expand_wildcards=all");
         String response = EntityUtils.toString(client().performRequest(catIndices).getEntity());
         List<String> indices = List.of(response.trim().split("\\s+"));
-        assertThat(indices, contains(indexNames));
+
+        if (additionalIndexNames != null && additionalIndexNames.isEmpty() == false) {
+            indexNames = new ArrayList<>(indexNames); // recopy into a mutable list
+            indexNames.addAll(additionalIndexNames);
+        }
+
+        assertThat(new HashSet<>(indices), is(new HashSet<>(indexNames)));
     }
 
     private void testIndexGeoDoc() throws IOException {
@@ -169,5 +211,24 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
         ObjectPath doc = ObjectPath.createFromResponse(client().performRequest(getDoc));
         assertNull(doc.evaluate("_source.tags"));
         assertEquals("Sweden", doc.evaluate("_source.geo.country_name"));
+    }
+
+    private void testGetStarAsKibana(List<String> indexNames, @Nullable List<String> additionalIndexNames) throws IOException {
+        Request getStar = new Request("GET", "*?expand_wildcards=all");
+        getStar.setOptions(
+            RequestOptions.DEFAULT.toBuilder()
+                .addHeader("X-elastic-product-origin", "kibana")
+                .setWarningsHandler(WarningsHandler.PERMISSIVE) // we don't care about warnings, just errors
+        );
+        Response response = client().performRequest(getStar);
+        assertOK(response);
+
+        if (additionalIndexNames != null && additionalIndexNames.isEmpty() == false) {
+            indexNames = new ArrayList<>(indexNames); // recopy into a mutable list
+            indexNames.addAll(additionalIndexNames);
+        }
+
+        Map<String, Object> map = responseAsMap(response);
+        assertThat(map.keySet(), is(new HashSet<>(indexNames)));
     }
 }

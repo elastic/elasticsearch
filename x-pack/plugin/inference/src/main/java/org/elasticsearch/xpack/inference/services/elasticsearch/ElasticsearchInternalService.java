@@ -20,21 +20,18 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
-import org.elasticsearch.inference.EmptySettingsConfiguration;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
+import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.SettingsConfiguration;
-import org.elasticsearch.inference.TaskSettingsConfiguration;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
-import org.elasticsearch.inference.configuration.SettingsConfigurationDisplayType;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
-import org.elasticsearch.inference.configuration.SettingsConfigurationSelectOption;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
@@ -42,7 +39,6 @@ import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.action.GetDeploymentStatsAction;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
-import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentStats;
 import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.MlTextEmbeddingResults;
@@ -71,7 +67,6 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.core.inference.results.ResultUtils.createInvalidChunkedResultException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMap;
@@ -82,7 +77,6 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsup
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalServiceSettings.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalServiceSettings.NUM_ALLOCATIONS;
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalServiceSettings.NUM_THREADS;
-import static org.elasticsearch.xpack.inference.services.elasticsearch.ElserModels.ELSER_V1_MODEL;
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElserModels.ELSER_V2_MODEL;
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElserModels.ELSER_V2_MODEL_LINUX_X86;
 
@@ -105,6 +99,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
     public static final String DEFAULT_E5_ID = ".multilingual-e5-small-elasticsearch";
     public static final String DEFAULT_RERANK_ID = ".rerank-v1-elasticsearch";
 
+    private static final String SERVICE_NAME = "Elasticsearch";
     private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(
         TaskType.RERANK,
         TaskType.TEXT_EMBEDDING,
@@ -138,7 +133,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         Map<String, Object> config,
         ActionListener<Model> modelListener
     ) {
-        if (inferenceEntityId.equals(DEFAULT_ELSER_ID)) {
+        if (isDefaultId(inferenceEntityId)) {
             modelListener.onFailure(
                 new ElasticsearchStatusException(
                     "[{}] is a reserved inference Id. Cannot create a new inference endpoint with a reserved Id",
@@ -566,6 +561,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
             model.getServiceSettings().getNumThreads(),
             model.getServiceSettings().modelId(),
             model.getServiceSettings().getAdaptiveAllocationsSettings(),
+            model.getServiceSettings().getDeploymentId(),
             embeddingSize,
             model.getServiceSettings().similarity(),
             model.getServiceSettings().elementType()
@@ -833,9 +829,9 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
 
     public List<DefaultConfigId> defaultConfigIds() {
         return List.of(
-            new DefaultConfigId(DEFAULT_ELSER_ID, TaskType.SPARSE_EMBEDDING, this),
-            new DefaultConfigId(DEFAULT_E5_ID, TaskType.TEXT_EMBEDDING, this),
-            new DefaultConfigId(DEFAULT_RERANK_ID, TaskType.RERANK, this)
+            new DefaultConfigId(DEFAULT_ELSER_ID, ElserInternalServiceSettings.minimalServiceSettings(), this),
+            new DefaultConfigId(DEFAULT_E5_ID, MultilingualE5SmallInternalServiceSettings.minimalServiceSettings(), this),
+            new DefaultConfigId(DEFAULT_RERANK_ID, MinimalServiceSettings.rerank(), this)
         );
     }
 
@@ -907,12 +903,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
             DEFAULT_ELSER_ID,
             TaskType.SPARSE_EMBEDDING,
             NAME,
-            new ElserInternalServiceSettings(
-                null,
-                1,
-                useLinuxOptimizedModel ? ELSER_V2_MODEL_LINUX_X86 : ELSER_V2_MODEL,
-                new AdaptiveAllocationsSettings(Boolean.TRUE, 0, 32)
-            ),
+            ElserInternalServiceSettings.defaultEndpointSettings(useLinuxOptimizedModel),
             ElserMlNodeTaskSettings.DEFAULT,
             ChunkingSettingsBuilder.DEFAULT_SETTINGS
         );
@@ -920,19 +911,14 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
             DEFAULT_E5_ID,
             TaskType.TEXT_EMBEDDING,
             NAME,
-            new MultilingualE5SmallInternalServiceSettings(
-                null,
-                1,
-                useLinuxOptimizedModel ? MULTILINGUAL_E5_SMALL_MODEL_ID_LINUX_X86 : MULTILINGUAL_E5_SMALL_MODEL_ID,
-                new AdaptiveAllocationsSettings(Boolean.TRUE, 0, 32)
-            ),
+            MultilingualE5SmallInternalServiceSettings.defaultEndpointSettings(useLinuxOptimizedModel),
             ChunkingSettingsBuilder.DEFAULT_SETTINGS
         );
         var defaultRerank = new ElasticRerankerModel(
             DEFAULT_RERANK_ID,
             TaskType.RERANK,
             NAME,
-            new ElasticRerankerServiceSettings(null, 1, RERANKER_ID, new AdaptiveAllocationsSettings(Boolean.TRUE, 0, 32)),
+            ElasticRerankerServiceSettings.defaultEndpointSettings(),
             RerankTaskSettings.DEFAULT_SETTINGS
         );
         return List.of(defaultElser, defaultE5, defaultRerank);
@@ -1152,61 +1138,46 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
 
                 configurationMap.put(
                     MODEL_ID,
-                    new SettingsConfiguration.Builder().setDisplay(SettingsConfigurationDisplayType.DROPDOWN)
+                    new SettingsConfiguration.Builder(supportedTaskTypes).setDescription(
+                        "The name of the model to use for the inference task."
+                    )
                         .setLabel("Model ID")
-                        .setOrder(1)
                         .setRequired(true)
                         .setSensitive(false)
-                        .setTooltip("The name of the model to use for the inference task.")
+                        .setUpdatable(false)
                         .setType(SettingsConfigurationFieldType.STRING)
-                        .setOptions(
-                            Stream.of(
-                                ELSER_V1_MODEL,
-                                ELSER_V2_MODEL,
-                                ELSER_V2_MODEL_LINUX_X86,
-                                MULTILINGUAL_E5_SMALL_MODEL_ID,
-                                MULTILINGUAL_E5_SMALL_MODEL_ID_LINUX_X86
-                            ).map(v -> new SettingsConfigurationSelectOption.Builder().setLabelAndValue(v).build()).toList()
-                        )
-                        .setDefaultValue(MULTILINGUAL_E5_SMALL_MODEL_ID)
                         .build()
                 );
 
                 configurationMap.put(
                     NUM_ALLOCATIONS,
-                    new SettingsConfiguration.Builder().setDisplay(SettingsConfigurationDisplayType.NUMERIC)
+                    new SettingsConfiguration.Builder(supportedTaskTypes).setDefaultValue(1)
+                        .setDescription("The total number of allocations this model is assigned across machine learning nodes.")
                         .setLabel("Number Allocations")
-                        .setOrder(2)
                         .setRequired(true)
                         .setSensitive(false)
-                        .setTooltip("The total number of allocations this model is assigned across machine learning nodes.")
+                        .setUpdatable(true)
                         .setType(SettingsConfigurationFieldType.INTEGER)
-                        .setDefaultValue(1)
                         .build()
                 );
 
                 configurationMap.put(
                     NUM_THREADS,
-                    new SettingsConfiguration.Builder().setDisplay(SettingsConfigurationDisplayType.NUMERIC)
+                    new SettingsConfiguration.Builder(supportedTaskTypes).setDefaultValue(2)
+                        .setDescription("Sets the number of threads used by each model allocation during inference.")
                         .setLabel("Number Threads")
-                        .setOrder(3)
                         .setRequired(true)
                         .setSensitive(false)
-                        .setTooltip("Sets the number of threads used by each model allocation during inference.")
+                        .setUpdatable(false)
                         .setType(SettingsConfigurationFieldType.INTEGER)
-                        .setDefaultValue(2)
                         .build()
                 );
 
-                return new InferenceServiceConfiguration.Builder().setProvider(NAME).setTaskTypes(supportedTaskTypes.stream().map(t -> {
-                    Map<String, SettingsConfiguration> taskSettingsConfig;
-                    switch (t) {
-                        case RERANK -> taskSettingsConfig = CustomElandRerankModel.Configuration.get();
-                        // SPARSE_EMBEDDING, TEXT_EMBEDDING task types have no task settings
-                        default -> taskSettingsConfig = EmptySettingsConfiguration.get();
-                    }
-                    return new TaskSettingsConfiguration.Builder().setTaskType(t).setConfiguration(taskSettingsConfig).build();
-                }).toList()).setConfiguration(configurationMap).build();
+                return new InferenceServiceConfiguration.Builder().setService(NAME)
+                    .setName(SERVICE_NAME)
+                    .setTaskTypes(supportedTaskTypes)
+                    .setConfigurations(configurationMap)
+                    .build();
             }
         );
     }

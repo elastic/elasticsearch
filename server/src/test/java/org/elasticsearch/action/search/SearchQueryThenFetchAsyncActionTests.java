@@ -207,7 +207,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                 protected SearchPhase getNextPhase() {
                     return new SearchPhase("test") {
                         @Override
-                        public void run() {
+                        protected void run() {
                             latch.countDown();
                         }
                     };
@@ -220,7 +220,6 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                 assertFalse(canReturnNullResponse.get());
                 assertThat(numWithTopDocs.get(), equalTo(0));
             } else {
-                assertTrue(canReturnNullResponse.get());
                 if (withCollapse) {
                     assertThat(numWithTopDocs.get(), equalTo(0));
                 } else {

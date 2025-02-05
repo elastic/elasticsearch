@@ -86,6 +86,24 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
                 fileSystemOperations
             );
         });
+
+        // Also set up the "main" project which is just used for arbitrary overrides. See InternalDistributionDownloadPlugin.
+        if (System.getProperty("tests.bwc.main.version") != null) {
+            configureBwcProject(
+                project.project(":distribution:bwc:main"),
+                buildParams,
+                new BwcVersions.UnreleasedVersionInfo(
+                    Version.fromString(System.getProperty("tests.bwc.main.version")),
+                    "main",
+                    ":distribution:bwc:main"
+                ),
+                providerFactory,
+                objectFactory,
+                toolChainService,
+                isCi,
+                fileSystemOperations
+            );
+        }
     }
 
     private static void configureBwcProject(
@@ -131,11 +149,13 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
         // We don't use a normal `Copy` task here as snapshotting the entire gradle user home is very expensive. This task is cheap, so
         // up-to-date checking doesn't buy us much
         project.getTasks().register("setupGradleUserHome", task -> {
+            File gradleUserHome = project.getGradle().getGradleUserHomeDir();
+            String projectName = project.getName();
             task.doLast(t -> {
                 fileSystemOperations.copy(copy -> {
-                    String gradleUserHome = project.getGradle().getGradleUserHomeDir().getAbsolutePath();
-                    copy.into(gradleUserHome + "-" + project.getName());
-                    copy.from(gradleUserHome, copySpec -> {
+                    String absoluteGradleUserHomePath = gradleUserHome.getAbsolutePath();
+                    copy.into(absoluteGradleUserHomePath + "-" + projectName);
+                    copy.from(absoluteGradleUserHomePath, copySpec -> {
                         copySpec.include("gradle.properties");
                         copySpec.include("init.d/*");
                     });

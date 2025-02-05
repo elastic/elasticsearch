@@ -133,7 +133,7 @@ mc:l | count:l
 
 multiIndexIpString
 required_capability: union_types
-required_capability: metadata_fields
+required_capability: index_metadata_field
 required_capability: casting_operator
 required_capability: union_types_remove_fields
 
@@ -162,7 +162,7 @@ sample_data_str | 2023-10-23T12:15:03.360Z  |  172.21.2.162  |  3450233         
 
 multiIndexIpStringRename
 required_capability: union_types
-required_capability: metadata_fields
+required_capability: index_metadata_field
 required_capability: casting_operator
 required_capability: union_types_remove_fields
 
@@ -191,7 +191,7 @@ sample_data_str | 2023-10-23T12:15:03.360Z  |  172.21.2.162  |  3450233         
 
 multiIndexIpStringRenameToString
 required_capability: union_types
-required_capability: metadata_fields
+required_capability: index_metadata_field
 required_capability: union_types_remove_fields
 
 FROM sample_data, sample_data_str METADATA _index
@@ -219,7 +219,7 @@ sample_data_str | 2023-10-23T12:15:03.360Z  |  172.21.2.162     |  3450233      
 
 multiIndexWhereIpString
 required_capability: union_types
-required_capability: metadata_fields
+required_capability: index_metadata_field
 required_capability: union_types_remove_fields
 
 FROM sample_data, sample_data_str METADATA _index
@@ -237,7 +237,7 @@ sample_data_str | 2023-10-23T12:15:03.360Z  |  3450233              |  Connected
 
 multiIndexWhereIpStringLike
 required_capability: union_types
-required_capability: metadata_fields
+required_capability: index_metadata_field
 required_capability: union_types_remove_fields
 
 FROM sample_data, sample_data_str METADATA _index
@@ -263,8 +263,8 @@ FROM sample_data, sample_data_str
 | LIMIT 1
 ;
 
-@timestamp:date           |  client_ip:null  |  event_duration:long  |  message:keyword
-2023-10-23T13:33:34.937Z  |  null            |  1232382              |  Disconnected
+@timestamp:date           |  client_ip:unsupported  |  event_duration:long  |  message:keyword
+2023-10-23T13:33:34.937Z  |  null                   |  1232382              |  Disconnected
 ;
 
 multiIndexSortIpStringEval
@@ -278,8 +278,8 @@ FROM sample_data, sample_data_str
 | LIMIT 1
 ;
 
-@timestamp:date           |  client_ip:null  |  event_duration:long  |  message:keyword | client_ip_as_ip:ip
-2023-10-23T13:33:34.937Z  |  null            |  1232382              |  Disconnected    | 172.21.0.5
+@timestamp:date           |  client_ip:unsupported  |  event_duration:long  |  message:keyword | client_ip_as_ip:ip
+2023-10-23T13:33:34.937Z  |  null                   |  1232382              |  Disconnected    | 172.21.0.5
 ;
 
 multiIndexIpStringStats
@@ -445,6 +445,7 @@ count:long  |  message:keyword
 
 multiIndexMissingIpToString
 required_capability: union_types
+required_capability: index_metadata_field
 required_capability: union_types_missing_field
 
 FROM sample_data, sample_data_str, missing_ip_sample_data METADATA _index
@@ -479,6 +480,7 @@ sample_data_str        | 2023-10-23T12:15:03.360Z  |  172.21.2.162       |  3450
 
 multiIndexMissingIpToIp
 required_capability: union_types
+required_capability: index_metadata_field
 required_capability: union_types_missing_field
 
 FROM sample_data, sample_data_str, missing_ip_sample_data METADATA _index
@@ -513,7 +515,7 @@ sample_data_str        | 2023-10-23T12:15:03.360Z  |  172.21.2.162  |  3450233  
 
 multiIndexTsLong
 required_capability: union_types
-required_capability: metadata_fields
+required_capability: index_metadata_field
 required_capability: union_types_remove_fields
 
 FROM sample_data, sample_data_ts_long METADATA _index
@@ -541,7 +543,7 @@ sample_data_ts_long | 2023-10-23T12:15:03.360Z  |  172.21.2.162  |  3450233     
 
 multiIndexTsLongRename
 required_capability: union_types
-required_capability: metadata_fields
+required_capability: index_metadata_field
 required_capability: union_types_remove_fields
 
 FROM sample_data, sample_data_ts_long METADATA _index
@@ -571,7 +573,7 @@ sample_data_ts_long | 2023-10-23T12:15:03.360Z  |  172.21.2.162  |  3450233     
 multiIndexTsNanosRename
 required_capability: to_date_nanos
 required_capability: union_types
-required_capability: metadata_fields
+required_capability: index_metadata_field
 required_capability: union_types_remove_fields
 
 FROM sample_data, sample_data_ts_nanos METADATA _index
@@ -600,7 +602,7 @@ sample_data_ts_nanos | 2023-10-23T12:15:03.360Z  |  172.21.2.162  |  3450233    
 multiIndexTsNanosRenameToNanos
 required_capability: to_date_nanos
 required_capability: union_types
-required_capability: metadata_fields
+required_capability: index_metadata_field
 required_capability: union_types_remove_fields
 
 FROM sample_data, sample_data_ts_nanos METADATA _index
@@ -629,7 +631,7 @@ sample_data_ts_nanos | 2023-10-23T12:15:03.360123456Z  |  172.21.2.162  |  34502
 multiIndex sort millis and nanos as nanos
 required_capability: to_date_nanos
 required_capability: union_types
-required_capability: metadata_fields
+required_capability: index_metadata_field
 required_capability: union_types_remove_fields
 
 FROM sample_data, sample_data_ts_nanos METADATA _index
@@ -658,7 +660,7 @@ sample_data          | 2023-10-23T12:15:03.360000000Z  |  172.21.2.162  |  34502
 multiIndex sort millis and nanos as millis
 required_capability: to_date_nanos
 required_capability: union_types
-required_capability: metadata_fields
+required_capability: index_metadata_field
 required_capability: union_types_remove_fields
 
 FROM sample_data, sample_data_ts_nanos METADATA _index
@@ -689,7 +691,7 @@ multiIndexTsNanosRenameToNanosWithFiltering
 required_capability: to_date_nanos
 required_capability: date_nanos_binary_comparison
 required_capability: union_types
-required_capability: metadata_fields
+required_capability: index_metadata_field
 required_capability: union_types_remove_fields
 
 FROM sample_data, sample_data_ts_nanos METADATA _index
@@ -714,7 +716,7 @@ sample_data_ts_nanos | 2023-10-23T13:33:34.937123456Z  |  172.21.0.5    |  12323
 
 multiIndexTsLongRenameToString
 required_capability: union_types
-required_capability: metadata_fields
+required_capability: index_metadata_field
 required_capability: union_types_remove_fields
 
 FROM sample_data, sample_data_ts_long METADATA _index
@@ -742,7 +744,7 @@ sample_data_ts_long | 2023-10-23T12:15:03.360Z  |  172.21.2.162  |  3450233     
 
 multiIndexWhereTsLong
 required_capability: union_types
-required_capability: metadata_fields
+required_capability: index_metadata_field
 required_capability: union_types_remove_fields
 
 FROM sample_data, sample_data_ts_long METADATA _index
@@ -977,7 +979,7 @@ count:long  |  message:keyword
 
 multiIndexIpStringTsLong
 required_capability: union_types
-required_capability: metadata_fields
+required_capability: index_metadata_field
 required_capability: union_types_remove_fields
 required_capability: to_date_nanos
 
@@ -1020,7 +1022,7 @@ sample_data_ts_nanos | 2023-10-23T12:15:03.360Z  |  172.21.2.162  |  3450233    
 
 multiIndexIpStringTsLongDropped
 required_capability: union_types
-required_capability: metadata_fields
+required_capability: index_metadata_field
 required_capability: to_date_nanos
 
 FROM sample_data* METADATA _index
@@ -1062,7 +1064,7 @@ sample_data_ts_nanos |  8268153              |  Connection error
 
 multiIndexIpStringTsLongRename
 required_capability: union_types
-required_capability: metadata_fields
+required_capability: index_metadata_field
 required_capability: union_types_remove_fields
 required_capability: to_date_nanos
 
@@ -1105,7 +1107,7 @@ sample_data_ts_nanos | 2023-10-23T12:15:03.360Z  |  172.21.2.162  |  3450233    
 
 multiIndexIpStringTsLongRenameDropped
 required_capability: union_types
-required_capability: metadata_fields
+required_capability: index_metadata_field
 required_capability: to_date_nanos
 
 FROM sample_data* METADATA _index
@@ -1147,7 +1149,7 @@ sample_data_ts_nanos |  8268153              |  Connection error
 
 multiIndexIpStringTsLongRenameToString
 required_capability: union_types
-required_capability: metadata_fields
+required_capability: index_metadata_field
 required_capability: union_types_remove_fields
 required_capability: to_date_nanos
 
@@ -1190,7 +1192,7 @@ sample_data_ts_nanos | 2023-10-23T12:15:03.360Z  |  172.21.2.162     |  3450233 
 
 multiIndexWhereIpStringTsLong
 required_capability: union_types
-required_capability: metadata_fields
+required_capability: index_metadata_field
 required_capability: union_types_remove_fields
 required_capability: to_date_nanos
 
@@ -1224,7 +1226,7 @@ count:long  |  message:keyword
 
 multiIndexWhereIpStringLikeTsLong
 required_capability: union_types
-required_capability: metadata_fields
+required_capability: index_metadata_field
 required_capability: union_types_remove_fields
 required_capability: to_date_nanos
 
@@ -1258,7 +1260,7 @@ count:long  |  message:keyword
 
 multiIndexMultiColumnTypesRename
 required_capability: union_types
-required_capability: metadata_fields
+required_capability: index_metadata_field
 required_capability: union_types_remove_fields
 required_capability: to_date_nanos
 
@@ -1268,16 +1270,16 @@ FROM sample_data* METADATA _index
 | SORT _index ASC, ts DESC
 ;
 
-@timestamp:null | client_ip:null | event_duration:long | message:keyword  | _index:keyword       | ts:date                   | ts_str:keyword                 | ts_l:long           |  ip:ip         |  ip_str:k
-null            | null           |  8268153            | Connection error | sample_data          | 2023-10-23T13:52:55.015Z  | 2023-10-23T13:52:55.015Z       | 1698069175015       |  172.21.3.15   |  172.21.3.15
-null            | null           |  8268153            | Connection error | sample_data_str      | 2023-10-23T13:52:55.015Z  | 2023-10-23T13:52:55.015Z       | 1698069175015       |  172.21.3.15   |  172.21.3.15
-null            | null           |  8268153            | Connection error | sample_data_ts_long  | 2023-10-23T13:52:55.015Z  | 1698069175015                  | 1698069175015       |  172.21.3.15   |  172.21.3.15
-null            | null           |  8268153            | Connection error | sample_data_ts_nanos | 2023-10-23T13:52:55.015Z  | 2023-10-23T13:52:55.015123456Z | 1698069175015123456 |  172.21.3.15   |  172.21.3.15
+@timestamp:unsupported | client_ip:unsupported | event_duration:long | message:keyword  | _index:keyword       | ts:date                   | ts_str:keyword                 | ts_l:long           |  ip:ip         |  ip_str:k
+null                   | null                  |  8268153            | Connection error | sample_data          | 2023-10-23T13:52:55.015Z  | 2023-10-23T13:52:55.015Z       | 1698069175015       |  172.21.3.15   |  172.21.3.15
+null                   | null                  |  8268153            | Connection error | sample_data_str      | 2023-10-23T13:52:55.015Z  | 2023-10-23T13:52:55.015Z       | 1698069175015       |  172.21.3.15   |  172.21.3.15
+null                   | null                  |  8268153            | Connection error | sample_data_ts_long  | 2023-10-23T13:52:55.015Z  | 1698069175015                  | 1698069175015       |  172.21.3.15   |  172.21.3.15
+null                   | null                  |  8268153            | Connection error | sample_data_ts_nanos | 2023-10-23T13:52:55.015Z  | 2023-10-23T13:52:55.015123456Z | 1698069175015123456 |  172.21.3.15   |  172.21.3.15
 ;
 
 multiIndexMultiColumnTypesRenameAndKeep
 required_capability: union_types
-required_capability: metadata_fields
+required_capability: index_metadata_field
 required_capability: union_types_remove_fields
 required_capability: to_date_nanos
 
@@ -1297,7 +1299,7 @@ sample_data_ts_nanos | 2023-10-23T13:52:55.015Z  | 2023-10-23T13:52:55.015123456
 
 multiIndexMultiColumnTypesRenameAndDrop
 required_capability: union_types
-required_capability: metadata_fields
+required_capability: index_metadata_field
 required_capability: union_types_remove_fields
 required_capability: to_date_nanos
 
@@ -1373,21 +1375,17 @@ client_ip:ip | event_duration:long |    message:keyword    |    @timestamp:keywo
 # Once INLINESTATS supports expressions in agg functions and groups, convert the group in the inlinestats
 
 multiIndexIndirectUseOfUnionTypesInSort
-// TODO: `union_types` is required only because this makes the test skip in the csv tests; better solution:
-// make the csv tests work with multiple indices.
 required_capability: union_types
 FROM sample_data, sample_data_ts_long
 | SORT client_ip ASC
 | LIMIT 1
 ;
 
-@timestamp:null | client_ip:ip | event_duration:long | message:keyword
-           null | 172.21.0.5   |             1232382 | Disconnected
+@timestamp:unsupported | client_ip:ip | event_duration:long | message:keyword
+           null        | 172.21.0.5   |             1232382 | Disconnected
 ;
 
 multiIndexIndirectUseOfUnionTypesInEval
-// TODO: `union_types` is required only because this makes the test skip in the csv tests; better solution:
-// make the csv tests work with multiple indices.
 required_capability: union_types
 FROM sample_data, sample_data_ts_long
 | EVAL foo = event_duration > 1232381
@@ -1395,13 +1393,11 @@ FROM sample_data, sample_data_ts_long
 | LIMIT 1
 ;
 
-@timestamp:null | client_ip:ip | event_duration:long | message:keyword | foo:boolean
-           null | 172.21.0.5   |             1232382 | Disconnected    | true
+@timestamp:unsupported | client_ip:ip | event_duration:long | message:keyword | foo:boolean
+           null        | 172.21.0.5   |             1232382 | Disconnected    | true
 ;
 
 multiIndexIndirectUseOfUnionTypesInRename
-// TODO: `union_types` is required only because this makes the test skip in the csv tests; better solution:
-// make the csv tests work with multiple indices.
 required_capability: union_types
 required_capability: union_types_fix_rename_resolution
 FROM sample_data, sample_data_ts_long
@@ -1410,13 +1406,11 @@ FROM sample_data, sample_data_ts_long
 | LIMIT 1
 ;
 
-@timestamp:null | client_ip:ip | event_duration:long | event_message:keyword
-           null | 172.21.0.5   |             1232382 | Disconnected
+@timestamp:unsupported | client_ip:ip | event_duration:long | event_message:keyword
+           null        | 172.21.0.5   |             1232382 | Disconnected
 ;
 
 multiIndexIndirectUseOfUnionTypesInKeep
-// TODO: `union_types` is required only because this makes the test skip in the csv tests; better solution:
-// make the csv tests work with multiple indices.
 required_capability: union_types
 FROM sample_data, sample_data_ts_long
 | KEEP client_ip, event_duration, message
@@ -1429,8 +1423,6 @@ client_ip:ip | event_duration:long | message:keyword
 ;
 
 multiIndexIndirectUseOfUnionTypesInWildcardKeep
-// TODO: `union_types` is required only because this makes the test skip in the csv tests; better solution:
-// make the csv tests work with multiple indices.
 required_capability: union_types
 required_capability: union_types_fix_rename_resolution
 FROM sample_data, sample_data_ts_long
@@ -1439,13 +1431,11 @@ FROM sample_data, sample_data_ts_long
 | LIMIT 1
 ;
 
-@timestamp:null | client_ip:ip | event_duration:long | message:keyword
-           null | 172.21.0.5   |             1232382 | Disconnected
+@timestamp:unsupported | client_ip:ip | event_duration:long | message:keyword
+           null        | 172.21.0.5   |             1232382 | Disconnected
 ;
 
 multiIndexIndirectUseOfUnionTypesInWildcardKeep2
-// TODO: `union_types` is required only because this makes the test skip in the csv tests; better solution:
-// make the csv tests work with multiple indices.
 required_capability: union_types
 required_capability: union_types_fix_rename_resolution
 FROM sample_data, sample_data_ts_long
@@ -1454,29 +1444,23 @@ FROM sample_data, sample_data_ts_long
 | LIMIT 1
 ;
 
-@timestamp:null | client_ip:ip | event_duration:long | message:keyword
-           null | 172.21.0.5   |             1232382 | Disconnected
+@timestamp:unsupported | client_ip:ip | event_duration:long | message:keyword
+           null        | 172.21.0.5   |             1232382 | Disconnected
 ;
 
 
 multiIndexUseOfUnionTypesInKeep
-// TODO: `union_types` is required only because this makes the test skip in the csv tests; better solution:
-// make the csv tests work with multiple indices.
-required_capability: union_types
 required_capability: union_types_fix_rename_resolution
 FROM sample_data, sample_data_ts_long
 | KEEP @timestamp
 | LIMIT 1
 ;
 
-@timestamp:null
+@timestamp:unsupported
 null
 ;
 
 multiIndexUseOfUnionTypesInDrop
-// TODO: `union_types` is required only because this makes the test skip in the csv tests; better solution:
-// make the csv tests work with multiple indices.
-required_capability: union_types
 required_capability: union_types_fix_rename_resolution
 FROM sample_data, sample_data_ts_long
 | DROP @timestamp
@@ -1489,8 +1473,6 @@ client_ip:ip | event_duration:long | message:keyword
 ;
 
 multiIndexIndirectUseOfUnionTypesInWildcardDrop
-// TODO: `union_types` is required only because this makes the test skip in the csv tests; better solution:
-// make the csv tests work with multiple indices.
 required_capability: union_types
 required_capability: union_types_fix_rename_resolution
 FROM sample_data, sample_data_ts_long
@@ -1504,21 +1486,17 @@ client_ip:ip | event_duration:long | message:keyword
 ;
 
 multiIndexIndirectUseOfUnionTypesInWhere
-// TODO: `union_types` is required only because this makes the test skip in the csv tests; better solution:
-// make the csv tests work with multiple indices.
 required_capability: union_types
 FROM sample_data, sample_data_ts_long
 | WHERE message == "Disconnected"
 ;
 
-@timestamp:null | client_ip:ip | event_duration:long | message:keyword
-           null | 172.21.0.5   |             1232382 | Disconnected
-           null | 172.21.0.5   |             1232382 | Disconnected
+@timestamp:unsupported | client_ip:ip | event_duration:long | message:keyword
+           null        | 172.21.0.5   |             1232382 | Disconnected
+           null        | 172.21.0.5   |             1232382 | Disconnected
 ;
 
 multiIndexIndirectUseOfUnionTypesInDissect
-// TODO: `union_types` is required only because this makes the test skip in the csv tests; better solution:
-// make the csv tests work with multiple indices.
 required_capability: union_types
 FROM sample_data, sample_data_ts_long
 | DISSECT message "%{foo}"
@@ -1526,13 +1504,11 @@ FROM sample_data, sample_data_ts_long
 | LIMIT 1
 ;
 
-@timestamp:null | client_ip:ip | event_duration:long | message:keyword | foo:keyword
-           null | 172.21.0.5   |             1232382 | Disconnected    | Disconnected
+@timestamp:unsupported | client_ip:ip | event_duration:long | message:keyword | foo:keyword
+           null        | 172.21.0.5   |             1232382 | Disconnected    | Disconnected
 ;
 
 multiIndexIndirectUseOfUnionTypesInGrok
-// TODO: `union_types` is required only because this makes the test skip in the csv tests; better solution:
-// make the csv tests work with multiple indices.
 required_capability: union_types
 FROM sample_data, sample_data_ts_long
 | GROK message "%{WORD:foo}"
@@ -1540,13 +1516,11 @@ FROM sample_data, sample_data_ts_long
 | LIMIT 1
 ;
 
-@timestamp:null | client_ip:ip | event_duration:long | message:keyword | foo:keyword
-           null | 172.21.0.5   |             1232382 | Disconnected    | Disconnected
+@timestamp:unsupported | client_ip:ip | event_duration:long | message:keyword | foo:keyword
+           null        | 172.21.0.5   |             1232382 | Disconnected    | Disconnected
 ;
 
 multiIndexIndirectUseOfUnionTypesInEnrich
-// TODO: `union_types` is required only because this makes the test skip in the csv tests; better solution:
-// make the csv tests work with multiple indices.
 required_capability: union_types
 required_capability: enrich_load
 FROM sample_data, sample_data_ts_long
@@ -1556,13 +1530,11 @@ FROM sample_data, sample_data_ts_long
 | LIMIT 1
 ;
 
-@timestamp:null | event_duration:long | message:keyword | client_ip:keyword | env:keyword
-           null |             1232382 | Disconnected    | 172.21.0.5        | Development
+@timestamp:unsupported | event_duration:long | message:keyword | client_ip:keyword | env:keyword
+           null        |             1232382 | Disconnected    | 172.21.0.5        | Development
 ;
 
 multiIndexIndirectUseOfUnionTypesInStats
-// TODO: `union_types` is required only because this makes the test skip in the csv tests; better solution:
-// make the csv tests work with multiple indices.
 required_capability: union_types
 FROM sample_data, sample_data_ts_long
 | STATS foo = max(event_duration) BY client_ip
@@ -1577,8 +1549,6 @@ foo:long | client_ip:ip
 ;
 
 multiIndexIndirectUseOfUnionTypesInInlineStats-Ignore
-// TODO: `union_types` is required only because this makes the test skip in the csv tests; better solution:
-// make the csv tests work with multiple indices.
 required_capability: union_types
 required_capability: inlinestats
 FROM sample_data, sample_data_ts_long
@@ -1587,13 +1557,11 @@ FROM sample_data, sample_data_ts_long
 | LIMIT 1
 ;
 
-@timestamp:null | client_ip:ip | event_duration:long | message:keyword | foo:long
-           null | 172.21.0.5   |             1232382 | Disconnected    |  8268153
+@timestamp:unsupported | client_ip:ip | event_duration:long | message:keyword | foo:long
+           null        | 172.21.0.5   |             1232382 | Disconnected    |  8268153
 ;
 
 multiIndexIndirectUseOfUnionTypesInLookup-Ignore
-// TODO: `union_types` is required only because this makes the test skip in the csv tests; better solution:
-// make the csv tests work with multiple indices.
 required_capability: union_types
 required_capability: lookup_v4
 FROM sample_data, sample_data_ts_long
@@ -1603,13 +1571,11 @@ FROM sample_data, sample_data_ts_long
 | LOOKUP_🐔 int_number_names ON int
 ;
 
-@timestamp:null | client_ip:ip | event_duration:long | message:keyword | int:integer | name:keyword
-           null | 172.21.0.5   |             1232382 | Disconnected    |           2 | two
+@timestamp:unsupported | client_ip:ip | event_duration:long | message:keyword | int:integer | name:keyword
+           null        | 172.21.0.5   |             1232382 | Disconnected    |           2 | two
 ;
 
 multiIndexIndirectUseOfUnionTypesInMvExpand
-// TODO: `union_types` is required only because this makes the test skip in the csv tests; better solution:
-// make the csv tests work with multiple indices.
 required_capability: union_types
 FROM sample_data, sample_data_ts_long
 | EVAL foo = MV_APPEND(message, message)
@@ -1618,14 +1584,14 @@ FROM sample_data, sample_data_ts_long
 | MV_EXPAND foo
 ;
 
-@timestamp:null | client_ip:ip | event_duration:long | message:keyword | foo:keyword
-           null | 172.21.0.5   |             1232382 | Disconnected    | Disconnected
-           null | 172.21.0.5   |             1232382 | Disconnected    | Disconnected
+@timestamp:unsupported | client_ip:ip | event_duration:long | message:keyword | foo:keyword
+           null        | 172.21.0.5   |             1232382 | Disconnected    | Disconnected
+           null        | 172.21.0.5   |             1232382 | Disconnected    | Disconnected
 ;
 
 shortIntegerWidening
 required_capability: union_types
-required_capability: metadata_fields
+required_capability: index_metadata_field
 required_capability: casting_operator
 required_capability: union_types_numeric_widening
 

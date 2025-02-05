@@ -8,9 +8,6 @@
 package org.elasticsearch.xpack.searchablesnapshots;
 
 import org.apache.lucene.search.TotalHits;
-import org.apache.lucene.store.ByteBuffersDirectory;
-import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.FilterDirectory;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainRequest;
 import org.elasticsearch.action.admin.cluster.allocation.TransportClusterAllocationExplainAction;
@@ -72,14 +69,11 @@ import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_RECOVERY_STATE_FACTORY_KEY;
-import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.oneOf;
 import static org.hamcrest.Matchers.sameInstance;
@@ -258,22 +252,8 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
 
             // the original shard size from the snapshot
             final long originalSize = snapshotShards.get(shardRouting.getId()).getStats().getTotalSize();
-            totalExpectedSize += originalSize;
-
-            final Directory unwrappedDir = FilterDirectory.unwrap(
-                internalCluster().getInstance(IndicesService.class, getDiscoveryNodes().resolveNode(shardRouting.currentNodeId()).getName())
-                    .indexServiceSafe(shardRouting.index())
-                    .getShard(shardRouting.getId())
-                    .store()
-                    .directory()
-            );
-            assertThat(shardRouting.toString(), unwrappedDir, notNullValue());
-            assertThat(shardRouting.toString(), unwrappedDir, instanceOf(ByteBuffersDirectory.class));
-
-            final ByteBuffersDirectory inMemoryDir = (ByteBuffersDirectory) unwrappedDir;
-            assertThat(inMemoryDir.listAll(), arrayWithSize(0));
-
             assertThat(shardRouting.toString(), store.totalDataSetSizeInBytes(), equalTo(originalSize));
+            totalExpectedSize += originalSize;
         }
 
         final StoreStats store = indicesStatsResponse.getTotal().getStore();
@@ -318,17 +298,17 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
         );
 
         if (deletedBeforeMount) {
-            assertThat(indicesAdmin().prepareGetAliases(aliasName).get().getAliases().size(), equalTo(0));
+            assertThat(indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, aliasName).get().getAliases().size(), equalTo(0));
             assertAcked(indicesAdmin().prepareAliases().addAlias(restoredIndexName, aliasName));
         } else if (indexName.equals(restoredIndexName) == false) {
-            assertThat(indicesAdmin().prepareGetAliases(aliasName).get().getAliases().size(), equalTo(1));
+            assertThat(indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, aliasName).get().getAliases().size(), equalTo(1));
             assertAcked(
                 indicesAdmin().prepareAliases()
                     .addAliasAction(IndicesAliasesRequest.AliasActions.remove().index(indexName).alias(aliasName).mustExist(true))
                     .addAlias(restoredIndexName, aliasName)
             );
         }
-        assertThat(indicesAdmin().prepareGetAliases(aliasName).get().getAliases().size(), equalTo(1));
+        assertThat(indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, aliasName).get().getAliases().size(), equalTo(1));
         assertTotalHits(aliasName, originalAllHits, originalBarHits);
 
         final var request = new ClusterAllocationExplainRequest(TEST_REQUEST_TIMEOUT).setIndex(restoredIndexName)
@@ -422,7 +402,7 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
         assertFalse(clonedIndexSettings.hasValue(IndexModule.INDEX_RECOVERY_TYPE_SETTING.getKey()));
 
         assertAcked(indicesAdmin().prepareDelete(restoredIndexName));
-        assertThat(indicesAdmin().prepareGetAliases(aliasName).get().getAliases().size(), equalTo(0));
+        assertThat(indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, aliasName).get().getAliases().size(), equalTo(0));
         assertAcked(indicesAdmin().prepareAliases().addAlias(clonedIndexName, aliasName));
         assertTotalHits(aliasName, originalAllHits, originalBarHits);
     }

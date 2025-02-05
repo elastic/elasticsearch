@@ -11,10 +11,7 @@ import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.ServiceSettings;
-import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
-import org.elasticsearch.xpack.inference.external.action.elastic.ElasticInferenceServiceActionVisitor;
 
-import java.util.Map;
 import java.util.Objects;
 
 public abstract class ElasticInferenceServiceModel extends Model {
@@ -49,7 +46,4 @@ public abstract class ElasticInferenceServiceModel extends Model {
     public ElasticInferenceServiceComponents elasticInferenceServiceComponents() {
         return elasticInferenceServiceComponents;
     }
-
-    public abstract ExecutableAction accept(ElasticInferenceServiceActionVisitor visitor, Map<String, Object> taskSettings);
-
 }

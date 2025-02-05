@@ -297,7 +297,7 @@ public class SearchExecutionContextTests extends ESTestCase {
             new MetadataFieldMapper[0],
             Collections.emptyMap()
         );
-        return MappingLookup.fromMappers(mapping, mappers, Collections.emptyList(), null);
+        return MappingLookup.fromMappers(mapping, mappers, Collections.emptyList());
     }
 
     public void testSearchRequestRuntimeFields() {
@@ -384,18 +384,12 @@ public class SearchExecutionContextTests extends ESTestCase {
 
     public void testSyntheticSourceSearchLookup() throws IOException {
         // Build a mapping using synthetic source
-        SourceFieldMapper sourceMapper = new SourceFieldMapper.Builder(null, Settings.EMPTY, false, false).setSynthetic().build();
+        SourceFieldMapper sourceMapper = new SourceFieldMapper.Builder(null, Settings.EMPTY, false, false, false).setSynthetic().build();
         RootObjectMapper root = new RootObjectMapper.Builder("_doc", Optional.empty()).add(
             new KeywordFieldMapper.Builder("cat", IndexVersion.current()).ignoreAbove(100)
         ).build(MapperBuilderContext.root(true, false));
         Mapping mapping = new Mapping(root, new MetadataFieldMapper[] { sourceMapper }, Map.of());
-        IndexMetadata indexMetadata = IndexMetadata.builder("index")
-            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
-            .numberOfShards(1)
-            .numberOfReplicas(0)
-            .build();
-        IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
-        MappingLookup lookup = MappingLookup.fromMapping(mapping, indexSettings);
+        MappingLookup lookup = MappingLookup.fromMapping(mapping);
 
         SearchExecutionContext sec = createSearchExecutionContext("index", "", lookup, Map.of());
         assertTrue(sec.isSourceSynthetic());

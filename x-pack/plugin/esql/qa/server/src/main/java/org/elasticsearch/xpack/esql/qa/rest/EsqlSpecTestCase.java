@@ -75,9 +75,6 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
 @TimeoutSuite(millis = 30 * TimeUnits.MINUTE)
 public abstract class EsqlSpecTestCase extends ESRestTestCase {
 
-    // To avoid referencing the main module, we replicate EsqlFeatures.ASYNC_QUERY.id() here
-    protected static final String ASYNC_QUERY_FEATURE_ID = "esql.async_query";
-
     private static final Logger LOGGER = LogManager.getLogger(EsqlSpecTestCase.class);
     private final String fileName;
     private final String groupName;
@@ -140,10 +137,6 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         }
     }
 
-    protected boolean supportsAsync() {
-        return clusterHasFeature(ASYNC_QUERY_FEATURE_ID); // the Async API was introduced in 8.13.0
-    }
-
     @AfterClass
     public static void wipeTestData() throws IOException {
         try {
@@ -173,7 +166,8 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
 
     protected void shouldSkipTest(String testName) throws IOException {
         if (testCase.requiredCapabilities.contains("semantic_text_type")
-            || testCase.requiredCapabilities.contains("semantic_text_aggregations")) {
+            || testCase.requiredCapabilities.contains("semantic_text_aggregations")
+            || testCase.requiredCapabilities.contains("semantic_text_field_caps")) {
             assumeTrue("Inference test service needs to be supported for semantic_text", supportsInferenceTestService());
         }
         checkCapabilities(adminClient(), testFeatureService, testName, testCase);
@@ -199,7 +193,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         return hasCapabilities(adminClient(), requiredCapabilities);
     }
 
-    protected static boolean hasCapabilities(RestClient client, List<String> requiredCapabilities) throws IOException {
+    public static boolean hasCapabilities(RestClient client, List<String> requiredCapabilities) throws IOException {
         if (requiredCapabilities.isEmpty()) {
             return true;
         }
@@ -238,7 +232,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     protected final void doTest() throws Throwable {
         RequestObjectBuilder builder = new RequestObjectBuilder(randomFrom(XContentType.values()));
 
-        if (testCase.query.toUpperCase(Locale.ROOT).contains("LOOKUP")) {
+        if (testCase.query.toUpperCase(Locale.ROOT).contains("LOOKUP_\uD83D\uDC14")) {
             builder.tables(tables());
         }
 
@@ -280,7 +274,6 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
 
     private Map<String, Object> runEsql(RequestObjectBuilder requestObject, AssertWarnings assertWarnings) throws IOException {
         if (mode == Mode.ASYNC) {
-            assert supportsAsync();
             return RestEsqlTestCase.runEsqlAsync(requestObject, assertWarnings);
         } else {
             return RestEsqlTestCase.runEsqlSync(requestObject, assertWarnings);

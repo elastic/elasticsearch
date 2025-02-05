@@ -6,6 +6,12 @@
 <titleabbrev>Get builtin privileges</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-security[Security APIs].
+--
+
 Retrieves the list of <<privileges-list-cluster,cluster privileges>> and
 <<privileges-list-indices,index privileges>> that are
 available in this version of {es}.

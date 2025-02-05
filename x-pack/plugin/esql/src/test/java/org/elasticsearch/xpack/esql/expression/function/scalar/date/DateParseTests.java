@@ -36,7 +36,7 @@ public class DateParseTests extends AbstractScalarFunctionTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        return parameterSuppliersFromTypedDataWithDefaultChecks(
+        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(
             true,
             List.of(
                 new TestCaseSupplier(
@@ -143,8 +143,7 @@ public class DateParseTests extends AbstractScalarFunctionTestCase {
                                 + "failed to parse date field [not a date] with format [yyyy-MM-dd]"
                         )
                 )
-            ),
-            (v, p) -> "string"
+            )
         );
     }
 

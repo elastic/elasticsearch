@@ -15,8 +15,8 @@ apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
-  description 'The Azure Repository plugin adds support for Azure storage repositories.'
-  classname 'org.elasticsearch.repositories.azure.AzureRepositoryPlugin'
+  description = 'The Azure Repository plugin adds support for Azure storage repositories.'
+  classname ='org.elasticsearch.repositories.azure.AzureRepositoryPlugin'
 }
 
 versions << [

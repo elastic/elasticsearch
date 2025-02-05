@@ -28,7 +28,7 @@ repositories {
   // other Docker variants, the need for the main image to be rebuildable by Docker Hub
   // means that the Dockerfile itself has to fetch the binary.
   ivy {
-    url 'https://github.com/'
+    url = 'https://github.com/'
     patternLayout {
       artifact '/[organisation]/[module]/releases/download/v[revision]/[module]-[classifier]'
     }
@@ -45,12 +45,12 @@ if (useDra == false) {
         ivy {
           name = 'beats'
           if (useLocalArtifacts) {
-            url getLayout().getBuildDirectory().dir("artifacts").get().asFile
+            url = getLayout().getBuildDirectory().dir("artifacts").get().asFile
             patternLayout {
               artifact '/[organisation]/[module]-[revision]-[classifier].[ext]'
             }
           } else {
-            url "https://artifacts-snapshot.elastic.co/"
+            url = "https://artifacts-snapshot.elastic.co/"
             patternLayout {
               if (VersionProperties.isElasticsearchSnapshot()) {
                 artifact '/[organization]/[revision]/downloads/[organization]/[module]/[module]-[revision]-[classifier].[ext]'
@@ -127,7 +127,7 @@ ext.expansions = { Architecture architecture, DockerBase base ->
     'bin_dir'            : base == DockerBase.IRON_BANK ? 'scripts' : 'bin',
     'build_date'         : buildDate,
     'config_dir'         : base == DockerBase.IRON_BANK ? 'scripts' : 'config',
-    'git_revision'       : buildParams.gitRevision,
+    'git_revision'       : buildParams.gitRevision.get(),
     'license'            : base == DockerBase.IRON_BANK ? 'Elastic License 2.0' : 'Elastic-License-2.0',
     'package_manager'    : base.packageManager,
     'docker_base'        : base.name().toLowerCase(),
@@ -551,6 +551,7 @@ subprojects { Project subProject ->
       inputs.file("${parent.projectDir}/build/markers/${buildTaskName}.marker")
       executable = 'docker'
       outputs.file(tarFile)
+      outputs.doNotCacheIf("Build cache is disabled for export tasks") { true }
       args "save",
         "-o",
         tarFile,
@@ -583,8 +584,8 @@ subprojects { Project subProject ->
     }
 
     artifacts.add('default', file(tarFile)) {
-      type 'tar'
-      name artifactName
+      type = 'tar'
+      name = artifactName
       builtBy exportTaskName
     }
   }

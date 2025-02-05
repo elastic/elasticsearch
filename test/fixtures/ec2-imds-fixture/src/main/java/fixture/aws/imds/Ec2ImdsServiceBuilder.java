@@ -10,6 +10,7 @@
 package fixture.aws.imds;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ToXContent;
 
 import java.util.Collection;
 import java.util.HashMap;
@@ -24,6 +25,7 @@ public class Ec2ImdsServiceBuilder {
     private BiConsumer<String, String> newCredentialsConsumer = Ec2ImdsServiceBuilder::rejectNewCredentials;
     private Collection<String> alternativeCredentialsEndpoints = Set.of();
     private Supplier<String> availabilityZoneSupplier = Ec2ImdsServiceBuilder::rejectAvailabilityZone;
+    private ToXContent instanceIdentityDocument = null;
     private final Map<String, String> instanceAddresses = new HashMap<>();
 
     public Ec2ImdsServiceBuilder(Ec2ImdsVersion ec2ImdsVersion) {
@@ -64,8 +66,13 @@ public class Ec2ImdsServiceBuilder {
             newCredentialsConsumer,
             alternativeCredentialsEndpoints,
             availabilityZoneSupplier,
+            instanceIdentityDocument,
             Map.copyOf(instanceAddresses)
         );
     }
 
+    public Ec2ImdsServiceBuilder instanceIdentityDocument(ToXContent instanceIdentityDocument) {
+        this.instanceIdentityDocument = instanceIdentityDocument;
+        return this;
+    }
 }

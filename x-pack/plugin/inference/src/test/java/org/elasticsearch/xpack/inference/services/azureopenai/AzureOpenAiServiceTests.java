@@ -54,6 +54,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -1460,131 +1461,72 @@ public class AzureOpenAiServiceTests extends ESTestCase {
             String content = XContentHelper.stripWhitespace(
                 """
                     {
-                            "provider": "azureopenai",
-                            "task_types": [
-                                 {
-                                     "task_type": "text_embedding",
-                                     "configuration": {
-                                         "user": {
-                                             "default_value": null,
-                                             "depends_on": [],
-                                             "display": "textbox",
-                                             "label": "User",
-                                             "order": 1,
-                                             "required": false,
-                                             "sensitive": false,
-                                             "tooltip": "Specifies the user issuing the request.",
-                                             "type": "str",
-                                             "ui_restrictions": [],
-                                             "validations": [],
-                                             "value": ""
-                                         }
-                                     }
-                                 },
-                                 {
-                                     "task_type": "completion",
-                                     "configuration": {
-                                         "user": {
-                                             "default_value": null,
-                                             "depends_on": [],
-                                             "display": "textbox",
-                                             "label": "User",
-                                             "order": 1,
-                                             "required": false,
-                                             "sensitive": false,
-                                             "tooltip": "Specifies the user issuing the request.",
-                                             "type": "str",
-                                             "ui_restrictions": [],
-                                             "validations": [],
-                                             "value": ""
-                                         }
-                                     }
-                                 }
-                            ],
-                            "configuration": {
+                            "service": "azureopenai",
+                            "name": "Azure OpenAI",
+                            "task_types": ["text_embedding", "completion"],
+                            "configurations": {
                                 "api_key": {
-                                    "default_value": null,
-                                    "depends_on": [],
-                                    "display": "textbox",
+                                    "description": "You must provide either an API key or an Entra ID.",
                                     "label": "API Key",
-                                    "order": 1,
                                     "required": false,
                                     "sensitive": true,
-                                    "tooltip": "You must provide either an API key or an Entra ID.",
+                                    "updatable": true,
                                     "type": "str",
-                                    "ui_restrictions": [],
-                                    "validations": [],
-                                    "value": null
+                                    "supported_task_types": ["text_embedding", "completion"]
+                                },
+                                "dimensions": {
+                                    "description": "The number of dimensions the resulting embeddings should have. For more information refer to https://learn.microsoft.com/en-us/azure/ai-services/openai/reference#request-body-1.",
+                                    "label": "Dimensions",
+                                    "required": false,
+                                    "sensitive": false,
+                                    "updatable": false,
+                                    "type": "int",
+                                    "supported_task_types": ["text_embedding"]
                                 },
                                 "entra_id": {
-                                    "default_value": null,
-                                    "depends_on": [],
-                                    "display": "textbox",
+                                    "description": "You must provide either an API key or an Entra ID.",
                                     "label": "Entra ID",
-                                    "order": 2,
                                     "required": false,
                                     "sensitive": true,
-                                    "tooltip": "You must provide either an API key or an Entra ID.",
+                                    "updatable": true,
                                     "type": "str",
-                                    "ui_restrictions": [],
-                                    "validations": [],
-                                    "value": null
+                                    "supported_task_types": ["text_embedding", "completion"]
                                 },
                                 "rate_limit.requests_per_minute": {
-                                    "default_value": null,
-                                    "depends_on": [],
-                                    "display": "numeric",
+                                    "description": "The azureopenai service sets a default number of requests allowed per minute depending on the task type.",
                                     "label": "Rate Limit",
-                                    "order": 6,
                                     "required": false,
                                     "sensitive": false,
-                                    "tooltip": "The azureopenai service sets a default number of requests allowed per minute depending on the task type.",
+                                    "updatable": false,
                                     "type": "int",
-                                    "ui_restrictions": [],
-                                    "validations": [],
-                                    "value": null
+                                    "supported_task_types": ["text_embedding", "completion"]
                                 },
                                 "deployment_id": {
-                                    "default_value": null,
-                                    "depends_on": [],
-                                    "display": "textbox",
+                                    "description": "The deployment name of your deployed models.",
                                     "label": "Deployment ID",
-                                    "order": 5,
                                     "required": true,
                                     "sensitive": false,
-                                    "tooltip": "The deployment name of your deployed models.",
+                                    "updatable": false,
                                     "type": "str",
-                                    "ui_restrictions": [],
-                                    "validations": [],
-                                    "value": null
+                                    "supported_task_types": ["text_embedding", "completion"]
                                 },
                                 "resource_name": {
-                                    "default_value": null,
-                                    "depends_on": [],
-                                    "display": "textbox",
+                                    "description": "The name of your Azure OpenAI resource.",
                                     "label": "Resource Name",
-                                    "order": 3,
                                     "required": true,
                                     "sensitive": false,
-                                    "tooltip": "The name of your Azure OpenAI resource.",
+                                    "updatable": false,
                                     "type": "str",
-                                    "ui_restrictions": [],
-                                    "validations": [],
-                                    "value": null
+                                    "supported_task_types": ["text_embedding", "completion"]
                                 },
                                 "api_version": {
-                                    "default_value": null,
-                                    "depends_on": [],
-                                    "display": "textbox",
+                                    "description": "The Azure API version ID to use.",
                                     "label": "API Version",
-                                    "order": 4,
                                     "required": true,
                                     "sensitive": false,
-                                    "tooltip": "The Azure API version ID to use.",
+                                    "updatable": false,
                                     "type": "str",
-                                    "ui_restrictions": [],
-                                    "validations": [],
-                                    "value": null
+                                    "supported_task_types": ["text_embedding", "completion"]
                                 }
                             }
                         }
@@ -1607,8 +1549,8 @@ public class AzureOpenAiServiceTests extends ESTestCase {
 
     public void testSupportsStreaming() throws IOException {
         try (var service = new AzureOpenAiService(mock(), createWithEmptySettings(mock()))) {
-            assertTrue(service.canStream(TaskType.COMPLETION));
-            assertTrue(service.canStream(TaskType.ANY));
+            assertThat(service.supportedStreamingTasks(), is(EnumSet.of(TaskType.COMPLETION)));
+            assertFalse(service.canStream(TaskType.ANY));
         }
     }
 

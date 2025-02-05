@@ -331,7 +331,7 @@ public class AlibabaCloudSearchServiceTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var service = new AlibabaCloudSearchService(senderFactory, createWithEmptySettings(threadPool))) {
-            var model = OpenAiChatCompletionModelTests.createChatCompletionModel(
+            var model = OpenAiChatCompletionModelTests.createCompletionModel(
                 randomAlphaOfLength(10),
                 randomAlphaOfLength(10),
                 randomAlphaOfLength(10),
@@ -438,209 +438,63 @@ public class AlibabaCloudSearchServiceTests extends ESTestCase {
             String content = XContentHelper.stripWhitespace(
                 """
                     {
-                       "provider": "alibabacloud-ai-search",
-                       "task_types": [
-                             {
-                                 "task_type": "text_embedding",
-                                 "configuration": {
-                                     "input_type": {
-                                         "default_value": null,
-                                         "depends_on": [],
-                                         "display": "dropdown",
-                                         "label": "Input Type",
-                                         "options": [
-                                             {
-                                                 "label": "ingest",
-                                                 "value": "ingest"
-                                             },
-                                             {
-                                                 "label": "search",
-                                                 "value": "search"
-                                             }
-                                         ],
-                                         "order": 1,
-                                         "required": false,
-                                         "sensitive": false,
-                                         "tooltip": "Specifies the type of input passed to the model.",
-                                         "type": "str",
-                                         "ui_restrictions": [],
-                                         "validations": [],
-                                         "value": ""
-                                     }
-                                 }
-                             },
-                             {
-                                 "task_type": "sparse_embedding",
-                                 "configuration": {
-                                     "return_token": {
-                                         "default_value": null,
-                                         "depends_on": [],
-                                         "display": "toggle",
-                                         "label": "Return Token",
-                                         "order": 2,
-                                         "required": false,
-                                         "sensitive": false,
-                                         "tooltip": "If `true`, the token name will be returned in the response. Defaults to `false` which means only the token ID will be returned in the response.",
-                                         "type": "bool",
-                                         "ui_restrictions": [],
-                                         "validations": [],
-                                         "value": true
-                                     },
-                                     "input_type": {
-                                         "default_value": null,
-                                         "depends_on": [],
-                                         "display": "dropdown",
-                                         "label": "Input Type",
-                                         "options": [
-                                             {
-                                                 "label": "ingest",
-                                                 "value": "ingest"
-                                             },
-                                             {
-                                                 "label": "search",
-                                                 "value": "search"
-                                             }
-                                         ],
-                                         "order": 1,
-                                         "required": false,
-                                         "sensitive": false,
-                                         "tooltip": "Specifies the type of input passed to the model.",
-                                         "type": "str",
-                                         "ui_restrictions": [],
-                                         "validations": [],
-                                         "value": ""
-                                     }
-                                 }
-                             },
-                             {
-                                 "task_type": "rerank",
-                                 "configuration": {}
-                             },
-                             {
-                                 "task_type": "completion",
-                                 "configuration": {}
-                             }
-                       ],
-                       "configuration": {
+                       "service": "alibabacloud-ai-search",
+                       "name": "AlibabaCloud AI Search",
+                       "task_types": ["text_embedding", "sparse_embedding", "rerank", "completion"],
+                       "configurations": {
                          "workspace": {
-                           "default_value": null,
-                           "depends_on": [],
-                           "display": "textbox",
+                           "description": "The name of the workspace used for the {infer} task.",
                            "label": "Workspace",
-                           "order": 5,
                            "required": true,
                            "sensitive": false,
-                           "tooltip": "The name of the workspace used for the {infer} task.",
+                           "updatable": false,
                            "type": "str",
-                           "ui_restrictions": [],
-                           "validations": [],
-                           "value": null
+                           "supported_task_types": ["text_embedding", "sparse_embedding", "rerank", "completion"]
                          },
                          "api_key": {
-                           "default_value": null,
-                           "depends_on": [],
-                           "display": "textbox",
+                           "description": "A valid API key for the AlibabaCloud AI Search API.",
                            "label": "API Key",
-                           "order": 1,
                            "required": true,
                            "sensitive": true,
-                           "tooltip": "A valid API key for the AlibabaCloud AI Search API.",
+                           "updatable": true,
                            "type": "str",
-                           "ui_restrictions": [],
-                           "validations": [],
-                           "value": null
+                           "supported_task_types": ["text_embedding", "sparse_embedding", "rerank", "completion"]
                          },
                          "service_id": {
-                           "default_value": null,
-                           "depends_on": [],
-                           "display": "dropdown",
+                           "description": "The name of the model service to use for the {infer} task.",
                            "label": "Project ID",
-                           "options": [
-                             {
-                               "label": "ops-text-embedding-001",
-                               "value": "ops-text-embedding-001"
-                             },
-                             {
-                               "label": "ops-text-embedding-zh-001",
-                               "value": "ops-text-embedding-zh-001"
-                             },
-                             {
-                               "label": "ops-text-embedding-en-001",
-                               "value": "ops-text-embedding-en-001"
-                             },
-                             {
-                               "label": "ops-text-embedding-002",
-                               "value": "ops-text-embedding-002"
-                             },
-                             {
-                               "label": "ops-text-sparse-embedding-001",
-                               "value": "ops-text-sparse-embedding-001"
-                             },
-                             {
-                               "label": "ops-bge-reranker-larger",
-                               "value": "ops-bge-reranker-larger"
-                             }
-                           ],
-                           "order": 2,
                            "required": true,
                            "sensitive": false,
-                           "tooltip": "The name of the model service to use for the {infer} task.",
+                           "updatable": false,
                            "type": "str",
-                           "ui_restrictions": [],
-                           "validations": [],
-                           "value": null
+                           "supported_task_types": ["text_embedding", "sparse_embedding", "rerank", "completion"]
                          },
                          "host": {
-                           "default_value": null,
-                           "depends_on": [],
-                           "display": "textbox",
+                           "description": "The name of the host address used for the {infer} task. You can find the host address at https://opensearch.console.aliyun.com/cn-shanghai/rag/api-key[ the API keys section] of the documentation.",
                            "label": "Host",
-                           "order": 3,
                            "required": true,
                            "sensitive": false,
-                           "tooltip": "The name of the host address used for the {infer} task. You can find the host address at https://opensearch.console.aliyun.com/cn-shanghai/rag/api-key[ the API keys section] of the documentation.",
+                           "updatable": false,
                            "type": "str",
-                           "ui_restrictions": [],
-                           "validations": [],
-                           "value": null
+                           "supported_task_types": ["text_embedding", "sparse_embedding", "rerank", "completion"]
                          },
                          "rate_limit.requests_per_minute": {
-                           "default_value": null,
-                           "depends_on": [],
-                           "display": "numeric",
+                           "description": "Minimize the number of rate limit errors.",
                            "label": "Rate Limit",
-                           "order": 6,
                            "required": false,
                            "sensitive": false,
-                           "tooltip": "Minimize the number of rate limit errors.",
+                           "updatable": false,
                            "type": "int",
-                           "ui_restrictions": [],
-                           "validations": [],
-                           "value": null
+                           "supported_task_types": ["text_embedding", "sparse_embedding", "rerank", "completion"]
                          },
                          "http_schema": {
-                           "default_value": null,
-                           "depends_on": [],
-                           "display": "dropdown",
+                           "description": "",
                            "label": "HTTP Schema",
-                           "options": [
-                             {
-                               "label": "https",
-                               "value": "https"
-                             },
-                             {
-                               "label": "http",
-                               "value": "http"
-                             }
-                           ],
-                           "order": 4,
-                           "required": true,
+                           "required": false,
                            "sensitive": false,
-                           "tooltip": "",
+                           "updatable": false,
                            "type": "str",
-                           "ui_restrictions": [],
-                           "validations": [],
-                           "value": null
+                           "supported_task_types": ["text_embedding", "sparse_embedding", "rerank", "completion"]
                          }
                        }
                     }

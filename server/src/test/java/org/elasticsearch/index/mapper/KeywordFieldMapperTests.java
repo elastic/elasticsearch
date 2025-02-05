@@ -780,7 +780,6 @@ public class KeywordFieldMapperTests extends MapperTestCase {
             Settings.builder()
                 .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.name())
                 .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), "host.name")
-                .put(IndexSettings.USE_DOC_VALUES_SPARSE_INDEX.getKey(), false)
                 .build(),
             mapping(b -> {
                 b.startObject("host.name");

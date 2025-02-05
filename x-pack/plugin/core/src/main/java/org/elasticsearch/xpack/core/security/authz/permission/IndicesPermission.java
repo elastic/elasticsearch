@@ -193,7 +193,12 @@ public final class IndicesPermission {
         // public for tests
         public IsResourceAuthorizedPredicate(StringMatcher resourceNameMatcher, StringMatcher additionalNonDatastreamNameMatcher) {
             this((String name, @Nullable IndexAbstraction indexAbstraction) -> {
-                assert indexAbstraction == null || name.equals(indexAbstraction.getName());
+                // TODO this is hacky
+                assert indexAbstraction == null
+                    || (name.equals(indexAbstraction.getName())
+                        || name.equals(
+                            IndexNameExpressionResolver.combineSelector(indexAbstraction.getName(), IndexComponentSelector.FAILURES)
+                        ));
                 return resourceNameMatcher.test(name)
                     || (isPartOfDatastream(indexAbstraction) == false && additionalNonDatastreamNameMatcher.test(name));
             });
@@ -240,7 +245,8 @@ public final class IndicesPermission {
             assert indexAbstraction != null && indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM;
             return biPredicate.test(
                 IndexNameExpressionResolver.combineSelector(indexAbstraction.getName(), IndexComponentSelector.FAILURES),
-                null
+                // this cannot be `null`, since otherwise this is not treated as a data stream
+                indexAbstraction
             );
         }
 

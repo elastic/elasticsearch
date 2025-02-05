@@ -236,6 +236,6 @@ public class IndexAbstractionResolverTests extends ESTestCase {
     }
 
     private List<String> resolveAbstractions(List<String> expressions, IndicesOptions indicesOptions, Supplier<Set<String>> mask) {
-        return indexAbstractionResolver.resolveIndexAbstractions(expressions, indicesOptions, metadata, mask, (idx) -> true, true);
+        return indexAbstractionResolver.resolveIndexAbstractions(expressions, indicesOptions, metadata, mask, (idx, sel) -> true, true);
     }
 }

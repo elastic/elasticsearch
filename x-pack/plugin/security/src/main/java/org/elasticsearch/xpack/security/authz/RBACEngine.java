@@ -31,6 +31,7 @@ import org.elasticsearch.action.search.TransportClearScrollAction;
 import org.elasticsearch.action.search.TransportClosePointInTimeAction;
 import org.elasticsearch.action.search.TransportMultiSearchAction;
 import org.elasticsearch.action.search.TransportSearchScrollAction;
+import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.action.termvectors.MultiTermVectorsAction;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
@@ -106,6 +107,7 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.function.BiPredicate;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -907,13 +909,20 @@ public class RBACEngine implements AuthorizationEngine {
             }
             timeChecker.accept(indicesAndAliases);
             return indicesAndAliases;
-        }, name -> {
+        }, (name, selector) -> {
             final IndexAbstraction indexAbstraction = lookup.get(name);
             if (indexAbstraction == null) {
                 // test access (by name) to a resource that does not currently exist
                 // the action handler must handle the case of accessing resources that do not exist
                 return predicate.test(name, null);
             } else {
+                if (indexAbstraction.isFailureIndexOfDataStream()
+                    && predicate.testDataStreamForFailureAccess(indexAbstraction.getParentDataStream())) {
+                    return true;
+                }
+                if (IndexComponentSelector.FAILURES.getKey().equals(selector)) {
+                    return predicate.testDataStreamForFailureAccess(indexAbstraction);
+                }
                 // We check the parent data stream first if there is one. For testing requested indices, this is most likely
                 // more efficient than checking the index name first because we recommend grant privileges over data stream
                 // instead of backing indices.
@@ -1046,9 +1055,9 @@ public class RBACEngine implements AuthorizationEngine {
     static final class AuthorizedIndices implements AuthorizationEngine.AuthorizedIndices {
 
         private final CachedSupplier<Set<String>> allAuthorizedAndAvailableSupplier;
-        private final Predicate<String> isAuthorizedPredicate;
+        private final BiPredicate<String, String> isAuthorizedPredicate;
 
-        AuthorizedIndices(Supplier<Set<String>> allAuthorizedAndAvailableSupplier, Predicate<String> isAuthorizedPredicate) {
+        AuthorizedIndices(Supplier<Set<String>> allAuthorizedAndAvailableSupplier, BiPredicate<String, String> isAuthorizedPredicate) {
             this.allAuthorizedAndAvailableSupplier = CachedSupplier.wrap(allAuthorizedAndAvailableSupplier);
             this.isAuthorizedPredicate = Objects.requireNonNull(isAuthorizedPredicate);
         }
@@ -1059,8 +1068,8 @@ public class RBACEngine implements AuthorizationEngine {
         }
 
         @Override
-        public boolean check(String name) {
-            return this.isAuthorizedPredicate.test(name);
+        public boolean check(String name, String selector) {
+            return isAuthorizedPredicate.test(name, selector);
         }
     }
 }

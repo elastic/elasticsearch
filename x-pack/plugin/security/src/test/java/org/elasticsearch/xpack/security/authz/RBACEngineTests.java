@@ -1455,7 +1455,6 @@ public class RBACEngineTests extends ESTestCase {
 
     public void testExplicitMappingUpdatesAreNotGrantedWithIngestPrivileges() {
         final String dataStreamName = "my_data_stream";
-        User user = new User(randomAlphaOfLengthBetween(4, 12));
         Role role = Role.builder(RESTRICTED_INDICES, "test1")
             .cluster(Collections.emptySet(), Collections.emptyList())
             .add(IndexPrivilege.CREATE, "my_*")

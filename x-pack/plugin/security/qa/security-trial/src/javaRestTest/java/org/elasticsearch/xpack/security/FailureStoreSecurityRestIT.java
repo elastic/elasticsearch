@@ -37,6 +37,7 @@ public class FailureStoreSecurityRestIT extends SecurityOnTrialLicenseRestTestCa
 
     @SuppressWarnings("unchecked")
     public void testFailureStoreAccess() throws IOException {
+        // TODO test API keys
         String dataAccessRole = "data_access";
         String failureStoreAccessRole = "failure_store_access";
 
@@ -88,11 +89,14 @@ public class FailureStoreSecurityRestIT extends SecurityOnTrialLicenseRestTestCa
             performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/" + failureIndexName + "/_search")),
             failedDocId
         );
-        // TODO fix this
-        // assertContainsDocIds(
-        // performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/" + failureIndexName + "/_search?ignore_unavailable=true")),
-        // failedDocId
-        // );
+        assertContainsDocIds(
+            performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/test1::failures/_search?ignore_unavailable=true")),
+            failedDocId
+        );
+        assertContainsDocIds(
+            performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/" + failureIndexName + "/_search?ignore_unavailable=true")),
+            failedDocId
+        );
 
         expectThrows404(() -> performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/test12::failures/_search")));
         expectThrows404(() -> performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/test2::failures/_search")));
@@ -109,9 +113,9 @@ public class FailureStoreSecurityRestIT extends SecurityOnTrialLicenseRestTestCa
         assertEmpty(performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/test2::data/_search?ignore_unavailable=true")));
         assertEmpty(performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/test2/_search?ignore_unavailable=true")));
         // TODO fix this
-        // assertEmpty(
-        // performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/" + dataIndexName + "/_search?ignore_unavailable=true"))
-        // );
+        assertEmpty(
+            performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/" + dataIndexName + "/_search?ignore_unavailable=true"))
+        );
 
         // assertEmpty(performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/*1::data/_search")));
         // assertEmpty(performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/*1/_search")));

@@ -302,6 +302,10 @@ public final class IndexSortConfig {
         }
     }
 
+    public FieldSortSpec[] getFieldSortSpecs() {
+        return sortSpecs;
+    }
+
     public static class FieldSortSpec {
         final String field;
         SortOrder order;

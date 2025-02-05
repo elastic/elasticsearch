@@ -480,14 +480,17 @@ public final class KeywordFieldMapper extends FieldMapper {
             final IndexMode indexMode,
             final String fullFieldName
         ) {
-            if (indexed.isSet() && indexed.getValue()) {
-                return false;
-            }
-            return indexed.isConfigured() == false
-                && hasDocValues.getValue()
+            return hasDocValues.getValue()
                 && IndexMode.LOGSDB.equals(indexMode)
                 && HOST_NAME.equals(fullFieldName)
-                && (indexSortConfig != null && indexSortConfig.hasPrimarySortOnField(HOST_NAME));
+                && indexSortConfigByHostName(indexSortConfig);
+        }
+
+        private boolean indexSortConfigByHostName(final IndexSortConfig indexSortConfig) {
+            if (indexSortConfig == null) {
+                return false;
+            }
+            return Arrays.stream(indexSortConfig.getFieldSortSpecs()).anyMatch(fieldSortSpec -> HOST_NAME.equals(fieldSortSpec.getField()));
         }
     }
 

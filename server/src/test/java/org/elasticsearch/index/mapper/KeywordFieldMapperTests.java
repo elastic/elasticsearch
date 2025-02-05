@@ -861,7 +861,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         assertFalse(mapper.fieldType().hasDocValuesSparseIndex());
     }
 
-    public void testFieldTypeDefault_ConfiguredIndexed() throws IOException {
+    public void testFieldTypeDefault_ConfiguredIndexedWithSettingOverride() throws IOException {
         assumeTrue("Needs feature flag to be enabled", DOC_VALUES_SPARSE_INDEX.isEnabled());
 
         final MapperService mapperService = createMapperService(
@@ -869,6 +869,28 @@ public class KeywordFieldMapperTests extends MapperTestCase {
                 .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.name())
                 .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), "host.name")
                 .put(IndexSettings.USE_DOC_VALUES_SPARSE_INDEX.getKey(), true)
+                .build(),
+            mapping(b -> {
+                b.startObject("host.name");
+                b.field("type", "keyword");
+                b.field("index", true);
+                b.endObject();
+            })
+        );
+
+        final KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("host.name");
+        assertTrue(mapper.fieldType().hasDocValues());
+        assertFalse(mapper.fieldType().isIndexed());
+        assertTrue(mapper.fieldType().hasDocValuesSparseIndex());
+    }
+
+    public void testFieldTypeDefault_ConfiguredIndexedWithoutSettingOverride() throws IOException {
+        assumeTrue("Needs feature flag to be enabled", DOC_VALUES_SPARSE_INDEX.isEnabled());
+
+        final MapperService mapperService = createMapperService(
+            Settings.builder()
+                .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.name())
+                .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), "host.name")
                 .build(),
             mapping(b -> {
                 b.startObject("host.name");
@@ -949,7 +971,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         final KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("host.name");
         assertTrue(mapper.fieldType().hasDocValues());
         assertFalse(mapper.fieldType().isIndexed());
-        assertFalse(mapper.fieldType().hasDocValuesSparseIndex());
+        assertTrue(mapper.fieldType().hasDocValuesSparseIndex());
     }
 
     public void testFieldTypeDefault_IndexedFalseDocValuesFalse() throws IOException {

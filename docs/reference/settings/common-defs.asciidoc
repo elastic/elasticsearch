@@ -107,10 +107,9 @@ be encrypted, this value is optional.
 end::ssl-secure-key-passphrase[]
 
 tag::ssl-supported-protocols[]
-Supported protocols with versions. Valid protocols: `SSLv2Hello`,
-`SSLv3`, `TLSv1`, `TLSv1.1`, `TLSv1.2`, `TLSv1.3`. If the JVM's SSL provider supports TLSv1.3,
-the default is `TLSv1.3,TLSv1.2,TLSv1.1`. Otherwise, the default is
-`TLSv1.2,TLSv1.1`.
+Supported protocols with versions.
+Valid protocols: `SSLv2Hello`, `SSLv3`, `TLSv1`, `TLSv1.1`, `TLSv1.2`, `TLSv1.3`.
+The default is `TLSv1.3,TLSv1.2`.
 +
 {es} relies on your JDK’s implementation of SSL and TLS.
 View <<jdk-tls-versions>> for more information.

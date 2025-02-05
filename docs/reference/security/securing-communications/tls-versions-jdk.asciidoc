@@ -21,13 +21,11 @@ SSL v3 is supported on all {es} <<jvm-version,compatible JDKs>> but is disabled 
 See <<jdk-enable-tls-protocol>>.
 
 `TLSv1`::
-TLS v1.0 is supported on all {es} <<jvm-version,compatible JDKs>>.
-Some newer JDKs, including the JDK bundled with {es}, disable TLS v1.0 by default.
+TLS v1.0 is supported on all {es} <<jvm-version,compatible JDKs>> but is disabled by default.
 See <<jdk-enable-tls-protocol>>.
 
 `TLSv1.1`::
-TLS v1.1 is supported on all {es} <<jvm-version,compatible JDKs>>.
-Some newer JDKs, including the JDK bundled with {es}, disable TLS v1.1 by default.
+TLS v1.1 is supported on all {es} <<jvm-version,compatible JDKs>> but is disabled by default.
 See <<jdk-enable-tls-protocol>>.
 
 `TLSv1.2`::

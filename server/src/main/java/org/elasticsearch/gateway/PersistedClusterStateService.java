@@ -105,6 +105,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.IntPredicate;
 import java.util.function.LongSupplier;
@@ -193,14 +194,14 @@ public class PersistedClusterStateService {
 
     private volatile TimeValue slowWriteLoggingThreshold;
     // Whether the cluster has multi-project mode enabled, see also ProjectResolver#supportsMultipleProjects
-    private final boolean supportsMultipleProjects;
+    private final BooleanSupplier supportsMultipleProjects;
 
     public PersistedClusterStateService(
         NodeEnvironment nodeEnvironment,
         NamedXContentRegistry namedXContentRegistry,
         ClusterSettings clusterSettings,
         LongSupplier relativeTimeMillisSupplier,
-        boolean supportsMultipleProjects
+        BooleanSupplier supportsMultipleProjects
     ) {
         this(
             nodeEnvironment.nodeDataPaths(),
@@ -218,7 +219,7 @@ public class PersistedClusterStateService {
         NamedXContentRegistry namedXContentRegistry,
         ClusterSettings clusterSettings,
         LongSupplier relativeTimeMillisSupplier,
-        boolean supportsMultipleProjects
+        BooleanSupplier supportsMultipleProjects
     ) {
         this.dataPaths = dataPaths;
         this.nodeId = nodeId;
@@ -253,7 +254,7 @@ public class PersistedClusterStateService {
 
                 final IndexWriter indexWriter = createIndexWriter(directory, false);
                 closeables.add(indexWriter);
-                metadataIndexWriters.add(new MetadataIndexWriter(path, directory, indexWriter, supportsMultipleProjects));
+                metadataIndexWriters.add(new MetadataIndexWriter(path, directory, indexWriter, supportsMultipleProjects.getAsBoolean()));
             }
             success = true;
         } finally {

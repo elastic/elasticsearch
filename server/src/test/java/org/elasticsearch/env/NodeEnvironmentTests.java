@@ -552,7 +552,7 @@ public class NodeEnvironmentTests extends ESTestCase {
                     xContentRegistry(),
                     new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
                     () -> 0L,
-                    randomBoolean()
+                    ESTestCase::randomBoolean
                 ).createWriter()
             ) {
                 writer.writeFullStateAndCommit(

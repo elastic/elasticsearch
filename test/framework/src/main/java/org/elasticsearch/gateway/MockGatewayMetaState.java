@@ -80,7 +80,7 @@ public class MockGatewayMetaState extends GatewayMetaState {
                 xContentRegistry,
                 new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
                 () -> 0L,
-                ESTestCase.randomBoolean()
+                ESTestCase::randomBoolean
             ),
             List.of(),
             CompatibilityVersionsUtils.staticCurrent()

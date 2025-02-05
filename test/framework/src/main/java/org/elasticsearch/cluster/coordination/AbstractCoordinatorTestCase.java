@@ -2136,7 +2136,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                                 xContentRegistry(),
                                 new ClusterSettings(writerSettings.build(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
                                 currentTimeInMillisSupplier,
-                                randomBoolean()
+                                ESTestCase::randomBoolean
                             ).createWriter()
                         ) {
                             writer.writeFullStateAndCommit(

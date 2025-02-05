@@ -51,6 +51,7 @@ public class SumLongAggregatorFunctionTests extends AggregatorFunctionTestCase {
         DriverContext driverContext = driverContext();
         try (
             Driver d = new Driver(
+                "test",
                 driverContext,
                 new SequenceLongBlockSourceOperator(driverContext.blockFactory(), LongStream.of(Long.MAX_VALUE - 1, 2)),
                 List.of(simple().get(driverContext)),
@@ -68,6 +69,7 @@ public class SumLongAggregatorFunctionTests extends AggregatorFunctionTestCase {
         BlockFactory blockFactory = driverContext.blockFactory();
         try (
             Driver d = new Driver(
+                "test",
                 driverContext,
                 new CannedSourceOperator(Iterators.single(new Page(blockFactory.newDoubleArrayVector(new double[] { 1.0 }, 1).asBlock()))),
                 List.of(simple().get(driverContext)),

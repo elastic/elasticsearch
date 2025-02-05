@@ -372,6 +372,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                 assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH, ESQL_WORKER_THREAD_POOL_NAME);
                 var computeContext = new ComputeContext(
                     sessionId,
+                    "data",
                     clusterAlias,
                     searchContexts,
                     configuration,
@@ -435,6 +436,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     task,
                     new ComputeContext(
                         request.sessionId(),
+                        "node_reduce",
                         request.clusterAlias(),
                         List.of(),
                         request.configuration(),

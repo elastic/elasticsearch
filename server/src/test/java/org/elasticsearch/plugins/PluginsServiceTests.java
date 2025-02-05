@@ -70,7 +70,7 @@ public class PluginsServiceTests extends ESTestCase {
             null,
             PluginsLoader.createPluginsLoader(
                 Set.of(),
-                PluginsLoader.loadPluginsBundles(TestEnvironment.newEnvironment(settings).pluginsFile()),
+                PluginsLoader.loadPluginsBundles(TestEnvironment.newEnvironment(settings).pluginsDir()),
                 Map.of(),
                 false
             )

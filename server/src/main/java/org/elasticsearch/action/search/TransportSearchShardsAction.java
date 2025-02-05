@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.search;
 
+import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.RemoteClusterActionType;
@@ -19,7 +20,6 @@ import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.ResolvedExpression;
 import org.elasticsearch.cluster.project.ProjectResolver;
-import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.Rewriteable;
@@ -145,15 +145,14 @@ public class TransportSearchShardsAction extends HandledTransportAction<SearchSh
                     concreteIndices
                 );
                 String[] concreteIndexNames = Arrays.stream(concreteIndices).map(Index::getName).toArray(String[]::new);
-                GroupShardsIterator<SearchShardIterator> shardIts = GroupShardsIterator.sortAndCreate(
-                    transportSearchAction.getLocalShardsIterator(
-                        project,
-                        searchRequest,
-                        searchShardsRequest.clusterAlias(),
-                        indicesAndAliases,
-                        concreteIndexNames
-                    )
+                List<SearchShardIterator> shardIts = transportSearchAction.getLocalShardsIterator(
+                    project,
+                    searchRequest,
+                    searchShardsRequest.clusterAlias(),
+                    indicesAndAliases,
+                    concreteIndexNames
                 );
+                CollectionUtil.timSort(shardIts);
                 if (SearchService.canRewriteToMatchNone(searchRequest.source()) == false) {
                     delegate.onResponse(
                         new SearchShardsResponse(toGroups(shardIts), project.cluster().nodes().getAllNodes(), aliasFilters)
@@ -179,7 +178,7 @@ public class TransportSearchShardsAction extends HandledTransportAction<SearchSh
         );
     }
 
-    private static List<SearchShardsGroup> toGroups(GroupShardsIterator<SearchShardIterator> shardIts) {
+    private static List<SearchShardsGroup> toGroups(List<SearchShardIterator> shardIts) {
         List<SearchShardsGroup> groups = new ArrayList<>(shardIts.size());
         for (SearchShardIterator shardIt : shardIts) {
             boolean skip = shardIt.skip();

@@ -51,7 +51,8 @@ public class EnrichStatsAction extends ActionType<EnrichStatsAction.Response> {
          */
         @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
         public Request(StreamInput in) throws IOException {
-            super(in);
+            // This request extended MasterNodeRequest instead of MasterNodeReadRequest, meaning that it didn't serialize the `local` field.
+            super(in, false);
         }
 
         @Override

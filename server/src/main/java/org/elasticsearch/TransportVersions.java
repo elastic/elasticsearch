@@ -175,6 +175,7 @@ public class TransportVersions {
     public static final TransportVersion ELASTICSEARCH_9_0 = def(9_000_0_00);
     public static final TransportVersion REMOVE_SNAPSHOT_FAILURES = def(9_002_0_00);
     public static final TransportVersion TRANSPORT_STATS_HANDLING_TIME_REQUIRED = def(9_003_0_00);
+    public static final TransportVersion REMOVE_DESIRED_NODE_VERSION = def(9_004_0_00);
 
     /*
      * STOP! READ THIS FIRST! No, really,

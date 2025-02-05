@@ -837,3 +837,131 @@ time:integer | values:integer | type:keyword | pvalue:double
 24           | null           | null         | null         
 25           | null           | null         | null         
 ;
+
+
+row with integer key and value
+required_capability: change_point
+
+ROW key=[7,13,12,17,14,5,16,10,19,18,20,2,3,21,25,4,22,15,6,23,9,11,1,8,24]
+  | MV_EXPAND key
+  | EVAL value=CASE(key<13, 0, 1)
+  | CHANGE_POINT value ON key
+  | WHERE type IS NOT NULL
+;
+
+key:integer | value:integer | type:keyword | pvalue:double
+13          | 1             | step_change  | 0.0         
+;
+
+
+row with long key and value
+required_capability: change_point
+
+ROW key=[7,13,12,17,14,5,16,10,19,18,20,2,3,21,25,4,22,15,6,23,9,11,1,8,24]
+  | MV_EXPAND key
+  | EVAL key=TO_LONG(key), value=CASE(key<13, 0::LONG, 1::LONG)
+  | CHANGE_POINT value ON key
+  | WHERE type IS NOT NULL
+;
+
+key:long | value:long | type:keyword | pvalue:double
+13       | 1          | step_change  | 0.0         
+;
+
+
+row with double key and value
+required_capability: change_point
+
+ROW key=[7,13,12,17,14,5,16,10,19,18,20,2,3,21,25,4,22,15,6,23,9,11,1,8,24]
+  | MV_EXPAND key
+  | EVAL key=TO_DOUBLE(key), value=CASE(key<13, 0::DOUBLE, 1::DOUBLE)
+  | CHANGE_POINT value ON key
+  | WHERE type IS NOT NULL
+;
+
+key:double | value:double | type:keyword | pvalue:double
+13         | 1            | step_change  | 0.0         
+;
+
+
+row with datetime key
+required_capability: change_point
+
+ROW key=[7,13,12,17,14,5,16,10,19,18,20,2,3,21,25,4,22,15,6,23,9,11,1,8,24]
+  | MV_EXPAND key
+  | EVAL key=TO_DATETIME(key), value=CASE(key<"1970-01-01T00:00:00.013Z", 0, 1)
+  | CHANGE_POINT value ON key
+  | WHERE type IS NOT NULL
+;
+
+key:datetime             | value:integer | type:keyword | pvalue:double
+1970-01-01T00:00:00.013Z | 1             | step_change  | 0.0          
+;
+
+
+row with ip key
+required_capability: change_point
+
+ROW key=[7,13,12,17,14,5,16,10,19,18,20,2,3,21,25,4,22,15,6,23,9,11,1,8,24]
+  | MV_EXPAND key
+  | EVAL key=TO_STRING(key), key=TO_IP(CONCAT(key,".",key,".",key,".",key)), value=CASE(key<"13.13.13.13", 0, 1)
+  | CHANGE_POINT value ON key
+  | WHERE type IS NOT NULL
+;
+
+key:ip      | value:integer | type:keyword | pvalue:double
+13.13.13.13 | 1             | step_change  | 0.0          
+;
+
+
+row with version key
+required_capability: change_point
+
+ROW key=[7,13,12,17,14,5,16,10,19,18,20,2,3,21,25,4,22,15,6,23,9,11,1,8,24]
+  | MV_EXPAND key
+  | EVAL key=TO_STRING(key), key=TO_VERSION(CONCAT(key,".",key,".",key)), value=CASE(key<"13.13.13", 0, 1)
+  | CHANGE_POINT value ON key
+  | WHERE type IS NOT NULL
+;
+
+key:version | value:integer | type:keyword | pvalue:double
+13.13.13    | 1             | step_change  | 0.0          
+;
+
+
+row with boolean key
+required_capability: change_point
+
+ROW key=[1,0,1,1,1,1,1,0,0,0,1,1,0,0,0,1,1,1,0,0,1,0,0,0,1]
+  | MV_EXPAND key
+  | EVAL key=TO_BOOLEAN(key), value=CASE(key==false, 0, 1)
+  | CHANGE_POINT value ON key
+;
+
+key:boolean | value:integer | type:keyword | pvalue:double
+false       | 0             | null         | null         
+false       | 0             | null         | null         
+false       | 0             | null         | null         
+false       | 0             | null         | null         
+false       | 0             | null         | null         
+false       | 0             | null         | null         
+false       | 0             | null         | null         
+false       | 0             | null         | null         
+false       | 0             | null         | null         
+false       | 0             | null         | null         
+false       | 0             | null         | null         
+false       | 0             | null         | null         
+true        | 1             | step_change  | 0.0          
+true        | 1             | null         | null         
+true        | 1             | null         | null         
+true        | 1             | null         | null         
+true        | 1             | null         | null         
+true        | 1             | null         | null         
+true        | 1             | null         | null         
+true        | 1             | null         | null         
+true        | 1             | null         | null         
+true        | 1             | null         | null         
+true        | 1             | null         | null         
+true        | 1             | null         | null         
+true        | 1             | null         | null         
+;

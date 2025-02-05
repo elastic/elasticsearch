@@ -30,7 +30,6 @@ import org.hamcrest.Matchers;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -201,32 +200,6 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
             Map<String, Map<String, Object>> upgradedIndicesMetadata = getIndicesMetadata(dataStreamName);
             compareIndexMetadata(oldIndicesMetadata, upgradedIndicesMetadata);
         }
-    }
-
-    @SuppressWarnings("unchecked")
-    private void compareIlmExplains(Map<String, Object> oldIlmStatus, Map<String, Object> upgradedIlmStatus) {
-        /*
-         * These maps ought to be identical, except for the index names. The names in the upgraded one will be prefixed with ".migrated-".
-         * So we rewrite that map to have the old names, and then compare the maps.
-         */
-        Map<String, Map<String, Object>> upgradedIndices = (Map<String, Map<String, Object>>) upgradedIlmStatus.get("indices");
-        Map<String, Map<String, Object>> upgradedIndicesWithOldNames = new HashMap<>();
-        for (Map.Entry<String, Map<String, Object>> entry : upgradedIndices.entrySet()) {
-            String upgradedIndexName = entry.getKey();
-            if (upgradedIndexName.startsWith(".migrated-")) {
-                String oldIndexName = "." + upgradedIndexName.substring(".migrated-".length());
-                Map<String, Object> mapForIndex = entry.getValue();
-                Map<String, Object> mapForIndexWithOldNames = new HashMap<>();
-                for (Map.Entry<String, Object> entryForIndex : mapForIndex.entrySet()) {
-                    mapForIndexWithOldNames.put(
-                        entryForIndex.getKey(),
-                        upgradedIndexName.equals(entryForIndex.getValue()) ? oldIndexName : entryForIndex.getValue()
-                    );
-                }
-                upgradedIndicesWithOldNames.put(oldIndexName, mapForIndexWithOldNames);
-            } // otherwise this was created by a rollover on the new cluster
-        }
-        assertThat(upgradedIndicesWithOldNames, equalTo(oldIlmStatus.get("indices")));
     }
 
     private void compareIndexMetadata(

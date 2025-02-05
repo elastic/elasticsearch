@@ -48,8 +48,9 @@ public record VoyageAIEmbeddingsRequestEntity(
         builder.field(INPUT_FIELD, input);
         builder.field(MODEL_FIELD, model);
 
-        if (taskSettings.getInputType() != null) {
-            builder.field(INPUT_TYPE_FIELD, convertToString(taskSettings.getInputType()));
+        var inputType = convertToString(taskSettings.getInputType());
+        if (inputType != null) {
+            builder.field(INPUT_TYPE_FIELD, inputType);
         }
 
         if(taskSettings.getTruncation() != null) {

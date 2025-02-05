@@ -194,13 +194,15 @@ abstract class DataNodeRequestSender {
         // Retain only one meaningful exception and avoid suppressing previous failures to minimize memory usage, especially when handling
         // many shards.
         shardFailures.compute(shardId, (k, current) -> {
+            boolean mergedFatal = fatal || ExceptionsHelper.unwrap(e, TaskCancelledException.class) != null;
             if (current == null) {
-                return new ShardFailure(fatal, e);
+                return new ShardFailure(mergedFatal, e);
             }
+            mergedFatal |= current.fatal;
             if (e instanceof NoShardAvailableActionException || ExceptionsHelper.unwrap(e, TaskCancelledException.class) != null) {
-                return new ShardFailure(current.fatal || fatal, current.failure);
+                return new ShardFailure(mergedFatal, current.failure);
             }
-            return new ShardFailure(current.fatal || fatal, e);
+            return new ShardFailure(mergedFatal, e);
         });
     }
 

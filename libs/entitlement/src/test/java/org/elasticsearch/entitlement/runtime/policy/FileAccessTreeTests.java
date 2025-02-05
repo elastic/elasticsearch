@@ -106,6 +106,6 @@ public class FileAccessTreeTests extends ESTestCase {
 
     FileEntitlement entitlement(String path, String mode) {
         Path p = path(path);
-        return new FileEntitlement(p.toString(), mode);
+        return FileEntitlement.create(p.toString(), mode);
     }
 }

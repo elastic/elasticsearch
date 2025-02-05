@@ -37,7 +37,7 @@ public record FileEntitlement(String path, Mode mode) implements Entitlement {
     }
 
     @ExternalEntitlement(parameterNames = { "path", "mode" }, esModulesOnly = false)
-    public FileEntitlement(String path, String mode) {
-        this(path, parseMode(mode));
+    public static FileEntitlement create(String path, String mode) {
+        return new FileEntitlement(path, parseMode(mode));
     }
 }

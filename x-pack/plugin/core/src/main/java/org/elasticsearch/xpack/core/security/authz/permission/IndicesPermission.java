@@ -818,6 +818,9 @@ public final class IndicesPermission {
 
     public static class Group {
         public static final Group[] EMPTY_ARRAY = new Group[0];
+        // TODO this is just a hack to avoid implementing a new field in this POC; this would be set via allow_failure_store_access on
+        // the role descriptor
+        private static final String FAILURE_STORE_ACCESS_MARKER = ".failure_store_access_marker";
 
         private final IndexPrivilege privilege;
         private final Predicate<String> actionMatcher;
@@ -831,6 +834,7 @@ public final class IndicesPermission {
         // users. Setting this flag true eliminates the special status for the purpose of this permission - restricted indices still have
         // to be covered by the "indices"
         private final boolean allowRestrictedIndices;
+        private final boolean allowFailureStoreAccess;
 
         public Group(
             IndexPrivilege privilege,
@@ -838,33 +842,46 @@ public final class IndicesPermission {
             @Nullable Set<BytesReference> query,
             boolean allowRestrictedIndices,
             RestrictedIndices restrictedIndices,
-            final String... indices
+            String... indices
         ) {
             assert indices.length != 0;
             this.privilege = privilege;
             this.actionMatcher = privilege.predicate();
             this.indices = indices;
+            boolean allowFailureStoreAccess = allowFailureStoreAccess(indices);
+            this.allowFailureStoreAccess = allowFailureStoreAccess;
             // TODO: [Jake] how to support selectors for hasPrivileges ? (are reg-ex's just broken for hasPrivilege index checks ?)
             // TODO: [Jake] ensure that only ::failure selectors can be added the role (i.e. error on name::* or name::data)
             // TODO: [Jake] ensure that no selectors can be added to remote_indices (or gate usage with a feature flag, or just test)
-            String[] patternsReWritten = maybeAddFailureExclusions(indices);
             this.allowRestrictedIndices = allowRestrictedIndices;
             ConcurrentHashMap<String[], Automaton> indexNameAutomatonMemo = new ConcurrentHashMap<>(1);
             if (allowRestrictedIndices) {
-                this.indexNameMatcher = StringMatcher.of(patternsReWritten);
-                this.indexNameAutomaton = () -> indexNameAutomatonMemo.computeIfAbsent(
-                    patternsReWritten,
-                    k -> Automatons.patterns(patternsReWritten)
-                );
+                this.indexNameMatcher = getIndexNameMatcher(allowFailureStoreAccess, indices);
+                // TODO handle this, too
+                this.indexNameAutomaton = () -> indexNameAutomatonMemo.computeIfAbsent(indices, k -> Automatons.patterns(indices));
             } else {
-                this.indexNameMatcher = StringMatcher.of(patternsReWritten).and(name -> restrictedIndices.isRestricted(name) == false);
+                this.indexNameMatcher = getIndexNameMatcher(allowFailureStoreAccess, indices).and(
+                    name -> restrictedIndices.isRestricted(name) == false
+                );
+                // TODO handle this, too
                 this.indexNameAutomaton = () -> indexNameAutomatonMemo.computeIfAbsent(
-                    patternsReWritten,
-                    k -> Automatons.minusAndMinimize(Automatons.patterns(patternsReWritten), restrictedIndices.getAutomaton())
+                    indices,
+                    k -> Automatons.minusAndMinimize(Automatons.patterns(indices), restrictedIndices.getAutomaton())
                 );
             }
             this.fieldPermissions = Objects.requireNonNull(fieldPermissions);
             this.query = query;
+        }
+
+        private static StringMatcher getIndexNameMatcher(boolean allowFailureStoreAccess, String[] indices) {
+            if (false == allowFailureStoreAccess) {
+                return StringMatcher.of(indices).and(name -> name.endsWith("::failures") == false);
+            }
+            return StringMatcher.of(indices);
+        }
+
+        private static boolean allowFailureStoreAccess(String... indices) {
+            return Arrays.stream(indices).anyMatch(index -> index.equals("*") || index.equals(FAILURE_STORE_ACCESS_MARKER));
         }
 
         // TODO: [Jake] ensure this javadoc is still correct before merging (some minor details are wrong, but the gist is correct)

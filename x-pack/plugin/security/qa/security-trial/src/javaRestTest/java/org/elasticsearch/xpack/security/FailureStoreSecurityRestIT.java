@@ -13,6 +13,7 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchResponseUtils;
@@ -20,6 +21,7 @@ import org.elasticsearch.search.SearchResponseUtils;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -29,36 +31,115 @@ import static org.hamcrest.Matchers.hasItem;
 
 public class FailureStoreSecurityRestIT extends SecurityOnTrialLicenseRestTestCase {
 
-    private static final String USER = "user";
+    private static final String DATA_ACCESS_USER = "data_access_user";
+    private static final String FAILURE_STORE_ACCESS_USER = "failure_store_access_user";
     private static final SecureString PASSWORD = new SecureString("elastic-password");
 
+    @SuppressWarnings("unchecked")
     public void testFailureStoreAccess() throws IOException {
+        String dataAccessRole = "data_access";
         String failureStoreAccessRole = "failure_store_access";
-        createUser(USER, PASSWORD, List.of(failureStoreAccessRole));
 
+        createUser(DATA_ACCESS_USER, PASSWORD, List.of(dataAccessRole));
+        createUser(FAILURE_STORE_ACCESS_USER, PASSWORD, List.of(failureStoreAccessRole));
+
+        upsertRole(Strings.format("""
+            {
+              "description": "Role with data access",
+              "cluster": ["all"],
+              "indices": [{"names": ["test*"], "privileges": ["read"]}]
+            }"""), dataAccessRole);
         upsertRole(Strings.format("""
             {
               "description": "Role with failure store access",
               "cluster": ["all"],
-              "indices": [{"names": ["test*::failures"], "privileges": ["read"]}]
+              "indices": [{"names": ["test*::failures", ".failure_store_access_marker"], "privileges": ["read"]}]
             }"""), failureStoreAccessRole);
 
         createTemplates();
-        List<String> ids = populateDataStreamWithBulkRequest();
-        assertThat(ids.size(), equalTo(2));
-        assertThat(ids, hasItem("1"));
+        List<String> docIds = populateDataStreamWithBulkRequest();
+        assertThat(docIds.size(), equalTo(2));
+        assertThat(docIds, hasItem("1"));
         String successDocId = "1";
-        String failedDocId = ids.stream().filter(id -> false == id.equals(successDocId)).findFirst().get();
+        String failedDocId = docIds.stream().filter(id -> false == id.equals(successDocId)).findFirst().get();
+
+        Request dataStream = new Request("GET", "/_data_stream/test1");
+        Response response = adminClient().performRequest(dataStream);
+        Map<String, Object> dataStreams = entityAsMap(response);
+        assertEquals(Collections.singletonList("test1"), XContentMapValues.extractValue("data_streams.name", dataStreams));
+        List<String> dataIndexNames = (List<String>) XContentMapValues.extractValue("data_streams.indices.index_name", dataStreams);
+        assertThat(dataIndexNames.size(), equalTo(1));
+        List<String> failureIndexNames = (List<String>) XContentMapValues.extractValue(
+            "data_streams.failure_store.indices.index_name",
+            dataStreams
+        );
+        assertThat(failureIndexNames.size(), equalTo(1));
+
+        String dataIndexName = dataIndexNames.get(0);
+        String failureIndexName = failureIndexNames.get(0);
 
         // user with access to failures index
-        assertContainsDocIds(performRequestAsUser1(new Request("GET", "/test1::failures/_search")), failedDocId);
-        assertContainsDocIds(performRequestAsUser1(new Request("GET", "/test*::failures/_search")), failedDocId);
-        assertContainsDocIds(performRequestAsUser1(new Request("GET", "/*1::failures/_search")), failedDocId);
-        assertContainsDocIds(performRequestAsUser1(new Request("GET", "/*::failures/_search")), failedDocId);
-        assertContainsDocIds(performRequestAsUser1(new Request("GET", "/.fs*/_search")), failedDocId);
+        assertContainsDocIds(performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/test1::failures/_search")), failedDocId);
+        assertContainsDocIds(performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/test*::failures/_search")), failedDocId);
+        assertContainsDocIds(performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/*1::failures/_search")), failedDocId);
+        assertContainsDocIds(performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/*::failures/_search")), failedDocId);
+        assertContainsDocIds(performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/.fs*/_search")), failedDocId);
+        assertContainsDocIds(
+            performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/" + failureIndexName + "/_search")),
+            failedDocId
+        );
+        // TODO fix this
+        // assertContainsDocIds(
+        // performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/" + failureIndexName + "/_search?ignore_unavailable=true")),
+        // failedDocId
+        // );
 
-        expectThrows404(() -> performRequestAsUser1(new Request("GET", "/test12::failures/_search")));
-        expectThrows404(() -> performRequestAsUser1(new Request("GET", "/test2::failures/_search")));
+        expectThrows404(() -> performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/test12::failures/_search")));
+        expectThrows404(() -> performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/test2::failures/_search")));
+        expectThrows403(() -> performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/test12::*/_search")));
+
+        expectThrows403(() -> performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/test1::data/_search")));
+        expectThrows403(() -> performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/test1/_search")));
+        expectThrows403(() -> performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/test2::data/_search")));
+        expectThrows403(() -> performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/test2/_search")));
+        expectThrows403(() -> performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/" + dataIndexName + "/_search")));
+
+        assertEmpty(performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/test1::data/_search?ignore_unavailable=true")));
+        assertEmpty(performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/test1/_search?ignore_unavailable=true")));
+        assertEmpty(performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/test2::data/_search?ignore_unavailable=true")));
+        assertEmpty(performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/test2/_search?ignore_unavailable=true")));
+        // TODO fix this
+        // assertEmpty(
+        // performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/" + dataIndexName + "/_search?ignore_unavailable=true"))
+        // );
+
+        // assertEmpty(performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/*1::data/_search")));
+        // assertEmpty(performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/*1/_search")));
+        // TODO is this correct?
+        assertEmpty(performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/.ds*/_search")));
+
+        // user with access to data index
+        assertContainsDocIds(performRequest(DATA_ACCESS_USER, new Request("GET", "/test1/_search")), successDocId);
+        assertContainsDocIds(performRequest(DATA_ACCESS_USER, new Request("GET", "/test*/_search")), successDocId);
+        assertContainsDocIds(performRequest(DATA_ACCESS_USER, new Request("GET", "/*1/_search")), successDocId);
+        assertContainsDocIds(performRequest(DATA_ACCESS_USER, new Request("GET", "/*/_search")), successDocId);
+        assertContainsDocIds(performRequest(DATA_ACCESS_USER, new Request("GET", "/.ds*/_search")), successDocId);
+        assertContainsDocIds(performRequest(DATA_ACCESS_USER, new Request("GET", "/" + dataIndexName + "/_search")), successDocId);
+        assertContainsDocIds(
+            performRequest(DATA_ACCESS_USER, new Request("GET", "/" + dataIndexName + "/_search?ignore_unavailable=true")),
+            successDocId
+        );
+
+        expectThrows404(() -> performRequest(DATA_ACCESS_USER, new Request("GET", "/test12/_search")));
+        expectThrows404(() -> performRequest(DATA_ACCESS_USER, new Request("GET", "/test2/_search")));
+        expectThrows403(() -> performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/test12::*/_search")));
+
+        expectThrows403(() -> performRequest(DATA_ACCESS_USER, new Request("GET", "/test1::failures/_search")));
+        expectThrows403(() -> performRequest(DATA_ACCESS_USER, new Request("GET", "/test2::failures/_search")));
+        expectThrows403(() -> performRequest(DATA_ACCESS_USER, new Request("GET", "/" + failureIndexName + "/_search")));
+        // TODO is this correct?
+        assertEmpty(performRequest(DATA_ACCESS_USER, new Request("GET", "/.fs*/_search")));
+        // assertEmpty(performRequest(DATA_ACCESS_USER, new Request("GET", "/*1::failures/_search")));
 
         // user with access to everything
         assertContainsDocIds(adminClient().performRequest(new Request("GET", "/test1::failures/_search")), failedDocId);
@@ -76,6 +157,11 @@ public class FailureStoreSecurityRestIT extends SecurityOnTrialLicenseRestTestCa
         assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(404));
     }
 
+    private static void expectThrows403(ThrowingRunnable get) {
+        var ex = expectThrows(ResponseException.class, get);
+        assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+    }
+
     @SuppressWarnings("unchecked")
     private static void assertContainsDocIds(Response response, String... docIds) throws IOException {
         assertOK(response);
@@ -90,12 +176,15 @@ public class FailureStoreSecurityRestIT extends SecurityOnTrialLicenseRestTestCa
         }
     }
 
-    private static void assert404(Response response) {
-        assertThat(response.getStatusLine().getStatusCode(), equalTo(404));
-    }
-
-    private static void assert403(Response response) {
-        assertThat(response.getStatusLine().getStatusCode(), equalTo(403));
+    private static void assertEmpty(Response response) throws IOException {
+        assertOK(response);
+        final SearchResponse searchResponse = SearchResponseUtils.parseSearchResponse(responseAsParser(response));
+        try {
+            SearchHit[] hits = searchResponse.getHits().getHits();
+            assertThat(hits.length, equalTo(0));
+        } finally {
+            searchResponse.decRef();
+        }
     }
 
     private void createTemplates() throws IOException {
@@ -120,10 +209,10 @@ public class FailureStoreSecurityRestIT extends SecurityOnTrialLicenseRestTestCa
                         }
                     },
                     "data_stream_options": {
-                  "failure_store": {
-                    "enabled": true
-                  }
-                }
+                      "failure_store": {
+                        "enabled": true
+                      }
+                    }
                 }
             }
             """);
@@ -165,10 +254,8 @@ public class FailureStoreSecurityRestIT extends SecurityOnTrialLicenseRestTestCa
         return ids;
     }
 
-    private Response performRequestAsUser1(Request request) throws IOException {
-        request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", basicAuthHeaderValue(USER, PASSWORD)).build());
-        var response = client().performRequest(request);
-        return response;
+    private Response performRequest(String user, Request request) throws IOException {
+        request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", basicAuthHeaderValue(user, PASSWORD)).build());
+        return client().performRequest(request);
     }
-
 }

@@ -884,6 +884,21 @@ key:double | value:double | type:keyword | pvalue:double
 ;
 
 
+row with string key
+required_capability: change_point
+
+ROW key=["23","17","02","06","01","21","12","15","19","07","11","05","24","04","10","14","13","22","09","18","20","08","25","16","03"]
+  | MV_EXPAND key
+  | EVAL value=CASE(key<"13", 0, 1)
+  | CHANGE_POINT value ON key
+  | WHERE type IS NOT NULL
+;
+
+key:string | value:integer | type:keyword | pvalue:double
+13         | 1             | step_change  | 0.0         
+;
+
+
 row with datetime key
 required_capability: change_point
 

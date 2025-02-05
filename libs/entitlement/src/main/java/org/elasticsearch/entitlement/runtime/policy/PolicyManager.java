@@ -52,11 +52,11 @@ public class PolicyManager {
 
     public static final String UNKNOWN_COMPONENT_NAME = "(unknown)";
     public static final String SERVER_COMPONENT_NAME = "(server)";
-    public static final String AGENT_COMPONENT_NAME = "(agent)";
+    public static final String APM_AGENT_COMPONENT_NAME = "(APM agent)";
 
     /**
      * @param componentName the plugin name; or else one of the special component names
-     *                      like {@link #SERVER_COMPONENT_NAME} or {@link #AGENT_COMPONENT_NAME}.
+     *                      like {@link #SERVER_COMPONENT_NAME} or {@link #APM_AGENT_COMPONENT_NAME}.
      */
     record ModuleEntitlements(
         String componentName,
@@ -100,7 +100,7 @@ public class PolicyManager {
     final Map<Module, ModuleEntitlements> moduleEntitlementsMap = new ConcurrentHashMap<>();
 
     protected final Map<String, List<Entitlement>> serverEntitlements;
-    protected final List<Entitlement> agentEntitlements;
+    protected final List<Entitlement> apmAgentEntitlements;
     protected final Map<String, Map<String, List<Entitlement>>> pluginsEntitlements;
     private final Function<Class<?>, String> pluginResolver;
 
@@ -122,9 +122,9 @@ public class PolicyManager {
     }
 
     /**
-     * The package name containing agent classes.
+     * The package name containing classes from the APM agent.
      */
-    private final String agentsPackageName;
+    private final String apmAgentPackageName;
 
     /**
      * Frames originating from this module are ignored in the permission logic.
@@ -133,25 +133,25 @@ public class PolicyManager {
 
     public PolicyManager(
         Policy serverPolicy,
-        List<Entitlement> agentEntitlements,
+        List<Entitlement> apmAgentEntitlements,
         Map<String, Policy> pluginPolicies,
         Function<Class<?>, String> pluginResolver,
-        String agentsPackageName,
+        String apmAgentPackageName,
         Module entitlementsModule
     ) {
         this.serverEntitlements = buildScopeEntitlementsMap(requireNonNull(serverPolicy));
-        this.agentEntitlements = agentEntitlements;
+        this.apmAgentEntitlements = apmAgentEntitlements;
         this.pluginsEntitlements = requireNonNull(pluginPolicies).entrySet()
             .stream()
             .collect(toUnmodifiableMap(Map.Entry::getKey, e -> buildScopeEntitlementsMap(e.getValue())));
         this.pluginResolver = pluginResolver;
-        this.agentsPackageName = agentsPackageName;
+        this.apmAgentPackageName = apmAgentPackageName;
         this.entitlementsModule = entitlementsModule;
 
         for (var e : serverEntitlements.entrySet()) {
-            validateEntitlementsPerModule("server", e.getKey(), e.getValue());
+            validateEntitlementsPerModule(SERVER_COMPONENT_NAME, e.getKey(), e.getValue());
         }
-        validateEntitlementsPerModule("agent", "unnamed", agentEntitlements);
+        validateEntitlementsPerModule(APM_AGENT_COMPONENT_NAME, "unnamed", apmAgentEntitlements);
         for (var p : pluginsEntitlements.entrySet()) {
             for (var m : p.getValue().entrySet()) {
                 validateEntitlementsPerModule(p.getKey(), m.getKey(), m.getValue());
@@ -163,7 +163,7 @@ public class PolicyManager {
         return policy.scopes().stream().collect(toUnmodifiableMap(Scope::moduleName, Scope::entitlements));
     }
 
-    private static void validateEntitlementsPerModule(String sourceName, String moduleName, List<Entitlement> entitlements) {
+    private static void validateEntitlementsPerModule(String componentName, String moduleName, List<Entitlement> entitlements) {
         Set<Class<? extends Entitlement>> flagEntitlements = new HashSet<>();
         for (var e : entitlements) {
             if (e instanceof FileEntitlement) {
@@ -172,7 +172,7 @@ public class PolicyManager {
             if (flagEntitlements.contains(e.getClass())) {
                 throw new IllegalArgumentException(
                     "["
-                        + sourceName
+                        + componentName
                         + "] using module ["
                         + moduleName
                         + "] found duplicate flag entitlements ["
@@ -415,9 +415,9 @@ public class PolicyManager {
             }
         }
 
-        if (requestingModule.isNamed() == false && requestingClass.getPackageName().startsWith(agentsPackageName)) {
-            // agents are the only thing running non-modular in the system classloader
-            return ModuleEntitlements.from(AGENT_COMPONENT_NAME, agentEntitlements);
+        if (requestingModule.isNamed() == false && requestingClass.getPackageName().startsWith(apmAgentPackageName)) {
+            // The APM agent is the only thing running non-modular in the system classloader
+            return ModuleEntitlements.from(APM_AGENT_COMPONENT_NAME, apmAgentEntitlements);
         }
 
         return ModuleEntitlements.none(UNKNOWN_COMPONENT_NAME);

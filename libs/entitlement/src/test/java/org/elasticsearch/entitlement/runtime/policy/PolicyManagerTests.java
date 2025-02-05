@@ -309,7 +309,7 @@ public class PolicyManagerTests extends ESTestCase {
             )
         );
         assertEquals(
-            "[server] using module [test] found duplicate flag entitlements " + "[" + CreateClassLoaderEntitlement.class.getName() + "]",
+            "[(server)] using module [test] found duplicate flag entitlements " + "[" + CreateClassLoaderEntitlement.class.getName() + "]",
             iae.getMessage()
         );
 
@@ -325,7 +325,7 @@ public class PolicyManagerTests extends ESTestCase {
             )
         );
         assertEquals(
-            "[agent] using module [unnamed] found duplicate flag entitlements " + "[" + CreateClassLoaderEntitlement.class.getName() + "]",
+            "[(APM agent)] using module [unnamed] found duplicate flag entitlements " + "[" + CreateClassLoaderEntitlement.class.getName() + "]",
             iae.getMessage()
         );
 

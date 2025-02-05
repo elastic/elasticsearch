@@ -72,7 +72,7 @@ public class AggregatorImplementer {
     private final List<IntermediateStateDesc> intermediateState;
     private final List<Parameter> createParameters;
 
-    private final SingleState singleState;
+    private final AggregationState aggState;
     private final AggregationParameter aggParam;
 
     public AggregatorImplementer(
@@ -85,14 +85,14 @@ public class AggregatorImplementer {
         this.warnExceptions = warnExceptions;
 
         this.init = findRequiredMethod(declarationType, new String[] { "init", "initSingle" }, e -> true);
-        this.singleState = SingleState.create(elements, init.getReturnType(), warnExceptions);
+        this.aggState = AggregationState.create(elements, init.getReturnType(), warnExceptions);
 
         this.combine = findRequiredMethod(declarationType, new String[] { "combine" }, e -> {
             if (e.getParameters().size() == 0) {
                 return false;
             }
             TypeName firstParamType = TypeName.get(e.getParameters().get(0).asType());
-            return Objects.equals(firstParamType.toString(), singleState.declaredType.toString());
+            return Objects.equals(firstParamType.toString(), aggState.declaredType.toString());
         });
         // TODO support multiple parameters
         this.aggParam = AggregationParameter.create(combine.getParameters().get(1).asType());
@@ -174,7 +174,7 @@ public class AggregatorImplementer {
         }
 
         builder.addField(DRIVER_CONTEXT, "driverContext", Modifier.PRIVATE, Modifier.FINAL);
-        builder.addField(singleState.type, "state", Modifier.PRIVATE, Modifier.FINAL);
+        builder.addField(aggState.type, "state", Modifier.PRIVATE, Modifier.FINAL);
         builder.addField(LIST_INTEGER, "channels", Modifier.PRIVATE, Modifier.FINAL);
 
         for (Parameter p : createParameters) {
@@ -234,8 +234,8 @@ public class AggregatorImplementer {
             .map(p -> TypeName.get(p.asType()).equals(BIG_ARRAYS) ? "driverContext.bigArrays()" : p.getSimpleName().toString())
             .collect(joining(", "));
         CodeBlock.Builder builder = CodeBlock.builder();
-        if (singleState.declaredType.isPrimitive()) {
-            builder.add("new $T($T.$L($L))", singleState.type, declarationType, init.getSimpleName(), initParametersCall);
+        if (aggState.declaredType.isPrimitive()) {
+            builder.add("new $T($T.$L($L))", aggState.type, declarationType, init.getSimpleName(), initParametersCall);
         } else {
             builder.add("$T.$L($L)", declarationType, init.getSimpleName(), initParametersCall);
         }
@@ -262,7 +262,7 @@ public class AggregatorImplementer {
         }
         builder.addParameter(DRIVER_CONTEXT, "driverContext");
         builder.addParameter(LIST_INTEGER, "channels");
-        builder.addParameter(singleState.type, "state");
+        builder.addParameter(aggState.type, "state");
 
         if (warnExceptions.isEmpty() == false) {
             builder.addStatement("this.warnings = warnings");
@@ -294,7 +294,7 @@ public class AggregatorImplementer {
     private MethodSpec addRawInput() {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("addRawInput");
         builder.addAnnotation(Override.class).addModifiers(Modifier.PUBLIC).addParameter(PAGE, "page").addParameter(BOOLEAN_VECTOR, "mask");
-        if (singleState.hasFailed()) {
+        if (aggState.hasFailed()) {
             builder.beginControlFlow("if (state.failed())");
             builder.addStatement("return");
             builder.endControlFlow();
@@ -341,7 +341,7 @@ public class AggregatorImplementer {
             return builder.build();
         }
 
-        if (singleState.hasSeen()) {
+        if (aggState.hasSeen()) {
             builder.addStatement("state.seen(true)");
         }
         if (aggParam.isBytesRef()) {
@@ -379,7 +379,7 @@ public class AggregatorImplementer {
             builder.beginControlFlow("if (block.isNull(p))");
             builder.addStatement("continue");
             builder.endControlFlow();
-            if (singleState.hasSeen()) {
+            if (aggState.hasSeen()) {
                 builder.addStatement("state.seen(true)");
             }
             builder.addStatement("int start = block.getFirstValueIndex(p)");
@@ -475,7 +475,7 @@ public class AggregatorImplementer {
                 builder.addStatement("$T scratch = new $T()", BYTES_REF, BYTES_REF);
             }
             builder.addStatement("$T.combineIntermediate(state, " + intermediateStateRowAccess() + ")", declarationType);
-        } else if (singleState.declaredType.isPrimitive()) {
+        } else if (aggState.declaredType.isPrimitive()) {
             if (warnExceptions.isEmpty()) {
                 assert intermediateState.size() == 2;
                 assert intermediateState.get(1).name().equals("seen");
@@ -493,13 +493,13 @@ public class AggregatorImplementer {
             }
 
             warningsBlock(builder, () -> {
-                var primitiveStateMethod = switch (singleState.declaredType.toString()) {
+                var primitiveStateMethod = switch (aggState.declaredType.toString()) {
                     case "boolean" -> "booleanValue";
                     case "int" -> "intValue";
                     case "long" -> "longValue";
                     case "double" -> "doubleValue";
                     case "float" -> "floatValue";
-                    default -> throw new IllegalArgumentException("Unexpected primitive type: [" + singleState.declaredType + "]");
+                    default -> throw new IllegalArgumentException("Unexpected primitive type: [" + aggState.declaredType + "]");
                 };
                 var state = intermediateState.get(0);
                 var s = "state.$L($T.combine(state.$L(), " + state.name() + "." + vectorAccessorName(state.elementType()) + "(0)))";
@@ -535,12 +535,12 @@ public class AggregatorImplementer {
             .addParameter(BLOCK_ARRAY, "blocks")
             .addParameter(TypeName.INT, "offset")
             .addParameter(DRIVER_CONTEXT, "driverContext");
-        if (singleState.hasSeen() || singleState.hasFailed()) {
+        if (aggState.hasSeen() || aggState.hasFailed()) {
             builder.beginControlFlow(
                 "if ($L)",
                 Stream.concat(
-                    Stream.of("state.seen() == false").filter(c -> singleState.hasSeen()),
-                    Stream.of("state.failed()").filter(c -> singleState.hasFailed())
+                    Stream.of("state.seen() == false").filter(c -> aggState.hasSeen()),
+                    Stream.of("state.failed()").filter(c -> aggState.hasFailed())
                 ).collect(joining(" || "))
             );
             builder.addStatement("blocks[offset] = driverContext.blockFactory().newConstantNullBlock(1)", BLOCK);
@@ -548,13 +548,13 @@ public class AggregatorImplementer {
             builder.endControlFlow();
         }
         if (evaluateFinal == null) {
-            builder.addStatement(switch (singleState.declaredType.toString()) {
+            builder.addStatement(switch (aggState.declaredType.toString()) {
                 case "boolean" -> "blocks[offset] = driverContext.blockFactory().newConstantBooleanBlockWith(state.booleanValue(), 1)";
                 case "int" -> "blocks[offset] = driverContext.blockFactory().newConstantIntBlockWith(state.intValue(), 1)";
                 case "long" -> "blocks[offset] = driverContext.blockFactory().newConstantLongBlockWith(state.longValue(), 1)";
                 case "double" -> "blocks[offset] = driverContext.blockFactory().newConstantDoubleBlockWith(state.doubleValue(), 1)";
                 case "float" -> "blocks[offset] = driverContext.blockFactory().newConstantFloatBlockWith(state.floatValue(), 1)";
-                default -> throw new IllegalArgumentException("Unexpected primitive type: [" + singleState.declaredType + "]");
+                default -> throw new IllegalArgumentException("Unexpected primitive type: [" + aggState.declaredType + "]");
             });
         } else {
             builder.addStatement("blocks[offset] = $T.evaluateFinal(state, driverContext)", declarationType);
@@ -623,9 +623,9 @@ public class AggregatorImplementer {
      * @param declaredType declared state type as returned by init method
      * @param type actual type used (we have some predefined state types for primitive values)
      */
-    private record SingleState(TypeName declaredType, TypeName type, boolean hasSeen, boolean hasFailed) {
+    private record AggregationState(TypeName declaredType, TypeName type, boolean hasSeen, boolean hasFailed) {
 
-        public static SingleState create(Elements elements, TypeMirror mirror, List<TypeMirror> warnExceptions) {
+        public static AggregationState create(Elements elements, TypeMirror mirror, List<TypeMirror> warnExceptions) {
             var declaredType = TypeName.get(mirror);
             var stateType = declaredType.isPrimitive()
                 ? ClassName.get(
@@ -633,7 +633,7 @@ public class AggregatorImplementer {
                 capitalize(declaredType.toString()) + (warnExceptions.isEmpty() ? "State" : "FallibleState")
             )
                 : declaredType;
-            return new SingleState(
+            return new AggregationState(
                 declaredType,
                 stateType,
                 hasMethod(elements, stateType, "seen()"),

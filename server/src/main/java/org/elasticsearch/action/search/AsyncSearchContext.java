@@ -65,21 +65,21 @@ public abstract class AsyncSearchContext<Result extends SearchPhaseResult> {
     // protected for tests
     protected final List<Releasable> releasables = new ArrayList<>();
 
-    protected final AtomicBoolean requestCancelled = new AtomicBoolean();
+    private final AtomicBoolean requestCancelled = new AtomicBoolean();
 
     protected final SearchTask task;
 
     protected final AtomicInteger successfulOps = new AtomicInteger();
 
     protected final SearchTransportService searchTransportService;
-    protected final Executor executor;
+    private final Executor executor;
 
     protected final List<SearchShardIterator> toSkipShardsIts;
     protected final List<SearchShardIterator> shardsIts;
     protected final SearchShardIterator[] shardIterators;
 
     protected final SetOnce<AtomicArray<ShardSearchFailure>> shardFailures = new SetOnce<>();
-    protected final Object shardFailuresMutex = new Object();
+    private final Object shardFailuresMutex = new Object();
 
     protected final TransportVersion minTransportVersion;
     protected final Map<String, AliasFilter> aliasFilter;
@@ -288,7 +288,9 @@ public abstract class AsyncSearchContext<Result extends SearchPhaseResult> {
         releasables.add(releasable);
     }
 
-    abstract void execute(Runnable command);
+    public final void execute(Runnable command) {
+        executor.execute(command);
+    }
 
     abstract void onShardFailure(int shardIndex, SearchShardTarget shard, Exception e);
 

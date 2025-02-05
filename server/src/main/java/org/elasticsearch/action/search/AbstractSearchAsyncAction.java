@@ -430,10 +430,6 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         executeNextPhase(name, this::getNextPhase);
     }
 
-    public final void execute(Runnable command) {
-        executor.execute(command);
-    }
-
     /**
      * Builds an request for the initial search phase.
      *

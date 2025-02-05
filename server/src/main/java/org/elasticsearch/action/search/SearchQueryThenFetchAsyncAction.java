@@ -748,11 +748,6 @@ public class SearchQueryThenFetchAsyncAction<Result extends SearchPhaseResult> e
     }
 
     @Override
-    public void execute(Runnable command) {
-        executor.execute(command);
-    }
-
-    @Override
     public void sendReleaseSearchContext(ShardSearchContextId contextId, Transport.Connection connection) {
         assert isPartOfPointInTime(contextId) == false : "Must not release point in time context [" + contextId + "]";
         if (connection != null) {

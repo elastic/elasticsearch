@@ -101,7 +101,7 @@ public final class KerberosRealm extends Realm implements CachingRealm {
         }
         this.kerberosTicketValidator = kerberosTicketValidator;
         this.threadPool = threadPool;
-        this.keytabPath = config.env().configFile().resolve(config.getSetting(KerberosRealmSettings.HTTP_SERVICE_KEYTAB_PATH));
+        this.keytabPath = config.env().configDir().resolve(config.getSetting(KerberosRealmSettings.HTTP_SERVICE_KEYTAB_PATH));
 
         validateKeytab(this.keytabPath);
 

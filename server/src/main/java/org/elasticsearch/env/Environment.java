@@ -334,15 +334,15 @@ public class Environment {
      * object which may contain different setting)
      */
     public static void assertEquivalent(Environment actual, Environment expected) {
-        assertEquals(actual.dataDirs(), expected.dataDirs(), "dataFiles");
-        assertEquals(actual.repoDirs(), expected.repoDirs(), "repoFiles");
-        assertEquals(actual.configDir(), expected.configDir(), "configFile");
-        assertEquals(actual.pluginsDir(), expected.pluginsDir(), "pluginsFile");
-        assertEquals(actual.binDir(), expected.binDir(), "binFile");
-        assertEquals(actual.libDir(), expected.libDir(), "libFile");
-        assertEquals(actual.modulesDir(), expected.modulesDir(), "modulesFile");
-        assertEquals(actual.logsDir(), expected.logsDir(), "logsFile");
-        assertEquals(actual.tmpDir(), expected.tmpDir(), "tmpFile");
+        assertEquals(actual.dataDirs(), expected.dataDirs(), "dataDirs");
+        assertEquals(actual.repoDirs(), expected.repoDirs(), "repoDirs");
+        assertEquals(actual.configDir(), expected.configDir(), "configDir");
+        assertEquals(actual.pluginsDir(), expected.pluginsDir(), "pluginsDir");
+        assertEquals(actual.binDir(), expected.binDir(), "binDir");
+        assertEquals(actual.libDir(), expected.libDir(), "libDir");
+        assertEquals(actual.modulesDir(), expected.modulesDir(), "modulesDir");
+        assertEquals(actual.logsDir(), expected.logsDir(), "logsDir");
+        assertEquals(actual.tmpDir(), expected.tmpDir(), "tmpDir");
     }
 
     private static void assertEquals(Object actual, Object expected, String name) {

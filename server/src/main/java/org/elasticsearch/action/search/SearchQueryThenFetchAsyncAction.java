@@ -126,7 +126,9 @@ public class SearchQueryThenFetchAsyncAction<Result extends SearchPhaseResult> e
             executor,
             nodeIdToConnection,
             shardsIts,
-            aliasFilter,
+            removeEmptyAliasFilters(aliasFilter), // TODO: we should do this at build time for this map, but BwC is tricky for now
+                                                  // this is an important optimization for batched execution though because it keeps
+                                                  // the transport request size in check by avoiding redundant index name/uuid strings
             concreteIndexBoosts,
             timeProvider,
             clusterState,
@@ -152,6 +154,10 @@ public class SearchQueryThenFetchAsyncAction<Result extends SearchPhaseResult> e
             return;
         }
         try {
+            if (shardsIts.isEmpty()) {
+                executeNextPhase(NAME, this::getNextPhase);
+                return;
+            }
             run();
         } catch (Exception e) {
             if (logger.isDebugEnabled()) {
@@ -267,8 +273,8 @@ public class SearchQueryThenFetchAsyncAction<Result extends SearchPhaseResult> e
             SearchPhaseController.TopDocsStats topDocsStats
         ) {
             this.results = results;
-            for (int i = 0; i < results.length; i++) {
-                if (results[i] instanceof RefCounted r) {
+            for (Object result : results) {
+                if (result instanceof RefCounted r) {
                     r.incRef();
                 }
             }
@@ -479,10 +485,6 @@ public class SearchQueryThenFetchAsyncAction<Result extends SearchPhaseResult> e
     }
 
     private void run() {
-        if (shardsIts.size() == 0) {
-            executeNextPhase(NAME, this::getNextPhase);
-            return;
-        }
         // TODO: stupid but we kinda need to fill all of these in with the current logic, do something nicer before merging
         final Map<SearchShardIterator, Integer> shardIndexMap = Maps.newHashMapWithExpectedSize(shardIterators.length);
         for (int i = 0; i < shardIterators.length; i++) {
@@ -592,6 +594,16 @@ public class SearchQueryThenFetchAsyncAction<Result extends SearchPhaseResult> e
                     }
                 });
         });
+    }
+
+    private static Map<String, AliasFilter> removeEmptyAliasFilters(Map<String, AliasFilter> aliasFilters) {
+        Map<String, AliasFilter> aliasFilterNoEmpty = new HashMap<>();
+        aliasFilters.forEach((idx, filter) -> {
+            if (AliasFilter.EMPTY.equals(filter) == false) {
+                aliasFilterNoEmpty.put(idx, filter);
+            }
+        });
+        return Map.copyOf(aliasFilterNoEmpty);
     }
 
     private void onNodeQueryFailure(Exception e, NodeQueryRequest request, String nodeId) {

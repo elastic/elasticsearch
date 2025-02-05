@@ -740,6 +740,39 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
             .endObject();
     }
 
+    // public for testing
+    public record AggregateMetricDoubleFieldSupportedMetrics(String defaultMetric, List<String> supportedMetrics) {}
+
+    // public for testing
+    public static AggregateMetricDoubleFieldSupportedMetrics getSupportedMetrics(
+        final TimeSeriesParams.MetricType metricType,
+        final Map<String, ?> fieldProperties
+    ) {
+        boolean sourceIsAggregate = fieldProperties.get("type").equals(AggregateMetricDoubleFieldMapper.CONTENT_TYPE);
+        List<String> supportedAggs = List.of(metricType.supportedAggs());
+
+        if (sourceIsAggregate) {
+            @SuppressWarnings("unchecked")
+            List<String> currentAggs = (List<String>) fieldProperties.get(AggregateMetricDoubleFieldMapper.Names.METRICS);
+            supportedAggs = supportedAggs.stream().filter(currentAggs::contains).toList();
+        }
+
+        assert supportedAggs.size() > 0;
+
+        String defaultMetric = "max";
+        if (supportedAggs.contains(defaultMetric) == false) {
+            defaultMetric = supportedAggs.get(0);
+        }
+        if (sourceIsAggregate) {
+            defaultMetric = Objects.requireNonNullElse(
+                (String) fieldProperties.get(AggregateMetricDoubleFieldMapper.Names.DEFAULT_METRIC),
+                defaultMetric
+            );
+        }
+
+        return new AggregateMetricDoubleFieldSupportedMetrics(defaultMetric, supportedAggs);
+    }
+
     private static void addMetricFieldMapping(final XContentBuilder builder, final String field, final Map<String, ?> fieldProperties)
         throws IOException {
         final TimeSeriesParams.MetricType metricType = TimeSeriesParams.MetricType.fromString(
@@ -753,25 +786,13 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                 builder.field(fieldProperty, fieldProperties.get(fieldProperty));
             }
         } else {
-            List<String> supportedAggs = List.of(metricType.supportedAggs());
-            // We choose max as the default metric
-            String defaultMetric = supportedAggs.contains("max") ? "max" : supportedAggs.get(0);
+            var supported = getSupportedMetrics(metricType, fieldProperties);
 
-            if (fieldProperties.get("type").equals(AggregateMetricDoubleFieldMapper.CONTENT_TYPE)) {
-                @SuppressWarnings("unchecked")
-                List<String> currentAggs = (List<String>) fieldProperties.get(AggregateMetricDoubleFieldMapper.Names.METRICS);
-                supportedAggs = supportedAggs.stream().filter(currentAggs::contains).toList();
-                defaultMetric = Objects.requireNonNullElse(
-                    (String) fieldProperties.get(AggregateMetricDoubleFieldMapper.Names.DEFAULT_METRIC),
-                    defaultMetric
-                );
-            }
-
-            String[] supportedAggsArray = supportedAggs.toArray(String[]::new);
+            String[] supportedMetricsArray = supported.supportedMetrics.toArray(String[]::new);
 
             builder.field("type", AggregateMetricDoubleFieldMapper.CONTENT_TYPE)
-                .array(AggregateMetricDoubleFieldMapper.Names.METRICS, supportedAggsArray)
-                .field(AggregateMetricDoubleFieldMapper.Names.DEFAULT_METRIC, defaultMetric)
+                .array(AggregateMetricDoubleFieldMapper.Names.METRICS, supportedMetricsArray)
+                .field(AggregateMetricDoubleFieldMapper.Names.DEFAULT_METRIC, supported.defaultMetric)
                 .field(TIME_SERIES_METRIC_PARAM, metricType);
         }
         builder.endObject();

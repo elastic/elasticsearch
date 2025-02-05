@@ -66,8 +66,6 @@ import java.util.TreeMap;
  */
 public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAction.Request, AnalyzeAction.Response> {
 
-    public static final NodeFeature WRONG_CUSTOM_ANALYZER_RETURN_400 = new NodeFeature("wrong_custom_analyzer_return_400");
-
     private final Settings settings;
     private final IndicesService indicesService;
 

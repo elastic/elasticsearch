@@ -63,8 +63,12 @@
 ---
 "Custom analyzer is not buildable":
   - requires:
-      cluster_features: [ "wrong_custom_analyzer_return_400" ]
-      reason: "Returning 400 for wrong custom analyzer was added in this version"
+      test_runner_features: [ capabilities ]
+      reason: This capability required to run test
+      capabilities:
+        - method: GET
+          path: /_analyze
+          capabilities: [ wrong_custom_analyzer_returns_400 ]
 
   - do:
       catch: bad_request

@@ -426,7 +426,6 @@ module org.elasticsearch.server {
     provides org.elasticsearch.features.FeatureSpecification
         with
             org.elasticsearch.action.bulk.BulkFeatures,
-            org.elasticsearch.action.admin.ActionFeatures,
             org.elasticsearch.features.FeatureInfrastructureFeatures,
             org.elasticsearch.rest.action.admin.cluster.ClusterRerouteFeatures,
             org.elasticsearch.index.mapper.MapperFeatures,
@@ -477,5 +476,4 @@ module org.elasticsearch.server {
     exports org.elasticsearch.monitor.metrics;
     exports org.elasticsearch.plugins.internal.rewriter to org.elasticsearch.inference;
     exports org.elasticsearch.lucene.util.automaton;
-    exports org.elasticsearch.action.admin;
 }

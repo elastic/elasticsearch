@@ -1,0 +1,5 @@
+pr: 121784
+summary: Add a lenient option to text similarity reranking
+area: Search
+type: enhancement
+issues: []

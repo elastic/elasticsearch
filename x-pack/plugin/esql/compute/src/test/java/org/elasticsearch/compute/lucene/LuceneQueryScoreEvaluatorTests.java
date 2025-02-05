@@ -33,6 +33,7 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.LuceneQueryExpressionEvaluator.ShardConfig;
 import org.elasticsearch.compute.lucene.LuceneQueryScoreEvaluator.DenseCollector;
+import org.elasticsearch.compute.operator.AbstractPageMappingOperator;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
@@ -136,16 +137,16 @@ public class LuceneQueryScoreEvaluatorTests extends ComputeTestCase {
     private void assertTermQuery(String term, List<Page> results) {
         int matchCount = 0;
         for (Page page : results) {
-            int initialBlockIndex = initialBlockIndex(page);
-            BytesRefVector terms = page.<BytesRefBlock>getBlock(initialBlockIndex).asVector();
-            DoubleVector scores = page.<DoubleBlock>getBlock(initialBlockIndex + 1).asVector();
+            DoubleVector scores = page.<DoubleBlock>getBlock(1).asVector();
+            BytesRefVector terms = page.<BytesRefBlock>getBlock(2).asVector();
             for (int i = 0; i < page.getPositionCount(); i++) {
                 BytesRef termAtPosition = terms.getBytesRef(i, new BytesRef());
+                // ScoreOperator adds together scores - we get 1.0 from a match all query plus the term score
                 if (termAtPosition.utf8ToString().equals(term)) {
-                    assertThat(scores.getDouble(i), greaterThan(0.0));
+                    assertThat(scores.getDouble(i), greaterThan(1.0));
                     matchCount++;
                 } else {
-                    assertThat(scores.getDouble(i), equalTo(NO_MATCH_SCORE));
+                    assertThat(scores.getDouble(i), equalTo(NO_MATCH_SCORE + 1.0));
                 }
             }
         }
@@ -174,13 +175,19 @@ public class LuceneQueryScoreEvaluatorTests extends ComputeTestCase {
         List<Page> results = runQuery(values, new TermInSetQuery(MultiTermQuery.CONSTANT_SCORE_REWRITE, FIELD, matchingBytes), shuffleDocs);
         int matchCount = 0;
         for (Page page : results) {
-            int initialBlockIndex = initialBlockIndex(page);
-            BytesRefVector terms = page.<BytesRefBlock>getBlock(initialBlockIndex).asVector();
-            DoubleVector scores = page.<DoubleBlock>getBlock(initialBlockIndex + 1).asVector();
+            assert page.getBlock(0) instanceof DocBlock : "expected doc block at index 0";
+            assert page.getBlock(1) instanceof DoubleBlock : "expected scoring block at index 1";
+            assert page.getBlock(2) instanceof BytesRefBlock : "expected bytes ref block at index 2";
+            BytesRefVector terms = page.<BytesRefBlock>getBlock(2).asVector();
+            DoubleVector scores = page.<DoubleBlock>getBlock(1).asVector();
             for (int i = 0; i < page.getPositionCount(); i++) {
                 BytesRef termAtPosition = terms.getBytesRef(i, new BytesRef());
-                assertThat(scores.getDouble(i), equalTo(matching.contains(termAtPosition.utf8ToString()) ? TEST_SCORE : NO_MATCH_SCORE));
-                if (scores.getDouble(i) == TEST_SCORE) {
+                // ScoreOperator adds together scores - we get 1.0 from a match all query
+                assertThat(
+                    scores.getDouble(i),
+                    equalTo(matching.contains(termAtPosition.utf8ToString()) ? TEST_SCORE + 1 : NO_MATCH_SCORE + 1)
+                );
+                if (scores.getDouble(i) == TEST_SCORE + 1) {
                     matchCount++;
                 }
             }
@@ -194,11 +201,7 @@ public class LuceneQueryScoreEvaluatorTests extends ComputeTestCase {
         return withReader(values, reader -> {
             IndexSearcher searcher = new IndexSearcher(reader);
             ShardConfig shard = new ShardConfig(searcher.rewrite(query), searcher);
-            LuceneQueryScoreEvaluator luceneQueryEvaluator = new LuceneQueryScoreEvaluator(
-                blockFactory,
-                new ShardConfig[] { shard }
-
-            );
+            LuceneQueryScoreEvaluator luceneQueryEvaluator = new LuceneQueryScoreEvaluator(blockFactory, new ShardConfig[] { shard });
 
             List<Operator> operators = new ArrayList<>();
             if (shuffleDocs) {
@@ -224,7 +227,7 @@ public class LuceneQueryScoreEvaluatorTests extends ComputeTestCase {
             List<Page> results = new ArrayList<>();
             Driver driver = new Driver(
                 driverContext,
-                luceneOperatorFactory(reader, new MatchAllDocsQuery(), LuceneOperator.NO_LIMIT, scoring).get(driverContext),
+                luceneOperatorFactory(reader, new MatchAllDocsQuery(), LuceneOperator.NO_LIMIT).get(driverContext),
                 operators,
                 new TestResultPageSinkOperator(results::add),
                 () -> {}
@@ -233,6 +236,19 @@ public class LuceneQueryScoreEvaluatorTests extends ComputeTestCase {
             OperatorTests.assertDriverContext(driverContext);
             return results;
         });
+    }
+
+    private static class ScoreTestOperator extends AbstractPageMappingOperator {
+
+        @Override
+        protected Page process(Page page) {
+            return null;
+        }
+
+        @Override
+        public String toString() {
+            return "ScoreTestOperator";
+        }
     }
 
     private <T> T withReader(Set<String> values, CheckedFunction<DirectoryReader, T, IOException> run) throws IOException {
@@ -265,21 +281,7 @@ public class LuceneQueryScoreEvaluatorTests extends ComputeTestCase {
         return new DriverContext(blockFactory.bigArrays(), blockFactory);
     }
 
-    // Scores are not interesting to this test, but enabled conditionally and effectively ignored just for coverage.
-    private final boolean scoring = randomBoolean();
-
-    // Returns the initial block index, ignoring the score block if scoring is enabled
-    private int initialBlockIndex(Page page) {
-        assert page.getBlock(0) instanceof DocBlock : "expected doc block at index 0";
-        if (scoring) {
-            assert page.getBlock(1) instanceof DoubleBlock : "expected double block at index 1";
-            return 2;
-        } else {
-            return 1;
-        }
-    }
-
-    static LuceneOperator.Factory luceneOperatorFactory(IndexReader reader, Query query, int limit, boolean scoring) {
+    static LuceneOperator.Factory luceneOperatorFactory(IndexReader reader, Query query, int limit) {
         final ShardContext searchContext = new LuceneSourceOperatorTests.MockShardContext(reader, 0);
         return new LuceneSourceOperator.Factory(
             List.of(searchContext),
@@ -288,7 +290,7 @@ public class LuceneQueryScoreEvaluatorTests extends ComputeTestCase {
             randomIntBetween(1, 10),
             randomPageSize(),
             limit,
-            scoring
+            true
         );
     }
 }

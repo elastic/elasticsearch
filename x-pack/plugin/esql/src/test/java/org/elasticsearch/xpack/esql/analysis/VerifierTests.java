@@ -1452,11 +1452,12 @@ public class VerifierTests extends ESTestCase {
     private void checkWithFullTextFunctionsDisjunctions(String functionInvocation) {
 
         // Disjunctions with non-pushable functions - scoring
-        checkdisjunctionScoringError("1:35", functionInvocation + " or length(first_name) > 10");
-        checkdisjunctionScoringError("1:35", "match(last_name, \"Anneke\") or (" + functionInvocation + " and length(first_name) > 10)");
-        checkdisjunctionScoringError(
-            "1:35",
-            "(" + functionInvocation + " and length(first_name) > 0) or (match(last_name, \"Anneke\") and length(first_name) > 10)"
+        query("from test | where " + functionInvocation + " or length(first_name) > 10");
+        query("from test | where match(last_name, \"Anneke\") or (" + functionInvocation + " and length(first_name) > 10)");
+        query(
+            "from test | where ("
+                + functionInvocation
+                + " and length(first_name) > 0) or (match(last_name, \"Anneke\") and length(first_name) > 10)"
         );
 
         // Disjunctions with non-pushable functions - no scoring

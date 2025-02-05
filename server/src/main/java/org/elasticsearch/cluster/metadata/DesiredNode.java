@@ -11,7 +11,6 @@ package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -163,12 +162,7 @@ public final class DesiredNode implements Writeable, ToXContentObject, Comparabl
         final var memory = ByteSizeValue.readFrom(in);
         final var storage = ByteSizeValue.readFrom(in);
         if (in.getTransportVersion().before(TransportVersions.REMOVE_DESIRED_NODE_VERSION)) {
-            final String version;
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-                version = in.readOptionalString();
-            } else {
-                version = Version.readVersion(in).toString();
-            }
+            in.readOptionalString();
         }
         return new DesiredNode(settings, processors, processorsRange, memory, storage);
     }
@@ -187,11 +181,7 @@ public final class DesiredNode implements Writeable, ToXContentObject, Comparabl
         memory.writeTo(out);
         storage.writeTo(out);
         if (out.getTransportVersion().before(TransportVersions.REMOVE_DESIRED_NODE_VERSION)) {
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-                out.writeOptionalString(null);
-            } else {
-                Version.writeVersion(Version.CURRENT, out);
-            }
+            out.writeOptionalString(null);
         }
     }
 

@@ -6,6 +6,12 @@
 <titleabbrev>EQL search</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-eql[EQL APIs].
+--
+
 Returns search results for an <<eql,Event Query Language (EQL)>> query.
 
 EQL assumes each document in a data stream or index corresponds to an
@@ -87,6 +93,53 @@ error if an index starts with `foo` but no index starts with `bar`. However, a
 request that targets only `bar*` still returns an error.
 +
 Defaults to `true`.
+
+`allow_partial_search_results`::
+(Optional, Boolean)
+
+If `false`, the request returns an error if one or more shards involved in the query are unavailable.
++
+If `true`, the query is executed only on the available shards, ignoring shard request timeouts and
+<<shard-failures,shard failures>>.
++
+Defaults to `true`.
++
+To override the default for this field, set the
+`xpack.eql.default_allow_partial_results` cluster setting to `false`.
+
+
+[IMPORTANT]
+====
+You can also specify this value using the `allow_partial_search_results` request body parameter.
+If both parameters are specified, only the query parameter is used.
+====
+
+
+`allow_partial_sequence_results`::
+(Optional, Boolean)
+
+
+Used together with `allow_partial_search_results=true`, controls the behavior of sequence queries specifically
+(if `allow_partial_search_results=false`, this setting has no effect).
+If `true` and if some shards are unavailable, the sequences are calculated on available shards only.
++
+If `false` and if some shards are unavailable, the query only returns information about the shard failures,
+but no further results.
++
+Defaults to `false`.
++
+Consider that sequences calculated with `allow_partial_search_results=true` can return incorrect results
+(eg. if a <<eql-missing-events, missing event>> clause matches records in unavailable shards)
++
+To override the default for this field, set the
+`xpack.eql.default_allow_partial_sequence_results` cluster setting to `true`.
+
+
+[IMPORTANT]
+====
+You can also specify this value using the `allow_partial_sequence_results` request body parameter.
+If both parameters are specified, only the query parameter is used.
+====
 
 `ccs_minimize_roundtrips`::
 (Optional, Boolean) If `true`, network round-trips between the local and the

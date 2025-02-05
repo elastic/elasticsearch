@@ -360,7 +360,7 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
         var original = state.getMetadata().dataStreams().get(dataStreamName);
         var broken = original.copy()
             .setBackingIndices(
-                original.getBackingIndices()
+                original.getDataComponent()
                     .copy()
                     .setIndices(List.of(new Index(original.getIndices().get(0).getName(), "broken"), original.getIndices().get(1)))
                     .build()

@@ -64,6 +64,12 @@ public class RestEqlSearchAction extends BaseRestHandler {
             }
             eqlRequest.keepOnCompletion(request.paramAsBoolean("keep_on_completion", eqlRequest.keepOnCompletion()));
             eqlRequest.ccsMinimizeRoundtrips(request.paramAsBoolean("ccs_minimize_roundtrips", eqlRequest.ccsMinimizeRoundtrips()));
+            eqlRequest.allowPartialSearchResults(
+                request.paramAsBoolean("allow_partial_search_results", eqlRequest.allowPartialSearchResults())
+            );
+            eqlRequest.allowPartialSequenceResults(
+                request.paramAsBoolean("allow_partial_sequence_results", eqlRequest.allowPartialSequenceResults())
+            );
         }
 
         return channel -> {

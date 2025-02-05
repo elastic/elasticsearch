@@ -434,7 +434,7 @@ class S3Service implements Closeable {
                     public void onFileChanged(Path file) {
                         if (file.equals(webIdentityTokenFileSymlink)) {
                             LOGGER.debug("WS web identity token file [{}] changed, updating credentials", file);
-                            credentialsProvider.refresh();
+                            SocketAccess.doPrivilegedVoid(credentialsProvider::refresh);
                         }
                     }
                 });

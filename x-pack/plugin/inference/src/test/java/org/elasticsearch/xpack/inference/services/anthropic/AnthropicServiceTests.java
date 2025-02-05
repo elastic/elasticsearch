@@ -47,6 +47,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -604,112 +605,36 @@ public class AnthropicServiceTests extends ESTestCase {
         try (var service = createServiceWithMockSender()) {
             String content = XContentHelper.stripWhitespace("""
                 {
-                      "provider": "anthropic",
-                      "task_types": [
-                           {
-                               "task_type": "completion",
-                               "configuration": {
-                                   "top_p": {
-                                       "default_value": null,
-                                       "depends_on": [],
-                                       "display": "numeric",
-                                       "label": "Top P",
-                                       "order": 4,
-                                       "required": false,
-                                       "sensitive": false,
-                                       "tooltip": "Specifies to use Anthropic’s nucleus sampling.",
-                                       "type": "int",
-                                       "ui_restrictions": [],
-                                       "validations": [],
-                                       "value": null
-                                   },
-                                   "max_tokens": {
-                                       "default_value": null,
-                                       "depends_on": [],
-                                       "display": "numeric",
-                                       "label": "Max Tokens",
-                                       "order": 1,
-                                       "required": true,
-                                       "sensitive": false,
-                                       "tooltip": "The maximum number of tokens to generate before stopping.",
-                                       "type": "int",
-                                       "ui_restrictions": [],
-                                       "validations": [],
-                                       "value": null
-                                   },
-                                   "top_k": {
-                                       "default_value": null,
-                                       "depends_on": [],
-                                       "display": "numeric",
-                                       "label": "Top K",
-                                       "order": 3,
-                                       "required": false,
-                                       "sensitive": false,
-                                       "tooltip": "Specifies to only sample from the top K options for each subsequent token.",
-                                       "type": "int",
-                                       "ui_restrictions": [],
-                                       "validations": [],
-                                       "value": null
-                                   },
-                                   "temperature": {
-                                       "default_value": null,
-                                       "depends_on": [],
-                                       "display": "textbox",
-                                       "label": "Temperature",
-                                       "order": 2,
-                                       "required": false,
-                                       "sensitive": false,
-                                       "tooltip": "The amount of randomness injected into the response.",
-                                       "type": "str",
-                                       "ui_restrictions": [],
-                                       "validations": [],
-                                       "value": null
-                                   }
-                               }
-                           }
-                      ],
-                      "configuration": {
+                      "service": "anthropic",
+                      "name": "Anthropic",
+                      "task_types": ["completion"],
+                      "configurations": {
                           "api_key": {
-                              "default_value": null,
-                              "depends_on": [],
-                              "display": "textbox",
+                              "description": "API Key for the provider you're connecting to.",
                               "label": "API Key",
-                              "order": 1,
                               "required": true,
                               "sensitive": true,
-                              "tooltip": "API Key for the provider you're connecting to.",
+                              "updatable": true,
                               "type": "str",
-                              "ui_restrictions": [],
-                              "validations": [],
-                              "value": null
+                              "supported_task_types": ["completion"]
                           },
                           "rate_limit.requests_per_minute": {
-                              "default_value": null,
-                              "depends_on": [],
-                              "display": "numeric",
+                              "description": "By default, the anthropic service sets the number of requests allowed per minute to 50.",
                               "label": "Rate Limit",
-                              "order": 6,
                               "required": false,
                               "sensitive": false,
-                              "tooltip": "By default, the anthropic service sets the number of requests allowed per minute to 50.",
+                              "updatable": false,
                               "type": "int",
-                              "ui_restrictions": [],
-                              "validations": [],
-                              "value": null
+                              "supported_task_types": ["completion"]
                           },
                           "model_id": {
-                              "default_value": null,
-                              "depends_on": [],
-                              "display": "textbox",
+                              "description": "The name of the model to use for the inference task.",
                               "label": "Model ID",
-                              "order": 2,
                               "required": true,
                               "sensitive": false,
-                              "tooltip": "The name of the model to use for the inference task.",
+                              "updatable": false,
                               "type": "str",
-                              "ui_restrictions": [],
-                              "validations": [],
-                              "value": null
+                              "supported_task_types": ["completion"]
                           }
                       }
                   }
@@ -731,8 +656,8 @@ public class AnthropicServiceTests extends ESTestCase {
 
     public void testSupportsStreaming() throws IOException {
         try (var service = new AnthropicService(mock(), createWithEmptySettings(mock()))) {
-            assertTrue(service.canStream(TaskType.COMPLETION));
-            assertTrue(service.canStream(TaskType.ANY));
+            assertThat(service.supportedStreamingTasks(), is(EnumSet.of(TaskType.COMPLETION)));
+            assertFalse(service.canStream(TaskType.ANY));
         }
     }
 

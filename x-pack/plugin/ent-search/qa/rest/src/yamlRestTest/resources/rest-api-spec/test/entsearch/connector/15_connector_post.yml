@@ -104,6 +104,18 @@ setup:
 
 
 ---
+'Create Connector - Invalid Managed Connector Index Prefix':
+  - do:
+      catch: "bad_request"
+      connector.post:
+        body:
+          index_name: wrong-prefix-index
+          name: my-connector
+          language: pl
+          is_native: true
+          service_type: super-connector
+
+---
 'Create Connector - Index name used by another connector':
   - do:
       connector.post:

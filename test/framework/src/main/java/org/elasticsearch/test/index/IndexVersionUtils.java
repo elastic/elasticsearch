@@ -14,40 +14,48 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.KnownIndexVersions;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.VersionUtils;
 
-import java.util.Collections;
-import java.util.List;
+import java.util.NavigableSet;
 import java.util.Random;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static org.apache.lucene.tests.util.LuceneTestCase.random;
+
 public class IndexVersionUtils {
 
-    private static final List<IndexVersion> ALL_VERSIONS = KnownIndexVersions.ALL_VERSIONS;
+    private static final NavigableSet<IndexVersion> ALL_VERSIONS = KnownIndexVersions.ALL_VERSIONS;
+    private static final NavigableSet<IndexVersion> ALL_WRITE_VERSIONS = KnownIndexVersions.ALL_WRITE_VERSIONS;
 
     /** Returns all released versions */
-    public static List<IndexVersion> allReleasedVersions() {
+    public static NavigableSet<IndexVersion> allReleasedVersions() {
         return ALL_VERSIONS;
     }
 
-    /** Returns the oldest known {@link IndexVersion} */
-    public static IndexVersion getFirstVersion() {
-        return ALL_VERSIONS.get(0);
+    /** Returns the oldest known {@link IndexVersion}. This version can only be read from and not written to */
+    public static IndexVersion getLowestReadCompatibleVersion() {
+        return ALL_VERSIONS.getFirst();
+    }
+
+    /** Returns the oldest known {@link IndexVersion} that can be written to */
+    public static IndexVersion getLowestWriteCompatibleVersion() {
+        return ALL_WRITE_VERSIONS.getFirst();
     }
 
     /** Returns a random {@link IndexVersion} from all available versions. */
     public static IndexVersion randomVersion() {
-        return ESTestCase.randomFrom(ALL_VERSIONS);
+        return VersionUtils.randomFrom(random(), ALL_VERSIONS, IndexVersion::fromId);
+    }
+
+    /** Returns a random {@link IndexVersion} from all versions that can be written to. */
+    public static IndexVersion randomWriteVersion() {
+        return VersionUtils.randomFrom(random(), ALL_WRITE_VERSIONS, IndexVersion::fromId);
     }
 
     /** Returns a random {@link IndexVersion} from all available versions without the ignore set */
     public static IndexVersion randomVersion(Set<IndexVersion> ignore) {
         return ESTestCase.randomFrom(ALL_VERSIONS.stream().filter(v -> ignore.contains(v) == false).collect(Collectors.toList()));
-    }
-
-    /** Returns a random {@link IndexVersion} from all available versions. */
-    public static IndexVersion randomVersion(Random random) {
-        return ALL_VERSIONS.get(random.nextInt(ALL_VERSIONS.size()));
     }
 
     /** Returns a random {@link IndexVersion} between <code>minVersion</code> and <code>maxVersion</code> (inclusive). */
@@ -56,23 +64,21 @@ public class IndexVersionUtils {
             throw new IllegalArgumentException("maxVersion [" + maxVersion + "] cannot be less than minVersion [" + minVersion + "]");
         }
 
-        int minVersionIndex = 0;
+        NavigableSet<IndexVersion> versions = allReleasedVersions();
         if (minVersion != null) {
-            minVersionIndex = Collections.binarySearch(ALL_VERSIONS, minVersion);
+            if (versions.contains(minVersion) == false) {
+                throw new IllegalArgumentException("minVersion [" + minVersion + "] does not exist.");
+            }
+            versions = versions.tailSet(minVersion, true);
         }
-        int maxVersionIndex = ALL_VERSIONS.size() - 1;
         if (maxVersion != null) {
-            maxVersionIndex = Collections.binarySearch(ALL_VERSIONS, maxVersion);
+            if (versions.contains(maxVersion) == false) {
+                throw new IllegalArgumentException("maxVersion [" + maxVersion + "] does not exist.");
+            }
+            versions = versions.headSet(maxVersion, true);
         }
-        if (minVersionIndex < 0) {
-            throw new IllegalArgumentException("minVersion [" + minVersion + "] does not exist.");
-        } else if (maxVersionIndex < 0) {
-            throw new IllegalArgumentException("maxVersion [" + maxVersion + "] does not exist.");
-        } else {
-            // minVersionIndex is inclusive so need to add 1 to this index
-            int range = maxVersionIndex + 1 - minVersionIndex;
-            return ALL_VERSIONS.get(minVersionIndex + random.nextInt(range));
-        }
+
+        return VersionUtils.randomFrom(random, versions, IndexVersion::fromId);
     }
 
     public static IndexVersion getPreviousVersion() {
@@ -82,16 +88,11 @@ public class IndexVersionUtils {
     }
 
     public static IndexVersion getPreviousVersion(IndexVersion version) {
-        int place = Collections.binarySearch(ALL_VERSIONS, version);
-        if (place < 0) {
-            // version does not exist - need the item before the index this version should be inserted
-            place = -(place + 1);
-        }
-
-        if (place < 1) {
+        IndexVersion lower = allReleasedVersions().lower(version);
+        if (lower == null) {
             throw new IllegalArgumentException("couldn't find any released versions before [" + version + "]");
         }
-        return ALL_VERSIONS.get(place - 1);
+        return lower;
     }
 
     public static IndexVersion getPreviousMajorVersion(IndexVersion version) {
@@ -99,28 +100,30 @@ public class IndexVersionUtils {
     }
 
     public static IndexVersion getNextVersion(IndexVersion version) {
-        int place = Collections.binarySearch(ALL_VERSIONS, version);
-        if (place < 0) {
-            // version does not exist - need the item at the index this version should be inserted
-            place = -(place + 1);
-        } else {
-            // need the *next* version
-            place++;
-        }
-
-        if (place < 0 || place >= ALL_VERSIONS.size()) {
+        IndexVersion higher = allReleasedVersions().higher(version);
+        if (higher == null) {
             throw new IllegalArgumentException("couldn't find any released versions after [" + version + "]");
         }
-        return ALL_VERSIONS.get(place);
+        return higher;
     }
 
     /** Returns a random {@code IndexVersion} that is compatible with {@link IndexVersion#current()} */
     public static IndexVersion randomCompatibleVersion(Random random) {
+        return randomVersionBetween(random, IndexVersions.MINIMUM_READONLY_COMPATIBLE, IndexVersion.current());
+    }
+
+    /** Returns a random {@code IndexVersion} that is compatible with {@link IndexVersion#current()} and can be written to */
+    public static IndexVersion randomCompatibleWriteVersion(Random random) {
         return randomVersionBetween(random, IndexVersions.MINIMUM_COMPATIBLE, IndexVersion.current());
     }
 
     /** Returns a random {@code IndexVersion} that is compatible with the previous version to {@code version} */
     public static IndexVersion randomPreviousCompatibleVersion(Random random, IndexVersion version) {
+        return randomVersionBetween(random, IndexVersions.MINIMUM_READONLY_COMPATIBLE, getPreviousVersion(version));
+    }
+
+    /** Returns a random {@code IndexVersion} that is compatible with the previous version to {@code version} and can be written to */
+    public static IndexVersion randomPreviousCompatibleWriteVersion(Random random, IndexVersion version) {
         return randomVersionBetween(random, IndexVersions.MINIMUM_COMPATIBLE, getPreviousVersion(version));
     }
 }

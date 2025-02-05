@@ -14,8 +14,8 @@ apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
 
 esplugin {
-  description 'The HDFS repository plugin adds support for Hadoop Distributed File-System (HDFS) repositories.'
-  classname 'org.elasticsearch.repositories.hdfs.HdfsPlugin'
+  description = 'The HDFS repository plugin adds support for Hadoop Distributed File-System (HDFS) repositories.'
+  classname ='org.elasticsearch.repositories.hdfs.HdfsPlugin'
 }
 
 versions << [
@@ -28,7 +28,7 @@ configurations {
 }
 
 dependencies {
-  api project(path: 'hadoop-client-api', configuration: 'shadow')
+  api project(path: 'hadoop-client-api', configuration: 'default')
   if (isEclipse) {
     /*
      * Eclipse can't pick up the shadow dependency so we point it at *something*

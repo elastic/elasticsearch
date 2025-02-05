@@ -24,7 +24,7 @@ import static org.hamcrest.Matchers.containsString;
  */
 public class RestSqlIT extends RestSqlTestCase {
     @ClassRule
-    public static final ElasticsearchCluster cluster = SqlTestCluster.getCluster(false);
+    public static final ElasticsearchCluster cluster = SqlTestCluster.getCluster();
 
     @Override
     protected String getTestRestCluster() {

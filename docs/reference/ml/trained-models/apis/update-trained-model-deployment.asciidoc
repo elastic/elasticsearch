@@ -7,6 +7,12 @@
 <titleabbrev>Update trained model deployment</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-ml-trained-model[{ml-cap} trained model APIs].
+--
+
 Updates certain properties of a trained model deployment.
 
 [[update-trained-model-deployment-request]]

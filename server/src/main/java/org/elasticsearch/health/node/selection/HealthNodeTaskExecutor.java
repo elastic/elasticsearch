@@ -22,6 +22,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
@@ -162,7 +163,7 @@ public final class HealthNodeTaskExecutor extends PersistentTasksExecutor<Health
                 TASK_NAME,
                 TASK_NAME,
                 new HealthNodeTaskParams(),
-                null,
+                TimeValue.THIRTY_SECONDS /* TODO should this be configurable? longer by default? infinite? */,
                 ActionListener.wrap(r -> logger.debug("Created the health node task"), e -> {
                     if (e instanceof NodeClosedException) {
                         logger.debug("Failed to create health node task because node is shutting down", e);

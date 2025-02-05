@@ -8,12 +8,13 @@
 package org.elasticsearch.xpack.inference.chunking;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.inference.ChunkedInferenceServiceResults;
+import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.inference.results.ErrorChunkedInferenceResults;
-import org.elasticsearch.xpack.core.inference.results.InferenceChunkedSparseEmbeddingResults;
-import org.elasticsearch.xpack.core.inference.results.InferenceChunkedTextEmbeddingByteResults;
-import org.elasticsearch.xpack.core.inference.results.InferenceChunkedTextEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbeddingByte;
+import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbeddingFloat;
+import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbeddingSparse;
+import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceError;
+import org.elasticsearch.xpack.core.inference.results.InferenceByteEmbedding;
 import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingByteResults;
 import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
@@ -313,16 +314,16 @@ public class EmbeddingRequestChunkerTests extends ESTestCase {
         assertThat(finalListener.results, hasSize(4));
         {
             var chunkedResult = finalListener.results.get(0);
-            assertThat(chunkedResult, instanceOf(InferenceChunkedTextEmbeddingFloatResults.class));
-            var chunkedFloatResult = (InferenceChunkedTextEmbeddingFloatResults) chunkedResult;
+            assertThat(chunkedResult, instanceOf(ChunkedInferenceEmbeddingFloat.class));
+            var chunkedFloatResult = (ChunkedInferenceEmbeddingFloat) chunkedResult;
             assertThat(chunkedFloatResult.chunks(), hasSize(1));
             assertEquals("1st small", chunkedFloatResult.chunks().get(0).matchedText());
         }
         {
             // this is the large input split in multiple chunks
             var chunkedResult = finalListener.results.get(1);
-            assertThat(chunkedResult, instanceOf(InferenceChunkedTextEmbeddingFloatResults.class));
-            var chunkedFloatResult = (InferenceChunkedTextEmbeddingFloatResults) chunkedResult;
+            assertThat(chunkedResult, instanceOf(ChunkedInferenceEmbeddingFloat.class));
+            var chunkedFloatResult = (ChunkedInferenceEmbeddingFloat) chunkedResult;
             assertThat(chunkedFloatResult.chunks(), hasSize(6));
             assertThat(chunkedFloatResult.chunks().get(0).matchedText(), startsWith("passage_input0 "));
             assertThat(chunkedFloatResult.chunks().get(1).matchedText(), startsWith(" passage_input20 "));
@@ -333,15 +334,15 @@ public class EmbeddingRequestChunkerTests extends ESTestCase {
         }
         {
             var chunkedResult = finalListener.results.get(2);
-            assertThat(chunkedResult, instanceOf(InferenceChunkedTextEmbeddingFloatResults.class));
-            var chunkedFloatResult = (InferenceChunkedTextEmbeddingFloatResults) chunkedResult;
+            assertThat(chunkedResult, instanceOf(ChunkedInferenceEmbeddingFloat.class));
+            var chunkedFloatResult = (ChunkedInferenceEmbeddingFloat) chunkedResult;
             assertThat(chunkedFloatResult.chunks(), hasSize(1));
             assertEquals("2nd small", chunkedFloatResult.chunks().get(0).matchedText());
         }
         {
             var chunkedResult = finalListener.results.get(3);
-            assertThat(chunkedResult, instanceOf(InferenceChunkedTextEmbeddingFloatResults.class));
-            var chunkedFloatResult = (InferenceChunkedTextEmbeddingFloatResults) chunkedResult;
+            assertThat(chunkedResult, instanceOf(ChunkedInferenceEmbeddingFloat.class));
+            var chunkedFloatResult = (ChunkedInferenceEmbeddingFloat) chunkedResult;
             assertThat(chunkedFloatResult.chunks(), hasSize(1));
             assertEquals("3rd small", chunkedFloatResult.chunks().get(0).matchedText());
         }
@@ -368,16 +369,16 @@ public class EmbeddingRequestChunkerTests extends ESTestCase {
 
         // 4 inputs in 2 batches
         {
-            var embeddings = new ArrayList<InferenceTextEmbeddingByteResults.InferenceByteEmbedding>();
+            var embeddings = new ArrayList<InferenceByteEmbedding>();
             for (int i = 0; i < batchSize; i++) {
-                embeddings.add(new InferenceTextEmbeddingByteResults.InferenceByteEmbedding(new byte[] { randomByte() }));
+                embeddings.add(new InferenceByteEmbedding(new byte[] { randomByte() }));
             }
             batches.get(0).listener().onResponse(new InferenceTextEmbeddingByteResults(embeddings));
         }
         {
-            var embeddings = new ArrayList<InferenceTextEmbeddingByteResults.InferenceByteEmbedding>();
+            var embeddings = new ArrayList<InferenceByteEmbedding>();
             for (int i = 0; i < 4; i++) { // 4 requests in the 2nd batch
-                embeddings.add(new InferenceTextEmbeddingByteResults.InferenceByteEmbedding(new byte[] { randomByte() }));
+                embeddings.add(new InferenceByteEmbedding(new byte[] { randomByte() }));
             }
             batches.get(1).listener().onResponse(new InferenceTextEmbeddingByteResults(embeddings));
         }
@@ -386,16 +387,16 @@ public class EmbeddingRequestChunkerTests extends ESTestCase {
         assertThat(finalListener.results, hasSize(4));
         {
             var chunkedResult = finalListener.results.get(0);
-            assertThat(chunkedResult, instanceOf(InferenceChunkedTextEmbeddingByteResults.class));
-            var chunkedByteResult = (InferenceChunkedTextEmbeddingByteResults) chunkedResult;
+            assertThat(chunkedResult, instanceOf(ChunkedInferenceEmbeddingByte.class));
+            var chunkedByteResult = (ChunkedInferenceEmbeddingByte) chunkedResult;
             assertThat(chunkedByteResult.chunks(), hasSize(1));
             assertEquals("1st small", chunkedByteResult.chunks().get(0).matchedText());
         }
         {
             // this is the large input split in multiple chunks
             var chunkedResult = finalListener.results.get(1);
-            assertThat(chunkedResult, instanceOf(InferenceChunkedTextEmbeddingByteResults.class));
-            var chunkedByteResult = (InferenceChunkedTextEmbeddingByteResults) chunkedResult;
+            assertThat(chunkedResult, instanceOf(ChunkedInferenceEmbeddingByte.class));
+            var chunkedByteResult = (ChunkedInferenceEmbeddingByte) chunkedResult;
             assertThat(chunkedByteResult.chunks(), hasSize(6));
             assertThat(chunkedByteResult.chunks().get(0).matchedText(), startsWith("passage_input0 "));
             assertThat(chunkedByteResult.chunks().get(1).matchedText(), startsWith(" passage_input20 "));
@@ -406,15 +407,15 @@ public class EmbeddingRequestChunkerTests extends ESTestCase {
         }
         {
             var chunkedResult = finalListener.results.get(2);
-            assertThat(chunkedResult, instanceOf(InferenceChunkedTextEmbeddingByteResults.class));
-            var chunkedByteResult = (InferenceChunkedTextEmbeddingByteResults) chunkedResult;
+            assertThat(chunkedResult, instanceOf(ChunkedInferenceEmbeddingByte.class));
+            var chunkedByteResult = (ChunkedInferenceEmbeddingByte) chunkedResult;
             assertThat(chunkedByteResult.chunks(), hasSize(1));
             assertEquals("2nd small", chunkedByteResult.chunks().get(0).matchedText());
         }
         {
             var chunkedResult = finalListener.results.get(3);
-            assertThat(chunkedResult, instanceOf(InferenceChunkedTextEmbeddingByteResults.class));
-            var chunkedByteResult = (InferenceChunkedTextEmbeddingByteResults) chunkedResult;
+            assertThat(chunkedResult, instanceOf(ChunkedInferenceEmbeddingByte.class));
+            var chunkedByteResult = (ChunkedInferenceEmbeddingByte) chunkedResult;
             assertThat(chunkedByteResult.chunks(), hasSize(1));
             assertEquals("3rd small", chunkedByteResult.chunks().get(0).matchedText());
         }
@@ -466,34 +467,34 @@ public class EmbeddingRequestChunkerTests extends ESTestCase {
         assertThat(finalListener.results, hasSize(4));
         {
             var chunkedResult = finalListener.results.get(0);
-            assertThat(chunkedResult, instanceOf(InferenceChunkedSparseEmbeddingResults.class));
-            var chunkedSparseResult = (InferenceChunkedSparseEmbeddingResults) chunkedResult;
-            assertThat(chunkedSparseResult.getChunkedResults(), hasSize(1));
-            assertEquals("1st small", chunkedSparseResult.getChunkedResults().get(0).matchedText());
+            assertThat(chunkedResult, instanceOf(ChunkedInferenceEmbeddingSparse.class));
+            var chunkedSparseResult = (ChunkedInferenceEmbeddingSparse) chunkedResult;
+            assertThat(chunkedSparseResult.chunks(), hasSize(1));
+            assertEquals("1st small", chunkedSparseResult.chunks().get(0).matchedText());
         }
         {
             var chunkedResult = finalListener.results.get(1);
-            assertThat(chunkedResult, instanceOf(InferenceChunkedSparseEmbeddingResults.class));
-            var chunkedSparseResult = (InferenceChunkedSparseEmbeddingResults) chunkedResult;
-            assertThat(chunkedSparseResult.getChunkedResults(), hasSize(1));
-            assertEquals("2nd small", chunkedSparseResult.getChunkedResults().get(0).matchedText());
+            assertThat(chunkedResult, instanceOf(ChunkedInferenceEmbeddingSparse.class));
+            var chunkedSparseResult = (ChunkedInferenceEmbeddingSparse) chunkedResult;
+            assertThat(chunkedSparseResult.chunks(), hasSize(1));
+            assertEquals("2nd small", chunkedSparseResult.chunks().get(0).matchedText());
         }
         {
             var chunkedResult = finalListener.results.get(2);
-            assertThat(chunkedResult, instanceOf(InferenceChunkedSparseEmbeddingResults.class));
-            var chunkedSparseResult = (InferenceChunkedSparseEmbeddingResults) chunkedResult;
-            assertThat(chunkedSparseResult.getChunkedResults(), hasSize(1));
-            assertEquals("3rd small", chunkedSparseResult.getChunkedResults().get(0).matchedText());
+            assertThat(chunkedResult, instanceOf(ChunkedInferenceEmbeddingSparse.class));
+            var chunkedSparseResult = (ChunkedInferenceEmbeddingSparse) chunkedResult;
+            assertThat(chunkedSparseResult.chunks(), hasSize(1));
+            assertEquals("3rd small", chunkedSparseResult.chunks().get(0).matchedText());
         }
         {
             // this is the large input split in multiple chunks
             var chunkedResult = finalListener.results.get(3);
-            assertThat(chunkedResult, instanceOf(InferenceChunkedSparseEmbeddingResults.class));
-            var chunkedSparseResult = (InferenceChunkedSparseEmbeddingResults) chunkedResult;
-            assertThat(chunkedSparseResult.getChunkedResults(), hasSize(9)); // passage is split into 9 chunks, 10 words each
-            assertThat(chunkedSparseResult.getChunkedResults().get(0).matchedText(), startsWith("passage_input0 "));
-            assertThat(chunkedSparseResult.getChunkedResults().get(1).matchedText(), startsWith(" passage_input10 "));
-            assertThat(chunkedSparseResult.getChunkedResults().get(8).matchedText(), startsWith(" passage_input80 "));
+            assertThat(chunkedResult, instanceOf(ChunkedInferenceEmbeddingSparse.class));
+            var chunkedSparseResult = (ChunkedInferenceEmbeddingSparse) chunkedResult;
+            assertThat(chunkedSparseResult.chunks(), hasSize(9)); // passage is split into 9 chunks, 10 words each
+            assertThat(chunkedSparseResult.chunks().get(0).matchedText(), startsWith("passage_input0 "));
+            assertThat(chunkedSparseResult.chunks().get(1).matchedText(), startsWith(" passage_input10 "));
+            assertThat(chunkedSparseResult.chunks().get(8).matchedText(), startsWith(" passage_input80 "));
         }
     }
 
@@ -501,13 +502,13 @@ public class EmbeddingRequestChunkerTests extends ESTestCase {
         List<String> inputs = List.of("1st small", "2nd small", "3rd small");
 
         var failureMessage = new AtomicReference<String>();
-        var listener = new ActionListener<List<ChunkedInferenceServiceResults>>() {
+        var listener = new ActionListener<List<ChunkedInference>>() {
 
             @Override
-            public void onResponse(List<ChunkedInferenceServiceResults> chunkedInferenceServiceResults) {
-                assertThat(chunkedInferenceServiceResults.get(0), instanceOf(ErrorChunkedInferenceResults.class));
-                var error = (ErrorChunkedInferenceResults) chunkedInferenceServiceResults.get(0);
-                failureMessage.set(error.getException().getMessage());
+            public void onResponse(List<ChunkedInference> chunkedResults) {
+                assertThat(chunkedResults.get(0), instanceOf(ChunkedInferenceError.class));
+                var error = (ChunkedInferenceError) chunkedResults.get(0);
+                failureMessage.set(error.exception().getMessage());
             }
 
             @Override
@@ -531,12 +532,12 @@ public class EmbeddingRequestChunkerTests extends ESTestCase {
         return new ChunkedResultsListener();
     }
 
-    private static class ChunkedResultsListener implements ActionListener<List<ChunkedInferenceServiceResults>> {
-        List<ChunkedInferenceServiceResults> results;
+    private static class ChunkedResultsListener implements ActionListener<List<ChunkedInference>> {
+        List<ChunkedInference> results;
 
         @Override
-        public void onResponse(List<ChunkedInferenceServiceResults> chunkedInferenceServiceResults) {
-            this.results = chunkedInferenceServiceResults;
+        public void onResponse(List<ChunkedInference> chunks) {
+            this.results = chunks;
         }
 
         @Override

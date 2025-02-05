@@ -52,6 +52,7 @@ public class TransportUpdateWatcherSettingsAction extends TransportMasterNodeAct
 
     private static final Logger logger = LogManager.getLogger(TransportUpdateWatcherSettingsAction.class);
     private final MetadataUpdateSettingsService updateSettingsService;
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
 
     @Inject
     public TransportUpdateWatcherSettingsAction(
@@ -69,11 +70,11 @@ public class TransportUpdateWatcherSettingsAction extends TransportMasterNodeAct
             threadPool,
             actionFilters,
             UpdateWatcherSettingsAction.Request::new,
-            indexNameExpressionResolver,
             AcknowledgedResponse::readFrom,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.updateSettingsService = updateSettingsService;
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
     }
 
     @Override

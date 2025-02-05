@@ -11,16 +11,13 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -576,25 +573,6 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
             "Mapper for [field] conflicts with existing mapper:\n" + "\tCannot update parameter [analyzer] from [default] to [_standard]",
             e.getMessage()
         );
-    }
-
-    @UpdateForV9(owner = UpdateForV9.Owner.SEARCH_FOUNDATIONS)
-    @AwaitsFix(bugUrl = "this is testing legacy functionality so can likely be removed in 9.0")
-    public void testDeprecatedParameters() {
-        // 'index' is declared explicitly, 'store' is not, but is one of the previously always-accepted params
-        String mapping = """
-            {"type":"test_mapper","index":false,"store":true,"required":"value"}""";
-        TestMapper mapper = fromMapping(mapping, IndexVersions.V_7_8_0, TransportVersions.V_7_8_0);
-        assertWarnings("Parameter [store] has no effect on type [test_mapper] and will be removed in future");
-        assertFalse(mapper.index);
-        assertEquals("""
-            {"field":{"type":"test_mapper","index":false,"required":"value"}}""", Strings.toString(mapper));
-
-        MapperParsingException e = expectThrows(
-            MapperParsingException.class,
-            () -> fromMapping(mapping, IndexVersions.V_8_0_0, TransportVersions.V_8_0_0)
-        );
-        assertEquals("unknown parameter [store] on mapper [field] of type [test_mapper]", e.getMessage());
     }
 
     public void testLinkedAnalyzers() throws IOException {

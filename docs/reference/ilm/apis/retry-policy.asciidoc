@@ -5,6 +5,12 @@
 <titleabbrev>Retry policy</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-ilm[{ilm-cap} APIs].
+--
+
 Retry executing the <<index-lifecycle-management,lifecycle>> policy for an index that is in the ERROR step.
 
 [[ilm-retry-policy-request]]

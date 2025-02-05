@@ -17,11 +17,11 @@ import org.elasticsearch.geometry.utils.GeometryValidator;
 import org.elasticsearch.geometry.utils.SpatialEnvelopeVisitor;
 import org.elasticsearch.geometry.utils.SpatialEnvelopeVisitor.WrapLongitude;
 import org.elasticsearch.geometry.utils.WellKnownBinary;
+import org.elasticsearch.test.hamcrest.RectangleMatcher;
+import org.elasticsearch.test.hamcrest.WellKnownBinaryBytesRefMatcher;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.RectangleMatcher;
-import org.elasticsearch.xpack.esql.expression.WellKnownBinaryBytesRefMatcher;
 import org.elasticsearch.xpack.esql.expression.function.AbstractAggregationTestCase;
 import org.elasticsearch.xpack.esql.expression.function.FunctionName;
 import org.elasticsearch.xpack.esql.expression.function.MultiRowTestCaseSupplier;
@@ -48,7 +48,6 @@ public class SpatialExtentTests extends AbstractAggregationTestCase {
         ).flatMap(List::stream).map(SpatialExtentTests::makeSupplier).toList();
 
         // The withNoRowsExpectingNull() cases don't work here, as this aggregator doesn't return nulls.
-        // return parameterSuppliersFromTypedDataWithDefaultChecks(suppliers);
         return parameterSuppliersFromTypedData(randomizeBytesRefsOffset(suppliers));
     }
 
@@ -82,20 +81,7 @@ public class SpatialExtentTests extends AbstractAggregationTestCase {
                 List.of(fieldTypedData),
                 "SpatialExtent[field=Attribute[channel=0]]",
                 expectedType,
-                new WellKnownBinaryBytesRefMatcher<>(
-                    RectangleMatcher.closeTo(
-                        new Rectangle(
-                            // Since we use integers locally which are later decoded to doubles, all computation is effectively done using
-                            // floats, not doubles.
-                            (float) result.getMinX(),
-                            (float) result.getMaxX(),
-                            (float) result.getMaxY(),
-                            (float) result.getMinY()
-                        ),
-                        1e-3,
-                        pointType
-                    )
-                )
+                new WellKnownBinaryBytesRefMatcher<>(RectangleMatcher.closeToFloat(result, 1e-3, pointType.encoder()))
             );
         });
     }

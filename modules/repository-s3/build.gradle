@@ -14,8 +14,8 @@ apply plugin: 'elasticsearch.internal-cluster-test'
 apply plugin: 'elasticsearch.internal-java-rest-test'
 
 esplugin {
-  description 'The S3 repository plugin adds S3 repositories'
-  classname 'org.elasticsearch.repositories.s3.S3RepositoryPlugin'
+  description = 'The S3 repository plugin adds S3 repositories'
+  classname ='org.elasticsearch.repositories.s3.S3RepositoryPlugin'
 }
 
 dependencies {
@@ -44,12 +44,14 @@ dependencies {
   internalClusterTestRuntimeOnly "org.slf4j:slf4j-simple:${versions.slf4j}"
 
   yamlRestTestImplementation project(':modules:repository-s3')
+  yamlRestTestImplementation project(':test:fixtures:aws-fixture-utils')
   yamlRestTestImplementation project(':test:fixtures:s3-fixture')
   yamlRestTestImplementation project(':test:fixtures:testcontainer-utils')
   yamlRestTestImplementation project(':test:framework')
   yamlRestTestRuntimeOnly "org.slf4j:slf4j-simple:${versions.slf4j}"
 
   javaRestTestImplementation project(':modules:repository-s3')
+  javaRestTestImplementation project(':test:fixtures:aws-fixture-utils')
   javaRestTestImplementation project(':test:fixtures:aws-sts-fixture')
   javaRestTestImplementation project(':test:fixtures:ec2-imds-fixture')
   javaRestTestImplementation project(':test:fixtures:minio-fixture')

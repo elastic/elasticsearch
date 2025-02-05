@@ -51,12 +51,12 @@ public class VectorScoreScriptUtilsTests extends ESTestCase {
                 BinaryDenseVectorScriptDocValuesTests.wrap(
                     new float[][] { docVector },
                     ElementType.FLOAT,
-                    IndexVersions.MINIMUM_COMPATIBLE
+                    IndexVersions.MINIMUM_READONLY_COMPATIBLE
                 ),
                 "test",
                 ElementType.FLOAT,
                 dims,
-                IndexVersions.MINIMUM_COMPATIBLE
+                IndexVersions.MINIMUM_READONLY_COMPATIBLE
             ),
             new BinaryDenseVectorDocValuesField(
                 BinaryDenseVectorScriptDocValuesTests.wrap(new float[][] { docVector }, ElementType.FLOAT, IndexVersion.current()),
@@ -303,12 +303,12 @@ public class VectorScoreScriptUtilsTests extends ESTestCase {
                 BinaryDenseVectorScriptDocValuesTests.wrap(
                     new float[][] { docVector },
                     ElementType.FLOAT,
-                    IndexVersions.MINIMUM_COMPATIBLE
+                    IndexVersions.MINIMUM_READONLY_COMPATIBLE
                 ),
                 "field0",
                 ElementType.FLOAT,
                 dims,
-                IndexVersions.MINIMUM_COMPATIBLE
+                IndexVersions.MINIMUM_READONLY_COMPATIBLE
             ),
             new BinaryDenseVectorDocValuesField(
                 BinaryDenseVectorScriptDocValuesTests.wrap(new float[][] { docVector }, ElementType.FLOAT, IndexVersion.current()),

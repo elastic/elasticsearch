@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.esql.plan.logical.join;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
+import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
@@ -25,10 +27,12 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.esql.common.Failure.fail;
+import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 import static org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.LEFT;
 
-public class Join extends BinaryPlan {
+public class Join extends BinaryPlan implements PostAnalysisVerificationAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Join", Join::new);
 
     private final JoinConfig config;
@@ -186,11 +190,6 @@ public class Join extends BinaryPlan {
     }
 
     @Override
-    public String commandName() {
-        return "JOIN";
-    }
-
-    @Override
     public int hashCode() {
         return Objects.hash(config, left(), right());
     }
@@ -206,5 +205,30 @@ public class Join extends BinaryPlan {
 
         Join other = (Join) obj;
         return config.equals(other.config) && Objects.equals(left(), other.left()) && Objects.equals(right(), other.right());
+    }
+
+    @Override
+    public void postAnalysisVerification(Failures failures) {
+        for (int i = 0; i < config.leftFields().size(); i++) {
+            Attribute leftField = config.leftFields().get(i);
+            Attribute rightField = config.rightFields().get(i);
+            if (leftField.dataType().noText() != rightField.dataType().noText()) {
+                failures.add(
+                    fail(
+                        leftField,
+                        "JOIN left field [{}] of type [{}] is incompatible with right field [{}] of type [{}]",
+                        leftField.name(),
+                        leftField.dataType(),
+                        rightField.name(),
+                        rightField.dataType()
+                    )
+                );
+            }
+            if (rightField.dataType().equals(TEXT)) {
+                failures.add(
+                    fail(leftField, "JOIN with right field [{}] of type [{}] is not supported", rightField.name(), rightField.dataType())
+                );
+            }
+        }
     }
 }

@@ -628,6 +628,7 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
                         DiscoveryNode::getId,
                         node -> SingleNodeShutdownMetadata.builder()
                             .setNodeId(node.getId())
+                            .setNodeEphemeralId(node.getEphemeralId())
                             .setReason("shutdown for a unit test")
                             .setType(type)
                             .setStartedAtMillis(randomNonNegativeLong())
@@ -966,7 +967,7 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
         }
         // Just add a random index - that shouldn't change anything
         IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10))
-            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersionUtils.randomVersion(random())))
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersionUtils.randomVersion()))
             .numberOfShards(1)
             .numberOfReplicas(1)
             .build();
@@ -1044,7 +1045,7 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
 
     private void changeRoutingTable(Metadata.Builder metadata, RoutingTable.Builder routingTable) {
         IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10))
-            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersionUtils.randomVersion(random())))
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersionUtils.randomVersion()))
             .numberOfShards(1)
             .numberOfReplicas(1)
             .build();

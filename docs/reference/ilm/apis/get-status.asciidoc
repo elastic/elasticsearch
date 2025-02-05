@@ -7,6 +7,12 @@
 <titleabbrev>Get {ilm} status</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-ilm[{ilm-cap} APIs].
+--
+
 Retrieves the current <<index-lifecycle-management,{ilm}>> ({ilm-init}) status.
 
 You can start or stop {ilm-init} with the <<ilm-start,start {ilm-init}>> and

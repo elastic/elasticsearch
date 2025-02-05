@@ -160,6 +160,20 @@ public class IndexSortSettingsTests extends ESTestCase {
         assertEquals("Cannot use alias [field] as an index sort field", e.getMessage());
     }
 
+    public void testSortingAgainstAliasesPre713() {
+        IndexSettings indexSettings = indexSettings(
+            Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersions.V_7_12_0).put("index.sort.field", "field").build()
+        );
+        MappedFieldType aliased = new KeywordFieldMapper.KeywordFieldType("aliased");
+        Sort sort = buildIndexSort(indexSettings, Map.of("field", aliased));
+        assertThat(sort.getSort(), arrayWithSize(1));
+        assertThat(sort.getSort()[0].getField(), equalTo("aliased"));
+        assertWarnings(
+            "Index sort for index [test] defined on field [field] which resolves to field [aliased]. "
+                + "You will not be able to define an index sort over aliased fields in new indexes"
+        );
+    }
+
     public void testTimeSeriesMode() {
         IndexSettings indexSettings = indexSettings(
             Settings.builder()

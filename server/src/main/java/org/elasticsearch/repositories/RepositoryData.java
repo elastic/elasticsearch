@@ -605,6 +605,11 @@ public final class RepositoryData {
         return Objects.hash(snapshotIds, snapshotsDetails, indices, indexSnapshots, shardGenerations, indexMetaDataGenerations);
     }
 
+    @Override
+    public String toString() {
+        return Strings.format("RepositoryData[uuid=%s,gen=%s]", uuid, genId);
+    }
+
     /**
      * Resolve the index name to the index id specific to the repository,
      * throwing an exception if the index could not be resolved.
@@ -1153,7 +1158,7 @@ public final class RepositoryData {
      */
     public static class SnapshotDetails {
 
-        public static SnapshotDetails EMPTY = new SnapshotDetails(null, null, -1, -1, null);
+        public static final SnapshotDetails EMPTY = new SnapshotDetails(null, null, -1, -1, null);
 
         @Nullable // TODO forbid nulls here, this only applies to very old repositories
         private final SnapshotState snapshotState;

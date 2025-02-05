@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -20,6 +21,7 @@ import org.elasticsearch.xcontent.ToXContentObject;
  */
 public abstract class AsyncWaitStep extends Step {
 
+    @Nullable
     private final Client client;
 
     public AsyncWaitStep(StepKey key, StepKey nextStepKey, Client client) {
@@ -27,6 +29,7 @@ public abstract class AsyncWaitStep extends Step {
         this.client = client;
     }
 
+    @Nullable
     protected Client getClient() {
         return client;
     }

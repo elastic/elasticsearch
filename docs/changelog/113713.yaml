@@ -1,5 +1,0 @@
-pr: 113713
-summary: Adding inference endpoint validation for `AzureAiStudioService`
-area: Machine Learning
-type: enhancement
-issues: []

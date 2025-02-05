@@ -18,7 +18,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.inference.ChunkedInferenceServiceResults;
+import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
@@ -36,7 +36,7 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
-import org.elasticsearch.xpack.core.inference.results.InferenceChunkedTextEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbeddingFloat;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
@@ -54,6 +54,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -868,7 +869,7 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
 
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-            PlainActionFuture<List<ChunkedInferenceServiceResults>> listener = new PlainActionFuture<>();
+            PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
             service.chunkedInfer(model, null, input, new HashMap<>(), InputType.INGEST, InferenceAction.Request.DEFAULT_TIMEOUT, listener);
 
             var results = listener.actionGet(TIMEOUT);
@@ -876,8 +877,8 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
 
             // first result
             {
-                assertThat(results.get(0), instanceOf(InferenceChunkedTextEmbeddingFloatResults.class));
-                var floatResult = (InferenceChunkedTextEmbeddingFloatResults) results.get(0);
+                assertThat(results.get(0), instanceOf(ChunkedInferenceEmbeddingFloat.class));
+                var floatResult = (ChunkedInferenceEmbeddingFloat) results.get(0);
                 assertThat(floatResult.chunks(), hasSize(1));
                 assertEquals(input.get(0), floatResult.chunks().get(0).matchedText());
                 assertTrue(Arrays.equals(new float[] { 0.0123f, -0.0123f }, floatResult.chunks().get(0).embedding()));
@@ -885,8 +886,8 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
 
             // second result
             {
-                assertThat(results.get(1), instanceOf(InferenceChunkedTextEmbeddingFloatResults.class));
-                var floatResult = (InferenceChunkedTextEmbeddingFloatResults) results.get(1);
+                assertThat(results.get(1), instanceOf(ChunkedInferenceEmbeddingFloat.class));
+                var floatResult = (ChunkedInferenceEmbeddingFloat) results.get(1);
                 assertThat(floatResult.chunks(), hasSize(1));
                 assertEquals(input.get(1), floatResult.chunks().get(0).matchedText());
                 assertTrue(Arrays.equals(new float[] { 0.0456f, -0.0456f }, floatResult.chunks().get(0).embedding()));
@@ -1123,59 +1124,36 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
         try (var service = createGoogleAiStudioService()) {
             String content = XContentHelper.stripWhitespace("""
                 {
-                       "provider": "googleaistudio",
-                       "task_types": [
-                            {
-                                "task_type": "text_embedding",
-                                "configuration": {}
-                            },
-                            {
-                                "task_type": "completion",
-                                "configuration": {}
-                            }
-                       ],
-                       "configuration": {
+                       "service": "googleaistudio",
+                       "name": "Google AI Studio",
+                       "task_types": ["text_embedding", "completion"],
+                       "configurations": {
                            "api_key": {
-                               "default_value": null,
-                               "depends_on": [],
-                               "display": "textbox",
+                               "description": "API Key for the provider you're connecting to.",
                                "label": "API Key",
-                               "order": 1,
                                "required": true,
                                "sensitive": true,
-                               "tooltip": "API Key for the provider you're connecting to.",
+                               "updatable": true,
                                "type": "str",
-                               "ui_restrictions": [],
-                               "validations": [],
-                               "value": null
+                               "supported_task_types": ["text_embedding", "completion"]
                            },
                            "rate_limit.requests_per_minute": {
-                               "default_value": null,
-                               "depends_on": [],
-                               "display": "numeric",
+                               "description": "Minimize the number of rate limit errors.",
                                "label": "Rate Limit",
-                               "order": 6,
                                "required": false,
                                "sensitive": false,
-                               "tooltip": "Minimize the number of rate limit errors.",
+                               "updatable": false,
                                "type": "int",
-                               "ui_restrictions": [],
-                               "validations": [],
-                               "value": null
+                               "supported_task_types": ["text_embedding", "completion"]
                            },
                            "model_id": {
-                               "default_value": null,
-                               "depends_on": [],
-                               "display": "textbox",
+                               "description": "ID of the LLM you're using.",
                                "label": "Model ID",
-                               "order": 2,
                                "required": true,
                                "sensitive": false,
-                               "tooltip": "ID of the LLM you're using.",
+                               "updatable": false,
                                "type": "str",
-                               "ui_restrictions": [],
-                               "validations": [],
-                               "value": null
+                               "supported_task_types": ["text_embedding", "completion"]
                            }
                        }
                    }
@@ -1197,8 +1175,8 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
 
     public void testSupportsStreaming() throws IOException {
         try (var service = new GoogleAiStudioService(mock(), createWithEmptySettings(mock()))) {
-            assertTrue(service.canStream(TaskType.COMPLETION));
-            assertTrue(service.canStream(TaskType.ANY));
+            assertThat(service.supportedStreamingTasks(), is(EnumSet.of(TaskType.COMPLETION)));
+            assertFalse(service.canStream(TaskType.ANY));
         }
     }
 

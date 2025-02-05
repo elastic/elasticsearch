@@ -647,8 +647,8 @@ subprojects {
 // in the final log4j2.properties configuration, as it appears in the
 // archive distribution.
 artifacts.add('log4jConfig', file("${defaultOutputs}/log4j2.properties")) {
-  type 'file'
-  name 'log4j2.properties'
+  type = 'file'
+  name = 'log4j2.properties'
   builtBy 'buildDefaultLog4jConfig'
 }
 

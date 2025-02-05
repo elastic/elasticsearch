@@ -16,6 +16,7 @@ public enum HttpHeaderParser {
     ;
 
     private static final Pattern RANGE_HEADER_PATTERN = Pattern.compile("bytes=([0-9]+)-([0-9]+)");
+    private static final Pattern CONTENT_RANGE_HEADER_PATTERN = Pattern.compile("bytes (?:(\\d+)-(\\d+)|\\*)/(?:(\\d+)|\\*)");
 
     /**
      * Parse a "Range" header
@@ -38,5 +39,75 @@ public enum HttpHeaderParser {
         return null;
     }
 
-    public record Range(long start, long end) {}
+    public record Range(long start, long end) {
+
+        public String headerString() {
+            return "bytes=" + start + "-" + end;
+        }
+    }
+
+    /**
+     * Parse a "Content-Range" header
+     *
+     * @see <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Range">MDN: Content-Range header</a>
+     *
+     * @param contentRangeHeaderValue The header value as a string
+     * @return a {@link ContentRange} instance representing the parsed value, or null if the header is malformed
+     */
+    public static ContentRange parseContentRangeHeader(String contentRangeHeaderValue) {
+        final Matcher matcher = CONTENT_RANGE_HEADER_PATTERN.matcher(contentRangeHeaderValue);
+        if (matcher.matches()) {
+            try {
+                if (matcher.groupCount() == 3) {
+                    final Long start = parseOptionalLongValue(matcher.group(1));
+                    final Long end = parseOptionalLongValue(matcher.group(2));
+                    final Long size = parseOptionalLongValue(matcher.group(3));
+                    return new ContentRange(start, end, size);
+                }
+            } catch (NumberFormatException e) {
+                return null;
+            }
+        }
+        return null;
+    }
+
+    private static Long parseOptionalLongValue(String value) {
+        return value == null ? null : Long.parseLong(value);
+    }
+
+    /**
+     * A HTTP "Content Range"
+     * <p>
+     * This will always contain one of the following combinations of values:
+     * <ul>
+     *     <li>start, end, size</li>
+     *     <li>start, end</li>
+     *     <li>size</li>
+     *     <li>nothing</li>
+     * </ul>
+     *
+     * @param start The start of the range
+     * @param end The end of the range
+     * @param size The total size
+     */
+    public record ContentRange(Long start, Long end, Long size) {
+
+        public ContentRange {
+            assert (start == null) == (end == null) : "Must have either start and end or neither";
+        }
+
+        public boolean hasRange() {
+            return start != null && end != null;
+        }
+
+        public boolean hasSize() {
+            return size != null;
+        }
+
+        public String headerString() {
+            final String rangeString = hasRange() ? start + "-" + end : "*";
+            final String sizeString = hasSize() ? String.valueOf(size) : "*";
+            return "bytes " + rangeString + "/" + sizeString;
+        }
+    }
 }

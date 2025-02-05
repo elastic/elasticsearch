@@ -16,12 +16,14 @@ import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.component.ModuleComponentIdentifier;
+import org.gradle.api.file.FileCollection;
 import org.gradle.api.tasks.TaskProvider;
 
 import java.io.File;
 import java.nio.file.Path;
 
 import static org.elasticsearch.gradle.internal.util.DependenciesUtils.createFileCollectionFromNonTransitiveArtifactsView;
+import static org.elasticsearch.gradle.internal.util.DependenciesUtils.thirdPartyDependenciesView;
 import static org.elasticsearch.gradle.internal.util.ParamsUtils.loadBuildParams;
 
 public class ThirdPartyAuditPrecommitPlugin extends PrecommitPlugin {
@@ -47,7 +49,6 @@ public class ThirdPartyAuditPrecommitPlugin extends PrecommitPlugin {
                 project.getDependencies().add(JDK_JAR_HELL_CONFIG_NAME, elasticsearchCoreProject);
             }
         }
-
         TaskProvider<ExportElasticsearchBuildResourcesTask> resourcesTask = project.getTasks()
             .register("thirdPartyAuditResources", ExportElasticsearchBuildResourcesTask.class);
         Path resourcesDir = project.getBuildDir().toPath().resolve("third-party-audit-config");
@@ -59,9 +60,11 @@ public class ThirdPartyAuditPrecommitPlugin extends PrecommitPlugin {
         // usually only one task is created. but this construct makes our integTests easier to setup
         project.getTasks().withType(ThirdPartyAuditTask.class).configureEach(t -> {
             Configuration runtimeConfiguration = project.getConfigurations().getByName("runtimeClasspath");
+            FileCollection runtimeThirdParty = thirdPartyDependenciesView(runtimeConfiguration);
             Configuration compileOnly = project.getConfigurations()
                 .getByName(CompileOnlyResolvePlugin.RESOLVEABLE_COMPILE_ONLY_CONFIGURATION_NAME);
-            t.setClasspath(runtimeConfiguration.plus(compileOnly));
+            FileCollection compileOnlyThirdParty = thirdPartyDependenciesView(compileOnly);
+            t.getThirdPartyClasspath().from(runtimeThirdParty, compileOnlyThirdParty);
             t.getJarsToScan()
                 .from(
                     createFileCollectionFromNonTransitiveArtifactsView(
@@ -78,7 +81,7 @@ public class ThirdPartyAuditPrecommitPlugin extends PrecommitPlugin {
             t.getJavaHome().set(buildParams.flatMap(params -> params.getRuntimeJavaHome()).map(File::getPath));
             t.setSignatureFile(resourcesDir.resolve("forbidden/third-party-audit.txt").toFile());
             t.getJdkJarHellClasspath().from(jdkJarHellConfig);
-            t.getForbiddenAPIsClasspath().from(project.getConfigurations().getByName("forbiddenApisCliJar").plus(compileOnly));
+            t.getForbiddenAPIsClasspath().from(project.getConfigurations().getByName("forbiddenApisCliJar").plus(compileOnlyThirdParty));
         });
         return audit;
     }

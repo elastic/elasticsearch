@@ -250,4 +250,27 @@ public class DiscoveryNodeTests extends ESTestCase {
         assertThat(toString, containsString("{" + node.getBuildVersion() + "}"));
         assertThat(toString, containsString("{test-attr=val}"));// attributes
     }
+
+    public void testDiscoveryNodeMinReadOnlyVersionSerialization() throws Exception {
+        var node = DiscoveryNodeUtils.create("_id", buildNewFakeTransportAddress(), VersionInformation.CURRENT);
+
+        {
+            try (var out = new BytesStreamOutput()) {
+                out.setTransportVersion(TransportVersion.current());
+                node.writeTo(out);
+
+                try (var in = StreamInput.wrap(out.bytes().array())) {
+                    in.setTransportVersion(TransportVersion.current());
+
+                    var deserialized = new DiscoveryNode(in);
+                    assertThat(deserialized.getId(), equalTo(node.getId()));
+                    assertThat(deserialized.getAddress(), equalTo(node.getAddress()));
+                    assertThat(deserialized.getMinIndexVersion(), equalTo(node.getMinIndexVersion()));
+                    assertThat(deserialized.getMaxIndexVersion(), equalTo(node.getMaxIndexVersion()));
+                    assertThat(deserialized.getMinReadOnlyIndexVersion(), equalTo(node.getMinReadOnlyIndexVersion()));
+                    assertThat(deserialized.getVersionInformation(), equalTo(node.getVersionInformation()));
+                }
+            }
+        }
+    }
 }

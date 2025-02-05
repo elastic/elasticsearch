@@ -216,6 +216,7 @@ public class SnapshotInProgressAllocationDeciderTests extends ESTestCase {
                             nodeId,
                             SingleNodeShutdownMetadata.builder()
                                 .setNodeId(nodeId)
+                                .setNodeEphemeralId(nodeId)
                                 .setType(SingleNodeShutdownMetadata.Type.REMOVE)
                                 .setStartedAtMillis(randomNonNegativeLong())
                                 .setReason("test")

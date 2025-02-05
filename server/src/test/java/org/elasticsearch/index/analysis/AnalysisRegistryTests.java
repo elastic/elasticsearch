@@ -106,7 +106,7 @@ public class AnalysisRegistryTests extends ESTestCase {
     }
 
     public void testDefaultAnalyzers() throws IOException {
-        IndexVersion version = IndexVersionUtils.randomVersion(random());
+        IndexVersion version = IndexVersionUtils.randomVersion();
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, version)
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
@@ -120,7 +120,7 @@ public class AnalysisRegistryTests extends ESTestCase {
     }
 
     public void testOverrideDefaultAnalyzer() throws IOException {
-        IndexVersion version = IndexVersionUtils.randomVersion(random());
+        IndexVersion version = IndexVersionUtils.randomVersion();
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
         IndexAnalyzers indexAnalyzers = AnalysisRegistry.build(
             IndexCreationContext.CREATE_INDEX,
@@ -137,7 +137,7 @@ public class AnalysisRegistryTests extends ESTestCase {
     }
 
     public void testOverrideDefaultAnalyzerWithoutAnalysisModeAll() throws IOException {
-        IndexVersion version = IndexVersionUtils.randomVersion(random());
+        IndexVersion version = IndexVersionUtils.randomVersion();
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("index", settings);
         TokenFilterFactory tokenFilter = new AbstractTokenFilterFactory("my_filter") {
@@ -216,7 +216,7 @@ public class AnalysisRegistryTests extends ESTestCase {
     }
 
     public void testOverrideDefaultSearchAnalyzer() {
-        IndexVersion version = IndexVersionUtils.randomVersion(random());
+        IndexVersion version = IndexVersionUtils.randomVersion();
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
         IndexAnalyzers indexAnalyzers = AnalysisRegistry.build(
             IndexCreationContext.CREATE_INDEX,
@@ -319,8 +319,8 @@ public class AnalysisRegistryTests extends ESTestCase {
         }
     }
 
-    public void testNoTypeOrTokenizerErrorMessage() throws IOException {
-        IndexVersion version = IndexVersionUtils.randomVersion(random());
+    public void testNoTypeOrTokenizerErrorMessage() {
+        IndexVersion version = IndexVersionUtils.randomVersion();
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, version)
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())

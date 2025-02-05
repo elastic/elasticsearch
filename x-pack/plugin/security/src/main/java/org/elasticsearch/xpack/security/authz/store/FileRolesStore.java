@@ -44,6 +44,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -171,6 +172,14 @@ public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<Ro
 
     public Path getFile() {
         return file;
+    }
+
+    /**
+     * @return a map of all file role definitions. The returned map is unmodifiable.
+     */
+    public Map<String, RoleDescriptor> getAllRoleDescriptors() {
+        final Map<String, RoleDescriptor> localPermissions = permissions;
+        return Collections.unmodifiableMap(localPermissions);
     }
 
     // package private for testing

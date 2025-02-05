@@ -244,8 +244,20 @@ $endif$
 $if(long||double)$
             values = new LongLongHash(1, bigArrays);
 $elseif(BytesRef)$
-            values = new LongLongHash(1, bigArrays);
-            bytes = new BytesRefHash(1, bigArrays);
+            LongLongHash _values = null;
+            BytesRefHash _bytes = null;
+            try {
+                _values = new LongLongHash(1, bigArrays);
+                _bytes = new BytesRefHash(1, bigArrays);
+
+                values = _values;
+                bytes = _bytes;
+
+                _values = null;
+                _bytes = null;
+            } finally {
+                Releasables.closeExpectNoException(_values, _bytes);
+            }
 $elseif(int||float)$
             values = new LongHash(1, bigArrays);
 $endif$

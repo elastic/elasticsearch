@@ -63,6 +63,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeMetadata;
 import org.elasticsearch.features.FeatureService;
@@ -411,6 +412,8 @@ import org.elasticsearch.xpack.security.rest.action.user.RestQueryUserAction;
 import org.elasticsearch.xpack.security.rest.action.user.RestSetEnabledAction;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.ExtensionComponents;
+import org.elasticsearch.xpack.security.support.QueryableBuiltInRolesProviderFactory;
+import org.elasticsearch.xpack.security.support.QueryableBuiltInRolesSynchronizer;
 import org.elasticsearch.xpack.security.support.ReloadableSecurityComponent;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.elasticsearch.xpack.security.support.SecurityMigrationExecutor;
@@ -461,6 +464,7 @@ import static org.elasticsearch.xpack.core.XPackSettings.HTTP_SSL_ENABLED;
 import static org.elasticsearch.xpack.core.security.SecurityField.FIELD_LEVEL_SECURITY_FEATURE;
 import static org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore.INCLUDED_RESERVED_ROLES_SETTING;
 import static org.elasticsearch.xpack.security.operator.OperatorPrivileges.OPERATOR_PRIVILEGES_ENABLED;
+import static org.elasticsearch.xpack.security.support.QueryableBuiltInRolesSynchronizer.QUERYABLE_BUILT_IN_ROLES_ENABLED;
 import static org.elasticsearch.xpack.security.transport.SSLEngineUtils.extractClientCertificates;
 
 public class Security extends Plugin
@@ -631,7 +635,7 @@ public class Security extends Plugin
     private final SetOnce<ReservedRoleNameChecker.Factory> reservedRoleNameCheckerFactory = new SetOnce<>();
     private final SetOnce<FileRoleValidator> fileRoleValidator = new SetOnce<>();
     private final SetOnce<SecondaryAuthActions> secondaryAuthActions = new SetOnce<>();
-
+    private final SetOnce<QueryableBuiltInRolesProviderFactory> queryableRolesProviderFactory = new SetOnce<>();
     private final SetOnce<SecurityMigrationExecutor> securityMigrationExecutor = new SetOnce<>();
 
     // Node local retry count for migration jobs that's checked only on the master node to make sure
@@ -1202,6 +1206,23 @@ public class Security extends Plugin
 
         reservedRoleMappingAction.set(new ReservedRoleMappingAction());
 
+        if (QUERYABLE_BUILT_IN_ROLES_ENABLED) {
+            if (queryableRolesProviderFactory.get() == null) {
+                queryableRolesProviderFactory.set(new QueryableBuiltInRolesProviderFactory.Default());
+            }
+            components.add(
+                new QueryableBuiltInRolesSynchronizer(
+                    clusterService,
+                    featureService,
+                    queryableRolesProviderFactory.get(),
+                    nativeRolesStore,
+                    reservedRolesStore,
+                    fileRolesStore.get(),
+                    threadPool
+                )
+            );
+        }
+
         cacheInvalidatorRegistry.validate();
 
         final List<ReloadableSecurityComponent> reloadableComponents = new ArrayList<>();
@@ -1253,7 +1274,7 @@ public class Security extends Plugin
                 SecurityMigrationTaskParams.TASK_NAME,
                 SecurityMigrationTaskParams.TASK_NAME,
                 new SecurityMigrationTaskParams(migrationsVersion, securityMigrationNeeded),
-                null,
+                TimeValue.THIRTY_SECONDS /* TODO should this be configurable? longer by default? infinite? */,
                 ActionListener.wrap((response) -> {
                     logger.debug("Security migration task submitted");
                 }, (exception) -> {
@@ -1451,7 +1472,7 @@ public class Security extends Plugin
         settingsList.add(TokenService.DELETE_INTERVAL);
         settingsList.add(TokenService.DELETE_TIMEOUT);
         settingsList.addAll(SSLConfigurationSettings.getProfileSettings());
-        settingsList.add(ApiKeyService.PASSWORD_HASHING_ALGORITHM);
+        settingsList.add(ApiKeyService.STORED_HASH_ALGO_SETTING);
         settingsList.add(ApiKeyService.DELETE_TIMEOUT);
         settingsList.add(ApiKeyService.DELETE_INTERVAL);
         settingsList.add(ApiKeyService.DELETE_RETENTION_PERIOD);
@@ -1797,17 +1818,30 @@ public class Security extends Plugin
                     + " ] setting."
             );
         }
-        Stream.of(ApiKeyService.PASSWORD_HASHING_ALGORITHM, XPackSettings.SERVICE_TOKEN_HASHING_ALGORITHM).forEach((setting) -> {
-            final var storedHashAlgo = setting.get(settings);
-            if (storedHashAlgo.toLowerCase(Locale.ROOT).startsWith("pbkdf2") == false) {
-                // log instead of validation error for backwards compatibility
-                logger.warn(
-                    "Only PBKDF2 is allowed for stored credential hashing in a FIPS 140 JVM. "
-                        + "Please set the appropriate value for [{}] setting.",
-                    setting.getKey()
-                );
-            }
-        });
+
+        final var serviceTokenStoredHashSettings = XPackSettings.SERVICE_TOKEN_HASHING_ALGORITHM;
+        final var serviceTokenStoredHashAlgo = serviceTokenStoredHashSettings.get(settings);
+        if (serviceTokenStoredHashAlgo.toLowerCase(Locale.ROOT).startsWith("pbkdf2") == false) {
+            // log instead of validation error for backwards compatibility
+            logger.warn(
+                "Only PBKDF2 is allowed for stored credential hashing in a FIPS 140 JVM. "
+                    + "Please set the appropriate value for [{}] setting.",
+                serviceTokenStoredHashSettings.getKey()
+            );
+        }
+
+        final var apiKeyStoredHashSettings = ApiKeyService.STORED_HASH_ALGO_SETTING;
+        final var apiKeyStoredHashAlgo = apiKeyStoredHashSettings.get(settings);
+        if (apiKeyStoredHashAlgo.toLowerCase(Locale.ROOT).startsWith("ssha256") == false
+            && apiKeyStoredHashAlgo.toLowerCase(Locale.ROOT).startsWith("pbkdf2") == false) {
+            // log instead of validation error for backwards compatibility
+            logger.warn(
+                "[{}] is not recommended for stored API key hashing in a FIPS 140 JVM. The recommended hasher for [{}] is SSHA256.",
+                apiKeyStoredHashSettings,
+                apiKeyStoredHashSettings.getKey()
+            );
+        }
+
         final var cacheHashAlgoSettings = settings.filter(k -> k.endsWith(".cache.hash_algo"));
         cacheHashAlgoSettings.keySet().forEach((key) -> {
             final var setting = cacheHashAlgoSettings.get(key);
@@ -2317,6 +2351,7 @@ public class Security extends Plugin
         loadSingletonExtensionAndSetOnce(loader, grantApiKeyRequestTranslator, RestGrantApiKeyAction.RequestTranslator.class);
         loadSingletonExtensionAndSetOnce(loader, fileRoleValidator, FileRoleValidator.class);
         loadSingletonExtensionAndSetOnce(loader, secondaryAuthActions, SecondaryAuthActions.class);
+        loadSingletonExtensionAndSetOnce(loader, queryableRolesProviderFactory, QueryableBuiltInRolesProviderFactory.class);
     }
 
     private <T> void loadSingletonExtensionAndSetOnce(ExtensionLoader loader, SetOnce<T> setOnce, Class<T> clazz) {

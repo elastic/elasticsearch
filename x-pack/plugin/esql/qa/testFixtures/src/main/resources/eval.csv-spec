@@ -601,3 +601,39 @@ Mokhtar             |Bernatsky          |38992          |BM
 Parto               |Bamford            |61805          |BP
 Premal              |Baek               |52833          |BP
 ;
+
+
+caseInsensitiveRegex
+from employees | where first_name RLIKE "(?i)geor.*" | keep first_name
+;
+
+first_name:keyword
+;
+
+
+caseInsensitiveRegex2
+from employees | where first_name RLIKE "(?i)Geor.*" | keep first_name
+;
+
+first_name:keyword
+;
+
+
+caseInsensitiveRegexFold
+required_capability: fixed_regex_fold
+row foo = "Bar" | where foo rlike "(?i)ba.*"
+;
+
+foo:keyword
+;
+
+
+caseInsensitiveRegexFold2
+required_capability: fixed_regex_fold
+row foo = "Bar" | where foo rlike "(?i)Ba.*"
+;
+
+foo:keyword
+;
+
+

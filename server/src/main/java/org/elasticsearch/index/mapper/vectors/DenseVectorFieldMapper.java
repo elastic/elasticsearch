@@ -38,7 +38,6 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.codec.vectors.ES813FlatVectorFormat;
@@ -102,15 +101,11 @@ import static org.elasticsearch.index.IndexVersions.DEFAULT_DENSE_VECTOR_TO_INT8
 public class DenseVectorFieldMapper extends FieldMapper {
     public static final String COSINE_MAGNITUDE_FIELD_SUFFIX = "._magnitude";
     private static final float EPS = 1e-3f;
-    static final int BBQ_MIN_DIMS = 64;
+    public static final int BBQ_MIN_DIMS = 64;
 
     public static boolean isNotUnitVector(float magnitude) {
         return Math.abs(magnitude - 1.0f) > EPS;
     }
-
-    public static final NodeFeature INT4_QUANTIZATION = new NodeFeature("mapper.vectors.int4_quantization");
-    public static final NodeFeature BIT_VECTORS = new NodeFeature("mapper.vectors.bit_vectors");
-    public static final NodeFeature BBQ_FORMAT = new NodeFeature("mapper.vectors.bbq");
 
     public static final IndexVersion MAGNITUDE_STORED_INDEX_VERSION = IndexVersions.V_7_5_0;
     public static final IndexVersion INDEXED_BY_DEFAULT_INDEX_VERSION = IndexVersions.FIRST_DETACHED_INDEX_VERSION;
@@ -119,12 +114,13 @@ public class DenseVectorFieldMapper extends FieldMapper {
     public static final IndexVersion LITTLE_ENDIAN_FLOAT_STORED_INDEX_VERSION = IndexVersions.V_8_9_0;
 
     public static final String CONTENT_TYPE = "dense_vector";
-    public static short MAX_DIMS_COUNT = 4096; // maximum allowed number of dimensions
-    public static int MAX_DIMS_COUNT_BIT = 4096 * Byte.SIZE; // maximum allowed number of dimensions
+    public static final short MAX_DIMS_COUNT = 4096; // maximum allowed number of dimensions
+    public static final int MAX_DIMS_COUNT_BIT = 4096 * Byte.SIZE; // maximum allowed number of dimensions
 
-    public static short MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING = 128; // minimum number of dims for floats to be dynamically mapped to vector
+    public static final short MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING = 128; // minimum number of dims for floats to be dynamically mapped to
+                                                                        // vector
     public static final int MAGNITUDE_BYTES = 4;
-    public static final int NUM_CANDS_OVERSAMPLE_LIMIT = 10_000; // Max oversample allowed for k and num_candidates
+    public static final int OVERSAMPLE_LIMIT = 10_000; // Max oversample allowed
 
     private static DenseVectorFieldMapper toType(FieldMapper in) {
         return (DenseVectorFieldMapper) in;
@@ -486,8 +482,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
 
             @Override
-            VectorData parseKnnVector(DocumentParserContext context, int dims, IntBooleanConsumer dimChecker, VectorSimilarity similarity)
-                throws IOException {
+            public VectorData parseKnnVector(
+                DocumentParserContext context,
+                int dims,
+                IntBooleanConsumer dimChecker,
+                VectorSimilarity similarity
+            ) throws IOException {
                 XContentParser.Token token = context.parser().currentToken();
                 return switch (token) {
                     case START_ARRAY -> parseVectorArray(context, dims, dimChecker, similarity);
@@ -517,17 +517,17 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
 
             @Override
-            int getNumBytes(int dimensions) {
+            public int getNumBytes(int dimensions) {
                 return dimensions;
             }
 
             @Override
-            ByteBuffer createByteBuffer(IndexVersion indexVersion, int numBytes) {
+            public ByteBuffer createByteBuffer(IndexVersion indexVersion, int numBytes) {
                 return ByteBuffer.wrap(new byte[numBytes]);
             }
 
             @Override
-            int parseDimensionCount(DocumentParserContext context) throws IOException {
+            public int parseDimensionCount(DocumentParserContext context) throws IOException {
                 XContentParser.Token currentToken = context.parser().currentToken();
                 return switch (currentToken) {
                     case START_ARRAY -> {
@@ -691,8 +691,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
 
             @Override
-            VectorData parseKnnVector(DocumentParserContext context, int dims, IntBooleanConsumer dimChecker, VectorSimilarity similarity)
-                throws IOException {
+            public VectorData parseKnnVector(
+                DocumentParserContext context,
+                int dims,
+                IntBooleanConsumer dimChecker,
+                VectorSimilarity similarity
+            ) throws IOException {
                 int index = 0;
                 float squaredMagnitude = 0;
                 float[] vector = new float[dims];
@@ -711,12 +715,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
 
             @Override
-            int getNumBytes(int dimensions) {
+            public int getNumBytes(int dimensions) {
                 return dimensions * Float.BYTES;
             }
 
             @Override
-            ByteBuffer createByteBuffer(IndexVersion indexVersion, int numBytes) {
+            public ByteBuffer createByteBuffer(IndexVersion indexVersion, int numBytes) {
                 return indexVersion.onOrAfter(LITTLE_ENDIAN_FLOAT_STORED_INDEX_VERSION)
                     ? ByteBuffer.wrap(new byte[numBytes]).order(ByteOrder.LITTLE_ENDIAN)
                     : ByteBuffer.wrap(new byte[numBytes]);
@@ -889,8 +893,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
 
             @Override
-            VectorData parseKnnVector(DocumentParserContext context, int dims, IntBooleanConsumer dimChecker, VectorSimilarity similarity)
-                throws IOException {
+            public VectorData parseKnnVector(
+                DocumentParserContext context,
+                int dims,
+                IntBooleanConsumer dimChecker,
+                VectorSimilarity similarity
+            ) throws IOException {
                 XContentParser.Token token = context.parser().currentToken();
                 return switch (token) {
                     case START_ARRAY -> parseVectorArray(context, dims, dimChecker, similarity);
@@ -920,18 +928,18 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
 
             @Override
-            int getNumBytes(int dimensions) {
+            public int getNumBytes(int dimensions) {
                 assert dimensions % Byte.SIZE == 0;
                 return dimensions / Byte.SIZE;
             }
 
             @Override
-            ByteBuffer createByteBuffer(IndexVersion indexVersion, int numBytes) {
+            public ByteBuffer createByteBuffer(IndexVersion indexVersion, int numBytes) {
                 return ByteBuffer.wrap(new byte[numBytes]);
             }
 
             @Override
-            int parseDimensionCount(DocumentParserContext context) throws IOException {
+            public int parseDimensionCount(DocumentParserContext context) throws IOException {
                 XContentParser.Token currentToken = context.parser().currentToken();
                 return switch (currentToken) {
                     case START_ARRAY -> {
@@ -974,16 +982,16 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         abstract void parseKnnVectorAndIndex(DocumentParserContext context, DenseVectorFieldMapper fieldMapper) throws IOException;
 
-        abstract VectorData parseKnnVector(
+        public abstract VectorData parseKnnVector(
             DocumentParserContext context,
             int dims,
             IntBooleanConsumer dimChecker,
             VectorSimilarity similarity
         ) throws IOException;
 
-        abstract int getNumBytes(int dimensions);
+        public abstract int getNumBytes(int dimensions);
 
-        abstract ByteBuffer createByteBuffer(IndexVersion indexVersion, int numBytes);
+        public abstract ByteBuffer createByteBuffer(IndexVersion indexVersion, int numBytes);
 
         public abstract void checkVectorBounds(float[] vector);
 
@@ -1001,7 +1009,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
         }
 
-        int parseDimensionCount(DocumentParserContext context) throws IOException {
+        public int parseDimensionCount(DocumentParserContext context) throws IOException {
             int index = 0;
             for (Token token = context.parser().nextToken(); token != Token.END_ARRAY; token = context.parser().nextToken()) {
                 index++;
@@ -1088,7 +1096,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
     }
 
-    static final Map<String, ElementType> namesToElementType = Map.of(
+    public static final Map<String, ElementType> namesToElementType = Map.of(
         ElementType.BYTE.toString(),
         ElementType.BYTE,
         ElementType.FLOAT.toString(),
@@ -2006,9 +2014,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         public Query createKnnQuery(
             VectorData queryVector,
-            Integer k,
+            int k,
             int numCands,
-            Float numCandsFactor,
+            Float oversample,
             Query filter,
             Float similarityThreshold,
             BitSetProducer parentFilter
@@ -2024,7 +2032,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     queryVector.asFloatVector(),
                     k,
                     numCands,
-                    numCandsFactor,
+                    oversample,
                     filter,
                     similarityThreshold,
                     parentFilter
@@ -2034,12 +2042,16 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         private boolean needsRescore(Float rescoreOversample) {
-            return rescoreOversample != null && (indexOptions != null && indexOptions.type != null && indexOptions.type.isQuantized());
+            return rescoreOversample != null && isQuantized();
+        }
+
+        private boolean isQuantized() {
+            return indexOptions != null && indexOptions.type != null && indexOptions.type.isQuantized();
         }
 
         private Query createKnnBitQuery(
             byte[] queryVector,
-            Integer k,
+            int k,
             int numCands,
             Query filter,
             Float similarityThreshold,
@@ -2061,7 +2073,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         private Query createKnnByteQuery(
             byte[] queryVector,
-            Integer k,
+            int k,
             int numCands,
             Query filter,
             Float similarityThreshold,
@@ -2088,9 +2100,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         private Query createKnnFloatQuery(
             float[] queryVector,
-            Integer k,
+            int k,
             int numCands,
-            Float numCandsFactor,
+            Float oversample,
             Query filter,
             Float similarityThreshold,
             BitSetProducer parentFilter
@@ -2111,18 +2123,17 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 }
             }
 
-            Integer adjustedK = k;
-            int adjustedNumCands = numCands;
-            if (needsRescore(numCandsFactor)) {
-                // Get all candidates, get top k as part of rescoring
-                adjustedK = null;
-                // numCands * numCandsFactor <= NUM_CANDS_OVERSAMPLE_LIMIT. Adjust otherwise.
-                adjustedNumCands = Math.min((int) Math.ceil(numCands * numCandsFactor), NUM_CANDS_OVERSAMPLE_LIMIT);
+            int adjustedK = k;
+            boolean rescore = needsRescore(oversample);
+            if (rescore) {
+                // Will get k * oversample for rescoring, and get the top k
+                adjustedK = Math.min((int) Math.ceil(k * oversample), OVERSAMPLE_LIMIT);
+                numCands = Math.max(adjustedK, numCands);
             }
             Query knnQuery = parentFilter != null
-                ? new ESDiversifyingChildrenFloatKnnVectorQuery(name(), queryVector, filter, adjustedK, adjustedNumCands, parentFilter)
-                : new ESKnnFloatVectorQuery(name(), queryVector, adjustedK, adjustedNumCands, filter);
-            if (needsRescore(numCandsFactor)) {
+                ? new ESDiversifyingChildrenFloatKnnVectorQuery(name(), queryVector, filter, adjustedK, numCands, parentFilter)
+                : new ESKnnFloatVectorQuery(name(), queryVector, adjustedK, numCands, filter);
+            if (rescore) {
                 knnQuery = new RescoreKnnVectorQuery(
                     name(),
                     queryVector,
@@ -2361,11 +2372,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport() {
-        var loader = fieldType().indexed
-            ? new IndexedSyntheticFieldLoader(indexCreatedVersion, fieldType().similarity)
-            : new DocValuesSyntheticFieldLoader(indexCreatedVersion);
-
-        return new SyntheticSourceSupport.Native(loader);
+        return new SyntheticSourceSupport.Native(
+            () -> fieldType().indexed
+                ? new IndexedSyntheticFieldLoader(indexCreatedVersion, fieldType().similarity)
+                : new DocValuesSyntheticFieldLoader(indexCreatedVersion)
+        );
     }
 
     private class IndexedSyntheticFieldLoader extends SourceLoader.DocValuesBasedSyntheticFieldLoader {
@@ -2500,9 +2511,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
     }
 
     /**
-     * @FunctionalInterface for a function that takes a int and boolean
+     * Interface for a function that takes a int and boolean
      */
-    interface IntBooleanConsumer {
+    @FunctionalInterface
+    public interface IntBooleanConsumer {
         void accept(int value, boolean isComplete);
     }
 }

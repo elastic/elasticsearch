@@ -98,7 +98,6 @@ import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBui
 import static org.elasticsearch.index.shard.IndexShardTestCase.closeShardNoCheck;
 import static org.elasticsearch.index.shard.IndexShardTestCase.getTranslog;
 import static org.elasticsearch.index.shard.IndexShardTestCase.recoverFromStore;
-import static org.elasticsearch.indices.cluster.AbstractIndicesClusterStateServiceTestCase.awaitIndexShardCloseAsyncTasks;
 import static org.elasticsearch.test.LambdaMatchers.falseWith;
 import static org.elasticsearch.test.LambdaMatchers.trueWith;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -332,7 +331,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
                 Settings.builder()
                     .put(
                         IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(),
-                        new ByteSizeValue(135 /* size of the operation + one generation header&footer*/, ByteSizeUnit.BYTES)
+                        ByteSizeValue.of(135 /* size of the operation + one generation header&footer*/, ByteSizeUnit.BYTES)
                     )
                     .build()
             )
@@ -372,7 +371,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         indicesAdmin().prepareUpdateSettings("test")
             .setSettings(
                 Settings.builder()
-                    .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(size, ByteSizeUnit.BYTES))
+                    .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), ByteSizeValue.of(size, ByteSizeUnit.BYTES))
                     .build()
             )
             .get();

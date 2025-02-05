@@ -36,9 +36,13 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
     final ClusterSnapshotStats clusterSnapshotStats;
     final RepositoryUsageStats repositoryUsageStats;
     final CCSTelemetrySnapshot ccsMetrics;
+    final CCSTelemetrySnapshot esqlMetrics;
     final long timestamp;
     final String clusterUUID;
     private final Map<String, RemoteClusterStats> remoteClustersStats;
+
+    public static final String CCS_TELEMETRY_FIELD_NAME = "_search";
+    public static final String ESQL_TELEMETRY_FIELD_NAME = "_esql";
 
     public ClusterStatsResponse(
         long timestamp,
@@ -58,6 +62,7 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
         nodesStats = new ClusterStatsNodes(nodes);
         indicesStats = new ClusterStatsIndices(nodes, mappingStats, analysisStats, versionStats);
         ccsMetrics = new CCSTelemetrySnapshot();
+        esqlMetrics = new CCSTelemetrySnapshot().setUseMRT(false);
         ClusterHealthStatus status = null;
         for (ClusterStatsNodeResponse response : nodes) {
             // only the master node populates the status
@@ -66,7 +71,10 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
                 break;
             }
         }
-        nodes.forEach(node -> ccsMetrics.add(node.getCcsMetrics()));
+        nodes.forEach(node -> {
+            ccsMetrics.add(node.getSearchCcsMetrics());
+            esqlMetrics.add(node.getEsqlCcsMetrics());
+        });
         this.status = status;
         this.clusterSnapshotStats = clusterSnapshotStats;
 
@@ -147,7 +155,16 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
         if (remoteClustersStats != null) {
             builder.field("clusters", remoteClustersStats);
         }
+        builder.startObject(CCS_TELEMETRY_FIELD_NAME);
         ccsMetrics.toXContent(builder, params);
+        builder.endObject();
+
+        if (esqlMetrics.getTotalCount() > 0) {
+            builder.startObject(ESQL_TELEMETRY_FIELD_NAME);
+            esqlMetrics.toXContent(builder, params);
+            builder.endObject();
+        }
+
         builder.endObject();
 
         return builder;

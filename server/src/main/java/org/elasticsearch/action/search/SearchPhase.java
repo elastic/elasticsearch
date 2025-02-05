@@ -8,12 +8,10 @@
  */
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.transport.Transport;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Function;
@@ -21,12 +19,14 @@ import java.util.function.Function;
 /**
  * Base class for all individual search phases like collecting distributed frequencies, fetching documents, querying shards.
  */
-abstract class SearchPhase implements CheckedRunnable<IOException> {
+abstract class SearchPhase {
     private final String name;
 
     protected SearchPhase(String name) {
         this.name = Objects.requireNonNull(name, "name must not be null");
     }
+
+    protected abstract void run();
 
     /**
      * Returns the phases name.
@@ -97,11 +97,7 @@ abstract class SearchPhase implements CheckedRunnable<IOException> {
                 context.getLogger().trace("trying to release search context [{}]", phaseResult.getContextId());
                 SearchShardTarget shardTarget = phaseResult.getSearchShardTarget();
                 Transport.Connection connection = context.getConnection(shardTarget.getClusterAlias(), shardTarget.getNodeId());
-                context.sendReleaseSearchContext(
-                    phaseResult.getContextId(),
-                    connection,
-                    context.getOriginalIndices(phaseResult.getShardIndex())
-                );
+                context.sendReleaseSearchContext(phaseResult.getContextId(), connection);
             } catch (Exception e) {
                 context.getLogger().trace("failed to release context", e);
             }

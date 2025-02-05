@@ -117,11 +117,33 @@ public class TelemetryIT extends AbstractEsqlIntegTestCase {
                 new Test(
                     // Using the `::` cast operator and a function alias
                     """
+                        ROW host = "1.1.1.1"
+                        | EVAL ip = host::ip::string, y = to_str(host)
+                        """,
+                    Map.ofEntries(Map.entry("ROW", 1), Map.entry("EVAL", 1)),
+                    Map.ofEntries(Map.entry("TO_IP", 1), Map.entry("TO_STRING", 2)),
+                    true
+                ) },
+            new Object[] {
+                new Test(
+                    // Using the `::` cast operator and a function alias
+                    """
                         FROM idx
                         | EVAL ip = host::ip::string, y = to_str(host)
                         """,
                     Map.ofEntries(Map.entry("FROM", 1), Map.entry("EVAL", 1)),
                     Map.ofEntries(Map.entry("TO_IP", 1), Map.entry("TO_STRING", 2)),
+                    true
+                ) },
+            new Object[] {
+                new Test(
+                    """
+                        FROM idx
+                        | EVAL y = to_str(host)
+                        | LOOKUP JOIN lookup_idx ON host
+                        """,
+                    Map.ofEntries(Map.entry("FROM", 1), Map.entry("EVAL", 1), Map.entry("LOOKUP JOIN", 1)),
+                    Map.ofEntries(Map.entry("TO_STRING", 1)),
                     true
                 ) },
             new Object[] {
@@ -277,6 +299,19 @@ public class TelemetryIT extends AbstractEsqlIntegTestCase {
         }
 
         client().admin().indices().prepareRefresh("idx").get();
+
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate("lookup_idx")
+                .setSettings(
+                    Settings.builder()
+                        .put("index.routing.allocation.require._name", nodeName)
+                        .put("index.mode", "lookup")
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                )
+                .setMapping("ip", "type=ip", "host", "type=keyword")
+        );
     }
 
     private DiscoveryNode randomDataNode() {

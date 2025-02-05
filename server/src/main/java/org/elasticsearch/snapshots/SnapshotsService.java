@@ -3885,6 +3885,11 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             logSnapshotFailure("create", snapshot, e);
             listener.onFailure(e);
         }
+
+        @Override
+        public String toString() {
+            return "CreateSnapshotTask{repository=" + repository.getMetadata().name() + ", snapshot=" + snapshot + '}';
+        }
     }
 
     private static void logSnapshotFailure(String operation, Snapshot snapshot, Exception e) {

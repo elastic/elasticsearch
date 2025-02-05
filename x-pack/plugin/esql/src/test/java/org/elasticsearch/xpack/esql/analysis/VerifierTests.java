@@ -759,7 +759,7 @@ public class VerifierTests extends ESTestCase {
 
     public void testSumOnDate() {
         assertEquals(
-            "1:19: argument of [sum(hire_date)] must be [numeric except unsigned_long or counter types],"
+            "1:19: argument of [sum(hire_date)] must be [aggregate_metric_double or numeric except unsigned_long or counter types],"
                 + " found value [hire_date] type [datetime]",
             error("from test | stats sum(hire_date)")
         );
@@ -1186,25 +1186,10 @@ public class VerifierTests extends ESTestCase {
 
     public void testMatchInsideEval() throws Exception {
         assumeTrue("Match operator is available just for snapshots", Build.current().isSnapshot());
-
         assertEquals(
-            "1:36: [:] operator is only supported in WHERE commands",
+            "1:36: [:] operator is only supported in WHERE commands\n"
+                + "line 1:36: [:] operator cannot operate on [title], which is not a field from an index mapping",
             error("row title = \"brown fox\" | eval x = title:\"fox\" ")
-        );
-    }
-
-    public void testMatchFilter() throws Exception {
-        assertEquals(
-            "1:19: Invalid condition [first_name:\"Anna\" or starts_with(first_name, \"Anne\")]. "
-                + "Full text functions can be used in an OR condition, "
-                + "but only if just full text functions are used in the OR condition",
-            error("from test | where first_name:\"Anna\" or starts_with(first_name, \"Anne\")")
-        );
-
-        assertEquals(
-            "1:51: Invalid condition [first_name:\"Anna\" OR new_salary > 100]. Full text functions can be"
-                + " used in an OR condition, but only if just full text functions are used in the OR condition",
-            error("from test | eval new_salary = salary + 10 | where first_name:\"Anna\" OR new_salary > 100")
         );
     }
 
@@ -1230,6 +1215,25 @@ public class VerifierTests extends ESTestCase {
         );
         assertEquals("1:24: [:] operator cannot be used after LIMIT", error("from test | limit 10 | where first_name:\"Anna\""));
         assertEquals("1:24: [:] operator cannot be used after LIMIT", error("from test | limit 10 | where first_name : \"Anna\""));
+    }
+
+    // These should pass eventually once we lift some restrictions on match function
+    public void testMatchWithNonIndexedColumnCurrentlyUnsupported() {
+        assertEquals(
+            "1:67: [MATCH] function cannot operate on [initial], which is not a field from an index mapping",
+            error("from test | eval initial = substring(first_name, 1) | where match(initial, \"A\")")
+        );
+        assertEquals(
+            "1:67: [MATCH] function cannot operate on [text], which is not a field from an index mapping",
+            error("from test | eval text=concat(first_name, last_name) | where match(text, \"cat\")")
+        );
+    }
+
+    public void testMatchFunctionIsNotNullable() {
+        assertEquals(
+            "1:48: [MATCH] function cannot operate on [text::keyword], which is not a field from an index mapping",
+            error("row n = null | eval text = n + 5 | where match(text::keyword, \"Anna\")")
+        );
     }
 
     public void testQueryStringFunctionsNotAllowedAfterCommands() throws Exception {
@@ -1429,52 +1433,72 @@ public class VerifierTests extends ESTestCase {
     }
 
     private void checkWithDisjunctions(String functionName, String functionInvocation, String functionType) {
-        String expression = functionInvocation + " or length(first_name) > 12";
-        checkdisjunctionError("1:19", expression, functionName, functionType);
-        expression = "(" + functionInvocation + " or first_name is not null) or (length(first_name) > 12 and match(last_name, \"Smith\"))";
-        checkdisjunctionError("1:19", expression, functionName, functionType);
-        expression = functionInvocation + " or (last_name is not null and first_name is null)";
-        checkdisjunctionError("1:19", expression, functionName, functionType);
-    }
-
-    private void checkdisjunctionError(String position, String expression, String functionName, String functionType) {
-        assertEquals(
-            LoggerMessageFormat.format(
-                null,
-                "{}: Invalid condition [{}]. Full text functions can be used in an OR condition, "
-                    + "but only if just full text functions are used in the OR condition",
-                position,
-                expression
-            ),
-            error("from test | where " + expression)
+        query("from test | where " + functionInvocation + " or length(first_name) > 12");
+        query(
+            "from test | where ("
+                + functionInvocation
+                + " or first_name is not null) or (length(first_name) > 12 and match(last_name, \"Smith\"))"
         );
+        query("from test | where " + functionInvocation + " or (last_name is not null and first_name is null)");
     }
 
     public void testFullTextFunctionsDisjunctions() {
-        checkWithFullTextFunctionsDisjunctions("MATCH", "match(last_name, \"Smith\")", "function");
-        checkWithFullTextFunctionsDisjunctions(":", "last_name : \"Smith\"", "operator");
-        checkWithFullTextFunctionsDisjunctions("QSTR", "qstr(\"last_name: Smith\")", "function");
-        checkWithFullTextFunctionsDisjunctions("KQL", "kql(\"last_name: Smith\")", "function");
+        checkWithFullTextFunctionsDisjunctions("match(last_name, \"Smith\")");
+        checkWithFullTextFunctionsDisjunctions("last_name : \"Smith\"");
+        checkWithFullTextFunctionsDisjunctions("qstr(\"last_name: Smith\")");
+        checkWithFullTextFunctionsDisjunctions("kql(\"last_name: Smith\")");
     }
 
-    private void checkWithFullTextFunctionsDisjunctions(String functionName, String functionInvocation, String functionType) {
+    private void checkWithFullTextFunctionsDisjunctions(String functionInvocation) {
 
-        String expression = functionInvocation + " or length(first_name) > 10";
-        checkdisjunctionError("1:19", expression, functionName, functionType);
+        // Disjunctions with non-pushable functions - scoring
+        checkdisjunctionScoringError("1:35", functionInvocation + " or length(first_name) > 10");
+        checkdisjunctionScoringError("1:35", "match(last_name, \"Anneke\") or (" + functionInvocation + " and length(first_name) > 10)");
+        checkdisjunctionScoringError(
+            "1:35",
+            "(" + functionInvocation + " and length(first_name) > 0) or (match(last_name, \"Anneke\") and length(first_name) > 10)"
+        );
 
-        expression = "match(last_name, \"Anneke\") or (" + functionInvocation + " and length(first_name) > 10)";
-        checkdisjunctionError("1:19", expression, functionName, functionType);
+        // Disjunctions with non-pushable functions - no scoring
+        query("from test | where " + functionInvocation + " or length(first_name) > 10");
+        query("from test | where match(last_name, \"Anneke\") or (" + functionInvocation + " and length(first_name) > 10)");
+        query(
+            "from test | where ("
+                + functionInvocation
+                + " and length(first_name) > 0) or (match(last_name, \"Anneke\") and length(first_name) > 10)"
+        );
 
-        expression = "("
-            + functionInvocation
-            + " and length(first_name) > 0) or (match(last_name, \"Anneke\") and length(first_name) > 10)";
-        checkdisjunctionError("1:19", expression, functionName, functionType);
-
+        // Disjunctions with full text functions - no scoring
         query("from test | where " + functionInvocation + " or match(first_name, \"Anna\")");
         query("from test | where " + functionInvocation + " or not match(first_name, \"Anna\")");
         query("from test | where (" + functionInvocation + " or match(first_name, \"Anna\")) and length(first_name) > 10");
         query("from test | where (" + functionInvocation + " or match(first_name, \"Anna\")) and match(last_name, \"Smith\")");
         query("from test | where " + functionInvocation + " or (match(first_name, \"Anna\") and match(last_name, \"Smith\"))");
+
+        // Disjunctions with full text functions - scoring
+        query("from test metadata _score | where " + functionInvocation + " or match(first_name, \"Anna\")");
+        query("from test metadata _score | where " + functionInvocation + " or not match(first_name, \"Anna\")");
+        query("from test metadata _score | where (" + functionInvocation + " or match(first_name, \"Anna\")) and length(first_name) > 10");
+        query(
+            "from test metadata _score | where (" + functionInvocation + " or match(first_name, \"Anna\")) and match(last_name, \"Smith\")"
+        );
+        query(
+            "from test metadata _score | where " + functionInvocation + " or (match(first_name, \"Anna\") and match(last_name, \"Smith\"))"
+        );
+
+    }
+
+    private void checkdisjunctionScoringError(String position, String expression) {
+        assertEquals(
+            LoggerMessageFormat.format(
+                null,
+                "{}: Invalid condition when using METADATA _score [{}]. Full text functions can be used in an OR condition, "
+                    + "but only if just full text functions are used in the OR condition",
+                position,
+                expression
+            ),
+            error("from test metadata _score | where " + expression)
+        );
     }
 
     public void testQueryStringFunctionWithNonBooleanFunctions() {

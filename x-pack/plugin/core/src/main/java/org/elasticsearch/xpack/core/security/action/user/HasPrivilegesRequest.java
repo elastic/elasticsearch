@@ -8,18 +8,13 @@ package org.elasticsearch.xpack.core.security.action.user;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.support.IndexComponentSelector;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.ApplicationResourcePrivileges;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
 
 /**
  * A request for checking a user's privileges
@@ -89,50 +84,7 @@ public class HasPrivilegesRequest extends ActionRequest implements UserRequest {
     }
 
     public void indexPrivileges(IndicesPrivileges... privileges) {
-        IndicesPrivileges[] newPrivileges = new IndicesPrivileges[privileges.length];
-        for (int i = 0; i < privileges.length; i++) {
-            IndicesPrivileges currentPriv = privileges[i];
-            IndicesPrivileges.Builder builder = IndicesPrivileges.builder(privileges[i]);
-            builder.indices((String[]) null);
-            List<String> updatedIndexPatterns = new ArrayList<>();
-            for (String indexPatternRequested : currentPriv.getIndices()) {
-                Tuple<String, String> split = IndexNameExpressionResolver.splitSelectorExpression(indexPatternRequested);
-                String indexNameNoSelector = split.v1();
-                String selectorAsString = split.v2();
-                if (selectorAsString == null) {
-                    assert indexPatternRequested.equals(indexNameNoSelector);
-                    updatedIndexPatterns.add(indexNameNoSelector); // add as-is, no selector
-                } else {
-                    IndexComponentSelector selector = IndexComponentSelector.getByKey(selectorAsString);
-                    switch (selector) {
-                        case DATA:
-                            updatedIndexPatterns.add(indexNameNoSelector); // strip the selector
-                            break;
-                        case FAILURES:
-                            updatedIndexPatterns.add(indexPatternRequested); // add as-is, keep selector in name
-                            break;
-                        case ALL_APPLICABLE:
-                            updatedIndexPatterns.add(indexNameNoSelector); // add with no selector for data
-                            updatedIndexPatterns.add(
-                                IndexNameExpressionResolver.combineSelector(indexNameNoSelector, IndexComponentSelector.FAILURES)
-                            ); // add with failure selector
-                            break;
-                        default:
-                            throw new IllegalArgumentException(
-                                "Unknown index component selector ["
-                                    + selectorAsString
-                                    + "], available options are: "
-                                    + IndexComponentSelector.values()
-                            );
-
-                    }
-                }
-                builder.indices(updatedIndexPatterns);
-                newPrivileges[i] = builder.build();
-            }
-        }
-
-        this.indexPrivileges = newPrivileges;
+        this.indexPrivileges = privileges;
     }
 
     public void clusterPrivileges(String... privileges) {

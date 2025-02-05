@@ -878,9 +878,6 @@ public final class IndicesPermission {
             this.indices = indices;
             boolean allowFailureStoreAccess = allowFailureStoreAccess(indices);
             this.allowFailureStoreAccess = allowFailureStoreAccess;
-            // TODO: [Jake] how to support selectors for hasPrivileges ? (are reg-ex's just broken for hasPrivilege index checks ?)
-            // TODO: [Jake] ensure that only ::failure selectors can be added the role (i.e. error on name::* or name::data)
-            // TODO: [Jake] ensure that no selectors can be added to remote_indices (or gate usage with a feature flag, or just test)
             this.allowRestrictedIndices = allowRestrictedIndices;
             ConcurrentHashMap<String[], Automaton> indexNameAutomatonMemo = new ConcurrentHashMap<>(1);
             if (allowRestrictedIndices) {

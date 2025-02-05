@@ -293,17 +293,15 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
 
         // assert that write to source fails
         var indexReq = new IndexRequest(sourceIndex).source(jsonBuilder().startObject().field("field", "1").endObject());
-        assertThrows(ClusterBlockException.class, () -> safeGet(client().index(indexReq)));
+        expectThrows(ClusterBlockException.class, client().index(indexReq));
         assertHitCount(prepareSearch(sourceIndex).setSize(0), 0);
     }
 
     public void testMissingSourceIndex() {
         var nonExistentSourceIndex = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
-        assertThrows(
+        expectThrows(
             ResourceNotFoundException.class,
-            () -> safeGet(
-                client().execute(ReindexDataStreamIndexAction.INSTANCE, new ReindexDataStreamIndexAction.Request(nonExistentSourceIndex))
-            )
+            client().execute(ReindexDataStreamIndexAction.INSTANCE, new ReindexDataStreamIndexAction.Request(nonExistentSourceIndex))
         );
     }
 
@@ -361,11 +359,11 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
         var settings = Settings.builder().put(IndexMetadata.SETTING_BLOCKS_METADATA, true).build();
         safeGet(indicesAdmin().create(new CreateIndexRequest(sourceIndex, settings)));
 
-        try {
-            safeGet(client().execute(ReindexDataStreamIndexAction.INSTANCE, new ReindexDataStreamIndexAction.Request(sourceIndex)));
-        } catch (ElasticsearchException e) {
-            assertTrue(e.getMessage().contains("Cannot reindex index") || e.getCause().getMessage().equals("Cannot reindex index"));
-        }
+        ElasticsearchException e = expectThrows(
+            ElasticsearchException.class,
+            client().execute(ReindexDataStreamIndexAction.INSTANCE, new ReindexDataStreamIndexAction.Request(sourceIndex))
+        );
+        assertTrue(e.getMessage().contains("Cannot reindex index") || e.getCause().getMessage().equals("Cannot reindex index"));
 
         cleanupMetadataBlocks(sourceIndex);
     }
@@ -375,11 +373,11 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
         var settings = Settings.builder().put(IndexMetadata.SETTING_BLOCKS_READ, true).build();
         safeGet(indicesAdmin().create(new CreateIndexRequest(sourceIndex, settings)));
 
-        try {
-            safeGet(client().execute(ReindexDataStreamIndexAction.INSTANCE, new ReindexDataStreamIndexAction.Request(sourceIndex)));
-        } catch (ElasticsearchException e) {
-            assertTrue(e.getMessage().contains("Cannot reindex index") || e.getCause().getMessage().equals("Cannot reindex index"));
-        }
+        ElasticsearchException e = expectThrows(
+            ElasticsearchException.class,
+            client().execute(ReindexDataStreamIndexAction.INSTANCE, new ReindexDataStreamIndexAction.Request(sourceIndex))
+        );
+        assertTrue(e.getMessage().contains("Cannot reindex index") || e.getCause().getMessage().equals("Cannot reindex index"));
 
         cleanupMetadataBlocks(sourceIndex);
     }
@@ -592,7 +590,7 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
             .putNull(IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE)
             .putNull(IndexMetadata.SETTING_BLOCKS_METADATA)
             .build();
-        assertAcked(indicesAdmin().updateSettings(new UpdateSettingsRequest(settings, index)));
+        safeGet(indicesAdmin().updateSettings(new UpdateSettingsRequest(settings, index)));
     }
 
     private static void indexDocs(String index, int numDocs) {

@@ -57,8 +57,9 @@ public class TextSimilarityRankBuilder extends RankBuilder {
         String field = (String) args[2];
         Integer rankWindowSize = args[3] == null ? DEFAULT_RANK_WINDOW_SIZE : (Integer) args[3];
         Float minScore = (Float) args[4];
+        boolean lenient = args[5] != null && (Boolean) args[5];
 
-        return new TextSimilarityRankBuilder(field, inferenceId, inferenceText, rankWindowSize, minScore);
+        return new TextSimilarityRankBuilder(field, inferenceId, inferenceText, rankWindowSize, minScore, lenient);
     });
 
     static {
@@ -67,6 +68,7 @@ public class TextSimilarityRankBuilder extends RankBuilder {
         PARSER.declareString(constructorArg(), FIELD_FIELD);
         PARSER.declareInt(optionalConstructorArg(), RANK_WINDOW_SIZE_FIELD);
         PARSER.declareFloat(optionalConstructorArg(), MIN_SCORE_FIELD);
+        PARSER.declareBoolean(optionalConstructorArg(), LENIENT_FIELD);
     }
 
     private final String inferenceId;
@@ -74,8 +76,15 @@ public class TextSimilarityRankBuilder extends RankBuilder {
     private final String field;
     private final Float minScore;
 
-    public TextSimilarityRankBuilder(String field, String inferenceId, String inferenceText, int rankWindowSize, Float minScore) {
-        super(rankWindowSize);
+    public TextSimilarityRankBuilder(
+        String field,
+        String inferenceId,
+        String inferenceText,
+        int rankWindowSize,
+        Float minScore,
+        boolean lenient
+    ) {
+        super(rankWindowSize, lenient);
         this.inferenceId = inferenceId;
         this.inferenceText = inferenceText;
         this.field = field;
@@ -103,7 +112,7 @@ public class TextSimilarityRankBuilder extends RankBuilder {
 
     @Override
     public void doWriteTo(StreamOutput out) throws IOException {
-        // rankWindowSize serialization is handled by the parent class RankBuilder
+        // rankWindowSize & lenient serialization is handled by the parent class RankBuilder
         out.writeString(inferenceId);
         out.writeString(inferenceText);
         out.writeString(field);
@@ -112,7 +121,7 @@ public class TextSimilarityRankBuilder extends RankBuilder {
 
     @Override
     public void doXContent(XContentBuilder builder, Params params) throws IOException {
-        // rankWindowSize serialization is handled by the parent class RankBuilder
+        // rankWindowSize & lenient serialization is handled by the parent class RankBuilder
         builder.field(INFERENCE_ID_FIELD.getPreferredName(), inferenceId);
         builder.field(INFERENCE_TEXT_FIELD.getPreferredName(), inferenceText);
         builder.field(FIELD_FIELD.getPreferredName(), field);
@@ -177,7 +186,8 @@ public class TextSimilarityRankBuilder extends RankBuilder {
             client,
             inferenceId,
             inferenceText,
-            minScore
+            minScore,
+            isLenient()
         );
     }
 

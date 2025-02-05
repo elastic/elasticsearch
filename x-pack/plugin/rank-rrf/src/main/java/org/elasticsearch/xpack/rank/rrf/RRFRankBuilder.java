@@ -79,7 +79,7 @@ public class RRFRankBuilder extends RankBuilder {
     private final int rankConstant;
 
     public RRFRankBuilder(int rankWindowSize, int rankConstant) {
-        super(rankWindowSize);
+        super(rankWindowSize, false);
 
         if (rankConstant < 1) {
             throw new IllegalArgumentException("[rank_constant] must be greater or equal to [1] for [rrf]");

@@ -49,7 +49,7 @@ public class TextSimilarityRankTests extends ESSingleNodeTestCase {
             Float minScore,
             int topN
         ) {
-            super(field, inferenceId + "-task-settings-top-" + topN, inferenceText, rankWindowSize, minScore);
+            super(field, inferenceId + "-task-settings-top-" + topN, inferenceText, rankWindowSize, minScore, false);
         }
     }
 
@@ -68,7 +68,7 @@ public class TextSimilarityRankTests extends ESSingleNodeTestCase {
             Float minScore,
             int inferenceResultCount
         ) {
-            super(field, inferenceId, inferenceText, rankWindowSize, minScore);
+            super(field, inferenceId, inferenceText, rankWindowSize, minScore, false);
             this.inferenceResultCount = inferenceResultCount;
         }
 
@@ -81,7 +81,8 @@ public class TextSimilarityRankTests extends ESSingleNodeTestCase {
                 client,
                 inferenceId,
                 inferenceText,
-                minScore
+                minScore,
+                false
             ) {
                 @Override
                 protected InferenceAction.Request generateRequest(List<String> docFeatures) {
@@ -125,7 +126,7 @@ public class TextSimilarityRankTests extends ESSingleNodeTestCase {
         ElasticsearchAssertions.assertNoFailuresAndResponse(
             // Execute search with text similarity reranking
             client.prepareSearch()
-                .setRankBuilder(new TextSimilarityRankBuilder("text", "my-rerank-model", "my query", 100, 0.0f))
+                .setRankBuilder(new TextSimilarityRankBuilder("text", "my-rerank-model", "my query", 100, 0.0f, false))
                 .setQuery(QueryBuilders.matchAllQuery()),
             response -> {
                 // Verify order, rank and score of results
@@ -145,7 +146,7 @@ public class TextSimilarityRankTests extends ESSingleNodeTestCase {
         ElasticsearchAssertions.assertNoFailuresAndResponse(
             // Execute search with text similarity reranking
             client.prepareSearch()
-                .setRankBuilder(new TextSimilarityRankBuilder("text", "my-rerank-model", "my query", 100, 1.5f))
+                .setRankBuilder(new TextSimilarityRankBuilder("text", "my-rerank-model", "my query", 100, 1.5f, false))
                 .setQuery(QueryBuilders.matchAllQuery()),
             response -> {
                 // Verify order, rank and score of results

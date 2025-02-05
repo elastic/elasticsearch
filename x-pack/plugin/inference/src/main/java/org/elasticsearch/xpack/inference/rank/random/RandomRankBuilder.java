@@ -61,7 +61,7 @@ public class RandomRankBuilder extends RankBuilder {
     private final Integer seed;
 
     public RandomRankBuilder(int rankWindowSize, String field, Integer seed) {
-        super(rankWindowSize);
+        super(rankWindowSize, false);
 
         if (field == null || field.isEmpty()) {
             throw new IllegalArgumentException("field is required");

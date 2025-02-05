@@ -117,7 +117,7 @@ public class RankFeatureShardPhaseTests extends ESTestCase {
     }
 
     private RankBuilder getRankBuilder(final String field) {
-        return new RankBuilder(DEFAULT_RANK_WINDOW_SIZE) {
+        return new RankBuilder(DEFAULT_RANK_WINDOW_SIZE, false) {
             @Override
             protected void doWriteTo(StreamOutput out) throws IOException {
                 // no-op
@@ -171,7 +171,7 @@ public class RankFeatureShardPhaseTests extends ESTestCase {
             // no work to be done on the coordinator node for the rank feature phase
             @Override
             public RankFeaturePhaseRankCoordinatorContext buildRankFeaturePhaseCoordinatorContext(int size, int from, Client client) {
-                return new RankFeaturePhaseRankCoordinatorContext(size, from, DEFAULT_RANK_WINDOW_SIZE) {
+                return new RankFeaturePhaseRankCoordinatorContext(size, from, DEFAULT_RANK_WINDOW_SIZE, false) {
                     @Override
                     protected void computeScores(RankFeatureDoc[] featureDocs, ActionListener<float[]> scoreListener) {
                         throw new AssertionError("not expected");

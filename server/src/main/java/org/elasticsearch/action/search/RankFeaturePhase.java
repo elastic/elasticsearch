@@ -26,6 +26,7 @@ import org.elasticsearch.search.rank.feature.RankFeatureResult;
 import org.elasticsearch.search.rank.feature.RankFeatureShardRequest;
 import org.elasticsearch.transport.Transport;
 
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -181,6 +182,11 @@ public class RankFeaturePhase extends SearchPhase {
         RankFeaturePhaseRankCoordinatorContext rankFeaturePhaseRankCoordinatorContext,
         SearchPhaseController.ReducedQueryPhase reducedQueryPhase
     ) {
+        RankFeatureDoc[] docs = rankPhaseResults.getSuccessfulResults()
+            .flatMap(r -> Arrays.stream(r.rankFeatureResult().shardResult().rankFeatureDocs))
+            .filter(rfd -> rfd.featureData != null)
+            .toArray(RankFeatureDoc[]::new);
+
         ThreadedActionListener<RankFeatureDoc[]> rankResultListener = new ThreadedActionListener<>(
             context::execute,
             new ActionListener<>() {
@@ -196,21 +202,26 @@ public class RankFeaturePhase extends SearchPhase {
 
                 @Override
                 public void onFailure(Exception e) {
-                    context.onPhaseFailure(NAME, "Computing updated ranks for results failed", e);
+                    if (rankFeaturePhaseRankCoordinatorContext.isLenient()) {
+                        // TODO: handle the exception somewhere
+                        logger.warn("Exception computing updated ranks. Continuing with existing ranks.", e);
+                        // use the existing docs as-is
+                        // AbstractThreadedActionListener forks onFailure to the same executor as onResponse,
+                        // so we can just call this direct
+                        onResponse(docs);
+                    } else {
+                        context.onPhaseFailure(NAME, "Computing updated ranks for results failed", e);
+                    }
                 }
             }
         );
-        rankFeaturePhaseRankCoordinatorContext.computeRankScoresForGlobalResults(
-            rankPhaseResults.getAtomicArray().asList().stream().map(SearchPhaseResult::rankFeatureResult).toList(),
-            rankResultListener
-        );
+        rankFeaturePhaseRankCoordinatorContext.computeRankScoresForGlobalResults(docs, rankResultListener);
     }
 
     private SearchPhaseController.ReducedQueryPhase newReducedQueryPhaseResults(
         SearchPhaseController.ReducedQueryPhase reducedQueryPhase,
         ScoreDoc[] scoreDocs
     ) {
-
         return new SearchPhaseController.ReducedQueryPhase(
             reducedQueryPhase.totalHits(),
             reducedQueryPhase.fetchHits(),

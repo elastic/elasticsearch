@@ -25,7 +25,8 @@ public class TextSimilarityRankBuilderTests extends AbstractXContentSerializingT
             "my-inference-id",
             "my-inference-text",
             randomIntBetween(1, 1000),
-            randomBoolean() ? null : randomFloat()
+            randomBoolean() ? null : randomFloat(),
+            false
         );
     }
 
@@ -46,7 +47,7 @@ public class TextSimilarityRankBuilderTests extends AbstractXContentSerializingT
             case 4 -> minScore = randomValueOtherThan(instance.minScore(), this::randomMinScore);
             default -> throw new IllegalStateException("Requested to modify more than available parameters.");
         }
-        return new TextSimilarityRankBuilder(field, inferenceId, inferenceText, rankWindowSize, minScore);
+        return new TextSimilarityRankBuilder(field, inferenceId, inferenceText, rankWindowSize, minScore, false);
     }
 
     @Override

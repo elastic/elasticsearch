@@ -11,6 +11,7 @@ package org.elasticsearch.search.rank;
 
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -42,21 +43,32 @@ import java.util.function.Predicate;
 public abstract class RankBuilder implements VersionedNamedWriteable, ToXContentObject {
 
     public static final ParseField RANK_WINDOW_SIZE_FIELD = new ParseField("rank_window_size");
+    public static final ParseField LENIENT_FIELD = new ParseField("lenient");
 
     public static final int DEFAULT_RANK_WINDOW_SIZE = SearchService.DEFAULT_SIZE;
 
     private final int rankWindowSize;
+    private final boolean lenient;
 
-    public RankBuilder(int rankWindowSize) {
+    public RankBuilder(int rankWindowSize, boolean lenient) {
         this.rankWindowSize = rankWindowSize;
+        this.lenient = lenient;
     }
 
     public RankBuilder(StreamInput in) throws IOException {
         rankWindowSize = in.readVInt();
+        if (in.getTransportVersion().onOrAfter(TransportVersions.LENIENT_RERANKERS)) {
+            lenient = in.readBoolean();
+        } else {
+            lenient = false;
+        }
     }
 
     public final void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(rankWindowSize);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.LENIENT_RERANKERS)) {
+            out.writeBoolean(lenient);
+        }
         doWriteTo(out);
     }
 
@@ -67,6 +79,9 @@ public abstract class RankBuilder implements VersionedNamedWriteable, ToXContent
         builder.startObject();
         builder.startObject(getWriteableName());
         builder.field(RANK_WINDOW_SIZE_FIELD.getPreferredName(), rankWindowSize);
+        if (lenient) {
+            builder.field(LENIENT_FIELD.getPreferredName(), lenient);
+        }
         doXContent(builder, params);
         builder.endObject();
         builder.endObject();
@@ -77,6 +92,10 @@ public abstract class RankBuilder implements VersionedNamedWriteable, ToXContent
 
     public int rankWindowSize() {
         return rankWindowSize;
+    }
+
+    public boolean isLenient() {
+        return lenient;
     }
 
     /**

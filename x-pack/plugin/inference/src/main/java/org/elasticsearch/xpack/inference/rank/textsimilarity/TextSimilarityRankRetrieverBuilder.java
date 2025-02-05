@@ -52,6 +52,7 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
             String inferenceText = (String) args[2];
             String field = (String) args[3];
             int rankWindowSize = args[4] == null ? DEFAULT_RANK_WINDOW_SIZE : (int) args[4];
+            boolean lenient = args[5] != null && (Boolean) args[5];
 
             return new TextSimilarityRankRetrieverBuilder(retrieverBuilder, inferenceId, inferenceText, field, rankWindowSize);
         });
@@ -163,7 +164,7 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
     @Override
     protected SearchSourceBuilder finalizeSourceBuilder(SearchSourceBuilder sourceBuilder) {
         sourceBuilder.rankBuilder(
-            new TextSimilarityRankBuilder(this.field, this.inferenceId, this.inferenceText, this.rankWindowSize, this.minScore)
+            new TextSimilarityRankBuilder(this.field, this.inferenceId, this.inferenceText, this.rankWindowSize, this.minScore, false)
         );
         return sourceBuilder;
     }

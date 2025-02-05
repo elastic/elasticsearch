@@ -43,9 +43,10 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
         Client client,
         String inferenceId,
         String inferenceText,
-        Float minScore
+        Float minScore,
+        boolean lenient
     ) {
-        super(size, from, rankWindowSize);
+        super(size, from, rankWindowSize, lenient);
         this.client = client;
         this.inferenceId = inferenceId;
         this.inferenceText = inferenceText;
@@ -130,15 +131,15 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
      */
     @Override
     protected RankFeatureDoc[] preprocess(RankFeatureDoc[] originalDocs) {
-        List<RankFeatureDoc> docs = new ArrayList<>();
+        List<RankFeatureDoc> docs = new ArrayList<>(originalDocs.length);
         for (RankFeatureDoc doc : originalDocs) {
             if (minScore == null || doc.score >= minScore) {
                 doc.score = normalizeScore(doc.score);
                 docs.add(doc);
             }
         }
-        docs.sort(RankFeatureDoc::compareTo);
-        return docs.toArray(new RankFeatureDoc[0]);
+        docs.sort(null);
+        return docs.toArray(RankFeatureDoc[]::new);
     }
 
     protected InferenceAction.Request generateRequest(List<String> docFeatures) {

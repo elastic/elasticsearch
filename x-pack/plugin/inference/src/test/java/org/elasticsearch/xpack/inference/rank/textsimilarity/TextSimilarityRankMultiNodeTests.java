@@ -23,7 +23,7 @@ public class TextSimilarityRankMultiNodeTests extends AbstractRerankerIT {
 
     @Override
     protected RankBuilder getRankBuilder(int rankWindowSize, String rankFeatureField) {
-        return new TextSimilarityRankBuilder(rankFeatureField, inferenceId, inferenceText, rankWindowSize, minScore);
+        return new TextSimilarityRankBuilder(rankFeatureField, inferenceId, inferenceText, rankWindowSize, minScore, false);
     }
 
     @Override

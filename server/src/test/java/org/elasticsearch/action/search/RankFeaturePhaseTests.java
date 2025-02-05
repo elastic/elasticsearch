@@ -775,7 +775,7 @@ public class RankFeaturePhaseTests extends ESTestCase {
     }
 
     private RankFeaturePhaseRankCoordinatorContext defaultRankFeaturePhaseRankCoordinatorContext(int size, int from, int rankWindowSize) {
-        return new RankFeaturePhaseRankCoordinatorContext(size, from, rankWindowSize) {
+        return new RankFeaturePhaseRankCoordinatorContext(size, from, rankWindowSize, false) {
 
             @Override
             protected void computeScores(RankFeatureDoc[] featureDocs, ActionListener<float[]> scoreListener) {
@@ -785,16 +785,8 @@ public class RankFeaturePhaseTests extends ESTestCase {
             }
 
             @Override
-            public void computeRankScoresForGlobalResults(
-                List<RankFeatureResult> rankSearchResults,
-                ActionListener<RankFeatureDoc[]> rankListener
-            ) {
-                List<RankFeatureDoc> features = new ArrayList<>();
-                for (RankFeatureResult rankFeatureResult : rankSearchResults) {
-                    RankFeatureShardResult shardResult = rankFeatureResult.shardResult();
-                    features.addAll(Arrays.stream(shardResult.rankFeatureDocs).toList());
-                }
-                rankListener.onResponse(features.toArray(new RankFeatureDoc[0]));
+            public void computeRankScoresForGlobalResults(RankFeatureDoc[] featureDocs, ActionListener<RankFeatureDoc[]> rankListener) {
+                rankListener.onResponse(featureDocs);
             }
 
             @Override
@@ -875,7 +867,7 @@ public class RankFeaturePhaseTests extends ESTestCase {
         RankFeaturePhaseRankShardContext rankFeaturePhaseRankShardContext,
         RankFeaturePhaseRankCoordinatorContext rankFeaturePhaseRankCoordinatorContext
     ) {
-        return new RankBuilder(rankWindowSize) {
+        return new RankBuilder(rankWindowSize, false) {
             @Override
             protected void doWriteTo(StreamOutput out) throws IOException {
                 // no-op

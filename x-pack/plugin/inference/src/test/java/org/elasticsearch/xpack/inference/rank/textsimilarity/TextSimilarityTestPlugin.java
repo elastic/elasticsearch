@@ -218,7 +218,7 @@ public class TextSimilarityTestPlugin extends Plugin implements ActionPlugin {
             final float minScore,
             final String throwingType
         ) {
-            super(field, inferenceId, inferenceText, rankWindowSize, minScore);
+            super(field, inferenceId, inferenceText, rankWindowSize, minScore, false);
             this.throwingRankBuilderType = AbstractRerankerIT.ThrowingRankBuilderType.valueOf(throwingType);
         }
 
@@ -263,7 +263,8 @@ public class TextSimilarityTestPlugin extends Plugin implements ActionPlugin {
                     client,
                     inferenceId,
                     inferenceText,
-                    minScore
+                    minScore,
+                    false
                 ) {
                     @Override
                     protected InferenceAction.Request generateRequest(List<String> docFeatures) {

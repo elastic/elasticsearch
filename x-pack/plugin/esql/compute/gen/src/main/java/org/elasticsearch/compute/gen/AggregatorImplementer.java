@@ -308,8 +308,8 @@ public class AggregatorImplementer {
         builder.beginControlFlow("if (mask.allTrue())");
         {
             builder.addComment("No masking");
-            builder.addStatement("$T block = page.getBlock(channels.get(0))", blockType(aggParam.type));
-            builder.addStatement("$T vector = block.asVector()", vectorType(aggParam.type));
+            builder.addStatement("$T block = page.getBlock(channels.get(0))", blockType(aggParam.type()));
+            builder.addStatement("$T vector = block.asVector()", vectorType(aggParam.type()));
             builder.beginControlFlow("if (vector != null)");
             builder.addStatement("addRawVector(vector)");
             builder.nextControlFlow("else");
@@ -320,8 +320,8 @@ public class AggregatorImplementer {
         builder.endControlFlow();
 
         builder.addComment("Some positions masked away, others kept");
-        builder.addStatement("$T block = page.getBlock(channels.get(0))", blockType(aggParam.type));
-        builder.addStatement("$T vector = block.asVector()", vectorType(aggParam.type));
+        builder.addStatement("$T block = page.getBlock(channels.get(0))", blockType(aggParam.type()));
+        builder.addStatement("$T vector = block.asVector()", vectorType(aggParam.type()));
         builder.beginControlFlow("if (vector != null)");
         builder.addStatement("addRawVector(vector, mask)");
         builder.nextControlFlow("else");
@@ -332,7 +332,7 @@ public class AggregatorImplementer {
 
     private MethodSpec addRawVector(boolean masked) {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("addRawVector");
-        builder.addModifiers(Modifier.PRIVATE).addParameter(vectorType(aggParam.type), "vector");
+        builder.addModifiers(Modifier.PRIVATE).addParameter(vectorType(aggParam.type()), "vector");
         if (masked) {
             builder.addParameter(BOOLEAN_VECTOR, "mask");
         }
@@ -362,7 +362,7 @@ public class AggregatorImplementer {
 
     private MethodSpec addRawBlock(boolean masked) {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("addRawBlock");
-        builder.addModifiers(Modifier.PRIVATE).addParameter(blockType(aggParam.type), "block");
+        builder.addModifiers(Modifier.PRIVATE).addParameter(blockType(aggParam.type()), "block");
         if (masked) {
             builder.addParameter(BOOLEAN_VECTOR, "mask");
         }
@@ -385,7 +385,7 @@ public class AggregatorImplementer {
             builder.addStatement("int start = block.getFirstValueIndex(p)");
             builder.addStatement("int end = start + block.getValueCount(p)");
             if (aggParam.isArray()) {
-                String arrayType = aggParam.type.toString().replace("[]", "");
+                String arrayType = aggParam.type().toString().replace("[]", "");
                 builder.addStatement("$L[] valuesArray = new $L[end - start]", arrayType, arrayType);
                 builder.beginControlFlow("for (int i = start; i < end; i++)");
                 builder.addStatement("valuesArray[i-start] = $L.get$L(i)", "block", capitalize(arrayType));
@@ -623,7 +623,7 @@ public class AggregatorImplementer {
      * @param declaredType declared state type as returned by init method
      * @param type actual type used (we have some predefined state types for primitive values)
      */
-    private record AggregationState(TypeName declaredType, TypeName type, boolean hasSeen, boolean hasFailed) {
+    public record AggregationState(TypeName declaredType, TypeName type, boolean hasSeen, boolean hasFailed) {
 
         public static AggregationState create(Elements elements, TypeMirror mirror, List<TypeMirror> warnExceptions) {
             var declaredType = TypeName.get(mirror);
@@ -642,7 +642,7 @@ public class AggregatorImplementer {
         }
     }
 
-    private record AggregationParameter(TypeName type, boolean isArray) {
+    public record AggregationParameter(TypeName type, boolean isArray) {
 
         public static AggregationParameter create(TypeMirror mirror) {
             return new AggregationParameter(

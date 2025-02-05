@@ -449,27 +449,6 @@ public final class KeywordFieldMapper extends FieldMapper {
             return new FieldType(Defaults.FIELD_TYPE);
         }
 
-        /**
-         * Determines whether to use a sparse doc values index for the {@code host.name} field.
-         *
-         * <p>The sparse doc values index is used if all the following conditions are met:</p>
-         *
-         * <ul>
-         *     <li>Doc values are enabled for the field.</li>
-         *     <li>The index mode is {@link IndexMode#LOGSDB}.</li>
-         *     <li>The field being checked is {@code host.name}.</li>
-         *     <li>The {@code host.name} field is included in the index sort configuration.</li>
-         * </ul>
-         *
-         * <p>If all conditions are met, the method returns {@code true}, indicating that the sparse
-         * doc values index should be used. Otherwise, it returns {@code false}.</p>
-         *
-         * @param hasDocValues Whether doc values are enabled for the field.
-         * @param indexSortConfig The index sort configuration, used to check if {@code host.name} is a sort field.
-         * @param indexMode The mode of the index, which must be {@link IndexMode#LOGSDB} for sparse doc values indexing.
-         * @param fullFieldName The name of the field being checked, which must be {@code host.name}.
-         * @return {@code true} if the sparse doc values index should be used, otherwise {@code false}.
-         */
         private static boolean shouldUseDocValuesSparseIndex(
             final boolean hasDocValues,
             final IndexSortConfig indexSortConfig,

@@ -40,7 +40,7 @@ class CreateKeyStoreCommand extends KeyStoreAwareCommand {
     @Override
     public void execute(Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo) throws Exception {
         try (SecureString password = options.has(passwordOption) ? readPassword(terminal, true) : new SecureString(new char[0])) {
-            Path keystoreFile = KeyStoreWrapper.keystorePath(env.configFile());
+            Path keystoreFile = KeyStoreWrapper.keystorePath(env.configDir());
             if (Files.exists(keystoreFile)) {
                 if (terminal.promptYesNo("An elasticsearch keystore already exists. Overwrite?", false) == false) {
                     terminal.println("Exiting without creating keystore.");
@@ -48,8 +48,8 @@ class CreateKeyStoreCommand extends KeyStoreAwareCommand {
                 }
             }
             KeyStoreWrapper keystore = KeyStoreWrapper.create();
-            keystore.save(env.configFile(), password.getChars());
-            terminal.println("Created elasticsearch keystore in " + KeyStoreWrapper.keystorePath(env.configFile()));
+            keystore.save(env.configDir(), password.getChars());
+            terminal.println("Created elasticsearch keystore in " + KeyStoreWrapper.keystorePath(env.configDir()));
         } catch (SecurityException e) {
             throw new UserException(ExitCodes.IO_ERROR, "Error creating the elasticsearch keystore.");
         }

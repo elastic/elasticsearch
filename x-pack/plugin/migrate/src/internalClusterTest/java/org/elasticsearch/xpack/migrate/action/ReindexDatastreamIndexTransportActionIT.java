@@ -71,9 +71,15 @@ import static org.hamcrest.Matchers.equalTo;
 public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
     @After
     private void cleanupCluster() throws Exception {
-        clusterAdmin().execute(
-            DeletePipelineTransportAction.TYPE,
-            new DeletePipelineRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, MigrateTemplateRegistry.REINDEX_DATA_STREAM_PIPELINE_NAME)
+        safeGet(
+            clusterAdmin().execute(
+                DeletePipelineTransportAction.TYPE,
+                new DeletePipelineRequest(
+                    TEST_REQUEST_TIMEOUT,
+                    TEST_REQUEST_TIMEOUT,
+                    MigrateTemplateRegistry.REINDEX_DATA_STREAM_PIPELINE_NAME
+                )
+            )
         );
         super.cleanUpCluster();
     }
@@ -115,7 +121,7 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
 
     public void testTimestamp0AddedIfMissing() {
         var sourceIndex = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
-        indicesAdmin().create(new CreateIndexRequest(sourceIndex)).actionGet();
+        safeGet(indicesAdmin().create(new CreateIndexRequest(sourceIndex)));
 
         // add doc without timestamp
         addDoc(sourceIndex, "{\"foo\":\"baz\"}");
@@ -124,9 +130,9 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
         indicesAdmin().preparePutMapping(sourceIndex).setSource(DATA_STREAM_MAPPING, XContentType.JSON).get();
 
         // call reindex
-        var destIndex = client().execute(ReindexDataStreamIndexAction.INSTANCE, new ReindexDataStreamIndexAction.Request(sourceIndex))
-            .actionGet()
-            .getDestIndex();
+        var destIndex = safeGet(
+            client().execute(ReindexDataStreamIndexAction.INSTANCE, new ReindexDataStreamIndexAction.Request(sourceIndex))
+        ).getDestIndex();
 
         assertResponse(prepareSearch(destIndex), response -> {
             Map<String, Object> sourceAsMap = response.getHits().getAt(0).getSourceAsMap();
@@ -136,7 +142,7 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
 
     public void testTimestampNotAddedIfExists() {
         var sourceIndex = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
-        indicesAdmin().create(new CreateIndexRequest(sourceIndex)).actionGet();
+        safeGet(indicesAdmin().create(new CreateIndexRequest(sourceIndex)));
 
         // add doc with timestamp
         String time = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(System.currentTimeMillis());
@@ -147,9 +153,9 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
         indicesAdmin().preparePutMapping(sourceIndex).setSource(DATA_STREAM_MAPPING, XContentType.JSON).get();
 
         // call reindex
-        var destIndex = client().execute(ReindexDataStreamIndexAction.INSTANCE, new ReindexDataStreamIndexAction.Request(sourceIndex))
-            .actionGet()
-            .getDestIndex();
+        var destIndex = safeGet(
+            client().execute(ReindexDataStreamIndexAction.INSTANCE, new ReindexDataStreamIndexAction.Request(sourceIndex))
+        ).getDestIndex();
 
         assertResponse(prepareSearch(destIndex), response -> {
             Map<String, Object> sourceAsMap = response.getHits().getAt(0).getSourceAsMap();
@@ -180,10 +186,10 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
             XContentType.JSON
         );
 
-        clusterAdmin().execute(PutPipelineTransportAction.TYPE, putRequest).actionGet();
+        safeGet(clusterAdmin().execute(PutPipelineTransportAction.TYPE, putRequest));
 
         var sourceIndex = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
-        indicesAdmin().create(new CreateIndexRequest(sourceIndex)).actionGet();
+        safeGet(indicesAdmin().create(new CreateIndexRequest(sourceIndex)));
 
         // add doc with timestamp
         String time = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(System.currentTimeMillis());
@@ -193,9 +199,9 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
         // add timestamp to source mapping
         indicesAdmin().preparePutMapping(sourceIndex).setSource(DATA_STREAM_MAPPING, XContentType.JSON).get();
 
-        String destIndex = client().execute(ReindexDataStreamIndexAction.INSTANCE, new ReindexDataStreamIndexAction.Request(sourceIndex))
-            .actionGet()
-            .getDestIndex();
+        String destIndex = safeGet(
+            client().execute(ReindexDataStreamIndexAction.INSTANCE, new ReindexDataStreamIndexAction.Request(sourceIndex))
+        ).getDestIndex();
 
         assertResponse(prepareSearch(destIndex), response -> {
             Map<String, Object> sourceAsMap = response.getHits().getAt(0).getSourceAsMap();
@@ -207,17 +213,17 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
     public void testDestIndexDeletedIfExists() throws Exception {
         // empty source index
         var sourceIndex = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
-        indicesAdmin().create(new CreateIndexRequest(sourceIndex)).get();
+        safeGet(indicesAdmin().create(new CreateIndexRequest(sourceIndex)));
 
         // dest index with docs
         var destIndex = ReindexDataStreamIndexTransportAction.generateDestIndexName(sourceIndex);
-        indicesAdmin().create(new CreateIndexRequest(destIndex)).actionGet();
+        safeGet(indicesAdmin().create(new CreateIndexRequest(destIndex)));
         indexDocs(destIndex, 10);
-        indicesAdmin().refresh(new RefreshRequest(destIndex)).actionGet();
+        safeGet(indicesAdmin().refresh(new RefreshRequest(destIndex)));
         assertHitCount(prepareSearch(destIndex).setSize(0), 10);
 
         // call reindex
-        client().execute(ReindexDataStreamIndexAction.INSTANCE, new ReindexDataStreamIndexAction.Request(sourceIndex)).actionGet();
+        safeGet(client().execute(ReindexDataStreamIndexAction.INSTANCE, new ReindexDataStreamIndexAction.Request(sourceIndex)));
 
         // verify that dest still exists, but is now empty
         assertTrue(indexExists(destIndex));
@@ -226,11 +232,12 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
 
     public void testDestIndexNameSet_noDotPrefix() throws Exception {
         var sourceIndex = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
-        indicesAdmin().create(new CreateIndexRequest(sourceIndex)).get();
+        safeGet(indicesAdmin().create(new CreateIndexRequest(sourceIndex)));
 
         // call reindex
-        var response = client().execute(ReindexDataStreamIndexAction.INSTANCE, new ReindexDataStreamIndexAction.Request(sourceIndex))
-            .actionGet();
+        var response = safeGet(
+            client().execute(ReindexDataStreamIndexAction.INSTANCE, new ReindexDataStreamIndexAction.Request(sourceIndex))
+        );
 
         var expectedDestIndexName = ReindexDataStreamIndexTransportAction.generateDestIndexName(sourceIndex);
         assertEquals(expectedDestIndexName, response.getDestIndex());
@@ -239,11 +246,12 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
     public void testDestIndexNameSet_withDotPrefix() throws Exception {
 
         var sourceIndex = "." + randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
-        indicesAdmin().create(new CreateIndexRequest(sourceIndex)).get();
+        safeGet(indicesAdmin().create(new CreateIndexRequest(sourceIndex)));
 
         // call reindex
-        var response = client().execute(ReindexDataStreamIndexAction.INSTANCE, new ReindexDataStreamIndexAction.Request(sourceIndex))
-            .actionGet();
+        var response = safeGet(
+            client().execute(ReindexDataStreamIndexAction.INSTANCE, new ReindexDataStreamIndexAction.Request(sourceIndex))
+        );
 
         var expectedDestIndexName = ReindexDataStreamIndexTransportAction.generateDestIndexName(sourceIndex);
         assertEquals(expectedDestIndexName, response.getDestIndex());
@@ -253,13 +261,14 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
         // source index with docs
         var numDocs = randomIntBetween(1, 100);
         var sourceIndex = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
-        indicesAdmin().create(new CreateIndexRequest(sourceIndex)).get();
+        safeGet(indicesAdmin().create(new CreateIndexRequest(sourceIndex)));
         indexDocs(sourceIndex, numDocs);
 
         // call reindex
-        var response = client().execute(ReindexDataStreamIndexAction.INSTANCE, new ReindexDataStreamIndexAction.Request(sourceIndex))
-            .actionGet();
-        indicesAdmin().refresh(new RefreshRequest(response.getDestIndex())).actionGet();
+        var response = safeGet(
+            client().execute(ReindexDataStreamIndexAction.INSTANCE, new ReindexDataStreamIndexAction.Request(sourceIndex))
+        );
+        safeGet(indicesAdmin().refresh(new RefreshRequest(response.getDestIndex())));
 
         // verify that dest contains docs
         assertHitCount(prepareSearch(response.getDestIndex()).setSize(0), numDocs);
@@ -270,13 +279,13 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
 
         // empty source index
         var sourceIndex = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
-        indicesAdmin().create(new CreateIndexRequest(sourceIndex, settings)).get();
+        safeGet(indicesAdmin().create(new CreateIndexRequest(sourceIndex, settings)));
 
         // call reindex
-        client().execute(ReindexDataStreamIndexAction.INSTANCE, new ReindexDataStreamIndexAction.Request(sourceIndex)).actionGet();
+        safeGet(client().execute(ReindexDataStreamIndexAction.INSTANCE, new ReindexDataStreamIndexAction.Request(sourceIndex)));
 
         // Assert that source index is now read-only but not verified read-only
-        GetSettingsResponse getSettingsResponse = admin().indices().getSettings(new GetSettingsRequest().indices(sourceIndex)).actionGet();
+        GetSettingsResponse getSettingsResponse = safeGet(admin().indices().getSettings(new GetSettingsRequest().indices(sourceIndex)));
         assertTrue(parseBoolean(getSettingsResponse.getSetting(sourceIndex, IndexMetadata.SETTING_BLOCKS_WRITE)));
         assertFalse(
             parseBoolean(getSettingsResponse.getSetting(sourceIndex, MetadataIndexStateService.VERIFIED_READ_ONLY_SETTING.getKey()))
@@ -284,16 +293,15 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
 
         // assert that write to source fails
         var indexReq = new IndexRequest(sourceIndex).source(jsonBuilder().startObject().field("field", "1").endObject());
-        assertThrows(ClusterBlockException.class, () -> client().index(indexReq).actionGet());
+        expectThrows(ClusterBlockException.class, client().index(indexReq));
         assertHitCount(prepareSearch(sourceIndex).setSize(0), 0);
     }
 
     public void testMissingSourceIndex() {
         var nonExistentSourceIndex = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
-        assertThrows(
+        expectThrows(
             ResourceNotFoundException.class,
-            () -> client().execute(ReindexDataStreamIndexAction.INSTANCE, new ReindexDataStreamIndexAction.Request(nonExistentSourceIndex))
-                .actionGet()
+            client().execute(ReindexDataStreamIndexAction.INSTANCE, new ReindexDataStreamIndexAction.Request(nonExistentSourceIndex))
         );
     }
 
@@ -302,7 +310,7 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
         var numShards = randomIntBetween(1, 10);
         var staticSettings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards).build();
         var sourceIndex = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
-        indicesAdmin().create(new CreateIndexRequest(sourceIndex, staticSettings)).get();
+        safeGet(indicesAdmin().create(new CreateIndexRequest(sourceIndex, staticSettings)));
 
         // update with a dynamic setting
         var numReplicas = randomIntBetween(0, 10);
@@ -311,15 +319,15 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numReplicas)
             .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), refreshInterval)
             .build();
-        indicesAdmin().updateSettings(new UpdateSettingsRequest(dynamicSettings, sourceIndex)).actionGet();
+        safeGet(indicesAdmin().updateSettings(new UpdateSettingsRequest(dynamicSettings, sourceIndex)));
 
         // call reindex
-        var destIndex = client().execute(ReindexDataStreamIndexAction.INSTANCE, new ReindexDataStreamIndexAction.Request(sourceIndex))
-            .actionGet()
-            .getDestIndex();
+        var destIndex = safeGet(
+            client().execute(ReindexDataStreamIndexAction.INSTANCE, new ReindexDataStreamIndexAction.Request(sourceIndex))
+        ).getDestIndex();
 
         // assert both static and dynamic settings set on dest index
-        var settingsResponse = indicesAdmin().getSettings(new GetSettingsRequest().indices(destIndex)).actionGet();
+        var settingsResponse = safeGet(indicesAdmin().getSettings(new GetSettingsRequest().indices(destIndex)));
         assertEquals(numReplicas, Integer.parseInt(settingsResponse.getSetting(destIndex, IndexMetadata.SETTING_NUMBER_OF_REPLICAS)));
         assertEquals(numShards, Integer.parseInt(settingsResponse.getSetting(destIndex, IndexMetadata.SETTING_NUMBER_OF_SHARDS)));
         assertEquals(refreshInterval, settingsResponse.getSetting(destIndex, IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey()));
@@ -327,15 +335,16 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
 
     public void testMappingsAddedToDestIndex() {
         var sourceIndex = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
-        indicesAdmin().create(new CreateIndexRequest(sourceIndex).mapping(MAPPING)).actionGet();
+        safeGet(indicesAdmin().create(new CreateIndexRequest(sourceIndex).mapping(MAPPING)));
 
         // call reindex
-        var destIndex = client().execute(ReindexDataStreamIndexAction.INSTANCE, new ReindexDataStreamIndexAction.Request(sourceIndex))
-            .actionGet()
-            .getDestIndex();
+        var destIndex = safeGet(
+            client().execute(ReindexDataStreamIndexAction.INSTANCE, new ReindexDataStreamIndexAction.Request(sourceIndex))
+        ).getDestIndex();
 
-        var mappingsResponse = indicesAdmin().getMappings(new GetMappingsRequest(TEST_REQUEST_TIMEOUT).indices(sourceIndex, destIndex))
-            .actionGet();
+        var mappingsResponse = safeGet(
+            indicesAdmin().getMappings(new GetMappingsRequest(TEST_REQUEST_TIMEOUT).indices(sourceIndex, destIndex))
+        );
         Map<String, MappingMetadata> mappings = mappingsResponse.mappings();
         var destMappings = mappings.get(destIndex).sourceAsMap();
         var sourceMappings = mappings.get(sourceIndex).sourceAsMap();
@@ -348,13 +357,13 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
     public void testFailIfMetadataBlockSet() {
         var sourceIndex = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
         var settings = Settings.builder().put(IndexMetadata.SETTING_BLOCKS_METADATA, true).build();
-        indicesAdmin().create(new CreateIndexRequest(sourceIndex, settings)).actionGet();
+        safeGet(indicesAdmin().create(new CreateIndexRequest(sourceIndex, settings)));
 
-        try {
-            client().execute(ReindexDataStreamIndexAction.INSTANCE, new ReindexDataStreamIndexAction.Request(sourceIndex)).actionGet();
-        } catch (ElasticsearchException e) {
-            assertTrue(e.getMessage().contains("Cannot reindex index") || e.getCause().getMessage().equals("Cannot reindex index"));
-        }
+        ElasticsearchException e = expectThrows(
+            ElasticsearchException.class,
+            client().execute(ReindexDataStreamIndexAction.INSTANCE, new ReindexDataStreamIndexAction.Request(sourceIndex))
+        );
+        assertTrue(e.getMessage().contains("Cannot reindex index") || e.getCause().getMessage().equals("Cannot reindex index"));
 
         cleanupMetadataBlocks(sourceIndex);
     }
@@ -362,13 +371,13 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
     public void testFailIfReadBlockSet() {
         var sourceIndex = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
         var settings = Settings.builder().put(IndexMetadata.SETTING_BLOCKS_READ, true).build();
-        indicesAdmin().create(new CreateIndexRequest(sourceIndex, settings)).actionGet();
+        safeGet(indicesAdmin().create(new CreateIndexRequest(sourceIndex, settings)));
 
-        try {
-            client().execute(ReindexDataStreamIndexAction.INSTANCE, new ReindexDataStreamIndexAction.Request(sourceIndex)).actionGet();
-        } catch (ElasticsearchException e) {
-            assertTrue(e.getMessage().contains("Cannot reindex index") || e.getCause().getMessage().equals("Cannot reindex index"));
-        }
+        ElasticsearchException e = expectThrows(
+            ElasticsearchException.class,
+            client().execute(ReindexDataStreamIndexAction.INSTANCE, new ReindexDataStreamIndexAction.Request(sourceIndex))
+        );
+        assertTrue(e.getMessage().contains("Cannot reindex index") || e.getCause().getMessage().equals("Cannot reindex index"));
 
         cleanupMetadataBlocks(sourceIndex);
     }
@@ -380,14 +389,14 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
             .put(IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE, randomBoolean())
             .put(IndexMetadata.SETTING_BLOCKS_WRITE, randomBoolean())
             .build();
-        indicesAdmin().create(new CreateIndexRequest(sourceIndex, settings)).actionGet();
+        safeGet(indicesAdmin().create(new CreateIndexRequest(sourceIndex, settings)));
 
         // call reindex
-        var destIndex = client().execute(ReindexDataStreamIndexAction.INSTANCE, new ReindexDataStreamIndexAction.Request(sourceIndex))
-            .actionGet()
-            .getDestIndex();
+        var destIndex = safeGet(
+            client().execute(ReindexDataStreamIndexAction.INSTANCE, new ReindexDataStreamIndexAction.Request(sourceIndex))
+        ).getDestIndex();
 
-        var settingsResponse = indicesAdmin().getSettings(new GetSettingsRequest().indices(destIndex)).actionGet();
+        var settingsResponse = safeGet(indicesAdmin().getSettings(new GetSettingsRequest().indices(destIndex)));
         assertFalse(parseBoolean(settingsResponse.getSetting(destIndex, IndexMetadata.SETTING_READ_ONLY)));
         assertFalse(parseBoolean(settingsResponse.getSetting(destIndex, IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE)));
         assertFalse(parseBoolean(settingsResponse.getSetting(destIndex, IndexMetadata.SETTING_BLOCKS_WRITE)));
@@ -409,11 +418,11 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
         assertAcked(indicesAdmin().create(new CreateIndexRequest(sourceIndex)));
 
         // call reindex
-        var destIndex = client().execute(ReindexDataStreamIndexAction.INSTANCE, new ReindexDataStreamIndexAction.Request(sourceIndex))
-            .actionGet()
-            .getDestIndex();
+        var destIndex = safeGet(
+            client().execute(ReindexDataStreamIndexAction.INSTANCE, new ReindexDataStreamIndexAction.Request(sourceIndex))
+        ).getDestIndex();
 
-        var settingsResponse = indicesAdmin().getSettings(new GetSettingsRequest().indices(sourceIndex, destIndex)).actionGet();
+        var settingsResponse = safeGet(indicesAdmin().getSettings(new GetSettingsRequest().indices(sourceIndex, destIndex)));
         var destSettings = settingsResponse.getIndexToSettings().get(destIndex);
 
         assertEquals(
@@ -442,33 +451,34 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
             .build();
         var request = new TransportPutComposableIndexTemplateAction.Request("logs-template");
         request.indexTemplate(template);
-        client().execute(TransportPutComposableIndexTemplateAction.TYPE, request).actionGet();
+        safeGet(client().execute(TransportPutComposableIndexTemplateAction.TYPE, request));
 
         var sourceIndex = "logs-" + randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
-        indicesAdmin().create(new CreateIndexRequest(sourceIndex)).actionGet();
+        safeGet(indicesAdmin().create(new CreateIndexRequest(sourceIndex)));
 
         {
             var indexRequest = new IndexRequest(sourceIndex);
             indexRequest.source("{ \"foo1\": \"cheese\" }", XContentType.JSON);
-            client().index(indexRequest).actionGet();
+            safeGet(client().index(indexRequest));
         }
 
         // call reindex
-        var destIndex = client().execute(ReindexDataStreamIndexAction.INSTANCE, new ReindexDataStreamIndexAction.Request(sourceIndex))
-            .actionGet()
-            .getDestIndex();
+        var destIndex = safeGet(
+            client().execute(ReindexDataStreamIndexAction.INSTANCE, new ReindexDataStreamIndexAction.Request(sourceIndex))
+        ).getDestIndex();
 
         // verify settings from templates copied to dest index
         {
-            var settingsResponse = indicesAdmin().getSettings(new GetSettingsRequest().indices(destIndex)).actionGet();
+            var settingsResponse = safeGet(indicesAdmin().getSettings(new GetSettingsRequest().indices(destIndex)));
             assertEquals(numReplicas, Integer.parseInt(settingsResponse.getSetting(destIndex, IndexMetadata.SETTING_NUMBER_OF_REPLICAS)));
             assertEquals(numShards, Integer.parseInt(settingsResponse.getSetting(destIndex, IndexMetadata.SETTING_NUMBER_OF_SHARDS)));
         }
 
         // verify mappings from templates copied to dest index
         {
-            var mappingsResponse = indicesAdmin().getMappings(new GetMappingsRequest(TEST_REQUEST_TIMEOUT).indices(sourceIndex, destIndex))
-                .actionGet();
+            var mappingsResponse = safeGet(
+                indicesAdmin().getMappings(new GetMappingsRequest(TEST_REQUEST_TIMEOUT).indices(sourceIndex, destIndex))
+            );
             var destMappings = mappingsResponse.mappings().get(destIndex).sourceAsMap();
             var sourceMappings = mappingsResponse.mappings().get(sourceIndex).sourceAsMap();
             assertEquals(sourceMappings, destMappings);
@@ -529,7 +539,7 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
                 .build()
         );
-        client().execute(TransportPutComposableIndexTemplateAction.TYPE, request).actionGet();
+        safeGet(client().execute(TransportPutComposableIndexTemplateAction.TYPE, request));
 
         // index doc
         Instant time = Instant.now();
@@ -537,12 +547,11 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
         {
             var indexRequest = new IndexRequest("k8s").opType(DocWriteRequest.OpType.CREATE);
             indexRequest.source(TSDB_DOC.replace("$time", formatInstant(time)), XContentType.JSON);
-            var indexResponse = client().index(indexRequest).actionGet();
+            var indexResponse = safeGet(client().index(indexRequest));
             backingIndexName = indexResponse.getIndex();
         }
 
-        var sourceSettings = indicesAdmin().getIndex(new GetIndexRequest(TEST_REQUEST_TIMEOUT).indices(backingIndexName))
-            .actionGet()
+        var sourceSettings = safeGet(indicesAdmin().getIndex(new GetIndexRequest(TEST_REQUEST_TIMEOUT).indices(backingIndexName)))
             .getSettings()
             .get(backingIndexName);
         Instant startTime = IndexSettings.TIME_SERIES_START_TIME.get(sourceSettings);
@@ -555,17 +564,15 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
 
         // force a rollover so can call reindex and delete
         var rolloverRequest = new RolloverRequest("k8s", null);
-        var rolloverResponse = indicesAdmin().rolloverIndex(rolloverRequest).actionGet();
+        var rolloverResponse = safeGet(indicesAdmin().rolloverIndex(rolloverRequest));
         rolloverResponse.getNewIndex();
 
         // call reindex on the original backing index
-        var destIndex = client().execute(ReindexDataStreamIndexAction.INSTANCE, new ReindexDataStreamIndexAction.Request(backingIndexName))
-            .actionGet()
-            .getDestIndex();
+        var destIndex = safeGet(
+            client().execute(ReindexDataStreamIndexAction.INSTANCE, new ReindexDataStreamIndexAction.Request(backingIndexName))
+        ).getDestIndex();
 
-        var destSettings = indicesAdmin().getIndex(new GetIndexRequest(TEST_REQUEST_TIMEOUT).indices(destIndex))
-            .actionGet()
-            .getSettings()
+        var destSettings = safeGet(indicesAdmin().getIndex(new GetIndexRequest(TEST_REQUEST_TIMEOUT).indices(destIndex))).getSettings()
             .get(destIndex);
         var destStart = IndexSettings.TIME_SERIES_START_TIME.get(destSettings);
         var destEnd = IndexSettings.TIME_SERIES_END_TIME.get(destSettings);
@@ -583,7 +590,7 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
             .putNull(IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE)
             .putNull(IndexMetadata.SETTING_BLOCKS_METADATA)
             .build();
-        assertAcked(indicesAdmin().updateSettings(new UpdateSettingsRequest(settings, index)).actionGet());
+        safeGet(indicesAdmin().updateSettings(new UpdateSettingsRequest(settings, index)));
     }
 
     private static void indexDocs(String index, int numDocs) {
@@ -596,7 +603,7 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
                     .source(String.format(Locale.ROOT, "{\"%s\":\"%s\"}", DEFAULT_TIMESTAMP_FIELD, value), XContentType.JSON)
             );
         }
-        BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
+        BulkResponse bulkResponse = safeGet(client().bulk(bulkRequest));
         assertThat(bulkResponse.getItems().length, equalTo(numDocs));
     }
 
@@ -607,6 +614,6 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
     void addDoc(String index, String doc) {
         BulkRequest bulkRequest = new BulkRequest();
         bulkRequest.add(new IndexRequest(index).opType(DocWriteRequest.OpType.CREATE).source(doc, XContentType.JSON));
-        client().bulk(bulkRequest).actionGet();
+        safeGet(client().bulk(bulkRequest));
     }
 }

@@ -488,8 +488,7 @@ public class SearchQueryThenFetchAsyncAction<Result extends SearchPhaseResult> e
         // TODO: stupid but we kinda need to fill all of these in with the current logic, do something nicer before merging
         final Map<SearchShardIterator, Integer> shardIndexMap = Maps.newHashMapWithExpectedSize(shardIterators.length);
         for (int i = 0; i < shardIterators.length; i++) {
-            var iterator = shardIterators[i];
-            shardIndexMap.put(iterator, i);
+            shardIndexMap.put(shardIterators[i], i);
         }
         final boolean supportsBatchedQuery = minTransportVersion.onOrAfter(TransportVersions.BATCHED_QUERY_PHASE_VERSION);
         final Map<String, NodeQueryRequest> perNodeQueries = new HashMap<>();
@@ -773,11 +772,9 @@ public class SearchQueryThenFetchAsyncAction<Result extends SearchPhaseResult> e
 
     public static void registerNodeSearchAction(SearchTransportService searchTransportService, SearchService searchService) {
         var transportService = searchTransportService.transportService();
-        final Dependencies dependencies = new Dependencies(
-            searchService,
-            transportService.getThreadPool().executor(ThreadPool.Names.SEARCH)
-        );
-        final int searchPoolMax = transportService.getThreadPool().info(ThreadPool.Names.SEARCH).getMax();
+        var threadPool = transportService.getThreadPool();
+        final Dependencies dependencies = new Dependencies(searchService, threadPool.executor(ThreadPool.Names.SEARCH));
+        final int searchPoolMax = threadPool.info(ThreadPool.Names.SEARCH).getMax();
         final SearchPhaseController searchPhaseController = new SearchPhaseController(searchService::aggReduceContextBuilder);
         transportService.registerRequestHandler(
             NODE_SEARCH_ACTION_NAME,
@@ -856,16 +853,13 @@ public class SearchQueryThenFetchAsyncAction<Result extends SearchPhaseResult> e
                         public void onResponse(SearchPhaseResult searchPhaseResult) {
                             try {
                                 searchPhaseResult.setShardIndex(dataNodeLocalIdx);
-                                final SearchShardTarget target = new SearchShardTarget(
-                                    null,
-                                    shardToQuery.shardId,
-                                    request.searchRequest.getLocalClusterAlias()
+                                searchPhaseResult.setSearchShardTarget(
+                                    new SearchShardTarget(null, shardToQuery.shardId, request.searchRequest.getLocalClusterAlias())
                                 );
-                                searchPhaseResult.setSearchShardTarget(target);
                                 // no need for any cache effects when we're already flipped to ture => plain read + set-release
                                 state.hasResponse.compareAndExchangeRelease(false, true);
                                 state.consumeResult(searchPhaseResult.queryResult());
-                                state.queryPhaseResultConsumer.consumeResult(searchPhaseResult, state.onDone);
+                                state.queryPhaseResultConsumer.consumeResult(searchPhaseResult, state::onDone);
                             } catch (Exception e) {
                                 setFailure(state, dataNodeLocalIdx, e);
                             } finally {
@@ -875,7 +869,7 @@ public class SearchQueryThenFetchAsyncAction<Result extends SearchPhaseResult> e
 
                         private void setFailure(QueryPerNodeState state, int dataNodeLocalIdx, Exception e) {
                             state.failures.put(dataNodeLocalIdx, e);
-                            state.onDone.run();
+                            state.onDone();
                         }
 
                         @Override
@@ -904,7 +898,7 @@ public class SearchQueryThenFetchAsyncAction<Result extends SearchPhaseResult> e
                 // TODO this could be done better now, we probably should only make sure to have a single loop running at
                 // minimum and ignore + requeue rejections in that case
                 state.failures.put(dataNodeLocalIdx, e);
-                state.onDone.run();
+                state.onDone();
                 // TODO SO risk!
                 maybeNext();
             }
@@ -941,10 +935,11 @@ public class SearchQueryThenFetchAsyncAction<Result extends SearchPhaseResult> e
         private final CancellableTask task;
         private final ConcurrentHashMap<Integer, Exception> failures = new ConcurrentHashMap<>();
         private final Dependencies dependencies;
-        private final Runnable onDone;
         private final AtomicBoolean hasResponse = new AtomicBoolean(false);
         private final int trackTotalHitsUpTo;
         private final int topDocsSize;
+        private final CountDown countDown;
+        private final TransportChannel channel;
         private volatile BottomSortValuesCollector bottomSortCollector;
 
         private QueryPerNodeState(
@@ -961,70 +956,69 @@ public class SearchQueryThenFetchAsyncAction<Result extends SearchPhaseResult> e
             this.trackTotalHitsUpTo = searchRequest.searchRequest.resolveTrackTotalHitsUpTo();
             topDocsSize = getTopDocsSize(searchRequest.searchRequest);
             this.task = task;
-            final int shardCount = queryPhaseResultConsumer.getNumShards();
-            final CountDown countDown = new CountDown(shardCount);
+            countDown = new CountDown(queryPhaseResultConsumer.getNumShards());
+            this.channel = channel;
             this.dependencies = dependencies;
-            this.onDone = () -> {
-                if (countDown.countDown()) {
-                    var channelListener = new ChannelActionListener<>(channel);
-                    try (queryPhaseResultConsumer) {
-                        var failure = queryPhaseResultConsumer.failure.get();
-                        if (failure != null) {
-                            queryPhaseResultConsumer.getSuccessfulResults()
-                                .forEach(searchPhaseResult -> maybeRelease(dependencies.searchService, searchRequest, searchPhaseResult));
-                            channelListener.onFailure(failure);
-                            return;
-                        }
-                        final Object[] results = new Object[shardCount];
-                        for (int i = 0; i < results.length; i++) {
-                            var e = failures.get(i);
-                            var res = queryPhaseResultConsumer.results.get(i);
-                            if (e != null) {
-                                results[i] = e;
-                                assert res == null;
-                            } else {
-                                results[i] = res;
-                                assert results[i] != null;
-                            }
-                        }
-                        final QueryPhaseResultConsumer.MergeResult mergeResult;
-                        try {
-                            mergeResult = Objects.requireNonNullElse(
-                                queryPhaseResultConsumer.consumePartialResult(),
-                                EMPTY_PARTIAL_MERGE_RESULT
-                            );
-                        } catch (Exception e) {
-                            channelListener.onFailure(e);
-                            return;
-                        }
-                        // translate shard indices to those on the coordinator so that it can interpret the merge result without adjustments
-                        final Set<Integer> relevantShardIndices = new HashSet<>();
-                        for (ScoreDoc scoreDoc : mergeResult.reducedTopDocs().scoreDocs) {
-                            final int localIndex = scoreDoc.shardIndex;
-                            scoreDoc.shardIndex = searchRequest.shards.get(localIndex).shardIndex;
-                            relevantShardIndices.add(localIndex);
-                        }
-                        for (Object result : results) {
-                            if (result instanceof QuerySearchResult q
-                                && q.getContextId() != null
-                                && relevantShardIndices.contains(q.getShardIndex()) == false
-                                && q.hasSuggestHits() == false
-                                && q.getRankShardResult() == null
-                                && searchRequest.searchRequest.scroll() == null
-                                && (AsyncSearchContext.isPartOfPIT(null, searchRequest.searchRequest, q.getContextId()) == false)) {
-                                if (dependencies.searchService.freeReaderContext(q.getContextId())) {
-                                    q.clearContextId();
-                                }
-                            }
-                        }
+        }
 
-                        ActionListener.respondAndRelease(
-                            channelListener,
-                            new NodeQueryResponse(mergeResult, results, queryPhaseResultConsumer.topDocsStats)
-                        );
+        void onDone() {
+            if (countDown.countDown() == false) {
+                return;
+            }
+            var channelListener = new ChannelActionListener<>(channel);
+            try (queryPhaseResultConsumer) {
+                var failure = queryPhaseResultConsumer.failure.get();
+                if (failure != null) {
+                    queryPhaseResultConsumer.getSuccessfulResults()
+                        .forEach(searchPhaseResult -> maybeRelease(dependencies.searchService, searchRequest, searchPhaseResult));
+                    channelListener.onFailure(failure);
+                    return;
+                }
+                final Object[] results = new Object[queryPhaseResultConsumer.getNumShards()];
+                for (int i = 0; i < results.length; i++) {
+                    var e = failures.get(i);
+                    var res = queryPhaseResultConsumer.results.get(i);
+                    if (e != null) {
+                        results[i] = e;
+                        assert res == null;
+                    } else {
+                        results[i] = res;
+                        assert results[i] != null;
                     }
                 }
-            };
+                final QueryPhaseResultConsumer.MergeResult mergeResult;
+                try {
+                    mergeResult = Objects.requireNonNullElse(queryPhaseResultConsumer.consumePartialResult(), EMPTY_PARTIAL_MERGE_RESULT);
+                } catch (Exception e) {
+                    channelListener.onFailure(e);
+                    return;
+                }
+                // translate shard indices to those on the coordinator so that it can interpret the merge result without adjustments
+                final Set<Integer> relevantShardIndices = new HashSet<>();
+                for (ScoreDoc scoreDoc : mergeResult.reducedTopDocs().scoreDocs) {
+                    final int localIndex = scoreDoc.shardIndex;
+                    scoreDoc.shardIndex = searchRequest.shards.get(localIndex).shardIndex;
+                    relevantShardIndices.add(localIndex);
+                }
+                for (Object result : results) {
+                    if (result instanceof QuerySearchResult q
+                        && q.getContextId() != null
+                        && relevantShardIndices.contains(q.getShardIndex()) == false
+                        && q.hasSuggestHits() == false
+                        && q.getRankShardResult() == null
+                        && searchRequest.searchRequest.scroll() == null
+                        && (AsyncSearchContext.isPartOfPIT(null, searchRequest.searchRequest, q.getContextId()) == false)) {
+                        if (dependencies.searchService.freeReaderContext(q.getContextId())) {
+                            q.clearContextId();
+                        }
+                    }
+                }
+
+                ActionListener.respondAndRelease(
+                    channelListener,
+                    new NodeQueryResponse(mergeResult, results, queryPhaseResultConsumer.topDocsStats)
+                );
+            }
         }
 
         void consumeResult(QuerySearchResult queryResult) {

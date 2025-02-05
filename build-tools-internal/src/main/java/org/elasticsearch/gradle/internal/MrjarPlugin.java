@@ -163,6 +163,7 @@ public class MrjarPlugin implements Plugin<Project> {
         project.getConfigurations().register("java" + javaVersion);
         TaskProvider<Jar> jarTask = project.getTasks().register("java" + javaVersion + "Jar", Jar.class, task -> {
             task.from(sourceSet.getOutput());
+            task.getArchiveClassifier().set("java" + javaVersion);
         });
         project.getArtifacts().add("java" + javaVersion, jarTask);
     }

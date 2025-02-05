@@ -19,6 +19,7 @@ dependencies {
   testImplementation project(xpackModule('ccr'))
   testImplementation project(':modules:data-streams')
   testImplementation project(path: ':modules:reindex')
+  testImplementation project(path: ':modules:ingest-common')
 }
 
 addQaCheckDependencies(project)

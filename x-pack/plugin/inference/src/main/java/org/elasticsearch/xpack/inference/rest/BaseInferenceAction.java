@@ -54,7 +54,7 @@ abstract class BaseInferenceAction extends BaseRestHandler {
             shouldStream()
         );
 
-        return channel -> client.execute(InferenceActionProxy.INSTANCE, request, listener(channel));
+        return channel -> client.execute(InferenceActionProxy.INSTANCE, request, ActionListener.withRef(listener(channel), content));
     }
 
     protected abstract boolean shouldStream();

@@ -14,7 +14,6 @@ import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
-import org.elasticsearch.xpack.core.inference.results.UnifiedChatCompletionException;
 
 import java.util.List;
 import java.util.Objects;
@@ -44,11 +43,7 @@ public class RestStreamInferenceAction extends BaseInferenceAction {
 
     @Override
     protected ActionListener<InferenceAction.Response> listener(RestChannel channel) {
-        // TODO confirm with Pat that this will work
-        return new ServerSentEventsRestActionListener(channel, threadPool).delegateResponse((l, e) -> {
-            // format any validation exceptions from the rest -> transport path as UnifiedChatCompletionException
-            l.onFailure(UnifiedChatCompletionException.fromThrowable(e));
-        });
+        return new ServerSentEventsRestActionListener(channel, threadPool);
     }
 
     @Override

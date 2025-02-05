@@ -24,6 +24,7 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceActionProxy;
 import org.elasticsearch.xpack.core.inference.action.UnifiedCompletionAction;
+import org.elasticsearch.xpack.core.inference.results.UnifiedChatCompletionException;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 
 import java.io.IOException;
@@ -77,27 +78,33 @@ public class TransportInferenceActionProxy extends HandledTransportAction<Infere
         }
     }
 
-    private void sendUnifiedCompletionRequest(InferenceActionProxy.Request request, ActionListener<InferenceAction.Response> listener)
-        throws IOException {
+    private void sendUnifiedCompletionRequest(InferenceActionProxy.Request request, ActionListener<InferenceAction.Response> listener) {
+        // format any validation exceptions from the rest -> transport path as UnifiedChatCompletionException
+        var unifiedErrorFormatListener = listener.delegateResponse((l, e) -> l.onFailure(UnifiedChatCompletionException.fromThrowable(e)));
 
-        if (request.isStreaming() == false) {
-            throw new ElasticsearchStatusException(
-                "The [chat_completion] task type only supports streaming, please try again with the _stream API",
-                RestStatus.BAD_REQUEST
-            );
+        try {
+            if (request.isStreaming() == false) {
+                unifiedErrorFormatListener.onFailure(new ElasticsearchStatusException(
+                    "The [chat_completion] task type only supports streaming, please try again with the _stream API",
+                    RestStatus.BAD_REQUEST
+                ));
+                return;
+            }
+
+            UnifiedCompletionAction.Request unifiedRequest;
+            try (var parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, request.getContent(), request.getContentType())) {
+                unifiedRequest = UnifiedCompletionAction.Request.parseRequest(
+                    request.getInferenceEntityId(),
+                    request.getTaskType(),
+                    request.getTimeout(),
+                    parser
+                );
+            }
+
+            executeAsyncWithOrigin(client, INFERENCE_ORIGIN, UnifiedCompletionAction.INSTANCE, unifiedRequest, unifiedErrorFormatListener);
+        } catch (Exception e) {
+            unifiedErrorFormatListener.onFailure(e);
         }
-
-        UnifiedCompletionAction.Request unifiedRequest;
-        try (var parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, request.getContent(), request.getContentType())) {
-            unifiedRequest = UnifiedCompletionAction.Request.parseRequest(
-                request.getInferenceEntityId(),
-                request.getTaskType(),
-                request.getTimeout(),
-                parser
-            );
-        }
-
-        executeAsyncWithOrigin(client, INFERENCE_ORIGIN, UnifiedCompletionAction.INSTANCE, unifiedRequest, listener);
     }
 
     private void sendInferenceActionRequest(InferenceActionProxy.Request request, ActionListener<InferenceAction.Response> listener)

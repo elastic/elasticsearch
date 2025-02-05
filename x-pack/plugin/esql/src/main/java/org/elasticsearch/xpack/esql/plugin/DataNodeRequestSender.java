@@ -149,7 +149,7 @@ abstract class DataNodeRequestSender {
             public void onResponse(DataNodeComputeResponse response) {
                 // remove failures of successful shards
                 for (ShardId shardId : targetShards.shardIds()) {
-                    if (shardFailures.containsKey(shardId) == false) {
+                    if (response.shardLevelFailures().containsKey(shardId) == false) {
                         shardFailures.remove(shardId);
                     }
                 }

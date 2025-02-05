@@ -37,8 +37,6 @@ import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.transport.Transport;
 
-import java.lang.invoke.MethodHandles;
-import java.lang.invoke.VarHandle;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -90,18 +88,7 @@ public abstract class AsyncSearchContext<Result extends SearchPhaseResult> {
     protected final TransportSearchAction.SearchTimeProvider timeProvider;
     protected final SearchResponse.Clusters clusters;
 
-    private static final VarHandle OUTSTANDING_SHARDS;
-
-    static {
-        try {
-            OUTSTANDING_SHARDS = MethodHandles.lookup().findVarHandle(AsyncSearchContext.class, "outstandingShards", int.class);
-        } catch (Exception e) {
-            throw new ExceptionInInitializerError(e);
-        }
-    }
-
-    @SuppressWarnings("unused") // only accessed via #OUTSTANDING_SHARDS
-    private int outstandingShards;
+    private final AtomicInteger outstandingShards;
 
     /**
      * Used by subclasses to resolve node ids to DiscoveryNodes.
@@ -142,7 +129,7 @@ public abstract class AsyncSearchContext<Result extends SearchPhaseResult> {
         // that participate in the search request. This means that this number is
         // consistent between two requests that target the same shards.
         Arrays.sort(shardIterators);
-        outstandingShards = shardIterators.length;
+        outstandingShards = new AtomicInteger(shardIterators.length);
         this.request = request;
         this.results = results;
         this.namedWriteableRegistry = namedWriteableRegistry;
@@ -259,7 +246,7 @@ public abstract class AsyncSearchContext<Result extends SearchPhaseResult> {
             }
 
             if (results.hasResult(shardIndex)) {
-                assert (int) OUTSTANDING_SHARDS.getAcquire(this) == 0 : "should only be called by subsequent phases, not during query";
+                assert outstandingShards.getAcquire() == 0 : "should only be called by subsequent phases, not during query";
                 assert failure == null : "shard failed before but shouldn't: " + failure;
                 successfulOps.decrementAndGet(); // if this shard was successful before (initial phase) we need to count down the successes
             }
@@ -267,7 +254,7 @@ public abstract class AsyncSearchContext<Result extends SearchPhaseResult> {
     }
 
     protected final boolean finishShard() {
-        return (int) OUTSTANDING_SHARDS.getAndAdd(this, -1) == 1;
+        return outstandingShards.decrementAndGet() == 0;
     }
 
     /**
@@ -341,7 +328,7 @@ public abstract class AsyncSearchContext<Result extends SearchPhaseResult> {
                 }
             }
         });
-        OUTSTANDING_SHARDS.setVolatile(this, 0); // we're done no more shards to process, the phase has failed
+        outstandingShards.set(0); // we're done no more shards to process, the phase has failed
         listener.onFailure(exception);
     }
 

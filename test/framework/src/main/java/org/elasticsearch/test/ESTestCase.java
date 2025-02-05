@@ -1459,7 +1459,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     /**
-     * Runs the code block for the provided interval, waiting for no assertions to trip. Retires on AssertionError
+     * Runs the code block for the provided interval, waiting for no assertions to trip. Retries on AssertionError
      * with exponential backoff until provided time runs out
      */
     public static void assertBusy(CheckedRunnable<Exception> codeBlock, long maxWaitTime, TimeUnit unit) throws Exception {

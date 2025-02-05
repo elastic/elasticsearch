@@ -460,15 +460,11 @@ public class ClusterStateCreationUtils {
         int numberOfShards,
         int numberOfReplicas
     ) {
-        return stateWithAssignedPrimariesAndReplicasWithState(
+        return stateWithAssignedPrimariesAndReplicas(
             projectId,
             indices,
             numberOfShards,
-            ShardRouting.Role.DEFAULT,
             Collections.nCopies(numberOfReplicas, ShardRouting.Role.DEFAULT)
-                .stream()
-                .map(role -> Tuple.tuple(ShardRoutingState.STARTED, role))
-                .toList()
         );
     }
 
@@ -480,53 +476,19 @@ public class ClusterStateCreationUtils {
         int numberOfShards,
         List<ShardRouting.Role> replicaRoles
     ) {
-        return stateWithAssignedPrimariesAndReplicasWithState(
-            indices,
-            numberOfShards,
-            replicaRoles.stream().map(role -> Tuple.tuple(ShardRoutingState.STARTED, role)).toList()
-        );
+        return stateWithAssignedPrimariesAndReplicas(Metadata.DEFAULT_PROJECT_ID, indices, numberOfShards, replicaRoles);
     }
 
     /**
-     * Creates cluster state with several indexes, shards and replicas (with given roles and state) and all primary shards STARTED.
+     * Creates cluster state with several indexes, shards and replicas (with given roles) and all shards STARTED.
      */
-    public static ClusterState stateWithAssignedPrimariesAndReplicasWithState(
-        String[] indices,
-        int numberOfShards,
-        List<Tuple<ShardRoutingState, ShardRouting.Role>> replicaRoleAndStates
-    ) {
-        return stateWithAssignedPrimariesAndReplicasWithState(indices, numberOfShards, ShardRouting.Role.DEFAULT, replicaRoleAndStates);
-    }
-
-    /**
-     * Creates cluster state with several indexes, shards and replicas (with given roles and state) and all primary shards STARTED.
-     */
-    public static ClusterState stateWithAssignedPrimariesAndReplicasWithState(
-        String[] indices,
-        int numberOfShards,
-        ShardRouting.Role primaryRole,
-        List<Tuple<ShardRoutingState, ShardRouting.Role>> replicasStateAndRoles
-    ) {
-        return stateWithAssignedPrimariesAndReplicasWithState(
-            Metadata.DEFAULT_PROJECT_ID,
-            indices,
-            numberOfShards,
-            primaryRole,
-            replicasStateAndRoles
-        );
-    }
-
-    /**
-     * Creates cluster state with several indexes, shards and replicas (with given roles and state) and all primary shards STARTED.
-     */
-    public static ClusterState stateWithAssignedPrimariesAndReplicasWithState(
+    public static ClusterState stateWithAssignedPrimariesAndReplicas(
         ProjectId projectId,
         String[] indices,
         int numberOfShards,
-        ShardRouting.Role primaryRole,
-        List<Tuple<ShardRoutingState, ShardRouting.Role>> replicasStateAndRoles
+        List<ShardRouting.Role> replicaRoles
     ) {
-        int numberOfDataNodes = replicasStateAndRoles.size() + 1;
+        int numberOfDataNodes = replicaRoles.size() + 1;
         DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder();
         for (int i = 0; i < numberOfDataNodes + 1; i++) {
             final DiscoveryNode node = newNode(i);
@@ -546,7 +508,7 @@ public class ClusterStateCreationUtils {
         for (String index : indices) {
             IndexMetadata indexMetadata = IndexMetadata.builder(index)
                 .settings(
-                    indexSettings(IndexVersion.current(), numberOfShards, replicasStateAndRoles.size()).put(
+                    indexSettings(IndexVersion.current(), numberOfShards, replicaRoles.size()).put(
                         SETTING_CREATION_DATE,
                         System.currentTimeMillis()
                     )
@@ -560,19 +522,14 @@ public class ClusterStateCreationUtils {
                 final ShardId shardId = new ShardId(index, "_na_", i);
                 IndexShardRoutingTable.Builder indexShardRoutingBuilder = IndexShardRoutingTable.builder(shardId);
                 indexShardRoutingBuilder.addShard(
-                    shardRoutingBuilder(index, i, newNode(0).getId(), true, ShardRoutingState.STARTED).withRole(primaryRole).build()
+                    TestShardRouting.newShardRouting(index, i, newNode(0).getId(), null, true, ShardRoutingState.STARTED)
                 );
-                for (int replica = 0; replica < replicasStateAndRoles.size(); replica++) {
-                    var replicaStateAndRole = replicasStateAndRoles.get(replica);
-                    ShardRoutingState shardRoutingState = replicaStateAndRole.v1();
-                    String currentNodeId = shardRoutingState.equals(ShardRoutingState.UNASSIGNED) ? null : newNode(replica + 1).getId();
-                    var shardRoutingBuilder = shardRoutingBuilder(index, i, currentNodeId, false, shardRoutingState).withRole(
-                        replicaStateAndRole.v2()
+                for (int replica = 0; replica < replicaRoles.size(); replica++) {
+                    indexShardRoutingBuilder.addShard(
+                        shardRoutingBuilder(index, i, newNode(replica + 1).getId(), false, ShardRoutingState.STARTED).withRole(
+                            replicaRoles.get(replica)
+                        ).build()
                     );
-                    if (shardRoutingState.equals(ShardRoutingState.RELOCATING)) {
-                        shardRoutingBuilder.withRelocatingNodeId(DiscoveryNodeUtils.create("relocating_" + replica).getId());
-                    }
-                    indexShardRoutingBuilder.addShard(shardRoutingBuilder.build());
                 }
                 indexRoutingTableBuilder.addIndexShard(indexShardRoutingBuilder);
             }

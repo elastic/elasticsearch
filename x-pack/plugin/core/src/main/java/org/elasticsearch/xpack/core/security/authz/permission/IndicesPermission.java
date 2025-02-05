@@ -50,7 +50,6 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import static java.util.Collections.unmodifiableMap;
-import static org.elasticsearch.xpack.core.security.authz.permission.IndicesPermission.Group.maybeAddFailureExclusions;
 
 /**
  * A permission that is based on privileges for index related actions executed
@@ -94,7 +93,6 @@ public final class IndicesPermission {
         public IndicesPermission build() {
             return new IndicesPermission(restrictedIndices, groups.toArray(Group.EMPTY_ARRAY));
         }
-
     }
 
     private IndicesPermission(RestrictedIndices restrictedIndices, Group[] groups) {
@@ -114,12 +112,19 @@ public final class IndicesPermission {
      * @return A matcher that will match all non-restricted index names in the ordinaryIndices
      * collection and all index names in the restrictedIndices collection.
      */
-    private StringMatcher indexMatcher(Collection<String> ordinaryIndices, Collection<String> restrictedIndices) {
+    private StringMatcher indexMatcher(
+        Collection<String> ordinaryIndices,
+        Collection<String> restrictedIndices,
+        boolean allowFailureStoreAccess
+    ) {
         StringMatcher matcher;
         if (ordinaryIndices.isEmpty()) {
             matcher = StringMatcher.of(restrictedIndices);
         } else {
             matcher = StringMatcher.of(ordinaryIndices);
+            if (false == allowFailureStoreAccess) {
+                matcher = matcher.and("<not-failure-store>", name -> name.endsWith("::failure") == false);
+            }
             if (this.restrictedIndices != null) {
                 matcher = matcher.and("<not-restricted>", name -> this.restrictedIndices.isRestricted(name) == false);
             }
@@ -148,6 +153,7 @@ public final class IndicesPermission {
 
     private IsResourceAuthorizedPredicate buildIndexMatcherPredicateForAction(String action) {
         final Set<String> ordinaryIndices = new HashSet<>();
+        final Set<String> ordinaryIndicesWithFailureStoreAccess = new HashSet<>();
         final Set<String> restrictedIndices = new HashSet<>();
         final Set<String> grantMappingUpdatesOnIndices = new HashSet<>();
         final Set<String> grantMappingUpdatesOnRestrictedIndices = new HashSet<>();
@@ -157,7 +163,11 @@ public final class IndicesPermission {
                 if (group.allowRestrictedIndices) {
                     restrictedIndices.addAll(Arrays.asList(group.indices()));
                 } else {
-                    ordinaryIndices.addAll(Arrays.asList(maybeAddFailureExclusions(group.indices())));
+                    if (group.allowFailureStoreAccess) {
+                        ordinaryIndicesWithFailureStoreAccess.addAll(Arrays.asList(group.indices()));
+                    } else {
+                        ordinaryIndices.addAll(Arrays.asList(group.indices()));
+                    }
                 }
             } else if (isMappingUpdateAction && containsPrivilegeThatGrantsMappingUpdatesForBwc(group)) {
                 // special BWC case for certain privileges: allow put mapping on indices and aliases (but not on data streams), even if
@@ -169,43 +179,60 @@ public final class IndicesPermission {
                 }
             }
         }
-        final StringMatcher nameMatcher = indexMatcher(ordinaryIndices, restrictedIndices);
-        final StringMatcher bwcSpecialCaseMatcher = indexMatcher(grantMappingUpdatesOnIndices, grantMappingUpdatesOnRestrictedIndices);
-        return new IsResourceAuthorizedPredicate(nameMatcher, bwcSpecialCaseMatcher);
+        final StringMatcher nameMatcher = indexMatcher(ordinaryIndices, restrictedIndices, false);
+        // TODO restricted indices
+        final StringMatcher nameMatcherWithFailureAccess = indexMatcher(ordinaryIndicesWithFailureStoreAccess, restrictedIndices, true);
+        final StringMatcher bwcSpecialCaseMatcher = indexMatcher(
+            grantMappingUpdatesOnIndices,
+            grantMappingUpdatesOnRestrictedIndices,
+            false
+        );
+        return new IsResourceAuthorizedPredicate(nameMatcher, nameMatcherWithFailureAccess, bwcSpecialCaseMatcher);
     }
 
     /**
      * This encapsulates the authorization test for resources.
      * There is an additional test for resources that are missing or that are not a datastream or a backing index.
      */
-    public static class IsResourceAuthorizedPredicate implements BiPredicate<String, IndexAbstraction> {
+    public static class IsResourceAuthorizedPredicate {
 
         private final BiPredicate<String, IndexAbstraction> biPredicate;
-        private final StringMatcher resourceNameMatcher;
+        private final BiPredicate<String, IndexAbstraction> failureAccessBiPredicate;
 
         // public for tests
-        public IsResourceAuthorizedPredicate(StringMatcher resourceNameMatcher, StringMatcher additionalNonDatastreamNameMatcher) {
+        public IsResourceAuthorizedPredicate(
+            StringMatcher resourceNameMatcher,
+            StringMatcher resourceNameWithFailureAccessMatcher,
+            StringMatcher additionalNonDatastreamNameMatcher
+        ) {
             this((String name, @Nullable IndexAbstraction indexAbstraction) -> {
                 assert indexAbstraction == null || name.equals(indexAbstraction.getName());
                 return resourceNameMatcher.test(name)
                     || (isPartOfDatastream(indexAbstraction) == false && additionalNonDatastreamNameMatcher.test(name));
-            }, resourceNameMatcher);
-
+            }, (String name, @Nullable IndexAbstraction indexAbstraction) -> {
+                assert indexAbstraction == null || name.equals(indexAbstraction.getName());
+                return resourceNameWithFailureAccessMatcher.test(name);
+            });
         }
 
-        private IsResourceAuthorizedPredicate(BiPredicate<String, IndexAbstraction> biPredicate, StringMatcher resourceNameMatcher) {
+        private IsResourceAuthorizedPredicate(
+            BiPredicate<String, IndexAbstraction> biPredicate,
+            BiPredicate<String, IndexAbstraction> failureAccessBiPredicate
+        ) {
             this.biPredicate = biPredicate;
-            this.resourceNameMatcher = resourceNameMatcher;
+            this.failureAccessBiPredicate = failureAccessBiPredicate;
         }
 
         /**
-        * Given another {@link IsResourceAuthorizedPredicate} instance in {@param other},
-        * return a new {@link IsResourceAuthorizedPredicate} instance that is equivalent to the conjunction of
-        * authorization tests of that other instance and this one.
-        */
-        @Override
-        public final IsResourceAuthorizedPredicate and(BiPredicate<? super String, ? super IndexAbstraction> other) {
-            return new IsResourceAuthorizedPredicate(this.biPredicate.and(other), this.resourceNameMatcher);
+         * Given another {@link IsResourceAuthorizedPredicate} instance in {@param other},
+         * return a new {@link IsResourceAuthorizedPredicate} instance that is equivalent to the conjunction of
+         * authorization tests of that other instance and this one.
+         */
+        public final IsResourceAuthorizedPredicate and(IsResourceAuthorizedPredicate other) {
+            return new IsResourceAuthorizedPredicate(
+                this.biPredicate.and(other.biPredicate),
+                this.failureAccessBiPredicate.and(other.failureAccessBiPredicate)
+            );
         }
 
         /**
@@ -218,25 +245,27 @@ public final class IndicesPermission {
         }
 
         /**
-         * Similar to {@link #test(IndexAbstraction)} but for the failures component of a data stream. Adds ::failures to name of the
-         * index abstraction to test if ::failures are allowed
-         */
-        public final boolean testDataStreamForFailureAccess(IndexAbstraction indexAbstraction) {
-            assert indexAbstraction != null && indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM;
-            return resourceNameMatcher.test(
-                IndexNameExpressionResolver.combineSelector(indexAbstraction.getName(), IndexComponentSelector.FAILURES)
-            );
-        }
-
-        /**
          * Verifies if access is authorized to the resource with the given {@param name}.
          * The {@param indexAbstraction}, which is the resource to be accessed, must be supplied if the resource exists or be {@code null}
          * if it doesn't.
          * Returns {@code true} if access to the given resource is authorized or {@code false} otherwise.
          */
-        @Override
         public boolean test(String name, @Nullable IndexAbstraction indexAbstraction) {
-            return biPredicate.test(name, indexAbstraction);
+            // TODO clean up
+            return biPredicate.test(name, indexAbstraction) || failureAccessBiPredicate.test(name, indexAbstraction);
+        }
+
+        /**
+         * Similar to {@link #test(IndexAbstraction)} but for the failures component of a data stream. Adds ::failures to name of the
+         * index abstraction to test if ::failures are allowed
+         */
+        public final boolean testDataStreamForFailureAccess(IndexAbstraction indexAbstraction) {
+            // TODO clean up
+            assert indexAbstraction != null && indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM;
+            return failureAccessBiPredicate.test(
+                IndexNameExpressionResolver.combineSelector(indexAbstraction.getName(), IndexComponentSelector.FAILURES),
+                null
+            );
         }
 
         private static boolean isPartOfDatastream(IndexAbstraction indexAbstraction) {
@@ -834,7 +863,7 @@ public final class IndicesPermission {
         // users. Setting this flag true eliminates the special status for the purpose of this permission - restricted indices still have
         // to be covered by the "indices"
         private final boolean allowRestrictedIndices;
-        private final boolean allowFailureStoreAccess;
+        public final boolean allowFailureStoreAccess;
 
         public Group(
             IndexPrivilege privilege,

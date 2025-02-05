@@ -87,6 +87,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
@@ -1609,6 +1610,22 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
             .prefixLength(3)
             .lenient(true);
         assertThat(actualLuceneQuery.toString(), is(expectedLuceneQuery.toString()));
+    }
+
+    public void testQStrOptionsPushDown() {
+        String query = """
+            from test
+            | where QSTR("first_name: Anna", {"lenient": "false", "fuzzy_max_expansions": 4, "minimum_should_match": 3})
+            """;
+        var plan = plannerOptimizer.plan(query);
+
+        AtomicReference<String> planStr = new AtomicReference<>();
+        plan.forEachDown(EsQueryExec.class, result -> planStr.set(result.query().toString()));
+
+        var expectedQStrQuery = new QueryStringQueryBuilder("first_name: Anna").minimumShouldMatch("3")
+            .fuzzyMaxExpansions(4)
+            .lenient(false);
+        assertThat(expectedQStrQuery.toString(), is(planStr.get()));
     }
 
     /**

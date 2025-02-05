@@ -32,6 +32,6 @@ public class QueryStringTests extends NoneFieldFullTextFunctionTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new QueryString(source, args.get(0));
+        return new QueryString(source, args.getFirst(), null);
     }
 }

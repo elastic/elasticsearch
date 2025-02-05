@@ -80,12 +80,11 @@ public class AggregatorImplementer {
     private final ExecutableElement combineIntermediate;
     private final ExecutableElement evaluateFinal;
     private final ClassName implementation;
-    private final boolean valuesIsBytesRef;
-    private final boolean valuesIsArray;
     private final List<IntermediateStateDesc> intermediateState;
     private final List<Parameter> createParameters;
 
     private final SingleState singleState;
+    private final AggregationParameter aggParam;
 
     public AggregatorImplementer(
         Elements elements,
@@ -106,6 +105,9 @@ public class AggregatorImplementer {
             TypeName firstParamType = TypeName.get(e.getParameters().get(0).asType());
             return Objects.equals(firstParamType.toString(), singleState.declaredType.toString());
         });
+        // TODO support multiple parameters
+        this.aggParam = AggregationParameter.create(combine.getParameters().get(1).asType());
+
         this.combineIntermediate = findMethod(declarationType, "combineIntermediate");
         this.evaluateFinal = findMethod(declarationType, "evaluateFinal");
         this.createParameters = init.getParameters()
@@ -118,8 +120,6 @@ public class AggregatorImplementer {
             elements.getPackageOf(declarationType).toString(),
             (declarationType.getSimpleName() + "AggregatorFunction").replace("AggregatorAggregator", "Aggregator")
         );
-        this.valuesIsBytesRef = BYTES_REF.equals(valueTypeName());
-        this.valuesIsArray = TypeKind.ARRAY.equals(valueTypeKind());
         intermediateState = Arrays.stream(interStateAnno).map(IntermediateStateDesc::newIntermediateStateDesc).toList();
     }
 
@@ -131,6 +131,7 @@ public class AggregatorImplementer {
         return createParameters;
     }
 
+    @Deprecated
     static String valueType(ExecutableElement init, ExecutableElement combine) {
         if (combine != null) {
             // If there's an explicit combine function it's final parameter is the type of the value.
@@ -153,6 +154,7 @@ public class AggregatorImplementer {
         }
     }
 
+    @Deprecated
     static ClassName valueBlockType(ExecutableElement init, ExecutableElement combine) {
         return switch (valueType(init, combine)) {
             case "boolean" -> BOOLEAN_BLOCK;
@@ -165,6 +167,7 @@ public class AggregatorImplementer {
         };
     }
 
+    @Deprecated
     static ClassName valueVectorType(ExecutableElement init, ExecutableElement combine) {
         return switch (valueType(init, combine)) {
             case "boolean" -> BOOLEAN_VECTOR;
@@ -372,7 +375,7 @@ public class AggregatorImplementer {
         if (masked) {
             builder.addParameter(BOOLEAN_VECTOR, "mask");
         }
-        if (valuesIsArray) {
+        if (aggParam.isArray()) {
             builder.addComment("This type does not support vectors because all values are multi-valued");
             return builder.build();
         }
@@ -380,7 +383,7 @@ public class AggregatorImplementer {
         if (singleState.hasSeen()) {
             builder.addStatement("state.seen(true)");
         }
-        if (valuesIsBytesRef) {
+        if (aggParam.isBytesRef()) {
             // Add bytes_ref scratch var that will be used for bytes_ref blocks/vectors
             builder.addStatement("$T scratch = new $T()", BYTES_REF, BYTES_REF);
         }
@@ -403,7 +406,7 @@ public class AggregatorImplementer {
             builder.addParameter(BOOLEAN_VECTOR, "mask");
         }
 
-        if (valuesIsBytesRef) {
+        if (aggParam.isBytesRef()) {
             // Add bytes_ref scratch var that will only be used for bytes_ref blocks/vectors
             builder.addStatement("$T scratch = new $T()", BYTES_REF, BYTES_REF);
         }
@@ -420,8 +423,8 @@ public class AggregatorImplementer {
             }
             builder.addStatement("int start = block.getFirstValueIndex(p)");
             builder.addStatement("int end = start + block.getValueCount(p)");
-            if (valuesIsArray) {
-                String arrayType = valueTypeString();
+            if (aggParam.isArray()) {
+                String arrayType = aggParam.type.toString().replace("[]", "");
                 builder.addStatement("$L[] valuesArray = new $L[end - start]", arrayType, arrayType);
                 builder.beginControlFlow("for (int i = start; i < end; i++)");
                 builder.addStatement("valuesArray[i-start] = $L.get$L(i)", "block", firstUpper(arrayType));
@@ -440,7 +443,7 @@ public class AggregatorImplementer {
     private void combineRawInput(MethodSpec.Builder builder, String blockVariable) {
         TypeName returnType = TypeName.get(combine.getReturnType());
         warningsBlock(builder, () -> {
-            if (valuesIsBytesRef) {
+            if (aggParam.isBytesRef()) {
                 combineRawInputForBytesRef(builder, blockVariable);
             } else if (returnType.isPrimitive()) {
                 combineRawInputForPrimitive(returnType, builder, blockVariable);
@@ -654,24 +657,6 @@ public class AggregatorImplementer {
         }
     }
 
-    private TypeMirror valueTypeMirror() {
-        return combine.getParameters().get(combine.getParameters().size() - 1).asType();
-    }
-
-    private TypeName valueTypeName() {
-        return TypeName.get(valueTypeMirror());
-    }
-
-    private TypeKind valueTypeKind() {
-        return valueTypeMirror().getKind();
-    }
-
-    private String valueTypeString() {
-        String valueTypeString = TypeName.get(valueTypeMirror()).toString();
-        return valuesIsArray ? valueTypeString.substring(0, valueTypeString.length() - 2) : valueTypeString;
-    }
-
-
     /**
      * This represents the type returned by init method used to keep aggregation state
      * @param declaredType declared state type as returned by init method
@@ -693,6 +678,20 @@ public class AggregatorImplementer {
                 hasMethod(elements, stateType, "seen()"),
                 hasMethod(elements, stateType, "failed()")
             );
+        }
+    }
+
+    private record AggregationParameter(TypeName type, boolean isArray) {
+
+        public static AggregationParameter create(TypeMirror mirror) {
+            return new AggregationParameter(
+                TypeName.get(mirror),
+                Objects.equals(mirror.getKind(), TypeKind.ARRAY)
+            );
+        }
+
+        public boolean isBytesRef() {
+            return Objects.equals(type, BYTES_REF);
         }
     }
 

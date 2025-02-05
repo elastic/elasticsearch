@@ -143,10 +143,8 @@ public class AggregatorImplementer {
         }
     }
 
-    public static String firstUpper(String s) {
-        String head = s.toString().substring(0, 1).toUpperCase(Locale.ROOT);
-        String tail = s.toString().substring(1);
-        return head + tail;
+    public static String capitalize(String s) {
+        return Character.toUpperCase(s.charAt(0)) + s.substring(1);
     }
 
     public JavaFile sourceFile() {
@@ -390,7 +388,7 @@ public class AggregatorImplementer {
                 String arrayType = aggParam.type.toString().replace("[]", "");
                 builder.addStatement("$L[] valuesArray = new $L[end - start]", arrayType, arrayType);
                 builder.beginControlFlow("for (int i = start; i < end; i++)");
-                builder.addStatement("valuesArray[i-start] = $L.get$L(i)", "block", firstUpper(arrayType));
+                builder.addStatement("valuesArray[i-start] = $L.get$L(i)", "block", capitalize(arrayType));
                 builder.endControlFlow();
                 combineRawInputForArray(builder, "valuesArray");
             } else {
@@ -425,7 +423,7 @@ public class AggregatorImplementer {
             declarationType,
             returnType,
             blockVariable,
-            firstUpper(combine.getParameters().get(1).asType().toString())
+            capitalize(combine.getParameters().get(1).asType().toString())
         );
     }
 
@@ -438,7 +436,7 @@ public class AggregatorImplementer {
             "$T.combine(state, $L.get$L(i))",
             declarationType,
             blockVariable,
-            firstUpper(combine.getParameters().get(1).asType().toString())
+            capitalize(combine.getParameters().get(1).asType().toString())
         );
     }
 
@@ -632,7 +630,7 @@ public class AggregatorImplementer {
             var stateType = declaredType.isPrimitive()
                 ? ClassName.get(
                 "org.elasticsearch.compute.aggregation",
-                firstUpper(declaredType.toString()) + (warnExceptions.isEmpty() ? "State" : "FallibleState")
+                capitalize(declaredType.toString()) + (warnExceptions.isEmpty() ? "State" : "FallibleState")
             )
                 : declaredType;
             return new SingleState(

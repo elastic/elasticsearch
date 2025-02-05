@@ -32,7 +32,7 @@ import javax.lang.model.type.TypeMirror;
 import javax.lang.model.util.Elements;
 
 import static java.util.stream.Collectors.joining;
-import static org.elasticsearch.compute.gen.AggregatorImplementer.firstUpper;
+import static org.elasticsearch.compute.gen.AggregatorImplementer.capitalize;
 import static org.elasticsearch.compute.gen.Methods.findMethod;
 import static org.elasticsearch.compute.gen.Methods.findRequiredMethod;
 import static org.elasticsearch.compute.gen.Methods.vectorAccessorName;
@@ -134,7 +134,7 @@ public class GroupingAggregatorImplementer {
         if (false == initReturn.isPrimitive()) {
             return initReturn;
         }
-        String simpleName = firstUpper(initReturn.toString());
+        String simpleName = capitalize(initReturn.toString());
         if (warnExceptions.isEmpty()) {
             return ClassName.get("org.elasticsearch.compute.aggregation", simpleName + "ArrayState");
         }
@@ -399,7 +399,7 @@ public class GroupingAggregatorImplementer {
                     String arrayType = valueTypeString();
                     builder.addStatement("$L[] valuesArray = new $L[valuesEnd - valuesStart]", arrayType, arrayType);
                     builder.beginControlFlow("for (int v = valuesStart; v < valuesEnd; v++)");
-                    builder.addStatement("valuesArray[v-valuesStart] = $L.get$L(v)", "values", firstUpper(arrayType));
+                    builder.addStatement("valuesArray[v-valuesStart] = $L.get$L(v)", "values", capitalize(arrayType));
                     builder.endControlFlow();
                     combineRawInputForArray(builder, "valuesArray");
                 } else {
@@ -445,7 +445,7 @@ public class GroupingAggregatorImplementer {
             "state.set(groupId, $T.combine(state.getOrDefault(groupId), $L.get$L($L)))",
             declarationType,
             blockVariable,
-            firstUpper(valueTypeName().toString()),
+            capitalize(valueTypeName().toString()),
             offsetVariable
         );
     }
@@ -459,13 +459,13 @@ public class GroupingAggregatorImplementer {
             "$T.combine(state, groupId, $L.get$L($L))",
             declarationType,
             blockVariable,
-            firstUpper(valueTypeName().toString()),
+            capitalize(valueTypeName().toString()),
             offsetVariable
         );
     }
 
     private void combineRawInputWithTimestamp(MethodSpec.Builder builder, String offsetVariable) {
-        String blockType = firstUpper(valueTypeName().toString());
+        String blockType = capitalize(valueTypeName().toString());
         if (offsetVariable.contains(" + ")) {
             builder.addStatement("var valuePosition = $L", offsetVariable);
             offsetVariable = "valuePosition";

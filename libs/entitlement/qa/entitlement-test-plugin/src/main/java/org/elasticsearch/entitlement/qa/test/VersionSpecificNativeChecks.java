@@ -25,7 +25,7 @@ class VersionSpecificNativeChecks {
 
     static void memorySegmentReinterpretWithCleanup() {}
 
-    static void memorySegmentReinterpretWithSizeAndCleanup() {}
+    static void memorySegmentReinterpretWithSize() {}
 
     static void symbolLookupWithPath() {}
 

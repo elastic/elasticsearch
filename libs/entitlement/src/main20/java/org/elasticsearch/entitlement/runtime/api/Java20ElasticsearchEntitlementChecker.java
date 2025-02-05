@@ -9,39 +9,27 @@
 
 package org.elasticsearch.entitlement.runtime.api;
 
-import org.elasticsearch.entitlement.bridge.Java21EntitlementChecker;
+import org.elasticsearch.entitlement.bridge.Java20EntitlementChecker;
 import org.elasticsearch.entitlement.runtime.policy.PolicyManager;
 
-import java.lang.foreign.AddressLayout;
-import java.lang.foreign.Arena;
 import java.lang.foreign.FunctionDescriptor;
 import java.lang.foreign.Linker;
-import java.lang.foreign.MemoryLayout;
 import java.lang.foreign.MemorySegment;
+import java.lang.foreign.SegmentScope;
+import java.lang.foreign.ValueLayout;
 import java.lang.invoke.MethodHandle;
 import java.nio.file.Path;
-import java.util.function.Consumer;
 
-public class Java21ElasticsearchEntitlementChecker extends ElasticsearchEntitlementChecker implements Java21EntitlementChecker {
+public class Java20ElasticsearchEntitlementChecker extends ElasticsearchEntitlementChecker implements Java20EntitlementChecker {
 
-    public Java21ElasticsearchEntitlementChecker(PolicyManager policyManager) {
+    public Java20ElasticsearchEntitlementChecker(PolicyManager policyManager) {
         super(policyManager);
-    }
-
-    @Override
-    public void check$jdk_internal_foreign_layout_ValueLayouts$OfAddressImpl$withTargetLayout(
-        Class<?> callerClass,
-        AddressLayout that,
-        MemoryLayout memoryLayout
-    ) {
-        policyManager.checkLoadingNativeLibraries(callerClass);
     }
 
     @Override
     public void check$jdk_internal_foreign_abi_AbstractLinker$downcallHandle(
         Class<?> callerClass,
         Linker that,
-        MemorySegment address,
         FunctionDescriptor function,
         Linker.Option... options
     ) {
@@ -49,9 +37,10 @@ public class Java21ElasticsearchEntitlementChecker extends ElasticsearchEntitlem
     }
 
     @Override
-    public void check$jdk_internal_foreign_abi_AbstractLinker$downcallHandle(
+    public void check$java_lang_foreign_Linker$downcallHandle(
         Class<?> callerClass,
         Linker that,
+        MemorySegment address,
         FunctionDescriptor function,
         Linker.Option... options
     ) {
@@ -64,45 +53,44 @@ public class Java21ElasticsearchEntitlementChecker extends ElasticsearchEntitlem
         Linker that,
         MethodHandle target,
         FunctionDescriptor function,
-        Arena arena,
-        Linker.Option... options
+        SegmentScope scope
     ) {
         policyManager.checkLoadingNativeLibraries(callerClass);
     }
 
     @Override
-    public void check$jdk_internal_foreign_AbstractMemorySegmentImpl$reinterpret(Class<?> callerClass, MemorySegment that, long newSize) {
+    public void check$java_lang_foreign_MemorySegment$$ofAddress(Class<?> callerClass, long address, long byteSize) {
         policyManager.checkLoadingNativeLibraries(callerClass);
     }
 
     @Override
-    public void check$jdk_internal_foreign_AbstractMemorySegmentImpl$reinterpret(
+    public void check$java_lang_foreign_MemorySegment$$ofAddress(Class<?> callerClass, long address, long byteSize, SegmentScope scope) {
+        policyManager.checkLoadingNativeLibraries(callerClass);
+    }
+
+    @Override
+    public void check$java_lang_foreign_MemorySegment$$ofAddress(
         Class<?> callerClass,
-        MemorySegment that,
-        long newSize,
-        Arena arena,
-        Consumer<MemorySegment> cleanup
+        long address,
+        long byteSize,
+        SegmentScope scope,
+        Runnable cleanupAction
     ) {
         policyManager.checkLoadingNativeLibraries(callerClass);
     }
 
     @Override
-    public void check$jdk_internal_foreign_AbstractMemorySegmentImpl$reinterpret(
-        Class<?> callerClass,
-        MemorySegment that,
-        Arena arena,
-        Consumer<MemorySegment> cleanup
-    ) {
+    public void check$jdk_internal_foreign_layout_ValueLayouts$OfAddressImpl$asUnbounded(Class<?> callerClass, ValueLayout.OfAddress that) {
         policyManager.checkLoadingNativeLibraries(callerClass);
     }
 
     @Override
-    public void check$java_lang_foreign_SymbolLookup$$libraryLookup(Class<?> callerClass, String name, Arena arena) {
+    public void check$java_lang_foreign_SymbolLookup$$libraryLookup(Class<?> callerClass, String name, SegmentScope scope) {
         policyManager.checkLoadingNativeLibraries(callerClass);
     }
 
     @Override
-    public void check$java_lang_foreign_SymbolLookup$$libraryLookup(Class<?> callerClass, Path path, Arena arena) {
+    public void check$java_lang_foreign_SymbolLookup$$libraryLookup(Class<?> callerClass, Path path, SegmentScope scope) {
         // TODO: check filesystem entitlement READ
         policyManager.checkLoadingNativeLibraries(callerClass);
     }

@@ -64,6 +64,9 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
             if (ESTestCase.randomDouble() <= 0.2) {
                 injected.put("ignore_above", ESTestCase.randomIntBetween(1, 100));
             }
+            if (ESTestCase.randomDouble() <= 0.2) {
+                injected.put("null_value", ESTestCase.randomAlphaOfLengthBetween(0, 10));
+            }
 
             return injected;
         };

@@ -9,27 +9,53 @@
 
 package org.elasticsearch.xpack.inference.external.response.jinaai;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.inference.results.InferenceByteEmbedding;
+import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingBitResults;
 import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.jinaai.JinaAIEmbeddingsRequest;
 import org.elasticsearch.xpack.inference.external.response.XContentUtils;
+import org.elasticsearch.xpack.inference.services.jinaai.embeddings.JinaAIEmbeddingType;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.parseList;
 import static org.elasticsearch.xpack.inference.external.response.XContentUtils.consumeUntilObjectEnd;
 import static org.elasticsearch.xpack.inference.external.response.XContentUtils.moveToFirstToken;
 import static org.elasticsearch.xpack.inference.external.response.XContentUtils.positionParserAtTokenAfterField;
+import static org.elasticsearch.xpack.inference.services.jinaai.embeddings.JinaAIEmbeddingType.toLowerCase;
 
 public class JinaAIEmbeddingsResponseEntity {
     private static final String FAILED_TO_FIND_FIELD_TEMPLATE = "Failed to find required field [%s] in JinaAI embeddings response";
+
+    private static final Map<String, CheckedFunction<XContentParser, InferenceServiceResults, IOException>> EMBEDDING_PARSERS = Map.of(
+        toLowerCase(JinaAIEmbeddingType.FLOAT),
+        JinaAIEmbeddingsResponseEntity::parseFloatDataObject,
+        toLowerCase(JinaAIEmbeddingType.BIT),
+        JinaAIEmbeddingsResponseEntity::parseBitDataObject,
+        toLowerCase(JinaAIEmbeddingType.BINARY),
+        JinaAIEmbeddingsResponseEntity::parseBitDataObject
+    );
+    private static final String VALID_EMBEDDING_TYPES_STRING = supportedEmbeddingTypes();
+
+    private static String supportedEmbeddingTypes() {
+        var validTypes = EMBEDDING_PARSERS.keySet().toArray(String[]::new);
+        Arrays.sort(validTypes);
+        return String.join(", ", validTypes);
+    }
 
     /**
      * Parses the JinaAI json response.
@@ -73,8 +99,21 @@ public class JinaAIEmbeddingsResponseEntity {
      * </code>
      * </pre>
      */
-    public static InferenceTextEmbeddingFloatResults fromResponse(Request request, HttpResult response) throws IOException {
+    public static InferenceServiceResults fromResponse(Request request, HttpResult response) throws IOException {
+        // embeddings type is not specified anywhere in the response so grab it from the request
+        JinaAIEmbeddingsRequest embeddingsRequest = (JinaAIEmbeddingsRequest) request;
+        var embeddingType = embeddingsRequest.getEmbeddingType().toString();
         var parserConfig = XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
+        var embeddingValueParser = EMBEDDING_PARSERS.get(embeddingType);
+
+        if (embeddingValueParser == null) {
+            throw new IllegalStateException(
+                Strings.format(
+                    "Failed to find a supported embedding type for in the Jina AI embeddings response. Supported types are [%s]",
+                    VALID_EMBEDDING_TYPES_STRING
+                )
+            );
+        }
 
         try (XContentParser jsonParser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, response.body())) {
             moveToFirstToken(jsonParser);
@@ -84,26 +123,63 @@ public class JinaAIEmbeddingsResponseEntity {
 
             positionParserAtTokenAfterField(jsonParser, "data", FAILED_TO_FIND_FIELD_TEMPLATE);
 
-            List<InferenceTextEmbeddingFloatResults.InferenceFloatEmbedding> embeddingList = parseList(
-                jsonParser,
-                JinaAIEmbeddingsResponseEntity::parseEmbeddingObject
-            );
-
-            return new InferenceTextEmbeddingFloatResults(embeddingList);
+            return embeddingValueParser.apply(jsonParser);
         }
     }
 
-    private static InferenceTextEmbeddingFloatResults.InferenceFloatEmbedding parseEmbeddingObject(XContentParser parser)
+    private static InferenceTextEmbeddingFloatResults parseFloatDataObject(XContentParser jsonParser) throws IOException {
+        List<InferenceTextEmbeddingFloatResults.InferenceFloatEmbedding> embeddingList = parseList(
+            jsonParser,
+            JinaAIEmbeddingsResponseEntity::parseFloatEmbeddingObject
+        );
+
+        return new InferenceTextEmbeddingFloatResults(embeddingList);
+    }
+
+    private static InferenceTextEmbeddingFloatResults.InferenceFloatEmbedding parseFloatEmbeddingObject(XContentParser parser)
         throws IOException {
         ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
 
         positionParserAtTokenAfterField(parser, "embedding", FAILED_TO_FIND_FIELD_TEMPLATE);
 
-        List<Float> embeddingValuesList = parseList(parser, XContentUtils::parseFloat);
+        var embeddingValuesList = parseList(parser, XContentUtils::parseFloat);
         // parse and discard the rest of the object
         consumeUntilObjectEnd(parser);
 
         return InferenceTextEmbeddingFloatResults.InferenceFloatEmbedding.of(embeddingValuesList);
+    }
+
+    private static InferenceTextEmbeddingBitResults parseBitDataObject(XContentParser jsonParser) throws IOException {
+        List<InferenceByteEmbedding> embeddingList = parseList(jsonParser, JinaAIEmbeddingsResponseEntity::parseBitEmbeddingObject);
+
+        return new InferenceTextEmbeddingBitResults(embeddingList);
+    }
+
+    private static InferenceByteEmbedding parseBitEmbeddingObject(XContentParser parser) throws IOException {
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
+
+        positionParserAtTokenAfterField(parser, "embedding", FAILED_TO_FIND_FIELD_TEMPLATE);
+
+        var embeddingList = parseList(parser, JinaAIEmbeddingsResponseEntity::parseEmbeddingInt8Entry);
+        // parse and discard the rest of the object
+        consumeUntilObjectEnd(parser);
+
+        return InferenceByteEmbedding.of(embeddingList);
+    }
+
+    private static Byte parseEmbeddingInt8Entry(XContentParser parser) throws IOException {
+        XContentParser.Token token = parser.currentToken();
+        ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser);
+        var parsedByte = parser.shortValue();
+        checkByteBounds(parsedByte);
+
+        return (byte) parsedByte;
+    }
+
+    private static void checkByteBounds(short value) {
+        if (value < Byte.MIN_VALUE || value > Byte.MAX_VALUE) {
+            throw new IllegalArgumentException("Value [" + value + "] is out of range for a byte");
+        }
     }
 
     private JinaAIEmbeddingsResponseEntity() {}

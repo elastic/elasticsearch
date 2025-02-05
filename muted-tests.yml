@@ -147,9 +147,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/118914
 - class: org.elasticsearch.xpack.security.authc.ldap.ActiveDirectoryRunAsIT
   issue: https://github.com/elastic/elasticsearch/issues/115727
-- class: org.elasticsearch.xpack.esql.action.EsqlNodeFailureIT
-  method: testFailureLoadingFields
-  issue: https://github.com/elastic/elasticsearch/issues/118000
 - class: org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapperTests
   method: testCartesianBoundsBlockLoader
   issue: https://github.com/elastic/elasticsearch/issues/119201
@@ -305,9 +302,6 @@ tests:
 - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
   method: test {yaml=reference/snapshot-restore/apis/get-snapshot-api/line_357}
   issue: https://github.com/elastic/elasticsearch/issues/121287
-- class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
-  method: test {p0=search.vectors/42_knn_search_int4_flat/Vector similarity with filter only}
-  issue: https://github.com/elastic/elasticsearch/issues/115475
 - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
   method: test {yaml=reference/index-modules/slowlog/line_102}
   issue: https://github.com/elastic/elasticsearch/issues/121288
@@ -332,12 +326,6 @@ tests:
 - class: org.elasticsearch.xpack.security.profile.ProfileIntegTests
   method: testActivateProfile
   issue: https://github.com/elastic/elasticsearch/issues/121151
-- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
-  method: test {yaml=search.vectors/42_knn_search_int4_flat/Vector similarity with filter only}
-  issue: https://github.com/elastic/elasticsearch/issues/121350
-- class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
-  method: test {p0=search.vectors/42_knn_search_int4_flat/KNN Vector similarity search only}
-  issue: https://github.com/elastic/elasticsearch/issues/121395
 - class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
   issue: https://github.com/elastic/elasticsearch/issues/121407
 - class: org.elasticsearch.xpack.ml.integration.ClassificationIT
@@ -370,8 +358,6 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=search.vectors/42_knn_search_int4_flat/Vector similarity with filter only}
   issue: https://github.com/elastic/elasticsearch/issues/121412
-- class: org.elasticsearch.xpack.inference.common.InferenceServiceNodeLocalRateLimitCalculatorTests
-  issue: https://github.com/elastic/elasticsearch/issues/121294
 - class: org.elasticsearch.xpack.ml.integration.ClassificationIT
   method: testDependentVariableIsAliasToKeyword
   issue: https://github.com/elastic/elasticsearch/issues/121492
@@ -393,6 +379,15 @@ tests:
 - class: org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT
   method: test {p0=mixed_cluster/110_enrich/Enrich stats query smoke test for mixed cluster}
   issue: https://github.com/elastic/elasticsearch/issues/121642
+- class: org.elasticsearch.search.CrossClusterSearchUnavailableClusterIT
+  method: testSearchSkipUnavailable
+  issue: https://github.com/elastic/elasticsearch/issues/121497
+- class: org.elasticsearch.xpack.esql.action.CrossClusterAsyncQueryStopIT
+  method: testStopQueryLocal
+  issue: https://github.com/elastic/elasticsearch/issues/121672
+- class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackIT
+  method: testLookupExplosionBigStringManyMatches
+  issue: https://github.com/elastic/elasticsearch/issues/121465
 
 # Examples:
 #

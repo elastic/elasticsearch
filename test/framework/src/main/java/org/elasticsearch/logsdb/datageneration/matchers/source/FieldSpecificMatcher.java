@@ -15,6 +15,7 @@ import org.elasticsearch.logsdb.datageneration.matchers.MatchResult;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.math.BigInteger;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -221,6 +222,129 @@ interface FieldSpecificMatcher {
             }
 
             return (BigInteger) value;
+        }
+    }
+
+    class CountedKeywordMatcher implements FieldSpecificMatcher {
+        private final XContentBuilder actualMappings;
+        private final Settings.Builder actualSettings;
+        private final XContentBuilder expectedMappings;
+        private final Settings.Builder expectedSettings;
+
+        CountedKeywordMatcher(
+            XContentBuilder actualMappings,
+            Settings.Builder actualSettings,
+            XContentBuilder expectedMappings,
+            Settings.Builder expectedSettings
+        ) {
+            this.actualMappings = actualMappings;
+            this.actualSettings = actualSettings;
+            this.expectedMappings = expectedMappings;
+            this.expectedSettings = expectedSettings;
+        }
+
+        private static List<String> normalize(List<Object> values) {
+            return values.stream().filter(Objects::nonNull).map(it -> (String) it).toList();
+        }
+
+        private static boolean matchCountsEqualExact(List<String> actualNormalized, List<String> expectedNormalized) {
+            HashMap<String, Integer> counts = new HashMap<>();
+            for (String value : actualNormalized) {
+                counts.put(value, counts.getOrDefault(value, 0) + 1);
+            }
+            for (String value : expectedNormalized) {
+                int newCount = counts.getOrDefault(value, 0) - 1;
+                if (newCount == 0) {
+                    counts.remove(value);
+                } else {
+                    counts.put(value, newCount);
+                }
+            }
+
+            return counts.isEmpty();
+        }
+
+        @Override
+        public MatchResult match(
+            List<Object> actual,
+            List<Object> expected,
+            Map<String, Object> actualMapping,
+            Map<String, Object> expectedMapping
+        ) {
+            var actualNormalized = normalize(actual);
+            var expectedNormalized = normalize(expected);
+
+            return matchCountsEqualExact(actualNormalized, expectedNormalized)
+                ? MatchResult.match()
+                : MatchResult.noMatch(
+                    formatErrorMessage(
+                        actualMappings,
+                        actualSettings,
+                        expectedMappings,
+                        expectedSettings,
+                        "Values of type [counted_keyword] don't match after normalization, normalized"
+                            + prettyPrintCollections(actualNormalized, expectedNormalized)
+                    )
+                );
+        }
+    }
+
+    class KeywordMatcher implements FieldSpecificMatcher {
+        private final XContentBuilder actualMappings;
+        private final Settings.Builder actualSettings;
+        private final XContentBuilder expectedMappings;
+        private final Settings.Builder expectedSettings;
+
+        KeywordMatcher(
+            XContentBuilder actualMappings,
+            Settings.Builder actualSettings,
+            XContentBuilder expectedMappings,
+            Settings.Builder expectedSettings
+        ) {
+            this.actualMappings = actualMappings;
+            this.actualSettings = actualSettings;
+            this.expectedMappings = expectedMappings;
+            this.expectedSettings = expectedSettings;
+        }
+
+        @Override
+        public MatchResult match(
+            List<Object> actual,
+            List<Object> expected,
+            Map<String, Object> actualMapping,
+            Map<String, Object> expectedMapping
+        ) {
+            var nullValue = actualMapping.get("null_value");
+            var expectedNullValue = expectedMapping.get("null_value");
+            if (Objects.equals(nullValue, expectedNullValue) == false) {
+                throw new IllegalStateException(
+                    "[null_value] parameter for [keyword] field does not match between actual and expected mapping"
+                );
+            }
+
+            var expectedNormalized = normalize(expected, (String) nullValue);
+            var actualNormalized = normalize(actual, (String) nullValue);
+
+            return actualNormalized.equals(expectedNormalized)
+                ? MatchResult.match()
+                : MatchResult.noMatch(
+                    formatErrorMessage(
+                        actualMappings,
+                        actualSettings,
+                        expectedMappings,
+                        expectedSettings,
+                        "Values of type [keyword] don't match after normalization, normalized "
+                            + prettyPrintCollections(actualNormalized, expectedNormalized)
+                    )
+                );
+        }
+
+        private static Set<String> normalize(List<Object> values, String nullValue) {
+            if (values == null) {
+                return Set.of();
+            }
+
+            return values.stream().map(v -> v == null ? nullValue : (String) v).filter(Objects::nonNull).collect(Collectors.toSet());
         }
     }
 }

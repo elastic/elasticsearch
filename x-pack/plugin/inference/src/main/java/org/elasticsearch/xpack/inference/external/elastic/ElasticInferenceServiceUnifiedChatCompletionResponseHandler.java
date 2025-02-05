@@ -20,12 +20,7 @@ import java.util.concurrent.Flow;
 
 public class ElasticInferenceServiceUnifiedChatCompletionResponseHandler extends ElasticInferenceServiceResponseHandler {
     public ElasticInferenceServiceUnifiedChatCompletionResponseHandler(String requestType, ResponseParser parseFunction) {
-        super(requestType, parseFunction);
-    }
-
-    @Override
-    public boolean canHandleStreamingResponses() {
-        return true;
+        super(requestType, parseFunction, true);
     }
 
     @Override

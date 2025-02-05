@@ -8,12 +8,12 @@ package org.elasticsearch.xpack.aggregatemetric.fielddata;
 
 import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
-import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper.Metric;
+import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateMetricDoubleFieldMapper.Metric;
 
 /**
- * {@link LeafFieldData} specialization for aggregate_double_metric data.
+ * {@link LeafFieldData} specialization for aggregate_metric_double data.
  */
-public interface LeafAggregateDoubleMetricFieldData extends LeafFieldData {
+public interface LeafAggregateMetricDoubleFieldData extends LeafFieldData {
 
     /**
      * Return aggregate_metric of double values for a given metric

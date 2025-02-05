@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.core.inference.results;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ToXContent;
@@ -77,11 +77,11 @@ public class UnifiedChatCompletionException extends XContentFormattedException {
     }
 
     private static Iterator<ToXContent> field(String key, String value) {
-        return ChunkedToXContentHelper.chunk((b, p) -> b.field(key, value));
+        return Iterators.single((b, p) -> b.field(key, value));
     }
 
     private static Iterator<ToXContent> optionalField(String key, String value) {
-        return value != null ? ChunkedToXContentHelper.chunk((b, p) -> b.field(key, value)) : emptyIterator();
+        return value != null ? Iterators.single((b, p) -> b.field(key, value)) : emptyIterator();
     }
 
     public static UnifiedChatCompletionException fromThrowable(Throwable t) {

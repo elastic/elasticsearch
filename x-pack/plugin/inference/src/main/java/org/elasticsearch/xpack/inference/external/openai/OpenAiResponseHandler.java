@@ -56,7 +56,7 @@ public class OpenAiResponseHandler extends BaseResponseHandler {
         boolean canHandleStreamingResponses
     ) {
         super(requestType, parseFunction, errorParseFunction);
-	this.canHandleStreamingResponses = canHandleStreamingResponses;
+        this.canHandleStreamingResponses = canHandleStreamingResponses;
     }
 
     /**

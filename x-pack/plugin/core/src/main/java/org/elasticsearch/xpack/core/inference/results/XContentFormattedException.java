@@ -11,7 +11,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -68,16 +67,6 @@ public class XContentFormattedException extends ElasticsearchException implement
             Iterators.single((b, p) -> b.field("status", status.getStatus())),
             ChunkedToXContentHelper.endObject()
         );
-    }
-
-    @Override
-    public Iterator<? extends ToXContent> toXContentChunked(RestApiVersion restApiVersion, Params params) {
-        return ChunkedToXContent.super.toXContentChunked(restApiVersion, params);
-    }
-
-    @Override
-    public Iterator<? extends ToXContent> toXContentChunkedV8(Params params) {
-        return ChunkedToXContent.super.toXContentChunkedV8(params);
     }
 
     @Override

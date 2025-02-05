@@ -48,7 +48,6 @@ public class LuceneQueryScoreEvaluator implements ScoreOperator.ExpressionScorer
 
     public static final double NO_MATCH_SCORE = 0.0;
 
-
     private final BlockFactory blockFactory;
     private final ShardConfig[] shards;
 

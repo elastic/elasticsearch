@@ -396,6 +396,9 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/121465
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
   issue: https://github.com/elastic/elasticsearch/issues/121411
+- class: org.elasticsearch.transport.InboundHandlerTests
+  method: testLogsSlowInboundProcessing
+  issue: https://github.com/elastic/elasticsearch/issues/121816
 
 # Examples:
 #

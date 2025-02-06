@@ -38,7 +38,8 @@ import java.util.List;
  * <p>
  * from test | sort x | mv_expand x | sort y
  * <p>
- * "sort y" will become a TopN, but "sort x" will remain unbounded, so the query could not be executed.
+ * "sort y" will become a TopN due to the addition of the default Limit, but "sort x" will remain unbounded,
+ * so the query could not be executed.
  * <p>
  * In most cases though, following commands can make the previous SORTs redundant,
  * because it will re-sort previously sorted results (eg. if there is another SORT)

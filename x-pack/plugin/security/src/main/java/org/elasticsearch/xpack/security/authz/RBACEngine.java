@@ -660,6 +660,7 @@ public class RBACEngine implements AuthorizationEngine {
                 Sets.newHashSet(check.getIndices()),
                 check.allowRestrictedIndices(),
                 Sets.newHashSet(check.getPrivileges()),
+                null,
                 combineIndicesResourcePrivileges
             );
             allMatch = allMatch && privilegesGranted;

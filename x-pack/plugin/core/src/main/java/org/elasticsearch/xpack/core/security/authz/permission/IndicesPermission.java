@@ -296,6 +296,7 @@ public final class IndicesPermission {
         Set<String> checkForIndexPatterns,
         boolean allowRestrictedIndices,
         Set<String> checkForPrivileges,
+        @Nullable IndexComponentSelector selector,
         @Nullable ResourcePrivilegesMap.Builder resourcePrivilegesMapBuilder
     ) {
         return checkResourcePrivileges(
@@ -303,6 +304,7 @@ public final class IndicesPermission {
             allowRestrictedIndices,
             checkForPrivileges,
             false,
+            selector,
             resourcePrivilegesMapBuilder
         );
     }
@@ -326,11 +328,13 @@ public final class IndicesPermission {
         boolean allowRestrictedIndices,
         Set<String> checkForPrivileges,
         boolean combineIndexGroups,
+        @Nullable IndexComponentSelector selector,
         @Nullable ResourcePrivilegesMap.Builder resourcePrivilegesMapBuilder
     ) {
         boolean allMatch = true;
         Map<Automaton, Automaton> indexGroupAutomatons = indexGroupAutomatons(
-            combineIndexGroups && checkForIndexPatterns.stream().anyMatch(Automatons::isLuceneRegex)
+            combineIndexGroups && checkForIndexPatterns.stream().anyMatch(Automatons::isLuceneRegex),
+            selector
         );
         for (String forIndexPattern : checkForIndexPatterns) {
             Automaton checkIndexAutomaton = Automatons.patterns(forIndexPattern);
@@ -390,7 +394,8 @@ public final class IndicesPermission {
     public Automaton allowedActionsMatcher(String index) {
         List<Automaton> automatonList = new ArrayList<>();
         for (Group group : groups) {
-            if (group.indexNameMatcher.test(index)) {
+            // TODO failure store?
+            if (group.checkIndex(index) && group.checkSelector(null)) {
                 automatonList.add(group.privilege.getAutomaton());
             }
         }
@@ -809,10 +814,13 @@ public final class IndicesPermission {
      *
      * @return a map of all index and privilege pattern automatons
      */
-    private Map<Automaton, Automaton> indexGroupAutomatons(boolean combine) {
+    private Map<Automaton, Automaton> indexGroupAutomatons(boolean combine, @Nullable IndexComponentSelector selector) {
         // Map of privilege automaton object references (cached by IndexPrivilege::CACHE)
         Map<Automaton, Automaton> allAutomatons = new HashMap<>();
         for (Group group : groups) {
+            if (false == group.checkSelector(selector)) {
+                continue;
+            }
             Automaton indexAutomaton = group.getIndexMatcherAutomaton();
             allAutomatons.compute(
                 group.privilege().getAutomaton(),

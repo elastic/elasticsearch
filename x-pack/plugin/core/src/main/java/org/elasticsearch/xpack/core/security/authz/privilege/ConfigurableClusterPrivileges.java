@@ -653,7 +653,7 @@ public final class ConfigurableClusterPrivileges {
             String[] requestIndexPatterns,
             String[] privileges
         ) {
-            return indicesPermission.checkResourcePrivileges(Set.of(requestIndexPatterns), false, Set.of(privileges), true, null);
+            return indicesPermission.checkResourcePrivileges(Set.of(requestIndexPatterns), false, Set.of(privileges), true, null, null);
         }
 
         private static boolean hasNonIndexPrivileges(RoleDescriptor roleDescriptor) {

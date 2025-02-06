@@ -102,7 +102,13 @@ public class PolicyParser {
                     return;
                 }
             }
-            throw new AssertionError("External entitlement class must have a constructor with @ExternalEntitlement annotation: " + type);
+            for (var m : type.getMethods()) {
+                if (Modifier.isStatic(m.getModifiers()) && m.isAnnotationPresent(ExternalEntitlement.class)) {
+                    // All is well
+                    return;
+                }
+            }
+            throw new AssertionError("External entitlement class must have a constructor or factory method with @ExternalEntitlement annotation: " + type);
         });
         return externalEntitlements;
     }

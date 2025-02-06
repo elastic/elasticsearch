@@ -660,6 +660,7 @@ FROM k8s
   | EVAL @timestamp=CASE(@timestamp=="2024-05-10T00:08:00.000Z", NULL, @timestamp)
   | EVAL count=count+CASE(@timestamp<="2024-05-10T00:11:00.000Z", 100, 0)
   | CHANGE_POINT count ON @timestamp AS type, pvalue
+  | SORT @timestamp, count
 ;
 
 @timestamp:datetime      | count:long | type:keyword | pvalue:double        
@@ -684,8 +685,8 @@ FROM k8s
 2024-05-10T00:20:00.000Z | 10         | null         | null                 
 2024-05-10T00:21:00.000Z | 4          | null         | null                 
 2024-05-10T00:22:00.000Z | 9          | null         | null                 
-null                     | 12         | null         | null                 
 null                     | 5          | null         | null  
+null                     | 12         | null         | null                 
 ;
 
 null values

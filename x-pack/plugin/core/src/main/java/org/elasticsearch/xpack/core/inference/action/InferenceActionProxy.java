@@ -126,7 +126,7 @@ public class InferenceActionProxy extends ActionType<InferenceAction.Response> {
 
         @Override
         public int hashCode() {
-            return Objects.hash(taskType, inferenceEntityId, content, contentType);
+            return Objects.hash(taskType, inferenceEntityId, content, contentType, timeout, stream);
         }
     }
 }

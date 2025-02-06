@@ -592,7 +592,7 @@ public class SearchAsyncActionTests extends ESTestCase {
                             connection.getNode()
                         );
                         try {
-                            if (numRetries <  shardIt.size()) {
+                            if (numRetries < shardIt.size()) {
                                 numFailReplicas.incrementAndGet();
                                 listener.onFailure(new RuntimeException());
                             } else {

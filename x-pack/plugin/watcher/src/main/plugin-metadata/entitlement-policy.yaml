@@ -1,2 +1,3 @@
 ALL-UNNAMED:
   - create_thread
+  - set_thread_property

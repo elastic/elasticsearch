@@ -40,6 +40,7 @@ import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -83,7 +84,6 @@ import java.util.Set;
 
 import static org.apache.lucene.index.IndexWriter.MAX_TERM_LENGTH;
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.index.IndexSettings.DOC_VALUES_SPARSE_INDEX;
 import static org.elasticsearch.index.IndexSettings.IGNORE_ABOVE_SETTING;
 import static org.elasticsearch.index.IndexSettings.USE_DOC_VALUES_SPARSE_INDEX;
 
@@ -214,7 +214,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 mappingParserContext.getIndexSettings().getIndexVersionCreated(),
                 mappingParserContext.getIndexSettings().getMode(),
                 mappingParserContext.getIndexSettings().getIndexSortConfig(),
-                DOC_VALUES_SPARSE_INDEX.isEnabled() && USE_DOC_VALUES_SPARSE_INDEX.get(mappingParserContext.getSettings())
+                USE_DOC_VALUES_SPARSE_INDEX.get(mappingParserContext.getSettings())
             );
         }
 
@@ -273,7 +273,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 });
             this.indexSortConfig = indexSortConfig;
             this.indexMode = indexMode;
-            this.useDocValuesSparseIndex = useDocValuesSparseIndex;
+            this.useDocValuesSparseIndex = IndexSettings.DOC_VALUES_SPARSE_INDEX.isEnabled() && useDocValuesSparseIndex;
         }
 
         public Builder(String name, IndexVersion indexCreatedVersion) {

@@ -2060,6 +2060,7 @@ public class VerifierTests extends ESTestCase {
                 error(Strings.format("ROW key=0, value=NULL::%s\n | CHANGE_POINT value ON key", type))
             );
         }
+        assertEquals("2:4: change point value [value] must be numeric", error("ROW key=0, value=NULL\n | CHANGE_POINT value ON key"));
     }
 
     public void testSortByAggregate() {

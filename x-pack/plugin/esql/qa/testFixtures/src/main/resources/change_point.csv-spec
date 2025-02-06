@@ -541,6 +541,77 @@ FROM k8s
 ;
 
 
+same key and value column
+required_capability: change_point
+
+FROM k8s
+  | STATS count=COUNT() BY BUCKET(@timestamp, 1 MINUTE)
+  | KEEP count
+  | CHANGE_POINT count ON count AS type, pvalue
+;
+
+count:long | type:keyword | pvalue:double
+4          | null         | null                 
+4          | null         | null                 
+4          | null         | null                 
+5          | null         | null                 
+5          | null         | null                 
+5          | null         | null                 
+5          | null         | null                 
+7          | null         | null                 
+7          | null         | null                 
+8          | null         | null                 
+8          | null         | null                 
+8          | null         | null                 
+8          | trend_change | 3.793633808495355E-12
+9          | null         | null                 
+9          | null         | null                 
+9          | null         | null                 
+10         | null         | null                 
+10         | null         | null                 
+11         | null         | null                 
+12         | null         | null                 
+15         | null         | null                 
+17         | null         | null                 
+20         | null         | null 
+;
+
+
+all four columns the same
+
+FROM k8s
+  | STATS count=COUNT() BY BUCKET(@timestamp, 1 MINUTE)
+  | KEEP count
+  | CHANGE_POINT count ON count AS count, count
+;
+
+count:double
+null                 
+null                 
+null                 
+null                 
+null                 
+null                 
+null                 
+null                 
+null                 
+null                 
+null                 
+null                 
+3.793633808495355E-12
+null                 
+null                 
+null                 
+null                 
+null                 
+null                 
+null                 
+null                 
+null                 
+null 
+;
+
+
 rename columns
 required_capability: change_point
 
@@ -576,6 +647,44 @@ time:datetime            | cnt:long | kind:keyword | significance:double
 2024-05-10T00:20:00.000Z | 10       | null         | null                   
 2024-05-10T00:21:00.000Z | 4        | null         | null                   
 2024-05-10T00:22:00.000Z | 9        | null         | null                   
+;
+
+
+null keys
+required_capability: change_point
+
+FROM k8s
+  | STATS count=COUNT() BY @timestamp=BUCKET(@timestamp, 1 MINUTE)
+  | EVAL @timestamp=CASE(@timestamp=="2024-05-10T00:04:00.000Z", NULL, @timestamp)
+  | EVAL @timestamp=CASE(@timestamp=="2024-05-10T00:08:00.000Z", NULL, @timestamp)
+  | EVAL count=count+CASE(@timestamp<="2024-05-10T00:11:00.000Z", 100, 0)
+  | CHANGE_POINT count ON @timestamp AS type, pvalue
+;
+
+@timestamp:datetime      | count:long | type:keyword | pvalue:double        
+2024-05-10T00:00:00.000Z | 104        | null         | null                 
+2024-05-10T00:01:00.000Z | 104        | null         | null                 
+2024-05-10T00:02:00.000Z | 108        | null         | null                 
+2024-05-10T00:03:00.000Z | 108        | null         | null                 
+2024-05-10T00:05:00.000Z | 108        | null         | null                 
+2024-05-10T00:06:00.000Z | 110        | null         | null                 
+2024-05-10T00:07:00.000Z | 105        | null         | null                 
+2024-05-10T00:09:00.000Z | 120        | null         | null                 
+2024-05-10T00:10:00.000Z | 105        | null         | null                 
+2024-05-10T00:11:00.000Z | 107        | null         | null                 
+2024-05-10T00:12:00.000Z | 8          | step_change  | 9.678892139828202E-24
+2024-05-10T00:13:00.000Z | 9          | null         | null                 
+2024-05-10T00:14:00.000Z | 9          | null         | null                 
+2024-05-10T00:15:00.000Z | 11         | null         | null                 
+2024-05-10T00:16:00.000Z | 7          | null         | null                 
+2024-05-10T00:17:00.000Z | 15         | null         | null                 
+2024-05-10T00:18:00.000Z | 17         | null         | null                 
+2024-05-10T00:19:00.000Z | 5          | null         | null                 
+2024-05-10T00:20:00.000Z | 10         | null         | null                 
+2024-05-10T00:21:00.000Z | 4          | null         | null                 
+2024-05-10T00:22:00.000Z | 9          | null         | null                 
+null                     | 12         | null         | null                 
+null                     | 5          | null         | null  
 ;
 
 null values
@@ -796,6 +905,43 @@ time:integer | val:integer | type:keyword | pvalue:double
 23           | 8           | null         | null                   
 24           | 9           | null         | null                   
 25           | 10          | null         | null               
+;
+
+
+keys null column
+required_capability: change_point
+
+ROW key=NULL, value=[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+  | MV_EXPAND value
+  | CHANGE_POINT value ON key
+;
+
+key:null | value:integer | type:keyword | pvalue:double
+null     | 1             | null         | null         
+null     | 1             | null         | null         
+null     | 1             | null         | null         
+null     | 1             | null         | null         
+null     | 1             | null         | null         
+null     | 1             | null         | null         
+null     | 1             | null         | null         
+null     | 1             | null         | null         
+null     | 1             | null         | null         
+null     | 1             | null         | null         
+null     | 1             | null         | null         
+null     | 1             | null         | null         
+null     | 1             | null         | null         
+null     | 1             | null         | null         
+null     | 1             | null         | null         
+null     | 1             | null         | null         
+null     | 1             | null         | null         
+null     | 1             | null         | null         
+null     | 1             | null         | null         
+null     | 1             | null         | null         
+null     | 1             | null         | null         
+null     | 1             | null         | null         
+null     | 1             | null         | null         
+null     | 1             | null         | null         
+null     | 1             | null         | null         
 ;
 
 
